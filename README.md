@@ -1,5 +1,5 @@
 <p align="center">
-<img width=50% src="/isodata-header.png" alt="isodata logo" />
+<img width=75% src="/isodata-header.png" alt="isodata logo" />
 </p>
 
 ## ISO Data
