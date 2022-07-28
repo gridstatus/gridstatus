@@ -1,8 +1,6 @@
 import json5
-import re
-from bs4 import BeautifulSoup
-from errno import ESTALE
 import pandas as pd
+from tabulate import tabulate
 import requests
 # TODO: this is needed to make SPP request work. restrict only to SPP
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
@@ -22,24 +20,32 @@ class ISOBase:
 class FuelMix:
     def __init__(self, time, mix, unit="MW") -> None:
         self.time = time
-        self.mix = pd.Series(mix).sort_values(ascending=False)
         self.unit = unit
+
+        mix_df = pd.Series(mix, name=self.unit).sort_values(
+            ascending=False).to_frame()
+        mix_df["Percent"] = mix_df[self.unit] / mix_df[self.unit].sum() * 100
+        mix_df.index.name = "Fuel"
+        self._mix_df = mix_df
 
     def __repr__(self) -> str:
         # TODO sort by magnitude
         s = "Total Production: %d %s \n" % (self.total_production, self.unit)
         s += "Time: %s \n" % self.time
-        s += "-----------------\n"
 
-        for fuel, value in self.mix.iteritems():
-            percent = (value / self.total_production)*100
-            s += fuel + ": %d %s" % (value, self.unit) + \
-                " - %.1f" % percent + "%\n"
+        mix = self.mix
+        mix["Percent"] = mix["Percent"].round(1)
+        s += tabulate(mix, headers='keys', tablefmt='psql')
+
         return s
 
     @property
     def total_production(self):
-        return self.mix.sum()
+        return self.mix[self.unit].sum()
+
+    @property
+    def mix(self):
+        return self._mix_df.copy()
 
 
 class MISO(ISOBase):
@@ -150,17 +156,44 @@ class SPP(ISOBase):
         return FuelMix(time=time, mix=current_mix)
 
 
+class NYISO(ISOBase):
+
+    def get_fuel_mix(self):
+        # note: this is simlar datastructure to pjm
+        url = "https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-current?1659038374105"
+        data = self.get_json(url)
+        mix_df = pd.DataFrame(data["data"])
+        time = mix_df["timeStamp"].max()
+        mix_df = mix_df[mix_df["timeStamp"]
+                        == time].set_index("fuelCategory")["genMWh"]
+        mix_dict = mix_df.to_dict()
+        return FuelMix(time, mix_dict)
+
+
+class ISONE(ISOBase):
+
+    def get_fuel_mix(self):
+        r = requests.post("https://www.iso-ne.com/ws/wsclient",
+                          data={"_nstmp_requestType": "url", "_nstmp_requestUrl": "/genfuelmix/current"}).json()
+
+        mix_df = pd.DataFrame(r[0]['data']['GenFuelMixes']['GenFuelMix'])
+        time = mix_df["BeginDate"].max()  # eastern time
+
+        mix_dict = mix_df.set_index("FuelCategory")["GenMw"].to_dict()
+        return FuelMix(time, mix_dict)
+
+
 if __name__ == "__main__":
 
-    # isos = [MISO(), CAISO(), PJM(), Ercot()]
+    # isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO]
     # for iso in isos:
     #     mix = iso.get_fuel_mix()
     #     assert isinstance(mix, FuelMix)
     #     assert isinstance(mix.mix, pd.Series)
     #     print(mix)
 
-    i = SPP()
-    d = i.get_fuel_mix()
+    iso = ISONE()
+    d = iso.get_fuel_mix()
 
 
 """
@@ -170,6 +203,7 @@ Todos
     - how standardize should the mix be? 
     - mark renewables
     - historical data
+    - is the unit mh or mhw?
 - units for return values
 - documentation
     - include where the data is from
@@ -180,6 +214,8 @@ Todos
 """
 
 PJM web scraping
+from bs4 import BeautifulSoup
+import re
 # pjm_url = 'https://www.pjm.com/markets-and-operations.aspx'
 # html_text = requests.get(pjm_url).text
 # soup = BeautifulSoup(html_text, 'html.parser')
