@@ -1,12 +1,20 @@
+import json5
+import re
+from bs4 import BeautifulSoup
 from errno import ESTALE
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
-import re
-import json5
+# TODO: this is needed to make SPP request work. restrict only to SPP
+requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
 
 
 class ISOBase:
+
+    def get_json(self, *args, **kwargs):
+        r = requests.get(*args, **kwargs)
+        r = r.json()
+        return r
+
     def get_fuel_mix(self):
         raise NotImplementedError()
 
@@ -42,7 +50,7 @@ class MISO(ISOBase):
 
     def get_fuel_mix(self):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
-        r = requests.get(url).json()
+        r = self.get_json(url)
 
         time = r["RefId"]  # todo parse time
 
@@ -67,7 +75,7 @@ class CAISO(ISOBase):
         Known possible values: Normal
         """
         stats_url = self.BASE + "/stats.txt"
-        r = requests.get(stats_url).json()
+        r = self.get_json(stats_url)
         # todo is it possible for this to return more than one element?
         return r["gridstatus"][0]
 
@@ -84,9 +92,8 @@ class CAISO(ISOBase):
 class PJM(ISOBase):
 
     def get_fuel_mix(self):
-        r = requests.get("https://api.pjm.com/api/v1/gen_by_fuel",
-                         headers={"Ocp-Apim-Subscription-Key": 'b2621f9a5e6f48fdb184983d55f239ba'})
-        r = r.json()
+        r = self.get_json("https://api.pjm.com/api/v1/gen_by_fuel",
+                          headers={"Ocp-Apim-Subscription-Key": 'b2621f9a5e6f48fdb184983d55f239ba'})
         mix_df = pd.DataFrame(r["items"])
 
         time = mix_df["datetime_beginning_ept"].max()
@@ -99,15 +106,60 @@ class PJM(ISOBase):
         return FuelMix(time=time, mix=mix_dict)
 
 
+class Ercot(ISOBase):
+
+    def get_fuel_mix(self):
+        url = "https://www.ercot.com/api/1/services/read/dashboards/combine-wind-solar.json"
+        r = self.get_json(url)
+
+        # rows with nulls are forecasts
+        df = pd.DataFrame(r['currentDay']["data"])
+        df = df.dropna(subset=["actualSolar"])
+
+        day = r['currentDay']["date"]
+        hour = df["hourEnding"].max()  # latest hour in dataset
+        time = day + "%d:00:00" % (hour)
+
+        currentHour = df.iloc[-1]
+
+        mix_dict = {
+            "wind": currentHour["actualWind"],
+            "solar": currentHour["actualSolar"]
+        }
+
+        return FuelMix(time=time, mix=mix_dict)
+
+
+class SPP(ISOBase):
+
+    def get_fuel_mix(self):
+        url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"
+        r = self.get_json(url)["response"]
+
+        data = {
+            "Timestamp":  r["labels"]
+        }
+        data.update((d["label"], d["data"]) for d in r["datasets"])
+
+        historical_mix = pd.DataFrame(data)
+
+        current_mix = historical_mix.iloc[0].to_dict()
+
+        time = current_mix.pop("Timestamp")
+
+        return FuelMix(time=time, mix=current_mix)
+
+
 if __name__ == "__main__":
 
-    # isos = [MISO(), CAISO()]
+    # isos = [MISO(), CAISO(), PJM(), Ercot()]
     # for iso in isos:
     #     mix = iso.get_fuel_mix()
     #     assert isinstance(mix, FuelMix)
+    #     assert isinstance(mix.mix, pd.Series)
     #     print(mix)
 
-    i = PJM()
+    i = SPP()
     d = i.get_fuel_mix()
 
 
@@ -116,10 +168,12 @@ Todos
 
 - fuel mix
     - how standardize should the mix be? 
+    - mark renewables
+    - historical data
 - units for return values
 - documentation
-    - include where the data is fromr
-- suppply trends
+    - include where the data is from
+    - api reference
 """
 
 
