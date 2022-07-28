@@ -1,0 +1,6 @@
+pytest
+pytest-cov
+requests>=2.28.1
+pandas>=1.4.
+beautifulsoup4>=4.8.13
+json5>=0.9.8
