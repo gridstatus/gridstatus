@@ -16,6 +16,14 @@
 
 It uses publically available APIs provided by the ISOs, but falls back to webscraping if an API isn't available.
 
+## Install
+
+`isodata` supports python 3.7+. Install with pip
+
+```
+python -m pip install isodata
+```
+
 ## Feedback Welcome
 
 `isodata` is under active development. If there is any particular data you would like access to, let us know.
