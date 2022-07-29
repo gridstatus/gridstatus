@@ -10,3 +10,5 @@ from isodata.spp import SPP
 from isodata.pjm import PJM
 
 from isodata import tests
+
+from isodata.utils import list_isos, get_iso

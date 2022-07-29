@@ -1,5 +1,6 @@
 from isodata import *
-from isodata.base import FuelMix
+import isodata
+from isodata.base import FuelMix, ISOBase
 import pandas as pd
 import pytest
 
@@ -13,3 +14,12 @@ def test_all_isos(iso):
     assert isinstance(mix, FuelMix)
     assert isinstance(mix.mix, pd.DataFrame)
     assert isinstance(repr(mix), str)
+
+
+def test_list_isos():
+    assert len(isodata.list_isos()) == 7
+
+
+def test_get_iso():
+    for iso in isodata.list_isos()["Id"].values:
+        assert issubclass(isodata.get_iso(iso), ISOBase)
