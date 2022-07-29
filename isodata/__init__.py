@@ -8,3 +8,5 @@ from isodata.isone import ISONE
 from isodata.miso import MISO
 from isodata.spp import SPP
 from isodata.pjm import PJM
+
+from isodata import tests

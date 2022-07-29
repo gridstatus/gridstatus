@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+from tabulate import tabulate
 # TODO: this is needed to make SPP request work. restrict only to SPP
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
 
