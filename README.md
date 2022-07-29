@@ -12,8 +12,6 @@
 </p>
 <hr>
 
-## ISO Data
-
 `isodata` provides standardized API to access energy data to the major Independent System Operators in the United States.
 
 It uses publically available APIs provided by the ISOs, but falls back to webscraping if an API isn't available.
