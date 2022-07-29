@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.0
+## v0.2.0 - July 29, 2022
 
 - Added `isodata.list_isos` and `isodata.get_iso`
 
