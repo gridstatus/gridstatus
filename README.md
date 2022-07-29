@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/isodata/isodata/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
-        <img src="https://github.com/isodata/isodata/workflows/Tests/badge.svg?branch=main" alt="Tests" />
+    <a href="https://github.com/kmax12/isodata/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
+        <img src="https://github.com/kmax12/isodata/workflows/Tests/badge.svg?branch=main" alt="Tests" />
     </a>
     <a href="https://badge.fury.io/py/isodata" target="_blank">
         <img src="https://badge.fury.io/py/isodata.svg?maxAge=2592000" alt="PyPI Version" />
