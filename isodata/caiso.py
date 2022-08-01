@@ -82,7 +82,7 @@ class CAISO(ISOBase):
         df = df.rename(columns={"Current demand": "Demand"})
         return df
 
-    def get_latest_supply(self) -> dict[str, Any]:
+    def get_latest_supply(self):
         """Returns most recent data point for supply in MW
 
         Updates every 5 minutes
