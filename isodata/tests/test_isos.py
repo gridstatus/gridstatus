@@ -12,6 +12,7 @@ def test_all_isos(iso):
     print(iso)
     mix = iso.get_fuel_mix()
     assert isinstance(mix, FuelMix)
+    assert isinstance(mix.time, pd.Timestamp)
     assert isinstance(mix.mix, pd.DataFrame)
     assert isinstance(repr(mix), str)
 

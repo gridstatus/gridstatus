@@ -12,10 +12,7 @@ class Ercot(ISOBase):
         df = pd.DataFrame(r['currentDay']["data"])
         df = df.dropna(subset=["actualSolar"])
 
-        day = r['currentDay']["date"]
-        hour = df["hourEnding"].max()  # latest hour in dataset
-        time = day + "%d:00:00" % (hour)
-
+        time = pd.Timestamp(df["epoch"].max(), unit="ms", tz="US/Central")
         currentHour = df.iloc[-1]
 
         mix_dict = {
@@ -24,3 +21,7 @@ class Ercot(ISOBase):
         }
 
         return FuelMix(time=time, mix=mix_dict)
+
+    def get_historical_fuel_mix(self):
+        # url above can do it for current day
+        pass

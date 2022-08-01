@@ -17,6 +17,6 @@ class SPP(ISOBase):
 
         current_mix = historical_mix.iloc[0].to_dict()
 
-        time = current_mix.pop("Timestamp")
+        time = pd.Timestamp(current_mix.pop("Timestamp"))
 
         return FuelMix(time=time, mix=current_mix)

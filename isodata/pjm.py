@@ -9,7 +9,8 @@ class PJM(ISOBase):
                           headers={"Ocp-Apim-Subscription-Key": 'b2621f9a5e6f48fdb184983d55f239ba'})
         mix_df = pd.DataFrame(r["items"])
 
-        time = mix_df["datetime_beginning_ept"].max()
+        time = pd.Timestamp(
+            mix_df["datetime_beginning_ept"].max(), tz='US/Eastern')
 
         mix_df = mix_df[mix_df["datetime_beginning_ept"]
                         == time].set_index("fuel_type")["mw"]
