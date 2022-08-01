@@ -6,6 +6,9 @@ from .base import ISOBase, FuelMix
 class MISO(ISOBase):
     BASE = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx"
 
+    name = "Midcontinent ISO"
+    iso_id = "miso"
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -31,5 +34,5 @@ class MISO(ISOBase):
 
         # print(r["TotalMW"])  # todo - this total does add up to each part
 
-        fm = FuelMix(time=time, mix=mix)
+        fm = FuelMix(time=time, mix=mix, iso=self.name)
         return fm

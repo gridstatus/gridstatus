@@ -3,6 +3,8 @@ import pandas as pd
 
 
 class NYISO(ISOBase):
+    name = "New York ISO"
+    iso_id = "nyiso"
 
     def get_current_status(self):
         # https://www.nyiso.com/en/system-conditions
@@ -13,11 +15,12 @@ class NYISO(ISOBase):
         url = "https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-current"
         data = self.get_json(url)
         mix_df = pd.DataFrame(data["data"])
-        time = pd.Timestamp(mix_df["timeStamp"].max())
+        time_str = mix_df["timeStamp"].max()
+        time = pd.Timestamp(time_str)
         mix_df = mix_df[mix_df["timeStamp"]
-                        == time].set_index("fuelCategory")["genMWh"]
+                        == time_str].set_index("fuelCategory")["genMWh"]
         mix_dict = mix_df.to_dict()
-        return FuelMix(time, mix_dict)
+        return FuelMix(time=time, mix=mix_dict, iso=self.name)
 
     def get_historical_fuel_mix(self):
         # above url gives daily fuel mix

@@ -3,6 +3,8 @@ import pandas as pd
 
 
 class Ercot(ISOBase):
+    name = "Electric Reliability Council of Texas"
+    iso_id = "ercot"
 
     def get_fuel_mix(self):
         url = "https://www.ercot.com/api/1/services/read/dashboards/combine-wind-solar.json"
@@ -20,7 +22,7 @@ class Ercot(ISOBase):
             "solar": currentHour["actualSolar"]
         }
 
-        return FuelMix(time=time, mix=mix_dict)
+        return FuelMix(time=time, mix=mix_dict, iso=self.name)
 
     def get_historical_fuel_mix(self):
         # url above can do it for current day

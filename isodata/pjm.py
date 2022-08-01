@@ -1,23 +1,27 @@
+import imp
 from .base import ISOBase, FuelMix
 import pandas as pd
 
 
 class PJM(ISOBase):
+    name = "PJM"
+    iso_id = "pjm"
 
     def get_fuel_mix(self):
         r = self.get_json("https://api.pjm.com/api/v1/gen_by_fuel",
                           headers={"Ocp-Apim-Subscription-Key": 'b2621f9a5e6f48fdb184983d55f239ba'})
         mix_df = pd.DataFrame(r["items"])
 
-        time = pd.Timestamp(
-            mix_df["datetime_beginning_ept"].max(), tz='US/Eastern')
+        time_str = mix_df["datetime_beginning_ept"].max()
+
+        time = pd.Timestamp(time_str, tz='US/Eastern')
 
         mix_df = mix_df[mix_df["datetime_beginning_ept"]
-                        == time].set_index("fuel_type")["mw"]
+                        == time_str].set_index("fuel_type")["mw"]
 
         mix_dict = mix_df.to_dict()
 
-        return FuelMix(time=time, mix=mix_dict)
+        return FuelMix(time=time, mix=mix_dict, iso=self.name)
 
 
 """

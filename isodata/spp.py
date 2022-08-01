@@ -3,6 +3,8 @@ import pandas as pd
 
 
 class SPP(ISOBase):
+    name = "Southwest Power Pool"
+    iso_id = "spp"
 
     def get_fuel_mix(self):
         url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"
@@ -19,4 +21,4 @@ class SPP(ISOBase):
 
         time = pd.Timestamp(current_mix.pop("Timestamp"))
 
-        return FuelMix(time=time, mix=current_mix)
+        return FuelMix(time=time, mix=current_mix, iso=self.name)

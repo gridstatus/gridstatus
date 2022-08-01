@@ -14,6 +14,8 @@ def test_all_isos(iso):
     assert isinstance(mix, FuelMix)
     assert isinstance(mix.time, pd.Timestamp)
     assert isinstance(mix.mix, pd.DataFrame)
+    assert len(mix.mix) > 0
+    assert mix.iso == iso.name
     assert isinstance(repr(mix), str)
 
 
@@ -24,6 +26,11 @@ def test_list_isos():
 def test_get_iso():
     for iso in isodata.list_isos()["Id"].values:
         assert issubclass(isodata.get_iso(iso), ISOBase)
+
+
+def test_get_iso_invalid():
+    with pytest.raises(Exception) as e_info:
+        isodata.get_iso("ISO DOESNT EXIST")
 
 
 def test_latest_demand():

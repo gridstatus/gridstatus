@@ -8,6 +8,9 @@ class CAISO(ISOBase):
     BASE = "https://www.caiso.com/outlook/SP"
     HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
 
+    name = "California ISO"
+    iso_id = "caiso"
+
     def _current_day(self):
         # get current date from stats api
         return pd.to_datetime(self.get_stats()["slotDate"]).date()
@@ -39,7 +42,7 @@ class CAISO(ISOBase):
         mix = df.iloc[-1].to_dict()
         time = _make_timestamp(mix.pop("Time"), self._current_day())
 
-        return FuelMix(time=time, mix=mix)
+        return FuelMix(time=time, mix=mix, iso=self.name)
 
     def get_historical_fuel_mix(self, date):
         """

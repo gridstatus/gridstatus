@@ -6,6 +6,8 @@ import requests
 
 
 class ISONE(ISOBase):
+    name = "ISO New England"
+    iso_id = "isone"
 
     def get_fuel_mix(self):
         r = requests.post("https://www.iso-ne.com/ws/wsclient",
@@ -15,4 +17,4 @@ class ISONE(ISOBase):
         time = pd.Timestamp(mix_df["BeginDate"].max(), tz="US/Eastern")
 
         mix_dict = mix_df.set_index("FuelCategory")["GenMw"].to_dict()
-        return FuelMix(time, mix_dict)
+        return FuelMix(time, mix_dict, self.name)

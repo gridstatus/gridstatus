@@ -17,7 +17,8 @@ class ISOBase:
 
 
 class FuelMix:
-    def __init__(self, time, mix, unit="MW") -> None:
+    def __init__(self, time, mix, iso=None, unit="MW") -> None:
+        self.iso = iso
         self.time = time
         self.unit = unit
 
@@ -29,7 +30,10 @@ class FuelMix:
 
     def __repr__(self) -> str:
         # TODO sort by magnitude
-        s = "Total Production: %d %s \n" % (self.total_production, self.unit)
+        s = ''
+        if self.iso:
+            s += "ISO: " + self.iso + "\n"
+        s += "Total Production: %d %s \n" % (self.total_production, self.unit)
         s += "Time: %s \n" % self.time
 
         mix = self.mix

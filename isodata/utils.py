@@ -7,30 +7,19 @@ from isodata.miso import MISO
 from isodata.spp import SPP
 from isodata.pjm import PJM
 
+all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
+
 
 def list_isos():
-    isos = [
-        ["California ISO", "caiso"],
-        ["Electric Reliability Council of Texas", "ercot"],
-        ["New York ISO", "nyiso"],
-        ["Southwest Power Pool", "spp"],
-        ["PJM", "pjm"],
-        ["Midcontinent ISO", "miso"],
-        ["ISO New England", "isone"]
-    ]
+
+    isos = [[i.name, i.iso_id] for i in all_isos]
 
     return pd.DataFrame(isos, columns=["Name", "Id"])
 
 
 def get_iso(iso_id):
-    mapping = {
-        "nyiso": NYISO,
-        "caiso": CAISO,
-        "ercot": Ercot,
-        "isone": ISONE,
-        "miso": MISO,
-        "spp": SPP,
-        "pjm": PJM
-    }
+    for i in all_isos:
+        if i.iso_id == iso_id:
+            return i
 
-    return mapping[iso_id]
+    raise KeyError
