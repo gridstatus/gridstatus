@@ -58,5 +58,8 @@ Todos
 - units for return values
 - documentation
     - include where the data is from
+    - time step differences 
+    - what is the interval 
     - api reference
+    - 
 """

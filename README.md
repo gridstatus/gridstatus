@@ -11,7 +11,7 @@
     </a>
 </p>
 
-`isodata` provides standardized API to access energy data to the major Independent System Operators in the United States.
+`isodata` provides standardized API to access energy data from the major Independent System Operators (ISOs) in the United States.
 
 ## Install
 
