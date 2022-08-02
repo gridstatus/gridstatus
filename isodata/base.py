@@ -21,8 +21,17 @@ class GridStatus():
         self.iso = iso
         self.time = time
         self.status = status
-        self.reverses = reserves
+        self.reserves = reserves
         self.unit = unit
+
+    def __repr__(self) -> str:
+        s = self.iso + "\n"
+
+        s += "Time: %s \n" % str(self.time)
+        s += "Status: %s \n" % self.status
+        s += "Reserves: %.0f %s" % (self.reserves, self.unit)
+
+        return s
 
 
 class FuelMix:
@@ -51,11 +60,11 @@ class FuelMix:
 
         return s
 
-    @property
+    @ property
     def total_production(self):
         return self.mix[self.unit].sum()
 
-    @property
+    @ property
     def mix(self):
         return self._mix_df.copy()
 
@@ -64,17 +73,17 @@ class FuelMix:
 Todos
 
 - fuel mix
-    - how standardize should the mix be? 
+    - how standardize should the mix be?
     - mark renewables
     - historical data
     - is the unit mh or mhw?
 - units for return values
 - documentation
     - include where the data is from
-    - time step differences 
-    - what is the interval 
+    - time step differences
+    - what is the interval
     - api reference
-    - 
+    -
 
 - get_historical_fuel_mix vs get_fuel_mix_trend
 """

@@ -30,7 +30,7 @@ class CAISO(ISOBase):
         r = self.get_stats()
 
         time = pd.to_datetime(r["slotDate"]).tz_localize('US/Pacific')
-        status = r["gridstatus"][0],
+        status = r["gridstatus"][0]
         reserves = r["Current_reserve"]
 
         return GridStatus(time=time, status=status, reserves=reserves, iso=self.name)
