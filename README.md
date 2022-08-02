@@ -44,34 +44,48 @@ First, we can see all of the ISOs that are supported
 Next, we can select an ISO we want to use
 
 ```python
->>> iso = isodata.get_iso('pjm')
->>> pjm = iso()
+>>> iso = isodata.get_iso('caiso')
+>>> caiso = iso()
 ```
 
 All ISOs have the same API. Here is how we can get the fuel mix
 
 ```python
->>> pjm.get_fuel_mix()
+>>> caiso.get_current_status()
 ```
 
 ```
-Total Production: 110490 MW
-Time: 2022-07-29T09:00:00
-+------------------+---------+-----------+
-| Fuel             |      MW |   Percent |
-|------------------+---------+-----------|
-| Gas              | 48778.5 |      44.1 |
-| Nuclear          | 32309.7 |      29.2 |
-| Coal             | 24781   |      22.4 |
-| Solar            |  2293.2 |       2.1 |
-| Other Renewables |   684   |       0.6 |
-| Hydro            |   495.7 |       0.4 |
-| Other            |   398.8 |       0.4 |
-| Wind             |   314.2 |       0.3 |
-| Multiple Fuels   |   217.8 |       0.2 |
-| Oil              |   217.1 |       0.2 |
-| Storage          |     0   |       0   |
-+------------------+---------+-----------+
+California ISO
+Time: 2022-08-02 10:25:00-07:00
+Status: Normal
+Reserves: 2994 MW
+```
+
+```python
+>>> caiso.get_fuel_mix()
+```
+
+```
+ISO: California ISO
+Total Production: 32702 MW
+Time: 2022-08-02 10:25:00-07:00
++-------------+-------+-----------+
+| Fuel        |    MW |   Percent |
+|-------------+-------+-----------|
+| Solar       | 12851 |      39.3 |
+| Natural Gas | 10146 |      31   |
+| Imports     |  3783 |      11.6 |
+| Nuclear     |  2256 |       6.9 |
+| Wind        |  1530 |       4.7 |
+| Large Hydro |   954 |       2.9 |
+| Geothermal  |   879 |       2.7 |
+| Biomass     |   340 |       1   |
+| Biogas      |   209 |       0.6 |
+| Small hydro |   171 |       0.5 |
+| Coal        |    16 |       0   |
+| Other       |     0 |       0   |
+| Batteries   |  -433 |      -1.3 |
++-------------+-------+-----------+
 ```
 
 ## Where does the data come from?
