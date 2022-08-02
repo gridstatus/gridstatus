@@ -1,5 +1,5 @@
 from numpy import isin
-from .base import ISOBase, FuelMix
+from .base import ISOBase, FuelMix, GridStatus
 import pandas as pd
 from typing import Any
 
@@ -13,7 +13,7 @@ class CAISO(ISOBase):
 
     def _current_day(self):
         # get current date from stats api
-        return pd.to_datetime(self.get_stats()["slotDate"]).date()
+        return self.get_current_status().time.date()
 
     def get_stats(self):
         stats_url = self.BASE + "/stats.txt"
@@ -28,7 +28,12 @@ class CAISO(ISOBase):
 
         # todo is it possible for this to return more than one element?
         r = self.get_stats()
-        return r["gridstatus"][0]
+
+        time = pd.to_datetime(r["slotDate"]).tz_localize('US/Pacific')
+        status = r["gridstatus"][0],
+        reserves = r["Current_reserve"]
+
+        return GridStatus(time=time, status=status, reserves=reserves, iso=self.name)
 
     def get_fuel_mix(self):
         """
@@ -77,6 +82,9 @@ class CAISO(ISOBase):
         }
 
     def get_historical_demand(self, date):
+        """Return supply at a previous date in 5 minute intervals
+
+        """
         url = self.HISTORY_BASE + "/%s/demand.csv"
         df = _get_historical(url, date)[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Demand"})
@@ -95,6 +103,7 @@ class CAISO(ISOBase):
         }
 
     def get_historical_supply(self, date):
+        """Returns supply at a previous date in 5 minute intervals"""
         df = self.get_historical_fuel_mix(date)
         supply_df = df.pop("Time").to_frame()
         supply_df["Supply"] = df.sum(axis=1)  # sum all the remaining columns

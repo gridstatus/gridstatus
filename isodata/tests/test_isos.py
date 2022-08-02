@@ -1,6 +1,6 @@
 from isodata import *
 import isodata
-from isodata.base import FuelMix, ISOBase
+from isodata.base import FuelMix, ISOBase, GridStatus
 import pandas as pd
 import pytest
 
@@ -8,7 +8,7 @@ all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
 @pytest.mark.parametrize('iso', all_isos)
-def test_all_isos(iso):
+def test_get_fuel_mix(iso):
     print(iso)
     mix = iso.get_fuel_mix()
     assert isinstance(mix, FuelMix)
@@ -33,6 +33,12 @@ def test_get_iso_invalid():
         isodata.get_iso("ISO DOESNT EXIST")
 
 
+@pytest.mark.parametrize('iso', [CAISO(), Ercot()])
+def test_get_current_status(iso):
+    status = iso.get_current_status()
+    assert isinstance(status, GridStatus)
+
+
 def test_latest_demand():
     iso = CAISO()
     demand = iso.get_latest_demand()
@@ -46,8 +52,10 @@ def test_latest_supply():
 
     assert set(["time", "supply"]) == demand.keys()
 
+# @pytest.mark.parametrize('iso', all_isos)
 
-def test_get_historical_fuel_mixmak():
+
+def test_get_historical_fuel_mix():
     iso = CAISO()
 
     # date string works

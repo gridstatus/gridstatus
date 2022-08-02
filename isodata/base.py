@@ -16,6 +16,15 @@ class ISOBase:
         raise NotImplementedError()
 
 
+class GridStatus():
+    def __init__(self, time, status, reserves, iso, unit="MW") -> None:
+        self.iso = iso
+        self.time = time
+        self.status = status
+        self.reverses = reserves
+        self.unit = unit
+
+
 class FuelMix:
     def __init__(self, time, mix, iso=None, unit="MW") -> None:
         self.iso = iso
@@ -66,4 +75,6 @@ Todos
     - what is the interval 
     - api reference
     - 
+
+- get_historical_fuel_mix vs get_fuel_mix_trend
 """
