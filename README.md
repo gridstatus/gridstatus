@@ -51,7 +51,7 @@ Next, we can select an ISO we want to use
 All ISOs have the same API. Here is how we can get the fuel mix
 
 ```python
->>> caiso.get_current_status()
+>>> caiso.get_latest_status()
 ```
 
 ```
@@ -124,9 +124,23 @@ interval start
 2022-05-02 23:00:00-07:00	TH_NP15_GEN-APND	72.61741	0.00000	73.53662	-0.91921	0.0
 ```
 
-## Where does the data come from?
+## Method Availability
 
-isodata uses publically available APIs provided by the ISOs, but falls back to webscraping if an API isn't available.
+|                         | New York ISO | California ISO | Electric Reliability Council of Texas | ISO New England | Midcontinent ISO | Southwest Power Pool | PJM      |
+| :---------------------- | :----------- | :------------- | :------------------------------------ | :-------------- | :--------------- | :------------------- | :------- |
+| get_latest_status       | &#x2705;     | &#x2705;       | &#x2705;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_latest_fuel_mix     | &#x2705;     | &#x2705;       | &#10060;                              | &#10060;        | &#x2705;         | &#x2705;             | &#x2705; |
+| get_fuel_mix_today      | &#10060;     | &#10060;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_fuel_mix_yesterday  | &#10060;     | &#10060;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_historical_fuel_mix | &#x2705;     | &#x2705;       | &#x2705;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_latest_demand       | &#10060;     | &#x2705;       | &#x2705;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_demand_today        | &#10060;     | &#10060;       | &#x2705;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_demand_yesterday    | &#10060;     | &#10060;       | &#x2705;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_historical_demand   | &#10060;     | &#x2705;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_latest_supply       | &#10060;     | &#x2705;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_supply_today        | &#10060;     | &#10060;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_supply_yesterday    | &#10060;     | &#10060;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| get_historical_supply   | &#10060;     | &#x2705;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
 
 ## Feedback Welcome
 

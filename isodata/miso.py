@@ -12,9 +12,9 @@ class MISO(ISOBase):
     def __init__(self) -> None:
         super().__init__()
 
-    def get_fuel_mix(self):
+    def get_latest_fuel_mix(self):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
-        r = self.get_json(url)
+        r = self._get_json(url)
 
         date, time_str, am_pm = r["Fuel"]["Type"][0]["INTERVALEST"].split(" ")
         year, month, day, = map(int, date.split("-"))

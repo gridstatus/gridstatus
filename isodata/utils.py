@@ -1,3 +1,5 @@
+import isodata
+from isodata.base import ISOBase
 import pandas as pd
 from isodata.nyiso import NYISO
 from isodata.caiso import CAISO
@@ -23,3 +25,34 @@ def get_iso(iso_id):
             return i
 
     raise KeyError
+
+
+def make_availability_table():
+    methods = [
+        'get_latest_status',
+        'get_latest_fuel_mix',
+        'get_fuel_mix_today',
+        'get_fuel_mix_yesterday',
+        'get_historical_fuel_mix',
+        'get_latest_demand',
+        'get_demand_today',
+        'get_demand_yesterday',
+        'get_historical_demand',
+        'get_latest_supply',
+        'get_supply_today',
+        'get_supply_yesterday',
+        'get_historical_supply'
+    ]
+
+    availability = {}
+    for i in isodata.all_isos:
+        availability[i.name] = {}
+        for m in methods:
+            is_defined = '&#10060;'  # red x
+            if getattr(i, m) != getattr(ISOBase, m):
+                is_defined = '&#x2705;'  # green checkmark
+            availability[i.name][m] = is_defined
+
+    availability_df = pd.DataFrame(availability)
+
+    return availability_df.to_markdown()

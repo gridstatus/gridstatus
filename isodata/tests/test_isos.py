@@ -8,9 +8,9 @@ all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
 @pytest.mark.parametrize('iso', all_isos)
-def test_get_fuel_mix(iso):
+def test_get_latest_fuel_mix(iso):
     print(iso)
-    mix = iso.get_fuel_mix()
+    mix = iso.get_latest_fuel_mix()
     assert isinstance(mix, FuelMix)
     assert isinstance(mix.time, pd.Timestamp)
     assert isinstance(mix.mix, pd.DataFrame)
@@ -34,8 +34,8 @@ def test_get_iso_invalid():
 
 
 @pytest.mark.parametrize('iso', [CAISO(), Ercot()])
-def test_get_current_status(iso):
-    status = iso.get_current_status()
+def test_get_latest_status(iso):
+    status = iso.get_latest_status()
     assert isinstance(status, GridStatus)
 
 
@@ -112,3 +112,15 @@ def test_get_historical_supply():
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Supply"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_str
+
+
+def test_ercot_get_demand():
+    iso = Ercot()
+    df = iso.get_demand_today()
+    assert isinstance(df, pd.DataFrame)
+
+    df = iso.get_demand_yesterday()
+    assert isinstance(df, pd.DataFrame)
+
+    demand = iso.get_latest_demand()
+    set(["time", "demand"]) == demand.keys()

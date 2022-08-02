@@ -6,14 +6,14 @@ class NYISO(ISOBase):
     name = "New York ISO"
     iso_id = "nyiso"
 
-    def get_current_status(self):
+    def get_latest_status(self):
         # https://www.nyiso.com/en/system-conditions
         pass
 
-    def get_fuel_mix(self):
+    def get_latest_fuel_mix(self):
         # note: this is simlar datastructure to pjm
         url = "https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-current"
-        data = self.get_json(url)
+        data = self._get_json(url)
         mix_df = pd.DataFrame(data["data"])
         time_str = mix_df["timeStamp"].max()
         time = pd.Timestamp(time_str)

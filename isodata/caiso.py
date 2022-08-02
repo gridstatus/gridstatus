@@ -13,14 +13,14 @@ class CAISO(ISOBase):
 
     def _current_day(self):
         # get current date from stats api
-        return self.get_current_status().time.date()
+        return self.get_latest_status().time.date()
 
     def get_stats(self):
         stats_url = self.BASE + "/stats.txt"
-        r = self.get_json(stats_url)
+        r = self._get_json(stats_url)
         return r
 
-    def get_current_status(self) -> str:
+    def get_latest_status(self) -> str:
         """Get Current Status of the Grid
 
         Known possible values: Normal
@@ -35,7 +35,7 @@ class CAISO(ISOBase):
 
         return GridStatus(time=time, status=status, reserves=reserves, iso=self.name)
 
-    def get_fuel_mix(self):
+    def get_latest_fuel_mix(self):
         """
             Returns most recent data point for fuelmix in MW
 
@@ -43,6 +43,9 @@ class CAISO(ISOBase):
         """
         url = self.BASE + "/fuelsource.csv"
         df = pd.read_csv(url)
+
+        # import pdb
+        # pdb.set_trace()
 
         mix = df.iloc[-1].to_dict()
         time = _make_timestamp(mix.pop("Time"), self._current_day())
@@ -95,7 +98,7 @@ class CAISO(ISOBase):
 
         Updates every 5 minutes
         """
-        mix = self.get_fuel_mix()
+        mix = self.get_latest_fuel_mix()
 
         return {
             "time": mix.time,

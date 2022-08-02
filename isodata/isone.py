@@ -9,7 +9,7 @@ class ISONE(ISOBase):
     name = "ISO New England"
     iso_id = "isone"
 
-    def get_fuel_mix(self):
+    def get_latest_fuel_mix(self):
         r = requests.post("https://www.iso-ne.com/ws/wsclient",
                           data={"_nstmp_requestType": "url", "_nstmp_requestUrl": "/genfuelmix/current"}).json()
 

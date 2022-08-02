@@ -7,9 +7,12 @@ class PJM(ISOBase):
     name = "PJM"
     iso_id = "pjm"
 
-    def get_fuel_mix(self):
-        r = self.get_json("https://api.pjm.com/api/v1/gen_by_fuel",
-                          headers={"Ocp-Apim-Subscription-Key": 'b2621f9a5e6f48fdb184983d55f239ba'})
+    # can get historical data from this api
+    def get_latest_fuel_mix(self):
+        settings = self._get_json(
+            "https://dataminer2.pjm.com/config/settings.json")
+        r = self._get_json("https://api.pjm.com/api/v1/gen_by_fuel",
+                           headers={"Ocp-Apim-Subscription-Key": settings["subscriptionKey"]})
         mix_df = pd.DataFrame(r["items"])
 
         time_str = mix_df["datetime_beginning_ept"].max()

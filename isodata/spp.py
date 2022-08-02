@@ -6,9 +6,9 @@ class SPP(ISOBase):
     name = "Southwest Power Pool"
     iso_id = "spp"
 
-    def get_fuel_mix(self):
+    def get_latest_fuel_mix(self):
         url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"
-        r = self.get_json(url)["response"]
+        r = self._get_json(url)["response"]
 
         data = {
             "Timestamp":  r["labels"]

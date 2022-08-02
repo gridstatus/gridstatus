@@ -7,12 +7,48 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
 
 class ISOBase:
 
-    def get_json(self, *args, **kwargs):
+    def _get_json(self, *args, **kwargs):
         r = requests.get(*args, **kwargs)
         r = r.json()
         return r
 
-    def get_fuel_mix(self):
+    def get_latest_status(self):
+        raise NotImplementedError()
+
+    def get_latest_fuel_mix(self):
+        raise NotImplementedError()
+
+    def get_fuel_mix_today(self):
+        raise NotImplementedError()
+
+    def get_fuel_mix_yesterday(self):
+        raise NotImplementedError()
+
+    def get_historical_fuel_mix(self):
+        raise NotImplementedError()
+
+    def get_latest_demand(self):
+        raise NotImplementedError()
+
+    def get_demand_today(self):
+        raise NotImplementedError()
+
+    def get_demand_yesterday(self):
+        raise NotImplementedError()
+
+    def get_historical_demand(self):
+        raise NotImplementedError()
+
+    def get_latest_supply(self):
+        raise NotImplementedError()
+
+    def get_supply_today(self):
+        raise NotImplementedError()
+
+    def get_supply_yesterday(self):
+        raise NotImplementedError()
+
+    def get_historical_supply(self):
         raise NotImplementedError()
 
 
