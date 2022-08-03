@@ -22,3 +22,12 @@ class SPP(ISOBase):
         time = pd.Timestamp(current_mix.pop("Timestamp"))
 
         return FuelMix(time=time, mix=current_mix, iso=self.name)
+
+    def get_latest_supply(self):
+        """Returns most recent data point for supply in MW"""
+        mix = self.get_latest_fuel_mix()
+
+        return {
+            "time": mix.time,
+            "supply": mix.total_production
+        }

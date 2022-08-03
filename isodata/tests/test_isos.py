@@ -69,6 +69,12 @@ def test_get_historical_fuel_mix(iso):
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
 
 
+@pytest.mark.parametrize('iso', [SPP(), NYISO(), PJM(), CAISO()])
+def test_get_latest_supply(iso):
+    supply = iso.get_latest_supply()
+    set(["time", "supply"]) == supply.keys()
+
+
 @pytest.mark.parametrize('iso', [NYISO(), PJM(), CAISO()])
 def test_get_supply(iso):
     # todo check that the date is right
@@ -77,9 +83,6 @@ def test_get_supply(iso):
 
     df = iso.get_supply_yesterday()
     assert isinstance(df, pd.DataFrame)
-
-    supply = iso.get_latest_supply()
-    set(["time", "supply"]) == supply.keys()
 
     date_str = "March 3, 2022"
     df = iso.get_historical_supply(date_str)
