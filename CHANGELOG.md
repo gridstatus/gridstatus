@@ -3,6 +3,7 @@
 ## vNext
 
 - added all demand, fuel mix, and supply methods for NYISO
+- add all demand methods for PJM
 
 ## v0.3.0 - Aug 3, 2022
 

@@ -89,7 +89,7 @@ def test_get_supply(iso):
     ) == isodata.utils._handle_date(date_str).date()
 
 
-@pytest.mark.parametrize('iso', [NYISO(), Ercot(), ISONE(), CAISO()])
+@pytest.mark.parametrize('iso', [PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
 def test_get_demand(iso):
     # todo check that the date is right
     df = iso.get_demand_today()
@@ -101,30 +101,30 @@ def test_get_demand(iso):
     assert set(["Time", "Demand"]) == set(df.columns)
 
 
-@pytest.mark.parametrize('iso', [NYISO(), MISO(), Ercot(), ISONE(), CAISO()])
+@pytest.mark.parametrize('iso', [PJM(), NYISO(), MISO(), Ercot(), ISONE(), CAISO()])
 def test_get_latest_demand(iso):
     demand = iso.get_latest_demand()
     set(["time", "demand"]) == demand.keys()
 
 
-@pytest.mark.parametrize('iso', [NYISO(), ISONE(), CAISO()])
+@pytest.mark.parametrize('iso', [PJM(), NYISO(), ISONE(), CAISO()])
 def test_get_historical_demand(iso):
     # date string works
-    date_str = "20220322"
+    date_str = "20220722"
     df = iso.get_historical_demand(date_str)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_str
 
     # timestamp object works
-    date_obj = pd.to_datetime("2021/11/19")
+    date_obj = pd.to_datetime("2022/07/19")
     df = iso.get_historical_demand(date_obj)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
 
     # datetime object works
-    date_obj = pd.to_datetime("2021/05/09").date()
+    date_obj = pd.to_datetime("2022/07/09").date()
     df = iso.get_historical_demand(date_obj)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
