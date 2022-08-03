@@ -5,6 +5,7 @@
 - added all demand, fuel mix, and supply methods for NYISO
 - add all demand methods for PJM
 - add get latest supply for SPP
+- add get latest supply for MISO
 
 ## v0.3.0 - Aug 3, 2022
 
