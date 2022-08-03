@@ -6,9 +6,9 @@ class NYISO(ISOBase):
     name = "New York ISO"
     iso_id = "nyiso"
 
-    def get_latest_status(self):
-        # https://www.nyiso.com/en/system-conditions
-        pass
+    # def get_latest_status(self):
+    #     # https://www.nyiso.com/en/system-conditions
+    #     pass
 
     def get_latest_fuel_mix(self):
         # note: this is simlar datastructure to pjm
@@ -22,10 +22,10 @@ class NYISO(ISOBase):
         mix_dict = mix_df.to_dict()
         return FuelMix(time=time, mix=mix_dict, iso=self.name)
 
-    def get_historical_fuel_mix(self):
-        # above url gives daily fuel mix
-        # this url gives yesterday https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-yest?1659394157047
-        pass
+    # def get_historical_fuel_mix(self):
+    #     # above url gives daily fuel mix
+    #     # this url gives yesterday https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-yest?1659394157047
+    #     pass
 
 
 """
