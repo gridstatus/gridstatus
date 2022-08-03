@@ -59,7 +59,9 @@ def make_availability_df():
 
 
 def make_availability_table():
-    return make_availability_df().to_markdown()
+    df = make_availability_df()
+    df.index = ["`"+v+"`" for v in df.index.values]
+    return df.to_markdown()
 
 
 def _handle_date(date):
