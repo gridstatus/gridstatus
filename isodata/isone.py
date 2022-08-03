@@ -62,6 +62,16 @@ class ISONE(ISOBase):
 
         return df
 
+    def get_latest_supply(self):
+        """Returns most recent data point for supply in MW"""
+        mix = self.get_latest_fuel_mix()
+
+        return {
+            "time": mix.time,
+            "supply": mix.total_production
+        }
+
+
 # daily historical fuel mix
 # https://www.iso-ne.com/static-assets/documents/2022/01/2022_daygenbyfuel.xlsx
 # a bunch more here: https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/daily-gen-fuel-type
