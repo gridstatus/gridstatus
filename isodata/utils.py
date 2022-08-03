@@ -27,7 +27,7 @@ def get_iso(iso_id):
     raise KeyError
 
 
-def make_availability_table():
+def make_availability_df():
     methods = [
         'get_latest_status',
         'get_latest_fuel_mix',
@@ -55,4 +55,8 @@ def make_availability_table():
 
     availability_df = pd.DataFrame(availability)
 
-    return availability_df.to_markdown()
+    return availability_df
+
+
+def make_availability_table():
+    return make_availability_df().to_markdown()

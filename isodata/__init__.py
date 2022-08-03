@@ -3,6 +3,8 @@ from isodata import tests
 from isodata.version import __version__
 import isodata.base
 
+import isodata.utils
+
 from isodata.nyiso import NYISO
 from isodata.caiso import CAISO
 from isodata.ercot import Ercot

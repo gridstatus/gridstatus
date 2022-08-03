@@ -39,11 +39,11 @@ def test_get_latest_status(iso):
     assert isinstance(status, GridStatus)
 
 
-def test_latest_demand():
-    iso = CAISO()
+@pytest.mark.parametrize('iso', [CAISO(), Ercot(), ISONE()])
+def test_latest_demand(iso):
     demand = iso.get_latest_demand()
-
     assert set(["time", "demand"]) == demand.keys()
+    # todo check that there date is right
 
 
 def test_latest_supply():
@@ -77,8 +77,8 @@ def test_get_historical_fuel_mix():
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
 
 
-def test_get_historical_demand():
-    iso = CAISO()
+@pytest.mark.parametrize('iso', [CAISO(), ISONE()])
+def test_get_historical_demand(iso):
 
     # date string works
     date_str = "20220322"
@@ -88,7 +88,7 @@ def test_get_historical_demand():
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_str
 
     # timestamp object works
-    date_obj = pd.to_datetime("2019/11/19")
+    date_obj = pd.to_datetime("2021/11/19")
     df = iso.get_historical_demand(date_obj)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
@@ -114,8 +114,8 @@ def test_get_historical_supply():
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_str
 
 
-def test_ercot_get_demand():
-    iso = Ercot()
+@pytest.mark.parametrize('iso', [Ercot(), ISONE()])
+def test_get_demand(iso):
     df = iso.get_demand_today()
     assert isinstance(df, pd.DataFrame)
 

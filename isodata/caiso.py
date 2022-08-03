@@ -85,9 +85,7 @@ class CAISO(ISOBase):
         }
 
     def get_historical_demand(self, date):
-        """Return supply at a previous date in 5 minute intervals
-
-        """
+        """Return demand at a previous date in 5 minute intervals"""
         url = self.HISTORY_BASE + "/%s/demand.csv"
         df = _get_historical(url, date)[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Demand"})
