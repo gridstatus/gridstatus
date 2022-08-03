@@ -29,7 +29,7 @@ class Ercot(ISOBase):
 
         return FuelMix(time=currentHour["Time"], mix=mix_dict, iso=self.name)
 
-    def get_historical_fuel_mix(self, date):
+    def get_fuel_mix_today(self, date):
         """Get historical fuel mix
 
         Only supports current day
