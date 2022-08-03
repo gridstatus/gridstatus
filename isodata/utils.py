@@ -60,3 +60,10 @@ def make_availability_df():
 
 def make_availability_table():
     return make_availability_df().to_markdown()
+
+
+def _handle_date(date):
+    if isinstance(date, str):
+        date = pd.to_datetime(date)
+
+    return date

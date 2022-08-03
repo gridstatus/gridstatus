@@ -24,7 +24,7 @@ class ISOBase:
     def get_fuel_mix_yesterday(self):
         raise NotImplementedError()
 
-    def get_historical_fuel_mix(self):
+    def get_historical_fuel_mix(self, date):
         raise NotImplementedError()
 
     def get_latest_demand(self):
@@ -36,7 +36,7 @@ class ISOBase:
     def get_demand_yesterday(self):
         raise NotImplementedError()
 
-    def get_historical_demand(self):
+    def get_historical_demand(self, date):
         raise NotImplementedError()
 
     def get_latest_supply(self):
@@ -48,8 +48,23 @@ class ISOBase:
     def get_supply_yesterday(self):
         raise NotImplementedError()
 
-    def get_historical_supply(self):
+    def get_historical_supply(self, date):
         raise NotImplementedError()
+
+    def _today_from_historical(self, method):
+        today = pd.Timestamp.now(self.default_timezone).date()
+        return method(today)
+
+    def _yesterday_from_historical(self, method):
+        yesterday = (pd.Timestamp.now(self.default_timezone) -
+                     pd.DateOffset(1)).date()
+        return method(yesterday)
+
+    def _supply_from_fuel_mix(self, date):
+        df = self.get_historical_fuel_mix(date)
+        supply_df = df.pop("Time").to_frame()
+        supply_df["Supply"] = df.sum(axis=1)  # sum all the remaining columns
+        return supply_df
 
 
 class GridStatus():
