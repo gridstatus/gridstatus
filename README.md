@@ -2,6 +2,8 @@
 <img width=75% src="/isodata-header.png" alt="isodata logo" />
 </p>
 
+
+
 <p align="center">
     <a href="https://github.com/kmax12/isodata/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
         <img src="https://github.com/kmax12/isodata/workflows/Tests/badge.svg?branch=main" alt="Tests" />
@@ -11,7 +13,13 @@
     </a>
 </p>
 
+<p align="center">
+<a href="#install"><b>Install</b></a> — <a href="#getting-started"><b>Getting Started</b></a> — <a href="#method-availability"><b>Method Availability</b></a> —  <a href="#feedback-welcome"><b>Feedback</b></a>
+</p>
+
 `isodata` provides standardized API to access energy data from the major Independent System Operators (ISOs) in the United States.
+
+
 
 ## Install
 
