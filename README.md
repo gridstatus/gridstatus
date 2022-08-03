@@ -62,7 +62,7 @@ Reserves: 2994 MW
 ```
 
 ```python
->>> caiso.get_fuel_mix()
+>>> caiso.get_latest_fuel_mix()
 ```
 
 ```
