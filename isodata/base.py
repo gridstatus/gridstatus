@@ -51,6 +51,14 @@ class ISOBase:
     def get_historical_supply(self, date):
         raise NotImplementedError()
 
+    def _latest_from_today(self, method):
+        data = method()
+        latest = data.iloc[-1]
+
+        latest.index = latest.index.str.lower()
+
+        return latest.to_dict()
+
     def _today_from_historical(self, method):
         today = pd.Timestamp.now(self.default_timezone).date()
         return method(today)

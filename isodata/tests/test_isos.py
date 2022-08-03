@@ -19,16 +19,12 @@ def test_get_latest_fuel_mix(iso):
     assert isinstance(repr(mix), str)
 
 
-@pytest.mark.parametrize('iso', [CAISO(), PJM()])
+@pytest.mark.parametrize('iso', [NYISO(), CAISO(), PJM()])
 def test_get_fuel_mix(iso):
     df = iso.get_fuel_mix_today()
     assert isinstance(df, pd.DataFrame)
 
     df = iso.get_fuel_mix_yesterday()
-    assert isinstance(df, pd.DataFrame)
-
-    date_str = "March 3, 2022"
-    df = iso.get_historical_fuel_mix(date_str)
     assert isinstance(df, pd.DataFrame)
 
 
@@ -52,13 +48,13 @@ def test_get_latest_status(iso):
     assert isinstance(status, GridStatus)
 
 
-@pytest.mark.parametrize('iso', [PJM(), CAISO()])
+@pytest.mark.parametrize('iso', [NYISO(), PJM(), CAISO()])
 def test_get_historical_fuel_mix(iso):
     # date string works
-    date_str = "20220322"
+    date_str = "04/03/2022"
     df = iso.get_historical_fuel_mix(date_str)
     assert isinstance(df, pd.DataFrame)
-    assert df.loc[0]["Time"].strftime('%Y%m%d') == date_str
+    assert df.loc[0]["Time"].strftime('%m/%d/%Y') == date_str
 
     # timestamp object works
     date_obj = pd.to_datetime("2019/11/19")
@@ -73,7 +69,7 @@ def test_get_historical_fuel_mix(iso):
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
 
 
-@pytest.mark.parametrize('iso', [PJM(), CAISO()])
+@pytest.mark.parametrize('iso', [NYISO(), PJM(), CAISO()])
 def test_get_supply(iso):
     # todo check that the date is right
     df = iso.get_supply_today()
@@ -93,23 +89,25 @@ def test_get_supply(iso):
     ) == isodata.utils._handle_date(date_str).date()
 
 
-@pytest.mark.parametrize('iso', [Ercot(), ISONE(), CAISO()])
+@pytest.mark.parametrize('iso', [NYISO(), Ercot(), ISONE(), CAISO()])
 def test_get_demand(iso):
     # todo check that the date is right
     df = iso.get_demand_today()
     assert isinstance(df, pd.DataFrame)
+    assert set(["Time", "Demand"]) == set(df.columns)
 
     df = iso.get_demand_yesterday()
     assert isinstance(df, pd.DataFrame)
+    assert set(["Time", "Demand"]) == set(df.columns)
 
 
-@pytest.mark.parametrize('iso', [MISO(), Ercot(), ISONE(), CAISO()])
+@pytest.mark.parametrize('iso', [NYISO(), MISO(), Ercot(), ISONE(), CAISO()])
 def test_get_latest_demand(iso):
     demand = iso.get_latest_demand()
     set(["time", "demand"]) == demand.keys()
 
 
-@pytest.mark.parametrize('iso', [ISONE(), CAISO()])
+@pytest.mark.parametrize('iso', [NYISO(), ISONE(), CAISO()])
 def test_get_historical_demand(iso):
     # date string works
     date_str = "20220322"

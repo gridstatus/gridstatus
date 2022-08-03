@@ -1,5 +1,9 @@
 # Changelog
 
+## vNext
+
+- added all demand, fuel mix, and supply methods for NYISO
+
 ## v0.3.0 - Aug 3, 2022
 
 - complete coverage of all methods for CAISO

@@ -22,12 +22,7 @@ class ISONE(ISOBase):
         return FuelMix(time, mix_dict, self.name)
 
     def get_latest_demand(self):
-        data = self.get_demand_today()
-        latest = data.iloc[-1]
-        return {
-            "time": latest["Time"],
-            "demand": latest["Demand"]
-        }
+        return self._latest_from_today(self.get_demand_today)
 
     def get_demand_today(self):
         return self._today_from_historical(self.get_historical_demand)
