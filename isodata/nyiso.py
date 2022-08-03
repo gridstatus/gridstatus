@@ -79,7 +79,7 @@ class NYISO(ISOBase):
 
         url = "http://dss.nyiso.com/dss_oasis/PublicReports"
         data = {
-            'reportKey': 'ISO_LF',
+            'reportKey': 'RT_ACT_LOAD',
             'startDate': date.strftime('%m/%d/%Y'),
             'endDate': date.strftime('%m/%d/%Y'),
             'version': 'L',  # latest versions
@@ -89,12 +89,11 @@ class NYISO(ISOBase):
         r = requests.post(url, data=data)
 
         data = pd.read_csv(io.StringIO(r.content.decode("utf8")))
+        demand = data.groupby("RTD End Time Stamp")[
+            "RTD Actual Load"].sum().reset_index()
 
-        demand = data.groupby("Eastern Date Hour")[
-            "DAM Forecast Load"].sum().reset_index()
-
-        demand = demand.rename(columns={"Eastern Date Hour": "Time",
-                                        "DAM Forecast Load": "Demand"})
+        demand = demand.rename(columns={"RTD End Time Stamp": "Time",
+                                        "RTD Actual Load": "Demand"})
 
         demand["Time"] = pd.to_datetime(
             demand["Time"]).dt.tz_localize(self.default_timezone)
