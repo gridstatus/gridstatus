@@ -8,6 +8,7 @@ class MISO(ISOBase):
 
     name = "Midcontinent ISO"
     iso_id = "miso"
+    default_timezone = "US/Central"
 
     def __init__(self) -> None:
         super().__init__()
@@ -23,7 +24,7 @@ class MISO(ISOBase):
             hour += 12
 
         time = pd.Timestamp(
-            year=year, month=month, day=day, hour=hour, minute=minute,  tz="America/Chicago")
+            year=year, month=month, day=day, hour=hour, minute=minute,  tz=self.default_timezone)
 
         mix = {}
         for fuel in r["Fuel"]["Type"]:
@@ -36,3 +37,13 @@ class MISO(ISOBase):
 
         fm = FuelMix(time=time, mix=mix, iso=self.name)
         return fm
+
+    def get_latest_demand(self):
+        url = "https://misotodaysoutlook.azurewebsites.net/api/Outlook"
+        r = self._get_json(url)
+
+        return {
+            # says EST in time stamp but EDT is currently in affect. EST == CDT, so using central time for now
+            "time": pd.to_datetime(r[1]['d']).tz_localize(self.default_timezone),
+            "demand": float(r[1]['v'].replace(",", ""))
+        }

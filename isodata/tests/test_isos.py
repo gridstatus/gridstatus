@@ -52,10 +52,8 @@ def test_get_latest_status(iso):
     assert isinstance(status, GridStatus)
 
 
-@pytest.mark.parametrize('iso', [Ercot(), PJM(), CAISO()])
+@pytest.mark.parametrize('iso', [PJM(), CAISO()])
 def test_get_historical_fuel_mix(iso):
-    iso = CAISO()
-
     # date string works
     date_str = "20220322"
     df = iso.get_historical_fuel_mix(date_str)
@@ -104,6 +102,9 @@ def test_get_demand(iso):
     df = iso.get_demand_yesterday()
     assert isinstance(df, pd.DataFrame)
 
+
+@pytest.mark.parametrize('iso', [MISO(), Ercot(), ISONE(), CAISO()])
+def test_get_latest_demand(iso):
     demand = iso.get_latest_demand()
     set(["time", "demand"]) == demand.keys()
 

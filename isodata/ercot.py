@@ -6,6 +6,7 @@ import pandas as pd
 class Ercot(ISOBase):
     name = "Electric Reliability Council of Texas"
     iso_id = "ercot"
+    default_timezone = "US/Central"
 
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
 
@@ -13,13 +14,13 @@ class Ercot(ISOBase):
         r = self._get_json(self.BASE + "/daily-prc.json")
 
         time = pd.to_datetime(r["current_condition"]["datetime"], unit="s").tz_localize(
-            "UTC").tz_convert("US/Central")
+            "UTC").tz_convert(self.default_timezone)
         status = r["current_condition"]["state"]
         reserves = float(r["current_condition"]["prc_value"].replace(",", ""))
         return GridStatus(time=time, status=status, reserves=reserves, iso=self.name)
 
     def get_latest_fuel_mix(self):
-        df = self.get_historical_fuel_mix(None)
+        df = self.get_fuel_mix_today()
         currentHour = df.iloc[-1]
 
         mix_dict = {
@@ -29,7 +30,7 @@ class Ercot(ISOBase):
 
         return FuelMix(time=currentHour["Time"], mix=mix_dict, iso=self.name)
 
-    def get_fuel_mix_today(self, date):
+    def get_fuel_mix_today(self):
         """Get historical fuel mix
 
         Only supports current day
@@ -41,7 +42,8 @@ class Ercot(ISOBase):
         df = pd.DataFrame(r['currentDay']["data"])
         df = df.dropna(subset=["actualSolar"])
 
-        df = _handle_data(df, {"actualSolar": "Solar", "actualWind": "Wind"})
+        df = self._handle_data(
+            df, {"actualSolar": "Solar", "actualWind": "Wind"})
         return df
 
     def get_latest_demand(self):
@@ -59,7 +61,7 @@ class Ercot(ISOBase):
         r = self._get_json(url)
         df = pd.DataFrame(r[when]["data"])
         df = df.dropna(subset=["systemLoad"])
-        df = _handle_data(df, {"systemLoad": "Demand"})
+        df = self._handle_data(df, {"systemLoad": "Demand"})
         return df
 
     def get_demand_today(self):
@@ -74,10 +76,9 @@ class Ercot(ISOBase):
         pass
     # https://www.ercot.com/api/1/services/read/dashboards/systemWidePrices.json
 
+    def _handle_data(self, df, columns):
+        df["Time"] = pd.to_datetime(df["epoch"], unit="ms").dt.tz_localize(
+            "UTC").dt.tz_convert(self.default_timezone)
 
-def _handle_data(df, columns):
-    df["Time"] = pd.to_datetime(df["epoch"], unit="ms").dt.tz_localize(
-        "UTC").dt.tz_convert("US/Central")
-
-    cols_to_keep = ["Time"] + list(columns.keys())
-    return df[cols_to_keep].rename(columns=columns)
+        cols_to_keep = ["Time"] + list(columns.keys())
+        return df[cols_to_keep].rename(columns=columns)
