@@ -1,6 +1,6 @@
 # Changelog
 
-## vNext
+## v0.4.0 - Aug 4, 2022
 
 - NYISO: added all demand, fuel mix, and supply methods
 - PJM: add all demand methods for
