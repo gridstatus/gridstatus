@@ -12,7 +12,11 @@
 </p>
 
 <p align="center">
-<a href="#install"><b>Install</b></a> — <a href="#getting-started"><b>Getting Started</b></a> — <a href="#method-availability"><b>Method Availability</b></a> —  <a href="#feedback-welcome"><b>Feedback</b></a>
+<a href="#install"><b>Install</b></a> — 
+<a href="#getting-started"><b>Getting Started</b></a> — 
+<a href="#method-availability"><b>Method Availability</b></a> —  
+<a href="#pricing-data"><b>Pricing Data</b></a> —  
+<a href="#feedback-welcome"><b>Feedback</b></a>
 </p>
 
 `isodata` provides standardized API to access energy data from the major Independent System Operators (ISOs) in the United States.
@@ -81,7 +85,7 @@ Time: 2022-08-03 18:25:00-07:00
 +-------------+-------+-----------+
 ```
 
-or the energy demand throughout the current day
+or the energy demand throughout the current day as a Pandas DataFrame
 
 ```python
 >>> iso.get_demand_today()
@@ -100,7 +104,57 @@ or the energy demand throughout the current day
 221 2022-08-03 18:25:00-07:00  41718.0
 222 2022-08-03 18:30:00-07:00  41657.0
 223 2022-08-03 18:35:00-07:00  41605.0
+
+[224 rows x 2 columns]
 ```
+
+we can get today's supply in the same way
+
+```python
+>>> iso.get_supply_today()
+```
+
+```
+                         Time  Supply
+0   2022-08-03 00:00:00-07:00   31454
+1   2022-08-03 00:05:00-07:00   31366
+2   2022-08-03 00:10:00-07:00   30985
+3   2022-08-03 00:15:00-07:00   30821
+4   2022-08-03 00:20:00-07:00   30667
+..                        ...     ...
+220 2022-08-03 18:20:00-07:00   43096
+221 2022-08-03 18:25:00-07:00   43104
+222 2022-08-03 18:30:00-07:00   43013
+223 2022-08-03 18:35:00-07:00   42885
+224 2022-08-03 18:40:00-07:00   42875
+
+[225 rows x 2 columns]
+```
+
+to get data for a specific day, use the historical method calls. For example,
+
+```python
+>>> iso.get_historical_demand("Jan 1, 2020")
+```
+
+```
+                         Time  Demand
+0   2020-01-01 00:00:00-08:00   21533
+1   2020-01-01 00:05:00-08:00   21429
+2   2020-01-01 00:10:00-08:00   21320
+3   2020-01-01 00:15:00-08:00   21272
+4   2020-01-01 00:20:00-08:00   21193
+..                        ...     ...
+284 2020-01-01 23:40:00-08:00   20383
+285 2020-01-01 23:45:00-08:00   20297
+286 2020-01-01 23:50:00-08:00   20242
+287 2020-01-01 23:55:00-08:00   20128
+288 2020-01-01 00:00:00-08:00   20025
+
+[289 rows x 2 columns]
+```
+
+The best part is these APIs work across all the supported ISOs
 
 ## Method Availability
 
