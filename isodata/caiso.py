@@ -107,6 +107,7 @@ class CAISO(ISOBase):
         url = self.HISTORY_BASE + "/%s/demand.csv"
         df = _get_historical(url, date)[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Demand"})
+        df = df.dropna(subset=["Demand"])
         return df
 
     def get_latest_supply(self):
