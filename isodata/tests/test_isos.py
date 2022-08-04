@@ -96,13 +96,16 @@ def test_get_supply(iso):
     ) == isodata.utils._handle_date(date_str).date()
 
 
-@pytest.mark.parametrize('iso', [PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
-def test_get_demand(iso):
-    # todo check that the date is right
+@pytest.mark.parametrize('iso', [MISO(), PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
+def test_get_demand_today(iso):
     df = iso.get_demand_today()
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
 
+
+@pytest.mark.parametrize('iso', [PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
+def test_get_demand_yesterday(iso):
+    # todo check that the date is right
     df = iso.get_demand_yesterday()
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)

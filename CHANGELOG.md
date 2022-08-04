@@ -6,6 +6,7 @@
 - add all demand methods for PJM
 - add get latest supply for SPP, MISO, and ISONE
 - add today and latest supply to Ercot
+- add get demand today to MISO
 
 ## v0.3.0 - Aug 3, 2022
 
