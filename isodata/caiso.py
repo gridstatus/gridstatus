@@ -115,12 +115,7 @@ class CAISO(ISOBase):
 
         Updates every 5 minutes
         """
-        mix = self.get_latest_fuel_mix()
-
-        return {
-            "time": mix.time,
-            "supply": mix.total_production
-        }
+        return self._latest_supply_from_fuel_mix()
 
     def get_supply_today(self):
         "Get supply for today in 5 minute intervals"

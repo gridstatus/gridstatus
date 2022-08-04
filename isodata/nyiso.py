@@ -71,10 +71,11 @@ class NYISO(ISOBase):
         return self._today_from_historical(self.get_historical_demand)
 
     def get_demand_yesterday(self):
-        "Get demand for yesterdat in 5 minute intervals"
+        "Get demand for yesterday in 5 minute intervals"
         return self._yesterday_from_historical(self.get_historical_demand)
 
     def get_historical_demand(self, date):
+        """Returns demand at a previous date in 5 minute intervals"""
         date = isodata.utils._handle_date(date)
 
         url = "http://dss.nyiso.com/dss_oasis/PublicReports"
@@ -105,19 +106,14 @@ class NYISO(ISOBase):
 
         Updates every 5 minutes
         """
-        mix = self.get_latest_fuel_mix()
-
-        return {
-            "time": mix.time,
-            "supply": mix.total_production
-        }
+        return self._latest_supply_from_fuel_mix()
 
     def get_supply_today(self):
         "Get supply for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_supply)
 
     def get_supply_yesterday(self):
-        "Get supply for yesterdat in 5 minute intervals"
+        "Get supply for yesterday in 5 minute intervals"
         return self._yesterday_from_historical(self.get_historical_supply)
 
     def get_historical_supply(self, date):

@@ -25,9 +25,4 @@ class SPP(ISOBase):
 
     def get_latest_supply(self):
         """Returns most recent data point for supply in MW"""
-        mix = self.get_latest_fuel_mix()
-
-        return {
-            "time": mix.time,
-            "supply": mix.total_production
-        }
+        return self._latest_supply_from_fuel_mix()

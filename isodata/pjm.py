@@ -54,11 +54,7 @@ class PJM(ISOBase):
         return mix_df
 
     def get_latest_supply(self):
-        mix = self.get_latest_fuel_mix()
-        return {
-            "time": mix.time,
-            "supply": mix.total_production
-        }
+        return self._latest_supply_from_fuel_mix()
 
     def get_supply_today(self):
         "Get supply for today in hourly intervals"

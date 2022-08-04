@@ -74,6 +74,14 @@ class ISOBase:
         supply_df["Supply"] = df.sum(axis=1)  # sum all the remaining columns
         return supply_df
 
+    def _latest_supply_from_fuel_mix(self):
+        mix = self.get_latest_fuel_mix()
+
+        return {
+            "time": mix.time,
+            "supply": mix.total_production
+        }
+
 
 class GridStatus():
     def __init__(self, time, status, reserves, iso, unit="MW") -> None:
