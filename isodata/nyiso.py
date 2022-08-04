@@ -120,6 +120,11 @@ class NYISO(ISOBase):
         """Returns supply at a previous date in 5 minute intervals"""
         return self._supply_from_fuel_mix(date)
 
+    # def get_real_time_prices(self, )
+    # def get_day_ahead_prices(self,)
+
+    # https://www.nyiso.com/energy-market-operational-data
+
 
 """
 pricing data

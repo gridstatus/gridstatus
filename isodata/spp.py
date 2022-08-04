@@ -26,3 +26,9 @@ class SPP(ISOBase):
     def get_latest_supply(self):
         """Returns most recent data point for supply in MW"""
         return self._latest_supply_from_fuel_mix()
+
+
+# historical generation mix
+# https://marketplace.spp.org/pages/generation-mix-rolling-365
+# https://marketplace.spp.org/chart-api/gen-mix-365/asFile
+# 15mb file with five minute resolution
