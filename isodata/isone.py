@@ -4,6 +4,7 @@ from .base import ISOBase, FuelMix
 import pandas as pd
 import requests
 import isodata
+import io
 
 
 class ISONE(ISOBase):
@@ -20,6 +21,43 @@ class ISONE(ISOBase):
 
         mix_dict = mix_df.set_index("FuelCategory")["GenMw"].to_dict()
         return FuelMix(time, mix_dict, self.name)
+
+    def get_fuel_mix_today(self):
+        "Get fuel mix for today"
+        # todo should this use the latest endpoint?
+        return self._today_from_historical(self.get_historical_fuel_mix)
+
+    def get_fuel_mix_yesterday(self):
+        "Get fuel mix for yesterday"
+        return self._yesterday_from_historical(self.get_historical_fuel_mix)
+
+    def get_historical_fuel_mix(self, date):
+        """Return fuel mix at a previous date
+
+        Provided at frequent, but irregular intervals by ISONE
+        """
+        date = isodata.utils._handle_date(date)
+        url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + \
+            date.strftime('%Y%m%d')
+
+        with requests.Session() as s:
+            # make first get request to get isox cookie set
+            r = s.get(
+                "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix")
+            r = s.get(url)
+
+        df = pd.read_csv(io.StringIO(r.content.decode("utf8")),
+                         skiprows=[0, 1, 2, 3, 5], skipfooter=1, engine='python')
+
+        df["Date"] = pd.to_datetime(
+            df['Date'] + ' ' + df['Time']).dt.tz_localize(self.default_timezone)
+
+        mix_df = df.pivot_table(index="Date", columns="Fuel Category",
+                                values="Gen Mw", aggfunc="first").reset_index()
+
+        mix_df = mix_df.rename(columns={"Date": "Time"})
+
+        return mix_df
 
     def get_latest_demand(self):
         return self._latest_from_today(self.get_demand_today)
@@ -65,6 +103,18 @@ class ISONE(ISOBase):
     def get_latest_supply(self):
         """Returns most recent data point for supply in MW"""
         return self._latest_supply_from_fuel_mix()
+
+    def get_supply_today(self):
+        "Get supply for today in MW"
+        return self._today_from_historical(self.get_historical_supply)
+
+    def get_supply_yesterday(self):
+        "Get supply for yesterday in MW"
+        return self._yesterday_from_historical(self.get_historical_supply)
+
+    def get_historical_supply(self, date):
+        """Returns supply at a previous date in MW"""
+        return self._supply_from_fuel_mix(date)
 
 
 # daily historical fuel mix

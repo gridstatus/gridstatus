@@ -6,7 +6,7 @@
 - PJM: add all demand methods for
 - SPP: today and latest demand
 - MISO: added get demand today and latest supply
-- ISONE: get latest supply
+- ISONE: now has complete coverage after adding all fuel mix and supply methods
 - Ercot: added today and latest supply
 
 ## v0.3.0 - Aug 3, 2022
