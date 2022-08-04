@@ -41,13 +41,23 @@ class ISONE(ISOBase):
             date.strftime('%Y%m%d')
 
         with requests.Session() as s:
-            # make first get request to get isox cookie set
-            r = s.get(
-                "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix")
-            r = s.get(url)
+            # in testing, never takes more than 2 attempts
+            attempt = 0
+            while attempt < 3:
+                # make first get request to get cookies set
+                r1 = s.get(
+                    "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix")
 
-        df = pd.read_csv(io.StringIO(r.content.decode("utf8")),
-                         skiprows=[0, 1, 2, 3, 5], skipfooter=1, engine='python')
+                r2 = s.get(url)
+
+                if r2.status_code == 200:
+                    break
+
+                print("Attempt {} failed. Retrying...".format(attempt+1))
+                attempt += 1
+
+            df = pd.read_csv(io.StringIO(r2.content.decode("utf8")),
+                             skiprows=[0, 1, 2, 3, 5], skipfooter=1, engine='python')
 
         df["Date"] = pd.to_datetime(
             df['Date'] + ' ' + df['Time']).dt.tz_localize(self.default_timezone)
