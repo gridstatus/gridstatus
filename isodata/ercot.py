@@ -72,6 +72,32 @@ class Ercot(ISOBase):
         """Returns demand for yesterday"""
         return self._get_demand("previousDay")
 
+    def get_latest_supply(self):
+        return self._latest_from_today(self.get_supply_today)
+
+    def get_supply_today(self):
+        """Returns most recent data point for supply in MW
+
+        Updates every 5 minutes
+        """
+        url = 'https://www.ercot.com/api/1/services/read/dashboards/todays-outlook.json'
+        r = self._get_json(url)
+
+        date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
+
+        # ignore last row since that corresponds to midnight following day
+        data = pd.DataFrame(r['data'][:-1])
+
+        data["Time"] = data.apply(lambda x, date=date: pd.Timestamp(
+            year=date.year, month=date.month, day=date.day, hour=int(x["hourEnding"]), minute=int(x["interval"])), axis=1)
+
+        data = data[data["forecast"] == 0]  # only keep non forecast rows
+
+        data = data[["Time", "capacity"]].rename(
+            columns={"capacity": "Supply"})
+
+        return data
+
     def get_prices(self):
         pass
     # https://www.ercot.com/api/1/services/read/dashboards/systemWidePrices.json
