@@ -96,7 +96,7 @@ def test_get_supply(iso):
     ) == isodata.utils._handle_date(date_str).date()
 
 
-@pytest.mark.parametrize('iso', [MISO(), PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
+@pytest.mark.parametrize('iso', all_isos)
 def test_get_demand_today(iso):
     df = iso.get_demand_today()
     assert isinstance(df, pd.DataFrame)
@@ -111,7 +111,7 @@ def test_get_demand_yesterday(iso):
     assert set(["Time", "Demand"]) == set(df.columns)
 
 
-@pytest.mark.parametrize('iso', [PJM(), NYISO(), MISO(), Ercot(), ISONE(), CAISO()])
+@pytest.mark.parametrize('iso', all_isos)
 def test_get_latest_demand(iso):
     demand = iso.get_latest_demand()
     set(["time", "demand"]) == demand.keys()

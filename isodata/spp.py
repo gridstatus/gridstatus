@@ -27,7 +27,25 @@ class SPP(ISOBase):
         """Returns most recent data point for supply in MW"""
         return self._latest_supply_from_fuel_mix()
 
+    def get_latest_demand(self):
+        return self._latest_from_today(self.get_demand_today)
 
+    def get_demand_today(self):
+        """Returns demand for last 24hrs in 5 minute intervals"""
+        url = 'https://marketplace.spp.org/chart-api/load-forecast/asChart'
+        r = self._get_json(url)['response']
+
+        load = r["datasets"][2]
+
+        # sanity check to make sure direct index of 2 is correct
+        assert load["label"] == "Actual Load"
+
+        df = pd.DataFrame({
+            "Time": r["labels"],
+            "Demand": load["data"]
+        }).dropna(subset=["Demand"])
+
+        return df
 # historical generation mix
 # https://marketplace.spp.org/pages/generation-mix-rolling-365
 # https://marketplace.spp.org/chart-api/gen-mix-365/asFile

@@ -2,11 +2,12 @@
 
 ## vNext
 
-- added all demand, fuel mix, and supply methods for NYISO
-- add all demand methods for PJM
-- add get latest supply for SPP, MISO, and ISONE
-- add today and latest supply to Ercot
-- add get demand today to MISO
+- NYISO: added all demand, fuel mix, and supply methods
+- PJM: add all demand methods for
+- SPP: today and latest demand
+- MISO: added get demand today and latest supply
+- ISONE: get latest supply
+- Ercot: added today and latest supply
 
 ## v0.3.0 - Aug 3, 2022
 
