@@ -18,14 +18,8 @@ class MISO(ISOBase):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url)
 
-        date, time_str, am_pm = r["Fuel"]["Type"][0]["INTERVALEST"].split(" ")
-        year, month, day, = map(int, date.split("-"))
-        hour, minute, second = map(int, time_str.split(":"))
-        if am_pm == "PM":
-            hour += 12
-
-        time = pd.Timestamp(
-            year=year, month=month, day=day, hour=hour, minute=minute,  tz=self.default_timezone)
+        time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
+            self.default_timezone)
 
         mix = {}
         for fuel in r["Fuel"]["Type"]:
