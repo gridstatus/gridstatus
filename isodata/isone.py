@@ -5,6 +5,7 @@ import pandas as pd
 import requests
 import isodata
 import io
+from isodata import utils
 
 
 class ISONE(ISOBase):
@@ -13,8 +14,10 @@ class ISONE(ISOBase):
     default_timezone = "US/Eastern"
 
     def get_latest_fuel_mix(self):
+        """Returns most recent data point for fuel mix in MW"""
         r = requests.post("https://www.iso-ne.com/ws/wsclient",
-                          data={"_nstmp_requestType": "url", "_nstmp_requestUrl": "/genfuelmix/current"}).json()
+                          data={"_nstmp_requestType": "url", "_nstmp_requestUrl": "/genfuelmix/current"})
+        r = r.json()
         mix_df = pd.DataFrame(r[0]['data']['GenFuelMixes']['GenFuelMix'])
         time = pd.Timestamp(mix_df["BeginDate"].max(),
                             tz=self.default_timezone)

@@ -69,3 +69,8 @@ def _handle_date(date):
         date = pd.to_datetime(date)
 
     return date
+
+
+def print(*args, verbose=True):
+    if verbose:
+        print(*args)

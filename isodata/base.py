@@ -1,3 +1,4 @@
+import isodata.utils as utils
 import pandas as pd
 import requests
 from tabulate import tabulate
@@ -7,9 +8,14 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
 
 class ISOBase:
 
+    def __init__(self, verbose=False) -> None:
+        self.verbose = verbose
+
     def _get_json(self, *args, **kwargs):
+        # utils.print("GET URL:", args[0], verbose=self.verbose)
         r = requests.get(*args, **kwargs)
         r = r.json()
+        # utils.print("Response JSON:", r, verbose=self.verbose)
         return r
 
     def get_latest_status(self):
