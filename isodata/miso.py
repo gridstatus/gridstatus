@@ -11,9 +11,6 @@ class MISO(ISOBase):
     # says EST in time stamp but EDT is currently in affect. EST == CDT, so using central time for now
     default_timezone = "US/Central"
 
-    def __init__(self) -> None:
-        super().__init__()
-
     def get_latest_fuel_mix(self):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url)
@@ -70,3 +67,6 @@ class MISO(ISOBase):
 
     # market reports https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=
     # historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ASummary%2FMarketReportName%3AHistorical%20Generation%20Fuel%20Mix%20(xlsx)&t=10&p=0&s=MarketReportPublished&sd=desc
+
+    # real time apis
+    # https://www.misoenergy.org/markets-and-operations/RTDataAPIs/
