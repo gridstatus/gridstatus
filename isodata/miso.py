@@ -60,6 +60,9 @@ class MISO(ISOBase):
             x.split(":")[0]), minutes=int(x.split(":")[1])))
         df["Time"] = df["Time"].dt.tz_localize(self.default_timezone)
         df = df.rename(columns={"Value": "Demand"})
+
+        df["Demand"] = pd.to_numeric(df["Demand"])
+
         return df
 
     # market reports https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=

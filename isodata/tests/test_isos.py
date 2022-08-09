@@ -3,6 +3,8 @@ import isodata
 from isodata.base import FuelMix, ISOBase, GridStatus
 import pandas as pd
 import pytest
+from pandas.api.types import is_numeric_dtype
+
 
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
@@ -73,6 +75,7 @@ def test_get_historical_fuel_mix(iso):
 def test_get_latest_supply(iso):
     supply = iso.get_latest_supply()
     set(["time", "supply"]) == supply.keys()
+    assert is_numeric_dtype(type(supply["supply"]))
 
 
 @pytest.mark.parametrize('iso', [ISONE(), Ercot(), NYISO(), PJM(), CAISO()])
@@ -81,6 +84,7 @@ def test_get_supply_today(iso):
     df = iso.get_supply_today()
     assert isinstance(df, pd.DataFrame)
     set(["Time", "Supply"]) == set(df.columns)
+    assert is_numeric_dtype(df['Supply'])
 
 
 @pytest.mark.parametrize('iso', [ISONE(), NYISO(), PJM(), CAISO()])
@@ -94,6 +98,7 @@ def test_get_supply(iso):
     assert set(["Time", "Supply"]) == set(df.columns)
     assert df.loc[0]["Time"].date(
     ) == isodata.utils._handle_date(date_str).date()
+    assert is_numeric_dtype(df['Supply'])
 
 
 @pytest.mark.parametrize('iso', all_isos)
@@ -101,6 +106,7 @@ def test_get_demand_today(iso):
     df = iso.get_demand_today()
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
+    assert is_numeric_dtype(df['Demand'])
 
 
 @pytest.mark.parametrize('iso', [PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
@@ -109,12 +115,14 @@ def test_get_demand_yesterday(iso):
     df = iso.get_demand_yesterday()
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
+    assert is_numeric_dtype(df['Demand'])
 
 
 @pytest.mark.parametrize('iso', all_isos)
 def test_get_latest_demand(iso):
     demand = iso.get_latest_demand()
     set(["time", "demand"]) == demand.keys()
+    assert is_numeric_dtype(type(demand["demand"]))
 
 
 @pytest.mark.parametrize('iso', [PJM(), NYISO(), ISONE(), CAISO()])
@@ -128,15 +136,18 @@ def test_get_historical_demand(iso):
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_str
+    assert is_numeric_dtype(df['Demand'])
 
     # timestamp object works
     df = iso.get_historical_demand(test_date)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == test_date.strftime('%Y%m%d')
+    assert is_numeric_dtype(df['Demand'])
 
     # datetime object works
     df = iso.get_historical_demand(test_date)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == test_date.strftime('%Y%m%d')
+    assert is_numeric_dtype(df['Demand'])
