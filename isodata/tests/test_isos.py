@@ -101,6 +101,8 @@ def test_get_demand_today(iso):
     df = iso.get_demand_today()
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
+    assert isinstance(df.loc[0]["Time"], pd.Timestamp)
+    assert df.loc[0]["Time"].tz is not None
 
 
 @pytest.mark.parametrize('iso', [PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
@@ -109,6 +111,8 @@ def test_get_demand_yesterday(iso):
     df = iso.get_demand_yesterday()
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
+    assert isinstance(df.loc[0]["Time"], pd.Timestamp)
+    assert df.loc[0]["Time"].tz is not None
 
 
 @pytest.mark.parametrize('iso', all_isos)
