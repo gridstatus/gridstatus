@@ -1,3 +1,4 @@
+from turtle import st
 from .base import ISOBase, FuelMix
 import pandas as pd
 
@@ -46,7 +47,16 @@ class SPP(ISOBase):
         }).dropna(subset=["Demand"])
 
         return df
-# historical generation mix
-# https://marketplace.spp.org/pages/generation-mix-rolling-365
-# https://marketplace.spp.org/chart-api/gen-mix-365/asFile
-# 15mb file with five minute resolution
+
+        # todo where does date got in argument order
+        # def get_historical_lmp(self, date, market: str, nodes: list):
+        # 5 minute interal data
+        # https://marketplace.spp.org/file-browser-api/download/rtbm-lmp-by-location?path=/2022/08/By_Interval/08/RTBM-LMP-SL-202208082125.csv
+
+        # hub and interface prices
+        # https://marketplace.spp.org/pages/hub-and-interface-prices
+
+        # historical generation mix
+        # https://marketplace.spp.org/pages/generation-mix-rolling-365
+        # https://marketplace.spp.org/chart-api/gen-mix-365/asFile
+        # 15mb file with five minute resolution

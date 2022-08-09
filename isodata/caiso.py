@@ -5,6 +5,8 @@ from .base import ISOBase, FuelMix, GridStatus
 import pandas as pd
 from typing import Any
 
+import time
+
 
 class CAISO(ISOBase):
     BASE = "https://www.caiso.com/outlook/SP"
@@ -13,6 +15,9 @@ class CAISO(ISOBase):
     name = "California ISO"
     iso_id = "caiso"
     default_timezone = "US/Pacific"
+
+    DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
+    REAL_TIME_15_MIN = "REAL_TIME_15_MIN"
 
     def _current_day(self):
         # get current date from stats api
@@ -137,14 +142,24 @@ class CAISO(ISOBase):
         })
         return df
 
-    def get_day_ahead_prices(self, start_date, num_days=1, nodes=None):
+    def get_latest_lmp(self, market: str, nodes: list):
+        return self._latest_lmp_from_today(market, nodes, node_column="Node")
+
+    def get_lmp_today(self, market: str, nodes: list):
+        "Get lmp for today in 5 minute intervals"
+        return self._today_from_historical(self.get_historical_lmp, market, nodes)
+
+    def get_lmp_yesterday(self, market: str, nodes: list):
+        "Get lmp for yesterday in 5 minute intervals"
+        return self._yesterday_from_historical(self.get_historical_lmp, market, nodes)
+
+    def get_historical_lmp(self, date, market: str, nodes: list):
         """Get day ahead LMP pricing starting at supplied date for a list of nodes.
 
         Arguments:
-            start_date (str or pd.Timestamp): starting date to return data. Supports starting date up to 39 months ago
+            date: date to return data
 
-
-            num_days: get data for num_days after starting date. Must be less than 31
+            market: market to return from. supports: 
 
             nodes (list): list of nodes to get data from. If no nodes are provided, defaults to NP15, SP15, and ZP26, which are the trading hub nodes. For a list of nodes, call CAISO.get_pnodes()
 
@@ -152,37 +167,54 @@ class CAISO(ISOBase):
             dataframe of pricing data
         """
 
-        if num_days > 31:
-            raise RuntimeError("num_days must be below 31")
-
         if nodes is None:
             nodes = ["TH_NP15_GEN-APND",
                      "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"]
 
-        if isinstance(start_date, str):
-            start_date = pd.to_datetime(
-                start_date).tz_localize(self.default_timezone)
-
+        # todo make sure defaults to local timezone
+        start = isodata.utils._handle_date(date, tz=self.default_timezone)
         nodes_str = ",".join(nodes)
 
-        start = start_date.tz_convert("UTC")
-        end = start + pd.DateOffset(num_days)
+        start = start.tz_convert("UTC")
+        end = start + pd.DateOffset(1)
 
         start = start.strftime("%Y%m%dT%H:%M-0000")
         end = end.strftime("%Y%m%dT%H:%M-0000")
-        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_LMP&version=12&startdatetime={start}&enddatetime={end}&market_run_id=DAM&node={nodes_str}"
+
+        if market == self.DAY_AHEAD_HOURLY:
+            url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_LMP&version=12&startdatetime={start}&enddatetime={end}&market_run_id=DAM&node={nodes_str}"
+            PRICE_COL = "MW"
+        elif market == self.REAL_TIME_15_MIN:
+            url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_RTPD_LMP&version=3&startdatetime={start}&enddatetime={end}&market_run_id=RTPD&node={nodes_str}"
+            PRICE_COL = "PRC"
+
         # todo catch too many requests
-        df = pd.read_csv(url,
-                         compression='zip',
-                         usecols=["INTERVALSTARTTIME_GMT", "NODE", "LMP_TYPE", "MW"])
+        retry_num = 0
+        while retry_num < 3:
+            try:
+                df = pd.read_csv(url,
+                                 compression='zip',
+                                 usecols=["INTERVALSTARTTIME_GMT", "NODE", "LMP_TYPE", PRICE_COL])
+            except Exception as e:
+                retry_num += 1
+                print(f"Failed to get data from CAISO. Error: {e}")
+                print(f"Retrying {retry_num}...")
+                time.sleep(5)
+                if retry_num > 3:
+                    raise Exception(
+                        f"Failed to get data from CAISO. Error: {e}")
+
         df = df.pivot_table(index=['INTERVALSTARTTIME_GMT', 'NODE'],
-                            columns='LMP_TYPE', values='MW', aggfunc='first')
+                            columns='LMP_TYPE', values=PRICE_COL, aggfunc='first')
         df = df.reset_index().rename(columns={
-            "NODE": "pnode", "OPR_HR": "hour", "LMP": "lmp", "MCE": "energy", "MCC": "congestion", "MCL": "losses"})
-        df["interval start"] = pd.to_datetime(
-            df['INTERVALSTARTTIME_GMT']).dt.tz_convert(self.default_timezone)
-        df = df.set_index("interval start").drop(
-            columns=["INTERVALSTARTTIME_GMT"])
+            "INTERVALSTARTTIME_GMT": "Time", "NODE": "Node", "LMP": "LMP", "MCE": "Energy", "MCC": "Congestion", "MCL": "Loss"})
+        df["Time"] = pd.to_datetime(
+            df['Time']).dt.tz_convert(self.default_timezone)
+
+        df["Market"] = market
+
+        df = df[["Time", "Market", "Node", "LMP",
+                "Energy", "Congestion", "Loss"]]
 
         return df
 

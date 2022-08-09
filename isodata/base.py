@@ -51,22 +51,27 @@ class ISOBase:
     def get_historical_supply(self, date):
         raise NotImplementedError()
 
-    def _latest_from_today(self, method):
-        data = method()
+    def _latest_lmp_from_today(self, market, nodes, node_column="Node"):
+        lmp_df = self.get_lmp_today(market, nodes)
+        latest_df = lmp_df.groupby(node_column).last()
+        return latest_df
+
+    def _latest_from_today(self, method, *args, **kwargs):
+        data = method(*args, **kwargs)
         latest = data.iloc[-1]
 
         latest.index = latest.index.str.lower()
 
         return latest.to_dict()
 
-    def _today_from_historical(self, method):
+    def _today_from_historical(self, method, *args, **kwargs):
         today = pd.Timestamp.now(self.default_timezone).date()
-        return method(today)
+        return method(today, *args, **kwargs)
 
-    def _yesterday_from_historical(self, method):
+    def _yesterday_from_historical(self, method, *args, **kwargs):
         yesterday = (pd.Timestamp.now(self.default_timezone) -
                      pd.DateOffset(1)).date()
-        return method(yesterday)
+        return method(yesterday,  *args, **kwargs)
 
     def _supply_from_fuel_mix(self, date):
         df = self.get_historical_fuel_mix(date)

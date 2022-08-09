@@ -139,3 +139,77 @@ def test_get_historical_demand(iso):
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
+
+
+@pytest.mark.parametrize('test', [
+    # {
+    #     CAISO(): {
+    #         "markets": [CAISO.DAY_AHEAD_HOURLY, CAISO.REAL_TIME_15_MIN],
+    #         "nodes": None
+    #     },
+    # },
+    {
+        ISONE(): {
+            "markets": [ISONE.REAL_TIME_HOURLY],  # , ISONE.REAL_TIME_5_MIN
+            "nodes": "ALL"
+        }
+    },
+    {
+        NYISO(): {
+            "markets": [NYISO.DAY_AHEAD_5_MIN, NYISO.REAL_TIME_5_MIN],
+            "nodes": "ALL"
+        }
+    }
+])
+def test_get_historical_lmp(test):
+    iso = list(test)[0]
+    markets = test[iso]["markets"]
+    nodes = test[iso]["nodes"]
+
+    date_str = "20220722"
+    for m in markets:
+        print(iso.iso_id, m)
+        hist = iso.get_historical_lmp(date_str, m, nodes=nodes)
+        assert isinstance(hist, pd.DataFrame)
+        today = iso.get_lmp_today(m, nodes=nodes)
+        assert isinstance(today, pd.DataFrame)
+        # yesterday = iso.get_lmp_yesterday(m, nodes=nodes)
+        # assert isinstance(yesterday, pd.DataFrame)
+
+
+@pytest.mark.parametrize('test', [
+    # {
+    #     CAISO(): {
+    #         "markets": [CAISO.DAY_AHEAD_HOURLY, CAISO.REAL_TIME_15_MIN],
+    #         "nodes": None
+    #     },
+    # },
+    {
+        ISONE(): {
+            "markets": [ISONE.REAL_TIME_5_MIN, ISONE.REAL_TIME_HOURLY],
+            "nodes": "ALL"
+        }
+    },
+    {
+        MISO(): {
+            "markets": [MISO.REAL_TIME_5_MIN, MISO.DAY_AHEAD_HOURLY],
+            "nodes": "ALL"
+        }
+    },
+    {
+        NYISO(): {
+            "markets": [NYISO.DAY_AHEAD_5_MIN, NYISO.REAL_TIME_5_MIN],
+            "nodes": "ALL"
+        }
+    }
+])
+def test_get_latest_lmp(test):
+    iso = list(test)[0]
+    markets = test[iso]["markets"]
+    nodes = test[iso]["nodes"]
+
+    date_str = "20220722"
+    for m in markets:
+        print(iso.iso_id, m)
+        latest = iso.get_latest_lmp(m, nodes=nodes)
+        assert isinstance(latest, pd.DataFrame)

@@ -1,4 +1,6 @@
+import math
 import re
+from tkinter import E
 from urllib import request
 from .base import ISOBase, FuelMix
 import pandas as pd
@@ -11,6 +13,10 @@ class ISONE(ISOBase):
     name = "ISO New England"
     iso_id = "isone"
     default_timezone = "US/Eastern"
+
+    REAL_TIME_5_MIN = "REAL_TIME_5_MIN"
+    REAL_TIME_HOURLY = "REAL_TIME_HOURLY"
+    DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
 
     def get_latest_fuel_mix(self):
         r = requests.post("https://www.iso-ne.com/ws/wsclient",
@@ -40,24 +46,7 @@ class ISONE(ISOBase):
         url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + \
             date.strftime('%Y%m%d')
 
-        with requests.Session() as s:
-            # in testing, never takes more than 2 attempts
-            attempt = 0
-            while attempt < 3:
-                # make first get request to get cookies set
-                r1 = s.get(
-                    "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix")
-
-                r2 = s.get(url)
-
-                if r2.status_code == 200:
-                    break
-
-                print("Attempt {} failed. Retrying...".format(attempt+1))
-                attempt += 1
-
-            df = pd.read_csv(io.StringIO(r2.content.decode("utf8")),
-                             skiprows=[0, 1, 2, 3, 5], skipfooter=1, engine='python')
+        df = _make_request(url, skiprows=[0, 1, 2, 3, 5])
 
         df["Date"] = pd.to_datetime(
             df['Date'] + ' ' + df['Time']).dt.tz_localize(self.default_timezone)
@@ -126,7 +115,138 @@ class ISONE(ISOBase):
         """Returns supply at a previous date in MW"""
         return self._supply_from_fuel_mix(date)
 
+    def get_latest_lmp(self, market: str, nodes: list):
+        # todo optimize to read latest csv
+        if market == self.REAL_TIME_5_MIN:
+            url = 'https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim'
+            data = _make_request(url, skiprows=[0, 1, 2, 4])
+        elif market == self.REAL_TIME_HOURLY:
+            url = 'https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt'
+            data = _make_request(url, skiprows=[0, 1, 2, 4])
 
-# daily historical fuel mix
-# https://www.iso-ne.com/static-assets/documents/2022/01/2022_daygenbyfuel.xlsx
-# a bunch more here: https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/daily-gen-fuel-type
+            # todo does this handle single digital hours?
+            data["Local Time"] = data["Local Date"] + \
+                " " + data["Local Time"].astype(str).str.zfill(2) + ":00"
+
+        else:
+            raise RuntimeError("Unsupported market")
+
+        data = _process_lmp(data, market, self.default_timezone)
+        return data
+
+    def get_lmp_today(self, market: str, nodes: list):
+        "Get lmp for today in 5 minute intervals"
+        return self._today_from_historical(self.get_historical_lmp, market, nodes)
+
+    def get_lmp_yesterday(self, market: str, nodes: list):
+        "Get lmp for yesterday in 5 minute intervals"
+        return self._yesterday_from_historical(self.get_historical_lmp, market, nodes)
+
+    def get_historical_lmp(self, date, market: str, nodes: list):
+        date = isodata.utils._handle_date(date)
+        date_str = date.strftime('%Y%m%d')
+
+        now = pd.Timestamp.now(tz=self.default_timezone)
+
+        if market == self.REAL_TIME_5_MIN:
+            # todo handle intervals for current day
+            intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
+
+            # optimze for current day
+            if now.date() == date.date():
+                hour = now.hour
+                # select completed 4 hour intervals based on current hour
+                intervals = intervals[:math.ceil((hour + 1) / 4)-1]
+
+            dfs = []
+            for interval in intervals:
+                print("Loading interval {}".format(interval))
+                u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"
+                dfs.append(
+                    pd.read_csv(u, skiprows=[0, 1, 2, 3, 5],
+                                skipfooter=1, engine='python')
+                )
+
+            data = pd.concat(dfs)
+
+            data["Local Time"] = date.strftime(
+                '%Y-%m-%d') + " " + data["Local Time"]
+
+            # add current interval
+            if now.date() == date.date():
+                url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"
+                print("Loading current interval")
+                data_current = _make_request(url, skiprows=[0, 1, 2, 4])
+
+                data_current = data_current[data_current["Local Time"]
+                                            > data["Local Time"].max()]
+
+                data = pd.concat([data, data_current])
+
+        if market == self.REAL_TIME_HOURLY:
+            if date.date() < now.date():
+                url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"
+                data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
+                data["Local Time"] = data["Date"] + " " + \
+                    data["Hour Ending"].astype(str).str.zfill(2) + ":00"
+
+            else:
+                raise RuntimeError("Today not support for hourly lmp")
+
+        data = _process_lmp(data, market, self.default_timezone)
+
+        import pdb
+        pdb.set_trace()
+
+        return data
+
+        # daily historical fuel mix
+        # https://www.iso-ne.com/static-assets/documents/2022/01/2022_daygenbyfuel.xlsx
+        # a bunch more here: https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/daily-gen-fuel-type
+
+
+def _make_request(url, skiprows):
+    with requests.Session() as s:
+        # in testing, never takes more than 2 attempts
+        attempt = 0
+        while attempt < 3:
+            # make first get request to get cookies set
+            r1 = s.get(
+                "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix")
+
+            r2 = s.get(url)
+
+            if r2.status_code == 200:
+                break
+
+            print("Attempt {} failed. Retrying...".format(attempt+1))
+            attempt += 1
+
+        df = pd.read_csv(io.StringIO(r2.content.decode("utf8")),
+                         skiprows=skiprows, skipfooter=1, engine='python')
+        return df
+
+
+def _process_lmp(data, market, timezone):
+    # todo handle location types
+    rename = {
+        "Location ID": "Node",
+        "Location": "Node",
+        "Local Time": "Time",
+        "LMP": "LMP",
+        "Energy Component": "Energy",
+        "Congestion Component": "Congestion",
+        "Loss Component": "Loss",
+    }
+
+    data.rename(columns=rename, inplace=True)
+
+    data["Market"] = market
+
+    data["Time"] = pd.to_datetime(
+        data["Time"]).dt.tz_localize(timezone)
+
+    data = data[["Time", "Market", "Node",
+                 "LMP", "Energy", "Congestion", "Loss"]]
+
+    return data

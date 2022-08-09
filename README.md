@@ -161,63 +161,72 @@ The best part is these APIs work across all the supported ISOs
 Here is the current status of availability of each method for each ISO
 
 <!-- METHOD AVAILABILITY TABLE START -->
-|                           | New York ISO   | California ISO   | Electric Reliability Council of Texas   | ISO New England   | Midcontinent ISO   | Southwest Power Pool   | PJM      |
-|:--------------------------|:---------------|:-----------------|:----------------------------------------|:------------------|:-------------------|:-----------------------|:---------|
-| `get_latest_status`       | &#10060;       | &#x2705;         | &#x2705;                                | &#10060;          | &#10060;           | &#10060;               | &#10060; |
-| `get_latest_fuel_mix`     | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_fuel_mix_today`      | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_fuel_mix_yesterday`  | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_historical_fuel_mix` | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_latest_demand`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_demand_today`        | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_demand_yesterday`    | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_historical_demand`   | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_latest_supply`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_supply_today`        | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_supply_yesterday`    | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_historical_supply`   | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
+
+|                           | New York ISO | California ISO | Electric Reliability Council of Texas | ISO New England | Midcontinent ISO | Southwest Power Pool | PJM      |
+| :------------------------ | :----------- | :------------- | :------------------------------------ | :-------------- | :--------------- | :------------------- | :------- |
+| `get_latest_status`       | &#10060;     | &#x2705;       | &#x2705;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| `get_latest_fuel_mix`     | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_fuel_mix_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_fuel_mix_yesterday`  | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_fuel_mix` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_latest_demand`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_demand_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_demand_yesterday`    | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_demand`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_latest_supply`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_supply_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_supply_yesterday`    | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_supply`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+
 <!-- METHOD AVAILABILITY TABLE END -->
 
-## Pricing Data
+## LMP Pricing Data
 
-We are investigating adding pricing data to `isodata`. Currently, day ahead prices are supported for CAISO. If this would be useful, please let us know by filing an issue and describing your use case.
+We are currently adding Locational Marginal Price (LMP). Even though each BA offers different markets, but you can query them with a standardized API
 
 ```python
 >>> import isodata
->>> iso = isodata.CAISO()
->>> iso.get_day_ahead_prices(start_date="may 2, 2022",
-                         num_days=1,
-                         nodes=["TH_NP15_GEN-APND"])
+>>> iso = isodata.NYISO()
+>>> iso.get_lmp_today(iso.REAL_TIME_5_MIN, nodes="ALL")
 ```
 
 ```
-LMP_TYPE	pnode	lmp	congestion	energy	losses	MGHG
-interval start
-2022-05-02 00:00:00-07:00	TH_NP15_GEN-APND	70.47015	0.00000	71.55783	-1.08768	0.0
-2022-05-02 01:00:00-07:00	TH_NP15_GEN-APND	68.73617	0.00000	69.86093	-1.12476	0.0
-2022-05-02 02:00:00-07:00	TH_NP15_GEN-APND	67.58898	0.00000	68.82788	-1.23890	0.0
-2022-05-02 03:00:00-07:00	TH_NP15_GEN-APND	68.51088	0.00000	69.64611	-1.13523	0.0
-2022-05-02 04:00:00-07:00	TH_NP15_GEN-APND	74.25415	0.00000	75.56136	-1.30721	0.0
-2022-05-02 05:00:00-07:00	TH_NP15_GEN-APND	77.86464	0.00000	79.62434	-1.75970	0.0
-2022-05-02 06:00:00-07:00	TH_NP15_GEN-APND	80.71256	0.00000	82.11675	-1.40420	0.0
-2022-05-02 07:00:00-07:00	TH_NP15_GEN-APND	66.68011	0.00000	67.15016	-0.47005	0.0
-2022-05-02 08:00:00-07:00	TH_NP15_GEN-APND	56.40186	7.88764	48.52878	-0.01456	0.0
-2022-05-02 09:00:00-07:00	TH_NP15_GEN-APND	48.69254	9.08351	39.49055	0.11847	0.0
-2022-05-02 10:00:00-07:00	TH_NP15_GEN-APND	41.55114	8.09662	33.41776	0.03676	0.0
-2022-05-02 11:00:00-07:00	TH_NP15_GEN-APND	38.59000	10.35001	28.20333	0.03666	0.0
-2022-05-02 12:00:00-07:00	TH_NP15_GEN-APND	36.89000	8.04264	28.82718	0.02018	0.0
-2022-05-02 13:00:00-07:00	TH_NP15_GEN-APND	38.34660	8.08619	30.11885	0.14156	0.0
-2022-05-02 14:00:00-07:00	TH_NP15_GEN-APND	40.00000	7.97681	31.85753	0.16566	0.0
-2022-05-02 15:00:00-07:00	TH_NP15_GEN-APND	40.00000	6.59597	33.42743	-0.02340	0.0
-2022-05-02 16:00:00-07:00	TH_NP15_GEN-APND	45.31324	8.08926	36.76443	0.45956	0.0
-2022-05-02 17:00:00-07:00	TH_NP15_GEN-APND	59.39957	2.43405	56.88020	0.08532	0.0
-2022-05-02 18:00:00-07:00	TH_NP15_GEN-APND	81.43412	0.00000	83.73688	-2.30276	0.0
-2022-05-02 19:00:00-07:00	TH_NP15_GEN-APND	100.77406	0.00000	104.60251	-3.82845	0.0
-2022-05-02 20:00:00-07:00	TH_NP15_GEN-APND	102.88135	0.00000	105.97585	-3.09449	0.0
-2022-05-02 21:00:00-07:00	TH_NP15_GEN-APND	91.42214	0.00000	94.18167	-2.75952	0.0
-2022-05-02 22:00:00-07:00	TH_NP15_GEN-APND	81.84891	0.00000	83.61315	-1.76424	0.0
-2022-05-02 23:00:00-07:00	TH_NP15_GEN-APND	72.61741	0.00000	73.53662	-0.91921	0.0
+                          Time           Market    Zone     LMP  Energy  Congestion  Losses
+0    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN  CAPITL  125.15   90.63      -26.64    7.88
+1    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN  CENTRL   92.17   90.63        0.00    1.54
+2    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN  DUNWOD   99.52   90.63        0.00    8.89
+3    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN  GENESE   92.53   90.62        0.00    1.91
+4    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN     H Q   88.09   90.63        0.00   -2.54
+...                        ...              ...     ...     ...     ...         ...     ...
+3970 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN   NORTH  110.17  120.71        7.04   -3.50
+3971 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN     NPX  236.60  120.72     -107.18    8.70
+3972 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN     O H  121.23  120.72       -4.49   -3.98
+3973 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN     PJM  146.13  120.71      -20.23    5.19
+3974 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN    WEST  125.26  120.72       -5.02   -0.48
+
+[3975 rows x 7 columns]
 ```
+
+And here is querying CAISO
+
+```
+>>> import isodata
+>>> iso = isodata.CAISO()
+>>> iso.get_lmp_today(iso.DAY_AHEAD_HOURLY, nodes=None)
+```
+
+## CAISO
+
+Supported LMP Markets
+
+- DAY_AHEAD_HOURLY
+
+## NYISO
+
+Supported LMP Markets
+
+- REAL_TIME_5_MIN
+- DAY_AHEAD_5_MIN
 
 ## Feedback Welcome
 

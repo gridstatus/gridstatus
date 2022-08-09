@@ -1,5 +1,15 @@
 # Changelog
 
+## vNext
+
+- NYISO: add LMP prices for 2 markets: real time 5 minute & day ahead 5 minute
+- CAISO: blocked on timeout errors add LMP prices for 1 market: day ahead hourly
+- MISO: add LMP prices for 2 market: real time 5 minute and day head hourly
+- PJM: blocked on finding current day
+- SPP: data available, but what nodes?
+- ISONE: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly
+- ERCOT:
+
 ## v0.4.0 - Aug 4, 2022
 
 - NYISO: added all demand, fuel mix, and supply methods

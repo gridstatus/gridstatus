@@ -9,6 +9,8 @@ from isodata.miso import MISO
 from isodata.spp import SPP
 from isodata.pjm import PJM
 
+from datetime import datetime
+
 all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 
@@ -64,8 +66,11 @@ def make_availability_table():
     return df.to_markdown()
 
 
-def _handle_date(date):
-    if isinstance(date, str):
+def _handle_date(date, tz=None):
+    if not isinstance(date, pd.Timestamp):
         date = pd.to_datetime(date)
+
+    if tz and date.tzinfo is None:
+        date = date.tz_localize(tz)
 
     return date

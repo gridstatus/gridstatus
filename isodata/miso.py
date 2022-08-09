@@ -11,6 +11,9 @@ class MISO(ISOBase):
     # says EST in time stamp but EDT is currently in affect. EST == CDT, so using central time for now
     default_timezone = "US/Central"
 
+    REAL_TIME_5_MIN = "REAL_TIME_5_MIN"
+    DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -62,5 +65,54 @@ class MISO(ISOBase):
         df = df.rename(columns={"Value": "Demand"})
         return df
 
-    # market reports https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=
-    # historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ASummary%2FMarketReportName%3AHistorical%20Generation%20Fuel%20Mix%20(xlsx)&t=10&p=0&s=MarketReportPublished&sd=desc
+    def get_latest_lmp(self, market: str, nodes: list):
+        """
+            Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
+        """
+        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json"
+        r = self._get_json(url)
+
+        time = r["LMPData"]["RefId"]
+        time_str = time[:11] + " " + time[-9:]
+        time = pd.to_datetime(time_str).tz_localize(self.default_timezone)
+        if market == self.REAL_TIME_5_MIN:
+            data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
+
+        elif market == self.DAY_AHEAD_HOURLY:
+            data = pd.DataFrame(
+                r["LMPData"]["DayAheadExPostLMP"]["PricingNode"])
+            time = time.ceil("H")
+
+        rename = {
+            "name": "Node",
+            "LMP": "LMP",
+            "MLC": "Loss",
+            "MCC": "Congestion",
+        }
+
+        data.rename(columns=rename, inplace=True)
+
+        data[["LMP", "Loss", "Congestion"]] = data[["LMP", "Loss",
+                                                    "Congestion"]].apply(pd.to_numeric, errors='coerce')
+
+        data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
+        data["Time"] = time
+        data["Market"] = market
+
+        data = data[["Time", "Market", "Node", "LMP",
+                     "Energy", "Congestion", "Loss"]]
+
+        return data
+
+
+        # market reports https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=
+        # historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ASummary%2FMarketReportName%3AHistorical%20Generation%20Fuel%20Mix%20(xlsx)&t=10&p=0&s=MarketReportPublished&sd=desc
+"""
+# Real time data of hub
+https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getExAnteLMP&returnType=json
+
+
+# real time 5 minute lmp
+https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json
+
+"""
