@@ -123,26 +123,27 @@ def test_get_latest_demand(iso):
 
 @pytest.mark.parametrize('iso', [PJM(), NYISO(), ISONE(), CAISO()])
 def test_get_historical_demand(iso):
+    # pick a test date 2 weeks back
+    test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
+
     # date string works
-    date_str = "20220722"
+    date_str = test_date.strftime('%Y%m%d')
     df = iso.get_historical_demand(date_str)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_str
 
     # timestamp object works
-    date_obj = pd.to_datetime("2022/07/19")
-    df = iso.get_historical_demand(date_obj)
+    df = iso.get_historical_demand(test_date)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
-    assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
+    assert df.loc[0]["Time"].strftime('%Y%m%d') == test_date.strftime('%Y%m%d')
 
     # datetime object works
-    date_obj = pd.to_datetime("2022/07/10").date()
-    df = iso.get_historical_demand(date_obj)
+    df = iso.get_historical_demand(test_date)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
-    assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
+    assert df.loc[0]["Time"].strftime('%Y%m%d') == test_date.strftime('%Y%m%d')
 
 
 @pytest.mark.parametrize('test', [

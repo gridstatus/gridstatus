@@ -80,7 +80,12 @@ class PJM(ISOBase):
         return self._yesterday_from_historical(self.get_historical_demand)
 
     def get_historical_demand(self, date):
-        # can support a load area
+        """Returns demand at a previous date at 5 minute intervals
+
+        Args:
+            date (str or datetime.date): date to get demand for. must be in last 30 days
+        """
+        # todo can support a load area
         date = date = isodata.utils._handle_date(date)
         tomorrow = date + pd.DateOffset(1)
 
@@ -118,13 +123,6 @@ class PJM(ISOBase):
             "https://dataminer2.pjm.com/config/settings.json")
 
         return settings["subscriptionKey"]
-
-    # def get_historical_lmp(self, date, market: str, nodes: list):
-        # doesn't have current day
-        # REAL_TIME_5_MIN = "REAL_TIME_5_MIN"
-        # https://dataminer2.pjm.com/feed/rt_fivemin_hrl_lmps
-        # REAL_TIME_HOURLY = "REAL_TIME_HOURLY"
-        # https://dataminer2.pjm.com/feed/rt_hrl_lmps
 
 
 """
