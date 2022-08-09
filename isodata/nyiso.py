@@ -1,6 +1,6 @@
 import pdb
 import requests
-from .base import ISOBase, FuelMix
+from .base import ISOBase, FuelMix, Markets
 import pandas as pd
 import isodata
 import io
@@ -13,8 +13,8 @@ class NYISO(ISOBase):
     default_timezone = "US/Eastern"
 
     # Markets
-    REAL_TIME_5_MIN = "REAL_TIME_5_MIN"
-    DAY_AHEAD_5_MIN = "DAY_AHEAD_5_MIN"
+    REAL_TIME_5_MIN = Markets.REAL_TIME_5_MIN
+    DAY_AHEAD_5_MIN = Markets.DAY_AHEAD_5_MIN
 
     # def get_latest_status(self):
     #     # https://www.nyiso.com/en/system-conditions

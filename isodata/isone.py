@@ -2,7 +2,7 @@ import math
 import re
 from tkinter import E
 from urllib import request
-from .base import ISOBase, FuelMix
+from .base import ISOBase, FuelMix, Markets
 import pandas as pd
 import requests
 import isodata
@@ -14,9 +14,9 @@ class ISONE(ISOBase):
     iso_id = "isone"
     default_timezone = "US/Eastern"
 
-    REAL_TIME_5_MIN = "REAL_TIME_5_MIN"
-    REAL_TIME_HOURLY = "REAL_TIME_HOURLY"
-    DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
+    REAL_TIME_5_MIN = Markets.REAL_TIME_5_MIN
+    REAL_TIME_HOURLY = Markets.REAL_TIME_HOURLY
+    DAY_AHEAD_HOURLY = Markets.DAY_AHEAD_HOURLY
 
     def get_latest_fuel_mix(self):
         r = requests.post("https://www.iso-ne.com/ws/wsclient",
@@ -183,20 +183,26 @@ class ISONE(ISOBase):
 
                 data = pd.concat([data, data_current])
 
-        if market == self.REAL_TIME_HOURLY:
+        elif market == self.REAL_TIME_HOURLY:
             if date.date() < now.date():
                 url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"
                 data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
+                # todo document hour starting vs ending
                 data["Local Time"] = data["Date"] + " " + \
-                    data["Hour Ending"].astype(str).str.zfill(2) + ":00"
-
+                    (data["Hour Ending"] - 1).astype(str).str.zfill(2) + ":00"
             else:
                 raise RuntimeError("Today not support for hourly lmp")
 
-        data = _process_lmp(data, market, self.default_timezone)
+        elif market == self.DAY_AHEAD_HOURLY:
+            url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
+            data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
+            # todo document hour starting vs ending
+            data["Local Time"] = data["Date"] + " " + \
+                (data["Hour Ending"] - 1).astype(str).str.zfill(2) + ":00"
+        else:
+            raise RuntimeError("Unsupported market")
 
-        import pdb
-        pdb.set_trace()
+        data = _process_lmp(data, market, self.default_timezone)
 
         return data
 
@@ -233,10 +239,12 @@ def _process_lmp(data, market, timezone):
         "Location ID": "Node",
         "Location": "Node",
         "Local Time": "Time",
+        "Locational Marginal Price": "LMP",
         "LMP": "LMP",
         "Energy Component": "Energy",
         "Congestion Component": "Congestion",
         "Loss Component": "Loss",
+        "Marginal Loss Component": "Loss"
     }
 
     data.rename(columns=rename, inplace=True)

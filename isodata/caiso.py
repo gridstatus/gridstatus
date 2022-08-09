@@ -1,7 +1,7 @@
 from numpy import isin
 
 import isodata
-from .base import ISOBase, FuelMix, GridStatus
+from .base import ISOBase, FuelMix, GridStatus, Markets
 import pandas as pd
 from typing import Any
 
@@ -16,8 +16,8 @@ class CAISO(ISOBase):
     iso_id = "caiso"
     default_timezone = "US/Pacific"
 
-    DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
-    REAL_TIME_15_MIN = "REAL_TIME_15_MIN"
+    DAY_AHEAD_HOURLY = Markets.DAY_AHEAD_HOURLY
+    REAL_TIME_15_MIN = Markets.REAL_TIME_15_MIN
 
     def _current_day(self):
         # get current date from stats api

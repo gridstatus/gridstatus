@@ -215,18 +215,21 @@ And here is querying CAISO
 >>> iso.get_lmp_today(iso.DAY_AHEAD_HOURLY, nodes=None)
 ```
 
-## CAISO
+## Supported LMP Markets
 
-Supported LMP Markets
+<!-- LMP AVAILABILITY TABLE START -->
 
-- DAY_AHEAD_HOURLY
+|                                       | Markets                                                   |
+| :------------------------------------ | :-------------------------------------------------------- |
+| Midcontinent ISO                      | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                     |
+| California ISO                        | `REAL_TIME_15_MIN`, `DAY_AHEAD_HOURLY`                    |
+| PJM                                   |                                                           |
+| Electric Reliability Council of Texas |                                                           |
+| Southwest Power Pool                  |                                                           |
+| New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_5_MIN`                      |
+| ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY` |
 
-## NYISO
-
-Supported LMP Markets
-
-- REAL_TIME_5_MIN
-- DAY_AHEAD_5_MIN
+<!-- LMP AVAILABILITY TABLE END -->
 
 ## Feedback Welcome
 

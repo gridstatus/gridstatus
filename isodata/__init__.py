@@ -3,6 +3,8 @@ from isodata import tests
 from isodata.version import __version__
 import isodata.base
 
+from isodata.base import Markets
+
 import isodata.utils
 
 from isodata.nyiso import NYISO

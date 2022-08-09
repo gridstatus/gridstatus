@@ -10,6 +10,10 @@
 - ISONE: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly
 - ERCOT:
 
+Todos
+
+- doucment query date for day ahead market
+
 ## v0.4.0 - Aug 4, 2022
 
 - NYISO: added all demand, fuel mix, and supply methods
