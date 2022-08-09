@@ -88,8 +88,8 @@ class Ercot(ISOBase):
         # ignore last row since that corresponds to midnight following day
         data = pd.DataFrame(r['data'][:-1])
 
-        data["Time"] = data.apply(lambda x, date=date: pd.Timestamp(
-            year=date.year, month=date.month, day=date.day, hour=int(x["hourEnding"]), minute=int(x["interval"])), axis=1)
+        data["Time"] = pd.to_datetime(date.strftime("%Y-%m-%d") + " " + data["hourEnding"].astype(str).str.zfill(
+            2) + ":" + data["interval"].astype(str).str.zfill(2)).dt.tz_localize(self.default_timezone)
 
         data = data[data["forecast"] == 0]  # only keep non forecast rows
 

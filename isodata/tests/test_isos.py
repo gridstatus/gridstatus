@@ -57,18 +57,21 @@ def test_get_historical_fuel_mix(iso):
     df = iso.get_historical_fuel_mix(date_str)
     assert isinstance(df, pd.DataFrame)
     assert df.loc[0]["Time"].strftime('%m/%d/%Y') == date_str
+    assert df.loc[0]["Time"].tz is not None
 
     # timestamp object works
     date_obj = pd.to_datetime("2019/11/19")
     df = iso.get_historical_fuel_mix(date_obj)
     assert isinstance(df, pd.DataFrame)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
+    assert df.loc[0]["Time"].tz is not None
 
     # datetime object works
     date_obj = pd.to_datetime("2021/05/09").date()
     df = iso.get_historical_fuel_mix(date_obj)
     assert isinstance(df, pd.DataFrame)
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
+    assert df.loc[0]["Time"].tz is not None
 
 
 @pytest.mark.parametrize('iso', all_isos)
@@ -85,6 +88,7 @@ def test_get_supply_today(iso):
     assert isinstance(df, pd.DataFrame)
     set(["Time", "Supply"]) == set(df.columns)
     assert is_numeric_dtype(df['Supply'])
+    assert df.loc[0]["Time"].tz is not None
 
 
 @pytest.mark.parametrize('iso', [ISONE(), NYISO(), PJM(), CAISO()])
@@ -99,6 +103,7 @@ def test_get_supply(iso):
     assert df.loc[0]["Time"].date(
     ) == isodata.utils._handle_date(date_str).date()
     assert is_numeric_dtype(df['Supply'])
+    assert df.loc[0]["Time"].tz is not None
 
 
 @pytest.mark.parametrize('iso', all_isos)
