@@ -2,13 +2,17 @@
 
 ## vNext
 
-- NYISO: add LMP prices for 2 markets: real time 5 minute & day ahead 5 minute
-- CAISO: blocked on timeout errors add LMP prices for 1 market: day ahead hourly
-- MISO: add LMP prices for 2 market: real time 5 minute and day head hourly
+- NYISO: added LMP prices for 2 markets: real time 5 minute and day ahead 5 minute
+- CAISO: added LMP prices for 2 market: real time 15 minute and day ahead hourly
+- MISO: added LMP prices for 2 market: real time 5 minute and day head hourly
 - PJM: blocked on finding current day
 - SPP: data available, but what nodes?
 - ISONE: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly
 - ERCOT:
+
+https://www.ercot.com/mp/data-products/markets/real-time-market?id=NP6-788-CD
+
+https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId=856969377
 
 Todos
 

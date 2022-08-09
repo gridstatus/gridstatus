@@ -138,7 +138,7 @@ def test_get_historical_demand(iso):
     assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
 
     # datetime object works
-    date_obj = pd.to_datetime("2022/07/09").date()
+    date_obj = pd.to_datetime("2022/07/10").date()
     df = iso.get_historical_demand(date_obj)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
@@ -219,12 +219,12 @@ def test_get_latest_lmp(test):
 
 
 @pytest.mark.parametrize('test', [
-    # {
-    #     CAISO(): {
-    #         "markets": [CAISO.DAY_AHEAD_HOURLY, CAISO.REAL_TIME_15_MIN],
-    #         "nodes": None
-    #     },
-    # },
+    {
+        CAISO(): {
+            "markets": [CAISO.REAL_TIME_15_MIN],
+            "nodes": None
+        },
+    },
     {
         ISONE(): {
             "markets": [ISONE.DAY_AHEAD_HOURLY, ISONE.REAL_TIME_5_MIN],

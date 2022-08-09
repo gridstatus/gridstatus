@@ -100,7 +100,9 @@ class Ercot(ISOBase):
 
     def get_prices(self):
         pass
+    # https://www.ercot.com/mktinfo
     # https://www.ercot.com/api/1/services/read/dashboards/systemWidePrices.json
+    # https://www.ercot.com/mp/data-products/markets/real-time-market?id=NP6-788-CD
 
     def _handle_data(self, df, columns):
         df["Time"] = pd.to_datetime(df["epoch"], unit="ms").dt.tz_localize(
