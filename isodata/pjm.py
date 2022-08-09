@@ -80,6 +80,11 @@ class PJM(ISOBase):
         return self._yesterday_from_historical(self.get_historical_demand)
 
     def get_historical_demand(self, date):
+        """Returns demand at a previous date at 5 minute intervals
+
+        Args:
+            date (str or datetime.date): date to get demand for. must be in last 30 days
+        """
         date = date = isodata.utils._handle_date(date)
         tomorrow = date + pd.DateOffset(1)
 
