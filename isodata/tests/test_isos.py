@@ -146,12 +146,12 @@ def test_get_historical_demand(iso):
 
 
 @pytest.mark.parametrize('test', [
-    # {
-    #     CAISO(): {
-    #         "markets": [CAISO.DAY_AHEAD_HOURLY, CAISO.REAL_TIME_15_MIN],
-    #         "nodes": None
-    #     },
-    # },
+    {
+        CAISO(): {
+            "markets": [CAISO.DAY_AHEAD_HOURLY, CAISO.REAL_TIME_15_MIN],
+            "nodes": None
+        },
+    },
     {
         ISONE(): {
             # , ISONE.REAL_TIME_5_MIN
@@ -181,12 +181,12 @@ def test_get_historical_lmp(test):
 
 
 @pytest.mark.parametrize('test', [
-    # {
-    #     CAISO(): {
-    #         "markets": [CAISO.DAY_AHEAD_HOURLY, CAISO.REAL_TIME_15_MIN],
-    #         "nodes": None
-    #     },
-    # },
+    {
+        CAISO(): {
+            "markets": [CAISO.DAY_AHEAD_HOURLY, CAISO.REAL_TIME_15_MIN],
+            "nodes": None
+        },
+    },
     {
         ISONE(): {
             "markets": [ISONE.REAL_TIME_5_MIN, ISONE.REAL_TIME_HOURLY],
@@ -238,7 +238,7 @@ def test_get_latest_lmp(test):
         }
     }
 ])
-def test_get_latest_lmp(test):
+def test_get_lmp_today(test):
     iso = list(test)[0]
     markets = test[iso]["markets"]
     nodes = test[iso]["nodes"]
