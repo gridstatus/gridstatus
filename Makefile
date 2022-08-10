@@ -5,16 +5,17 @@ test:
 .PHONY: installdeps-dev
 installdeps-dev:
 	python -m pip install ".[dev]"
+	pre-commit install
 
 .PHONY: lint
 lint:
-	python -m isort --check-only isodata
-	python -m black isodata -t py310 --check
+	isort --check-only isodata
+	black isodata -t py310 --check
 
 .PHONY: lint-fix
 lint-fix:
-	python -m black isodata -t py310
-	python -m isort isodata
+	black isodata -t py310
+	isort isodata
 
 .PHONY: upgradepip
 upgradepip:
