@@ -1,15 +1,15 @@
-from isodata import *
-import isodata
-from isodata.base import FuelMix, ISOBase, GridStatus
 import pandas as pd
 import pytest
 from pandas.api.types import is_numeric_dtype
 
+import isodata
+from isodata import *
+from isodata.base import FuelMix, GridStatus, ISOBase
 
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
-@pytest.mark.parametrize('iso', all_isos)
+@pytest.mark.parametrize("iso", all_isos)
 def test_get_latest_fuel_mix(iso):
     print(iso)
     mix = iso.get_latest_fuel_mix()
@@ -21,7 +21,7 @@ def test_get_latest_fuel_mix(iso):
     assert isinstance(repr(mix), str)
 
 
-@pytest.mark.parametrize('iso', [ISONE(), NYISO(), CAISO(), PJM()])
+@pytest.mark.parametrize("iso", [ISONE(), NYISO(), CAISO(), PJM()])
 def test_get_fuel_mix(iso):
     df = iso.get_fuel_mix_today()
     assert isinstance(df, pd.DataFrame)
@@ -44,54 +44,54 @@ def test_get_iso_invalid():
         isodata.get_iso("ISO DOESNT EXIST")
 
 
-@pytest.mark.parametrize('iso', [CAISO(), Ercot()])
+@pytest.mark.parametrize("iso", [CAISO(), Ercot()])
 def test_get_latest_status(iso):
     status = iso.get_latest_status()
     assert isinstance(status, GridStatus)
 
 
-@pytest.mark.parametrize('iso', [ISONE(), NYISO(), PJM(), CAISO()])
+@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
 def test_get_historical_fuel_mix(iso):
     # date string works
     date_str = "04/03/2022"
     df = iso.get_historical_fuel_mix(date_str)
     assert isinstance(df, pd.DataFrame)
-    assert df.loc[0]["Time"].strftime('%m/%d/%Y') == date_str
+    assert df.loc[0]["Time"].strftime("%m/%d/%Y") == date_str
     assert df.loc[0]["Time"].tz is not None
 
     # timestamp object works
     date_obj = pd.to_datetime("2019/11/19")
     df = iso.get_historical_fuel_mix(date_obj)
     assert isinstance(df, pd.DataFrame)
-    assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
+    assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
     assert df.loc[0]["Time"].tz is not None
 
     # datetime object works
     date_obj = pd.to_datetime("2021/05/09").date()
     df = iso.get_historical_fuel_mix(date_obj)
     assert isinstance(df, pd.DataFrame)
-    assert df.loc[0]["Time"].strftime('%Y%m%d') == date_obj.strftime('%Y%m%d')
+    assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
     assert df.loc[0]["Time"].tz is not None
 
 
-@pytest.mark.parametrize('iso', all_isos)
+@pytest.mark.parametrize("iso", all_isos)
 def test_get_latest_supply(iso):
     supply = iso.get_latest_supply()
     set(["time", "supply"]) == supply.keys()
     assert is_numeric_dtype(type(supply["supply"]))
 
 
-@pytest.mark.parametrize('iso', [ISONE(), Ercot(), NYISO(), PJM(), CAISO()])
+@pytest.mark.parametrize("iso", [ISONE(), Ercot(), NYISO(), PJM(), CAISO()])
 def test_get_supply_today(iso):
     # todo check that the date is right
     df = iso.get_supply_today()
     assert isinstance(df, pd.DataFrame)
     set(["Time", "Supply"]) == set(df.columns)
-    assert is_numeric_dtype(df['Supply'])
+    assert is_numeric_dtype(df["Supply"])
     assert df.loc[0]["Time"].tz is not None
 
 
-@pytest.mark.parametrize('iso', [ISONE(), NYISO(), PJM(), CAISO()])
+@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
 def test_get_supply(iso):
     df = iso.get_supply_yesterday()
     assert isinstance(df, pd.DataFrame)
@@ -100,63 +100,62 @@ def test_get_supply(iso):
     df = iso.get_historical_supply(date_str)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Supply"]) == set(df.columns)
-    assert df.loc[0]["Time"].date(
-    ) == isodata.utils._handle_date(date_str).date()
-    assert is_numeric_dtype(df['Supply'])
+    assert df.loc[0]["Time"].date() == isodata.utils._handle_date(date_str).date()
+    assert is_numeric_dtype(df["Supply"])
     assert df.loc[0]["Time"].tz is not None
 
 
-@pytest.mark.parametrize('iso', all_isos)
+@pytest.mark.parametrize("iso", all_isos)
 def test_get_demand_today(iso):
     df = iso.get_demand_today()
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
-    assert is_numeric_dtype(df['Demand'])
+    assert is_numeric_dtype(df["Demand"])
     assert isinstance(df.loc[0]["Time"], pd.Timestamp)
     assert df.loc[0]["Time"].tz is not None
 
 
-@pytest.mark.parametrize('iso', [PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
+@pytest.mark.parametrize("iso", [PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
 def test_get_demand_yesterday(iso):
     # todo check that the date is right
     df = iso.get_demand_yesterday()
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
-    assert is_numeric_dtype(df['Demand'])
+    assert is_numeric_dtype(df["Demand"])
     assert isinstance(df.loc[0]["Time"], pd.Timestamp)
     assert df.loc[0]["Time"].tz is not None
 
 
-@pytest.mark.parametrize('iso', all_isos)
+@pytest.mark.parametrize("iso", all_isos)
 def test_get_latest_demand(iso):
     demand = iso.get_latest_demand()
     set(["time", "demand"]) == demand.keys()
     assert is_numeric_dtype(type(demand["demand"]))
 
 
-@pytest.mark.parametrize('iso', [PJM(), NYISO(), ISONE(), CAISO()])
+@pytest.mark.parametrize("iso", [PJM(), NYISO(), ISONE(), CAISO()])
 def test_get_historical_demand(iso):
     # pick a test date 2 weeks back
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
 
     # date string works
-    date_str = test_date.strftime('%Y%m%d')
+    date_str = test_date.strftime("%Y%m%d")
     df = iso.get_historical_demand(date_str)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
-    assert df.loc[0]["Time"].strftime('%Y%m%d') == date_str
-    assert is_numeric_dtype(df['Demand'])
+    assert df.loc[0]["Time"].strftime("%Y%m%d") == date_str
+    assert is_numeric_dtype(df["Demand"])
 
     # timestamp object works
     df = iso.get_historical_demand(test_date)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
-    assert df.loc[0]["Time"].strftime('%Y%m%d') == test_date.strftime('%Y%m%d')
-    assert is_numeric_dtype(df['Demand'])
+    assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
+    assert is_numeric_dtype(df["Demand"])
 
     # datetime object works
     df = iso.get_historical_demand(test_date)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
-    assert df.loc[0]["Time"].strftime('%Y%m%d') == test_date.strftime('%Y%m%d')
-    assert is_numeric_dtype(df['Demand'])
+    assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
+    assert is_numeric_dtype(df["Demand"])
