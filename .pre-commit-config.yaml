@@ -20,3 +20,9 @@ repos:
     rev: 5.10.1
     hooks:
       - id: isort
+  - repo: https://github.com/python/black
+    rev: 22.6.0
+    hooks:
+      - id: black
+        args: [--target-version=py310]
+        types_or: [python]
