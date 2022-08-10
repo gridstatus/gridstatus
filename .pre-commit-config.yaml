@@ -11,3 +11,8 @@ repos:
     hooks:
       - id: absolufy-imports
         files: ^isodata/
+  - repo: https://github.com/asottile/add-trailing-comma
+    rev: v2.2.3
+    hooks:
+      - id: add-trailing-comma
+        name: Add trailing comma
