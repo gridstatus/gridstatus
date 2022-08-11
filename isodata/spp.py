@@ -45,6 +45,8 @@ class SPP(ISOBase):
             "Demand": load["data"]
         }).dropna(subset=["Demand"])
 
+        df["Time"] = pd.to_datetime(df["Time"])
+
         return df
 # historical generation mix
 # https://marketplace.spp.org/pages/generation-mix-rolling-365
