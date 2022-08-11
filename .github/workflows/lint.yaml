@@ -11,12 +11,12 @@ jobs:
     name: 3.10 lint check
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
       - name: Set up python 3.10
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10
-      - name: Checkout repository
-        uses: actions/checkout@v2
+          python-version: '3.10'
       - name: Build package
         run: make package
       - name: Install package with dev deps
