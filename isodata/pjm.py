@@ -105,8 +105,7 @@ class PJM(ISOBase):
 
         data = pd.read_csv(io.StringIO(r.content.decode("utf8")))
 
-        demand = data.groupby("datetime_beginning_ept")[
-            "instantaneous_load"].sum().reset_index()
+        demand = demand = data[data["area"] == "PJM RTO"].drop("area", axis=1)
 
         demand = demand.rename(columns={"datetime_beginning_ept": "Time",
                                         "instantaneous_load": "Demand"})
