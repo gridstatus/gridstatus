@@ -41,7 +41,7 @@ class MISO(ISOBase):
         r = self._get_json(url)
 
         return {
-            "time": pd.to_datetime(r[1]["d"]).tz_localize(self.default_timezone),
+            "time": pd.to_datetime(r[1]["d"]).tz_convert(self.default_timezone),
             "demand": float(r[1]["v"].replace(",", "")),
         }
 

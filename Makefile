@@ -1,6 +1,6 @@
 .PHONY: test
 test:
-	pytest -s -vv isodata/
+	python -m pytest -s -vv isodata/
 
 .PHONY: installdeps-dev
 installdeps-dev:
@@ -9,13 +9,13 @@ installdeps-dev:
 
 .PHONY: lint
 lint:
-	isort --check-only isodata
-	black isodata -t py310 --check
+	isort --check-only isodata/
+	black isodata/ -t py310 --check
 
 .PHONY: lint-fix
 lint-fix:
-	black isodata -t py310
-	isort isodata
+	black isodata/ -t py310
+	isort isodata/
 
 .PHONY: upgradepip
 upgradepip:
