@@ -6,18 +6,7 @@
 - NYISO: added LMP prices for 2 markets: real time 5 minute and day ahead 5 minute
 - MISO: added LMP prices for 2 market: real time 5 minute and day head hourly
 - ISONE: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly
-- PJM: blocked on finding current day
-- SPP: data available, but what nodes?
-- ERCOT:
-- Bug Fixes
-
-https://www.ercot.com/mp/data-products/markets/real-time-market?id=NP6-788-CD
-
-https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId=856969377
-
-Todos
-
-- doucment query date for day ahead market
+- Bug fixes
 
 ## v0.4.0 - Aug 4, 2022
 

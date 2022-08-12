@@ -8,6 +8,7 @@ import requests
 from numpy import isin
 
 import isodata
+from isodata import utils
 from isodata.base import FuelMix, GridStatus, ISOBase, Markets
 
 
@@ -266,6 +267,8 @@ class CAISO(ISOBase):
         df["Market"] = market
 
         df = df[["Time", "Market", "Node", "LMP", "Energy", "Congestion", "Loss"]]
+
+        data = utils.filter_lmp_nodes(df, nodes)
 
         time.sleep(sleep)
 

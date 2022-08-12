@@ -96,3 +96,10 @@ def make_lmp_availability_table():
 
     s = pd.Series(a, name="Markets")
     return s.to_markdown()
+
+
+def filter_lmp_nodes(data, nodes: list, node_column: str = "Node"):
+    if nodes == "ALL":
+        return data
+
+    return data[data[node_column].isin(nodes)]

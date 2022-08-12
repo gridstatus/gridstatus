@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 
 import isodata
+from isodata import utils
 from isodata.base import FuelMix, ISOBase, Markets
 
 
@@ -152,6 +153,8 @@ class NYISO(ISOBase):
         df = df[["Time", "Market", "Zone", "LMP", "Energy", "Congestion", "Loss"]]
 
         df["Time"] = pd.to_datetime(df["Time"]).dt.tz_localize(self.default_timezone)
+
+        data = utils.filter_lmp_nodes(df, nodes, node_column="Zone")
 
         return df
 

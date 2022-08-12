@@ -8,6 +8,7 @@ import pandas as pd
 import requests
 
 import isodata
+from isodata import utils
 from isodata.base import FuelMix, ISOBase, Markets
 
 
@@ -178,7 +179,7 @@ class ISONE(ISOBase):
         else:
             raise RuntimeError("Unsupported market")
 
-        data = _process_lmp(data, market, self.default_timezone)
+        data = _process_lmp(data, market, self.default_timezone, nodes)
         return data
 
     def get_lmp_today(self, market: str, nodes: list):
@@ -268,7 +269,7 @@ class ISONE(ISOBase):
         else:
             raise RuntimeError("Unsupported market")
 
-        data = _process_lmp(data, market, self.default_timezone)
+        data = _process_lmp(data, market, self.default_timezone, nodes)
 
         return data
 
@@ -304,7 +305,7 @@ def _make_request(url, skiprows):
         return df
 
 
-def _process_lmp(data, market, timezone):
+def _process_lmp(data, market, timezone, nodes):
     # todo handle location types
     rename = {
         "Location ID": "Node",
@@ -336,4 +337,5 @@ def _process_lmp(data, market, timezone):
         ]
     ]
 
+    data = utils.filter_lmp_nodes(data, nodes)
     return data
