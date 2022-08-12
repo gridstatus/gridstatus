@@ -133,10 +133,6 @@ class NYISO(ISOBase):
             marketname = "damlbmp"
             filename = marketname + "_zone"
 
-        if market == self.REAL_TIME_5_MIN:
-            marketname = "realtime"
-            filename = marketname + "_zone"
-
         df = _download_nyiso_archive(date, market_name=marketname, filename=filename)
 
         # todo handle node
