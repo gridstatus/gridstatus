@@ -1,12 +1,14 @@
+import io
 import math
 import re
 from tkinter import E
 from urllib import request
-from .base import ISOBase, FuelMix, Markets
+
 import pandas as pd
 import requests
+
 import isodata
-import io
+from isodata.base import FuelMix, ISOBase, Markets
 
 
 class ISONE(ISOBase):
@@ -19,13 +21,16 @@ class ISONE(ISOBase):
     DAY_AHEAD_HOURLY = Markets.DAY_AHEAD_HOURLY
 
     def get_latest_fuel_mix(self):
-        r = requests.post("https://www.iso-ne.com/ws/wsclient",
-                          data={"_nstmp_requestType": "url", "_nstmp_requestUrl": "/genfuelmix/current"}).json()
-        mix_df = pd.DataFrame(r[0]['data']['GenFuelMixes']['GenFuelMix'])
-        time = pd.Timestamp(mix_df["BeginDate"].max(),
-                            tz=self.default_timezone)
+        r = requests.post(
+            "https://www.iso-ne.com/ws/wsclient",
+            data={"_nstmp_requestType": "fuelmix"},
+        ).json()
+        mix_df = pd.DataFrame(r[0]["data"]["GenFuelMixes"]["GenFuelMix"])
+        time = pd.Timestamp(mix_df["BeginDate"].max(), tz=self.default_timezone)
 
+        # todo has marginal flag
         mix_dict = mix_df.set_index("FuelCategory")["GenMw"].to_dict()
+
         return FuelMix(time, mix_dict, self.name)
 
     def get_fuel_mix_today(self):
@@ -43,16 +48,22 @@ class ISONE(ISOBase):
         Provided at frequent, but irregular intervals by ISONE
         """
         date = isodata.utils._handle_date(date)
-        url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + \
-            date.strftime('%Y%m%d')
+        url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + date.strftime(
+            "%Y%m%d",
+        )
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5])
 
-        df["Date"] = pd.to_datetime(
-            df['Date'] + ' ' + df['Time']).dt.tz_localize(self.default_timezone)
+        df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"]).dt.tz_localize(
+            self.default_timezone,
+        )
 
-        mix_df = df.pivot_table(index="Date", columns="Fuel Category",
-                                values="Gen Mw", aggfunc="first").reset_index()
+        mix_df = df.pivot_table(
+            index="Date",
+            columns="Fuel Category",
+            values="Gen Mw",
+            aggfunc="first",
+        ).reset_index()
 
         mix_df = mix_df.rename(columns={"Date": "Time"})
 
@@ -73,29 +84,32 @@ class ISONE(ISOBase):
         # _nstmp_formDate: 1659489137907
         date = isodata.utils._handle_date(date)
 
-        date_str = date.strftime('%m/%d/%Y')
-        data = {'_nstmp_startDate': date_str,
-                '_nstmp_endDate': date_str,
-                '_nstmp_twodays': False,
-                '_nstmp_twodaysCheckbox': False,
-                '_nstmp_requestType': "systemload",
-                '_nstmp_forecast': True,
-                '_nstmp_actual': True,
-                '_nstmp_cleared': True,
-                '_nstmp_priorDay': True,
-                '_nstmp_inclPumpLoad': True,
-                '_nstmp_inclBtmPv': True}
+        date_str = date.strftime("%m/%d/%Y")
+        data = {
+            "_nstmp_startDate": date_str,
+            "_nstmp_endDate": date_str,
+            "_nstmp_twodays": False,
+            "_nstmp_twodaysCheckbox": False,
+            "_nstmp_requestType": "systemload",
+            "_nstmp_forecast": True,
+            "_nstmp_actual": True,
+            "_nstmp_cleared": True,
+            "_nstmp_priorDay": True,
+            "_nstmp_inclPumpLoad": True,
+            "_nstmp_inclBtmPv": True,
+        }
 
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient", data=data).json()
+        r = requests.post("https://www.iso-ne.com/ws/wsclient", data=data).json()
 
         data = pd.DataFrame(r[0]["data"]["actual"])
 
-        data["BeginDate"] = pd.to_datetime(
-            data["BeginDate"]).dt.tz_convert(self.default_timezone)
+        data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
+            self.default_timezone,
+        )
 
         df = data[["BeginDate", "Mw"]].rename(
-            columns={"BeginDate": "Time", "Mw": "Demand"})
+            columns={"BeginDate": "Time", "Mw": "Demand"},
+        )
 
         return df
 
@@ -118,15 +132,19 @@ class ISONE(ISOBase):
     def get_latest_lmp(self, market: str, nodes: list):
         # todo optimize to read latest csv
         if market == self.REAL_TIME_5_MIN:
-            url = 'https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim'
+            url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"
             data = _make_request(url, skiprows=[0, 1, 2, 4])
         elif market == self.REAL_TIME_HOURLY:
-            url = 'https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt'
+            url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"
             data = _make_request(url, skiprows=[0, 1, 2, 4])
 
             # todo does this handle single digital hours?
-            data["Local Time"] = data["Local Date"] + \
-                " " + data["Local Time"].astype(str).str.zfill(2) + ":00"
+            data["Local Time"] = (
+                data["Local Date"]
+                + " "
+                + data["Local Time"].astype(str).str.zfill(2)
+                + ":00"
+            )
 
         else:
             raise RuntimeError("Unsupported market")
@@ -144,7 +162,7 @@ class ISONE(ISOBase):
 
     def get_historical_lmp(self, date, market: str, nodes: list):
         date = isodata.utils._handle_date(date)
-        date_str = date.strftime('%Y%m%d')
+        date_str = date.strftime("%Y%m%d")
 
         now = pd.Timestamp.now(tz=self.default_timezone)
 
@@ -156,21 +174,24 @@ class ISONE(ISOBase):
             if now.date() == date.date():
                 hour = now.hour
                 # select completed 4 hour intervals based on current hour
-                intervals = intervals[:math.ceil((hour + 1) / 4)-1]
+                intervals = intervals[: math.ceil((hour + 1) / 4) - 1]
 
             dfs = []
             for interval in intervals:
                 print("Loading interval {}".format(interval))
                 u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"
                 dfs.append(
-                    pd.read_csv(u, skiprows=[0, 1, 2, 3, 5],
-                                skipfooter=1, engine='python')
+                    pd.read_csv(
+                        u,
+                        skiprows=[0, 1, 2, 3, 5],
+                        skipfooter=1,
+                        engine="python",
+                    ),
                 )
 
             data = pd.concat(dfs)
 
-            data["Local Time"] = date.strftime(
-                '%Y-%m-%d') + " " + data["Local Time"]
+            data["Local Time"] = date.strftime("%Y-%m-%d") + " " + data["Local Time"]
 
             # add current interval
             if now.date() == date.date():
@@ -178,8 +199,9 @@ class ISONE(ISOBase):
                 print("Loading current interval")
                 data_current = _make_request(url, skiprows=[0, 1, 2, 4])
 
-                data_current = data_current[data_current["Local Time"]
-                                            > data["Local Time"].max()]
+                data_current = data_current[
+                    data_current["Local Time"] > data["Local Time"].max()
+                ]
 
                 data = pd.concat([data, data_current])
 
@@ -188,8 +210,12 @@ class ISONE(ISOBase):
                 url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"
                 data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
                 # todo document hour starting vs ending
-                data["Local Time"] = data["Date"] + " " + \
-                    (data["Hour Ending"] - 1).astype(str).str.zfill(2) + ":00"
+                data["Local Time"] = (
+                    data["Date"]
+                    + " "
+                    + (data["Hour Ending"] - 1).astype(str).str.zfill(2)
+                    + ":00"
+                )
             else:
                 raise RuntimeError("Today not support for hourly lmp")
 
@@ -197,8 +223,12 @@ class ISONE(ISOBase):
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
             data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
             # todo document hour starting vs ending
-            data["Local Time"] = data["Date"] + " " + \
-                (data["Hour Ending"] - 1).astype(str).str.zfill(2) + ":00"
+            data["Local Time"] = (
+                data["Date"]
+                + " "
+                + (data["Hour Ending"] - 1).astype(str).str.zfill(2)
+                + ":00"
+            )
         else:
             raise RuntimeError("Unsupported market")
 
@@ -218,18 +248,23 @@ def _make_request(url, skiprows):
         while attempt < 3:
             # make first get request to get cookies set
             r1 = s.get(
-                "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix")
+                "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
+            )
 
             r2 = s.get(url)
 
             if r2.status_code == 200:
                 break
 
-            print("Attempt {} failed. Retrying...".format(attempt+1))
+            print("Attempt {} failed. Retrying...".format(attempt + 1))
             attempt += 1
 
-        df = pd.read_csv(io.StringIO(r2.content.decode("utf8")),
-                         skiprows=skiprows, skipfooter=1, engine='python')
+        df = pd.read_csv(
+            io.StringIO(r2.content.decode("utf8")),
+            skiprows=skiprows,
+            skipfooter=1,
+            engine="python",
+        )
         return df
 
 
@@ -244,17 +279,15 @@ def _process_lmp(data, market, timezone):
         "Energy Component": "Energy",
         "Congestion Component": "Congestion",
         "Loss Component": "Loss",
-        "Marginal Loss Component": "Loss"
+        "Marginal Loss Component": "Loss",
     }
 
     data.rename(columns=rename, inplace=True)
 
     data["Market"] = market
 
-    data["Time"] = pd.to_datetime(
-        data["Time"]).dt.tz_localize(timezone)
+    data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(timezone)
 
-    data = data[["Time", "Market", "Node",
-                 "LMP", "Energy", "Congestion", "Loss"]]
+    data = data[["Time", "Market", "Node", "LMP", "Energy", "Congestion", "Loss"]]
 
     return data

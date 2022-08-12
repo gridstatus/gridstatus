@@ -1,15 +1,16 @@
-import imp
-import requests
-from .base import ISOBase, FuelMix
-import pandas as pd
-import isodata
 import io
+
+import pandas as pd
+import requests
+
+import isodata
+from isodata.base import FuelMix, ISOBase
 
 
 class PJM(ISOBase):
     name = "PJM"
     iso_id = "pjm"
-    default_timezone = 'US/Eastern'
+    default_timezone = "US/Eastern"
 
     def get_latest_fuel_mix(self):
         mix = self.get_fuel_mix_today()
@@ -31,23 +32,33 @@ class PJM(ISOBase):
         tomorrow = date + pd.DateOffset(1)
 
         data = {
-            "datetime_beginning_ept": date.strftime('%m/%d/%Y 00:00') + "to" + tomorrow.strftime('%m/%d/%Y 00:00'),
+            "datetime_beginning_ept": date.strftime("%m/%d/%Y 00:00")
+            + "to"
+            + tomorrow.strftime("%m/%d/%Y 00:00"),
             "fields": "datetime_beginning_ept,fuel_type,is_renewable,mw",
             "rowCount": 1000,
-            "startRow": 1
+            "startRow": 1,
         }
 
         # todo consider converting this to csv like demand
         key = self._get_key()
-        r = self._get_json("https://api.pjm.com/api/v1/gen_by_fuel", params=data,
-                           headers={"Ocp-Apim-Subscription-Key": key})
+        r = self._get_json(
+            "https://api.pjm.com/api/v1/gen_by_fuel",
+            params=data,
+            headers={"Ocp-Apim-Subscription-Key": key},
+        )
         mix_df = pd.DataFrame(r["items"])
 
-        mix_df = mix_df.pivot_table(index="datetime_beginning_ept",
-                                    columns="fuel_type", values="mw", aggfunc="first").reset_index()
+        mix_df = mix_df.pivot_table(
+            index="datetime_beginning_ept",
+            columns="fuel_type",
+            values="mw",
+            aggfunc="first",
+        ).reset_index()
 
         mix_df["datetime_beginning_ept"] = pd.to_datetime(
-            mix_df["datetime_beginning_ept"]).dt.tz_localize(self.default_timezone)
+            mix_df["datetime_beginning_ept"],
+        ).dt.tz_localize(self.default_timezone)
 
         mix_df = mix_df.rename(columns={"datetime_beginning_ept": "Time"})
 
@@ -90,37 +101,41 @@ class PJM(ISOBase):
         tomorrow = date + pd.DateOffset(1)
 
         data = {
-            "datetime_beginning_ept": date.strftime('%m/%d/%Y 00:00') + "to" + tomorrow.strftime('%m/%d/%Y 00:00'),
-            'sort': 'datetime_beginning_utc',
-            'order': 'Asc',
-            'startRow': 1,
-            'isActiveMetadata': 'true',
-            'fields': 'area,datetime_beginning_ept,instantaneous_load',
-            'format': 'csv',
-            'download': 'true',
+            "datetime_beginning_ept": date.strftime("%m/%d/%Y 00:00")
+            + "to"
+            + tomorrow.strftime("%m/%d/%Y 00:00"),
+            "sort": "datetime_beginning_utc",
+            "order": "Asc",
+            "startRow": 1,
+            "isActiveMetadata": "true",
+            "fields": "area,datetime_beginning_ept,instantaneous_load",
+            "format": "csv",
+            "download": "true",
         }
         key = self._get_key()
-        r = requests.get('https://api.pjm.com/api/v1/inst_load', params=data,
-                         headers={
-                             "Ocp-Apim-Subscription-Key": key})
+        r = requests.get(
+            "https://api.pjm.com/api/v1/inst_load",
+            params=data,
+            headers={"Ocp-Apim-Subscription-Key": key},
+        )
 
         data = pd.read_csv(io.StringIO(r.content.decode("utf8")))
 
-        demand = data.groupby("datetime_beginning_ept")[
-            "instantaneous_load"].sum().reset_index()
+        demand = demand = data[data["area"] == "PJM RTO"].drop("area", axis=1)
 
-        demand = demand.rename(columns={"datetime_beginning_ept": "Time",
-                                        "instantaneous_load": "Demand"})
+        demand = demand.rename(
+            columns={"datetime_beginning_ept": "Time", "instantaneous_load": "Demand"},
+        )
 
-        demand["Time"] = pd.to_datetime(
-            demand["Time"]).dt.tz_localize(self.default_timezone)
+        demand["Time"] = pd.to_datetime(demand["Time"]).dt.tz_localize(
+            self.default_timezone,
+        )
 
         demand = demand.sort_values("Time").reset_index(drop=True)
         return demand
 
     def _get_key(self):
-        settings = self._get_json(
-            "https://dataminer2.pjm.com/config/settings.json")
+        settings = self._get_json("https://dataminer2.pjm.com/config/settings.json")
 
         return settings["subscriptionKey"]
 

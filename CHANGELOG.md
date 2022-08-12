@@ -9,6 +9,7 @@
 - SPP: data available, but what nodes?
 - ISONE: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly
 - ERCOT:
+- Bug Fixes
 
 https://www.ercot.com/mp/data-products/markets/real-time-market?id=NP6-788-CD
 

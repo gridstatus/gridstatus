@@ -1,6 +1,7 @@
-from pandas import Timestamp
 import pandas as pd
-from .base import ISOBase, FuelMix
+from pandas import Timestamp
+
+from isodata.base import FuelMix, ISOBase
 
 
 class MISO(ISOBase):
@@ -22,7 +23,8 @@ class MISO(ISOBase):
         r = self._get_json(url)
 
         time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
-            self.default_timezone)
+            self.default_timezone,
+        )
 
         mix = {}
         for fuel in r["Fuel"]["Type"]:
@@ -42,8 +44,8 @@ class MISO(ISOBase):
         r = self._get_json(url)
 
         return {
-            "time": pd.to_datetime(r[1]['d']).tz_localize(self.default_timezone),
-            "demand": float(r[1]['v'].replace(",", ""))
+            "time": pd.to_datetime(r[1]["d"]).tz_localize(self.default_timezone),
+            "demand": float(r[1]["v"].replace(",", "")),
         }
 
     def get_latest_supply(self):
@@ -51,23 +53,27 @@ class MISO(ISOBase):
         return self._latest_supply_from_fuel_mix()
 
     def get_demand_today(self):
-        url = 'https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json'
+        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"
         r = self._get_json(url)
 
         date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
 
-        df = pd.DataFrame([x["Load"]
-                          for x in r["LoadInfo"]["FiveMinTotalLoad"]])
+        df = pd.DataFrame([x["Load"] for x in r["LoadInfo"]["FiveMinTotalLoad"]])
 
-        df["Time"] = df["Time"].apply(lambda x, date=date: date + pd.Timedelta(hours=int(
-            x.split(":")[0]), minutes=int(x.split(":")[1])))
+        df["Time"] = df["Time"].apply(
+            lambda x, date=date: date
+            + pd.Timedelta(hours=int(x.split(":")[0]), minutes=int(x.split(":")[1])),
+        )
         df["Time"] = df["Time"].dt.tz_localize(self.default_timezone)
         df = df.rename(columns={"Value": "Demand"})
+
+        df["Demand"] = pd.to_numeric(df["Demand"])
+
         return df
 
     def get_latest_lmp(self, market: str, nodes: list):
         """
-            Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
+        Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
         """
         url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json"
         r = self._get_json(url)
@@ -79,8 +85,7 @@ class MISO(ISOBase):
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
 
         elif market == self.DAY_AHEAD_HOURLY:
-            data = pd.DataFrame(
-                r["LMPData"]["DayAheadExPostLMP"]["PricingNode"])
+            data = pd.DataFrame(r["LMPData"]["DayAheadExPostLMP"]["PricingNode"])
             time = time.ceil("H")
 
         rename = {
@@ -92,21 +97,23 @@ class MISO(ISOBase):
 
         data.rename(columns=rename, inplace=True)
 
-        data[["LMP", "Loss", "Congestion"]] = data[["LMP", "Loss",
-                                                    "Congestion"]].apply(pd.to_numeric, errors='coerce')
+        data[["LMP", "Loss", "Congestion"]] = data[["LMP", "Loss", "Congestion"]].apply(
+            pd.to_numeric,
+            errors="coerce",
+        )
 
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
         data["Time"] = time
         data["Market"] = market
 
-        data = data[["Time", "Market", "Node", "LMP",
-                     "Energy", "Congestion", "Loss"]]
+        data = data[["Time", "Market", "Node", "LMP", "Energy", "Congestion", "Loss"]]
 
         return data
 
-
         # market reports https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=
         # historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ASummary%2FMarketReportName%3AHistorical%20Generation%20Fuel%20Mix%20(xlsx)&t=10&p=0&s=MarketReportPublished&sd=desc
+
+
 """
 # Real time data of hub
 https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getExAnteLMP&returnType=json

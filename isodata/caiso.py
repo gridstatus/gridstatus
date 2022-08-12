@@ -1,11 +1,11 @@
+import time
+from typing import Any
+
+import pandas as pd
 from numpy import isin
 
 import isodata
-from .base import ISOBase, FuelMix, GridStatus, Markets
-import pandas as pd
-from typing import Any
-
-import time
+from isodata.base import FuelMix, GridStatus, ISOBase, Markets
 
 
 class CAISO(ISOBase):
@@ -37,7 +37,7 @@ class CAISO(ISOBase):
         # todo is it possible for this to return more than one element?
         r = self.get_stats()
 
-        time = pd.to_datetime(r["slotDate"]).tz_localize('US/Pacific')
+        time = pd.to_datetime(r["slotDate"]).tz_localize("US/Pacific")
         status = r["gridstatus"][0]
         reserves = r["Current_reserve"]
 
@@ -45,9 +45,9 @@ class CAISO(ISOBase):
 
     def get_latest_fuel_mix(self):
         """
-            Returns most recent data point for fuelmix in MW
+        Returns most recent data point for fuelmix in MW
 
-            Updates every 5 minutes
+        Updates every 5 minutes
         """
         url = self.BASE + "/fuelsource.csv"
         df = pd.read_csv(url)
@@ -68,7 +68,7 @@ class CAISO(ISOBase):
 
     def get_historical_fuel_mix(self, date):
         """
-        Get historical fuel mix in 5 minute intervals for a provided day 
+        Get historical fuel mix in 5 minute intervals for a provided day
 
         Arguments:
             date(datetime, pd.Timestamp, or str): day to return. if string, format should be YYYYMMDD e.g 20200623
@@ -95,7 +95,7 @@ class CAISO(ISOBase):
 
         return {
             "time": _make_timestamp(data["Time"], self._current_day()),
-            "demand": data["Current demand"]
+            "demand": data["Current demand"],
         }
 
     def get_demand_today(self):
@@ -136,10 +136,16 @@ class CAISO(ISOBase):
 
     def get_pnodes(self):
         url = "http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=ATL_PNODE_MAP&version=1&startdatetime=20220801T07:00-0000&enddatetime=20220802T07:00-0000&pnode_id=ALL"
-        df = pd.read_csv(url, compression='zip', usecols=["APNODE_ID", "PNODE_ID"]).rename(columns={
-            "APNODE_ID": "Aggregate PNode ID",
-            "PNODE_ID": "PNode ID",
-        })
+        df = pd.read_csv(
+            url,
+            compression="zip",
+            usecols=["APNODE_ID", "PNODE_ID"],
+        ).rename(
+            columns={
+                "APNODE_ID": "Aggregate PNode ID",
+                "PNODE_ID": "PNode ID",
+            },
+        )
         return df
 
     def get_latest_lmp(self, market: str, nodes: list):
@@ -159,7 +165,7 @@ class CAISO(ISOBase):
         Arguments:
             date: date to return data
 
-            market: market to return from. supports: 
+            market: market to return from. supports:
 
             nodes (list): list of nodes to get data from. If no nodes are provided, defaults to NP15, SP15, and ZP26, which are the trading hub nodes. For a list of nodes, call CAISO.get_pnodes()
 
@@ -168,11 +174,11 @@ class CAISO(ISOBase):
         """
 
         if nodes is None:
-            nodes = ["TH_NP15_GEN-APND",
-                     "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"]
+            nodes = ["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"]
 
         # todo make sure defaults to local timezone
         start = isodata.utils._handle_date(date, tz=self.default_timezone)
+
         nodes_str = ",".join(nodes)
 
         start = start.tz_convert("UTC")
@@ -192,45 +198,66 @@ class CAISO(ISOBase):
         retry_num = 0
         while retry_num < 3:
             try:
-                df = pd.read_csv(url,
-                                 compression='zip',
-                                 usecols=["INTERVALSTARTTIME_GMT", "NODE", "LMP_TYPE", PRICE_COL])
+                df = pd.read_csv(
+                    url,
+                    compression="zip",
+                    usecols=["INTERVALSTARTTIME_GMT", "NODE", "LMP_TYPE", PRICE_COL],
+                )
             except Exception as e:
                 retry_num += 1
                 print(f"Failed to get data from CAISO. Error: {e}")
                 print(f"Retrying {retry_num}...")
                 time.sleep(5)
                 if retry_num > 3:
-                    raise Exception(
-                        f"Failed to get data from CAISO. Error: {e}")
+                    raise Exception(f"Failed to get data from CAISO. Error: {e}")
 
-        df = df.pivot_table(index=['INTERVALSTARTTIME_GMT', 'NODE'],
-                            columns='LMP_TYPE', values=PRICE_COL, aggfunc='first')
-        df = df.reset_index().rename(columns={
-            "INTERVALSTARTTIME_GMT": "Time", "NODE": "Node", "LMP": "LMP", "MCE": "Energy", "MCC": "Congestion", "MCL": "Loss"})
-        df["Time"] = pd.to_datetime(
-            df['Time']).dt.tz_convert(self.default_timezone)
+        df = df.pivot_table(
+            index=["INTERVALSTARTTIME_GMT", "NODE"],
+            columns="LMP_TYPE",
+            values=PRICE_COL,
+            aggfunc="first",
+        )
+        df = df.reset_index().rename(
+            columns={
+                "INTERVALSTARTTIME_GMT": "Time",
+                "NODE": "Node",
+                "LMP": "LMP",
+                "MCE": "Energy",
+                "MCC": "Congestion",
+                "MCL": "Loss",
+            },
+        )
+        df["Time"] = pd.to_datetime(df["Time"]).dt.tz_convert(self.default_timezone)
 
         df["Market"] = market
 
-        df = df[["Time", "Market", "Node", "LMP",
-                "Energy", "Congestion", "Loss"]]
+        df = df[["Time", "Market", "Node", "LMP", "Energy", "Congestion", "Loss"]]
 
         return df
 
 
-def _make_timestamp(time_str, today, timezone='US/Pacific'):
+def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
-    return pd.Timestamp(year=today.year, month=today.month, day=today.day, hour=hour, minute=minute,  tz=timezone)
+    return pd.Timestamp(
+        year=today.year,
+        month=today.month,
+        day=today.day,
+        hour=hour,
+        minute=minute,
+        tz=timezone,
+    )
 
 
 def _get_historical(url, date):
-    date_str = date.strftime('%Y%m%d')
+    date_str = date.strftime("%Y%m%d")
     date_obj = date
     url = url % date_str
     df = pd.read_csv(url)
 
     df["Time"] = df["Time"].apply(
-        _make_timestamp, today=date_obj, timezone='US/Pacific')
+        _make_timestamp,
+        today=date_obj,
+        timezone="US/Pacific",
+    )
 
     return df

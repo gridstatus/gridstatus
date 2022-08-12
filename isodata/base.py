@@ -1,9 +1,11 @@
 from enum import Enum
+
 import pandas as pd
 import requests
 from tabulate import tabulate
+
 # TODO: this is needed to make SPP request work. restrict only to SPP
-requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
+requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = "ALL:@SECLEVEL=1"
 
 
 class Markets(Enum):
@@ -15,7 +17,6 @@ class Markets(Enum):
 
 
 class ISOBase:
-
     def _get_json(self, *args, **kwargs):
         r = requests.get(*args, **kwargs)
         r = r.json()
@@ -78,9 +79,8 @@ class ISOBase:
         return method(today, *args, **kwargs)
 
     def _yesterday_from_historical(self, method, *args, **kwargs):
-        yesterday = (pd.Timestamp.now(self.default_timezone) -
-                     pd.DateOffset(1)).date()
-        return method(yesterday,  *args, **kwargs)
+        yesterday = (pd.Timestamp.now(self.default_timezone) - pd.DateOffset(1)).date()
+        return method(yesterday, *args, **kwargs)
 
     def _supply_from_fuel_mix(self, date):
         df = self.get_historical_fuel_mix(date)
@@ -91,13 +91,10 @@ class ISOBase:
     def _latest_supply_from_fuel_mix(self):
         mix = self.get_latest_fuel_mix()
 
-        return {
-            "time": mix.time,
-            "supply": mix.total_production
-        }
+        return {"time": mix.time, "supply": mix.total_production}
 
 
-class GridStatus():
+class GridStatus:
     def __init__(self, time, status, reserves, iso, unit="MW") -> None:
         self.iso = iso
         self.time = time
@@ -121,15 +118,14 @@ class FuelMix:
         self.time = time
         self.unit = unit
 
-        mix_df = pd.Series(mix, name=self.unit).sort_values(
-            ascending=False).to_frame()
+        mix_df = pd.Series(mix, name=self.unit).sort_values(ascending=False).to_frame()
         mix_df["Percent"] = mix_df[self.unit] / mix_df[self.unit].sum() * 100
         mix_df.index.name = "Fuel"
         self._mix_df = mix_df
 
     def __repr__(self) -> str:
         # TODO sort by magnitude
-        s = ''
+        s = ""
         if self.iso:
             s += "ISO: " + self.iso + "\n"
         s += "Total Production: %d %s \n" % (self.total_production, self.unit)
@@ -137,15 +133,15 @@ class FuelMix:
 
         mix = self.mix
         mix["Percent"] = mix["Percent"].round(1)
-        s += tabulate(mix, headers='keys', tablefmt='psql')
+        s += tabulate(mix, headers="keys", tablefmt="psql")
 
         return s
 
-    @ property
+    @property
     def total_production(self):
         return self.mix[self.unit].sum()
 
-    @ property
+    @property
     def mix(self):
         return self._mix_df.copy()
 
