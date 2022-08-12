@@ -1,6 +1,7 @@
-from pandas import Timestamp
 import pandas as pd
-from .base import ISOBase, FuelMix
+from pandas import Timestamp
+
+from isodata.base import FuelMix, ISOBase
 
 
 class MISO(ISOBase):
@@ -19,7 +20,8 @@ class MISO(ISOBase):
         r = self._get_json(url)
 
         time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
-            self.default_timezone)
+            self.default_timezone,
+        )
 
         mix = {}
         for fuel in r["Fuel"]["Type"]:
@@ -39,8 +41,8 @@ class MISO(ISOBase):
         r = self._get_json(url)
 
         return {
-            "time": pd.to_datetime(r[1]['d']).tz_localize(self.default_timezone),
-            "demand": float(r[1]['v'].replace(",", ""))
+            "time": pd.to_datetime(r[1]["d"]).tz_localize(self.default_timezone),
+            "demand": float(r[1]["v"].replace(",", "")),
         }
 
     def get_latest_supply(self):
@@ -48,16 +50,17 @@ class MISO(ISOBase):
         return self._latest_supply_from_fuel_mix()
 
     def get_demand_today(self):
-        url = 'https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json'
+        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"
         r = self._get_json(url)
 
         date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
 
-        df = pd.DataFrame([x["Load"]
-                          for x in r["LoadInfo"]["FiveMinTotalLoad"]])
+        df = pd.DataFrame([x["Load"] for x in r["LoadInfo"]["FiveMinTotalLoad"]])
 
-        df["Time"] = df["Time"].apply(lambda x, date=date: date + pd.Timedelta(hours=int(
-            x.split(":")[0]), minutes=int(x.split(":")[1])))
+        df["Time"] = df["Time"].apply(
+            lambda x, date=date: date
+            + pd.Timedelta(hours=int(x.split(":")[0]), minutes=int(x.split(":")[1])),
+        )
         df["Time"] = df["Time"].dt.tz_localize(self.default_timezone)
         df = df.rename(columns={"Value": "Demand"})
 

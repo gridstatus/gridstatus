@@ -1,5 +1,6 @@
-from .base import ISOBase, FuelMix
 import pandas as pd
+
+from isodata.base import FuelMix, ISOBase
 
 
 class SPP(ISOBase):
@@ -10,9 +11,7 @@ class SPP(ISOBase):
         url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"
         r = self._get_json(url)["response"]
 
-        data = {
-            "Timestamp":  r["labels"]
-        }
+        data = {"Timestamp": r["labels"]}
         data.update((d["label"], d["data"]) for d in r["datasets"])
 
         historical_mix = pd.DataFrame(data)
@@ -32,22 +31,23 @@ class SPP(ISOBase):
 
     def get_demand_today(self):
         """Returns demand for last 24hrs in 5 minute intervals"""
-        url = 'https://marketplace.spp.org/chart-api/load-forecast/asChart'
-        r = self._get_json(url)['response']
+        url = "https://marketplace.spp.org/chart-api/load-forecast/asChart"
+        r = self._get_json(url)["response"]
 
         load = r["datasets"][2]
 
         # sanity check to make sure direct index of 2 is correct
         assert load["label"] == "Actual Load"
 
-        df = pd.DataFrame({
-            "Time": r["labels"],
-            "Demand": load["data"]
-        }).dropna(subset=["Demand"])
+        df = pd.DataFrame({"Time": r["labels"], "Demand": load["data"]}).dropna(
+            subset=["Demand"],
+        )
 
         df["Time"] = pd.to_datetime(df["Time"])
 
         return df
+
+
 # historical generation mix
 # https://marketplace.spp.org/pages/generation-mix-rolling-365
 # https://marketplace.spp.org/chart-api/gen-mix-365/asFile

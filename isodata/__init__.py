@@ -1,6 +1,7 @@
+from isodata.version import __version__
+
 from isodata.utils import list_isos, get_iso, make_availability_table
 from isodata import tests
-from isodata.version import __version__
 import isodata.base
 
 import isodata.utils
