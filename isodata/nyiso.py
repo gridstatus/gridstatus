@@ -1,17 +1,23 @@
 import io
+import pdb
 from zipfile import ZipFile
 
 import pandas as pd
 import requests
 
 import isodata
-from isodata.base import FuelMix, ISOBase
+from isodata import utils
+from isodata.base import FuelMix, ISOBase, Markets
 
 
 class NYISO(ISOBase):
     name = "New York ISO"
     iso_id = "nyiso"
     default_timezone = "US/Eastern"
+
+    # Markets
+    REAL_TIME_5_MIN = Markets.REAL_TIME_5_MIN
+    DAY_AHEAD_5_MIN = Markets.DAY_AHEAD_5_MIN
 
     # def get_latest_status(self):
     #     # https://www.nyiso.com/en/system-conditions
@@ -75,6 +81,7 @@ class NYISO(ISOBase):
         # drop NA loads
         data = data.dropna(subset=["Load"])
 
+        # TODO demand by zone
         demand = data.groupby("Time Stamp")["Load"].sum().reset_index()
 
         demand = demand.rename(columns={"Time Stamp": "Time", "Load": "Demand"})
@@ -104,20 +111,71 @@ class NYISO(ISOBase):
         """Returns supply at a previous date in 5 minute intervals"""
         return self._supply_from_fuel_mix(date)
 
-    # def get_real_time_prices(self, )
-    # def get_day_ahead_prices(self,)
+    def get_latest_lmp(self, market: str, nodes: list):
+        return self._latest_lmp_from_today(market, nodes, node_column="Zone")
 
-    # https://www.nyiso.com/energy-market-operational-data
+    def get_lmp_today(self, market: str, nodes: list):
+        "Get lmp for today in 5 minute intervals"
+        return self._today_from_historical(self.get_historical_lmp, market, nodes)
+
+    def get_lmp_yesterday(self, market: str, nodes: list):
+        "Get lmp for yesterday in 5 minute intervals"
+        return self._yesterday_from_historical(self.get_historical_lmp, market, nodes)
+
+    def get_historical_lmp(self, date, market: str, nodes: list):
+        """
+        Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
+        """
+        # todo support generator and zone
+        if market == self.REAL_TIME_5_MIN:
+            marketname = "realtime"
+            filename = marketname + "_zone"
+        if market == self.DAY_AHEAD_5_MIN:
+            marketname = "damlbmp"
+            filename = marketname + "_zone"
+
+        df = _download_nyiso_archive(date, market_name=marketname, filename=filename)
+
+        # todo handle node
+        columns = {
+            "Time Stamp": "Time",
+            "Name": "Zone",
+            "LBMP ($/MWHr)": "LMP",
+            "Marginal Cost Losses ($/MWHr)": "Loss",
+            "Marginal Cost Congestion ($/MWHr)": "Congestion",
+        }
+
+        df = df.rename(columns=columns)
+
+        df["Energy"] = df["LMP"] - (df["Loss"] - df["Congestion"])
+        df["Market"] = market
+
+        df = df[["Time", "Market", "Zone", "LMP", "Energy", "Congestion", "Loss"]]
+
+        df["Time"] = pd.to_datetime(df["Time"]).dt.tz_localize(self.default_timezone)
+
+        data = utils.filter_lmp_nodes(df, nodes, node_column="Zone")
+
+        return df
 
 
-def _download_nyiso_archive(date, filename):
+# def get_day_ahead_prices(self,)
+
+# https://www.nyiso.com/energy-market-operational-data
+
+
+def _download_nyiso_archive(date, market_name, filename=None):
+
+    if filename is None:
+        filename = market_name
+
     date = isodata.utils._handle_date(date)
     month = date.strftime("%Y%m01")
     day = date.strftime("%Y%m%d")
 
-    file = f"{day}{filename}.csv"
-    csv_url = f"http://mis.nyiso.com/public/csv/{filename}/{file}"
-    zip_url = f"http://mis.nyiso.com/public/csv/{filename}/{month}{filename}_csv.zip"
+    csv_filename = f"{day}{filename}.csv"
+    csv_url = f"http://mis.nyiso.com/public/csv/{market_name}/{csv_filename}"
+    zip_url = f"http://mis.nyiso.com/public/csv/{market_name}/{month}{filename}_csv.zip"
 
     # the last 7 days of file are hosted directly as csv
     try:
@@ -125,7 +183,7 @@ def _download_nyiso_archive(date, filename):
     except:
         r = requests.get(zip_url)
         z = ZipFile(io.BytesIO(r.content))
-        df = pd.read_csv(z.open(file))
+        df = pd.read_csv(z.open(csv_filename))
 
     return df
 

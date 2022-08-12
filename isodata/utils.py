@@ -1,7 +1,9 @@
+from datetime import datetime
+
 import pandas as pd
 
 import isodata
-from isodata.base import ISOBase
+from isodata.base import ISOBase, Markets
 from isodata.caiso import CAISO
 from isodata.ercot import Ercot
 from isodata.isone import ISONE
@@ -65,8 +67,39 @@ def make_availability_table():
     return df.to_markdown()
 
 
-def _handle_date(date):
-    if isinstance(date, str):
+def _handle_date(date, tz=None):
+    if not isinstance(date, pd.Timestamp):
         date = pd.to_datetime(date)
 
+    if tz and date.tzinfo is None:
+        date = date.tz_localize(tz)
+
     return date
+
+
+def make_lmp_availability():
+    lmp_availability = {}
+    for i in all_isos:
+        lmp_availability[i.name] = []
+        for m in Markets:
+            if hasattr(i, m.name):
+                lmp_availability[i.name].append(m.name)
+
+    return lmp_availability
+
+
+def make_lmp_availability_table():
+    a = make_lmp_availability()
+    for iso in a:
+        a[iso] = ["`" + v + "`" for v in a[iso]]
+        a[iso] = ", ".join(a[iso])
+
+    s = pd.Series(a, name="Markets")
+    return s.to_markdown()
+
+
+def filter_lmp_nodes(data, nodes: list, node_column: str = "Node"):
+    if nodes == "ALL":
+        return data
+
+    return data[data[node_column].isin(nodes)]

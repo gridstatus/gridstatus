@@ -2,7 +2,11 @@
 
 ## vNext
 
-- Bug Fixes
+- CAISO: added LMP prices for 3 market: real time 15 minute (FMM), real time hours (HASP), day ahead hourly (DAM)
+- NYISO: added LMP prices for 2 markets: real time 5 minute and day ahead 5 minute
+- MISO: added LMP prices for 2 market: real time 5 minute and day head hourly
+- ISONE: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly
+- Bug fixes
 
 ## v0.4.0 - Aug 4, 2022
 

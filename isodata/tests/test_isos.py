@@ -9,6 +9,10 @@ from isodata.base import FuelMix, GridStatus, ISOBase
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
+def test_make_lmp_availability_df():
+    isodata.utils.make_lmp_availability_table()
+
+
 @pytest.mark.parametrize("iso", all_isos)
 def test_get_latest_fuel_mix(iso):
     print(iso)
@@ -159,3 +163,127 @@ def test_get_historical_demand(iso):
     assert set(["Time", "Demand"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
     assert is_numeric_dtype(df["Demand"])
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        {
+            CAISO(): {
+                "markets": [
+                    CAISO.REAL_TIME_HOURLY,
+                    CAISO.DAY_AHEAD_HOURLY,
+                    CAISO.REAL_TIME_15_MIN,
+                ],
+                "nodes": None,
+            },
+        },
+        {
+            ISONE(): {
+                # , ISONE.REAL_TIME_5_MIN
+                "markets": [ISONE.DAY_AHEAD_HOURLY, ISONE.REAL_TIME_HOURLY],
+                "nodes": "ALL",
+            },
+        },
+        {
+            NYISO(): {
+                "markets": [NYISO.DAY_AHEAD_5_MIN, NYISO.REAL_TIME_5_MIN],
+                "nodes": "ALL",
+            },
+        },
+    ],
+)
+def test_get_historical_lmp(test):
+    iso = list(test)[0]
+    markets = test[iso]["markets"]
+    nodes = test[iso]["nodes"]
+
+    date_str = "20220722"
+    for m in markets:
+        print(iso.iso_id, m)
+        hist = iso.get_historical_lmp(date_str, m, nodes=nodes)
+        assert isinstance(hist, pd.DataFrame)
+        yesterday = iso.get_lmp_yesterday(m, nodes=nodes)
+        assert isinstance(yesterday, pd.DataFrame)
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        {
+            CAISO(): {
+                "markets": [
+                    CAISO.REAL_TIME_HOURLY,
+                    CAISO.DAY_AHEAD_HOURLY,
+                    CAISO.REAL_TIME_15_MIN,
+                ],
+                "nodes": None,
+            },
+        },
+        {
+            ISONE(): {
+                "markets": [ISONE.REAL_TIME_5_MIN, ISONE.REAL_TIME_HOURLY],
+                "nodes": "ALL",
+            },
+        },
+        {
+            MISO(): {
+                "markets": [MISO.REAL_TIME_5_MIN, MISO.DAY_AHEAD_HOURLY],
+                "nodes": "ALL",
+            },
+        },
+        {
+            NYISO(): {
+                "markets": [NYISO.DAY_AHEAD_5_MIN, NYISO.REAL_TIME_5_MIN],
+                "nodes": "ALL",
+            },
+        },
+    ],
+)
+def test_get_latest_lmp(test):
+    iso = list(test)[0]
+    markets = test[iso]["markets"]
+    nodes = test[iso]["nodes"]
+
+    date_str = "20220722"
+    for m in markets:
+        print(iso.iso_id, m)
+        latest = iso.get_latest_lmp(m, nodes=nodes)
+        assert isinstance(latest, pd.DataFrame)
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        {
+            CAISO(): {
+                "markets": [
+                    CAISO.REAL_TIME_HOURLY,
+                    CAISO.REAL_TIME_15_MIN,
+                    CAISO.DAY_AHEAD_HOURLY,
+                ],
+                "nodes": None,
+            },
+        },
+        {
+            ISONE(): {
+                "markets": [ISONE.DAY_AHEAD_HOURLY, ISONE.REAL_TIME_5_MIN],
+                "nodes": "ALL",
+            },
+        },
+        {
+            NYISO(): {
+                "markets": [NYISO.DAY_AHEAD_5_MIN, NYISO.REAL_TIME_5_MIN],
+                "nodes": "ALL",
+            },
+        },
+    ],
+)
+def test_get_lmp_today(test):
+    iso = list(test)[0]
+    markets = test[iso]["markets"]
+    nodes = test[iso]["nodes"]
+
+    for m in markets:
+        today = iso.get_lmp_today(m, nodes=nodes)
+        assert isinstance(today, pd.DataFrame)

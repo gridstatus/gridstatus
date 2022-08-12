@@ -4,6 +4,8 @@ from isodata.utils import list_isos, get_iso, make_availability_table
 from isodata import tests
 import isodata.base
 
+from isodata.base import Markets
+
 import isodata.utils
 
 from isodata.nyiso import NYISO
