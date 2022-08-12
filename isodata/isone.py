@@ -15,11 +15,12 @@ class ISONE(ISOBase):
     default_timezone = "US/Eastern"
 
     def get_latest_fuel_mix(self):
-        r = requests.post("https://www.iso-ne.com/ws/wsclient",
-                          data={"_nstmp_requestType": "fuelmix"}).json()
-        mix_df = pd.DataFrame(r[0]['data']['GenFuelMixes']['GenFuelMix'])
-        time = pd.Timestamp(mix_df["BeginDate"].max(),
-                            tz=self.default_timezone)
+        r = requests.post(
+            "https://www.iso-ne.com/ws/wsclient",
+            data={"_nstmp_requestType": "fuelmix"},
+        ).json()
+        mix_df = pd.DataFrame(r[0]["data"]["GenFuelMixes"]["GenFuelMix"])
+        time = pd.Timestamp(mix_df["BeginDate"].max(), tz=self.default_timezone)
 
         # todo has marginal flag
         mix_dict = mix_df.set_index("FuelCategory")["GenMw"].to_dict()
@@ -114,8 +115,7 @@ class ISONE(ISOBase):
             "_nstmp_inclBtmPv": True,
         }
 
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient", data=data).json()
+        r = requests.post("https://www.iso-ne.com/ws/wsclient", data=data).json()
 
         data = pd.DataFrame(r[0]["data"]["actual"])
 

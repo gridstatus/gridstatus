@@ -75,11 +75,9 @@ class NYISO(ISOBase):
         # drop NA loads
         data = data.dropna(subset=["Load"])
 
-        demand = data.groupby("Time Stamp")[
-            "Load"].sum().reset_index()
+        demand = data.groupby("Time Stamp")["Load"].sum().reset_index()
 
-        demand = demand.rename(
-            columns={"Time Stamp": "Time", "Load": "Demand"})
+        demand = demand.rename(columns={"Time Stamp": "Time", "Load": "Demand"})
 
         demand["Time"] = pd.to_datetime(demand["Time"]).dt.tz_localize(
             self.default_timezone,
