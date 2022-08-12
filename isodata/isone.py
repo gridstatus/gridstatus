@@ -17,15 +17,14 @@ class ISONE(ISOBase):
     def get_latest_fuel_mix(self):
         r = requests.post(
             "https://www.iso-ne.com/ws/wsclient",
-            data={
-                "_nstmp_requestType": "url",
-                "_nstmp_requestUrl": "/genfuelmix/current",
-            },
+            data={"_nstmp_requestType": "fuelmix"},
         ).json()
         mix_df = pd.DataFrame(r[0]["data"]["GenFuelMixes"]["GenFuelMix"])
         time = pd.Timestamp(mix_df["BeginDate"].max(), tz=self.default_timezone)
 
+        # todo has marginal flag
         mix_dict = mix_df.set_index("FuelCategory")["GenMw"].to_dict()
+
         return FuelMix(time, mix_dict, self.name)
 
     def get_fuel_mix_today(self):

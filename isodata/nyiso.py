@@ -61,7 +61,8 @@ class NYISO(ISOBase):
 
     def get_demand_today(self):
         "Get demand for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_demand)
+        d = self._today_from_historical(self.get_historical_demand)
+        return d
 
     def get_demand_yesterday(self):
         "Get demand for yesterday in 5 minute intervals"
@@ -70,6 +71,9 @@ class NYISO(ISOBase):
     def get_historical_demand(self, date):
         """Returns demand at a previous date in 5 minute intervals"""
         data = _download_nyiso_archive(date, "pal")
+
+        # drop NA loads
+        data = data.dropna(subset=["Load"])
 
         demand = data.groupby("Time Stamp")["Load"].sum().reset_index()
 
