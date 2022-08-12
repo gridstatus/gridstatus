@@ -170,7 +170,11 @@ def test_get_historical_demand(iso):
     [
         {
             CAISO(): {
-                "markets": [CAISO.DAY_AHEAD_HOURLY, CAISO.REAL_TIME_15_MIN],
+                "markets": [
+                    CAISO.REAL_TIME_HOURLY,
+                    CAISO.DAY_AHEAD_HOURLY,
+                    CAISO.REAL_TIME_15_MIN,
+                ],
                 "nodes": None,
             },
         },
@@ -208,7 +212,11 @@ def test_get_historical_lmp(test):
     [
         {
             CAISO(): {
-                "markets": [CAISO.DAY_AHEAD_HOURLY, CAISO.REAL_TIME_15_MIN],
+                "markets": [
+                    CAISO.REAL_TIME_HOURLY,
+                    CAISO.DAY_AHEAD_HOURLY,
+                    CAISO.REAL_TIME_15_MIN,
+                ],
                 "nodes": None,
             },
         },
@@ -248,7 +256,14 @@ def test_get_latest_lmp(test):
     "test",
     [
         {
-            CAISO(): {"markets": [CAISO.REAL_TIME_15_MIN], "nodes": None},
+            CAISO(): {
+                "markets": [
+                    CAISO.REAL_TIME_HOURLY,
+                    CAISO.REAL_TIME_15_MIN,
+                    CAISO.DAY_AHEAD_HOURLY,
+                ],
+                "nodes": None,
+            },
         },
         {
             ISONE(): {

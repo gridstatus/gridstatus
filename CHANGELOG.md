@@ -2,8 +2,8 @@
 
 ## vNext
 
+- CAISO: added LMP prices for 3 market: real time 15 minute (FMM), real time hours (HASP), day ahead hourly (DAM)
 - NYISO: added LMP prices for 2 markets: real time 5 minute and day ahead 5 minute
-- CAISO: added LMP prices for 2 market: real time 15 minute and day ahead hourly
 - MISO: added LMP prices for 2 market: real time 5 minute and day head hourly
 - PJM: blocked on finding current day
 - SPP: data available, but what nodes?

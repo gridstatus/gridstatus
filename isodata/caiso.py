@@ -19,8 +19,15 @@ class CAISO(ISOBase):
     iso_id = "caiso"
     default_timezone = "US/Pacific"
 
-    DAY_AHEAD_HOURLY = Markets.DAY_AHEAD_HOURLY
-    REAL_TIME_15_MIN = Markets.REAL_TIME_15_MIN
+    DAY_AHEAD_HOURLY = Markets.DAY_AHEAD_HOURLY  # PRC_LMP
+    REAL_TIME_15_MIN = Markets.REAL_TIME_15_MIN  # PRC_RTPD_LMP
+    REAL_TIME_HOURLY = Markets.REAL_TIME_HOURLY  # PRC_HASP_LMP
+
+    trading_hubs_nodes = [
+        "TH_NP15_GEN-APND",
+        "TH_SP15_GEN-APND",
+        "TH_ZP26_GEN-APND",
+    ]
 
     def _current_day(self):
         # get current date from stats api
@@ -179,11 +186,7 @@ class CAISO(ISOBase):
         """
 
         if nodes is None:
-            nodes = [
-                "TH_NP15_GEN-APND",
-                "TH_SP15_GEN-APND",
-                "TH_ZP26_GEN-APND",
-            ]
+            nodes = self.trading_hubs_nodes
 
         # todo make sure defaults to local timezone
         start = isodata.utils._handle_date(date, tz=self.default_timezone)
@@ -197,13 +200,23 @@ class CAISO(ISOBase):
         end = end.strftime("%Y%m%dT%H:%M-0000")
 
         if market == self.DAY_AHEAD_HOURLY:
-            url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_LMP&version=12&startdatetime={start}&enddatetime={end}&market_run_id=DAM&node={nodes_str}"
+            query_name = "PRC_LMP"
+            market_run_id = "DAM"
+            version = 12
             PRICE_COL = "MW"
         elif market == self.REAL_TIME_15_MIN:
-            url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_RTPD_LMP&version=3&startdatetime={start}&enddatetime={end}&market_run_id=RTPD&node={nodes_str}"
+            query_name = "PRC_RTPD_LMP"
+            market_run_id = "RTPD"
+            version = 3
             PRICE_COL = "PRC"
+        elif market == self.REAL_TIME_HOURLY:
+            query_name = "PRC_HASP_LMP"
+            market_run_id = "HASP"
+            version = 3
+            PRICE_COL = "MW"
 
-        # todo catch too many requests
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname={query_name}&version={version}&startdatetime={start}&enddatetime={end}&market_run_id={market_run_id}&node={nodes_str}"
+
         retry_num = 0
         while retry_num < 3:
             r = requests.get(url)
@@ -234,6 +247,7 @@ class CAISO(ISOBase):
             values=PRICE_COL,
             aggfunc="first",
         )
+
         df = df.reset_index().rename(
             columns={
                 "INTERVALSTARTTIME_GMT": "Time",
@@ -244,6 +258,7 @@ class CAISO(ISOBase):
                 "MCL": "Loss",
             },
         )
+
         df["Time"] = pd.to_datetime(
             df["Time"],
         ).dt.tz_convert(self.default_timezone)
@@ -252,7 +267,7 @@ class CAISO(ISOBase):
 
         df = df[["Time", "Market", "Node", "LMP", "Energy", "Congestion", "Loss"]]
 
-        time.sleep(5)
+        time.sleep(sleep)
 
         return df
 
