@@ -1,7 +1,10 @@
+import io
 import time
 from typing import Any
+from zipfile import ZipFile
 
 import pandas as pd
+import requests
 from numpy import isin
 
 import isodata
@@ -159,7 +162,7 @@ class CAISO(ISOBase):
         "Get lmp for yesterday in 5 minute intervals"
         return self._yesterday_from_historical(self.get_historical_lmp, market, nodes)
 
-    def get_historical_lmp(self, date, market: str, nodes: list):
+    def get_historical_lmp(self, date, market: str, nodes: list, sleep: int = 5):
         """Get day ahead LMP pricing starting at supplied date for a list of nodes.
 
         Arguments:
@@ -169,12 +172,18 @@ class CAISO(ISOBase):
 
             nodes (list): list of nodes to get data from. If no nodes are provided, defaults to NP15, SP15, and ZP26, which are the trading hub nodes. For a list of nodes, call CAISO.get_pnodes()
 
+            sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
+
         Returns
             dataframe of pricing data
         """
 
         if nodes is None:
-            nodes = ["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"]
+            nodes = [
+                "TH_NP15_GEN-APND",
+                "TH_SP15_GEN-APND",
+                "TH_ZP26_GEN-APND",
+            ]
 
         # todo make sure defaults to local timezone
         start = isodata.utils._handle_date(date, tz=self.default_timezone)
@@ -197,19 +206,27 @@ class CAISO(ISOBase):
         # todo catch too many requests
         retry_num = 0
         while retry_num < 3:
-            try:
-                df = pd.read_csv(
-                    url,
-                    compression="zip",
-                    usecols=["INTERVALSTARTTIME_GMT", "NODE", "LMP_TYPE", PRICE_COL],
-                )
-            except Exception as e:
-                retry_num += 1
-                print(f"Failed to get data from CAISO. Error: {e}")
-                print(f"Retrying {retry_num}...")
-                time.sleep(5)
-                if retry_num > 3:
-                    raise Exception(f"Failed to get data from CAISO. Error: {e}")
+            r = requests.get(url)
+
+            if r.status_code == 200:
+                break
+
+            retry_num += 1
+            print(f"Failed to get data from CAISO. Error: {r.status_code}")
+            print(f"Retrying {retry_num}...")
+            time.sleep(5)
+
+        z = ZipFile(io.BytesIO(r.content))
+
+        df = pd.read_csv(
+            z.open(z.namelist()[0]),
+            usecols=[
+                "INTERVALSTARTTIME_GMT",
+                "NODE",
+                "LMP_TYPE",
+                PRICE_COL,
+            ],
+        )
 
         df = df.pivot_table(
             index=["INTERVALSTARTTIME_GMT", "NODE"],
@@ -227,11 +244,15 @@ class CAISO(ISOBase):
                 "MCL": "Loss",
             },
         )
-        df["Time"] = pd.to_datetime(df["Time"]).dt.tz_convert(self.default_timezone)
+        df["Time"] = pd.to_datetime(
+            df["Time"],
+        ).dt.tz_convert(self.default_timezone)
 
         df["Market"] = market
 
         df = df[["Time", "Market", "Node", "LMP", "Energy", "Congestion", "Loss"]]
+
+        time.sleep(5)
 
         return df
 
