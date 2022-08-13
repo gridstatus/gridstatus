@@ -185,8 +185,8 @@ We are currently adding Locational Marginal Price (LMP). Even though each BA off
 
 ```python
 >>> import isodata
->>> iso = isodata.NYISO()
->>> iso.get_lmp_today(iso.REAL_TIME_5_MIN, nodes="ALL")
+>>> nyiso = isodata.NYISO()
+>>> nyiso.get_lmp_today(nyiso.REAL_TIME_5_MIN, nodes="ALL")
 ```
 
 ```
@@ -208,10 +208,10 @@ We are currently adding Locational Marginal Price (LMP). Even though each BA off
 
 And here is querying CAISO
 
-```
+```python
 >>> import isodata
->>> iso = isodata.CAISO()
->>> iso.get_lmp_today(iso.DAY_AHEAD_HOURLY, nodes=["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"])
+>>> caiso = isodata.CAISO()
+>>> caiso.get_lmp_today(caiso.DAY_AHEAD_HOURLY, nodes=["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"])
 ```
 
 ```
