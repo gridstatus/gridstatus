@@ -89,7 +89,7 @@ Time: 2022-08-03 18:25:00-07:00
 or the energy demand throughout the current day as a Pandas DataFrame
 
 ```python
->>> iso.get_demand_today()
+>>> caiso.get_demand_today()
 ```
 
 ```
@@ -112,7 +112,7 @@ or the energy demand throughout the current day as a Pandas DataFrame
 we can get today's supply in the same way
 
 ```python
->>> iso.get_supply_today()
+>>> caiso.get_supply_today()
 ```
 
 ```
