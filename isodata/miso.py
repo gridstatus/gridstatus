@@ -54,8 +54,12 @@ class MISO(ISOBase):
         url = "https://misotodaysoutlook.azurewebsites.net/api/Outlook"
         r = self._get_json(url)
 
+        time = pd.to_datetime(r[1]["d"])
+        if time.tzinfo is None:
+            time = time.tz_convert(self.default_timezone)
+
         return {
-            "time": pd.to_datetime(r[1]["d"]).tz_localize(self.default_timezone),
+            "time": time,
             "demand": float(r[1]["v"].replace(",", "")),
         }
 
@@ -99,7 +103,9 @@ class MISO(ISOBase):
 
         time = r["LMPData"]["RefId"]
         time_str = time[:11] + " " + time[-9:]
-        time = pd.to_datetime(time_str).tz_localize(self.default_timezone)
+        time = pd.to_datetime(time_str)
+        if time.tzinfo is None:
+            time = time.tz_convert(self.default_timezone)
         if market == self.REAL_TIME_5_MIN:
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
         elif market == self.DAY_AHEAD_HOURLY:
