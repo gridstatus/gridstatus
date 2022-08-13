@@ -89,7 +89,7 @@ Time: 2022-08-03 18:25:00-07:00
 or the energy demand throughout the current day as a Pandas DataFrame
 
 ```python
->>> iso.get_demand_today()
+>>> caiso.get_demand_today()
 ```
 
 ```
@@ -112,7 +112,7 @@ or the energy demand throughout the current day as a Pandas DataFrame
 we can get today's supply in the same way
 
 ```python
->>> iso.get_supply_today()
+>>> caiso.get_supply_today()
 ```
 
 ```
@@ -135,7 +135,7 @@ we can get today's supply in the same way
 to get data for a specific day, use the historical method calls. For example,
 
 ```python
->>> iso.get_historical_demand("Jan 1, 2020")
+>>> caiso.get_historical_demand("Jan 1, 2020")
 ```
 
 ```
@@ -185,8 +185,8 @@ We are currently adding Locational Marginal Price (LMP). Even though each BA off
 
 ```python
 >>> import isodata
->>> iso = isodata.NYISO()
->>> iso.get_lmp_today(iso.REAL_TIME_5_MIN, nodes="ALL")
+>>> nyiso = isodata.NYISO()
+>>> nyiso.get_lmp_today(nyiso.REAL_TIME_5_MIN, nodes="ALL")
 ```
 
 ```
@@ -208,10 +208,10 @@ We are currently adding Locational Marginal Price (LMP). Even though each BA off
 
 And here is querying CAISO
 
-```
+```python
 >>> import isodata
->>> iso = isodata.CAISO()
->>> iso.get_lmp_today(iso.DAY_AHEAD_HOURLY, nodes=["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"])
+>>> caiso = isodata.CAISO()
+>>> caiso.get_lmp_today(caiso.DAY_AHEAD_HOURLY, nodes=["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"])
 ```
 
 ```

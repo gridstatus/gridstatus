@@ -130,9 +130,11 @@ class NYISO(ISOBase):
         if market == self.REAL_TIME_5_MIN:
             marketname = "realtime"
             filename = marketname + "_zone"
-        if market == self.DAY_AHEAD_5_MIN:
+        elif market == self.DAY_AHEAD_5_MIN:
             marketname = "damlbmp"
             filename = marketname + "_zone"
+        else:
+            raise RuntimeError("LMP Market is not supported")
 
         df = _download_nyiso_archive(date, market_name=marketname, filename=filename)
 

@@ -215,6 +215,8 @@ class CAISO(ISOBase):
             market_run_id = "HASP"
             version = 3
             PRICE_COL = "MW"
+        else:
+            raise RuntimeError("LMP Market is not supported")
 
         url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname={query_name}&version={version}&startdatetime={start}&enddatetime={end}&market_run_id={market_run_id}&node={nodes_str}"
 

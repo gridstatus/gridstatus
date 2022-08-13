@@ -7,6 +7,10 @@ installdeps-dev:
 	python -m pip install ".[dev]"
 	pre-commit install
 
+.PHONY: installdeps-test
+installdeps-test:
+	python -m pip install ".[test]"
+
 .PHONY: lint
 lint:
 	isort --check-only isodata/
