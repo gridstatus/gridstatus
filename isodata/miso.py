@@ -102,7 +102,6 @@ class MISO(ISOBase):
         time = pd.to_datetime(time_str).tz_localize(self.default_timezone)
         if market == self.REAL_TIME_5_MIN:
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
-
         elif market == self.DAY_AHEAD_HOURLY:
             data = pd.DataFrame(
                 r["LMPData"]["DayAheadExPostLMP"]["PricingNode"],

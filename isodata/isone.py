@@ -177,7 +177,7 @@ class ISONE(ISOBase):
             )
 
         else:
-            raise RuntimeError("Unsupported market")
+            raise RuntimeError("LMP Market is not supported")
 
         data = _process_lmp(data, market, self.default_timezone, nodes)
         return data
@@ -267,7 +267,7 @@ class ISONE(ISOBase):
                 + ":00"
             )
         else:
-            raise RuntimeError("Unsupported market")
+            raise RuntimeError("LMP Market is not supported")
 
         data = _process_lmp(data, market, self.default_timezone, nodes)
 
