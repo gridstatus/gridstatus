@@ -135,7 +135,7 @@ we can get today's supply in the same way
 to get data for a specific day, use the historical method calls. For example,
 
 ```python
->>> iso.get_historical_demand("Jan 1, 2020")
+>>> caiso.get_historical_demand("Jan 1, 2020")
 ```
 
 ```
