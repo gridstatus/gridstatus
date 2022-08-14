@@ -48,7 +48,7 @@ def test_get_iso_invalid():
         isodata.get_iso("ISO DOESNT EXIST")
 
 
-@pytest.mark.parametrize("iso", [CAISO(), Ercot()])
+@pytest.mark.parametrize("iso", [ISONE(), CAISO(), Ercot()])
 def test_get_latest_status(iso):
     status = iso.get_latest_status()
     assert isinstance(status, GridStatus)
