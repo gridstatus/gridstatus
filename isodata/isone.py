@@ -2,14 +2,13 @@ import io
 import math
 import re
 from tkinter import E
-from urllib import request
 
 import pandas as pd
 import requests
 
 import isodata
 from isodata import utils
-from isodata.base import FuelMix, ISOBase, Markets
+from isodata.base import FuelMix, GridStatus, ISOBase, Markets
 
 
 class ISONE(ISOBase):
@@ -40,6 +39,30 @@ class ISONE(ISOBase):
         ".I.SHOREHAM138": 4014,
         ".I.NRTHPORT138": 4017,
     }
+
+    def get_latest_status(self):
+        """Get latest status for ISO NE"""
+        r = requests.post(
+            "https://www.iso-ne.com/ws/wsclient",
+            data={
+                "_nstmp_requestType": "systemconditions",
+                "_nstmp_requestUrl": "/powersystemconditions/current",
+            },
+        ).json()
+
+        # looks like it could return multiple entries
+        condition = r[0]["data"]["PowerSystemConditions"]["PowerSystemCondition"][0]
+        status = condition["SystemCondition"]
+        note = condition["ActionDescription"]
+        time = pd.Timestamp.now(tz=self.default_timezone)
+
+        return GridStatus(
+            time=time,
+            status=status,
+            reserves=None,
+            iso=self.name,
+            notes=[note],
+        )
 
     def get_latest_fuel_mix(self):
         r = requests.post(

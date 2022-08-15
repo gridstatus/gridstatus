@@ -1,5 +1,9 @@
 # Changelog
 
+## vNext
+
+- ISONE: add system status
+
 ## v0.5.0 - Aug 12, 2022
 
 - CAISO: added LMP prices for 3 market: real time 15 minute (FMM), real time hours (HASP), day ahead hourly (DAM)

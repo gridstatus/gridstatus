@@ -95,12 +95,13 @@ class ISOBase:
 
 
 class GridStatus:
-    def __init__(self, time, status, reserves, iso, unit="MW") -> None:
+    def __init__(self, time, status, reserves, iso, notes=None, unit="MW") -> None:
         self.iso = iso
         self.time = time
         self.status = status
         self.reserves = reserves
         self.unit = unit
+        self.notes = notes
 
     def __repr__(self) -> str:
         s = self.iso + "\n"
@@ -118,7 +119,13 @@ class FuelMix:
         self.time = time
         self.unit = unit
 
-        mix_df = pd.Series(mix, name=self.unit).sort_values(ascending=False).to_frame()
+        mix_df = (
+            pd.Series(mix, name=self.unit)
+            .sort_values(
+                ascending=False,
+            )
+            .to_frame()
+        )
         mix_df["Percent"] = mix_df[self.unit] / mix_df[self.unit].sum() * 100
         mix_df.index.name = "Fuel"
         self._mix_df = mix_df
