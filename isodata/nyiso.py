@@ -7,7 +7,7 @@ import requests
 
 import isodata
 from isodata import utils
-from isodata.base import FuelMix, ISOBase, Markets
+from isodata.base import FuelMix, GridStatus, ISOBase, Markets
 
 
 class NYISO(ISOBase):
@@ -19,10 +19,38 @@ class NYISO(ISOBase):
     REAL_TIME_5_MIN = Markets.REAL_TIME_5_MIN
     DAY_AHEAD_5_MIN = Markets.DAY_AHEAD_5_MIN
 
-    # def get_latest_status(self):
-    #     # https://www.nyiso.com/en/system-conditions
-    #      http://mis.nyiso.com/public/P-35list.htm
-    #     pass
+    def get_latest_status(self):
+        latest = self._latest_from_today(self.get_status_today)
+
+        status = GridStatus(
+            time=latest["time"],
+            status=latest["status"],
+            reserves=None,
+            iso=self.name,
+            notes=None,
+        )
+        return status
+
+    def get_status_today(self):
+        """Get status event for today"""
+        d = self._today_from_historical(self.get_historical_status)
+        return d
+
+    def get_status_yesterday(self):
+        """Get status event for yesterday"""
+        return self._yesterday_from_historical(self.get_historical_status)
+
+    def get_historical_status(self, date):
+        """Get status event for a date"""
+        status_df = _download_nyiso_archive(date, "RealTimeEvents")
+
+        status_df = status_df.rename(columns={"Timestamp": "Time", "Message": "Status"})
+
+        status_df["Time"] = pd.to_datetime(status_df["Time"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        return status_df
 
     def get_latest_fuel_mix(self):
         # note: this is simlar datastructure to pjm

@@ -108,7 +108,9 @@ class GridStatus:
 
         s += "Time: %s \n" % str(self.time)
         s += "Status: %s \n" % self.status
-        s += "Reserves: %.0f %s" % (self.reserves, self.unit)
+
+        if self.reserves is not None:
+            s += "Reserves: %.0f %s" % (self.reserves, self.unit)
 
         return s
 

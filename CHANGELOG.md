@@ -3,6 +3,7 @@
 ## vNext
 
 - ISONE: add system status
+- NYISO: add system status
 
 ## v0.5.0 - Aug 12, 2022
 

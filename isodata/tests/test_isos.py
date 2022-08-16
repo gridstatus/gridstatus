@@ -48,10 +48,17 @@ def test_get_iso_invalid():
         isodata.get_iso("ISO DOESNT EXIST")
 
 
-@pytest.mark.parametrize("iso", [ISONE(), CAISO(), Ercot()])
+@pytest.mark.parametrize("iso", [NYISO(), ISONE(), CAISO(), Ercot()])
 def test_get_latest_status(iso):
     status = iso.get_latest_status()
     assert isinstance(status, GridStatus)
+
+
+@pytest.mark.parametrize("iso", [NYISO()])
+def test_get_historical_status(iso):
+    date = "20220609"
+    status = iso.get_historical_status(date)
+    assert isinstance(status, pd.DataFrame)
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
