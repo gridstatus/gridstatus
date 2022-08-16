@@ -80,10 +80,7 @@ def _handle_date(date, tz=None):
 def make_lmp_availability():
     lmp_availability = {}
     for i in all_isos:
-        lmp_availability[i.name] = []
-        for m in Markets:
-            if hasattr(i, m.name):
-                lmp_availability[i.name].append(m.name)
+        lmp_availability[i.name] = i.markets
 
     return lmp_availability
 
@@ -91,7 +88,7 @@ def make_lmp_availability():
 def make_lmp_availability_table():
     a = make_lmp_availability()
     for iso in a:
-        a[iso] = ["`" + v + "`" for v in a[iso]]
+        a[iso] = ["`" + v.value + "`" for v in a[iso]]
         a[iso] = ", ".join(a[iso])
 
     s = pd.Series(a, name="Markets")
