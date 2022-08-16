@@ -1,6 +1,7 @@
 import io
 import math
 import re
+from heapq import merge
 from tkinter import E
 
 import pandas as pd
@@ -181,11 +182,11 @@ class ISONE(ISOBase):
         """Returns supply at a previous date in MW"""
         return self._supply_from_fuel_mix(date)
 
-    def get_latest_lmp(self, market: str, nodes: list):
+    def get_latest_lmp(self, market: str, locations: list):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
         """
-        # todo optimize to read latest csv
+        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"
             data = _make_request(url, skiprows=[0, 1, 2, 4])
@@ -204,24 +205,34 @@ class ISONE(ISOBase):
         else:
             raise RuntimeError("LMP Market is not supported")
 
-        data = _process_lmp(data, market, self.default_timezone, nodes)
+        data = self._process_lmp(data, market, self.default_timezone, locations)
         return data
 
-    def get_lmp_today(self, market: str, nodes: list):
+    def get_lmp_today(self, market: str, locations: list, include_id=False):
         "Get lmp for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_lmp, market, nodes)
+        return self._today_from_historical(
+            self.get_historical_lmp,
+            market,
+            locations,
+            include_id=include_id,
+        )
 
-    def get_lmp_yesterday(self, market: str, nodes: list):
+    def get_lmp_yesterday(self, market: str, locations: list, include_id=False):
         "Get lmp for yesterday in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_lmp, market, nodes)
+        return self._yesterday_from_historical(
+            self.get_historical_lmp,
+            market,
+            locations,
+            include_id=include_id,
+        )
 
-    def get_historical_lmp(self, date, market: str, nodes: list):
+    def get_historical_lmp(self, date, market: str, locations: list, include_id=False):
         """Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/"""
         date = isodata.utils._handle_date(date)
         date_str = date.strftime("%Y%m%d")
 
         now = pd.Timestamp.now(tz=self.default_timezone)
-
+        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             # todo handle intervals for current day
             intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
@@ -294,13 +305,80 @@ class ISONE(ISOBase):
         else:
             raise RuntimeError("LMP Market is not supported")
 
-        data = _process_lmp(data, market, self.default_timezone, nodes)
+        data = self._process_lmp(
+            data,
+            market,
+            self.default_timezone,
+            locations,
+            include_id=include_id,
+        )
 
         return data
 
         # daily historical fuel mix
         # https://www.iso-ne.com/static-assets/documents/2022/01/2022_daygenbyfuel.xlsx
         # a bunch more here: https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/daily-gen-fuel-type
+
+    def _process_lmp(self, data, market, timezone, locations, include_id=False):
+        # each market returns a slight different set of columns
+        # real time 5 minute has "Location ID"
+        # real time hourly has "Location" that represent location name
+        # day ahead hourly has "Location ID" and "Location Name
+
+        rename = {
+            "Location Name": "Location",
+            "Location ID": "Location Id",
+            "Location Type": "Location Type",
+            "Local Time": "Time",
+            "Locational Marginal Price": "LMP",
+            "LMP": "LMP",
+            "Energy Component": "Energy",
+            "Congestion Component": "Congestion",
+            "Loss Component": "Loss",
+            "Marginal Loss Component": "Loss",
+        }
+
+        data.rename(columns=rename, inplace=True)
+
+        data["Market"] = market.value
+
+        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(timezone)
+
+        # handle missing location information for some markets
+        if market != Markets.DAY_AHEAD_HOURLY:
+            day_ahead = self.get_lmp_today(
+                Markets.DAY_AHEAD_HOURLY,
+                locations,
+                include_id=True,
+            )
+            location_mapping = day_ahead.drop_duplicates("Location Id")[
+                ["Location", "Location Id", "Location Type"]
+            ]
+
+            if "Location Id" in data.columns:
+                data = data.merge(location_mapping, how="left", on="Location Id")
+            elif "Location" in data.columns:
+                data = data.merge(location_mapping, how="left", on="Location")
+
+        data = data[
+            [
+                "Time",
+                "Market",
+                "Location",
+                "Location Id",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
+
+        if not include_id:
+            data.drop(columns=["Location Id"], inplace=True)
+
+        data = utils.filter_lmp_locations(data, locations)
+        return data
 
 
 def _make_request(url, skiprows):
@@ -328,39 +406,3 @@ def _make_request(url, skiprows):
             engine="python",
         )
         return df
-
-
-def _process_lmp(data, market, timezone, nodes):
-    # todo handle location types
-    rename = {
-        "Location ID": "Node",
-        "Location": "Node",
-        "Local Time": "Time",
-        "Locational Marginal Price": "LMP",
-        "LMP": "LMP",
-        "Energy Component": "Energy",
-        "Congestion Component": "Congestion",
-        "Loss Component": "Loss",
-        "Marginal Loss Component": "Loss",
-    }
-
-    data.rename(columns=rename, inplace=True)
-
-    data["Market"] = market
-
-    data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(timezone)
-
-    data = data[
-        [
-            "Time",
-            "Market",
-            "Node",
-            "LMP",
-            "Energy",
-            "Congestion",
-            "Loss",
-        ]
-    ]
-
-    data = utils.filter_lmp_nodes(data, nodes)
-    return data

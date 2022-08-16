@@ -136,22 +136,27 @@ class NYISO(ISOBase):
         """Returns supply at a previous date in 5 minute intervals"""
         return self._supply_from_fuel_mix(date)
 
-    def get_latest_lmp(self, market: str, nodes: list):
-        return self._latest_lmp_from_today(market, nodes, node_column="Zone")
+    def get_latest_lmp(self, market: str, locations: list):
+        return self._latest_lmp_from_today(market, locations)
 
-    def get_lmp_today(self, market: str, nodes: list):
+    def get_lmp_today(self, market: str, locations: list):
         "Get lmp for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_lmp, market, nodes)
+        return self._today_from_historical(self.get_historical_lmp, market, locations)
 
-    def get_lmp_yesterday(self, market: str, nodes: list):
+    def get_lmp_yesterday(self, market: str, locations: list):
         "Get lmp for yesterday in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_lmp, market, nodes)
+        return self._yesterday_from_historical(
+            self.get_historical_lmp,
+            market,
+            locations,
+        )
 
-    def get_historical_lmp(self, date, market: str, nodes: list):
+    def get_historical_lmp(self, date, market: str, locations: list):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
         """
         # todo support generator and zone
+        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
             filename = marketname + "_zone"
@@ -163,10 +168,9 @@ class NYISO(ISOBase):
 
         df = _download_nyiso_archive(date, market_name=marketname, filename=filename)
 
-        # todo handle node
         columns = {
             "Time Stamp": "Time",
-            "Name": "Zone",
+            "Name": "Location",
             "LBMP ($/MWHr)": "LMP",
             "Marginal Cost Losses ($/MWHr)": "Loss",
             "Marginal Cost Congestion ($/MWHr)": "Congestion",
@@ -175,13 +179,25 @@ class NYISO(ISOBase):
         df = df.rename(columns=columns)
 
         df["Energy"] = df["LMP"] - (df["Loss"] - df["Congestion"])
-        df["Market"] = market
+        df["Market"] = market.value
+        df["Location Type"] = "Zone"
 
-        df = df[["Time", "Market", "Zone", "LMP", "Energy", "Congestion", "Loss"]]
+        df = df[
+            [
+                "Time",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
 
         df["Time"] = pd.to_datetime(df["Time"]).dt.tz_localize(self.default_timezone)
 
-        data = utils.filter_lmp_nodes(df, nodes, node_column="Zone")
+        data = utils.filter_lmp_locations(df, locations)
 
         return df
 

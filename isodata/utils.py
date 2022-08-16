@@ -95,8 +95,8 @@ def make_lmp_availability_table():
     return s.to_markdown()
 
 
-def filter_lmp_nodes(data, nodes: list, node_column: str = "Node"):
-    if nodes == "ALL":
+def filter_lmp_locations(data, locations: list):
+    if locations == "ALL":
         return data
 
-    return data[data[node_column].isin(nodes)]
+    return data[data["Location"].isin(locations)]

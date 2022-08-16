@@ -86,7 +86,7 @@ class MISO(ISOBase):
 
         return df
 
-    def get_latest_lmp(self, market: str, nodes: list):
+    def get_latest_lmp(self, market: str, locations: list):
         """
         Supported Markets:
 
@@ -99,6 +99,8 @@ class MISO(ISOBase):
         time = r["LMPData"]["RefId"]
         time_str = time[:11] + " " + time[-9:]
         time = pd.to_datetime(time_str).tz_localize(self.default_timezone)
+
+        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
         elif market == Markets.DAY_AHEAD_HOURLY:
@@ -108,7 +110,7 @@ class MISO(ISOBase):
             time = time.ceil("H")
 
         rename = {
-            "name": "Node",
+            "name": "Location",
             "LMP": "LMP",
             "MLC": "Loss",
             "MCC": "Congestion",
@@ -123,13 +125,15 @@ class MISO(ISOBase):
 
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
         data["Time"] = time
-        data["Market"] = market
-
+        data["Market"] = market.value
+        data["Location Type"] = "Pricing Node"
+        data.loc[data["Location"].str.endswith(".HUB"), "Location Type"] = "Hub"
         data = data[
             [
                 "Time",
                 "Market",
-                "Node",
+                "Location",
+                "Location Type",
                 "LMP",
                 "Energy",
                 "Congestion",

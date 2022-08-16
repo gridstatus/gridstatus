@@ -27,7 +27,7 @@ class CAISO(ISOBase):
         Markets.DAY_AHEAD_HOURLY,
     ]
 
-    trading_hubs_nodes = [
+    trading_hub_locations = [
         "TH_NP15_GEN-APND",
         "TH_SP15_GEN-APND",
         "TH_ZP26_GEN-APND",
@@ -162,26 +162,30 @@ class CAISO(ISOBase):
         )
         return df
 
-    def get_latest_lmp(self, market: str, nodes: list):
-        return self._latest_lmp_from_today(market, nodes, node_column="Node")
+    def get_latest_lmp(self, market: str, locations: list):
+        return self._latest_lmp_from_today(market, locations)
 
-    def get_lmp_today(self, market: str, nodes: list):
+    def get_lmp_today(self, market: str, locations: list):
         "Get lmp for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_lmp, market, nodes)
+        return self._today_from_historical(self.get_historical_lmp, market, locations)
 
-    def get_lmp_yesterday(self, market: str, nodes: list):
+    def get_lmp_yesterday(self, market: str, locations: list):
         "Get lmp for yesterday in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_lmp, market, nodes)
+        return self._yesterday_from_historical(
+            self.get_historical_lmp,
+            market,
+            locations,
+        )
 
-    def get_historical_lmp(self, date, market: str, nodes: list, sleep: int = 5):
-        """Get day ahead LMP pricing starting at supplied date for a list of nodes.
+    def get_historical_lmp(self, date, market: str, locations: list, sleep: int = 5):
+        """Get day ahead LMP pricing starting at supplied date for a list of locations.
 
         Arguments:
             date: date to return data
 
             market: market to return from. supports:
 
-            nodes (list): list of nodes to get data from. If no nodes are provided, defaults to NP15, SP15, and ZP26, which are the trading hub nodes. For a list of nodes, call CAISO.get_pnodes()
+            locations (list): list of locations to get data from. If no locations are provided, defaults to NP15, SP15, and ZP26, which are the trading hub locations. For a list of locations, call CAISO.get_pnodes()
 
             sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
 
@@ -189,13 +193,11 @@ class CAISO(ISOBase):
             dataframe of pricing data
         """
 
-        if nodes is None:
-            nodes = self.trading_hubs_nodes
+        if locations is None:
+            locations = self.trading_hub_locations
 
         # todo make sure defaults to local timezone
         start = isodata.utils._handle_date(date, tz=self.default_timezone)
-
-        nodes_str = ",".join(nodes)
 
         start = start.tz_convert("UTC")
         end = start + pd.DateOffset(1)
@@ -203,6 +205,7 @@ class CAISO(ISOBase):
         start = start.strftime("%Y%m%dT%H:%M-0000")
         end = end.strftime("%Y%m%dT%H:%M-0000")
 
+        market = Markets(market)
         if market == Markets.DAY_AHEAD_HOURLY:
             query_name = "PRC_LMP"
             market_run_id = "DAM"
@@ -221,6 +224,7 @@ class CAISO(ISOBase):
         else:
             raise RuntimeError("LMP Market is not supported")
 
+        nodes_str = ",".join(locations)
         url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname={query_name}&version={version}&startdatetime={start}&enddatetime={end}&market_run_id={market_run_id}&node={nodes_str}"
 
         retry_num = 0
@@ -257,7 +261,7 @@ class CAISO(ISOBase):
         df = df.reset_index().rename(
             columns={
                 "INTERVALSTARTTIME_GMT": "Time",
-                "NODE": "Node",
+                "NODE": "Location",
                 "LMP": "LMP",
                 "MCE": "Energy",
                 "MCC": "Congestion",
@@ -269,11 +273,23 @@ class CAISO(ISOBase):
             df["Time"],
         ).dt.tz_convert(self.default_timezone)
 
-        df["Market"] = market
+        df["Market"] = market.value
+        df["Location Type"] = None
 
-        df = df[["Time", "Market", "Node", "LMP", "Energy", "Congestion", "Loss"]]
+        df = df[
+            [
+                "Time",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
 
-        data = utils.filter_lmp_nodes(df, nodes)
+        data = utils.filter_lmp_locations(df, locations)
 
         time.sleep(sleep)
 

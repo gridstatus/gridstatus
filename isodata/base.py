@@ -15,6 +15,13 @@ class Markets(Enum):
     DAY_AHEAD_5_MIN = "DAY_AHEAD_5_MIN"
     DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
 
+    def __contains__(cls, item):
+        try:
+            cls(item)
+        except ValueError:
+            return False
+        return True
+
 
 class ISOBase:
     markets = []
@@ -63,9 +70,10 @@ class ISOBase:
     def get_historical_supply(self, date):
         raise NotImplementedError()
 
-    def _latest_lmp_from_today(self, market, nodes, node_column="Node"):
-        lmp_df = self.get_lmp_today(market, nodes)
-        latest_df = lmp_df.groupby(node_column).last()
+    def _latest_lmp_from_today(self, market, locations):
+        lmp_df = self.get_lmp_today(market, locations)
+        # Assume sorted in ascending order
+        latest_df = lmp_df.groupby("Location").last().reset_index()
         return latest_df
 
     def _latest_from_today(self, method, *args, **kwargs):
