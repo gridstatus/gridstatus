@@ -58,7 +58,7 @@ def test_get_latest_status(iso):
 def test_get_historical_status(iso):
     date = "20220609"
     status = iso.get_historical_status(date)
-    assert isinstance(status, GridStatus)
+    assert isinstance(status, pd.DataFrame)
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
