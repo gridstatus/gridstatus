@@ -199,20 +199,17 @@ def test_get_historical_demand(iso):
                     Markets.DAY_AHEAD_HOURLY,
                     Markets.REAL_TIME_15_MIN,
                 ],
-                "locations": None,
             },
         },
         {
             ISONE(): {
                 # , Markets.REAL_TIME_5_MIN
                 "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_HOURLY],
-                "locations": "ALL",
             },
         },
         {
             NYISO(): {
                 "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
-                "locations": "ALL",
             },
         },
     ],
@@ -220,15 +217,14 @@ def test_get_historical_demand(iso):
 def test_get_historical_lmp(test):
     iso = list(test)[0]
     markets = test[iso]["markets"]
-    locations = test[iso]["locations"]
 
     date_str = "20220722"
     for m in markets:
         print(iso.iso_id, m)
-        hist = iso.get_historical_lmp(date_str, m, locations=locations)
+        hist = iso.get_historical_lmp(date_str, m)
         assert isinstance(hist, pd.DataFrame)
         check_lmp_columns(hist)
-        yesterday = iso.get_lmp_yesterday(m, locations=locations)
+        yesterday = iso.get_lmp_yesterday(m)
         assert isinstance(yesterday, pd.DataFrame)
         check_lmp_columns(yesterday)
 
@@ -243,25 +239,21 @@ def test_get_historical_lmp(test):
                     Markets.DAY_AHEAD_HOURLY,
                     Markets.REAL_TIME_15_MIN,
                 ],
-                "locations": None,
             },
         },
         {
             ISONE(): {
                 "markets": [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_HOURLY],
-                "locations": "ALL",
             },
         },
         {
             MISO(): {
                 "markets": [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY],
-                "locations": "ALL",
             },
         },
         {
             NYISO(): {
                 "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
-                "locations": "ALL",
             },
         },
     ],
@@ -269,12 +261,12 @@ def test_get_historical_lmp(test):
 def test_get_latest_lmp(test):
     iso = list(test)[0]
     markets = test[iso]["markets"]
-    locations = test[iso]["locations"]
+    locations = test[iso]
 
     date_str = "20220722"
     for m in markets:
         print(iso.iso_id, m)
-        latest = iso.get_latest_lmp(m, locations=locations)
+        latest = iso.get_latest_lmp(m)
         assert isinstance(latest, pd.DataFrame)
         check_lmp_columns(latest)
 
@@ -289,19 +281,16 @@ def test_get_latest_lmp(test):
                     Markets.REAL_TIME_15_MIN,
                     Markets.DAY_AHEAD_HOURLY,
                 ],
-                "locations": None,
             },
         },
         {
             ISONE(): {
                 "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN],
-                "locations": "ALL",
             },
         },
         {
             NYISO(): {
                 "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
-                "locations": "ALL",
             },
         },
     ],
@@ -309,9 +298,8 @@ def test_get_latest_lmp(test):
 def test_get_lmp_today(test):
     iso = list(test)[0]
     markets = test[iso]["markets"]
-    locations = test[iso]["locations"]
 
     for m in markets:
-        today = iso.get_lmp_today(m, locations=locations)
+        today = iso.get_lmp_today(m)
         assert isinstance(today, pd.DataFrame)
         check_lmp_columns(today)

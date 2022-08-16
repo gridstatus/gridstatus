@@ -182,10 +182,12 @@ class ISONE(ISOBase):
         """Returns supply at a previous date in MW"""
         return self._supply_from_fuel_mix(date)
 
-    def get_latest_lmp(self, market: str, locations: list):
+    def get_latest_lmp(self, market: str, locations: list = None):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
         """
+        if locations is None:
+            locations = "ALL"
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"
@@ -208,7 +210,7 @@ class ISONE(ISOBase):
         data = self._process_lmp(data, market, self.default_timezone, locations)
         return data
 
-    def get_lmp_today(self, market: str, locations: list, include_id=False):
+    def get_lmp_today(self, market: str, locations: list = None, include_id=False):
         "Get lmp for today in 5 minute intervals"
         return self._today_from_historical(
             self.get_historical_lmp,
@@ -217,7 +219,7 @@ class ISONE(ISOBase):
             include_id=include_id,
         )
 
-    def get_lmp_yesterday(self, market: str, locations: list, include_id=False):
+    def get_lmp_yesterday(self, market: str, locations: list = None, include_id=False):
         "Get lmp for yesterday in 5 minute intervals"
         return self._yesterday_from_historical(
             self.get_historical_lmp,
@@ -226,10 +228,19 @@ class ISONE(ISOBase):
             include_id=include_id,
         )
 
-    def get_historical_lmp(self, date, market: str, locations: list, include_id=False):
+    def get_historical_lmp(
+        self,
+        date,
+        market: str,
+        locations: list = None,
+        include_id=False,
+    ):
         """Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/"""
         date = isodata.utils._handle_date(date)
         date_str = date.strftime("%Y%m%d")
+
+        if locations is None:
+            locations = "ALL"
 
         now = pd.Timestamp.now(tz=self.default_timezone)
         market = Markets(market)

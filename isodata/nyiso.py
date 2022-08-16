@@ -136,14 +136,14 @@ class NYISO(ISOBase):
         """Returns supply at a previous date in 5 minute intervals"""
         return self._supply_from_fuel_mix(date)
 
-    def get_latest_lmp(self, market: str, locations: list):
+    def get_latest_lmp(self, market: str, locations: list = None):
         return self._latest_lmp_from_today(market, locations)
 
-    def get_lmp_today(self, market: str, locations: list):
+    def get_lmp_today(self, market: str, locations: list = None):
         "Get lmp for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_lmp, market, locations)
 
-    def get_lmp_yesterday(self, market: str, locations: list):
+    def get_lmp_yesterday(self, market: str, locations: list = None):
         "Get lmp for yesterday in 5 minute intervals"
         return self._yesterday_from_historical(
             self.get_historical_lmp,
@@ -151,11 +151,14 @@ class NYISO(ISOBase):
             locations,
         )
 
-    def get_historical_lmp(self, date, market: str, locations: list):
+    def get_historical_lmp(self, date, market: str, locations: list = None):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
         """
         # todo support generator and zone
+        if locations is None:
+            locations = "ALL"
+
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
