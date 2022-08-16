@@ -163,7 +163,7 @@ class CAISO(ISOBase):
         return df
 
     def get_latest_lmp(self, market: str, locations: list):
-        return self._latest_lmp_from_today(market, locations, node_column="Node")
+        return self._latest_lmp_from_today(market, locations)
 
     def get_lmp_today(self, market: str, locations: list):
         "Get lmp for today in 5 minute intervals"

@@ -167,10 +167,9 @@ class NYISO(ISOBase):
 
         df = _download_nyiso_archive(date, market_name=marketname, filename=filename)
 
-        # todo handle node
         columns = {
             "Time Stamp": "Time",
-            "Name": "Node",
+            "Name": "Location",
             "LBMP ($/MWHr)": "LMP",
             "Marginal Cost Losses ($/MWHr)": "Loss",
             "Marginal Cost Congestion ($/MWHr)": "Congestion",
@@ -180,14 +179,14 @@ class NYISO(ISOBase):
 
         df["Energy"] = df["LMP"] - (df["Loss"] - df["Congestion"])
         df["Market"] = market.value
-        df["Node Type"] = "Zone"
+        df["Location Type"] = "Zone"
 
         df = df[
             [
                 "Time",
                 "Market",
-                "Node",
-                "Node Type",
+                "Location",
+                "Location Type",
                 "LMP",
                 "Energy",
                 "Congestion",

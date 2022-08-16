@@ -108,7 +108,7 @@ class MISO(ISOBase):
             time = time.ceil("H")
 
         rename = {
-            "name": "Node",
+            "name": "Location",
             "LMP": "LMP",
             "MLC": "Loss",
             "MCC": "Congestion",
@@ -125,12 +125,13 @@ class MISO(ISOBase):
         data["Time"] = time
         data["Market"] = market.value
         data["Location Type"] = "Pricing Node"
-
+        data.loc[data["Location"].str.endswith(".HUB"), "Location Type"] = "Hub"
         data = data[
             [
                 "Time",
                 "Market",
-                "Node",
+                "Location",
+                "Location Type",
                 "LMP",
                 "Energy",
                 "Congestion",

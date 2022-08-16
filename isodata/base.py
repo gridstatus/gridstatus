@@ -66,7 +66,7 @@ class ISOBase:
     def _latest_lmp_from_today(self, market, locations):
         lmp_df = self.get_lmp_today(market, locations)
         # Assume sorted in ascending order
-        latest_df = lmp_df.groupby("Location").last()
+        latest_df = lmp_df.groupby("Location").last().reset_index()
         return latest_df
 
     def _latest_from_today(self, method, *args, **kwargs):

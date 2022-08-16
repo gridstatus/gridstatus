@@ -9,6 +9,23 @@ from isodata.base import FuelMix, GridStatus, ISOBase
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
+def check_lmp_columns(df):
+    assert set(df.columns) == set(
+        [
+            "Time",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ],
+    )
+
+    # todo check if market is valid enum
+
+
 def test_make_lmp_availability_df():
     isodata.utils.make_lmp_availability_table()
 
@@ -245,8 +262,6 @@ def test_get_historical_lmp(test):
             NYISO(): {
                 "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
                 "locations": "ALL",
-                "markets": [NYISO.DAY_AHEAD_5_MIN, NYISO.REAL_TIME_5_MIN],
-                "locations": "ALL",
             },
         },
     ],
@@ -261,7 +276,7 @@ def test_get_latest_lmp(test):
         print(iso.iso_id, m)
         latest = iso.get_latest_lmp(m, locations=locations)
         assert isinstance(latest, pd.DataFrame)
-        check_lmp_columns(today)
+        check_lmp_columns(latest)
 
 
 @pytest.mark.parametrize(
