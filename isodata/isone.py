@@ -16,9 +16,11 @@ class ISONE(ISOBase):
     iso_id = "isone"
     default_timezone = "US/Eastern"
 
-    REAL_TIME_5_MIN = Markets.REAL_TIME_5_MIN
-    REAL_TIME_HOURLY = Markets.REAL_TIME_HOURLY
-    DAY_AHEAD_HOURLY = Markets.DAY_AHEAD_HOURLY
+    markets = [
+        Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_HOURLY,
+        Markets.DAY_AHEAD_HOURLY,
+    ]
 
     hubs = {"H.INTERNAL_HUB": 4000}
     zones = {
@@ -184,10 +186,10 @@ class ISONE(ISOBase):
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
         """
         # todo optimize to read latest csv
-        if market == self.REAL_TIME_5_MIN:
+        if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"
             data = _make_request(url, skiprows=[0, 1, 2, 4])
-        elif market == self.REAL_TIME_HOURLY:
+        elif market == Markets.REAL_TIME_HOURLY:
             url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"
             data = _make_request(url, skiprows=[0, 1, 2, 4])
 
@@ -220,7 +222,7 @@ class ISONE(ISOBase):
 
         now = pd.Timestamp.now(tz=self.default_timezone)
 
-        if market == self.REAL_TIME_5_MIN:
+        if market == Markets.REAL_TIME_5_MIN:
             # todo handle intervals for current day
             intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
 
@@ -265,7 +267,7 @@ class ISONE(ISOBase):
 
                 data = pd.concat([data, data_current])
 
-        elif market == self.REAL_TIME_HOURLY:
+        elif market == Markets.REAL_TIME_HOURLY:
             if date.date() < now.date():
                 url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"
                 data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
@@ -279,7 +281,7 @@ class ISONE(ISOBase):
             else:
                 raise RuntimeError("Today not support for hourly lmp")
 
-        elif market == self.DAY_AHEAD_HOURLY:
+        elif market == Markets.DAY_AHEAD_HOURLY:
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
             data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
             # todo document hour starting vs ending

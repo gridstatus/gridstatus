@@ -14,10 +14,7 @@ class NYISO(ISOBase):
     name = "New York ISO"
     iso_id = "nyiso"
     default_timezone = "US/Eastern"
-
-    # Markets
-    REAL_TIME_5_MIN = Markets.REAL_TIME_5_MIN
-    DAY_AHEAD_5_MIN = Markets.DAY_AHEAD_5_MIN
+    markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_5_MIN]
 
     def get_latest_status(self):
         latest = self._latest_from_today(self.get_status_today)
@@ -155,10 +152,10 @@ class NYISO(ISOBase):
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
         """
         # todo support generator and zone
-        if market == self.REAL_TIME_5_MIN:
+        if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
             filename = marketname + "_zone"
-        elif market == self.DAY_AHEAD_5_MIN:
+        elif market == Markets.DAY_AHEAD_5_MIN:
             marketname = "damlbmp"
             filename = marketname + "_zone"
         else:
@@ -187,11 +184,6 @@ class NYISO(ISOBase):
         data = utils.filter_lmp_nodes(df, nodes, node_column="Zone")
 
         return df
-
-
-# def get_day_ahead_prices(self,)
-
-# https://www.nyiso.com/energy-market-operational-data
 
 
 def _download_nyiso_archive(date, market_name, filename=None):

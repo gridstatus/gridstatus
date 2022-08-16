@@ -20,9 +20,12 @@ class CAISO(ISOBase):
     iso_id = "caiso"
     default_timezone = "US/Pacific"
 
-    DAY_AHEAD_HOURLY = Markets.DAY_AHEAD_HOURLY  # PRC_LMP
-    REAL_TIME_15_MIN = Markets.REAL_TIME_15_MIN  # PRC_RTPD_LMP
-    REAL_TIME_HOURLY = Markets.REAL_TIME_HOURLY  # PRC_HASP_LMP
+    # Markets PRC_RTPD_LMP, PRC_HASP_LMP, PRC_LMP
+    markets = [
+        Markets.REAL_TIME_15_MIN,
+        Markets.REAL_TIME_HOURLY,
+        Markets.DAY_AHEAD_HOURLY,
+    ]
 
     trading_hubs_nodes = [
         "TH_NP15_GEN-APND",
@@ -200,17 +203,17 @@ class CAISO(ISOBase):
         start = start.strftime("%Y%m%dT%H:%M-0000")
         end = end.strftime("%Y%m%dT%H:%M-0000")
 
-        if market == self.DAY_AHEAD_HOURLY:
+        if market == Markets.DAY_AHEAD_HOURLY:
             query_name = "PRC_LMP"
             market_run_id = "DAM"
             version = 12
             PRICE_COL = "MW"
-        elif market == self.REAL_TIME_15_MIN:
+        elif market == Markets.REAL_TIME_15_MIN:
             query_name = "PRC_RTPD_LMP"
             market_run_id = "RTPD"
             version = 3
             PRICE_COL = "PRC"
-        elif market == self.REAL_TIME_HOURLY:
+        elif market == Markets.REAL_TIME_HOURLY:
             query_name = "PRC_HASP_LMP"
             market_run_id = "HASP"
             version = 3

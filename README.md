@@ -247,6 +247,14 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, `I
 | ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
 <!-- LMP AVAILABILITY TABLE END -->
 
+You can also see what markets are available by accessing the `markets` property of an iso for examples 
+```
+>>> caiso.markets
+```
+```
+[<Markets.REAL_TIME_15_MIN: 'REAL_TIME_15_MIN'>, <Markets.REAL_TIME_HOURLY: 'REAL_TIME_HOURLY'>, <Markets.DAY_AHEAD_HOURLY: 'DAY_AHEAD_HOURLY'>]
+```
+
 ## Feedback Welcome
 
 `isodata` is under active development. If there is any particular data you would like access to, let us know by posting an issue or emailing kmax12@gmail.com.
