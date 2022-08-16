@@ -58,9 +58,6 @@ def test_get_latest_status(iso):
 def test_get_historical_status(iso):
     date = "20220609"
     status = iso.get_historical_status(date)
-    import pdb
-
-    pdb.set_trace()
     assert isinstance(status, GridStatus)
 
 
