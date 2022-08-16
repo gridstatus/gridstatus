@@ -178,23 +178,23 @@ def test_get_historical_demand(iso):
         {
             CAISO(): {
                 "markets": [
-                    CAISO.REAL_TIME_HOURLY,
-                    CAISO.DAY_AHEAD_HOURLY,
-                    CAISO.REAL_TIME_15_MIN,
+                    Markets.REAL_TIME_HOURLY,
+                    Markets.DAY_AHEAD_HOURLY,
+                    Markets.REAL_TIME_15_MIN,
                 ],
                 "nodes": None,
             },
         },
         {
             ISONE(): {
-                # , ISONE.REAL_TIME_5_MIN
-                "markets": [ISONE.DAY_AHEAD_HOURLY, ISONE.REAL_TIME_HOURLY],
+                # , Markets.REAL_TIME_5_MIN
+                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_HOURLY],
                 "nodes": "ALL",
             },
         },
         {
             NYISO(): {
-                "markets": [NYISO.DAY_AHEAD_5_MIN, NYISO.REAL_TIME_5_MIN],
+                "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
                 "nodes": "ALL",
             },
         },
@@ -220,28 +220,28 @@ def test_get_historical_lmp(test):
         {
             CAISO(): {
                 "markets": [
-                    CAISO.REAL_TIME_HOURLY,
-                    CAISO.DAY_AHEAD_HOURLY,
-                    CAISO.REAL_TIME_15_MIN,
+                    Markets.REAL_TIME_HOURLY,
+                    Markets.DAY_AHEAD_HOURLY,
+                    Markets.REAL_TIME_15_MIN,
                 ],
                 "nodes": None,
             },
         },
         {
             ISONE(): {
-                "markets": [ISONE.REAL_TIME_5_MIN, ISONE.REAL_TIME_HOURLY],
+                "markets": [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_HOURLY],
                 "nodes": "ALL",
             },
         },
         {
             MISO(): {
-                "markets": [MISO.REAL_TIME_5_MIN, MISO.DAY_AHEAD_HOURLY],
+                "markets": [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY],
                 "nodes": "ALL",
             },
         },
         {
             NYISO(): {
-                "markets": [NYISO.DAY_AHEAD_5_MIN, NYISO.REAL_TIME_5_MIN],
+                "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
                 "nodes": "ALL",
             },
         },
@@ -265,22 +265,22 @@ def test_get_latest_lmp(test):
         {
             CAISO(): {
                 "markets": [
-                    CAISO.REAL_TIME_HOURLY,
-                    CAISO.REAL_TIME_15_MIN,
-                    CAISO.DAY_AHEAD_HOURLY,
+                    Markets.REAL_TIME_HOURLY,
+                    Markets.REAL_TIME_15_MIN,
+                    Markets.DAY_AHEAD_HOURLY,
                 ],
                 "nodes": None,
             },
         },
         {
             ISONE(): {
-                "markets": [ISONE.DAY_AHEAD_HOURLY, ISONE.REAL_TIME_5_MIN],
+                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN],
                 "nodes": "ALL",
             },
         },
         {
             NYISO(): {
-                "markets": [NYISO.DAY_AHEAD_5_MIN, NYISO.REAL_TIME_5_MIN],
+                "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
                 "nodes": "ALL",
             },
         },

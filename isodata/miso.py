@@ -1,7 +1,7 @@
 import pandas as pd
 from pandas import Timestamp
 
-from isodata.base import FuelMix, ISOBase
+from isodata.base import FuelMix, ISOBase, Markets
 
 
 class MISO(ISOBase):
@@ -12,8 +12,7 @@ class MISO(ISOBase):
     # says EST in time stamp but EDT is currently in affect. EST == CDT, so using central time for now
     default_timezone = "US/Central"
 
-    REAL_TIME_5_MIN = "REAL_TIME_5_MIN"
-    DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
+    markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
 
     hubs = [
         "ILLINOIS.HUB",
@@ -100,9 +99,9 @@ class MISO(ISOBase):
         time = r["LMPData"]["RefId"]
         time_str = time[:11] + " " + time[-9:]
         time = pd.to_datetime(time_str).tz_localize(self.default_timezone)
-        if market == self.REAL_TIME_5_MIN:
+        if market == Markets.REAL_TIME_5_MIN:
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
-        elif market == self.DAY_AHEAD_HOURLY:
+        elif market == Markets.DAY_AHEAD_HOURLY:
             data = pd.DataFrame(
                 r["LMPData"]["DayAheadExPostLMP"]["PricingNode"],
             )

@@ -231,6 +231,15 @@ LMP_TYPE                      Time                    Market              Node  
 [72 rows x 7 columns]
 ```
 
+You can see what markets are available by accessing the `markets` property of an iso. For, example
+
+```
+>>> caiso.markets
+```
+```
+[<Markets.REAL_TIME_15_MIN: 'REAL_TIME_15_MIN'>, <Markets.REAL_TIME_HOURLY: 'REAL_TIME_HOURLY'>, <Markets.DAY_AHEAD_HOURLY: 'DAY_AHEAD_HOURLY'>]
+```
+
 The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, `ISO.get_lmp_yesterday`, and `ISO.get_historical_lmp`.
 
 ## Supported LMP Markets
@@ -246,6 +255,7 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, `I
 | New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_5_MIN`                       |
 | ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
 <!-- LMP AVAILABILITY TABLE END -->
+
 
 ## Feedback Welcome
 
