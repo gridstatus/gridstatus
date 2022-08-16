@@ -276,6 +276,11 @@ class CAISO(ISOBase):
         df["Market"] = market.value
         df["Location Type"] = None
 
+        df.loc[
+            df["Location"].isin(self.trading_hub_locations),
+            "Location Type",
+        ] = "Trading Hub"
+
         df = df[
             [
                 "Time",
