@@ -63,9 +63,10 @@ class ISOBase:
     def get_historical_supply(self, date):
         raise NotImplementedError()
 
-    def _latest_lmp_from_today(self, market, nodes, node_column="Node"):
-        lmp_df = self.get_lmp_today(market, nodes)
-        latest_df = lmp_df.groupby(node_column).last()
+    def _latest_lmp_from_today(self, market, locations):
+        lmp_df = self.get_lmp_today(market, locations)
+        # Assume sorted in ascending order
+        latest_df = lmp_df.groupby("Location").last()
         return latest_df
 
     def _latest_from_today(self, method, *args, **kwargs):

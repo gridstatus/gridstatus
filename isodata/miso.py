@@ -86,7 +86,7 @@ class MISO(ISOBase):
 
         return df
 
-    def get_latest_lmp(self, market: str, nodes: list):
+    def get_latest_lmp(self, market: str, locations: list):
         """
         Supported Markets:
 
@@ -123,7 +123,8 @@ class MISO(ISOBase):
 
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
         data["Time"] = time
-        data["Market"] = market
+        data["Market"] = market.value
+        data["Location Type"] = "Pricing Node"
 
         data = data[
             [

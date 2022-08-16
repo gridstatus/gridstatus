@@ -181,7 +181,7 @@ class ISONE(ISOBase):
         """Returns supply at a previous date in MW"""
         return self._supply_from_fuel_mix(date)
 
-    def get_latest_lmp(self, market: str, nodes: list):
+    def get_latest_lmp(self, market: str, locations: list):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
         """
@@ -204,18 +204,22 @@ class ISONE(ISOBase):
         else:
             raise RuntimeError("LMP Market is not supported")
 
-        data = _process_lmp(data, market, self.default_timezone, nodes)
+        data = _process_lmp(data, market, self.default_timezone, locations)
         return data
 
-    def get_lmp_today(self, market: str, nodes: list):
+    def get_lmp_today(self, market: str, locations: list):
         "Get lmp for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_lmp, market, nodes)
+        return self._today_from_historical(self.get_historical_lmp, market, locations)
 
-    def get_lmp_yesterday(self, market: str, nodes: list):
+    def get_lmp_yesterday(self, market: str, locations: list):
         "Get lmp for yesterday in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_lmp, market, nodes)
+        return self._yesterday_from_historical(
+            self.get_historical_lmp,
+            market,
+            locations,
+        )
 
-    def get_historical_lmp(self, date, market: str, nodes: list):
+    def get_historical_lmp(self, date, market: str, locations: list):
         """Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/"""
         date = isodata.utils._handle_date(date)
         date_str = date.strftime("%Y%m%d")
@@ -294,7 +298,7 @@ class ISONE(ISOBase):
         else:
             raise RuntimeError("LMP Market is not supported")
 
-        data = _process_lmp(data, market, self.default_timezone, nodes)
+        data = _process_lmp(data, market, self.default_timezone, locations)
 
         return data
 
@@ -330,11 +334,11 @@ def _make_request(url, skiprows):
         return df
 
 
-def _process_lmp(data, market, timezone, nodes):
+def _process_lmp(data, market, timezone, locations):
     # todo handle location types
     rename = {
-        "Location ID": "Node",
-        "Location": "Node",
+        "Location Name": "Location",
+        "Location Type": "Location Type",
         "Local Time": "Time",
         "Locational Marginal Price": "LMP",
         "LMP": "LMP",
@@ -346,7 +350,7 @@ def _process_lmp(data, market, timezone, nodes):
 
     data.rename(columns=rename, inplace=True)
 
-    data["Market"] = market
+    data["Market"] = market.value
 
     data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(timezone)
 
@@ -354,7 +358,8 @@ def _process_lmp(data, market, timezone, nodes):
         [
             "Time",
             "Market",
-            "Node",
+            "Location",
+            "Location Type",
             "LMP",
             "Energy",
             "Congestion",
@@ -362,5 +367,5 @@ def _process_lmp(data, market, timezone, nodes):
         ]
     ]
 
-    data = utils.filter_lmp_nodes(data, nodes)
+    data = utils.filter_lmp_locations(data, locations)
     return data
