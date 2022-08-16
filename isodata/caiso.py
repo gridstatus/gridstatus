@@ -162,14 +162,14 @@ class CAISO(ISOBase):
         )
         return df
 
-    def get_latest_lmp(self, market: str, locations: list):
+    def get_latest_lmp(self, market: str, locations: list = None):
         return self._latest_lmp_from_today(market, locations)
 
-    def get_lmp_today(self, market: str, locations: list):
+    def get_lmp_today(self, market: str, locations: list = None):
         "Get lmp for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_lmp, market, locations)
 
-    def get_lmp_yesterday(self, market: str, locations: list):
+    def get_lmp_yesterday(self, market: str, locations: list = None):
         "Get lmp for yesterday in 5 minute intervals"
         return self._yesterday_from_historical(
             self.get_historical_lmp,
@@ -177,7 +177,13 @@ class CAISO(ISOBase):
             locations,
         )
 
-    def get_historical_lmp(self, date, market: str, locations: list, sleep: int = 5):
+    def get_historical_lmp(
+        self,
+        date,
+        market: str,
+        locations: list = None,
+        sleep: int = 5,
+    ):
         """Get day ahead LMP pricing starting at supplied date for a list of locations.
 
         Arguments:

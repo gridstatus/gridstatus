@@ -86,13 +86,16 @@ class MISO(ISOBase):
 
         return df
 
-    def get_latest_lmp(self, market: str, locations: list):
+    def get_latest_lmp(self, market: str, locations: list = None):
         """
         Supported Markets:
 
         REAL_TIME_5_MIN (FiveMinLMP)
         DAY_AHEAD_HOURLY (DayAheadExPostLMP)
         """
+        if locations is None:
+            locations = "ALL"
+
         url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json"
         r = self._get_json(url)
 
