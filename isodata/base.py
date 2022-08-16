@@ -15,6 +15,13 @@ class Markets(Enum):
     DAY_AHEAD_5_MIN = "DAY_AHEAD_5_MIN"
     DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
 
+    def __contains__(cls, item):
+        try:
+            cls(item)
+        except ValueError:
+            return False
+        return True
+
 
 class ISOBase:
     markets = []

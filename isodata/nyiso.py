@@ -156,6 +156,7 @@ class NYISO(ISOBase):
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
         """
         # todo support generator and zone
+        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
             filename = marketname + "_zone"

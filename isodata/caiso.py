@@ -205,6 +205,7 @@ class CAISO(ISOBase):
         start = start.strftime("%Y%m%dT%H:%M-0000")
         end = end.strftime("%Y%m%dT%H:%M-0000")
 
+        market = Markets(market)
         if market == Markets.DAY_AHEAD_HOURLY:
             query_name = "PRC_LMP"
             market_run_id = "DAM"

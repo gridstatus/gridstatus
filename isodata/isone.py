@@ -186,7 +186,7 @@ class ISONE(ISOBase):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
         """
-        # todo optimize to read latest csv
+        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"
             data = _make_request(url, skiprows=[0, 1, 2, 4])
@@ -232,7 +232,7 @@ class ISONE(ISOBase):
         date_str = date.strftime("%Y%m%d")
 
         now = pd.Timestamp.now(tz=self.default_timezone)
-
+        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             # todo handle intervals for current day
             intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]

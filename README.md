@@ -186,24 +186,24 @@ We are currently adding Locational Marginal Price (LMP). Even though each BA off
 ```python
 >>> import isodata
 >>> nyiso = isodata.NYISO()
->>> nyiso.get_lmp_today(nyiso.REAL_TIME_5_MIN, nodes="ALL")
+>>> nyiso.get_lmp_today("REAL_TIME_5_MIN", locations="ALL")
 ```
 
 ```
-                          Time           Market    Zone     LMP  Energy  Congestion  Losses
-0    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN  CAPITL  125.15   90.63      -26.64    7.88
-1    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN  CENTRL   92.17   90.63        0.00    1.54
-2    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN  DUNWOD   99.52   90.63        0.00    8.89
-3    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN  GENESE   92.53   90.62        0.00    1.91
-4    2022-08-08 00:05:00-04:00  REAL_TIME_5_MIN     H Q   88.09   90.63        0.00   -2.54
-...                        ...              ...     ...     ...     ...         ...     ...
-3970 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN   NORTH  110.17  120.71        7.04   -3.50
-3971 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN     NPX  236.60  120.72     -107.18    8.70
-3972 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN     O H  121.23  120.72       -4.49   -3.98
-3973 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN     PJM  146.13  120.71      -20.23    5.19
-3974 2022-08-08 22:00:00-04:00  REAL_TIME_5_MIN    WEST  125.26  120.72       -5.02   -0.48
+                          Time           Market Location Location Type    LMP  Energy  Congestion  Loss
+0    2022-08-16 00:05:00-04:00  REAL_TIME_5_MIN   CAPITL          Zone  70.88   66.65        1.10  5.33
+1    2022-08-16 00:05:00-04:00  REAL_TIME_5_MIN   CENTRL          Zone  68.91   66.64        0.00  2.27
+2    2022-08-16 00:05:00-04:00  REAL_TIME_5_MIN   DUNWOD          Zone  75.44   66.65       -1.26  7.53
+3    2022-08-16 00:05:00-04:00  REAL_TIME_5_MIN   GENESE          Zone  68.64   66.64        0.00  2.00
+4    2022-08-16 00:05:00-04:00  REAL_TIME_5_MIN      H Q          Zone  64.58   66.65        0.00 -2.07
+...                        ...              ...      ...           ...    ...     ...         ...   ...
+3370 2022-08-16 20:15:00-04:00  REAL_TIME_5_MIN    NORTH          Zone  85.57   87.85        0.00 -2.28
+3371 2022-08-16 20:15:00-04:00  REAL_TIME_5_MIN      NPX          Zone  78.73   87.85       15.36  6.24
+3372 2022-08-16 20:15:00-04:00  REAL_TIME_5_MIN      O H          Zone  85.48   87.85        0.00 -2.37
+3373 2022-08-16 20:15:00-04:00  REAL_TIME_5_MIN      PJM          Zone  94.45   87.85       -1.86  4.74
+3374 2022-08-16 20:15:00-04:00  REAL_TIME_5_MIN     WEST          Zone  87.85   87.85        0.00  0.00
 
-[3975 rows x 7 columns]
+[3375 rows x 8 columns]
 ```
 
 And here is querying CAISO
@@ -211,24 +211,24 @@ And here is querying CAISO
 ```python
 >>> import isodata
 >>> caiso = isodata.CAISO()
->>> caiso.get_lmp_today(caiso.DAY_AHEAD_HOURLY, nodes=["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"])
+>>> caiso.get_lmp_today('DAY_AHEAD_HOURLY', locations=["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"])
 ```
 
 ```
-LMP_TYPE                      Time                    Market              Node        LMP     Energy  Congestion     Loss
-0        2022-08-12 00:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_NP15_GEN-APND   90.17747   97.01718         0.0 -6.83971
-1        2022-08-12 00:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_SP15_GEN-APND   95.57163   97.01718         0.0 -1.44556
-2        2022-08-12 00:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_ZP26_GEN-APND   92.04020   97.01718         0.0 -4.97698
-3        2022-08-12 01:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_NP15_GEN-APND   84.90745   90.76157         0.0 -5.85412
-4        2022-08-12 01:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_SP15_GEN-APND   89.18232   90.76157         0.0 -1.57925
-..                             ...                       ...               ...        ...        ...         ...      ...
-67       2022-08-12 22:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_SP15_GEN-APND  121.11000  122.06208         0.0 -0.95208
-68       2022-08-12 22:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_ZP26_GEN-APND  114.20129  122.06208         0.0 -7.86080
-69       2022-08-12 23:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_NP15_GEN-APND  100.50102  109.72925         0.0 -9.22823
-70       2022-08-12 23:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_SP15_GEN-APND  108.69780  109.72925         0.0 -1.03145
-71       2022-08-12 23:00:00-07:00  Markets.DAY_AHEAD_HOURLY  TH_ZP26_GEN-APND  103.18939  109.72925         0.0 -6.53986
+LMP_TYPE                      Time            Market          Location Location Type        LMP     Energy  Congestion     Loss
+0        2022-08-16 00:00:00-07:00  DAY_AHEAD_HOURLY  TH_NP15_GEN-APND          None   89.48766   95.51493     -0.1531 -5.87417
+1        2022-08-16 00:00:00-07:00  DAY_AHEAD_HOURLY  TH_SP15_GEN-APND          None   94.02489   95.51493      0.0000 -1.49003
+2        2022-08-16 00:00:00-07:00  DAY_AHEAD_HOURLY  TH_ZP26_GEN-APND          None   90.57680   95.51493      0.0000 -4.93812
+3        2022-08-16 01:00:00-07:00  DAY_AHEAD_HOURLY  TH_NP15_GEN-APND          None   86.38892   92.12283     -0.0223 -5.71162
+4        2022-08-16 01:00:00-07:00  DAY_AHEAD_HOURLY  TH_SP15_GEN-APND          None   90.94366   92.12283      0.0000 -1.17917
+..                             ...               ...               ...           ...        ...        ...         ...      ...
+67       2022-08-16 22:00:00-07:00  DAY_AHEAD_HOURLY  TH_SP15_GEN-APND          None  131.45525  135.43710      0.0000 -3.98185
+68       2022-08-16 22:00:00-07:00  DAY_AHEAD_HOURLY  TH_ZP26_GEN-APND          None  127.04000  135.43710      0.0000 -8.39710
+69       2022-08-16 23:00:00-07:00  DAY_AHEAD_HOURLY  TH_NP15_GEN-APND          None  107.36120  113.91108      0.0000 -6.54989
+70       2022-08-16 23:00:00-07:00  DAY_AHEAD_HOURLY  TH_SP15_GEN-APND          None  111.22278  113.91108      0.0000 -2.68830
+71       2022-08-16 23:00:00-07:00  DAY_AHEAD_HOURLY  TH_ZP26_GEN-APND          None  108.01049  113.91108      0.0000 -5.90059
 
-[72 rows x 7 columns]
+[72 rows x 8 columns]
 ```
 
 You can see what markets are available by accessing the `markets` property of an iso. For, example
