@@ -1,5 +1,9 @@
 # Changelog
 
+## vNext
+
+- Add load forecasting to NYISO
+
 ## v0.6.0 - Aug 17, 2022
 
 - ISONE: add system status

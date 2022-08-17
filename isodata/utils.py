@@ -41,6 +41,8 @@ def make_availability_df():
         "get_demand_today",
         "get_demand_yesterday",
         "get_historical_demand",
+        "get_forecast_today",
+        "get_historical_forecast",
         "get_latest_supply",
         "get_supply_today",
         "get_supply_yesterday",

@@ -58,6 +58,12 @@ class ISOBase:
     def get_historical_demand(self, date):
         raise NotImplementedError()
 
+    def get_forecast_today(self):
+        raise NotImplementedError()
+
+    def get_historical_forecast(self, date):
+        raise NotImplementedError()
+
     def get_latest_supply(self):
         raise NotImplementedError()
 

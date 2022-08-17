@@ -285,12 +285,11 @@ class ISONE(ISOBase):
             if now.date() == date.date():
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"
                 print("Loading current interval")
+                # this request is very very slow for some reason. I suspect because the server is making the response dynamically
                 data_current = _make_request(url, skiprows=[0, 1, 2, 4])
-
                 data_current = data_current[
                     data_current["Local Time"] > data["Local Time"].max()
                 ]
-
                 data = pd.concat([data, data_current])
 
         elif market == Markets.REAL_TIME_HOURLY:
@@ -305,7 +304,7 @@ class ISONE(ISOBase):
                     + ":00"
                 )
             else:
-                raise RuntimeError("Today not support for hourly lmp")
+                raise RuntimeError("Today not supported for hourly lmp. Try latest")
 
         elif market == Markets.DAY_AHEAD_HOURLY:
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
