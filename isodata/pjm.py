@@ -109,6 +109,7 @@ class PJM(ISOBase):
             "startRow": 1,
             "isActiveMetadata": "true",
             "fields": "area,datetime_beginning_ept,instantaneous_load",
+            "area": "PJM RTO",
             "format": "csv",
             "download": "true",
         }
@@ -121,10 +122,13 @@ class PJM(ISOBase):
 
         data = pd.read_csv(io.StringIO(r.content.decode("utf8")))
 
-        demand = demand = data[data["area"] == "PJM RTO"].drop("area", axis=1)
+        demand = demand = data.drop("area", axis=1)
 
         demand = demand.rename(
-            columns={"datetime_beginning_ept": "Time", "instantaneous_load": "Demand"},
+            columns={
+                "datetime_beginning_ept": "Time",
+                "instantaneous_load": "Demand",
+            },
         )
 
         demand["Time"] = pd.to_datetime(demand["Time"]).dt.tz_localize(
@@ -135,7 +139,9 @@ class PJM(ISOBase):
         return demand
 
     def _get_key(self):
-        settings = self._get_json("https://dataminer2.pjm.com/config/settings.json")
+        settings = self._get_json(
+            "https://dataminer2.pjm.com/config/settings.json",
+        )
 
         return settings["subscriptionKey"]
 
