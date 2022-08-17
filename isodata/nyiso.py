@@ -128,12 +128,6 @@ class NYISO(ISOBase):
         """Returns supply at a previous date in 5 minute intervals"""
         return self._supply_from_fuel_mix(date)
 
-    def get_latest_forecast(self):
-        """Get latest load forecast"""
-        # NYISO only publishes forecasts once a day at the beginning of the day
-        # can return today's forecast
-        return self.get_forecast_today()
-
     def get_forecast_today(self):
         """Get load forecast for today in 1 hour intervals"""
         d = self._today_from_historical(self.get_historical_forecast)
