@@ -41,7 +41,9 @@ class NYISO(ISOBase):
         """Get status event for a date"""
         status_df = self._download_nyiso_archive(date, "RealTimeEvents")
 
-        status_df = status_df.rename(columns={"Timestamp": "Time", "Message": "Status"})
+        status_df = status_df.rename(
+            columns={"Timestamp": "Time", "Message": "Status"},
+        )
 
         return status_df
 
@@ -101,7 +103,9 @@ class NYISO(ISOBase):
         # TODO demand by zone
         demand = data.groupby("Time Stamp")["Load"].sum().reset_index()
 
-        demand = demand.rename(columns={"Time Stamp": "Time", "Load": "Demand"})
+        demand = demand.rename(
+            columns={"Time Stamp": "Time", "Load": "Demand"},
+        )
 
         return demand
 
@@ -123,6 +127,12 @@ class NYISO(ISOBase):
     def get_historical_supply(self, date):
         """Returns supply at a previous date in 5 minute intervals"""
         return self._supply_from_fuel_mix(date)
+
+    def get_latest_forecast(self):
+        """Get latest load forecast"""
+        # NYISO only publishes forecasts once a day at the beginning of the day
+        # can return today's forecast
+        return self.get_forecast_today()
 
     def get_forecast_today(self):
         """Get load forecast for today in 1 hour intervals"""
