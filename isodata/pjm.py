@@ -92,7 +92,7 @@ class PJM(ISOBase):
             date (str or datetime.date): date to get demand for. must be in last 30 days
         """
         # todo can support a load area
-        date = date = isodata.utils._handle_date(date)
+        date = isodata.utils._handle_date(date)
         tomorrow = date + pd.DateOffset(1)
 
         data = {
