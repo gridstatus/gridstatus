@@ -2,7 +2,6 @@ import io
 import math
 import re
 from heapq import merge
-from tkinter import E
 
 import pandas as pd
 import requests
@@ -207,7 +206,12 @@ class ISONE(ISOBase):
         else:
             raise RuntimeError("LMP Market is not supported")
 
-        data = self._process_lmp(data, market, self.default_timezone, locations)
+        data = self._process_lmp(
+            data,
+            market,
+            self.default_timezone,
+            locations,
+        )
         return data
 
     def get_lmp_today(self, market: str, locations: list = None, include_id=False):
@@ -367,7 +371,11 @@ class ISONE(ISOBase):
             ]
 
             if "Location Id" in data.columns:
-                data = data.merge(location_mapping, how="left", on="Location Id")
+                data = data.merge(
+                    location_mapping,
+                    how="left",
+                    on="Location Id",
+                )
             elif "Location" in data.columns:
                 data = data.merge(location_mapping, how="left", on="Location")
 
