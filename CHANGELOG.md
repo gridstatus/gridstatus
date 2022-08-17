@@ -1,9 +1,11 @@
 # Changelog
 
-## vNext
+## v0.6.0 - Aug 17, 2022
 
 - ISONE: add system status
 - NYISO: add system status
+- Improve LMP return format
+- Bug fixes
 
 ## v0.5.0 - Aug 12, 2022
 
