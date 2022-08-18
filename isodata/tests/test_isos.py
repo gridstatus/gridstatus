@@ -311,14 +311,14 @@ def test_get_lmp_today(test):
         check_lmp_columns(today)
 
 
-@pytest.mark.parametrize("iso", [CAISO(), NYISO()])
+@pytest.mark.parametrize("iso", [ISONE(), CAISO(), NYISO()])
 def test_get_historical_forecast(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
     forecast = iso.get_historical_forecast(test_date)
     check_forecast(forecast)
 
 
-@pytest.mark.parametrize("iso", [CAISO(), PJM(), NYISO()])
+@pytest.mark.parametrize("iso", [ISONE(), CAISO(), PJM(), NYISO()])
 def test_get_forecast_today(iso):
     forecast = iso.get_forecast_today()
     check_forecast(forecast)

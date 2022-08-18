@@ -162,6 +162,54 @@ class ISONE(ISOBase):
         """Returns supply at a previous date in MW"""
         return self._supply_from_fuel_mix(date)
 
+    def get_forecast_today(self):
+        """Get load forecast for today in 1 hour intervals"""
+        d = self._today_from_historical(self.get_historical_forecast)
+        return d
+
+    def get_historical_forecast(self, date):
+        date = isodata.utils._handle_date(date)
+
+        start_str = date.strftime("%m/%d/%Y")
+        end_str = (date + pd.Timedelta(days=1)).strftime("%m/%d/%Y")
+        data = {
+            "_nstmp_startDate": start_str,
+            "_nstmp_endDate": end_str,
+            "_nstmp_twodays": True,
+            "_nstmp_twodaysCheckbox": False,
+            "_nstmp_requestType": "systemload",
+            "_nstmp_forecast": True,
+            "_nstmp_actual": False,
+            "_nstmp_cleared": False,
+            "_nstmp_priorDay": False,
+            "_nstmp_inclPumpLoad": True,
+            "_nstmp_inclBtmPv": True,
+        }
+
+        r = requests.post(
+            "https://www.iso-ne.com/ws/wsclient",
+            data=data,
+        ).json()
+
+        data = pd.DataFrame(r[0]["data"]["forecast"])
+
+        data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
+            self.default_timezone,
+        )
+        data["CreationDate"] = pd.to_datetime(data["CreationDate"]).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df = data[["CreationDate", "BeginDate", "Mw"]].rename(
+            columns={
+                "CreationDate": "Forecast Time",
+                "BeginDate": "Time",
+                "Mw": "Load",
+            },
+        )
+
+        return df
+
     def get_latest_lmp(self, market: str, locations: list = None):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
