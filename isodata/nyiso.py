@@ -1,5 +1,4 @@
 import io
-import pdb
 from zipfile import ZipFile
 
 import pandas as pd
@@ -42,7 +41,7 @@ class NYISO(ISOBase):
         status_df = self._download_nyiso_archive(date, "RealTimeEvents")
 
         status_df = status_df.rename(
-            columns={"Timestamp": "Time", "Message": "Status"},
+            columns={"Message": "Status"},
         )
 
         return status_df
@@ -71,13 +70,11 @@ class NYISO(ISOBase):
     def get_historical_fuel_mix(self, date):
         mix_df = self._download_nyiso_archive(date, "rtfuelmix")
         mix_df = mix_df.pivot_table(
-            index="Time Stamp",
+            index="Time",
             columns="Fuel Category",
             values="Gen MW",
             aggfunc="first",
         ).reset_index()
-
-        mix_df = mix_df.rename(columns={"Time Stamp": "Time"})
 
         return mix_df
 
@@ -101,10 +98,10 @@ class NYISO(ISOBase):
         data = data.dropna(subset=["Load"])
 
         # TODO demand by zone
-        demand = data.groupby("Time Stamp")["Load"].sum().reset_index()
+        demand = data.groupby("Time")["Load"].sum().reset_index()
 
         demand = demand.rename(
-            columns={"Time Stamp": "Time", "Load": "Demand"},
+            columns={"Load": "Demand"},
         )
 
         return demand
@@ -141,8 +138,8 @@ class NYISO(ISOBase):
 
         data["Forecast Time"] = date
 
-        data = data[["Forecast Time", "Time Stamp", "NYISO"]].rename(
-            columns={"NYISO": "Load", "Time Stamp": "Time"},
+        data = data[["Forecast Time", "Time", "NYISO"]].rename(
+            columns={"NYISO": "Load", "Time": "Time"},
         )
 
         return data
@@ -187,7 +184,6 @@ class NYISO(ISOBase):
         )
 
         columns = {
-            "Time Stamp": "Time",
             "Name": "Location",
             "LBMP ($/MWHr)": "LMP",
             "Marginal Cost Losses ($/MWHr)": "Loss",
@@ -240,9 +236,19 @@ class NYISO(ISOBase):
             z = ZipFile(io.BytesIO(r.content))
             df = pd.read_csv(z.open(csv_filename))
 
-        df["Time Stamp"] = pd.to_datetime(df["Time Stamp"]).dt.tz_localize(
-            self.default_timezone,
-        )
+        time_stamp_col = None
+
+        if "Time Stamp" in df.columns:
+            time_stamp_col = "Time Stamp"
+        elif "Timestamp" in df.columns:
+            time_stamp_col = "Timestamp"
+
+        if time_stamp_col:
+            df[time_stamp_col] = pd.to_datetime(df[time_stamp_col]).dt.tz_localize(
+                self.default_timezone,
+            )
+
+            df = df.rename(columns={time_stamp_col: "Time"})
 
         return df
 
