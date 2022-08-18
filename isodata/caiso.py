@@ -148,6 +148,49 @@ class CAISO(ISOBase):
         """Returns supply at a previous date in 5 minute intervals"""
         return self._supply_from_fuel_mix(date)
 
+    def get_forecast_today(self):
+        """Get load forecast for today in 1 hour intervals"""
+        d = self._today_from_historical(self.get_historical_forecast)
+        return d
+
+    def get_historical_forecast(self, date, sleep=5):
+        """Returns load forecast for a previous date in 1 hour intervals
+
+        Arguments:
+            date(datetime, pd.Timestamp, or str): day to return. if string, format should be YYYYMMDD e.g 20200623
+            sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds."""
+        start = isodata.utils._handle_date(date, tz=self.default_timezone)
+
+        start = start.tz_convert("UTC")
+        end = start + pd.DateOffset(1)
+
+        start = start.strftime("%Y%m%dT%H:%M-0000")
+        end = end.strftime("%Y%m%dT%H:%M-0000")
+        url = (
+            "http://oasis.caiso.com/oasisapi/SingleZip?"
+            + "resultformat=6&queryname=SLD_FCST&version=1&market_run_id=DAM"
+            + f"&startdatetime={start}&enddatetime={end}"
+        )
+
+        df = pd.read_csv(
+            url,
+            compression="zip",
+            usecols=["INTERVALSTARTTIME_GMT", "MW", "TAC_AREA_NAME"],
+        ).rename(columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load"})
+        # returns many areas, we only want one overall iso
+        df = df[df["TAC_AREA_NAME"] == "CA ISO-TAC"]
+
+        df["Time"] = pd.to_datetime(
+            df["Time"],
+        ).dt.tz_convert(self.default_timezone)
+        df = df.sort_values("Time")
+
+        df["Forecast Time"] = df["Time"].iloc[0]
+
+        df = df[["Forecast Time", "Time", "Load"]]
+        time.sleep(sleep)
+        return df
+
     def get_pnodes(self):
         url = "http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=ATL_PNODE_MAP&version=1&startdatetime=20220801T07:00-0000&enddatetime=20220802T07:00-0000&pnode_id=ALL"
         df = pd.read_csv(
@@ -233,22 +276,8 @@ class CAISO(ISOBase):
         nodes_str = ",".join(locations)
         url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname={query_name}&version={version}&startdatetime={start}&enddatetime={end}&market_run_id={market_run_id}&node={nodes_str}"
 
-        retry_num = 0
-        while retry_num < 3:
-            r = requests.get(url)
-
-            if r.status_code == 200:
-                break
-
-            retry_num += 1
-            print(f"Failed to get data from CAISO. Error: {r.status_code}")
-            print(f"Retrying {retry_num}...")
-            time.sleep(5)
-
-        z = ZipFile(io.BytesIO(r.content))
-
-        df = pd.read_csv(
-            z.open(z.namelist()[0]),
+        df = _get_oasis(
+            url,
             usecols=[
                 "INTERVALSTARTTIME_GMT",
                 "NODE",
@@ -329,6 +358,29 @@ def _get_historical(url, date):
         _make_timestamp,
         today=date_obj,
         timezone="US/Pacific",
+    )
+
+    return df
+
+
+def _get_oasis(url, usecols=None):
+    retry_num = 0
+    while retry_num < 3:
+        r = requests.get(url)
+
+        if r.status_code == 200:
+            break
+
+        retry_num += 1
+        print(f"Failed to get data from CAISO. Error: {r.status_code}")
+        print(f"Retrying {retry_num}...")
+        time.sleep(5)
+
+    z = ZipFile(io.BytesIO(r.content))
+
+    df = pd.read_csv(
+        z.open(z.namelist()[0]),
+        usecols=usecols,
     )
 
     return df
