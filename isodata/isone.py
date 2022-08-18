@@ -130,37 +130,18 @@ class ISONE(ISOBase):
     def get_historical_demand(self, date):
         """Return demand at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
-        # _nstmp_formDate: 1659489137907
+        # supports a start and end date
         date = isodata.utils._handle_date(date)
+        date_str = date.strftime("%Y%m%d")
+        url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"
+        data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
 
-        date_str = date.strftime("%m/%d/%Y")
-        data = {
-            "_nstmp_startDate": date_str,
-            "_nstmp_endDate": date_str,
-            "_nstmp_twodays": False,
-            "_nstmp_twodaysCheckbox": False,
-            "_nstmp_requestType": "systemload",
-            "_nstmp_forecast": True,
-            "_nstmp_actual": True,
-            "_nstmp_cleared": True,
-            "_nstmp_priorDay": True,
-            "_nstmp_inclPumpLoad": True,
-            "_nstmp_inclBtmPv": True,
-        }
-
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient",
-            data=data,
-        ).json()
-
-        data = pd.DataFrame(r[0]["data"]["actual"])
-
-        data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
+        data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
             self.default_timezone,
         )
 
-        df = data[["BeginDate", "Mw"]].rename(
-            columns={"BeginDate": "Time", "Mw": "Demand"},
+        df = data[["Date/Time", "Native Load"]].rename(
+            columns={"Date/Time": "Time", "Native Load": "Demand"},
         )
 
         return df
