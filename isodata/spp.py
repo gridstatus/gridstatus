@@ -7,6 +7,8 @@ class SPP(ISOBase):
     name = "Southwest Power Pool"
     iso_id = "spp"
 
+    default_timezone = "US/Central"
+
     def get_latest_fuel_mix(self):
         url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"
         r = self._get_json(url)["response"]
@@ -31,19 +33,66 @@ class SPP(ISOBase):
 
     def get_demand_today(self):
         """Returns demand for last 24hrs in 5 minute intervals"""
+
+        df = self._get_load_and_forecast()
+
+        df = df.dropna(subset=["Actual Load"])
+
+        df = df.rename(columns={"Actual Load": "Demand"})
+
+        df = df[["Time", "Demand"]]
+
+        return df
+
+    def get_forecast_today(self, forecast_type="MID_TERM"):
+        """
+
+        type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is every five minutes for a few hours
+        """
+        df = self._get_load_and_forecast()
+
+        # gives forecast from before current day
+        # only include forecasts start at current day
+        last_actual = df.dropna(subset=["Actual Load"])["Time"].max()
+        current_day = last_actual.replace(hour=0, minute=0)
+
+        current_day_forecast = df[df["Time"] > current_day]
+
+        # assume forecast is made at last actual
+        current_day_forecast["Forecast Time"] = last_actual
+
+        if forecast_type == "MID_TERM":
+            forecast_col = "Mid-Term Forecast"
+        elif forecast_type == "SHORT_TERM":
+            forecast_col = "Short-Term Forecast"
+        else:
+            raise RuntimeError("Invalid forecast type")
+
+        # there will be empty rows regardless of forecast type since they dont align
+        current_day_forecast = current_day_forecast.dropna(subset=[forecast_col])
+
+        current_day_forecast = current_day_forecast[
+            ["Forecast Time", "Time", forecast_col]
+        ].rename({forecast_col: "Load Forecast"}, axis=1)
+
+        return current_day_forecast
+
+    def _get_load_and_forecast(self):
         url = "https://marketplace.spp.org/chart-api/load-forecast/asChart"
         r = self._get_json(url)["response"]
 
-        load = r["datasets"][2]
+        data = {"Time": r["labels"]}
+        for d in r["datasets"][:3]:
+            if d["label"] == "Actual Load":
+                data["Actual Load"] = d["data"]
+            elif d["label"] == "Mid-Term Load Forecast":
+                data["Mid-Term Forecast"] = d["data"]
+            elif d["label"] == "Short-Term Load Forecast":
+                data["Short-Term Forecast"] = d["data"]
 
-        # sanity check to make sure direct index of 2 is correct
-        assert load["label"] == "Actual Load"
+        df = pd.DataFrame(data)
 
-        df = pd.DataFrame({"Time": r["labels"], "Demand": load["data"]}).dropna(
-            subset=["Demand"],
-        )
-
-        df["Time"] = pd.to_datetime(df["Time"])
+        df["Time"] = pd.to_datetime(df["Time"]).dt.tz_convert(self.default_timezone)
 
         return df
 

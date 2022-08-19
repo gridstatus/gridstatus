@@ -130,37 +130,18 @@ class ISONE(ISOBase):
     def get_historical_demand(self, date):
         """Return demand at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
-        # _nstmp_formDate: 1659489137907
+        # supports a start and end date
         date = isodata.utils._handle_date(date)
+        date_str = date.strftime("%Y%m%d")
+        url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"
+        data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
 
-        date_str = date.strftime("%m/%d/%Y")
-        data = {
-            "_nstmp_startDate": date_str,
-            "_nstmp_endDate": date_str,
-            "_nstmp_twodays": False,
-            "_nstmp_twodaysCheckbox": False,
-            "_nstmp_requestType": "systemload",
-            "_nstmp_forecast": True,
-            "_nstmp_actual": True,
-            "_nstmp_cleared": True,
-            "_nstmp_priorDay": True,
-            "_nstmp_inclPumpLoad": True,
-            "_nstmp_inclBtmPv": True,
-        }
-
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient",
-            data=data,
-        ).json()
-
-        data = pd.DataFrame(r[0]["data"]["actual"])
-
-        data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
+        data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
             self.default_timezone,
         )
 
-        df = data[["BeginDate", "Mw"]].rename(
-            columns={"BeginDate": "Time", "Mw": "Demand"},
+        df = data[["Date/Time", "Native Load"]].rename(
+            columns={"Date/Time": "Time", "Native Load": "Demand"},
         )
 
         return df
@@ -180,6 +161,54 @@ class ISONE(ISOBase):
     def get_historical_supply(self, date):
         """Returns supply at a previous date in MW"""
         return self._supply_from_fuel_mix(date)
+
+    def get_forecast_today(self):
+        """Get load forecast for today in 1 hour intervals"""
+        d = self._today_from_historical(self.get_historical_forecast)
+        return d
+
+    def get_historical_forecast(self, date):
+        date = isodata.utils._handle_date(date)
+
+        start_str = date.strftime("%m/%d/%Y")
+        end_str = (date + pd.Timedelta(days=1)).strftime("%m/%d/%Y")
+        data = {
+            "_nstmp_startDate": start_str,
+            "_nstmp_endDate": end_str,
+            "_nstmp_twodays": True,
+            "_nstmp_twodaysCheckbox": False,
+            "_nstmp_requestType": "systemload",
+            "_nstmp_forecast": True,
+            "_nstmp_actual": False,
+            "_nstmp_cleared": False,
+            "_nstmp_priorDay": False,
+            "_nstmp_inclPumpLoad": True,
+            "_nstmp_inclBtmPv": True,
+        }
+
+        r = requests.post(
+            "https://www.iso-ne.com/ws/wsclient",
+            data=data,
+        ).json()
+
+        data = pd.DataFrame(r[0]["data"]["forecast"])
+
+        data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
+            self.default_timezone,
+        )
+        data["CreationDate"] = pd.to_datetime(data["CreationDate"]).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df = data[["CreationDate", "BeginDate", "Mw"]].rename(
+            columns={
+                "CreationDate": "Forecast Time",
+                "BeginDate": "Time",
+                "Mw": "Load Forecast",
+            },
+        )
+
+        return df
 
     def get_latest_lmp(self, market: str, locations: list = None):
         """
@@ -285,12 +314,11 @@ class ISONE(ISOBase):
             if now.date() == date.date():
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"
                 print("Loading current interval")
+                # this request is very very slow for some reason. I suspect because the server is making the response dynamically
                 data_current = _make_request(url, skiprows=[0, 1, 2, 4])
-
                 data_current = data_current[
                     data_current["Local Time"] > data["Local Time"].max()
                 ]
-
                 data = pd.concat([data, data_current])
 
         elif market == Markets.REAL_TIME_HOURLY:
@@ -305,7 +333,7 @@ class ISONE(ISOBase):
                     + ":00"
                 )
             else:
-                raise RuntimeError("Today not support for hourly lmp")
+                raise RuntimeError("Today not supported for hourly lmp. Try latest")
 
         elif market == Markets.DAY_AHEAD_HOURLY:
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"

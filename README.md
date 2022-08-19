@@ -132,7 +132,31 @@ we can get today's supply in the same way
 [225 rows x 2 columns]
 ```
 
-to get data for a specific day, use the historical method calls. For example,
+Another dataset we can query is the load forecast
+
+```
+>>> nyiso = isodata.NYISO()
+>>> nyiso.get_forecast_today()
+```
+
+```
+                Forecast Time                      Time  Load Forecast
+0   2022-08-19 00:00:00-04:00 2022-08-19 00:00:00-04:00          17078
+1   2022-08-19 00:00:00-04:00 2022-08-19 01:00:00-04:00          16260
+2   2022-08-19 00:00:00-04:00 2022-08-19 02:00:00-04:00          15631
+3   2022-08-19 00:00:00-04:00 2022-08-19 03:00:00-04:00          15252
+4   2022-08-19 00:00:00-04:00 2022-08-19 04:00:00-04:00          15195
+..                        ...                       ...            ...
+139 2022-08-19 00:00:00-04:00 2022-08-24 19:00:00-04:00          24340
+140 2022-08-19 00:00:00-04:00 2022-08-24 20:00:00-04:00          23624
+141 2022-08-19 00:00:00-04:00 2022-08-24 21:00:00-04:00          22585
+142 2022-08-19 00:00:00-04:00 2022-08-24 22:00:00-04:00          21137
+143 2022-08-19 00:00:00-04:00 2022-08-24 23:00:00-04:00          19717
+
+[144 rows x 3 columns]
+```
+
+When supported, you can use the historical method calls to get data for a specific day in the past. For example,
 
 ```python
 >>> caiso.get_historical_demand("Jan 1, 2020")
@@ -162,21 +186,25 @@ The best part is these APIs work across all the supported ISOs
 Here is the current status of availability of each method for each ISO
 
 <!-- METHOD AVAILABILITY TABLE START -->
-|                           | New York ISO   | California ISO   | Electric Reliability Council of Texas   | ISO New England   | Midcontinent ISO   | Southwest Power Pool   | PJM      |
-|:--------------------------|:---------------|:-----------------|:----------------------------------------|:------------------|:-------------------|:-----------------------|:---------|
-| `get_latest_status`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#10060; |
-| `get_latest_fuel_mix`     | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_fuel_mix_today`      | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_fuel_mix_yesterday`  | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_historical_fuel_mix` | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_latest_demand`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_demand_today`        | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_demand_yesterday`    | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_historical_demand`   | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_latest_supply`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_supply_today`        | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_supply_yesterday`    | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_historical_supply`   | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
+
+|                           | New York ISO | California ISO | Electric Reliability Council of Texas | ISO New England | Midcontinent ISO | Southwest Power Pool | PJM      |
+| :------------------------ | :----------- | :------------- | :------------------------------------ | :-------------- | :--------------- | :------------------- | :------- |
+| `get_latest_status`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#10060; |
+| `get_latest_fuel_mix`     | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_fuel_mix_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_fuel_mix_yesterday`  | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_fuel_mix` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_latest_demand`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_demand_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_demand_yesterday`    | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_demand`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_forecast_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_historical_forecast` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#10060; |
+| `get_latest_supply`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_supply_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_supply_yesterday`    | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_supply`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+
 <!-- METHOD AVAILABILITY TABLE END -->
 
 ## LMP Pricing Data
@@ -236,6 +264,7 @@ You can see what markets are available by accessing the `markets` property of an
 ```
 >>> caiso.markets
 ```
+
 ```
 [<Markets.REAL_TIME_15_MIN: 'REAL_TIME_15_MIN'>, <Markets.REAL_TIME_HOURLY: 'REAL_TIME_HOURLY'>, <Markets.DAY_AHEAD_HOURLY: 'DAY_AHEAD_HOURLY'>]
 ```
@@ -245,8 +274,9 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, `I
 ## Supported LMP Markets
 
 <!-- LMP AVAILABILITY TABLE START -->
+
 |                                       | Markets                                                    |
-|:--------------------------------------|:-----------------------------------------------------------|
+| :------------------------------------ | :--------------------------------------------------------- |
 | Midcontinent ISO                      | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
 | California ISO                        | `REAL_TIME_15_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY` |
 | PJM                                   |                                                            |
@@ -254,8 +284,8 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, `I
 | Southwest Power Pool                  |                                                            |
 | New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_5_MIN`                       |
 | ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
-<!-- LMP AVAILABILITY TABLE END -->
 
+<!-- LMP AVAILABILITY TABLE END -->
 
 ## Feedback Welcome
 

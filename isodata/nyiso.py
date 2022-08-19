@@ -1,5 +1,4 @@
 import io
-import pdb
 from zipfile import ZipFile
 
 import pandas as pd
@@ -39,12 +38,10 @@ class NYISO(ISOBase):
 
     def get_historical_status(self, date):
         """Get status event for a date"""
-        status_df = _download_nyiso_archive(date, "RealTimeEvents")
+        status_df = self._download_nyiso_archive(date, "RealTimeEvents")
 
-        status_df = status_df.rename(columns={"Timestamp": "Time", "Message": "Status"})
-
-        status_df["Time"] = pd.to_datetime(status_df["Time"]).dt.tz_localize(
-            self.default_timezone,
+        status_df = status_df.rename(
+            columns={"Message": "Status"},
         )
 
         return status_df
@@ -71,19 +68,13 @@ class NYISO(ISOBase):
         return self._yesterday_from_historical(self.get_historical_fuel_mix)
 
     def get_historical_fuel_mix(self, date):
-        mix_df = _download_nyiso_archive(date, "rtfuelmix")
+        mix_df = self._download_nyiso_archive(date, "rtfuelmix")
         mix_df = mix_df.pivot_table(
-            index="Time Stamp",
+            index="Time",
             columns="Fuel Category",
             values="Gen MW",
             aggfunc="first",
         ).reset_index()
-
-        mix_df["Time Stamp"] = pd.to_datetime(mix_df["Time Stamp"]).dt.tz_localize(
-            self.default_timezone,
-        )
-
-        mix_df = mix_df.rename(columns={"Time Stamp": "Time"})
 
         return mix_df
 
@@ -101,18 +92,16 @@ class NYISO(ISOBase):
 
     def get_historical_demand(self, date):
         """Returns demand at a previous date in 5 minute intervals"""
-        data = _download_nyiso_archive(date, "pal")
+        data = self._download_nyiso_archive(date, "pal")
 
         # drop NA loads
         data = data.dropna(subset=["Load"])
 
         # TODO demand by zone
-        demand = data.groupby("Time Stamp")["Load"].sum().reset_index()
+        demand = data.groupby("Time")["Load"].sum().reset_index()
 
-        demand = demand.rename(columns={"Time Stamp": "Time", "Load": "Demand"})
-
-        demand["Time"] = pd.to_datetime(demand["Time"]).dt.tz_localize(
-            self.default_timezone,
+        demand = demand.rename(
+            columns={"Load": "Demand"},
         )
 
         return demand
@@ -135,6 +124,25 @@ class NYISO(ISOBase):
     def get_historical_supply(self, date):
         """Returns supply at a previous date in 5 minute intervals"""
         return self._supply_from_fuel_mix(date)
+
+    def get_forecast_today(self):
+        """Get load forecast for today in 1 hour intervals"""
+        d = self._today_from_historical(self.get_historical_forecast)
+        return d
+
+    def get_historical_forecast(self, date):
+        """Get load forecast for a previous date in 1 hour intervals"""
+        date = utils._handle_date(date, self.default_timezone)
+
+        data = self._download_nyiso_archive(date, "isolf")
+
+        data["Forecast Time"] = date
+
+        data = data[["Forecast Time", "Time", "NYISO"]].rename(
+            columns={"NYISO": "Load Forecast", "Time": "Time"},
+        )
+
+        return data
 
     def get_latest_lmp(self, market: str, locations: list = None):
         return self._latest_lmp_from_today(market, locations)
@@ -169,10 +177,13 @@ class NYISO(ISOBase):
         else:
             raise RuntimeError("LMP Market is not supported")
 
-        df = _download_nyiso_archive(date, market_name=marketname, filename=filename)
+        df = self._download_nyiso_archive(
+            date,
+            market_name=marketname,
+            filename=filename,
+        )
 
         columns = {
-            "Time Stamp": "Time",
             "Name": "Location",
             "LBMP ($/MWHr)": "LMP",
             "Marginal Cost Losses ($/MWHr)": "Loss",
@@ -198,35 +209,48 @@ class NYISO(ISOBase):
             ]
         ]
 
-        df["Time"] = pd.to_datetime(df["Time"]).dt.tz_localize(self.default_timezone)
-
         data = utils.filter_lmp_locations(df, locations)
 
         return df
 
+    def _download_nyiso_archive(self, date, market_name, filename=None):
 
-def _download_nyiso_archive(date, market_name, filename=None):
+        if filename is None:
+            filename = market_name
 
-    if filename is None:
-        filename = market_name
+        date = isodata.utils._handle_date(date)
+        month = date.strftime("%Y%m01")
+        day = date.strftime("%Y%m%d")
 
-    date = isodata.utils._handle_date(date)
-    month = date.strftime("%Y%m01")
-    day = date.strftime("%Y%m%d")
+        csv_filename = f"{day}{filename}.csv"
+        csv_url = f"http://mis.nyiso.com/public/csv/{market_name}/{csv_filename}"
+        zip_url = (
+            f"http://mis.nyiso.com/public/csv/{market_name}/{month}{filename}_csv.zip"
+        )
 
-    csv_filename = f"{day}{filename}.csv"
-    csv_url = f"http://mis.nyiso.com/public/csv/{market_name}/{csv_filename}"
-    zip_url = f"http://mis.nyiso.com/public/csv/{market_name}/{month}{filename}_csv.zip"
+        # the last 7 days of file are hosted directly as csv
+        try:
+            df = pd.read_csv(csv_url)
+        except:
+            r = requests.get(zip_url)
+            z = ZipFile(io.BytesIO(r.content))
+            df = pd.read_csv(z.open(csv_filename))
 
-    # the last 7 days of file are hosted directly as csv
-    try:
-        df = pd.read_csv(csv_url)
-    except:
-        r = requests.get(zip_url)
-        z = ZipFile(io.BytesIO(r.content))
-        df = pd.read_csv(z.open(csv_filename))
+        time_stamp_col = None
 
-    return df
+        if "Time Stamp" in df.columns:
+            time_stamp_col = "Time Stamp"
+        elif "Timestamp" in df.columns:
+            time_stamp_col = "Timestamp"
+
+        if time_stamp_col:
+            df[time_stamp_col] = pd.to_datetime(df[time_stamp_col]).dt.tz_localize(
+                self.default_timezone,
+            )
+
+            df = df.rename(columns={time_stamp_col: "Time"})
+
+        return df
 
 
 """

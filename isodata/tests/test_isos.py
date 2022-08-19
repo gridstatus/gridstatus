@@ -26,6 +26,12 @@ def check_lmp_columns(df):
     # todo check if market is valid enum
 
 
+def check_forecast(df):
+    assert set(df.columns) == set(
+        ["Forecast Time", "Time", "Load Forecast"],
+    )
+
+
 def test_make_lmp_availability_df():
     isodata.utils.make_lmp_availability_table()
 
@@ -303,3 +309,19 @@ def test_get_lmp_today(test):
         today = iso.get_lmp_today(m)
         assert isinstance(today, pd.DataFrame)
         check_lmp_columns(today)
+
+
+@pytest.mark.parametrize("iso", [ISONE(), CAISO(), NYISO()])
+def test_get_historical_forecast(iso):
+    test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
+    forecast = iso.get_historical_forecast(test_date)
+    check_forecast(forecast)
+
+
+@pytest.mark.parametrize(
+    "iso",
+    [MISO(), SPP(), Ercot(), ISONE(), CAISO(), PJM(), NYISO()],
+)
+def test_get_forecast_today(iso):
+    forecast = iso.get_forecast_today()
+    check_forecast(forecast)

@@ -40,13 +40,8 @@ class PJM(ISOBase):
             "startRow": 1,
         }
 
-        # todo consider converting this to csv like demand
-        key = self._get_key()
-        r = self._get_json(
-            "https://api.pjm.com/api/v1/gen_by_fuel",
-            params=data,
-            headers={"Ocp-Apim-Subscription-Key": key},
-        )
+        r = self._get_pjm_json("gen_by_fuel", params=data)
+
         mix_df = pd.DataFrame(r["items"])
 
         mix_df = mix_df.pivot_table(
@@ -97,7 +92,7 @@ class PJM(ISOBase):
             date (str or datetime.date): date to get demand for. must be in last 30 days
         """
         # todo can support a load area
-        date = date = isodata.utils._handle_date(date)
+        date = isodata.utils._handle_date(date)
         tomorrow = date + pd.DateOffset(1)
 
         data = {
@@ -109,22 +104,21 @@ class PJM(ISOBase):
             "startRow": 1,
             "isActiveMetadata": "true",
             "fields": "area,datetime_beginning_ept,instantaneous_load",
-            "format": "csv",
+            "area": "PJM RTO",
+            "format": "json",
             "download": "true",
         }
-        key = self._get_key()
-        r = requests.get(
-            "https://api.pjm.com/api/v1/inst_load",
-            params=data,
-            headers={"Ocp-Apim-Subscription-Key": key},
-        )
+        r = self._get_pjm_json("inst_load", params=data)
 
-        data = pd.read_csv(io.StringIO(r.content.decode("utf8")))
+        data = pd.DataFrame(r)
 
-        demand = demand = data[data["area"] == "PJM RTO"].drop("area", axis=1)
+        demand = demand = data.drop("area", axis=1)
 
         demand = demand.rename(
-            columns={"datetime_beginning_ept": "Time", "instantaneous_load": "Demand"},
+            columns={
+                "datetime_beginning_ept": "Time",
+                "instantaneous_load": "Demand",
+            },
         )
 
         demand["Time"] = pd.to_datetime(demand["Time"]).dt.tz_localize(
@@ -134,8 +128,56 @@ class PJM(ISOBase):
         demand = demand.sort_values("Time").reset_index(drop=True)
         return demand
 
+    def get_forecast_today(self):
+        """Get forecast for today in hourly intervals.
+
+        Updates every Every half hour on the quarter E.g. 1:15 and 1:45
+
+        """
+        # todo: should we use the UTC field instead of EPT?
+        data = {
+            "startRow": 1,
+            "rowCount": 1000,
+            "fields": "evaluated_at_datetime_ept,forecast_area,forecast_datetime_beginning_ept,forecast_load_mw",
+            "forecast_area": "RTO_COMBINED",
+        }
+        r = self._get_pjm_json("load_frcstd_7_day", params=data)
+        data = pd.DataFrame(r["items"]).rename(
+            columns={
+                "evaluated_at_datetime_ept": "Forecast Time",
+                "forecast_datetime_beginning_ept": "Time",
+                "forecast_load_mw": "Load Forecast",
+            },
+        )
+
+        data.drop("forecast_area", axis=1, inplace=True)
+
+        data["Forecast Time"] = pd.to_datetime(data["Forecast Time"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        return data
+
+    # todo https://dataminer2.pjm.com/feed/load_frcstd_hist/definition
+    # def get_historical_forecast(self, date):
+    # pass
+
+    def _get_pjm_json(self, endpoint, params):
+        r = self._get_json(
+            "https://api.pjm.com/api/v1/" + endpoint,
+            params=params,
+            headers={"Ocp-Apim-Subscription-Key": self._get_key()},
+        )
+
+        return r
+
     def _get_key(self):
-        settings = self._get_json("https://dataminer2.pjm.com/config/settings.json")
+        settings = self._get_json(
+            "https://dataminer2.pjm.com/config/settings.json",
+        )
 
         return settings["subscriptionKey"]
 

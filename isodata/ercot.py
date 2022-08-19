@@ -2,6 +2,7 @@ from bdb import set_trace
 
 import pandas as pd
 
+from isodata import utils
 from isodata.base import FuelMix, GridStatus, ISOBase
 
 
@@ -54,7 +55,11 @@ class Ercot(ISOBase):
 
     def _get_demand(self, when):
         """Returns demand for currentDay or previousDay"""
-
+        # todo switch to https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html
+        # says supports last 5 days, appears to support last two weeks
+        # df = pd.read_html("https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html")
+        # even more historical data. up to month back i think: https://www.ercot.com/mp/data-products/data-product-details?id=NP6-346-CD
+        # ^ confusing to figure out how to parse though. use this endpoint: https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId=14836&_=1660840704920
         url = self.BASE + "/loadForecastVsActual.json"
         r = self._get_json(url)
         df = pd.DataFrame(r[when]["data"])
@@ -100,12 +105,51 @@ class Ercot(ISOBase):
 
         return data
 
-    def get_prices(self):
-        pass
+    def get_forecast_today(self):
+        # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
+        # there are a few days of historical date for the forecast
+        today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        doc, publish_date = self._get_document(report_type_id=12311, date=today)
 
-    # https://www.ercot.com/mktinfo
-    # https://www.ercot.com/api/1/services/read/dashboards/systemWidePrices.json
-    # https://www.ercot.com/mp/data-products/markets/real-time-market?id=NP6-788-CD
+        doc["Time"] = pd.to_datetime(
+            doc["DeliveryDate"]
+            + " "
+            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
+            .astype(str)
+            .str.zfill(2)
+            + ":00",
+        ).dt.tz_localize(self.default_timezone)
+
+        doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
+        doc["Forecast Time"] = publish_date
+
+        doc = doc[["Forecast Time", "Time", "Load Forecast"]]
+
+        return doc
+
+    def _get_document(self, report_type_id, date):
+        """Get document for a given report type id and date. If multiple document published return the latest"""
+        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
+        docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
+        match = []
+        for d in docs:
+            if "csv" not in d["Document"]["FriendlyName"]:
+                continue
+
+            doc_date = pd.Timestamp(d["Document"]["PublishDate"]).tz_convert(
+                self.default_timezone,
+            )
+
+            # check do we need to check if same timezone?
+            if doc_date.date() == date.date():
+                match.append((doc_date, d["Document"]["DocID"]))
+
+        if len(match) == 0:
+            raise ValueError(f"No document found for {report_type_id} on {date}")
+
+        doc = max(match, key=lambda x: x[0])
+        csv_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc[1]}"
+        return pd.read_csv(csv_url, compression="zip"), doc[0]
 
     def _handle_data(self, df, columns):
         df["Time"] = (
