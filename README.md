@@ -23,7 +23,7 @@
 
 Currently supports fuel mix, load, supply, load forecast, and LMP pricing data for CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM. See [full availability](#method-availability) below. `isodata` is under active development. 
 
-We'd love to answer any usage or data access questions! Please let us know by posting an GitHub issue.
+We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
 
 ## Installation
 
