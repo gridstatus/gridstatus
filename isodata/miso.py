@@ -63,7 +63,7 @@ class MISO(ISOBase):
         return self._latest_supply_from_fuel_mix()
 
     def get_demand_today(self):
-        url = self._get_load_and_forecast_data()
+        r = self._get_load_and_forecast_data()
 
         date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
 
@@ -110,10 +110,6 @@ class MISO(ISOBase):
         r = self._get_json(url)
         return r
 
-        import pdb
-
-        pdb.set_trace()
-
     def get_latest_lmp(self, market: str, locations: list = None):
         """
         Supported Markets:
@@ -158,7 +154,12 @@ class MISO(ISOBase):
         data["Time"] = time
         data["Market"] = market.value
         data["Location Type"] = "Pricing Node"
-        data.loc[data["Location"].str.endswith(".HUB"), "Location Type"] = "Hub"
+        data.loc[
+            data["Location"].str.endswith(
+                ".HUB",
+            ),
+            "Location Type",
+        ] = "Hub"
         data = data[
             [
                 "Time",
