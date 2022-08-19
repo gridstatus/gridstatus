@@ -2,7 +2,7 @@
 
 ## vNext
 
-- Add load forecasting to NYISO, PJM, CAISO, ISONE, Ercot, SPP
+- Add load forecasting to NYISO, PJM, CAISO, ISONE, Ercot, SPP, MISO
 
 ## v0.6.0 - Aug 17, 2022
 

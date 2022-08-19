@@ -63,8 +63,7 @@ class MISO(ISOBase):
         return self._latest_supply_from_fuel_mix()
 
     def get_demand_today(self):
-        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"
-        r = self._get_json(url)
+        url = self._get_load_and_forecast_data()
 
         date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
 
@@ -81,10 +80,39 @@ class MISO(ISOBase):
         )
         df["Time"] = df["Time"].dt.tz_localize(self.default_timezone)
         df = df.rename(columns={"Value": "Demand"})
-
         df["Demand"] = pd.to_numeric(df["Demand"])
 
         return df
+
+    def get_forecast_today(self):
+        r = self._get_load_and_forecast_data()
+
+        date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0]).tz_localize(
+            tz=self.default_timezone,
+        )
+
+        df = pd.DataFrame(
+            [x["Forecast"] for x in r["LoadInfo"]["MediumTermLoadForecast"]],
+        )
+
+        df["Time"] = date + pd.to_timedelta(df["HourEnding"].astype(int) - 1, "h")
+
+        df["Forecast Time"] = date
+
+        df = df[["Forecast Time", "Time", "LoadForecast"]].rename(
+            columns={"LoadForecast": "Load Forecast"},
+        )
+
+        return df
+
+    def _get_load_and_forecast_data(self):
+        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"
+        r = self._get_json(url)
+        return r
+
+        import pdb
+
+        pdb.set_trace()
 
     def get_latest_lmp(self, market: str, locations: list = None):
         """
