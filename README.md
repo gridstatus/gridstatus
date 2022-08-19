@@ -12,22 +12,39 @@
 </p>
 
 <p align="center">
-<a href="#install"><b>Install</b></a> — 
+<a href="#installation"><b>Install</b></a> — 
 <a href="#getting-started"><b>Getting Started</b></a> — 
 <a href="#method-availability"><b>Method Availability</b></a> —  
 <a href="#lmp-pricing-data"><b>LMP Data</b></a> —  
 <a href="#supported-lmp-markets"><b>Supported LMP Markets</b></a> —  
-<a href="#feedback-welcome"><b>Feedback</b></a>
 </p>
 
-`isodata` provides standardized API to access energy data from the major Independent System Operators (ISOs) in the United States.
+`isodata` provides a uniform API to access energy data from the major Independent System Operators (ISOs) in the United States.
 
-## Install
+Currently supports fuel mix, load, supply, load forecast, and LMP pricing data for CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM. See [full availability](#method-availability) below. `isodata` is under active development. 
+
+We'd love to answer any sage or data access questions. Please let us know by posting an GitHub issue.
+
+## Installation
 
 `isodata` supports python 3.7+. Install with pip
 
 ```
 python -m pip install isodata
+```
+
+Upgrade using the following command
+
+```
+python -m pip install --upgrade isodata
+```
+
+Check current version like this
+
+```
+>>> import isodata
+>>> print(isodata.__version__)
+0.6.0
 ```
 
 ## Getting Started
@@ -286,10 +303,6 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, `I
 | ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
 
 <!-- LMP AVAILABILITY TABLE END -->
-
-## Feedback Welcome
-
-`isodata` is under active development. If there is any particular data you would like access to, let us know by posting an issue or emailing kmax12@gmail.com.
 
 ## Related projects
 
