@@ -33,7 +33,6 @@ class MISO(ISOBase):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url)
 
-        print(r["Fuel"]["Type"][0]["INTERVALEST"])
         time_str = r["Fuel"]["Type"][0]["INTERVALEST"]
         # assuming INTERVALEST -> EST
         time = convert_time_str(
@@ -58,8 +57,6 @@ class MISO(ISOBase):
         # this is same result as using get_demand_today
         url = "https://misotodaysoutlook.azurewebsites.net/api/Outlook"
         r = self._get_json(url)
-
-        print(r[1]["d"])
 
         time_zone = r[1]["d"][-3:]
         time_str = r[1]["d"][:-3]
@@ -115,8 +112,6 @@ class MISO(ISOBase):
         time = r["LMPData"]["RefId"]
         time_str = time[:11] + " " + time[-9:-4]
         timezone_str = time[-3:]
-
-        print(time)
 
         time = convert_time_str(time_str, timezone_str, self.default_timezone)
 

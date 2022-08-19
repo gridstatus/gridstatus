@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import pandas as pd
-import pytz
 
 import isodata
 from isodata.base import ISOBase, Markets
