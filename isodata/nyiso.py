@@ -139,7 +139,7 @@ class NYISO(ISOBase):
         data["Forecast Time"] = date
 
         data = data[["Forecast Time", "Time", "NYISO"]].rename(
-            columns={"NYISO": "Load", "Time": "Time"},
+            columns={"NYISO": "Load Forecast", "Time": "Time"},
         )
 
         return data

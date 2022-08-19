@@ -120,10 +120,10 @@ class Ercot(ISOBase):
             + ":00",
         ).dt.tz_localize(self.default_timezone)
 
-        doc = doc.rename(columns={"SystemTotal": "Load"})
+        doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
         doc["Forecast Time"] = publish_date
 
-        doc = doc[["Forecast Time", "Time", "Load"]]
+        doc = doc[["Forecast Time", "Time", "Load Forecast"]]
 
         return doc
 

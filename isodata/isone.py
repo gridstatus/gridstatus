@@ -204,7 +204,7 @@ class ISONE(ISOBase):
             columns={
                 "CreationDate": "Forecast Time",
                 "BeginDate": "Time",
-                "Mw": "Load",
+                "Mw": "Load Forecast",
             },
         )
 

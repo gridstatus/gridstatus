@@ -28,7 +28,7 @@ def check_lmp_columns(df):
 
 def check_forecast(df):
     assert set(df.columns) == set(
-        ["Forecast Time", "Time", "Load"],
+        ["Forecast Time", "Time", "Load Forecast"],
     )
 
 

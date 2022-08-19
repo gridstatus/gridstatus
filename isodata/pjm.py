@@ -146,7 +146,7 @@ class PJM(ISOBase):
             columns={
                 "evaluated_at_datetime_ept": "Forecast Time",
                 "forecast_datetime_beginning_ept": "Time",
-                "forecast_load_mw": "Load",
+                "forecast_load_mw": "Load Forecast",
             },
         )
 

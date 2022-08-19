@@ -73,7 +73,7 @@ class SPP(ISOBase):
 
         current_day_forecast = current_day_forecast[
             ["Forecast Time", "Time", forecast_col]
-        ].rename({forecast_col: "Load"}, axis=1)
+        ].rename({forecast_col: "Load Forecast"}, axis=1)
 
         return current_day_forecast
 

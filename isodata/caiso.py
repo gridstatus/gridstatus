@@ -176,7 +176,7 @@ class CAISO(ISOBase):
             url,
             compression="zip",
             usecols=["INTERVALSTARTTIME_GMT", "MW", "TAC_AREA_NAME"],
-        ).rename(columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load"})
+        ).rename(columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load Forecast"})
         # returns many areas, we only want one overall iso
         df = df[df["TAC_AREA_NAME"] == "CA ISO-TAC"]
 
@@ -187,7 +187,7 @@ class CAISO(ISOBase):
 
         df["Forecast Time"] = df["Time"].iloc[0]
 
-        df = df[["Forecast Time", "Time", "Load"]]
+        df = df[["Forecast Time", "Time", "Load Forecast"]]
         time.sleep(sleep)
         return df
 
