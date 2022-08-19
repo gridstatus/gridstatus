@@ -394,7 +394,8 @@ class ISONE(ISOBase):
         ]
 
         if not include_id:
-            data.drop(columns=["Location Id"], inplace=True)
+            # data.drop(columns=["Location Id"], axis='columns', inplace=True)
+            data = data.drop(columns=["Location Id"], axis="columns")
 
         data = utils.filter_lmp_locations(data, locations)
         return data

@@ -1,4 +1,5 @@
 import pandas as pd
+import pytz
 from pandas import Timestamp
 
 from isodata.base import FuelMix, ISOBase, Markets
@@ -32,8 +33,13 @@ class MISO(ISOBase):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url)
 
-        time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
-            self.default_timezone,
+        print(r["Fuel"]["Type"][0]["INTERVALEST"])
+        time_str = r["Fuel"]["Type"][0]["INTERVALEST"]
+        # assuming INTERVALEST -> EST
+        time = convert_time_str(
+            time=time_str,
+            timezone="EST",
+            default_timezone=self.default_timezone,
         )
 
         mix = {}
@@ -53,8 +59,15 @@ class MISO(ISOBase):
         url = "https://misotodaysoutlook.azurewebsites.net/api/Outlook"
         r = self._get_json(url)
 
+        print(r[1]["d"])
+
+        time_zone = r[1]["d"][-3:]
+        time_str = r[1]["d"][:-3]
+
+        time = convert_time_str(time_str, time_zone, self.default_timezone)
+
         return {
-            "time": pd.to_datetime(r[1]["d"]).tz_localize(self.default_timezone),
+            "time": time,
             "demand": float(r[1]["v"].replace(",", "")),
         }
 
@@ -100,8 +113,12 @@ class MISO(ISOBase):
         r = self._get_json(url)
 
         time = r["LMPData"]["RefId"]
-        time_str = time[:11] + " " + time[-9:]
-        time = pd.to_datetime(time_str).tz_localize(self.default_timezone)
+        time_str = time[:11] + " " + time[-9:-4]
+        timezone_str = time[-3:]
+
+        print(time)
+
+        time = convert_time_str(time_str, timezone_str, self.default_timezone)
 
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
@@ -145,6 +162,13 @@ class MISO(ISOBase):
         ]
 
         return data
+
+
+def convert_time_str(time: str, timezone: str, default_timezone):
+    time = pd.to_datetime(time, utc=False)
+    time = time.replace(tzinfo=pytz.timezone(timezone))
+    time = time.tz_convert(default_timezone)
+    return time
 
 
 """
