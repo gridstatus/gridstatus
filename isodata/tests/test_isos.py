@@ -318,7 +318,7 @@ def test_get_historical_forecast(iso):
     check_forecast(forecast)
 
 
-@pytest.mark.parametrize("iso", [Ercot(), ISONE(), CAISO(), PJM(), NYISO()])
+@pytest.mark.parametrize("iso", [SPP(), Ercot(), ISONE(), CAISO(), PJM(), NYISO()])
 def test_get_forecast_today(iso):
     forecast = iso.get_forecast_today()
     check_forecast(forecast)
