@@ -315,6 +315,30 @@ class CAISO(ISOBase):
 
         return df
 
+    def get_battery_today(self):
+        """Return battery charging or discharging for today in 5 minute intervals
+
+        Negative means charging, positive means discharging
+
+        Arguments:
+            date: date to return data
+        """
+        return self._today_from_historical(self.get_historical_battery)
+
+    def get_historical_battery(self, date):
+        """Return battery charging or discharging at a previous date in 5 minute intervals
+
+        Negative means charging, positive means discharging
+
+        Arguments:
+            date: date to return data
+        """
+        date = isodata.utils._handle_date(date)
+        url = self.HISTORY_BASE + "/%s/storage.csv"
+        df = _get_historical(url, date)
+        df = df.rename(columns={"Batteries": "Battery Supply"})
+        return df
+
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
