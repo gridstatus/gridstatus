@@ -23,10 +23,6 @@ class PJM(ISOBase):
         "Get fuel mix for today in hourly intervals"
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    def get_fuel_mix_yesterday(self):
-        "Get fuel mix for yesterdat in hourly intervals"
-        return self._yesterday_from_historical(self.get_historical_fuel_mix)
-
     def get_historical_fuel_mix(self, date):
         date = date = isodata.utils._handle_date(date)
         tomorrow = date + pd.DateOffset(1)
@@ -66,10 +62,6 @@ class PJM(ISOBase):
         "Get supply for today in hourly intervals"
         return self._today_from_historical(self.get_historical_supply)
 
-    def get_supply_yesterday(self):
-        "Get supply for yesterdat in hourly intervals"
-        return self._yesterday_from_historical(self.get_historical_supply)
-
     def get_historical_supply(self, date):
         """Returns supply at a previous date at hourly intervals"""
         return self._supply_from_fuel_mix(date)
@@ -80,10 +72,6 @@ class PJM(ISOBase):
     def get_demand_today(self):
         "Get demand for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_demand)
-
-    def get_demand_yesterday(self):
-        "Get demand for yesterdat in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_demand)
 
     def get_historical_demand(self, date):
         """Returns demand at a previous date at 5 minute intervals

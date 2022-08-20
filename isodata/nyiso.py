@@ -32,10 +32,6 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_status)
         return d
 
-    def get_status_yesterday(self):
-        """Get status event for yesterday"""
-        return self._yesterday_from_historical(self.get_historical_status)
-
     def get_historical_status(self, date):
         """Get status event for a date"""
         status_df = self._download_nyiso_archive(date, "RealTimeEvents")
@@ -63,10 +59,6 @@ class NYISO(ISOBase):
         "Get fuel mix for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    def get_fuel_mix_yesterday(self):
-        "Get fuel mix for yesterdat in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_fuel_mix)
-
     def get_historical_fuel_mix(self, date):
         mix_df = self._download_nyiso_archive(date, "rtfuelmix")
         mix_df = mix_df.pivot_table(
@@ -85,10 +77,6 @@ class NYISO(ISOBase):
         "Get demand for today in 5 minute intervals"
         d = self._today_from_historical(self.get_historical_demand)
         return d
-
-    def get_demand_yesterday(self):
-        "Get demand for yesterday in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_demand)
 
     def get_historical_demand(self, date):
         """Returns demand at a previous date in 5 minute intervals"""
@@ -116,10 +104,6 @@ class NYISO(ISOBase):
     def get_supply_today(self):
         "Get supply for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_supply)
-
-    def get_supply_yesterday(self):
-        "Get supply for yesterday in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_supply)
 
     def get_historical_supply(self, date):
         """Returns supply at a previous date in 5 minute intervals"""
@@ -150,14 +134,6 @@ class NYISO(ISOBase):
     def get_lmp_today(self, market: str, locations: list = None):
         "Get lmp for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_lmp, market, locations)
-
-    def get_lmp_yesterday(self, market: str, locations: list = None):
-        "Get lmp for yesterday in 5 minute intervals"
-        return self._yesterday_from_historical(
-            self.get_historical_lmp,
-            market,
-            locations,
-        )
 
     def get_historical_lmp(self, date, market: str, locations: list = None):
         """

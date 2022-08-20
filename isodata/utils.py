@@ -35,17 +35,14 @@ def make_availability_df():
         "get_latest_status",
         "get_latest_fuel_mix",
         "get_fuel_mix_today",
-        "get_fuel_mix_yesterday",
         "get_historical_fuel_mix",
         "get_latest_demand",
         "get_demand_today",
-        "get_demand_yesterday",
         "get_historical_demand",
         "get_forecast_today",
         "get_historical_forecast",
         "get_latest_supply",
         "get_supply_today",
-        "get_supply_yesterday",
         "get_historical_supply",
     ]
 

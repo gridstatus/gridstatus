@@ -53,9 +53,6 @@ def test_get_fuel_mix(iso):
     df = iso.get_fuel_mix_today()
     assert isinstance(df, pd.DataFrame)
 
-    df = iso.get_fuel_mix_yesterday()
-    assert isinstance(df, pd.DataFrame)
-
 
 def test_list_isos():
     assert len(isodata.list_isos()) == 7
@@ -127,9 +124,6 @@ def test_get_supply_today(iso):
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
 def test_get_supply(iso):
-    df = iso.get_supply_yesterday()
-    assert isinstance(df, pd.DataFrame)
-
     date_str = "March 3, 2022"
     df = iso.get_historical_supply(date_str)
     assert isinstance(df, pd.DataFrame)
@@ -142,17 +136,6 @@ def test_get_supply(iso):
 @pytest.mark.parametrize("iso", all_isos)
 def test_get_demand_today(iso):
     df = iso.get_demand_today()
-    assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Demand"]) == set(df.columns)
-    assert is_numeric_dtype(df["Demand"])
-    assert isinstance(df.loc[0]["Time"], pd.Timestamp)
-    assert df.loc[0]["Time"].tz is not None
-
-
-@pytest.mark.parametrize("iso", [PJM(), NYISO(), Ercot(), ISONE(), CAISO()])
-def test_get_demand_yesterday(iso):
-    # todo check that the date is right
-    df = iso.get_demand_yesterday()
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Demand"]) == set(df.columns)
     assert is_numeric_dtype(df["Demand"])
@@ -230,9 +213,6 @@ def test_get_historical_lmp(test):
         hist = iso.get_historical_lmp(date_str, m)
         assert isinstance(hist, pd.DataFrame)
         check_lmp_columns(hist)
-        yesterday = iso.get_lmp_yesterday(m)
-        assert isinstance(yesterday, pd.DataFrame)
-        check_lmp_columns(yesterday)
 
 
 @pytest.mark.parametrize(
