@@ -21,7 +21,7 @@
 
 `isodata` provides a uniform API to access energy data from the major Independent System Operators (ISOs) in the United States.
 
-Currently supports fuel mix, load, supply, load forecast, and LMP pricing data for CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM. See [full availability](#method-availability) below. `isodata` is under active development.
+Currently supports fuel mix, load, supply, load forecast, and LMP pricing data for CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM. See [full availability](#method-availability) below.
 
 We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
 
@@ -208,15 +208,15 @@ Here is the current status of availability of each method for each ISO
 | :------------------------ | :----------- | :------------- | :------------------------------------ | :-------------- | :--------------- | :------------------- | :------- |
 | `get_latest_status`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#10060; |
 | `get_latest_fuel_mix`     | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_fuel_mix_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
-| `get_historical_fuel_mix` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
 | `get_latest_demand`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_demand_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_historical_demand`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
-| `get_forecast_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_historical_forecast` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#10060; |
 | `get_latest_supply`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_fuel_mix_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_demand_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_forecast_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
 | `get_supply_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_fuel_mix` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_demand`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_forecast` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#10060; |
 | `get_historical_supply`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
 
 <!-- METHOD AVAILABILITY TABLE END -->
