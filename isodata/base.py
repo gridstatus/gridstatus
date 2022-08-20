@@ -40,19 +40,12 @@ class ISOBase:
     def get_fuel_mix_today(self):
         raise NotImplementedError()
 
-    def get_fuel_mix_yesterday(self):
-        raise NotImplementedError()
-
-    def get_historical_fuel_mix(self, date):
         raise NotImplementedError()
 
     def get_latest_demand(self):
         raise NotImplementedError()
 
     def get_demand_today(self):
-        raise NotImplementedError()
-
-    def get_demand_yesterday(self):
         raise NotImplementedError()
 
     def get_historical_demand(self, date):
@@ -68,9 +61,6 @@ class ISOBase:
         raise NotImplementedError()
 
     def get_supply_today(self):
-        raise NotImplementedError()
-
-    def get_supply_yesterday(self):
         raise NotImplementedError()
 
     def get_historical_supply(self, date):
@@ -93,10 +83,6 @@ class ISOBase:
     def _today_from_historical(self, method, *args, **kwargs):
         today = pd.Timestamp.now(self.default_timezone).date()
         return method(today, *args, **kwargs)
-
-    def _yesterday_from_historical(self, method, *args, **kwargs):
-        yesterday = (pd.Timestamp.now(self.default_timezone) - pd.DateOffset(1)).date()
-        return method(yesterday, *args, **kwargs)
 
     def _supply_from_fuel_mix(self, date):
         df = self.get_historical_fuel_mix(date)

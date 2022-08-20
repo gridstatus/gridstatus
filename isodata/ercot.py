@@ -45,7 +45,10 @@ class Ercot(ISOBase):
         df = pd.DataFrame(r["currentDay"]["data"])
         df = df.dropna(subset=["actualSolar"])
 
-        df = self._handle_data(df, {"actualSolar": "Solar", "actualWind": "Wind"})
+        df = self._handle_data(
+            df,
+            {"actualSolar": "Solar", "actualWind": "Wind"},
+        )
         return df
 
     def get_latest_demand(self):
@@ -70,10 +73,6 @@ class Ercot(ISOBase):
     def get_demand_today(self):
         """Returns demand for today"""
         return self._get_demand("currentDay")
-
-    def get_demand_yesterday(self):
-        """Returns demand for yesterday"""
-        return self._get_demand("previousDay")
 
     def get_latest_supply(self):
         return self._latest_from_today(self.get_supply_today)
@@ -101,7 +100,9 @@ class Ercot(ISOBase):
 
         data = data[data["forecast"] == 0]  # only keep non forecast rows
 
-        data = data[["Time", "capacity"]].rename(columns={"capacity": "Supply"})
+        data = data[["Time", "capacity"]].rename(
+            columns={"capacity": "Supply"},
+        )
 
         return data
 
@@ -109,7 +110,10 @@ class Ercot(ISOBase):
         # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
         # there are a few days of historical date for the forecast
         today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
-        doc, publish_date = self._get_document(report_type_id=12311, date=today)
+        doc, publish_date = self._get_document(
+            report_type_id=12311,
+            date=today,
+        )
 
         doc["Time"] = pd.to_datetime(
             doc["DeliveryDate"]
@@ -145,7 +149,9 @@ class Ercot(ISOBase):
                 match.append((doc_date, d["Document"]["DocID"]))
 
         if len(match) == 0:
-            raise ValueError(f"No document found for {report_type_id} on {date}")
+            raise ValueError(
+                f"No document found for {report_type_id} on {date}",
+            )
 
         doc = max(match, key=lambda x: x[0])
         csv_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc[1]}"

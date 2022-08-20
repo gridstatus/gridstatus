@@ -87,10 +87,6 @@ class ISONE(ISOBase):
         # todo should this use the latest endpoint?
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    def get_fuel_mix_yesterday(self):
-        "Get fuel mix for yesterday"
-        return self._yesterday_from_historical(self.get_historical_fuel_mix)
-
     def get_historical_fuel_mix(self, date):
         """Return fuel mix at a previous date
 
@@ -124,9 +120,6 @@ class ISONE(ISOBase):
     def get_demand_today(self):
         return self._today_from_historical(self.get_historical_demand)
 
-    def get_demand_yesterday(self):
-        return self._yesterday_from_historical(self.get_historical_demand)
-
     def get_historical_demand(self, date):
         """Return demand at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
@@ -153,10 +146,6 @@ class ISONE(ISOBase):
     def get_supply_today(self):
         "Get supply for today in MW"
         return self._today_from_historical(self.get_historical_supply)
-
-    def get_supply_yesterday(self):
-        "Get supply for yesterday in MW"
-        return self._yesterday_from_historical(self.get_historical_supply)
 
     def get_historical_supply(self, date):
         """Returns supply at a previous date in MW"""
@@ -252,15 +241,6 @@ class ISONE(ISOBase):
             include_id=include_id,
         )
 
-    def get_lmp_yesterday(self, market: str, locations: list = None, include_id=False):
-        "Get lmp for yesterday in 5 minute intervals"
-        return self._yesterday_from_historical(
-            self.get_historical_lmp,
-            market,
-            locations,
-            include_id=include_id,
-        )
-
     def get_historical_lmp(
         self,
         date,
@@ -333,7 +313,9 @@ class ISONE(ISOBase):
                     + ":00"
                 )
             else:
-                raise RuntimeError("Today not supported for hourly lmp. Try latest")
+                raise RuntimeError(
+                    "Today not supported for hourly lmp. Try latest",
+                )
 
         elif market == Markets.DAY_AHEAD_HOURLY:
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"

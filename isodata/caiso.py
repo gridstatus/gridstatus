@@ -76,10 +76,6 @@ class CAISO(ISOBase):
         # todo should this use the latest endpoint?
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    def get_fuel_mix_yesterday(self):
-        "Get fuel_mix for yesterdat in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_fuel_mix)
-
     def get_historical_fuel_mix(self, date):
         """
         Get historical fuel mix in 5 minute intervals for a provided day
@@ -116,10 +112,6 @@ class CAISO(ISOBase):
         "Get demand for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_demand)
 
-    def get_demand_yesterday(self):
-        "Get demand for yesterdat in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_demand)
-
     def get_historical_demand(self, date):
         """Return demand at a previous date in 5 minute intervals"""
         date = isodata.utils._handle_date(date)
@@ -139,10 +131,6 @@ class CAISO(ISOBase):
     def get_supply_today(self):
         "Get supply for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_supply)
-
-    def get_supply_yesterday(self):
-        "Get supply for yesterdat in 5 minute intervals"
-        return self._yesterday_from_historical(self.get_historical_supply)
 
     def get_historical_supply(self, date):
         """Returns supply at a previous date in 5 minute intervals"""
@@ -211,14 +199,6 @@ class CAISO(ISOBase):
     def get_lmp_today(self, market: str, locations: list = None):
         "Get lmp for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_lmp, market, locations)
-
-    def get_lmp_yesterday(self, market: str, locations: list = None):
-        "Get lmp for yesterday in 5 minute intervals"
-        return self._yesterday_from_historical(
-            self.get_historical_lmp,
-            market,
-            locations,
-        )
 
     def get_historical_lmp(
         self,
