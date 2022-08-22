@@ -203,22 +203,22 @@ The best part is these APIs work across all the supported ISOs
 Here is the current status of availability of each method for each ISO
 
 <!-- METHOD AVAILABILITY TABLE START -->
-
-|                           | New York ISO | California ISO | Electric Reliability Council of Texas | ISO New England | Midcontinent ISO | Southwest Power Pool | PJM      |
-| :------------------------ | :----------- | :------------- | :------------------------------------ | :-------------- | :--------------- | :------------------- | :------- |
-| `get_latest_status`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#10060; |
-| `get_latest_fuel_mix`     | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_latest_demand`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_latest_supply`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_fuel_mix_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
-| `get_demand_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_forecast_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_supply_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
-| `get_historical_fuel_mix` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
-| `get_historical_demand`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
-| `get_historical_forecast` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#10060; |
-| `get_historical_supply`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
-
+|                           | New York ISO   | California ISO   | Electric Reliability Council of Texas   | ISO New England   | Midcontinent ISO   | Southwest Power Pool   | PJM      |
+|:--------------------------|:---------------|:-----------------|:----------------------------------------|:------------------|:-------------------|:-----------------------|:---------|
+| `get_latest_status`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#10060; |
+| `get_latest_fuel_mix`     | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
+| `get_latest_demand`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
+| `get_latest_supply`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
+| `get_fuel_mix_today`      | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
+| `get_demand_today`        | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
+| `get_forecast_today`      | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
+| `get_supply_today`        | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
+| `get_battery_today`       | &#10060;       | &#x2705;         | &#10060;                                | &#10060;          | &#10060;           | &#10060;               | &#10060; |
+| `get_historical_fuel_mix` | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
+| `get_historical_demand`   | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
+| `get_historical_forecast` | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#10060; |
+| `get_historical_supply`   | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
+| `get_historical_battery`  | &#10060;       | &#x2705;         | &#10060;                                | &#10060;          | &#10060;           | &#10060;               | &#10060; |
 <!-- METHOD AVAILABILITY TABLE END -->
 
 ## LMP Pricing Data
@@ -288,9 +288,8 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, an
 ## Supported LMP Markets
 
 <!-- LMP AVAILABILITY TABLE START -->
-
 |                                       | Markets                                                    |
-| :------------------------------------ | :--------------------------------------------------------- |
+|:--------------------------------------|:-----------------------------------------------------------|
 | Midcontinent ISO                      | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
 | California ISO                        | `REAL_TIME_15_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY` |
 | PJM                                   |                                                            |
@@ -298,7 +297,6 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, an
 | Southwest Power Pool                  |                                                            |
 | New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_5_MIN`                       |
 | ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
-
 <!-- LMP AVAILABILITY TABLE END -->
 
 ## Related projects

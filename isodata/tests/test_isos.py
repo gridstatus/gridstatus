@@ -32,6 +32,12 @@ def check_forecast(df):
     )
 
 
+def check_battery(df):
+    assert set(df.columns) == set(
+        ["Time", "Battery Supply"],
+    )
+
+
 def test_make_lmp_availability_df():
     isodata.utils.make_lmp_availability_table()
 
@@ -305,3 +311,22 @@ def test_get_historical_forecast(iso):
 def test_get_forecast_today(iso):
     forecast = iso.get_forecast_today()
     check_forecast(forecast)
+
+
+@pytest.mark.parametrize(
+    "iso",
+    [CAISO()],
+)
+def test_get_battery_today(iso):
+    battery = iso.get_battery_today()
+    check_battery(battery)
+
+
+@pytest.mark.parametrize(
+    "iso",
+    [CAISO()],
+)
+def test_get_historical_battery(iso):
+    test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
+    battery = iso.get_historical_battery(test_date)
+    check_battery(battery)
