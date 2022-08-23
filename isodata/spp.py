@@ -19,7 +19,13 @@ class SPP(ISOBase):
         soup = BeautifulSoup(html_text, "html.parser")
         conditions_element = soup.find("h1")
         last_update_time = conditions_element.findNextSibling("p").text[14:-1]
-        status_text = conditions_element.findNextSibling("p").findNextSibling("p").text
+        status_text = (
+            conditions_element.findNextSibling(
+                "p",
+            )
+            .findNextSibling("p")
+            .text
+        )
 
         date_str = last_update_time[: last_update_time.index(", at ")]
         if "a.m." in last_update_time:
@@ -37,7 +43,14 @@ class SPP(ISOBase):
         else:
             raise "Cannot parse time of status"
 
-        date_obj = pd.to_datetime(date_str).replace(hour=hour, minute=minute)
+        date_obj = (
+            pd.to_datetime(date_str)
+            .replace(
+                hour=hour,
+                minute=minute,
+            )
+            .tz_localize(self.default_timezone)
+        )
 
         if (
             status_text
@@ -117,7 +130,9 @@ class SPP(ISOBase):
             raise RuntimeError("Invalid forecast type")
 
         # there will be empty rows regardless of forecast type since they dont align
-        current_day_forecast = current_day_forecast.dropna(subset=[forecast_col])
+        current_day_forecast = current_day_forecast.dropna(
+            subset=[forecast_col],
+        )
 
         current_day_forecast = current_day_forecast[
             ["Forecast Time", "Time", forecast_col]
@@ -140,7 +155,9 @@ class SPP(ISOBase):
 
         df = pd.DataFrame(data)
 
-        df["Time"] = pd.to_datetime(df["Time"]).dt.tz_convert(self.default_timezone)
+        df["Time"] = pd.to_datetime(
+            df["Time"],
+        ).dt.tz_convert(self.default_timezone)
 
         return df
 

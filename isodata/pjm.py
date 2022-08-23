@@ -1,5 +1,3 @@
-import io
-
 import pandas as pd
 import requests
 
@@ -168,27 +166,3 @@ class PJM(ISOBase):
         )
 
         return settings["subscriptionKey"]
-
-
-"""
-
-
-PJM web scraping
-from bs4 import BeautifulSoup
-import re
-# pjm_url = 'https://www.pjm.com/markets-and-operations.aspx'
-# html_text = requests.get(pjm_url).text
-# soup = BeautifulSoup(html_text, 'html.parser')
-# text = soup.find(
-#     id='rtschartallfuelspjmGenFuel_container').next_sibling.contents[0]
-
-# m = re.search('data:\ \[(.+?)],\ name:', text)
-# if m:
-#     found = m.group(1)
-# else:
-#     raise Exception("Could not find fuel mix data")
-
-# parsed = json5.loads("[" + found + "]")
-
-# mix_dict = dict((x["name"], x["y"]) for x in parsed)
-"""
