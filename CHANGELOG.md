@@ -1,6 +1,6 @@
 # Changelog
 
-## vNext
+## v0.7.0 - Aug 23, 2022
 
 - Added load forecasting to NYISO, PJM, CAISO, ISONE, Ercot, SPP, MISO
 - Add battery charging and discharging to CAISO
