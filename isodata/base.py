@@ -121,6 +121,11 @@ class GridStatus:
         if self.reserves is not None:
             s += "Reserves: %.0f %s" % (self.reserves, self.unit)
 
+        if self.notes and len(self.notes):
+            s += "Notes:\n"
+            for n in self.notes:
+                s += "-  %s\n" % n
+
         return s
 
 

@@ -23,7 +23,7 @@ class NYISO(ISOBase):
             status=latest["status"],
             reserves=None,
             iso=self.name,
-            notes=None,
+            notes=latest["notes"],
         )
         return status
 
@@ -40,6 +40,25 @@ class NYISO(ISOBase):
             columns={"Message": "Status"},
         )
 
+        def _parse_status(row):
+            STATE_CHANGE = "**State Change. System now operating in "
+
+            if row["Status"] == "Start of day system state is NORMAL":
+                row["Notes"] = [row["Status"]]
+                row["Status"] = "Normal"
+            elif STATE_CHANGE in row["Status"]:
+                row["Notes"] = [row["Status"]]
+
+                row["Status"] = row["Status"][
+                    row["Status"].index(STATE_CHANGE)
+                    + len(STATE_CHANGE) : -len(" state.**")
+                ].capitalize()
+            else:
+                raise RuntimeError("Cannot parse status: {}".format(row["Status"]))
+
+            return row
+
+        status_df = status_df.apply(_parse_status, axis=1)
         return status_df
 
     def get_latest_fuel_mix(self):

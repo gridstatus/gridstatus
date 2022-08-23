@@ -25,9 +25,6 @@ class MISO(ISOBase):
         "ARKANSAS.HUB",
     ]
 
-    def __init__(self) -> None:
-        super().__init__()
-
     def get_latest_fuel_mix(self):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url)
