@@ -54,7 +54,9 @@ class NYISO(ISOBase):
                     + len(STATE_CHANGE) : -len(" state.**")
                 ].capitalize()
             else:
-                raise RuntimeError("Cannot parse status: {}".format(row["Status"]))
+                raise RuntimeError(
+                    "Cannot parse status: {}".format(row["Status"]),
+                )
 
             return row
 
