@@ -56,7 +56,7 @@ class ISONE(ISOBase):
         condition = r[0]["data"]["PowerSystemConditions"]["PowerSystemCondition"][0]
         status = condition["SystemCondition"]
         note = condition["ActionDescription"]
-        time = pd.Timestamp.now(tz=self.default_timezone)
+        time = pd.Timestamp.now(tz=self.default_timezone).floor(freq="s")
 
         return GridStatus(
             time=time,
