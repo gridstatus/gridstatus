@@ -1,6 +1,10 @@
-import pandas as pd
+import re
 
-from isodata.base import FuelMix, ISOBase
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+
+from isodata.base import FuelMix, GridStatus, ISOBase
 
 
 class SPP(ISOBase):
@@ -8,6 +12,50 @@ class SPP(ISOBase):
     iso_id = "spp"
 
     default_timezone = "US/Central"
+
+    def get_latest_status(self):
+        url = "https://www.spp.org/markets-operations/current-grid-conditions/"
+        html_text = requests.get(url).text
+        soup = BeautifulSoup(html_text, "html.parser")
+        conditions_element = soup.find("h1")
+        last_update_time = conditions_element.findNextSibling("p").text[14:-1]
+        status_text = conditions_element.findNextSibling("p").findNextSibling("p").text
+
+        date_str = last_update_time[: last_update_time.index(", at ")]
+        if "a.m." in last_update_time:
+            time_str = last_update_time[
+                last_update_time.index(", at ") + 5 : last_update_time.index(" a.m.")
+            ]
+            hour, minute = map(int, time_str.split(":"))
+        elif "p.m." in last_update_time:
+            time_str = last_update_time[
+                last_update_time.index(", at ") + 5 : last_update_time.index(" p.m.")
+            ]
+            hour, minute = map(int, time_str.split(":"))
+            if hour < 12:
+                hour += 12
+        else:
+            raise "Cannot parse time of status"
+
+        date_obj = pd.to_datetime(date_str).replace(hour=hour, minute=minute)
+
+        if (
+            status_text
+            == "SPP is currently in Normal Operations with no effective advisories or alerts."
+        ):
+            status = "Normal"
+            notes = [status_text]
+        else:
+            status = status_text
+            notes = None
+
+        return GridStatus(
+            time=date_obj,
+            status=status,
+            notes=notes,
+            reserves=None,
+            iso=self.name,
+        )
 
     def get_latest_fuel_mix(self):
         url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"

@@ -23,6 +23,10 @@ class Ercot(ISOBase):
         )
         status = r["current_condition"]["state"]
         reserves = float(r["current_condition"]["prc_value"].replace(",", ""))
+
+        if status == "normal":
+            status = "Normal"
+
         return GridStatus(time=time, status=status, reserves=reserves, iso=self.name)
 
     def get_latest_fuel_mix(self):

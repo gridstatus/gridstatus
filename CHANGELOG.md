@@ -5,6 +5,7 @@
 - Added load forecasting to NYISO, PJM, CAISO, ISONE, Ercot, SPP, MISO
 - Add battery charging and discharging to CAISO
 - Removed yesterday methods. Use `get_historical_*()` instead
+- Add get latest status to SPP
 
 ## v0.6.0 - Aug 17, 2022
 
