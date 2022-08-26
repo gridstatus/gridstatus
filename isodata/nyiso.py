@@ -43,6 +43,7 @@ class NYISO(ISOBase):
         def _parse_status(row):
             STATE_CHANGE = "**State Change. System now operating in "
 
+            row["Notes"] = None
             if row["Status"] == "Start of day system state is NORMAL":
                 row["Notes"] = [row["Status"]]
                 row["Status"] = "Normal"
@@ -53,10 +54,6 @@ class NYISO(ISOBase):
                     row["Status"].index(STATE_CHANGE)
                     + len(STATE_CHANGE) : -len(" state.**")
                 ].capitalize()
-            else:
-                raise RuntimeError(
-                    "Cannot parse status: {}".format(row["Status"]),
-                )
 
             return row
 
