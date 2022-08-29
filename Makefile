@@ -29,6 +29,10 @@ upgradepip:
 upgradebuild:
 	python -m pip install --upgrade build
 
+.PHONY: upgradesetuptools
+upgradesetuptools:
+	python -m pip install --upgrade setuptools
+
 .PHONY: package
 package: upgradepip upgradebuild
 	python -m build
