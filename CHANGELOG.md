@@ -1,5 +1,9 @@
 # Changelog
 
+## vNext
+
+- Add notes to Ercot status
+
 ## v0.7.0 - Aug 23, 2022
 
 - Added load forecasting to NYISO, PJM, CAISO, ISONE, Ercot, SPP, MISO
