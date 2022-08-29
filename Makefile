@@ -34,7 +34,7 @@ upgradesetuptools:
 	python -m pip install --upgrade setuptools
 
 .PHONY: package
-package: upgradepip upgradebuild
+package: upgradepip upgradebuild upgradesetuptools
 	python -m build
 	$(eval PACKAGE=$(shell python -c "from pep517.meta import load; metadata = load('.'); print(metadata.version)"))
 	tar -zxvf "dist/isodata-${PACKAGE}.tar.gz"
