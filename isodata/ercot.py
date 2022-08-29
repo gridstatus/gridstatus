@@ -27,7 +27,15 @@ class Ercot(ISOBase):
         if status == "normal":
             status = "Normal"
 
-        return GridStatus(time=time, status=status, reserves=reserves, iso=self.name)
+        notes = [r["current_condition"]["condition_note"]]
+
+        return GridStatus(
+            time=time,
+            status=status,
+            reserves=reserves,
+            iso=self.name,
+            notes=notes,
+        )
 
     def get_latest_fuel_mix(self):
         df = self.get_fuel_mix_today()
