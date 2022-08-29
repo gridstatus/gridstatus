@@ -3,7 +3,7 @@ name: Install
 on: [pull_request]
 
 jobs:
-  build:
+  install:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
