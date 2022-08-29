@@ -22,3 +22,6 @@ jobs:
       - name: Install package
         run: |
           python -m pip install unpacked/.
+      - name: Test Import and simple usage
+          python -c "import isodata;print(isodata.__version__)"
+          python -c "import isodata;isodata.list_isos()"
