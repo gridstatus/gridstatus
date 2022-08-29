@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isodata"
-readme = "README.md"
+readme = { file = "README.md", content-type = "text/markdown" }
 description = "API to access energy data"
 dynamic = ["version"]
 classifiers = [
