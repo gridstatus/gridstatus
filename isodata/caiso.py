@@ -1,6 +1,7 @@
 import io
 import time
 from typing import Any
+from unicodedata import name
 from zipfile import ZipFile
 
 import pandas as pd
@@ -47,14 +48,15 @@ class CAISO(ISOBase):
     def get_latest_status(self) -> str:
         """Get Current Status of the Grid
 
-        Known possible values: Normal, Restricted Maintenance Operations
+        Known possible values: Normal, Restricted Maintenance Operations, Flex Alert
         """
 
         # todo is it possible for this to return more than one element?
         r = self.get_stats()
 
         time = pd.to_datetime(r["slotDate"]).tz_localize("US/Pacific")
-        status = r["gridstatus"][0]
+        # can only store one value for status so we concat them together
+        status = ", ".join(r["gridstatus"])
         reserves = r["Current_reserve"]
 
         return GridStatus(time=time, status=status, reserves=reserves, iso=self)
@@ -390,3 +392,11 @@ def _get_oasis(url, usecols=None):
     )
 
     return df
+
+
+if __name__ == "__main__":
+    import isodata
+
+    print("asd")
+    iso = isodata.CAISO()
+    iso.get_latest_status()
