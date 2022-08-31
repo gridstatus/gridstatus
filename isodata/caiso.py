@@ -20,6 +20,8 @@ class CAISO(ISOBase):
     iso_id = "caiso"
     default_timezone = "US/Pacific"
 
+    status_homepage = "https://www.caiso.com/TodaysOutlook/Pages/default.aspx"
+
     # Markets PRC_RTPD_LMP, PRC_HASP_LMP, PRC_LMP
     markets = [
         Markets.REAL_TIME_15_MIN,
@@ -45,7 +47,7 @@ class CAISO(ISOBase):
     def get_latest_status(self) -> str:
         """Get Current Status of the Grid
 
-        Known possible values: Normal
+        Known possible values: Normal, Restricted Maintenance Operations
         """
 
         # todo is it possible for this to return more than one element?
@@ -55,7 +57,7 @@ class CAISO(ISOBase):
         status = r["gridstatus"][0]
         reserves = r["Current_reserve"]
 
-        return GridStatus(time=time, status=status, reserves=reserves, iso=self.name)
+        return GridStatus(time=time, status=status, reserves=reserves, iso=self)
 
     def get_latest_fuel_mix(self):
         """

@@ -13,6 +13,8 @@ class SPP(ISOBase):
 
     default_timezone = "US/Central"
 
+    status_homepage = "https://www.spp.org/markets-operations/current-grid-conditions/"
+
     def get_latest_status(self):
         url = "https://www.spp.org/markets-operations/current-grid-conditions/"
         html_text = requests.get(url).text
@@ -67,7 +69,7 @@ class SPP(ISOBase):
             status=status,
             notes=notes,
             reserves=None,
-            iso=self.name,
+            iso=self,
         )
 
     def get_latest_fuel_mix(self):
