@@ -79,6 +79,9 @@ def test_get_latest_status(iso):
     status = iso.get_latest_status()
     assert isinstance(status, GridStatus)
 
+    # ensure there is a homepage if isodata can retrieve a status
+    assert isinstance(iso.status_homepage, str)
+
 
 @pytest.mark.parametrize("iso", [NYISO()])
 def test_get_historical_status(iso):

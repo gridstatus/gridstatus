@@ -16,6 +16,8 @@ class ISONE(ISOBase):
     iso_id = "isone"
     default_timezone = "US/Eastern"
 
+    status_homepage = "https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status"
+
     markets = [
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
@@ -44,6 +46,9 @@ class ISONE(ISOBase):
 
     def get_latest_status(self):
         """Get latest status for ISO NE"""
+
+        # historical data available
+        # https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status/power-system-status-list
         r = requests.post(
             "https://www.iso-ne.com/ws/wsclient",
             data={
@@ -62,7 +67,7 @@ class ISONE(ISOBase):
             time=time,
             status=status,
             reserves=None,
-            iso=self.name,
+            iso=self,
             notes=[note],
         )
 

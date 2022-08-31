@@ -113,10 +113,13 @@ class GridStatus:
         self.notes = notes
 
     def __repr__(self) -> str:
-        s = self.iso + "\n"
+        s = self.iso.name + "\n"
 
         s += "Time: %s \n" % str(self.time)
         s += "Status: %s \n" % self.status
+
+        if self.iso.status_homepage:
+            s += "Status Homepage: %s \n" % self.iso.status_homepage
 
         if self.reserves is not None:
             s += "Reserves: %.0f %s" % (self.reserves, self.unit)

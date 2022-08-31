@@ -14,6 +14,7 @@ class NYISO(ISOBase):
     iso_id = "nyiso"
     default_timezone = "US/Eastern"
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_5_MIN]
+    status_homepage = "https://www.nyiso.com/system-conditions"
 
     def get_latest_status(self):
         latest = self._latest_from_today(self.get_status_today)
@@ -22,7 +23,7 @@ class NYISO(ISOBase):
             time=latest["time"],
             status=latest["status"],
             reserves=None,
-            iso=self.name,
+            iso=self,
             notes=latest["notes"],
         )
         return status

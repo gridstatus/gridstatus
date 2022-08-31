@@ -11,6 +11,8 @@ class Ercot(ISOBase):
     iso_id = "ercot"
     default_timezone = "US/Central"
 
+    status_homepage = "https://www.ercot.com/gridmktinfo/dashboards/gridconditions"
+
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
 
     def get_latest_status(self):
@@ -33,7 +35,7 @@ class Ercot(ISOBase):
             time=time,
             status=status,
             reserves=reserves,
-            iso=self.name,
+            iso=self,
             notes=notes,
         )
 
