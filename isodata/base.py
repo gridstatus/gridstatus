@@ -25,6 +25,7 @@ class Markets(Enum):
 
 class ISOBase:
     markets = []
+    status_homepage = None
 
     def _get_json(self, *args, **kwargs):
         r = requests.get(*args, **kwargs)
