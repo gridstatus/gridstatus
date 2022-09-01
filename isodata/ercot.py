@@ -147,7 +147,7 @@ class Ercot(ISOBase):
         return doc
 
     def get_historical_rtm_spp(self, year):
-        """Get historical rtm settlement prices by year
+        """Get Historical RTM Settlement Point Prices (SPPs) for each of the Hubs and Load Zones
 
         Arguments:
             year (int): year to get data for
