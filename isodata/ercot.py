@@ -1,6 +1,9 @@
+import io
 from bdb import set_trace
+from zipfile import ZipFile
 
 import pandas as pd
+import requests
 
 from isodata import utils
 from isodata.base import FuelMix, GridStatus, ISOBase
@@ -76,7 +79,7 @@ class Ercot(ISOBase):
         # says supports last 5 days, appears to support last two weeks
         # df = pd.read_html("https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html")
         # even more historical data. up to month back i think: https://www.ercot.com/mp/data-products/data-product-details?id=NP6-346-CD
-        # ^ confusing to figure out how to parse though. use this endpoint: https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId=14836&_=1660840704920
+        # hourly load archives: https://www.ercot.com/gridinfo/load/load_hist
         url = self.BASE + "/loadForecastVsActual.json"
         r = self._get_json(url)
         df = pd.DataFrame(r[when]["data"])
@@ -124,10 +127,13 @@ class Ercot(ISOBase):
         # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
         # there are a few days of historical date for the forecast
         today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
-        doc, publish_date = self._get_document(
+        doc_url, publish_date = self._get_document(
             report_type_id=12311,
             date=today,
+            constructed_name_contains="csv.zip",
         )
+
+        doc = pd.read_csv(doc_url, compression="zip")
 
         doc["Time"] = pd.to_datetime(
             doc["DeliveryDate"]
@@ -145,22 +151,48 @@ class Ercot(ISOBase):
 
         return doc
 
-    def _get_document(self, report_type_id, date):
+    def get_historical_rtm_spp(self, year):
+        """Get historical rtm settlement prices by year
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
+        """
+        doc_url, date = self._get_document(
+            13061,
+            constructed_name_contains=f"{year}.zip",
+            verbose=True,
+        )
+        x = get_zip_file(doc_url)
+        all_sheets = pd.read_excel(x, sheet_name=None)
+        df = pd.concat(all_sheets.values())
+        return df
+
+    def _get_document(
+        self,
+        report_type_id,
+        date=None,
+        constructed_name_contains=None,
+        verbose=False,
+    ):
         """Get document for a given report type id and date. If multiple document published return the latest"""
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
         match = []
         for d in docs:
-            if "csv" not in d["Document"]["FriendlyName"]:
-                continue
-
             doc_date = pd.Timestamp(d["Document"]["PublishDate"]).tz_convert(
                 self.default_timezone,
             )
 
             # check do we need to check if same timezone?
-            if doc_date.date() == date.date():
-                match.append((doc_date, d["Document"]["DocID"]))
+            if date and doc_date.date() != date.date():
+                continue
+
+            if (
+                constructed_name_contains
+                and constructed_name_contains not in d["Document"]["ConstructedName"]
+            ):
+                continue
+
+            match.append((doc_date, d["Document"]["DocID"]))
 
         if len(match) == 0:
             raise ValueError(
@@ -168,8 +200,8 @@ class Ercot(ISOBase):
             )
 
         doc = max(match, key=lambda x: x[0])
-        csv_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc[1]}"
-        return pd.read_csv(csv_url, compression="zip"), doc[0]
+        url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc[1]}"
+        return url, doc[0]
 
     def _handle_data(self, df, columns):
         df["Time"] = (
@@ -180,3 +212,15 @@ class Ercot(ISOBase):
 
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
+
+
+def get_zip_file(url):
+    # todo add retry logic
+    # todo does this need to be a with statement?
+    r = requests.get(url)
+    z = ZipFile(io.BytesIO(r.content))
+    return z.open(z.namelist()[0])
+
+
+if __name__ == "__main__":
+    iso = Ercot()

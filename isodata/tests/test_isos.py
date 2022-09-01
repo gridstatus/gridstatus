@@ -333,3 +333,10 @@ def test_get_historical_battery(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
     battery = iso.get_historical_battery(test_date)
     check_battery(battery)
+
+
+@pytest.mark.skip(reason="takes too long to run")
+def test_ercot_get_historical_rtm_spp():
+    rtm = Ercot().get_historical_rtm_spp(2020)
+    assert isinstance(rtm, pd.DataFrame)
+    assert len(rtm) > 0
