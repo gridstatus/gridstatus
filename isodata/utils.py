@@ -1,6 +1,8 @@
-from datetime import datetime
+import io
+from zipfile import ZipFile
 
 import pandas as pd
+import requests
 
 import isodata
 from isodata.base import ISOBase, Markets
@@ -101,3 +103,11 @@ def filter_lmp_locations(data, locations: list):
         return data
 
     return data[data["Location"].isin(locations)]
+
+
+def get_zip_file(url):
+    # todo add retry logic
+    # todo does this need to be a with statement?
+    r = requests.get(url)
+    z = ZipFile(io.BytesIO(r.content))
+    return z.open(z.namelist()[0])

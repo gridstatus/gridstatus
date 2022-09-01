@@ -1,9 +1,4 @@
-import io
-from bdb import set_trace
-from zipfile import ZipFile
-
 import pandas as pd
-import requests
 
 from isodata import utils
 from isodata.base import FuelMix, GridStatus, ISOBase
@@ -154,6 +149,9 @@ class Ercot(ISOBase):
     def get_historical_rtm_spp(self, year):
         """Get historical rtm settlement prices by year
 
+        Arguments:
+            year (int): year to get data for
+
         Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
         """
         doc_url, date = self._get_document(
@@ -161,7 +159,8 @@ class Ercot(ISOBase):
             constructed_name_contains=f"{year}.zip",
             verbose=True,
         )
-        x = get_zip_file(doc_url)
+
+        x = utils.get_zip_file(doc_url)
         all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
         return df
@@ -214,13 +213,6 @@ class Ercot(ISOBase):
         return df[cols_to_keep].rename(columns=columns)
 
 
-def get_zip_file(url):
-    # todo add retry logic
-    # todo does this need to be a with statement?
-    r = requests.get(url)
-    z = ZipFile(io.BytesIO(r.content))
-    return z.open(z.namelist()[0])
-
-
 if __name__ == "__main__":
     iso = Ercot()
+    iso.get_historical_rtm_spp(2020)
