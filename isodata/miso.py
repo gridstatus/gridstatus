@@ -171,7 +171,6 @@ class MISO(ISOBase):
             ]
         ]
 
-        # todo add a test for filtering locations
         data = utils.filter_lmp_locations(data, locations)
 
         return data

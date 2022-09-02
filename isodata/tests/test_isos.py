@@ -340,3 +340,9 @@ def test_ercot_get_historical_rtm_spp():
     rtm = Ercot().get_historical_rtm_spp(2020)
     assert isinstance(rtm, pd.DataFrame)
     assert len(rtm) > 0
+
+
+def test_miso_locations():
+    iso = MISO()
+    data = iso.get_latest_lmp(Markets.REAL_TIME_5_MIN, locations=iso.hubs)
+    assert set(data["Location"].unique()) == set(iso.hubs)
