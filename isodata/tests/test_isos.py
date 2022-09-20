@@ -32,9 +32,9 @@ def check_forecast(df):
     )
 
 
-def check_battery(df):
+def check_storage(df):
     assert set(df.columns) == set(
-        ["Time", "Battery Supply"],
+        ["Time", "Supply", "Type"],
     )
 
 
@@ -320,19 +320,19 @@ def test_get_forecast_today(iso):
     "iso",
     [CAISO()],
 )
-def test_get_battery_today(iso):
-    battery = iso.get_battery_today()
-    check_battery(battery)
+def test_get_storage_today(iso):
+    storage = iso.get_storage_today()
+    check_storage(storage)
 
 
 @pytest.mark.parametrize(
     "iso",
     [CAISO()],
 )
-def test_get_historical_battery(iso):
+def test_get_historical_storage(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
-    battery = iso.get_historical_battery(test_date)
-    check_battery(battery)
+    storage = iso.get_historical_storage(test_date)
+    check_storage(storage)
 
 
 @pytest.mark.skip(reason="takes too long to run")

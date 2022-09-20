@@ -42,12 +42,12 @@ def make_availability_df():
         "get_demand_today",
         "get_forecast_today",
         "get_supply_today",
-        "get_battery_today",
+        "get_storage_today",
         "get_historical_fuel_mix",
         "get_historical_demand",
         "get_historical_forecast",
         "get_historical_supply",
-        "get_historical_battery",
+        "get_historical_storage",
     ]
 
     availability = {}
