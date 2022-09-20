@@ -319,18 +319,18 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_battery_today(self):
-        """Return battery charging or discharging for today in 5 minute intervals
+    def get_storage_today(self):
+        """Return storage charging or discharging for today in 5 minute intervals
 
         Negative means charging, positive means discharging
 
         Arguments:
             date: date to return data
         """
-        return self._today_from_historical(self.get_historical_battery)
+        return self._today_from_historical(self.get_historical_storage)
 
-    def get_historical_battery(self, date):
-        """Return battery charging or discharging at a previous date in 5 minute intervals
+    def get_historical_storage(self, date):
+        """Return storage charging or discharging at a previous date in 5 minute intervals
 
         Negative means charging, positive means discharging
 
@@ -340,7 +340,9 @@ class CAISO(ISOBase):
         date = isodata.utils._handle_date(date)
         url = self.HISTORY_BASE + "/%s/storage.csv"
         df = _get_historical(url, date)
-        df = df.rename(columns={"Batteries": "Battery Supply"})
+
+        df = df.rename(columns={"Batteries": "Supply"})
+        df["Type"] = "Batteries"
         return df
 
 

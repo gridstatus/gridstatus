@@ -68,10 +68,10 @@ class ISOBase:
     def get_historical_supply(self, date):
         raise NotImplementedError()
 
-    def get_battery_today(self):
+    def get_storage_today(self):
         raise NotImplementedError()
 
-    def get_historical_battery(self, date):
+    def get_historical_storage(self, date):
         raise NotImplementedError()
 
     def _latest_lmp_from_today(self, market, locations):
