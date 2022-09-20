@@ -1,6 +1,7 @@
 import pandas as pd
 from pandas import Timestamp
 
+from isodata import utils
 from isodata.base import FuelMix, ISOBase, Markets
 
 
@@ -169,6 +170,8 @@ class MISO(ISOBase):
                 "Loss",
             ]
         ]
+
+        data = utils.filter_lmp_locations(data, locations)
 
         return data
 

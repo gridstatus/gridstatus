@@ -4,6 +4,7 @@
 
 - Add notes to Ercot status
 - Add `.status_homepage` url to ISOs that report a status
+- Add Ercot Historical RTM Settlement Point Prices (SPPs)
 
 ## v0.7.0 - Aug 23, 2022
 
