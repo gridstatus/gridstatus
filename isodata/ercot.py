@@ -1,3 +1,5 @@
+import pdb
+
 import pandas as pd
 
 from isodata import utils
@@ -164,6 +166,30 @@ class Ercot(ISOBase):
         all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
         return df
+
+    def get_interconnection_queue(self):
+        """Get interconnection queue for ERCOT
+
+        Monthly historical data available here: http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
+        """
+
+        report_type_id = 15933
+        doc_url, date = self._get_document(
+            report_type_id=report_type_id,
+            constructed_name_contains="GIS_Report",
+        )
+
+        # TODO other sheets for small projects, inactive, and cancelled project
+        # TODO historical data available as well
+
+        # skip rows and handle header
+        queue = pd.read_excel(
+            doc_url,
+            sheet_name="Project Details - Large Gen",
+            skiprows=30,
+        ).iloc[4:]
+
+        return queue
 
     def _get_document(
         self,

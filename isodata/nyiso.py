@@ -247,6 +247,34 @@ class NYISO(ISOBase):
 
         return df
 
+    def get_interconnection_queue(self):
+        """Return NYISO interconnection queue
+
+        Non-NYISO queue info: https://www3.dps.ny.gov/W/PSCWeb.nsf/All/286D2C179E9A5A8385257FBF003F1F7E?OpenDocument
+        """
+
+        # 3 sheets - ['Interconnection Queue', 'Withdrawn', 'In Service']
+        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"
+        all_sheets = pd.read_excel(url, sheet_name=None)
+
+        # Drop extra rows at bottom
+        queue = all_sheets["Interconnection Queue"].dropna(
+            subset=["Queue Pos.", "Project Name"],
+        )
+
+        """
+        columns: ['Queue Pos.', 'Owner/Developer', 'Project Name', 'Date of IR',
+       'SP (MW)', 'WP (MW)', 'Type/ Fuel', 'County', 'State', 'Z',
+       'Interconnection Point', 'Utility ', 'S', 'Last Update',
+       'Availability of Studies', 'FS Complete/ SGIA Tender',
+       'Proposed  In-Service', 'Proposed Initial-Sync', 'Proposed COD']
+        """
+
+        # TODO handle other 2 sheets
+        # TODO they publish past queues, but not sure what data is in them that is relevant
+
+        return queue
+
 
 """
 pricing data

@@ -346,3 +346,18 @@ def test_miso_locations():
     iso = MISO()
     data = iso.get_latest_lmp(Markets.REAL_TIME_5_MIN, locations=iso.hubs)
     assert set(data["Location"].unique()) == set(iso.hubs)
+
+
+def check_queue(queue):
+    print(queue.columns)
+    assert isinstance(queue, pd.DataFrame)
+    assert queue.shape[0] > 0
+
+
+@pytest.mark.parametrize(
+    "iso",
+    [Ercot(), NYISO(), SPP()],  # , (), ISONE(), CAISO(), PJM(), ()],
+)
+def test_get_interconnection_queue(iso):
+    queue = iso.get_interconnection_queue()
+    check_queue(queue)

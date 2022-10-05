@@ -74,6 +74,9 @@ class ISOBase:
     def get_historical_storage(self, date):
         raise NotImplementedError()
 
+    def get_interconnection_queue(self):
+        raise NotImplementedError()
+
     def _latest_lmp_from_today(self, market, locations):
         lmp_df = self.get_lmp_today(market, locations)
         # Assume sorted in ascending order

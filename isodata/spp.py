@@ -176,6 +176,24 @@ class SPP(ISOBase):
         # https://marketplace.spp.org/chart-api/gen-mix-365/asFile
         # 15mb file with five minute resolution
 
+    def get_interconnection_queue(self):
+        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
+        """
+        ['Generation Interconnection Number', 'IFS Queue Number',
+       'Current Cluster', 'Cluster Group', ' Nearest Town or County', 'State',
+       'TO at POI', 'In-Service Date', 'Commercial Operation Date',
+       'Cessation Date', 'Replacement Generator Commercial Op Date',
+       'Capacity', 'MAX Summer MW', 'MAX Winter MW', 'Service Type',
+       'Generation Type', 'Fuel Type', 'Substation or Line',
+       'Request Received', 'Status', 'Cause of Delay'],
+
+       status = ['IA FULLY EXECUTED/COMMERCIAL OPERATION',
+       'IA FULLY EXECUTED/ON SCHEDULE', 'IA FULLY EXECUTED/ON SUSPENSION',
+       'IA PENDING', 'DISIS STAGE', 'None']
+       """
+        df = pd.read_csv(url, skiprows=1)
+        return df
+
 
 # historical generation mix
 # https://marketplace.spp.org/pages/generation-mix-rolling-365
