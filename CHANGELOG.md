@@ -2,7 +2,7 @@
 
 ## vNext
 
-- Add interconnection queue to SPP, NYISO
+- Add interconnection queue to SPP, NYISO, ERCOT, ISONE, PJM, MISO
 - Add notes to Ercot status
 - Add `.status_homepage` url to ISOs that report a status
 - Add Ercot Historical RTM Settlement Point Prices (SPPs)

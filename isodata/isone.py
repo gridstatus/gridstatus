@@ -72,10 +72,17 @@ class ISONE(ISOBase):
         )
 
     def get_latest_fuel_mix(self):
+
         r = requests.post(
             "https://www.iso-ne.com/ws/wsclient",
             data={"_nstmp_requestType": "fuelmix"},
-        ).json()
+        )
+
+        # TODO generlize this across ISONE
+        if r.status_code == 503:
+            raise RuntimeError("ISONE Service Unavailable")
+
+        r = r.json()
         mix_df = pd.DataFrame(r[0]["data"]["GenFuelMixes"]["GenFuelMix"])
         time = pd.Timestamp(
             mix_df["BeginDate"].max(),
@@ -413,6 +420,16 @@ class ISONE(ISOBase):
 
         data = utils.filter_lmp_locations(data, locations)
         return data
+
+    def get_interconnection_queue(self):
+        # not sure what the reportdate value is. it is hardcode into the javascript to add and doesnt work without
+        url = "https://irtt.iso-ne.com/reports/exportpublicqueue?ReportDate=638005248000000000&Status=&Jurisdiction="
+
+        # TODO use bytesio everywhere instead of decoding
+        r = requests.get(url)
+        queue = pd.read_excel(io.BytesIO(r.content), skiprows=4)
+
+        return queue
 
 
 def _make_request(url, skiprows):

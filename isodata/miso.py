@@ -1,4 +1,7 @@
+import json
+
 import pandas as pd
+import requests
 from pandas import Timestamp
 
 from isodata import utils
@@ -174,6 +177,17 @@ class MISO(ISOBase):
         data = utils.filter_lmp_locations(data, locations)
 
         return data
+
+    def get_interconnection_queue(self):
+        url = "https://www.misoenergy.org/api/giqueue/getprojects"
+
+        json_str = requests.get(url).text
+        data = json.loads(json_str)
+        # todo there are also study documents available:  https://www.misoenergy.org/planning/generator-interconnection/GI_Queue/gi-interactive-queue/
+        # there is also a map that plots the locations of these projects:
+        queue = pd.DataFrame(data)
+
+        return queue
 
 
 """

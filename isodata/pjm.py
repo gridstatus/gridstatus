@@ -1,3 +1,5 @@
+import io
+
 import pandas as pd
 import requests
 
@@ -147,6 +149,21 @@ class PJM(ISOBase):
 
         return data
 
+    def get_interconnection_queue(self):
+        r = requests.post(
+            "https://services.pjm.com/PJMPlanningApi/api/Queue/ExportToXls",
+            headers={
+                # unclear if this key changes. obtained from https://www.pjm.com/dist/interconnectionqueues.71b76ed30033b3ff06bd.js
+                "api-subscription-key": "E29477D0-70E0-4825-89B0-43F460BF9AB4",
+                "Host": "services.pjm.com",
+                "Origin": "https://www.pjm.com",
+                "Referer": "https://www.pjm.com/",
+            },
+        )
+        queue = pd.read_excel(io.BytesIO(r.content))
+
+        return queue
+
     # todo https://dataminer2.pjm.com/feed/load_frcstd_hist/definition
     # def get_historical_forecast(self, date):
     # pass
@@ -169,18 +186,20 @@ class PJM(ISOBase):
 
 
 if __name__ == "__main__":
-    from datetime import date, timedelta
+    # from datetime import date, timedelta
 
-    iso = PJM()
+    # iso = PJM()
 
-    # 2019-11-02 is problematic. datetime parsing error
-    # so is 2020-11-01
-    start_date = date(2020, 11, 2)
-    end_date = date(2022, 9, 20)
-    delta = timedelta(days=1)
-    while start_date <= end_date:
-        print(start_date.strftime("%Y-%m-%d"))
-        start_date += delta
-        df = iso.get_historical_fuel_mix(start_date)
-        if len(df["Storage"].unique()) > 1:
-            print(df)
+    # # 2019-11-02 is problematic. datetime parsing error
+    # # so is 2020-11-01
+    # start_date = date(2020, 11, 2)
+    # end_date = date(2022, 9, 20)
+    # delta = timedelta(days=1)
+    # while start_date <= end_date:
+    #     print(start_date.strftime("%Y-%m-%d"))
+    #     start_date += delta
+    #     df = iso.get_historical_fuel_mix(start_date)
+    #     if len(df["Storage"].unique()) > 1:
+    #         print(df)
+
+    print(r)
