@@ -48,6 +48,7 @@ def make_availability_df():
         "get_historical_forecast",
         "get_historical_supply",
         "get_historical_storage",
+        "get_interconnection_queue",
     ]
 
     availability = {}
