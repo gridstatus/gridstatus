@@ -345,6 +345,13 @@ class CAISO(ISOBase):
         df["Type"] = "Batteries"
         return df
 
+    def get_interconnection_queue(self):
+        url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
+        df = pd.read_excel(url, skiprows=3)
+        # legend at bottom of sheet
+        df = df[:-8]
+        return df
+
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
