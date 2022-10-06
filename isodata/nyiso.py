@@ -15,6 +15,7 @@ class NYISO(ISOBase):
     default_timezone = "US/Eastern"
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_5_MIN]
     status_homepage = "https://www.nyiso.com/system-conditions"
+    interconnection_homepage = "https://www.nyiso.com/interconnections"
 
     def get_latest_status(self):
         latest = self._latest_from_today(self.get_status_today)

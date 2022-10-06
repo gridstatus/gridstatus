@@ -12,6 +12,9 @@ class Ercot(ISOBase):
     default_timezone = "US/Central"
 
     status_homepage = "https://www.ercot.com/gridmktinfo/dashboards/gridconditions"
+    interconnection_homepage = (
+        "http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933"
+    )
 
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
 

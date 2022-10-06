@@ -11,6 +11,10 @@ from isodata.base import FuelMix, ISOBase, Markets
 class MISO(ISOBase):
     BASE = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx"
 
+    interconnection_homepage = (
+        "https://www.misoenergy.org/planning/generator-interconnection/GI_Queue/"
+    )
+
     name = "Midcontinent ISO"
     iso_id = "miso"
     # says EST in time stamp but EDT is currently in affect. EST == CDT, so using central time for now

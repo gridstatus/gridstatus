@@ -12,6 +12,10 @@ class PJM(ISOBase):
     iso_id = "pjm"
     default_timezone = "US/Eastern"
 
+    interconnection_queue_homepage = (
+        "https://www.pjm.com/planning/services-requests/interconnection-queues.aspx"
+    )
+
     def get_latest_fuel_mix(self):
         mix = self.get_fuel_mix_today()
         latest = mix.iloc[-1]

@@ -22,6 +22,7 @@ class CAISO(ISOBase):
     default_timezone = "US/Pacific"
 
     status_homepage = "https://www.caiso.com/TodaysOutlook/Pages/default.aspx"
+    interconnection_homepage = "https://rimspub.caiso.com/rimsui/logon.do"
 
     # Markets PRC_RTPD_LMP, PRC_HASP_LMP, PRC_LMP
     markets = [

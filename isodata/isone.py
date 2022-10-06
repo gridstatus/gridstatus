@@ -17,6 +17,7 @@ class ISONE(ISOBase):
     default_timezone = "US/Eastern"
 
     status_homepage = "https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status"
+    interconnection_homepage = "https://irtt.iso-ne.com/reports/external"
 
     markets = [
         Markets.REAL_TIME_5_MIN,

@@ -14,6 +14,9 @@ class SPP(ISOBase):
     default_timezone = "US/Central"
 
     status_homepage = "https://www.spp.org/markets-operations/current-grid-conditions/"
+    interconnection_homepage = (
+        "https://www.spp.org/engineering/generator-interconnection/"
+    )
 
     def get_latest_status(self):
         url = "https://www.spp.org/markets-operations/current-grid-conditions/"
