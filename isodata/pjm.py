@@ -190,20 +190,18 @@ class PJM(ISOBase):
 
 
 if __name__ == "__main__":
-    # from datetime import date, timedelta
+    from datetime import date, timedelta
 
-    # iso = PJM()
+    iso = PJM()
 
-    # # 2019-11-02 is problematic. datetime parsing error
-    # # so is 2020-11-01
-    # start_date = date(2020, 11, 2)
-    # end_date = date(2022, 9, 20)
-    # delta = timedelta(days=1)
-    # while start_date <= end_date:
-    #     print(start_date.strftime("%Y-%m-%d"))
-    #     start_date += delta
-    #     df = iso.get_historical_fuel_mix(start_date)
-    #     if len(df["Storage"].unique()) > 1:
-    #         print(df)
-
-    print(r)
+    # 2019-11-02 is problematic. datetime parsing error
+    # so is 2020-11-01
+    start_date = date(2020, 11, 2)
+    end_date = date(2022, 9, 20)
+    delta = timedelta(days=1)
+    while start_date <= end_date:
+        print(start_date.strftime("%Y-%m-%d"))
+        start_date += delta
+        df = iso.get_historical_fuel_mix(start_date)
+        if len(df["Storage"].unique()) > 1:
+            print(df)
