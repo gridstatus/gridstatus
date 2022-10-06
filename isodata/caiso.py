@@ -348,10 +348,18 @@ class CAISO(ISOBase):
 
     def get_interconnection_queue(self):
         url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
-        df = pd.read_excel(url, skiprows=3)
-        # legend at bottom of sheet
-        df = df[:-8]
-        return df
+
+        sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
+
+        queue = pd.concat(
+            [
+                sheets["Grid GenerationQueue"][:-8],  # remove legend at the bottom
+                sheets["Completed Generation Projects"][:-2],
+                sheets["Withdrawn Generation Projects"][:-2],
+            ],
+        )
+
+        return queue
 
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
