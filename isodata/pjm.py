@@ -1,14 +1,22 @@
+from ast import Raise
+
 import pandas as pd
 import requests
 
 import isodata
-from isodata.base import FuelMix, ISOBase
+from isodata.base import FuelMix, ISOBase, Markets
 
 
 class PJM(ISOBase):
     name = "PJM"
     iso_id = "pjm"
     default_timezone = "US/Eastern"
+
+    markets = [
+        Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_HOURLY,
+        Markets.DAY_AHEAD_HOURLY,
+    ]
 
     def get_latest_fuel_mix(self):
         mix = self.get_fuel_mix_today()
@@ -151,6 +159,135 @@ class PJM(ISOBase):
     # def get_historical_forecast(self, date):
     # pass
 
+    def get_pnode_ids(self):
+        data = {
+            "startRow": 1,
+            "rowCount": 500000,
+            "fields": "effective_date,pnode_id,pnode_name,pnode_subtype,pnode_type,termination_date,voltage_level,zone",
+        }
+        r = self._get_pjm_json("pnode", params=data)
+
+        nodes = pd.DataFrame(r["items"])
+
+        # only keep most recent effective date for each id
+        # return sorted by pnode_id
+        nodes = (
+            nodes.sort_values("effective_date", ascending=False)
+            .drop_duplicates(
+                "pnode_id",
+            )
+            .sort_values("pnode_id")
+            .reset_index(drop=True)
+        )
+        return nodes
+
+    def get_latest_lmp(self, market: str, locations: list = None):
+        """Currently only supports DAY_AHEAD_HOURlY"""
+        market = Markets(market)
+        if market != Markets.DAY_AHEAD_HOURLY:
+            raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
+        return self._latest_lmp_from_today(market, locations)
+
+    def get_lmp_today(self, market: str, locations: list = None):
+        """Get lmp for today
+        Currently only supports DAY_AHEAD_HOURlY
+        """
+        # TODO try to find a different source of data for real time
+        market = Markets(market)
+        if market != Markets.DAY_AHEAD_HOURLY:
+            raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
+        return self._today_from_historical(self.get_historical_lmp, market, locations)
+
+    def get_historical_lmp(self, date, market: str, locations: list = None):
+        """Returns LMP at a previous date
+
+        Args:
+            date (str or datetime.date): date to get LMPs for
+            market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
+            locations (list, optional):  list of pnodeid to get LMPs for. Defaults to Hubs. Use get_pnode_ids() to get a list of possible pnode ids
+
+        """
+        date = date = isodata.utils._handle_date(date)
+        tomorrow = date + pd.DateOffset(1)
+
+        if locations is None:
+            locations = [
+                "51217",
+                "116013751",
+                "35010337",
+                "34497151",
+                "34497127",
+                "34497125",
+                "33092315",
+                "33092313",
+                "33092311",
+                "4669664",
+                "51288",
+                "51287",
+            ]
+
+        market = Markets(market)
+        if market == Markets.REAL_TIME_5_MIN:
+            market_endpoint = "rt_fivemin_hrl_lmps"
+            market_type = "rt"
+        elif market == Markets.REAL_TIME_HOURLY:
+            market_endpoint = "rt_hrl_lmps"
+            market_type = "rt"
+        elif market == Markets.DAY_AHEAD_HOURLY:
+            market_endpoint = "da_hrl_lmps"
+            market_type = "da"
+        else:
+            raise ValueError(
+                "market must be one of REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY",
+            )
+
+        #  TODO implement paging since row count can exceed 1000000
+        params = {
+            "datetime_beginning_ept": date.strftime("%m/%d/%Y 00:00")
+            + "to"
+            + tomorrow.strftime("%m/%d/%Y 00:00"),
+            "startRow": 1,
+            "rowCount": 1000000,
+            "fields": f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
+            "pnode_id": ";".join(map(str, locations)),
+        }
+
+        r = self._get_pjm_json(market_endpoint, params=params)
+        data = pd.DataFrame(r["items"]).rename(
+            columns={
+                "datetime_beginning_ept": "Time",
+                "pnode_id": "Location",
+                "pnode_name": "Location Name",
+                "type": "Location Type",
+                f"total_lmp_{market_type}": "LMP",
+                f"system_energy_price_{market_type}": "Energy",
+                f"congestion_price_{market_type}": "Congestion",
+                f"marginal_loss_price_{market_type}": "Loss",
+            },
+        )
+
+        data["Market"] = market.value
+
+        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        data = data[
+            [
+                "Time",
+                "Market",
+                "Location",
+                "Location Name",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
+
+        return data
+
     def _get_pjm_json(self, endpoint, params):
         r = self._get_json(
             "https://api.pjm.com/api/v1/" + endpoint,
@@ -166,3 +303,14 @@ class PJM(ISOBase):
         )
 
         return settings["subscriptionKey"]
+
+
+"""
+import isodata
+iso = isodata.PJM()
+nodes = iso.get_pnode_ids()
+zones = nodes[nodes["pnode_subtype"] == "ZONE"]
+zone_ids = zones["pnode_id"].tolist()
+iso.get_historical_lmp("Oct 1, 2022", "DAY_AHEAD_HOURLY", locations=zone_ids)
+pnode_id
+"""

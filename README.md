@@ -292,7 +292,7 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, an
 |:--------------------------------------|:-----------------------------------------------------------|
 | Midcontinent ISO                      | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
 | California ISO                        | `REAL_TIME_15_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY` |
-| PJM                                   |                                                            |
+| PJM                                   | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
 | Electric Reliability Council of Texas |                                                            |
 | Southwest Power Pool                  |                                                            |
 | New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_5_MIN`                       |
