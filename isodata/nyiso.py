@@ -204,7 +204,7 @@ class NYISO(ISOBase):
             ]
         ]
 
-        data = utils.filter_lmp_locations(df, locations)
+        df = utils.filter_lmp_locations(df, locations)
 
         return df
 
