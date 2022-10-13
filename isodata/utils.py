@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 
 import isodata
-from isodata.base import ISOBase, Markets
+from isodata.base import ISOBase, Markets, _interconnection_columns
 from isodata.caiso import CAISO
 from isodata.ercot import Ercot
 from isodata.isone import ISONE
@@ -112,3 +112,10 @@ def get_zip_file(url):
     r = requests.get(url)
     z = ZipFile(io.BytesIO(r.content))
     return z.open(z.namelist()[0])
+
+
+def format_interconnection_df(queue, rename):
+    """Format interconnection queue data"""
+    assert set(rename.keys()).issubset(queue.columns)
+    queue = queue.rename(columns=rename)
+    return queue[_interconnection_columns]

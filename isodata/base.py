@@ -23,6 +23,35 @@ class Markets(Enum):
         return True
 
 
+class InterconnectionQueueStatus(Enum):
+    """Interconnection queue types"""
+
+    ACTIVE = "Active"
+    WITHDRAWN = "Withdrawn"
+    COMPLETED = "Completed"
+
+
+_interconnection_columns = [
+    "Queue ID",
+    "Project Name",
+    "Interconnecting Entity",
+    "County",
+    "State",
+    "Interconnection Location",
+    "Transmission Owner",
+    "Generation Type",
+    "Capacity (MW)",
+    "Summer Capacity (MW)",
+    "Winter Capacity (MW)",
+    "Queue Date",
+    "Status",
+    "Proposed Completion Date",
+    "Withdrawn Date",
+    "Withdrawal Comment",
+    "Actual Completion Date",
+]
+
+
 class ISOBase:
     markets = []
     status_homepage = None

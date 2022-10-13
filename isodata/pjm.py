@@ -4,6 +4,7 @@ import pandas as pd
 import requests
 
 import isodata
+from isodata import utils
 from isodata.base import FuelMix, ISOBase
 
 
@@ -166,6 +167,35 @@ class PJM(ISOBase):
         )
         queue = pd.read_excel(io.BytesIO(r.content))
 
+        queue["Interconnecting Entity"] = None
+        queue["Interconnection Location"] = None
+        queue["Capacity (MW)"] = queue[["MFO", "MW In Service"]].min(axis=1)
+
+        rename = {
+            "Queue Number": "Queue ID",
+            "Name": "Project Name",
+            "County": "County",
+            "State": "State",
+            "Transmission Owner": "Transmission Owner",
+            "Queue Date": "Queue Date",
+            "Withdrawal Date": "Withdrawn Date",
+            "Withdrawn Remarks": "Withdrawal Comment",
+            "Status": "Status",
+            "Revised In Service Date": "Proposed Completion Date",
+            "Actual In Service Date": "Actual Completion Date",
+            "Fuel": "Generation Type",
+            "MW Capacity": "Summer Capacity (MW)",
+            "MW Energy": "Winter Capacity (MW)",
+        }
+
+        extra = ["/ MW In Service"]
+
+        queue = utils.format_interconnection_df(queue, rename)
+
+        import pdb
+
+        pdb.set_trace()
+
         return queue
 
     # todo https://dataminer2.pjm.com/feed/load_frcstd_hist/definition
@@ -190,18 +220,30 @@ class PJM(ISOBase):
 
 
 if __name__ == "__main__":
-    from datetime import date, timedelta
+    # from datetime import date, timedelta
 
-    iso = PJM()
+    # iso = PJM()
 
-    # 2019-11-02 is problematic. datetime parsing error
-    # so is 2020-11-01
-    start_date = date(2020, 11, 2)
-    end_date = date(2022, 9, 20)
-    delta = timedelta(days=1)
-    while start_date <= end_date:
-        print(start_date.strftime("%Y-%m-%d"))
-        start_date += delta
-        df = iso.get_historical_fuel_mix(start_date)
-        if len(df["Storage"].unique()) > 1:
-            print(df)
+    # # 2019-11-02 is problematic. datetime parsing error
+    # # so is 2020-11-01
+    # start_date = date(2020, 11, 2)
+    # end_date = date(2022, 9, 20)
+    # delta = timedelta(days=1)
+    # while start_date <= end_date:
+    #     print(start_date.strftime("%Y-%m-%d"))
+    #     start_date += delta
+    #     df = iso.get_historical_fuel_mix(start_date)
+    #     if len(df["Storage"].unique()) > 1:
+    #         print(df)
+
+    import isodata
+
+    for i in isodata.all_isos:
+        print("\n" + i.name + "\n")
+        for c in i().get_interconnection_queue().columns:
+            print(c.replace("\n", " "))
+
+        i().get_interconnection_queue().to_csv(
+            f"debug/queue/{i.iso_id}-queue.csv",
+            index=None,
+        )

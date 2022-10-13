@@ -4,7 +4,7 @@ from pandas.api.types import is_numeric_dtype
 
 import isodata
 from isodata import *
-from isodata.base import FuelMix, GridStatus, ISOBase
+from isodata.base import FuelMix, GridStatus, ISOBase, _interconnection_columns
 
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
@@ -349,14 +349,15 @@ def test_miso_locations():
 
 
 def check_queue(queue):
-    print(queue.columns)
+    # todo make sure datetime columns are right type
     assert isinstance(queue, pd.DataFrame)
     assert queue.shape[0] > 0
+    assert set(_interconnection_columns).issubset(queue.columns)
 
 
 @pytest.mark.parametrize(
     "iso",
-    [CAISO(), MISO(), PJM(), ISONE(), Ercot(), NYISO(), SPP()],
+    [PJM(), NYISO()],  # , CAISO(), MISO(), Ercot(), ISONE(),  SPP()],
 )
 def test_get_interconnection_queue(iso):
     queue = iso.get_interconnection_queue()

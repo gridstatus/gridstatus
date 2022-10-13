@@ -351,12 +351,15 @@ class CAISO(ISOBase):
 
         sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
 
+        # remove legend at the bottom
+        queued_projects = sheets["Grid GenerationQueue"][:-8]
+        completed_projects = sheets["Completed Generation Projects"][:-2]
+        withdrawn_projects = sheets["Withdrawn Generation Projects"][:-2].rename(
+            columns={"Project Name - Confidential": "Project Name"},
+        )
+
         queue = pd.concat(
-            [
-                sheets["Grid GenerationQueue"][:-8],  # remove legend at the bottom
-                sheets["Completed Generation Projects"][:-2],
-                sheets["Withdrawn Generation Projects"][:-2],
-            ],
+            [queued_projects, completed_projects, withdrawn_projects],
         )
 
         return queue
@@ -417,4 +420,4 @@ if __name__ == "__main__":
 
     print("asd")
     iso = isodata.CAISO()
-    iso.get_latest_status()
+    iso.get_interconnection_queue()
