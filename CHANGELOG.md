@@ -1,12 +1,12 @@
 # Changelog
 
-## vNext
+## v0.8.0 - Oct 13, 2022
 
 - PJM: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly
 - Add notes to Ercot status
 - Add `.status_homepage` url to ISOs that report a status
 - Add Ercot Historical RTM Settlement Point Prices (SPPs)
-- Refactor storage API to support not battery storage types
+- Refactor storage API to support non-battery storage types
 
 ## v0.7.0 - Aug 23, 2022
 
