@@ -167,8 +167,19 @@ class PJM(ISOBase):
         }
         r = self._get_pjm_json("pnode", params=data)
 
-        data = pd.DataFrame(r["items"])
-        return data
+        nodes = pd.DataFrame(r["items"])
+
+        # only keep most recent effective date for each id
+        # return sorted by pnode_id
+        nodes = (
+            nodes.sort_values("effective_date", ascending=False)
+            .drop_duplicates(
+                "pnode_id",
+            )
+            .sort_values("pnode_id")
+            .reset_index(drop=True)
+        )
+        return nodes
 
     def get_latest_lmp(self, market: str, locations: list = None):
         """Currently only supports DAY_AHEAD_HOURlY"""
@@ -192,8 +203,8 @@ class PJM(ISOBase):
 
         Args:
             date (str or datetime.date): date to get LMPs for
-            market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURlY
-            locations (list, optional):  list of pnodeid to get LMPs for. Defaults to Hubs. Use get_pnode_ids() to get a list of posssible pnodeids
+            market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
+            locations (list, optional):  list of pnodeid to get LMPs for. Defaults to Hubs. Use get_pnode_ids() to get a list of possible pnode ids
 
         """
         date = date = isodata.utils._handle_date(date)
@@ -231,17 +242,17 @@ class PJM(ISOBase):
             )
 
         #  TODO implement paging since row count can exceed 1000000
-        data = {
+        params = {
             "datetime_beginning_ept": date.strftime("%m/%d/%Y 00:00")
             + "to"
             + tomorrow.strftime("%m/%d/%Y 00:00"),
             "startRow": 1,
             "rowCount": 1000000,
             "fields": f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
-            "pnode_id": ";".join(locations),
+            "pnode_id": ";".join(map(str, locations)),
         }
 
-        r = self._get_pjm_json(market_endpoint, params=data)
+        r = self._get_pjm_json(market_endpoint, params=params)
         data = pd.DataFrame(r["items"]).rename(
             columns={
                 "datetime_beginning_ept": "Time",
@@ -256,6 +267,10 @@ class PJM(ISOBase):
         )
 
         data["Market"] = market.value
+
+        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(
+            self.default_timezone,
+        )
 
         data = data[
             [
@@ -272,9 +287,6 @@ class PJM(ISOBase):
         ]
 
         return data
-        import pdb
-
-        pdb.set_trace()
 
     def _get_pjm_json(self, endpoint, params):
         r = self._get_json(
@@ -291,3 +303,14 @@ class PJM(ISOBase):
         )
 
         return settings["subscriptionKey"]
+
+
+"""
+import isodata
+iso = isodata.PJM()
+nodes = iso.get_pnode_ids()
+zones = nodes[nodes["pnode_subtype"] == "ZONE"]
+zone_ids = zones["pnode_id"].tolist()
+iso.get_historical_lmp("Oct 1, 2022", "DAY_AHEAD_HOURLY", locations=zone_ids)
+pnode_id
+"""
