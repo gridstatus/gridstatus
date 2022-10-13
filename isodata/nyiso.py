@@ -151,7 +151,7 @@ class NYISO(ISOBase):
         return self._latest_lmp_from_today(market, locations)
 
     def get_lmp_today(self, market: str, locations: list = None):
-        "Get lmp for today in 5 minute intervals"
+        "Get lmp for today"
         return self._today_from_historical(self.get_historical_lmp, market, locations)
 
     def get_historical_lmp(self, date, market: str, locations: list = None):

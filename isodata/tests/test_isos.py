@@ -9,8 +9,8 @@ from isodata.base import FuelMix, GridStatus, ISOBase
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
-def check_lmp_columns(df):
-    assert set(df.columns) == set(
+def check_lmp_columns(df, market):
+    assert set(
         [
             "Time",
             "Market",
@@ -21,9 +21,9 @@ def check_lmp_columns(df):
             "Congestion",
             "Loss",
         ],
-    )
+    ).issubset(df.columns)
 
-    # todo check if market is valid enum
+    assert df["Market"].unique()[0] == market.value
 
 
 def check_forecast(df):
@@ -210,6 +210,15 @@ def test_get_historical_demand(iso):
                 "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
             },
         },
+        {
+            PJM(): {
+                "markets": [
+                    Markets.REAL_TIME_5_MIN,
+                    Markets.REAL_TIME_HOURLY,
+                    Markets.DAY_AHEAD_HOURLY,
+                ],
+            },
+        },
     ],
 )
 def test_get_historical_lmp(test):
@@ -221,7 +230,7 @@ def test_get_historical_lmp(test):
         print(iso.iso_id, m)
         hist = iso.get_historical_lmp(date_str, m)
         assert isinstance(hist, pd.DataFrame)
-        check_lmp_columns(hist)
+        check_lmp_columns(hist, m)
 
 
 @pytest.mark.parametrize(
@@ -251,6 +260,13 @@ def test_get_historical_lmp(test):
                 "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
             },
         },
+        {
+            PJM(): {
+                "markets": [
+                    Markets.DAY_AHEAD_HOURLY,
+                ],
+            },
+        },
     ],
 )
 def test_get_latest_lmp(test):
@@ -263,7 +279,7 @@ def test_get_latest_lmp(test):
         print(iso.iso_id, m)
         latest = iso.get_latest_lmp(m)
         assert isinstance(latest, pd.DataFrame)
-        check_lmp_columns(latest)
+        check_lmp_columns(latest, m)
 
 
 @pytest.mark.parametrize(
@@ -288,6 +304,13 @@ def test_get_latest_lmp(test):
                 "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
             },
         },
+        {
+            PJM(): {
+                "markets": [
+                    Markets.DAY_AHEAD_HOURLY,
+                ],
+            },
+        },
     ],
 )
 def test_get_lmp_today(test):
@@ -297,7 +320,7 @@ def test_get_lmp_today(test):
     for m in markets:
         today = iso.get_lmp_today(m)
         assert isinstance(today, pd.DataFrame)
-        check_lmp_columns(today)
+        check_lmp_columns(today, m)
 
 
 @pytest.mark.parametrize("iso", [ISONE(), CAISO(), NYISO()])
