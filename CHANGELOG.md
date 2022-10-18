@@ -1,5 +1,9 @@
 # Changelog
 
+## vNext
+
+- Add gas prices to CAISO
+
 ## v0.8.0 - Oct 13, 2022
 
 - PJM: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly

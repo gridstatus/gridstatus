@@ -345,6 +345,47 @@ class CAISO(ISOBase):
         df["Type"] = "Batteries"
         return df
 
+    def get_historical_gas_prices(self, date, fuel_region_id="ALL"):
+        """Return gas prices at a previous date
+
+        Arguments:
+            date: date to return data
+            fuel_region_id (str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
+        """
+        start = isodata.utils._handle_date(date, tz=self.default_timezone)
+
+        start = start.tz_convert("UTC")
+        end = start + pd.DateOffset(1)
+
+        start = start.strftime("%Y%m%dT%H:%M-0000")
+        end = end.strftime("%Y%m%dT%H:%M-0000")
+
+        if isinstance(fuel_region_id, list):
+            fuel_region_id = ",".join(fuel_region_id)
+
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_FUEL&version=1&FUEL_REGION_ID={fuel_region_id}&startdatetime={start}&enddatetime={end}"
+
+        df = _get_oasis(
+            url,
+            usecols=[
+                "INTERVALSTARTTIME_GMT",
+                "FUEL_REGION_ID",
+                "PRC",
+            ],
+        ).rename(
+            columns={
+                "INTERVALSTARTTIME_GMT": "Time",
+                "FUEL_REGION_ID": "Fuel Region Id",
+                "PRC": "Price",
+            },
+        )
+        df["Time"] = pd.to_datetime(
+            df["Time"],
+        ).dt.tz_convert(self.default_timezone)
+        df = df.sort_values("Time").sort_values(["Fuel Region Id", "Time"])
+
+        return df
+
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
