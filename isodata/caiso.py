@@ -382,7 +382,13 @@ class CAISO(ISOBase):
         df["Time"] = pd.to_datetime(
             df["Time"],
         ).dt.tz_convert(self.default_timezone)
-        df = df.sort_values("Time").sort_values(["Fuel Region Id", "Time"])
+        df = (
+            df.sort_values("Time")
+            .sort_values(
+                ["Fuel Region Id", "Time"],
+            )
+            .reset_index(drop=True)
+        )
 
         return df
 
