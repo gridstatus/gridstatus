@@ -270,7 +270,7 @@ class PJM(ISOBase):
 
         data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(
             self.default_timezone,
-            ambiguous='infer',
+            ambiguous="infer",
         )
 
         data = data[
