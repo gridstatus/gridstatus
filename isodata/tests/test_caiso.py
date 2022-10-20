@@ -32,3 +32,12 @@ def test_get_historical_gas_prices():
         [test_region_1, test_region_2],
     )
     assert len(df) == 24 * 2
+
+
+def test_get_historical_ghg_allowance():
+    iso = isodata.CAISO()
+    date = "Oct 15, 2022"
+    df = iso.get_historical_ghg_allowance(date)
+
+    assert len(df) == 1
+    assert set(df.columns) == {"Time", "GHG Allowance Price"}

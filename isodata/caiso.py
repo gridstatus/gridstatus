@@ -1,16 +1,15 @@
 import io
 import time
-from typing import Any
-from unicodedata import name
+from sre_parse import Verbose
 from zipfile import ZipFile
 
 import pandas as pd
 import requests
-from numpy import isin
 
 import isodata
 from isodata import utils
 from isodata.base import FuelMix, GridStatus, ISOBase, Markets
+from isodata.decorators import support_date_range
 
 
 class CAISO(ISOBase):
@@ -80,7 +79,8 @@ class CAISO(ISOBase):
         # todo should this use the latest endpoint?
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    def get_historical_fuel_mix(self, date):
+    @support_date_range(max_days_per_request=1)
+    def get_historical_fuel_mix(self, date, verbose=False):
         """
         Get historical fuel mix in 5 minute intervals for a provided day
 
@@ -91,9 +91,26 @@ class CAISO(ISOBase):
             dataframe
 
         """
-        date = isodata.utils._handle_date(date)
         url = self.HISTORY_BASE + "/%s/fuelsource.csv"
-        df = _get_historical(url, date)
+        df = _get_historical(url, date, verbose=verbose)
+
+        # rename some inconsistent columns names to standardize across dates
+        df = df.rename(
+            columns={
+                "Small hydro": "Small Hydro",
+                "Natural gas": "Natural Gas",
+                "Large hydro": "Large Hydro",
+            },
+        )
+
+        if "Small hydro" in df.columns:
+            import pdb
+
+            pdb.find_function
+
+        # when day light savings time switches, there are na rows
+        df = df.dropna()
+
         return df
 
     def get_latest_demand(self):
@@ -116,13 +133,14 @@ class CAISO(ISOBase):
         "Get demand for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_demand)
 
-    def get_historical_demand(self, date):
+    @support_date_range(max_days_per_request=1)
+    def get_historical_demand(self, date, verbose=False):
         """Return demand at a previous date in 5 minute intervals"""
-        date = isodata.utils._handle_date(date)
         url = self.HISTORY_BASE + "/%s/demand.csv"
-        df = _get_historical(url, date)[["Time", "Current demand"]]
+        df = _get_historical(url, date, verbose=Verbose)[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Demand"})
         df = df.dropna(subset=["Demand"])
+
         return df
 
     def get_latest_supply(self):
@@ -145,19 +163,15 @@ class CAISO(ISOBase):
         d = self._today_from_historical(self.get_historical_forecast)
         return d
 
-    def get_historical_forecast(self, date, sleep=5):
+    @support_date_range(max_days_per_request=31)
+    def get_historical_forecast(self, date, end=None, sleep=5, verbose=False):
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
             date(datetime, pd.Timestamp, or str): day to return. if string, format should be YYYYMMDD e.g 20200623
             sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds."""
-        start = isodata.utils._handle_date(date, tz=self.default_timezone)
+        start, end = _caiso_handle_start_end(date, end)
 
-        start = start.tz_convert("UTC")
-        end = start + pd.DateOffset(1)
-
-        start = start.strftime("%Y%m%dT%H:%M-0000")
-        end = end.strftime("%Y%m%dT%H:%M-0000")
         url = (
             "http://oasis.caiso.com/oasisapi/SingleZip?"
             + "resultformat=6&queryname=SLD_FCST&version=1&market_run_id=DAM"
@@ -204,12 +218,15 @@ class CAISO(ISOBase):
         "Get lmp for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_lmp, market, locations)
 
+    @support_date_range(max_days_per_request=31)
     def get_historical_lmp(
         self,
         date,
         market: str,
         locations: list = None,
         sleep: int = 5,
+        end=None,
+        verbose=False,
     ):
         """Get day ahead LMP pricing starting at supplied date for a list of locations.
 
@@ -230,13 +247,7 @@ class CAISO(ISOBase):
             locations = self.trading_hub_locations
 
         # todo make sure defaults to local timezone
-        start = isodata.utils._handle_date(date, tz=self.default_timezone)
-
-        start = start.tz_convert("UTC")
-        end = start + pd.DateOffset(1)
-
-        start = start.strftime("%Y%m%dT%H:%M-0000")
-        end = end.strftime("%Y%m%dT%H:%M-0000")
+        start, end = _caiso_handle_start_end(date, end)
 
         market = Markets(market)
         if market == Markets.DAY_AHEAD_HOURLY:
@@ -268,6 +279,7 @@ class CAISO(ISOBase):
                 "LMP_TYPE",
                 PRICE_COL,
             ],
+            verbose=verbose,
         )
 
         df = df.pivot_table(
@@ -329,7 +341,8 @@ class CAISO(ISOBase):
         """
         return self._today_from_historical(self.get_historical_storage)
 
-    def get_historical_storage(self, date):
+    @support_date_range(max_days_per_request=1)
+    def get_historical_storage(self, date, verbose=False):
         """Return storage charging or discharging at a previous date in 5 minute intervals
 
         Negative means charging, positive means discharging
@@ -337,28 +350,30 @@ class CAISO(ISOBase):
         Arguments:
             date: date to return data
         """
-        date = isodata.utils._handle_date(date)
         url = self.HISTORY_BASE + "/%s/storage.csv"
-        df = _get_historical(url, date)
-
+        df = _get_historical(url, date, verbose=verbose)
         df = df.rename(columns={"Batteries": "Supply"})
         df["Type"] = "Batteries"
         return df
 
-    def get_historical_gas_prices(self, date, fuel_region_id="ALL"):
+    @support_date_range(max_days_per_request=31)
+    def get_historical_gas_prices(
+        self,
+        date,
+        end=None,
+        fuel_region_id="ALL",
+        sleep=5,
+        verbose=True,
+    ):
         """Return gas prices at a previous date
 
         Arguments:
             date: date to return data
+            end: last date of range to return data. if None, returns only date. Defaults to None.
             fuel_region_id (str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
         """
-        start = isodata.utils._handle_date(date, tz=self.default_timezone)
 
-        start = start.tz_convert("UTC")
-        end = start + pd.DateOffset(1)
-
-        start = start.strftime("%Y%m%dT%H:%M-0000")
-        end = end.strftime("%Y%m%dT%H:%M-0000")
+        start, end = _caiso_handle_start_end(date, end)
 
         if isinstance(fuel_region_id, list):
             fuel_region_id = ",".join(fuel_region_id)
@@ -372,6 +387,7 @@ class CAISO(ISOBase):
                 "FUEL_REGION_ID",
                 "PRC",
             ],
+            verbose=verbose,
         ).rename(
             columns={
                 "INTERVALSTARTTIME_GMT": "Time",
@@ -382,8 +398,54 @@ class CAISO(ISOBase):
         df["Time"] = pd.to_datetime(
             df["Time"],
         ).dt.tz_convert(self.default_timezone)
-        df = df.sort_values("Time").sort_values(["Fuel Region Id", "Time"])
+        df = (
+            df.sort_values("Time")
+            .sort_values(
+                ["Fuel Region Id", "Time"],
+            )
+            .reset_index(drop=True)
+        )
+        time.sleep(sleep)
+        return df
 
+    @support_date_range(max_days_per_request=31)
+    def get_historical_ghg_allowance(
+        self,
+        date,
+        end=None,
+        sleep=5,
+        verbose=True,
+    ):
+        """Return ghg allowance at a previous date
+
+        Arguments:
+            date: date to return data
+            end: last date of range to return data. if None, returns only date. Defaults to None.
+        """
+
+        start, end = _caiso_handle_start_end(date, end)
+
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_GHG_ALLOWANCE&version=1&startdatetime={start}&enddatetime={end}"
+
+        df = _get_oasis(
+            url,
+            usecols=[
+                "INTERVALSTARTTIME_GMT",
+                "GHG_PRC_IDX",
+            ],
+            verbose=verbose,
+        ).rename(
+            columns={
+                "INTERVALSTARTTIME_GMT": "Time",
+                "GHG_PRC_IDX": "GHG Allowance Price",
+            },
+        )
+
+        df["Time"] = pd.to_datetime(
+            df["Time"],
+        ).dt.tz_convert(self.default_timezone)
+
+        time.sleep(sleep)
         return df
 
 
@@ -399,11 +461,14 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
     )
 
 
-def _get_historical(url, date):
+def _get_historical(url, date, verbose=False):
     date_str = date.strftime("%Y%m%d")
     date_obj = date
     url = url % date_str
     df = pd.read_csv(url)
+
+    if verbose:
+        print("Fetching URL: ", url)
 
     df["Time"] = df["Time"].apply(
         _make_timestamp,
@@ -411,10 +476,18 @@ def _get_historical(url, date):
         timezone="US/Pacific",
     )
 
+    # sometimes returns midnight, which is technically the next day
+    # to be careful, let's check if that is the case before dropping
+    if df.iloc[-1]["Time"].hour == 0:
+        df = df.iloc[:-1]
+
     return df
 
 
-def _get_oasis(url, usecols=None):
+def _get_oasis(url, usecols=None, verbose=False):
+    if verbose:
+        print(url)
+
     retry_num = 0
     while retry_num < 3:
         r = requests.get(url)
@@ -437,9 +510,28 @@ def _get_oasis(url, usecols=None):
     return df
 
 
+def _caiso_handle_start_end(date, end):
+    start = date.tz_convert("UTC")
+
+    if end:
+        end = end
+        end = end.tz_convert("UTC")
+    else:
+        end = start + pd.DateOffset(1)
+
+    start = start.strftime("%Y%m%dT%H:%M-0000")
+    end = end.strftime("%Y%m%dT%H:%M-0000")
+
+    return start, end
+
+
 if __name__ == "__main__":
     import isodata
 
     print("asd")
     iso = isodata.CAISO()
-    iso.get_latest_status()
+    df = iso.get_historical_lmp(
+        "feb 1, 2020",
+        "DAY_AHEAD_HOURLY",
+        locations=["TH_NP15_GEN-APND"],
+    )

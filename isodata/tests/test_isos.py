@@ -358,14 +358,31 @@ def test_get_historical_storage(iso):
     check_storage(storage)
 
 
-@pytest.mark.skip(reason="takes too long to run")
-def test_ercot_get_historical_rtm_spp():
-    rtm = Ercot().get_historical_rtm_spp(2020)
-    assert isinstance(rtm, pd.DataFrame)
-    assert len(rtm) > 0
+@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
+def test_get_historical_with_date_range(iso):
+    # range not inclusive, add one to include today
+    end = pd.Timestamp.now() + pd.Timedelta(days=1)
+    num_days = 7
+    start = end - pd.Timedelta(days=num_days)
+
+    data = iso.get_historical_fuel_mix(date=start.date(), end=end.date())
+    # make sure right number of days are returned
+    assert data["Time"].dt.day.nunique() == num_days
 
 
-def test_miso_locations():
-    iso = MISO()
-    data = iso.get_latest_lmp(Markets.REAL_TIME_5_MIN, locations=iso.hubs)
-    assert set(data["Location"].unique()) == set(iso.hubs)
+@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
+def test_date_or_start(iso):
+    end = pd.Timestamp.now() + pd.Timedelta(days=1)
+    num_days = 2
+    start = end - pd.Timedelta(days=num_days)
+
+    data_date = iso.get_historical_fuel_mix(date=start.date(), end=end.date())
+    data_start = iso.get_historical_fuel_mix(
+        start=start.date(),
+        end=end.date(),
+    )
+    data_date = iso.get_historical_fuel_mix(date=start.date())
+    data_start = iso.get_historical_fuel_mix(start=start.date())
+
+    with pytest.raises(ValueError):
+        iso.get_historical_fuel_mix(start=start.date(), date=start.date())
