@@ -39,6 +39,7 @@ class support_date_range:
 
             # use .date() to remove timezone info, which doesnt matter if just a date
 
+            # if using python 3.7, there will be an older version of pandas installed that must used closed
             try:
                 dates = pd.date_range(
                     args_dict["date"].date(),
