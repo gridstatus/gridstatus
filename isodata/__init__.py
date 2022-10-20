@@ -3,6 +3,7 @@ from isodata.version import __version__
 from isodata.utils import list_isos, get_iso, make_availability_table
 from isodata import tests
 import isodata.base
+import isodata.decorators
 
 from isodata.base import Markets
 
