@@ -39,19 +39,19 @@ class support_date_range:
 
             # use .date() to remove timezone info, which doesnt matter if just a date
 
-            if sys.version_info <= (3, 7):
-                dates = pd.date_range(
-                    args_dict["date"].date(),
-                    args_dict["end"].date(),
-                    freq=f"{self.max_days_per_request}D",
-                    closed="left",
-                )
-            else:
+            try:
                 dates = pd.date_range(
                     args_dict["date"].date(),
                     args_dict["end"].date(),
                     freq=f"{self.max_days_per_request}D",
                     inclusive="left",
+                )
+            except TypeError:
+                dates = pd.date_range(
+                    args_dict["date"].date(),
+                    args_dict["end"].date(),
+                    freq=f"{self.max_days_per_request}D",
+                    closed="left",
                 )
 
             # add end date since it's not included
