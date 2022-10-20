@@ -30,36 +30,45 @@ class PJM(ISOBase):
         "Get fuel mix for today in hourly intervals"
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    @support_date_range(max_days_per_request=1)
-    def get_historical_fuel_mix(self, date):
-        date = date = isodata.utils._handle_date(date)
-        tomorrow = date + pd.DateOffset(1)
+    @support_date_range(max_days_per_request=365)
+    def get_historical_fuel_mix(self, date, end=None):
+        # earliest date available appears to be 1/1/2016
+        date = isodata.utils._handle_date(date)
+
+        if end:
+            end = isodata.utils._handle_date(end)
+        else:
+            end = pd.Timestamp(
+                year=date.year,
+                month=date.month,
+                day=date.day + 1,
+            )
 
         data = {
             "datetime_beginning_ept": date.strftime("%m/%d/%Y 00:00")
             + "to"
-            + tomorrow.strftime("%m/%d/%Y 00:00"),
-            "fields": "datetime_beginning_ept,fuel_type,is_renewable,mw",
-            "rowCount": 1000,
+            + end.strftime("%m/%d/%Y 00:00"),
+            "fields": "datetime_beginning_utc,fuel_type,is_renewable,mw",
+            "rowCount": 500000,
             "startRow": 1,
         }
 
-        r = self._get_pjm_json("gen_by_fuel", params=data)
-
-        mix_df = pd.DataFrame(r["items"])
+        mix_df = self._get_pjm_json("gen_by_fuel", params=data)
 
         mix_df = mix_df.pivot_table(
-            index="datetime_beginning_ept",
+            index="Time",
             columns="fuel_type",
             values="mw",
             aggfunc="first",
         ).reset_index()
 
-        mix_df["datetime_beginning_ept"] = pd.to_datetime(
-            mix_df["datetime_beginning_ept"],
-        ).dt.tz_localize(self.default_timezone)
-
-        mix_df = mix_df.rename(columns={"datetime_beginning_ept": "Time"})
+        # PJM API is inclusive of end, so we need to drop where last day is included
+        mix_df = mix_df[
+            mix_df["Time"].dt.strftime(
+                "%Y-%m-%d",
+            )
+            != end.strftime("%Y-%m-%d")
+        ]
 
         return mix_df
 
@@ -309,7 +318,23 @@ class PJM(ISOBase):
         if "errors" in r:
             raise RuntimeError(r["errors"])
 
-        return r
+        if r["totalRows"] == 0:
+            raise ValueError("No data found for query")
+
+        df = pd.DataFrame(r["items"])
+
+        df["Time"] = (
+            pd.to_datetime(df["datetime_beginning_utc"])
+            .dt.tz_localize(
+                "UTC",
+            )
+            .dt.tz_convert(self.default_timezone)
+        )
+
+        # drop datetime_beginning_utc
+        df = df.drop(columns=["datetime_beginning_utc"])
+
+        return df
 
     def _get_key(self):
         settings = self._get_json(
@@ -328,3 +353,13 @@ zone_ids = zones["pnode_id"].tolist()
 iso.get_historical_lmp("Oct 1, 2022", "DAY_AHEAD_HOURLY", locations=zone_ids)
 pnode_id
 """
+
+
+if __name__ == "__main__":
+
+    import isodata
+
+    iso = isodata.PJM()
+
+    # df = iso.get_historical_fuel_mix(start="1/1/2016", end="10/16/2022")
+    df = iso.get_historical_fuel_mix(start="11/6/2016")
