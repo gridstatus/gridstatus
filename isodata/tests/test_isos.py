@@ -356,16 +356,3 @@ def test_get_historical_storage(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
     storage = iso.get_historical_storage(test_date)
     check_storage(storage)
-
-
-@pytest.mark.skip(reason="takes too long to run")
-def test_ercot_get_historical_rtm_spp():
-    rtm = Ercot().get_historical_rtm_spp(2020)
-    assert isinstance(rtm, pd.DataFrame)
-    assert len(rtm) > 0
-
-
-def test_miso_locations():
-    iso = MISO()
-    data = iso.get_latest_lmp(Markets.REAL_TIME_5_MIN, locations=iso.hubs)
-    assert set(data["Location"].unique()) == set(iso.hubs)
