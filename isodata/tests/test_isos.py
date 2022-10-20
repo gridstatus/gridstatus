@@ -356,3 +356,15 @@ def test_get_historical_storage(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
     storage = iso.get_historical_storage(test_date)
     check_storage(storage)
+
+
+@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
+def test_get_historical_with_date_range(iso):
+    # range not inclusive, add one to include today
+    end = pd.Timestamp.now() + pd.Timedelta(days=1)
+    num_days = 7
+    start = end - pd.Timedelta(days=num_days)
+
+    data = iso.get_historical_fuel_mix(date=start.date(), end=end.date())
+    # make sure right number of days are returned
+    assert data["Time"].dt.day.nunique() == num_days

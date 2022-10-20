@@ -1,5 +1,6 @@
 import functools
 
+import pandas as pd
 import tqdm
 
 import isodata
