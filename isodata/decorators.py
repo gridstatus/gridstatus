@@ -1,4 +1,5 @@
 import functools
+import sys
 
 import pandas as pd
 import tqdm
@@ -37,12 +38,21 @@ class support_date_range:
                 )
 
             # use .date() to remove timezone info, which doesnt matter if just a date
-            dates = pd.date_range(
-                args_dict["date"].date(),
-                args_dict["end"].date(),
-                freq=f"{self.max_days_per_request}D",
-                inclusive="left",
-            )
+
+            if sys.version_info <= (3, 7):
+                dates = pd.date_range(
+                    args_dict["date"].date(),
+                    args_dict["end"].date(),
+                    freq=f"{self.max_days_per_request}D",
+                    closed="left",
+                )
+            else:
+                dates = pd.date_range(
+                    args_dict["date"].date(),
+                    args_dict["end"].date(),
+                    freq=f"{self.max_days_per_request}D",
+                    inclusive="left",
+                )
 
             # add end date since it's not included
             dates = dates.tolist() + [args_dict["end"]]
