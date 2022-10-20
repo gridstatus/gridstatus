@@ -1,4 +1,5 @@
 import isodata
+from isodata.base import Markets
 
 
 def test_miso_locations():

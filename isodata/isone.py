@@ -50,16 +50,16 @@ class ISONE(ISOBase):
 
         # historical data available
         # https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status/power-system-status-list
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient",
+        data = _make_wsclient_request(
+            url="https://www.iso-ne.com/ws/wsclient",
             data={
                 "_nstmp_requestType": "systemconditions",
                 "_nstmp_requestUrl": "/powersystemconditions/current",
             },
-        ).json()
+        )
 
         # looks like it could return multiple entries
-        condition = r[0]["data"]["PowerSystemConditions"]["PowerSystemCondition"][0]
+        condition = data[0]["data"]["PowerSystemConditions"]["PowerSystemCondition"][0]
         status = condition["SystemCondition"]
         note = condition["ActionDescription"]
         time = pd.Timestamp.now(tz=self.default_timezone).floor(freq="s")
@@ -73,11 +73,11 @@ class ISONE(ISOBase):
         )
 
     def get_latest_fuel_mix(self):
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient",
+        data = _make_wsclient_request(
+            url="https://www.iso-ne.com/ws/wsclient",
             data={"_nstmp_requestType": "fuelmix"},
-        ).json()
-        mix_df = pd.DataFrame(r[0]["data"]["GenFuelMixes"]["GenFuelMix"])
+        )
+        mix_df = pd.DataFrame(data[0]["data"]["GenFuelMixes"]["GenFuelMix"])
         time = pd.Timestamp(
             mix_df["BeginDate"].max(),
             tz=self.default_timezone,
@@ -184,12 +184,12 @@ class ISONE(ISOBase):
             "_nstmp_inclBtmPv": True,
         }
 
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient",
+        data = _make_wsclient_request(
+            url="https://www.iso-ne.com/ws/wsclient",
             data=data,
-        ).json()
+        )
 
-        data = pd.DataFrame(r[0]["data"]["forecast"])
+        data = pd.DataFrame(data[0]["data"]["forecast"])
 
         data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
             self.default_timezone,
@@ -438,6 +438,13 @@ def _make_request(url, skiprows):
             print("Attempt {} failed. Retrying...".format(attempt + 1))
             attempt += 1
 
+        if r2.status_code != 200:
+            raise RuntimeError(
+                "Failed to get data from {}. Check if ISONE is down and try again later".format(
+                    url,
+                ),
+            )
+
         df = pd.read_csv(
             io.StringIO(r2.content.decode("utf8")),
             skiprows=skiprows,
@@ -445,3 +452,23 @@ def _make_request(url, skiprows):
             engine="python",
         )
         return df
+
+
+def _make_wsclient_request(url, data, verbose=False):
+    """Make request to ISO NE wsclient"""
+    if verbose:
+        print("Requesting data from {}".format(url))
+
+    r = requests.post(
+        "https://www.iso-ne.com/ws/wsclient",
+        data=data,
+    )
+
+    if r.status_code != 200:
+        raise RuntimeError(
+            "Failed to get data from {}. Check if ISONE is down and try again later".format(
+                url,
+            ),
+        )
+
+    return r.json()
