@@ -253,12 +253,7 @@ class CAISO(ISOBase):
         Arguments:
             date(datetime, pd.Timestamp, or str): day to return. if string, format should be YYYYMMDD e.g 20200623
             sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds."""
-        start = date.tz_convert("UTC")
-        if end:
-            end = end
-            end = end.tz_convert("UTC")
-        else:
-            end = start + pd.DateOffset(1)
+        start, end = _caiso_handle_start_end(date, end)
 
         url = (
             "http://oasis.caiso.com/oasisapi/SingleZip?"
@@ -335,16 +330,7 @@ class CAISO(ISOBase):
             locations = self.trading_hub_locations
 
         # todo make sure defaults to local timezone
-        start = date.tz_convert("UTC")
-
-        if end:
-            end = end
-            end = end.tz_convert("UTC")
-        else:
-            end = start + pd.DateOffset(1)
-
-        start = start.strftime("%Y%m%dT%H:%M-0000")
-        end = end.strftime("%Y%m%dT%H:%M-0000")
+        start, end = _caiso_handle_start_end(date, end)
 
         market = Markets(market)
         if market == Markets.DAY_AHEAD_HOURLY:
@@ -469,16 +455,8 @@ class CAISO(ISOBase):
             end: last date of range to return data. if None, returns only date. Defaults to None.
             fuel_region_id (str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
         """
-        start = date.tz_convert("UTC")
 
-        if end:
-            end = end
-            end = end.tz_convert("UTC")
-        else:
-            end = start + pd.DateOffset(1)
-
-        start = start.strftime("%Y%m%dT%H:%M-0000")
-        end = end.strftime("%Y%m%dT%H:%M-0000")
+        start, end = _caiso_handle_start_end(date, end)
 
         if isinstance(fuel_region_id, list):
             fuel_region_id = ",".join(fuel_region_id)
@@ -510,6 +488,46 @@ class CAISO(ISOBase):
             )
             .reset_index(drop=True)
         )
+        time.sleep(sleep)
+        return df
+
+    @support_date_range(max_days_per_request=31)
+    def get_historical_ghg_allowance(
+        self,
+        date,
+        end=None,
+        sleep=5,
+        verbose=True,
+    ):
+        """Return ghg allowance at a previous date
+
+        Arguments:
+            date: date to return data
+            end: last date of range to return data. if None, returns only date. Defaults to None.
+        """
+
+        start, end = _caiso_handle_start_end(date, end)
+
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_GHG_ALLOWANCE&version=1&startdatetime={start}&enddatetime={end}"
+
+        df = _get_oasis(
+            url,
+            usecols=[
+                "INTERVALSTARTTIME_GMT",
+                "GHG_PRC_IDX",
+            ],
+            verbose=verbose,
+        ).rename(
+            columns={
+                "INTERVALSTARTTIME_GMT": "Time",
+                "GHG_PRC_IDX": "GHG Allowance Price",
+            },
+        )
+
+        df["Time"] = pd.to_datetime(
+            df["Time"],
+        ).dt.tz_convert(self.default_timezone)
+
         time.sleep(sleep)
         return df
 
@@ -573,6 +591,21 @@ def _get_oasis(url, usecols=None, verbose=False):
     )
 
     return df
+
+
+def _caiso_handle_start_end(date, end):
+    start = date.tz_convert("UTC")
+
+    if end:
+        end = end
+        end = end.tz_convert("UTC")
+    else:
+        end = start + pd.DateOffset(1)
+
+    start = start.strftime("%Y%m%dT%H:%M-0000")
+    end = end.strftime("%Y%m%dT%H:%M-0000")
+
+    return start, end
 
 
 if __name__ == "__main__":

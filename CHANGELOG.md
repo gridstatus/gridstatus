@@ -3,6 +3,7 @@
 ## vNext
 
 - Add gas prices to CAISO
+- Add GHG allowance price to CAISO
 
 ## v0.8.0 - Oct 13, 2022
 
