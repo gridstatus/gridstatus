@@ -7,6 +7,7 @@ import requests
 import isodata
 from isodata import utils
 from isodata.base import FuelMix, GridStatus, ISOBase, Markets
+from isodata.decorators import support_date_range
 
 
 class NYISO(ISOBase):
@@ -33,6 +34,7 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_status)
         return d
 
+    @support_date_range(max_days_per_request=1)
     def get_historical_status(self, date):
         """Get status event for a date"""
         status_df = self._download_nyiso_archive(date, "RealTimeEvents")
@@ -78,6 +80,7 @@ class NYISO(ISOBase):
         "Get fuel mix for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_fuel_mix)
 
+    @support_date_range(max_days_per_request=1)
     def get_historical_fuel_mix(self, date):
         mix_df = self._download_nyiso_archive(date, "rtfuelmix")
         mix_df = mix_df.pivot_table(
@@ -97,6 +100,7 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_demand)
         return d
 
+    @support_date_range(max_days_per_request=1)
     def get_historical_demand(self, date):
         """Returns demand at a previous date in 5 minute intervals"""
         data = self._download_nyiso_archive(date, "pal")
@@ -133,6 +137,7 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_forecast)
         return d
 
+    @support_date_range(max_days_per_request=1)
     def get_historical_forecast(self, date):
         """Get load forecast for a previous date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
@@ -154,6 +159,7 @@ class NYISO(ISOBase):
         "Get lmp for today"
         return self._today_from_historical(self.get_historical_lmp, market, locations)
 
+    @support_date_range(max_days_per_request=1)
     def get_historical_lmp(self, date, market: str, locations: list = None):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN

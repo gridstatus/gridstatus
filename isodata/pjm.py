@@ -5,6 +5,7 @@ import requests
 
 import isodata
 from isodata.base import FuelMix, ISOBase, Markets
+from isodata.decorators import support_date_range
 
 
 class PJM(ISOBase):
@@ -29,6 +30,7 @@ class PJM(ISOBase):
         "Get fuel mix for today in hourly intervals"
         return self._today_from_historical(self.get_historical_fuel_mix)
 
+    @support_date_range(max_days_per_request=1)
     def get_historical_fuel_mix(self, date):
         date = date = isodata.utils._handle_date(date)
         tomorrow = date + pd.DateOffset(1)
@@ -79,6 +81,7 @@ class PJM(ISOBase):
         "Get demand for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_demand)
 
+    @support_date_range(max_days_per_request=1)
     def get_historical_demand(self, date):
         """Returns demand at a previous date at 5 minute intervals
 
@@ -198,6 +201,7 @@ class PJM(ISOBase):
             raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
         return self._today_from_historical(self.get_historical_lmp, market, locations)
 
+    @support_date_range(max_days_per_request=1)
     def get_historical_lmp(
         self,
         date,
