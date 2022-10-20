@@ -198,13 +198,19 @@ class PJM(ISOBase):
             raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
         return self._today_from_historical(self.get_historical_lmp, market, locations)
 
-    def get_historical_lmp(self, date, market: str, locations: list = None):
+    def get_historical_lmp(
+        self,
+        date,
+        market: str,
+        locations: list = None,
+        verbose=True,
+    ):
         """Returns LMP at a previous date
 
         Args:
             date (str or datetime.date): date to get LMPs for
             market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
-            locations (list, optional):  list of pnodeid to get LMPs for. Defaults to Hubs. Use get_pnode_ids() to get a list of possible pnode ids
+            locations (list, optional):  list of pnodeid to get LMPs for. Defaults to Hubs. Use get_pnode_ids() to get a list of possible pnode ids.
 
         """
         date = date = isodata.utils._handle_date(date)
@@ -252,7 +258,8 @@ class PJM(ISOBase):
             "pnode_id": ";".join(map(str, locations)),
         }
 
-        r = self._get_pjm_json(market_endpoint, params=params)
+        r = self._get_pjm_json(market_endpoint, params=params, verbose=verbose)
+
         data = pd.DataFrame(r["items"]).rename(
             columns={
                 "datetime_beginning_ept": "Time",
@@ -288,12 +295,15 @@ class PJM(ISOBase):
 
         return data
 
-    def _get_pjm_json(self, endpoint, params):
+    def _get_pjm_json(self, endpoint, params, verbose=False):
         r = self._get_json(
             "https://api.pjm.com/api/v1/" + endpoint,
             params=params,
             headers={"Ocp-Apim-Subscription-Key": self._get_key()},
         )
+
+        if "errors" in r:
+            raise RuntimeError(r["errors"])
 
         return r
 
