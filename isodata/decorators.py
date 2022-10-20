@@ -23,6 +23,24 @@ class support_date_range:
         def wrapped_f(*args, **kwargs):
             args_dict = _get_args_dict(f, args, kwargs)
 
+            if "date" in args_dict and "start" in args_dict:
+                raise ValueError(
+                    "Cannot supply both 'date' and 'start' to function {}".format(
+                        f,
+                    ),
+                )
+
+            if "date" not in args_dict and "start" not in args_dict:
+                raise ValueError(
+                    "Must supply either 'date' or 'start' to function {}".format(
+                        f,
+                    ),
+                )
+
+            if "start" in args_dict:
+                args_dict["date"] = args_dict["start"]
+                del args_dict["start"]
+
             args_dict["date"] = isodata.utils._handle_date(
                 args_dict["date"],
                 args_dict["self"].default_timezone,

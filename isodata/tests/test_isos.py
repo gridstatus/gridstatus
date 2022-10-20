@@ -368,3 +368,21 @@ def test_get_historical_with_date_range(iso):
     data = iso.get_historical_fuel_mix(date=start.date(), end=end.date())
     # make sure right number of days are returned
     assert data["Time"].dt.day.nunique() == num_days
+
+
+@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
+def test_date_or_start(iso):
+    end = pd.Timestamp.now() + pd.Timedelta(days=1)
+    num_days = 2
+    start = end - pd.Timedelta(days=num_days)
+
+    data_date = iso.get_historical_fuel_mix(date=start.date(), end=end.date())
+    data_start = iso.get_historical_fuel_mix(
+        start=start.date(),
+        end=end.date(),
+    )
+    data_date = iso.get_historical_fuel_mix(date=start.date())
+    data_start = iso.get_historical_fuel_mix(start=start.date())
+
+    with pytest.raises(ValueError):
+        iso.get_historical_fuel_mix(start=start.date(), date=start.date())
