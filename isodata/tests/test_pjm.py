@@ -7,17 +7,16 @@ import isodata
 from isodata.base import Markets
 from isodata.tests.test_isos import check_lmp_columns
 
+# def test_pjm_handle_error():
+#     iso = isodata.PJM()
 
-def test_pjm_handle_error():
-    iso = isodata.PJM()
-
-    # TODO this should stop raising erros in the future when archived data is supported
-    with pytest.raises(RuntimeError):
-        iso.get_historical_lmp(
-            date="4/15/2022",
-            market="REAL_TIME_5_MIN",
-            locations=None,
-        )
+#     # TODO this should stop raising erros in the future when archived data is supported
+#     with pytest.raises(RuntimeError):
+#         iso.get_historical_lmp(
+#             date="4/15/2022",
+#             market="REAL_TIME_5_MIN",
+#             locations=None,
+#         )
 
 
 def test_pjm_pnode():
