@@ -181,6 +181,7 @@ class PJM(ISOBase):
     def get_pnode_ids(self):
         data = {
             "fields": "effective_date,pnode_id,pnode_name,pnode_subtype,pnode_type,termination_date,voltage_level,zone",
+            "termination_date": "12/31/9999exact",
         }
         nodes = self._get_pjm_json("pnode", start=None, params=data)
 
@@ -260,7 +261,7 @@ class PJM(ISOBase):
              end (str or datetime.date): end date to get LMPs for
              market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
              locations (list, optional):  list of pnodeid to get LMPs for. Defaults to "hubs". Use get_pnode_ids() to get a list of possible pnode ids.
-                 If "all", will return data from all p nodes (warning there are 18,803 unique, so expect millions or billions of rows!)
+                 If "all", will return data from all p nodes (warning there are over 10,000 unique pnodes, so expect millions or billions of rows!)
              location_type (str, optional):  If specified, will only return data for nodes of this type. Defaults to None. Possible location types are: 'ZONE', 'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
         'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
 
@@ -310,8 +311,8 @@ class PJM(ISOBase):
                 f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
             )
 
-            if locations:
-                params["pnode_id"] = (";".join(map(str, locations)),)
+            if locations and locations != "ALL":
+                params["pnode_id"] = ";".join(map(str, locations))
 
         elif locations is not None:
             warnings.warn(
@@ -358,7 +359,7 @@ class PJM(ISOBase):
         if location_type and market == Markets.REAL_TIME_5_MIN:
             data = data[data["Location Type"] == location_type]
 
-        if locations is not None:
+        if locations is not None and locations != "ALL":
             data = isodata.utils.filter_lmp_locations(
                 data,
                 map(int, locations),
@@ -421,7 +422,7 @@ class PJM(ISOBase):
         num_pages = math.ceil(r["totalRows"] / row_count)
         if num_pages > 1:
             to_add = [df]
-            for page in tqdm.tqdm(range(1, num_pages)):
+            for page in tqdm.tqdm(range(1, num_pages), initial=1, total=num_pages):
                 next_url = [x for x in r["links"] if x["rel"] == "next"][0]["href"]
                 r = self._get_json(
                     next_url,

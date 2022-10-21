@@ -1,3 +1,5 @@
+from ftplib import ftpcp
+
 import pandas as pd
 import pytest
 
@@ -6,16 +8,16 @@ from isodata.base import Markets
 from isodata.decorators import _get_pjm_archive_date
 from isodata.tests.test_isos import check_lmp_columns
 
-# def test_pjm_handle_error():
-#     iso = isodata.PJM()
 
-#     # TODO this should stop raising erros in the future when archived data is supported
-#     with pytest.raises(RuntimeError):
-#         iso.get_historical_lmp(
-#             date="4/15/2022",
-#             market="REAL_TIME_5_MIN",
-#             locations=None,
-#         )
+def test_pjm_no_data():
+    iso = isodata.PJM()
+    # raise no error since date in future
+    future_date = pd.Timestamp.now().normalize() + pd.Timedelta(days=10)
+    with pytest.raises(RuntimeError):
+        iso.get_historical_lmp(
+            date=future_date,
+            market="REAL_TIME_5_MIN",
+        )
 
 
 def test_pjm_pnode():
@@ -251,3 +253,15 @@ def test_query_by_location_type():
     )
 
     df
+
+
+@pytest.mark.slow
+def test_pjm_all_pnodes():
+    iso = isodata.PJM()
+    df = iso.get_historical_lmp(
+        date="Jan 1, 2022",
+        market="REAL_TIME_HOURLY",
+        locations="ALL",
+    )
+
+    assert len(df) > 0
