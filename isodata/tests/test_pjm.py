@@ -1,10 +1,9 @@
-from turtle import st
-
 import pandas as pd
 import pytest
 
 import isodata
 from isodata.base import Markets
+from isodata.decorators import _get_pjm_archive_date
 from isodata.tests.test_isos import check_lmp_columns
 
 # def test_pjm_handle_error():
@@ -52,6 +51,36 @@ def test_dst_shift_forward():
 
 def _lmp_tests(iso, m):
     # uses location_type hub because it has the fewest results, so runs faster
+
+    # test span archive date and year
+    archive_date = _get_pjm_archive_date(m)
+    start = archive_date - pd.Timedelta(days=366)
+    end = archive_date + pd.Timedelta("1 day")
+    hist = iso.get_historical_lmp(
+        start=start,
+        end=end,
+        location_type="hub",
+        market=m,
+    )
+    assert isinstance(hist, pd.DataFrame)
+    check_lmp_columns(hist, m)
+    # has every hour in the range
+    assert hist["Time"].drop_duplicates().shape[0] / 24 == (end - start).days
+
+    # test span archive date
+    archive_date = _get_pjm_archive_date(m)
+    start = archive_date - pd.Timedelta("1 day")
+    end = archive_date + pd.Timedelta("1 day")
+    hist = iso.get_historical_lmp(
+        start=start,
+        end=end,
+        location_type="hub",
+        market=m,
+    )
+    assert isinstance(hist, pd.DataFrame)
+    check_lmp_columns(hist, m)
+    # 2 days worth of data for each location
+    assert (hist.groupby("Location")["Time"].count() == 48).all()
 
     # span calendar year
     end = pd.Timestamp.now()
@@ -115,6 +144,8 @@ def test_pjm_update_dates():
         "self": isodata.PJM(),
         "market": Markets.REAL_TIME_5_MIN,
     }
+
+    # cross year
     dates = [
         pd.Timestamp("2018-12-31 00:00:00-0500", tz="US/Eastern"),
         pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
@@ -125,6 +156,7 @@ def test_pjm_update_dates():
         pd.Timestamp("2018-12-31 23:59:00-0500", tz="US/Eastern"),
     ]
 
+    # cross year and then more dates
     dates = [
         pd.Timestamp("2018-12-01 00:00:00-0500", tz="US/Eastern"),
         pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
@@ -145,6 +177,7 @@ def test_pjm_update_dates():
         pd.Timestamp("2019-02-01 00:00:00-0500", tz="US/Eastern"),
     ]
 
+    # cross multiple years
     dates = [
         pd.Timestamp("2017-12-01 00:00:00-0500", tz="US/Eastern"),
         pd.Timestamp("2020-02-01 00:00:00-0500", tz="US/Eastern"),
@@ -183,4 +216,26 @@ def test_pjm_update_dates():
             "2020-02-01 00:00:00-0500",
             tz="US/Eastern",
         ),
+    ]
+
+    # cross archive date
+    archive_date = _get_pjm_archive_date(args_dict["market"])
+    start = archive_date - pd.Timedelta("1 day")
+    end = archive_date + pd.Timedelta("1 day")
+    new_dates = isodata.pjm.pjm_update_dates([start, end], args_dict)
+    day_before_archive = archive_date - pd.Timedelta(days=1)
+    before_archive = pd.Timestamp(
+        year=day_before_archive.year,
+        month=day_before_archive.month,
+        day=day_before_archive.day,
+        hour=23,
+        minute=59,
+        tz=args_dict["self"].default_timezone,
+    )
+    assert new_dates == [
+        start,
+        before_archive,
+        None,
+        archive_date,
+        end,
     ]
