@@ -1,8 +1,8 @@
 # Changelog
 
-## vNext
+## v0.9.0 - Oct 21, 2022
 
-- Support querying by date range for CAISO, PJM, NYISO, and ISONE Hisotrical Methods
+- Support querying by date range for CAISO, PJM, NYISO, and ISONE `get_historical_*` Methods
 - Add gas prices to CAISO
 - Add GHG allowance price to CAISO
 

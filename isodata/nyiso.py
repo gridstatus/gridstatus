@@ -153,7 +153,7 @@ class NYISO(ISOBase):
         return data
 
     def get_latest_lmp(self, market: str, locations: list = None):
-        return self._latest_lmp_from_today(market, locations)
+        return self._latest_lmp_from_today(market=market, locations=locations)
 
     def get_lmp_today(
         self, market: str, locations: list = None, location_type: str = None

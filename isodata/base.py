@@ -74,8 +74,8 @@ class ISOBase:
     def get_historical_storage(self, date):
         raise NotImplementedError()
 
-    def _latest_lmp_from_today(self, market, locations):
-        lmp_df = self.get_lmp_today(market, locations)
+    def _latest_lmp_from_today(self, market, locations, **kwargs):
+        lmp_df = self.get_lmp_today(market=market, locations=locations, **kwargs)
         # Assume sorted in ascending order
         latest_df = lmp_df.groupby("Location").last().reset_index()
         return latest_df
@@ -90,7 +90,7 @@ class ISOBase:
 
     def _today_from_historical(self, method, *args, **kwargs):
         today = pd.Timestamp.now(self.default_timezone).date()
-        return method(today, *args, **kwargs)
+        return method(date=today, *args, **kwargs)
 
     def _supply_from_fuel_mix(self, date):
         df = self.get_historical_fuel_mix(date)
