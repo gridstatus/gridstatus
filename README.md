@@ -224,7 +224,7 @@ The best part is these APIs work in the same way across all the supported ISOs!
 
 ## Examples
 
-Here is a list of our current example notebooks. If you have any requests, please post an issue and we'd be happy to publish an example
+Here is a list of our current example notebooks. If you have any requests, please post an issue and we'd be happy to publish more!
 
 - [PJM LMP Data](https://github.com/kmax12/isodata/blob/main/Examples/PJM%20LMP%20Data.ipynb)
 
