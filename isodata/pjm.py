@@ -129,11 +129,15 @@ class PJM(ISOBase):
 
         """
         # todo: should we use the UTC field instead of EPT?
-        data = {
+        params = {
             "fields": "evaluated_at_datetime_ept,forecast_area,forecast_datetime_beginning_ept,forecast_load_mw",
             "forecast_area": "RTO_COMBINED",
         }
-        r = self._get_pjm_json("load_frcstd_7_day", start=None, params=data)
+        data = self._get_pjm_json(
+            "load_frcstd_7_day",
+            start=None,
+            params=params,
+        )
         data = data.rename(
             columns={
                 "evaluated_at_datetime_ept": "Forecast Time",
@@ -172,14 +176,31 @@ class PJM(ISOBase):
         )
         return nodes
 
-    def get_latest_lmp(self, market: str, locations: list = None):
+    def get_latest_lmp(
+        self,
+        market: str,
+        locations="hubs",
+        location_type=None,
+        verbose=True,
+    ):
         """Currently only supports DAY_AHEAD_HOURlY"""
         market = Markets(market)
         if market != Markets.DAY_AHEAD_HOURLY:
             raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
-        return self._latest_lmp_from_today(market, locations)
+        return self._latest_lmp_from_today(
+            market=market,
+            locations=locations,
+            location_type=location_type,
+            verbose=verbose,
+        )
 
-    def get_lmp_today(self, market: str, locations: list = None):
+    def get_lmp_today(
+        self,
+        market: str,
+        locations="hubs",
+        location_type=None,
+        verbose=True,
+    ):
         """Get lmp for today
         Currently only supports DAY_AHEAD_HOURlY
         """
@@ -187,7 +208,13 @@ class PJM(ISOBase):
         market = Markets(market)
         if market != Markets.DAY_AHEAD_HOURLY:
             raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
-        return self._today_from_historical(self.get_historical_lmp, market, locations)
+        return self._today_from_historical(
+            self.get_historical_lmp,
+            market=market,
+            locations=locations,
+            location_type=location_type,
+            verbose=verbose,
+        )
 
     @support_date_range(max_days_per_request=365, update_dates=pjm_update_dates)
     def get_historical_lmp(
@@ -346,7 +373,7 @@ class PJM(ISOBase):
             if end:
                 end = isodata.utils._handle_date(end)
             else:
-                end = start + pd.Timedelta(days=1)
+                end = start + pd.DateOffset(days=1)
 
             final_params["datetime_beginning_ept"] = (
                 start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
