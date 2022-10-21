@@ -213,7 +213,7 @@ def test_get_historical_demand(iso):
         {
             PJM(): {
                 "markets": [
-                    Markets.REAL_TIME_5_MIN,
+                    # Markets.REAL_TIME_5_MIN, TODO renable, but too slow
                     Markets.REAL_TIME_HOURLY,
                     Markets.DAY_AHEAD_HOURLY,
                 ],
