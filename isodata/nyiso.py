@@ -155,28 +155,31 @@ class NYISO(ISOBase):
     def get_latest_lmp(self, market: str, locations: list = None):
         return self._latest_lmp_from_today(market, locations)
 
-    def get_lmp_today(self, market: str, locations: list = None):
+    def get_lmp_today(
+        self, market: str, locations: list = None, location_type: str = None
+    ):
         "Get lmp for today"
-        return self._today_from_historical(self.get_historical_lmp, market, locations)
+        return self._today_from_historical(
+            self.get_historical_lmp, market, locations, location_type
+        )
 
     @support_date_range(max_days_per_request=1)
-    def get_historical_lmp(self, date, market: str, locations: list = None):
+    def get_historical_lmp(
+        self, date, market: str, locations: list = None, location_type: str = None
+    ):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
         """
-        # todo support generator and zone
         if locations is None:
             locations = "ALL"
 
+        if location_type is None:
+            location_type = "zone"
+
         market = Markets(market)
-        if market == Markets.REAL_TIME_5_MIN:
-            marketname = "realtime"
-            filename = marketname + "_zone"
-        elif market == Markets.DAY_AHEAD_5_MIN:
-            marketname = "damlbmp"
-            filename = marketname + "_zone"
-        else:
-            raise RuntimeError("LMP Market is not supported")
+        marketname = self._set_marketname(market)
+        location_type = self._set_location_type(location_type)
+        filename = marketname + f"_{location_type}"
 
         df = self._download_nyiso_archive(
             date,
@@ -195,7 +198,7 @@ class NYISO(ISOBase):
 
         df["Energy"] = df["LMP"] - (df["Loss"] - df["Congestion"])
         df["Market"] = market.value
-        df["Location Type"] = "Zone"
+        df["Location Type"] = "Zone" if location_type is "zone" else "Generator"
 
         df = df[
             [
@@ -213,6 +216,23 @@ class NYISO(ISOBase):
         df = utils.filter_lmp_locations(df, locations)
 
         return df
+
+    def _set_marketname(self, market: Markets) -> str:
+        if market == Markets.REAL_TIME_5_MIN:
+            marketname = "realtime"
+        elif market == Markets.DAY_AHEAD_5_MIN:
+            marketname = "damlbmp"
+        else:
+            raise RuntimeError("LMP Market is not supported")
+        return marketname
+
+    def _set_location_type(self, location_type: str) -> str:
+        if location_type in ["zone", "zonal"]:
+            return "zone"
+        elif location_type in ["gen", "generator"]:
+            return "gen"
+        else:
+            raise RuntimeError(f"{location_type} is not a valid location type")
 
     def _download_nyiso_archive(self, date, market_name, filename=None):
 
