@@ -105,7 +105,6 @@ class support_date_range:
             total = len(dates) - dates.count(None) * 2 - 1
             import pdb
 
-            pdb.set_trace()
             with tqdm.tqdm(disable=total <= 1, total=total) as pbar:
 
                 for end_date in dates[1:]:
