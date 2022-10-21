@@ -239,3 +239,15 @@ def test_pjm_update_dates():
         archive_date,
         end,
     ]
+
+
+def test_query_by_location_type():
+    iso = isodata.PJM()
+    df = iso.get_historical_lmp(
+        date="Oct 20, 2022",
+        market="DAY_AHEAD_HOURLY",
+        location_type="ZONE",
+        verbose=True,
+    )
+
+    df

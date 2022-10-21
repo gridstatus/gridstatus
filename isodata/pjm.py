@@ -33,6 +33,21 @@ class PJM(ISOBase):
         "RESIDUAL_METERED_EDC",
     ]
 
+    hub_node_ids = [
+        "51217",
+        "116013751",
+        "35010337",
+        "34497151",
+        "34497127",
+        "34497125",
+        "33092315",
+        "33092313",
+        "33092311",
+        "4669664",
+        "51288",
+        "51287",
+    ]
+
     markets = [
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
@@ -229,7 +244,7 @@ class PJM(ISOBase):
         end=None,
         locations="hubs",
         location_type=None,
-        verbose=True,
+        verbose=False,
     ):
         """Returns LMP at a previous date
 
@@ -251,20 +266,7 @@ class PJM(ISOBase):
 
         """
         if locations == "hubs":
-            locations = [
-                "51217",
-                "116013751",
-                "35010337",
-                "34497151",
-                "34497127",
-                "34497125",
-                "33092315",
-                "33092313",
-                "33092311",
-                "4669664",
-                "51288",
-                "51287",
-            ]
+            locations = self.hub_node_ids
 
         params = {}
 
@@ -285,17 +287,6 @@ class PJM(ISOBase):
                 "market must be one of REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY",
             )
 
-        if date >= _get_pjm_archive_date(market):
-            # after archive date, filtering allowed
-            params["fields"] = (
-                f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
-            )
-            params["pnode_id"] = (";".join(map(str, locations)),)
-        elif locations is not None:
-            warnings.warn(
-                "Querying before archive date, so filtering by location will happen after all data is downloaded",
-            )
-
         if location_type:
             location_type = location_type.upper()
             if location_type not in self.location_types:
@@ -309,6 +300,23 @@ class PJM(ISOBase):
                 )
             else:
                 params["type"] = f"*{location_type}*"
+
+            if locations is not None:
+                locations = None
+
+        if date >= _get_pjm_archive_date(market):
+            # after archive date, filtering allowed
+            params["fields"] = (
+                f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
+            )
+
+            if locations:
+                params["pnode_id"] = (";".join(map(str, locations)),)
+
+        elif locations is not None:
+            warnings.warn(
+                "Querying before archive date, so filtering by location will happen after all data is downloaded",
+            )
 
         data = self._get_pjm_json(
             market_endpoint,
@@ -350,7 +358,11 @@ class PJM(ISOBase):
         if location_type and market == Markets.REAL_TIME_5_MIN:
             data = data[data["Location Type"] == location_type]
 
-        data = isodata.utils.filter_lmp_locations(data, map(int, locations))
+        if locations is not None:
+            data = isodata.utils.filter_lmp_locations(
+                data,
+                map(int, locations),
+            )
 
         return data
 
@@ -383,6 +395,11 @@ class PJM(ISOBase):
 
             final_params["datetime_beginning_ept"] = (
                 start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
+            )
+
+        if verbose:
+            print(
+                f"Retrieving data from {endpoint} with params {final_params}",
             )
 
         api_key = self._get_key()
