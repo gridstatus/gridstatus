@@ -1,9 +1,9 @@
+import math
 import warnings
-from ast import Raise
 from tkinter.messagebox import NO
 
 import pandas as pd
-import requests
+import tqdm
 
 import isodata
 from isodata.base import FuelMix, ISOBase, Markets
@@ -54,7 +54,12 @@ class PJM(ISOBase):
             "order": "Asc",
         }
 
-        mix_df = self._get_pjm_json("gen_by_fuel", start=date, end=end, params=data)
+        mix_df = self._get_pjm_json(
+            "gen_by_fuel",
+            start=date,
+            end=end,
+            params=data,
+        )
 
         mix_df = mix_df.pivot_table(
             index="Time",
@@ -100,7 +105,12 @@ class PJM(ISOBase):
             "fields": "area,datetime_beginning_utc,instantaneous_load",
             "area": "PJM RTO",
         }
-        demand = self._get_pjm_json("inst_load", start=date, end=end, params=data)
+        demand = self._get_pjm_json(
+            "inst_load",
+            start=date,
+            end=end,
+            params=data,
+        )
 
         demand = demand.drop("area", axis=1)
 
@@ -252,7 +262,9 @@ class PJM(ISOBase):
         if location_type:
             location_type = location_type.upper()
             if location_type not in self.location_types:
-                raise ValueError(f"location_type must be one of {self.location_types}")
+                raise ValueError(
+                    f"location_type must be one of {self.location_types}",
+                )
 
             if market == Markets.REAL_TIME_5_MIN:
                 warnings.warn(
@@ -303,6 +315,8 @@ class PJM(ISOBase):
         if location_type and market == Markets.REAL_TIME_5_MIN:
             data = data[data["Location Type"] == location_type]
 
+        data = isodata.utils.filter_lmp_locations(data, map(int, locations))
+
         return data
 
     def _get_pjm_json(
@@ -312,7 +326,7 @@ class PJM(ISOBase):
         params,
         end=None,
         start_row=1,
-        row_count=500000,
+        row_count=100000,
         verbose=False,
     ):
         default_params = {
@@ -342,10 +356,11 @@ class PJM(ISOBase):
                 start.strftime("%m/%d/%Y 00:00") + "to" + end.strftime("%m/%d/%Y 00:00")
             )
 
+        api_key = self._get_key()
         r = self._get_json(
             "https://api.pjm.com/api/v1/" + endpoint,
             params=final_params,
-            headers={"Ocp-Apim-Subscription-Key": self._get_key()},
+            headers={"Ocp-Apim-Subscription-Key": api_key},
         )
 
         if "errors" in r:
@@ -356,6 +371,21 @@ class PJM(ISOBase):
             raise RuntimeError("No data found for query")
 
         df = pd.DataFrame(r["items"])
+
+        num_pages = math.ceil(r["totalRows"] / row_count)
+        if num_pages > 1:
+            to_add = [df]
+            for page in tqdm.tqdm(range(1, num_pages)):
+                next_url = [x for x in r["links"] if x["rel"] == "next"][0]["href"]
+                r = self._get_json(
+                    next_url,
+                    headers={
+                        "Ocp-Apim-Subscription-Key": api_key,
+                    },
+                )
+                to_add.append(pd.DataFrame(r["items"]))
+
+            df = pd.concat(to_add)
 
         if "datetime_beginning_utc" in df.columns:
             df["Time"] = (
@@ -369,33 +399,13 @@ class PJM(ISOBase):
             # drop datetime_beginning_utc
             df = df.drop(columns=["datetime_beginning_utc"])
 
-        if r["totalRows"] > start_row + len(df):
-            import pdb
-
-            pdb.set_trace()
-
-            print("Paging through start_row", start_row + len(df), "of", r["totalRows"])
-            add_df = self._get_pjm_json(
-                endpoint=endpoint,
-                start=start,
-                end=end,
-                params=params,
-                start_row=start_row + len(df),
-            )
-
-            print("adding", len(add_df), "rows")
-
-            df = df.append(add_df)
-
-        print("total rows", len(df))
-
-        # PJM API is inclusive of end, so we need to drop where last day is included
-        df = df[
-            df["Time"].dt.strftime(
-                "%Y-%m-%d",
-            )
-            != end.strftime("%Y-%m-%d")
-        ]
+            # PJM API is inclusive of end, so we need to drop where last day is included
+            df = df[
+                df["Time"].dt.strftime(
+                    "%Y-%m-%d",
+                )
+                != end.strftime("%Y-%m-%d")
+            ]
 
         return df
 

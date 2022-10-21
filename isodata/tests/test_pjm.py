@@ -51,38 +51,59 @@ def test_dst_shift_forward():
     assert (df["Time"].dt.strftime("%Y-%m-%d") == date).all()
 
 
-def test_pjm_get_historical_lmp():
+def _lmp_tests(iso, m):
+    # uses location_type hub because it has the fewest results, so runs faster
+
+    # span calendar year
+    end = pd.Timestamp.now()
+    start = end - pd.Timedelta(days=1)
+
+    hist = iso.get_historical_lmp(
+        start="2018-12-31",
+        end="2019-01-01",
+        location_type="hub",
+        market=m,
+    )
+    assert isinstance(hist, pd.DataFrame)
+    check_lmp_columns(hist, m)
+
+    # all archive
+    hist = iso.get_historical_lmp(
+        start="2019-07-15",
+        end="2019-07-16",
+        location_type="hub",
+        market=m,
+    )
+    assert isinstance(hist, pd.DataFrame)
+    check_lmp_columns(hist, m)
+
+    # all standard
+    end = pd.Timestamp.now()
+    start = end - pd.Timedelta(days=1)
+
+    hist = iso.get_historical_lmp(
+        start=start,
+        end=end,
+        location_type="hub",
+        market=m,
+    )
+    assert isinstance(hist, pd.DataFrame)
+    check_lmp_columns(hist, m)
+
+
+def test_pjm_get_historical_lmp_hourly():
     iso = isodata.PJM()
     markets = [
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_5_MIN,
     ]
 
     for m in markets:
         print(iso.iso_id, m)
+        _lmp_tests(iso, m)
 
-        # all archive
-        # use location_type hub because it has the fewest results
-        hist = iso.get_historical_lmp(
-            start="2019-07-15",
-            end="2019-07-16",
-            location_type="hub",
-            market=m,
-        )
-        assert isinstance(hist, pd.DataFrame)
-        check_lmp_columns(hist, m)
 
-        # all standard
-        # use location_type hub because it has the fewest results
-        end = pd.Timestamp.now()
-        start = end - pd.Timedelta(days=1)
-
-        hist = iso.get_historical_lmp(
-            start=start,
-            end=end,
-            location_type="hub",
-            market=m,
-        )
-        assert isinstance(hist, pd.DataFrame)
-        check_lmp_columns(hist, m)
+@pytest.mark.slow
+def test_pjm_get_historical_lmp_5_min():
+    iso = isodata.PJM()
+    _lmp_tests(iso, Markets.REAL_TIME_5_MIN)

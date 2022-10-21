@@ -99,7 +99,7 @@ def make_lmp_availability_table():
 
 
 def filter_lmp_locations(data, locations: list):
-    if locations == "ALL":
+    if locations == "ALL" or locations is None:
         return data
 
     return data[data["Location"].isin(locations)]
