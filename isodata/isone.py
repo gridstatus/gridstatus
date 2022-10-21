@@ -245,8 +245,8 @@ class ISONE(ISOBase):
         "Get lmp for today in 5 minute intervals"
         return self._today_from_historical(
             self.get_historical_lmp,
-            market,
-            locations,
+            market=market,
+            locations=locations,
             include_id=include_id,
         )
 

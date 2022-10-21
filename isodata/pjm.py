@@ -1,5 +1,6 @@
 import math
 import warnings
+from distutils.log import warn
 from tkinter.messagebox import NO
 
 import pandas as pd
@@ -7,7 +8,11 @@ import tqdm
 
 import isodata
 from isodata.base import FuelMix, ISOBase, Markets
-from isodata.decorators import pjm_update_dates, support_date_range
+from isodata.decorators import (
+    _get_pjm_archive_date,
+    pjm_update_dates,
+    support_date_range,
+)
 
 
 class PJM(ISOBase):
@@ -261,29 +266,34 @@ class PJM(ISOBase):
                 "51287",
             ]
 
-        params = {
-            # "fields": f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
-            # "pnode_id": ";".join(map(str, locations)),
-        }
+        params = {}
 
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
-            # archive_date = datetime.date.today() - datetime.timedelta(days=186)
             market_endpoint = "rt_fivemin_hrl_lmps"
             market_type = "rt"
         elif market == Markets.REAL_TIME_HOURLY:
-            # archive_date = datetime.date.today() - datetime.timedelta(days=731)
             # todo implemlement location type filter
             market_endpoint = "rt_hrl_lmps"
             market_type = "rt"
         elif market == Markets.DAY_AHEAD_HOURLY:
-            # archive_date = datetime.date.today() - datetime.timedelta(days=731)
             # todo implemlement location type filter
             market_endpoint = "da_hrl_lmps"
             market_type = "da"
         else:
             raise ValueError(
                 "market must be one of REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY",
+            )
+
+        if date >= _get_pjm_archive_date(market):
+            # after archive date, filtering allowed
+            params["fields"] = (
+                f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
+            )
+            params["pnode_id"] = (";".join(map(str, locations)),)
+        elif locations is not None:
+            warnings.warn(
+                "Querying before archive date, so filtering by location will happen after all data is downloaded",
             )
 
         if location_type:
@@ -295,12 +305,10 @@ class PJM(ISOBase):
 
             if market == Markets.REAL_TIME_5_MIN:
                 warnings.warn(
-                    "location_type filter will happen after all data is downloaded",
+                    "When using Real Time 5 Minute market, location_type filter will happen after all data is downloaded",
                 )
             else:
                 params["type"] = f"*{location_type}*"
-
-        #  TODO implement paging since row count can exceed 1000000
 
         data = self._get_pjm_json(
             market_endpoint,
@@ -359,8 +367,6 @@ class PJM(ISOBase):
         default_params = {
             "startRow": start_row,
             "rowCount": row_count,
-            # "format": "json",
-            # "download": "true",
         }
 
         # update final params with default params

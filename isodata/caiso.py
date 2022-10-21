@@ -212,11 +212,15 @@ class CAISO(ISOBase):
         return df
 
     def get_latest_lmp(self, market: str, locations: list = None):
-        return self._latest_lmp_from_today(market, locations)
+        return self._latest_lmp_from_today(market=market, locations=locations)
 
     def get_lmp_today(self, market: str, locations: list = None):
         "Get lmp for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_lmp, market, locations)
+        return self._today_from_historical(
+            self.get_historical_lmp,
+            market=market,
+            locations=locations,
+        )
 
     @support_date_range(max_days_per_request=31)
     def get_historical_lmp(
