@@ -2,7 +2,7 @@
 
 ## vNext
 
-- Support querying by date range for CAISO, PJM, NYISO, and ISONE Hisotrical Methods
+- Support querying by date range for CAISO, PJM, NYISO, and ISONE `get_historical_*` Methods
 - Add gas prices to CAISO
 - Add GHG allowance price to CAISO
 
