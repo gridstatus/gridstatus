@@ -14,6 +14,7 @@
 <p align="center">
 <a href="#installation"><b>Install</b></a> — 
 <a href="#getting-started"><b>Getting Started</b></a> — 
+<a href="#examples"><b>Example Notebooks</b></a> — 
 <a href="#method-availability"><b>Method Availability</b></a> —  
 <a href="#lmp-pricing-data"><b>LMP Data</b></a> —  
 <a href="#supported-lmp-markets"><b>Supported LMP Markets</b></a> 
@@ -196,9 +197,9 @@ When supported, you can use the historical method calls to get data for a specif
 [289 rows x 2 columns]
 ```
 
-Frequently, we want to get data across multiple days. We can do that providing a `start` and `end` parameter to any `iso.get_historical_*` method
+Frequently, we want to get data across multiple days. We can do that by providing a `start` and `end` parameter to any `iso.get_historical_*` method
 
-```
+```python
 >>> caiso.get_historical_demand(start="Jan 1, 2020", end="Feb 1, 2020")
 ```
 
@@ -220,6 +221,12 @@ Frequently, we want to get data across multiple days. We can do that providing a
 ```
 
 The best part is these APIs work in the same way across all the supported ISOs!
+
+## Examples
+
+Here is a list of our current example notebooks. If you have any requests, please post an issue and we'd be happy to publish an example
+
+- [PJM LMP Data](https://github.com/kmax12/isodata/blob/main/Examples/PJM%20LMP%20Data.ipynb)
 
 ## Method Availability
 
