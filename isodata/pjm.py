@@ -7,7 +7,7 @@ import tqdm
 
 import isodata
 from isodata.base import FuelMix, ISOBase, Markets
-from isodata.decorators import support_date_range
+from isodata.decorators import pjm_update_dates, support_date_range
 
 
 class PJM(ISOBase):
@@ -189,7 +189,7 @@ class PJM(ISOBase):
             raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
         return self._today_from_historical(self.get_historical_lmp, market, locations)
 
-    @support_date_range(max_days_per_request=365)
+    @support_date_range(max_days_per_request=365, update_dates=pjm_update_dates)
     def get_historical_lmp(
         self,
         date,
@@ -346,14 +346,10 @@ class PJM(ISOBase):
             if end:
                 end = isodata.utils._handle_date(end)
             else:
-                end = pd.Timestamp(
-                    year=start.year,
-                    month=start.month,
-                    day=start.day + 1,
-                )
+                end = start + pd.Timedelta(days=1)
 
             final_params["datetime_beginning_ept"] = (
-                start.strftime("%m/%d/%Y 00:00") + "to" + end.strftime("%m/%d/%Y 00:00")
+                start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
             )
 
         api_key = self._get_key()
@@ -399,12 +395,12 @@ class PJM(ISOBase):
             # drop datetime_beginning_utc
             df = df.drop(columns=["datetime_beginning_utc"])
 
-            # PJM API is inclusive of end, so we need to drop where last day is included
+            # PJM API is inclusive of end, so we need to drop where end timestamp is included
             df = df[
                 df["Time"].dt.strftime(
-                    "%Y-%m-%d",
+                    "%Y-%m-%d %H:%M",
                 )
-                != end.strftime("%Y-%m-%d")
+                != end.strftime("%Y-%m-%d %H:%M")
             ]
 
         return df

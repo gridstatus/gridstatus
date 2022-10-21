@@ -59,12 +59,14 @@ def _lmp_tests(iso, m):
 
     hist = iso.get_historical_lmp(
         start="2018-12-31",
-        end="2019-01-01",
+        end="2019-01-02",
         location_type="hub",
         market=m,
     )
     assert isinstance(hist, pd.DataFrame)
     check_lmp_columns(hist, m)
+    # 2 days worth of data for each location
+    assert (hist.groupby("Location")["Time"].count() == 48).all()
 
     # all archive
     hist = iso.get_historical_lmp(
@@ -106,3 +108,79 @@ def test_pjm_get_historical_lmp_hourly():
 def test_pjm_get_historical_lmp_5_min():
     iso = isodata.PJM()
     _lmp_tests(iso, Markets.REAL_TIME_5_MIN)
+
+
+def test_pjm_update_dates():
+    args_dict = {
+        "self": isodata.PJM(),
+        "market": Markets.REAL_TIME_5_MIN,
+    }
+    dates = [
+        pd.Timestamp("2018-12-31 00:00:00-0500", tz="US/Eastern"),
+        pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
+    ]
+    new_dates = isodata.pjm.pjm_update_dates(dates, args_dict)
+    assert new_dates == [
+        pd.Timestamp("2018-12-31 00:00:00-0500", tz="US/Eastern"),
+        pd.Timestamp("2018-12-31 23:59:00-0500", tz="US/Eastern"),
+    ]
+
+    dates = [
+        pd.Timestamp("2018-12-01 00:00:00-0500", tz="US/Eastern"),
+        pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
+        pd.Timestamp("2019-02-01 00:00:00-0500", tz="US/Eastern"),
+    ]
+    new_dates = isodata.pjm.pjm_update_dates(dates, args_dict)
+    assert new_dates == [
+        pd.Timestamp("2018-12-01 00:00:00-0500", tz="US/Eastern"),
+        pd.Timestamp(
+            "2018-12-31 23:59:00-0500",
+            tz="US/Eastern",
+        ),
+        None,
+        pd.Timestamp(
+            "2019-01-01 00:00:00-0500",
+            tz="US/Eastern",
+        ),
+        pd.Timestamp("2019-02-01 00:00:00-0500", tz="US/Eastern"),
+    ]
+
+    dates = [
+        pd.Timestamp("2017-12-01 00:00:00-0500", tz="US/Eastern"),
+        pd.Timestamp("2020-02-01 00:00:00-0500", tz="US/Eastern"),
+    ]
+    new_dates = isodata.pjm.pjm_update_dates(dates, args_dict)
+    assert new_dates == [
+        pd.Timestamp("2017-12-01 00:00:00-0500", tz="US/Eastern"),
+        pd.Timestamp(
+            "2017-12-31 23:59:00-0500",
+            tz="US/Eastern",
+        ),
+        None,
+        pd.Timestamp(
+            "2018-01-01 00:00:00-0500",
+            tz="US/Eastern",
+        ),
+        pd.Timestamp(
+            "2018-12-31 23:59:00-0500",
+            tz="US/Eastern",
+        ),
+        None,
+        pd.Timestamp(
+            "2019-01-01 00:00:00-0500",
+            tz="US/Eastern",
+        ),
+        pd.Timestamp(
+            "2019-12-31 23:59:00-0500",
+            tz="US/Eastern",
+        ),
+        None,
+        pd.Timestamp(
+            "2020-01-01 00:00:00-0500",
+            tz="US/Eastern",
+        ),
+        pd.Timestamp(
+            "2020-02-01 00:00:00-0500",
+            tz="US/Eastern",
+        ),
+    ]
