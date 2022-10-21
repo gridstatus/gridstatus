@@ -1,4 +1,6 @@
+import warnings
 from ast import Raise
+from tkinter.messagebox import NO
 
 import pandas as pd
 import requests
@@ -12,6 +14,19 @@ class PJM(ISOBase):
     name = "PJM"
     iso_id = "pjm"
     default_timezone = "US/Eastern"
+
+    location_types = [
+        "ZONE",
+        "LOAD",
+        "GEN",
+        "AGGREGATE",
+        "INTERFACE",
+        "EXT",
+        "HUB",
+        "EHV",
+        "TIE",
+        "RESIDUAL_METERED_EDC",
+    ]
 
     markets = [
         Markets.REAL_TIME_5_MIN,
@@ -33,27 +48,13 @@ class PJM(ISOBase):
     @support_date_range(max_days_per_request=365)
     def get_historical_fuel_mix(self, date, end=None):
         # earliest date available appears to be 1/1/2016
-        date = isodata.utils._handle_date(date)
-
-        if end:
-            end = isodata.utils._handle_date(end)
-        else:
-            end = pd.Timestamp(
-                year=date.year,
-                month=date.month,
-                day=date.day + 1,
-            )
-
         data = {
-            "datetime_beginning_ept": date.strftime("%m/%d/%Y 00:00")
-            + "to"
-            + end.strftime("%m/%d/%Y 00:00"),
             "fields": "datetime_beginning_utc,fuel_type,is_renewable,mw",
-            "rowCount": 500000,
-            "startRow": 1,
+            "sort": "datetime_beginning_utc",
+            "order": "Asc",
         }
 
-        mix_df = self._get_pjm_json("gen_by_fuel", params=data)
+        mix_df = self._get_pjm_json("gen_by_fuel", start=date, end=end, params=data)
 
         mix_df = mix_df.pivot_table(
             index="Time",
@@ -61,14 +62,6 @@ class PJM(ISOBase):
             values="mw",
             aggfunc="first",
         ).reset_index()
-
-        # PJM API is inclusive of end, so we need to drop where last day is included
-        mix_df = mix_df[
-            mix_df["Time"].dt.strftime(
-                "%Y-%m-%d",
-            )
-            != end.strftime("%Y-%m-%d")
-        ]
 
         return mix_df
 
@@ -90,48 +83,33 @@ class PJM(ISOBase):
         "Get demand for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_demand)
 
-    @support_date_range(max_days_per_request=1)
-    def get_historical_demand(self, date):
+    @support_date_range(max_days_per_request=30)
+    def get_historical_demand(self, date, end=None):
         """Returns demand at a previous date at 5 minute intervals
 
         Args:
             date (str or datetime.date): date to get demand for. must be in last 30 days
         """
+        # more hourly historical load here: https://dataminer2.pjm.com/feed/hrl_load_metered/definition
+
         # todo can support a load area
-        date = isodata.utils._handle_date(date)
-        tomorrow = date + pd.DateOffset(1)
-
         data = {
-            "datetime_beginning_ept": date.strftime("%m/%d/%Y 00:00")
-            + "to"
-            + tomorrow.strftime("%m/%d/%Y 00:00"),
-            "sort": "datetime_beginning_utc",
             "order": "Asc",
-            "startRow": 1,
+            "sort": "datetime_beginning_utc",
             "isActiveMetadata": "true",
-            "fields": "area,datetime_beginning_ept,instantaneous_load",
+            "fields": "area,datetime_beginning_utc,instantaneous_load",
             "area": "PJM RTO",
-            "format": "json",
-            "download": "true",
         }
-        r = self._get_pjm_json("inst_load", params=data)
+        demand = self._get_pjm_json("inst_load", start=date, end=end, params=data)
 
-        data = pd.DataFrame(r)
-
-        demand = demand = data.drop("area", axis=1)
+        demand = demand.drop("area", axis=1)
 
         demand = demand.rename(
             columns={
-                "datetime_beginning_ept": "Time",
                 "instantaneous_load": "Demand",
             },
         )
 
-        demand["Time"] = pd.to_datetime(demand["Time"]).dt.tz_localize(
-            self.default_timezone,
-        )
-
-        demand = demand.sort_values("Time").reset_index(drop=True)
         return demand
 
     def get_forecast_today(self):
@@ -142,13 +120,11 @@ class PJM(ISOBase):
         """
         # todo: should we use the UTC field instead of EPT?
         data = {
-            "startRow": 1,
-            "rowCount": 1000,
             "fields": "evaluated_at_datetime_ept,forecast_area,forecast_datetime_beginning_ept,forecast_load_mw",
             "forecast_area": "RTO_COMBINED",
         }
-        r = self._get_pjm_json("load_frcstd_7_day", params=data)
-        data = pd.DataFrame(r["items"]).rename(
+        r = self._get_pjm_json("load_frcstd_7_day", start=None, params=data)
+        data = data.rename(
             columns={
                 "evaluated_at_datetime_ept": "Forecast Time",
                 "forecast_datetime_beginning_ept": "Time",
@@ -161,9 +137,6 @@ class PJM(ISOBase):
         data["Forecast Time"] = pd.to_datetime(data["Forecast Time"]).dt.tz_localize(
             self.default_timezone,
         )
-        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(
-            self.default_timezone,
-        )
 
         return data
 
@@ -173,13 +146,9 @@ class PJM(ISOBase):
 
     def get_pnode_ids(self):
         data = {
-            "startRow": 1,
-            "rowCount": 500000,
             "fields": "effective_date,pnode_id,pnode_name,pnode_subtype,pnode_type,termination_date,voltage_level,zone",
         }
-        r = self._get_pjm_json("pnode", params=data)
-
-        nodes = pd.DataFrame(r["items"])
+        nodes = self._get_pjm_json("pnode", start=None, params=data)
 
         # only keep most recent effective date for each id
         # return sorted by pnode_id
@@ -210,26 +179,36 @@ class PJM(ISOBase):
             raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
         return self._today_from_historical(self.get_historical_lmp, market, locations)
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(max_days_per_request=365)
     def get_historical_lmp(
         self,
         date,
         market: str,
-        locations: list = None,
+        end=None,
+        locations="hubs",
+        location_type=None,
         verbose=True,
     ):
         """Returns LMP at a previous date
 
-        Args:
-            date (str or datetime.date): date to get LMPs for
-            market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
-            locations (list, optional):  list of pnodeid to get LMPs for. Defaults to Hubs. Use get_pnode_ids() to get a list of possible pnode ids.
+         Notes:
+             - If start date is prior to the PJM archive date, all data must be downloaded before location filtering can be performed due to limitations of PJM API. The archive date is
+              186 days (~6 months) before today for the 5 minute real time market and 731 days (~2 years) before today for the Hourly Real Time and Day Ahead Hourly markets. Node type filter can
+              performed for Real Time Hourly and Day Ahead Hourly markets.
+
+             - If location_type is provided, it is filtered after data is retrieved for Real Time 5 Minute market regardless of the date. This is due to PJM api limitations
+
+         Args:
+             date (str or datetime.date): date to get LMPs for
+             end (str or datetime.date): end date to get LMPs for
+             market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
+             locations (list, optional):  list of pnodeid to get LMPs for. Defaults to "hubs". Use get_pnode_ids() to get a list of possible pnode ids.
+                 If "all", will return data from all p nodes (warning there are 18,803 unique, so expect millions or billions of rows!)
+             location_type (str, optional):  If specified, will only return data for nodes of this type. Defaults to None. Possible location types are: 'ZONE', 'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
+        'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
 
         """
-        date = date = isodata.utils._handle_date(date)
-        tomorrow = date + pd.DateOffset(1)
-
-        if locations is None:
+        if locations == "hubs":
             locations = [
                 "51217",
                 "116013751",
@@ -245,14 +224,24 @@ class PJM(ISOBase):
                 "51287",
             ]
 
+        params = {
+            # "fields": f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
+            # "pnode_id": ";".join(map(str, locations)),
+        }
+
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
+            # archive_date = datetime.date.today() - datetime.timedelta(days=186)
             market_endpoint = "rt_fivemin_hrl_lmps"
             market_type = "rt"
         elif market == Markets.REAL_TIME_HOURLY:
+            # archive_date = datetime.date.today() - datetime.timedelta(days=731)
+            # todo implemlement location type filter
             market_endpoint = "rt_hrl_lmps"
             market_type = "rt"
         elif market == Markets.DAY_AHEAD_HOURLY:
+            # archive_date = datetime.date.today() - datetime.timedelta(days=731)
+            # todo implemlement location type filter
             market_endpoint = "da_hrl_lmps"
             market_type = "da"
         else:
@@ -260,22 +249,30 @@ class PJM(ISOBase):
                 "market must be one of REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY",
             )
 
+        if location_type:
+            location_type = location_type.upper()
+            if location_type not in self.location_types:
+                raise ValueError(f"location_type must be one of {self.location_types}")
+
+            if market == Markets.REAL_TIME_5_MIN:
+                warnings.warn(
+                    "location_type filter will happen after all data is downloaded",
+                )
+            else:
+                params["type"] = f"*{location_type}*"
+
         #  TODO implement paging since row count can exceed 1000000
-        params = {
-            "datetime_beginning_ept": date.strftime("%m/%d/%Y 00:00")
-            + "to"
-            + tomorrow.strftime("%m/%d/%Y 00:00"),
-            "startRow": 1,
-            "rowCount": 1000000,
-            "fields": f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
-            "pnode_id": ";".join(map(str, locations)),
-        }
 
-        r = self._get_pjm_json(market_endpoint, params=params, verbose=verbose)
+        data = self._get_pjm_json(
+            market_endpoint,
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+        )
 
-        data = pd.DataFrame(r["items"]).rename(
+        data = data.rename(
             columns={
-                "datetime_beginning_ept": "Time",
                 "pnode_id": "Location",
                 "pnode_name": "Location Name",
                 "type": "Location Type",
@@ -287,10 +284,6 @@ class PJM(ISOBase):
         )
 
         data["Market"] = market.value
-
-        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(
-            self.default_timezone,
-        )
 
         data = data[
             [
@@ -306,33 +299,103 @@ class PJM(ISOBase):
             ]
         ]
 
+        # API cannot filter location type for rt 5 min
+        if location_type and market == Markets.REAL_TIME_5_MIN:
+            data = data[data["Location Type"] == location_type]
+
         return data
 
-    def _get_pjm_json(self, endpoint, params, verbose=False):
+    def _get_pjm_json(
+        self,
+        endpoint,
+        start,
+        params,
+        end=None,
+        start_row=1,
+        row_count=500000,
+        verbose=False,
+    ):
+        default_params = {
+            "startRow": start_row,
+            "rowCount": row_count,
+            # "format": "json",
+            # "download": "true",
+        }
+
+        # update final params with default params
+        final_params = params.copy()
+        final_params.update(default_params)
+
+        if start is not None:
+            start = isodata.utils._handle_date(start)
+
+            if end:
+                end = isodata.utils._handle_date(end)
+            else:
+                end = pd.Timestamp(
+                    year=start.year,
+                    month=start.month,
+                    day=start.day + 1,
+                )
+
+            final_params["datetime_beginning_ept"] = (
+                start.strftime("%m/%d/%Y 00:00") + "to" + end.strftime("%m/%d/%Y 00:00")
+            )
+
         r = self._get_json(
             "https://api.pjm.com/api/v1/" + endpoint,
-            params=params,
+            params=final_params,
             headers={"Ocp-Apim-Subscription-Key": self._get_key()},
         )
 
         if "errors" in r:
             raise RuntimeError(r["errors"])
 
+        # todo should this be a warning?
         if r["totalRows"] == 0:
-            raise ValueError("No data found for query")
+            raise RuntimeError("No data found for query")
 
         df = pd.DataFrame(r["items"])
 
-        df["Time"] = (
-            pd.to_datetime(df["datetime_beginning_utc"])
-            .dt.tz_localize(
-                "UTC",
+        if "datetime_beginning_utc" in df.columns:
+            df["Time"] = (
+                pd.to_datetime(df["datetime_beginning_utc"])
+                .dt.tz_localize(
+                    "UTC",
+                )
+                .dt.tz_convert(self.default_timezone)
             )
-            .dt.tz_convert(self.default_timezone)
-        )
 
-        # drop datetime_beginning_utc
-        df = df.drop(columns=["datetime_beginning_utc"])
+            # drop datetime_beginning_utc
+            df = df.drop(columns=["datetime_beginning_utc"])
+
+        if r["totalRows"] > start_row + len(df):
+            import pdb
+
+            pdb.set_trace()
+
+            print("Paging through start_row", start_row + len(df), "of", r["totalRows"])
+            add_df = self._get_pjm_json(
+                endpoint=endpoint,
+                start=start,
+                end=end,
+                params=params,
+                start_row=start_row + len(df),
+            )
+
+            print("adding", len(add_df), "rows")
+
+            df = df.append(add_df)
+
+        print("total rows", len(df))
+
+        # PJM API is inclusive of end, so we need to drop where last day is included
+        df = df[
+            df["Time"].dt.strftime(
+                "%Y-%m-%d",
+            )
+            != end.strftime("%Y-%m-%d")
+        ]
 
         return df
 

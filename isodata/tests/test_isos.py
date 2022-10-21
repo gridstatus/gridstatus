@@ -228,7 +228,7 @@ def test_get_historical_lmp(test):
     date_str = "20220722"
     for m in markets:
         print(iso.iso_id, m)
-        hist = iso.get_historical_lmp(date_str, m)
+        hist = iso.get_historical_lmp(date_str, market=m)
         assert isinstance(hist, pd.DataFrame)
         check_lmp_columns(hist, m)
 

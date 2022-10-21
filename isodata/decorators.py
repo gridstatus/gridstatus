@@ -90,7 +90,8 @@ class support_date_range:
             all_df = []
             for end_date in tqdm.tqdm(
                 dates[1:],
-                disable=False,
+                # only do progress bar if more than one chunk
+                disable=len(dates) <= 2,
             ):
                 args_dict["date"] = start_date
                 if self.max_days_per_request > 1:
