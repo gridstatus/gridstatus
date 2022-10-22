@@ -15,10 +15,9 @@ def _get_args_dict(fn, args, kwargs):
 
 
 class support_date_range:
-    def __init__(self, max_days_per_request, update_dates=None):
-        """Maximum number of days that can be queried at once"""
-        assert max_days_per_request > 0, "max_days_per_request must be greater than 0"
-        self.max_days_per_request = max_days_per_request
+    def __init__(self, frequency, update_dates=None):
+        """Maximum frequency of ranges"""
+        self.frequency = frequency
         self.update_dates = update_dates
 
     def __call__(self, f):
@@ -68,14 +67,14 @@ class support_date_range:
                 dates = pd.date_range(
                     args_dict["date"].date(),
                     args_dict["end"].date(),
-                    freq=f"{self.max_days_per_request}D",
+                    freq=f"{self.frequency}",
                     inclusive="left",
                 )
             except TypeError:
                 dates = pd.date_range(
                     args_dict["date"].date(),
                     args_dict["end"].date(),
-                    freq=f"{self.max_days_per_request}D",
+                    freq=f"{self.frequency}",
                     closed="left",
                 )
 
@@ -96,7 +95,7 @@ class support_date_range:
 
             start_date = dates[0]
 
-            if self.max_days_per_request == 1:
+            if self.frequency == "1D":
                 del args_dict["end"]
 
             all_df = []
@@ -119,7 +118,8 @@ class support_date_range:
                         continue
 
                     args_dict["date"] = start_date
-                    if self.max_days_per_request > 1:
+
+                    if self.frequency != "1D":
                         args_dict["end"] = end_date
 
                     df = f(**args_dict)

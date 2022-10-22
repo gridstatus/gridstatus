@@ -93,7 +93,7 @@ class ISONE(ISOBase):
         # todo should this use the latest endpoint?
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_fuel_mix(self, date):
         """Return fuel mix at a previous date
 
@@ -127,7 +127,7 @@ class ISONE(ISOBase):
     def get_demand_today(self):
         return self._today_from_historical(self.get_historical_demand)
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_demand(self, date):
         """Return demand at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
@@ -164,7 +164,7 @@ class ISONE(ISOBase):
         d = self._today_from_historical(self.get_historical_forecast)
         return d
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_forecast(self, date):
         date = isodata.utils._handle_date(date)
 
@@ -250,7 +250,7 @@ class ISONE(ISOBase):
             include_id=include_id,
         )
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_lmp(
         self,
         date,
