@@ -34,10 +34,10 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_status)
         return d
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_status(self, date):
         """Get status event for a date"""
-        status_df = self._download_nyiso_archive(date, "RealTimeEvents")
+        status_df = self._download_nyiso_archive(date, dataset_name="RealTimeEvents")
 
         status_df = status_df.rename(
             columns={"Message": "Status"},
@@ -80,9 +80,9 @@ class NYISO(ISOBase):
         "Get fuel mix for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    @support_date_range(max_days_per_request=1)
-    def get_historical_fuel_mix(self, date):
-        mix_df = self._download_nyiso_archive(date, "rtfuelmix")
+    @support_date_range(frequency="MS")
+    def get_historical_fuel_mix(self, date, end=None):
+        mix_df = self._download_nyiso_archive(date, end, dataset_name="rtfuelmix")
         mix_df = mix_df.pivot_table(
             index="Time",
             columns="Fuel Category",
@@ -100,15 +100,16 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_demand)
         return d
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_demand(self, date):
         """Returns demand at a previous date in 5 minute intervals"""
-        data = self._download_nyiso_archive(date, "pal")
+        data = self._download_nyiso_archive(date, dataset_name="pal")
 
         # drop NA loads
         data = data.dropna(subset=["Load"])
 
         # TODO demand by zone
+        # TODO this doesnt work when timezone isn't parsing correctly
         demand = data.groupby("Time")["Load"].sum().reset_index()
 
         demand = demand.rename(
@@ -137,12 +138,12 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_forecast)
         return d
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_forecast(self, date):
         """Get load forecast for a previous date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
 
-        data = self._download_nyiso_archive(date, "isolf")
+        data = self._download_nyiso_archive(date, dataset_name="isolf")
 
         data["Forecast Time"] = date
 
@@ -163,7 +164,7 @@ class NYISO(ISOBase):
             locations=locations,
         )
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_lmp(self, date, market: str, locations: list = None):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
@@ -184,7 +185,7 @@ class NYISO(ISOBase):
 
         df = self._download_nyiso_archive(
             date,
-            market_name=marketname,
+            dataset_name=marketname,
             filename=filename,
         )
 
@@ -218,28 +219,47 @@ class NYISO(ISOBase):
 
         return df
 
-    def _download_nyiso_archive(self, date, market_name, filename=None):
+    def _download_nyiso_archive(self, date, end=None, dataset_name=None, filename=None):
 
         if filename is None:
-            filename = market_name
+            filename = dataset_name
 
         date = isodata.utils._handle_date(date)
         month = date.strftime("%Y%m01")
         day = date.strftime("%Y%m%d")
 
         csv_filename = f"{day}{filename}.csv"
-        csv_url = f"http://mis.nyiso.com/public/csv/{market_name}/{csv_filename}"
+        csv_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{csv_filename}"
         zip_url = (
-            f"http://mis.nyiso.com/public/csv/{market_name}/{month}{filename}_csv.zip"
+            f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"
         )
 
-        # the last 7 days of file are hosted directly as csv
-        try:
-            df = pd.read_csv(csv_url)
-        except:
-            r = requests.get(zip_url)
-            z = ZipFile(io.BytesIO(r.content))
+        # TODO the last 7 days of file are hosted directly as csv
+        # try:
+        #     df = pd.read_csv(csv_url)
+
+        r = requests.get(zip_url)
+        z = ZipFile(io.BytesIO(r.content))
+
+        all_dfs = []
+        if end is None:
+            date_range = [date]
+        else:
+            try:
+                date_range = pd.date_range(date, end, freq="1D", inclusive="left")
+            except TypeError:
+                date_range = pd.date_range(date, end, freq="1D", closed="left")
+
+        for d in date_range:
+            d = isodata.utils._handle_date(d)
+            month = d.strftime("%Y%m01")
+            day = d.strftime("%Y%m%d")
+
+            csv_filename = f"{day}{filename}.csv"
             df = pd.read_csv(z.open(csv_filename))
+            all_dfs.append(df)
+
+        df = pd.concat(all_dfs)
 
         time_stamp_col = None
 
@@ -251,6 +271,7 @@ class NYISO(ISOBase):
         if time_stamp_col:
             df[time_stamp_col] = pd.to_datetime(df[time_stamp_col]).dt.tz_localize(
                 self.default_timezone,
+                ambiguous=True,
             )
 
             df = df.rename(columns={time_stamp_col: "Time"})

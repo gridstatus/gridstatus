@@ -59,7 +59,6 @@ class support_date_range:
 
             # use .date() to remove timezone info, which doesnt matter if just a date
 
-            # if using python 3.7, there will be an older version of pandas installed that must used closed
             # Note: this may create a split that will end up being unnecessary after running update dates below.
             # that is because after adding new dates, it's possible that two ranges could be added.
             # Unnecessary optimization right now to include logic to handle this
@@ -68,7 +67,7 @@ class support_date_range:
                     args_dict["date"].date(),
                     args_dict["end"].date(),
                     freq=f"{self.frequency}",
-                    inclusive="left",
+                    inclusive="neither",
                 )
             except TypeError:
                 dates = pd.date_range(
@@ -79,7 +78,7 @@ class support_date_range:
                 )
 
             # add end date since it's not included
-            dates = dates.tolist() + [args_dict["end"]]
+            dates = [args_dict["date"]] + dates.tolist() + [args_dict["end"]]
             dates = [
                 isodata.utils._handle_date(
                     d,
@@ -102,7 +101,6 @@ class support_date_range:
 
             # every None removes two possible querys
             total = len(dates) - dates.count(None) * 2 - 1
-            import pdb
 
             with tqdm.tqdm(disable=total <= 1, total=total) as pbar:
 
