@@ -74,7 +74,6 @@ class support_date_range:
                     args_dict["date"].date(),
                     args_dict["end"].date(),
                     freq=f"{self.frequency}",
-                    closed="left",
                 )
 
             # add end date since it's not included
