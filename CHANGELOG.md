@@ -1,5 +1,9 @@
 # Changelog
 
+## vNext
+
+- Optimize NYISO Date Range Queries over Historical Data
+
 ## v0.9.0 - Oct 21, 2022
 
 - Support querying by date range for CAISO, PJM, NYISO, and ISONE `get_historical_*` Methods
