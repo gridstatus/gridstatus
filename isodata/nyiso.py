@@ -249,33 +249,26 @@ class NYISO(ISOBase):
         elif "Timestamp" in df.columns:
             time_stamp_col = "Timestamp"
 
-        if time_stamp_col is None:
-            import pdb
+        def time_to_datetime(s, dst="infer"):
+            return pd.to_datetime(s).dt.tz_localize(
+                self.default_timezone,
+                ambiguous=dst,
+            )
 
-            pdb.set_trace()
+        if "Time Zone" in df.columns:
+            dst = df["Time Zone"] == "EDT"
+            df[time_stamp_col] = time_to_datetime(df[time_stamp_col], dst)
 
-        if time_stamp_col:
+        elif "Name" in df.columns:
+            # once we group by name, the time series for each group is no longer ambiguous
+            df[time_stamp_col] = df.groupby("Name")[time_stamp_col].apply(
+                time_to_datetime,
+                "infer",
+            )
+        else:
+            df[time_stamp_col] = time_to_datetime(df[time_stamp_col], "infer")
 
-            def time_to_datetime(s, dst="infer"):
-                return pd.to_datetime(s).dt.tz_localize(
-                    self.default_timezone,
-                    ambiguous=dst,
-                )
-
-            if "Time Zone" in df.columns:
-                dst = df["Time Zone"] == "EDT"
-                df[time_stamp_col] = time_to_datetime(df[time_stamp_col], dst)
-
-            elif "Name" in df.columns:
-                # once we group by name, the time series for each group is no longer ambiguous
-                df[time_stamp_col] = df.groupby("Name")[time_stamp_col].apply(
-                    time_to_datetime,
-                    "infer",
-                )
-            else:
-                df[time_stamp_col] = time_to_datetime(df[time_stamp_col], "infer")
-
-            df = df.rename(columns={time_stamp_col: "Time"})
+        df = df.rename(columns={time_stamp_col: "Time"})
 
         return df
 
