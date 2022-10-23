@@ -2,6 +2,7 @@ import io
 from zipfile import ZipFile
 
 import pandas as pd
+import pytz
 import requests
 
 import isodata
@@ -249,9 +250,36 @@ class NYISO(ISOBase):
             time_stamp_col = "Timestamp"
 
         if time_stamp_col:
-            df[time_stamp_col] = pd.to_datetime(df[time_stamp_col]).dt.tz_localize(
-                self.default_timezone,
-            )
+            # returned time column doesnt specific timezone, so need to determine if it is EDT or EST
+            # to help parsing when ambiguous
+            dst = "infer"
+            if "Time Zone" in df.columns:
+                dst = df["Time Zone"] == "EDT"
+
+            try:
+                df[time_stamp_col] = pd.to_datetime(df[time_stamp_col]).dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=dst,
+                )
+            except pytz.exceptions.AmbiguousTimeError:
+                # if no time zone column, we need to figure out when it switches backwards
+                # to determine if DST switch is happening
+                if (
+                    date.dst().seconds != 0
+                    and (date + pd.DateOffset(1)).dst().seconds == 0
+                ):
+                    import pdb
+
+                    pdb.set_trace()
+                    dst = (
+                        pd.to_datetime(df[time_stamp_col])
+                        .diff()
+                        .astype(
+                            "timedelta64[h]",
+                        )
+                        .cumsum()
+                        == 0
+                    )
 
             df = df.rename(columns={time_stamp_col: "Time"})
 
