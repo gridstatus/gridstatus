@@ -1,7 +1,5 @@
 import math
 import warnings
-from distutils.log import warn
-from tkinter.messagebox import NO
 
 import pandas as pd
 import tqdm
