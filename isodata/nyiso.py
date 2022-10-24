@@ -267,6 +267,7 @@ class NYISO(ISOBase):
         ).normalize() - pd.DateOffset(days=7):
             df = pd.read_csv(csv_url)
             df = _handle_time(df)
+            df["File Date"] = date.normalize()
         else:
             r = requests.get(zip_url)
             z = ZipFile(io.BytesIO(r.content))
