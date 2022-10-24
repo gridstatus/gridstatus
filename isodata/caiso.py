@@ -103,11 +103,6 @@ class CAISO(ISOBase):
             },
         )
 
-        if "Small hydro" in df.columns:
-            import pdb
-
-            pdb.find_function
-
         # when day light savings time switches, there are na rows
         df = df.dropna()
 
