@@ -206,7 +206,7 @@ def test_get_historical_demand(iso):
         },
         {
             NYISO(): {
-                "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
+                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN],
             },
         },
         {
@@ -256,7 +256,7 @@ def test_get_historical_lmp(test):
         },
         {
             NYISO(): {
-                "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
+                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN],
             },
         },
         {
@@ -300,7 +300,7 @@ def test_get_latest_lmp(test):
         },
         {
             NYISO(): {
-                "markets": [Markets.DAY_AHEAD_5_MIN, Markets.REAL_TIME_5_MIN],
+                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN],
             },
         },
         {
