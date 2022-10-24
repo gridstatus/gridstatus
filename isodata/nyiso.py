@@ -9,6 +9,10 @@ from isodata import utils
 from isodata.base import FuelMix, GridStatus, ISOBase, Markets
 from isodata.decorators import support_date_range
 
+ZONE = "zone"
+GENERATOR = "generator"
+"""NYISO offers LMP data at two locational granularities: load zone and point of generator interconnection"""
+
 
 class NYISO(ISOBase):
     name = "New York ISO"
@@ -171,8 +175,12 @@ class NYISO(ISOBase):
 
         return data
 
-    def get_latest_lmp(self, market: str, locations: list = None):
-        return self._latest_lmp_from_today(market=market, locations=locations)
+    def get_latest_lmp(
+        self, market: str, locations: list = None, location_type: str = None
+    ):
+        return self._latest_lmp_from_today(
+            market=market, locations=locations, location_type=location_type
+        )
 
     def get_lmp_today(
         self,
@@ -199,12 +207,14 @@ class NYISO(ISOBase):
     ):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
+
+        Supported Location Types: ZONE, GENERATOR
         """
         if locations is None:
             locations = "ALL"
 
         if location_type is None:
-            location_type = "zone"
+            location_type = ZONE
 
         assert market is not None, "market must be specified"
         market = Markets(market)
@@ -230,7 +240,7 @@ class NYISO(ISOBase):
 
         df["Energy"] = df["LMP"] - (df["Loss"] - df["Congestion"])
         df["Market"] = market.value
-        df["Location Type"] = "Zone" if location_type == "zone" else "Generator"
+        df["Location Type"] = "Zone" if location_type == ZONE else "Generator"
 
         df = df[
             [
@@ -259,12 +269,15 @@ class NYISO(ISOBase):
         return marketname
 
     def _set_location_type(self, location_type: str) -> str:
-        if location_type in ["zone", "zonal"]:
-            return "zone"
-        elif location_type in ["gen", "generator"]:
+        location_types = [ZONE, GENERATOR]
+        if location_type == ZONE:
+            return ZONE
+        elif location_type == GENERATOR:
             return "gen"
         else:
-            raise RuntimeError(f"{location_type} is not a valid location type")
+            raise ValueError(
+                f"Invalid location type. Expected one of: {location_types}"
+            )
 
     def _download_nyiso_archive(self, date, end=None, dataset_name=None, filename=None):
 
