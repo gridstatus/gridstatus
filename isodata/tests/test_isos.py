@@ -38,6 +38,12 @@ def check_storage(df):
     )
 
 
+def check_status(df):
+    assert set(df.columns) == set(
+        ["Time", "Status", "Notes"],
+    )
+
+
 def test_make_lmp_availability_df():
     isodata.utils.make_lmp_availability_table()
 
@@ -81,13 +87,6 @@ def test_get_latest_status(iso):
 
     # ensure there is a homepage if isodata can retrieve a status
     assert isinstance(iso.status_homepage, str)
-
-
-@pytest.mark.parametrize("iso", [NYISO()])
-def test_get_historical_status(iso):
-    date = "20220609"
-    status = iso.get_historical_status(date)
-    assert isinstance(status, pd.DataFrame)
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
@@ -327,6 +326,18 @@ def test_get_lmp_today(test):
 def test_get_historical_forecast(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
     forecast = iso.get_historical_forecast(test_date)
+    check_forecast(forecast)
+
+
+@pytest.mark.parametrize("iso", [NYISO(), ISONE(), CAISO()])
+def test_get_historical_forecast_with_date_range(iso):
+    end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
+    start = (end - pd.Timedelta(days=7)).date()
+
+    forecast = forecast = iso.get_historical_forecast(
+        start=start,
+        end=end,
+    )
     check_forecast(forecast)
 
 

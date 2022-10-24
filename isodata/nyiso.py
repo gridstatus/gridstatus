@@ -65,6 +65,7 @@ class NYISO(ISOBase):
             return row
 
         status_df = status_df.apply(_parse_status, axis=1)
+        status_df = status_df[["Time", "Status", "Notes"]]
         return status_df
 
     def get_latest_fuel_mix(self):
@@ -97,7 +98,6 @@ class NYISO(ISOBase):
             values="Gen MW",
             aggfunc="first",
         ).reset_index()
-
         return mix_df
 
     def get_latest_demand(self):
@@ -149,18 +149,24 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_forecast)
         return d
 
-    @support_date_range(frequency="1D")
-    def get_historical_forecast(self, date):
+    @support_date_range(frequency="MS")
+    def get_historical_forecast(self, date, end=None):
         """Get load forecast for a previous date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
 
         # todo optimize this to accept a date range
-        data = self._download_nyiso_archive(date, dataset_name="isolf")
+        data = self._download_nyiso_archive(
+            date,
+            end=end,
+            dataset_name="isolf",
+        )
 
-        data["Forecast Time"] = date
-
-        data = data[["Forecast Time", "Time", "NYISO"]].rename(
-            columns={"NYISO": "Load Forecast", "Time": "Time"},
+        data = data[["File Date", "Time", "NYISO"]].rename(
+            columns={
+                "File Date": "Forecast Time",
+                "NYISO": "Load Forecast",
+                "Time": "Time",
+            },
         )
 
         return data
@@ -281,6 +287,7 @@ class NYISO(ISOBase):
 
                 csv_filename = f"{day}{filename}.csv"
                 df = pd.read_csv(z.open(csv_filename))
+                df["File Date"] = d.normalize()
                 all_dfs.append(df)
 
             df = pd.concat(all_dfs)

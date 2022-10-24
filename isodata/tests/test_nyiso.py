@@ -1,11 +1,21 @@
+import pandas as pd
+
 import isodata
 from isodata.base import Markets
+from isodata.tests.test_isos import check_status
 
 
 def test_date_range():
     iso = isodata.NYISO()
     df = iso.get_historical_fuel_mix(start="Aug 1, 2022", end="Oct 22, 2022")
     assert df.shape[0] >= 0
+
+
+def test_get_historical_status():
+    iso = isodata.NYISO()
+    date = "20220609"
+    status = iso.get_historical_status(date)
+    check_status(status)
 
 
 def test_nyiso_edt_to_est():

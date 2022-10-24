@@ -105,7 +105,7 @@ class support_date_range:
 
             all_df = []
 
-            # every None removes two possible querys
+            # every None removes two possible queries
             total = len(dates) - dates.count(None) * 2 - 1
 
             with tqdm.tqdm(disable=total <= 1, total=total) as pbar:
@@ -123,7 +123,7 @@ class support_date_range:
 
                     args_dict["date"] = start_date
 
-                    # no need for end if we are query for just 1 day
+                    # no need for end if we are querying for just 1 day
                     if self.frequency != "1D":
                         args_dict["end"] = end_date
 

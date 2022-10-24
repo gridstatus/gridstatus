@@ -178,11 +178,14 @@ class CAISO(ISOBase):
             + f"&startdatetime={start}&enddatetime={end}"
         )
 
-        df = pd.read_csv(
+        df = _get_oasis(
             url,
-            compression="zip",
             usecols=["INTERVALSTARTTIME_GMT", "MW", "TAC_AREA_NAME"],
-        ).rename(columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load Forecast"})
+            verbose=verbose,
+        ).rename(
+            columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load Forecast"},
+        )
+
         # returns many areas, we only want one overall iso
         df = df[df["TAC_AREA_NAME"] == "CA ISO-TAC"]
 
