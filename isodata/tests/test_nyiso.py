@@ -85,7 +85,6 @@ def test_nyiso_est_to_edt():
 
 
 def test_location_type_parameter():
-    # assuming there should always be more generators than zones
     iso = isodata.NYISO()
 
     date = "2022-06-09"
