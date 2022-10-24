@@ -178,12 +178,14 @@ class NYISO(ISOBase):
         self,
         market: str,
         locations: list = None,
+        location_type: str = None,
     ):
         "Get lmp for today"
         return self._today_from_historical(
             self.get_historical_lmp,
-            market,
-            locations,
+            market=market,
+            locations=locations,
+            location_type=location_type,
         )
 
     @support_date_range(frequency="MS")
