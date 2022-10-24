@@ -35,11 +35,12 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_status)
         return d
 
-    @support_date_range(frequency="1D")
-    def get_historical_status(self, date):
+    @support_date_range(frequency="MS")
+    def get_historical_status(self, date, end=None):
         """Get status event for a date"""
         status_df = self._download_nyiso_archive(
             date=date,
+            end=end,
             dataset_name="RealTimeEvents",
         )
 

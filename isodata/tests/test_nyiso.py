@@ -17,6 +17,11 @@ def test_get_historical_status():
     status = iso.get_historical_status(date)
     check_status(status)
 
+    start = "2022-05-01"
+    end = "2022-10-02"
+    status = iso.get_historical_status(start=start, end=end)
+    check_status(status)
+
 
 def test_nyiso_edt_to_est():
     # number of rows hardcoded based on when this test was written. should stay same
