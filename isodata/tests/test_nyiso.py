@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 import isodata
 from isodata.base import Markets
@@ -81,3 +82,33 @@ def test_nyiso_est_to_edt():
 
     df = iso.get_historical_demand(date=date)
     assert df.shape[0] >= 281
+
+
+def test_location_type_parameter():
+    # assuming there should always be more generators than zones
+    iso = isodata.NYISO()
+
+    date = "2022-06-09"
+
+    df_zone = iso.get_historical_lmp(
+        date=date, market=Markets.DAY_AHEAD_HOURLY, location_type="zone"
+    )
+    df_gen = iso.get_historical_lmp(
+        date=date, market=Markets.DAY_AHEAD_HOURLY, location_type="generator"
+    )
+    assert df_gen.shape[0] > df_zone.shape[0]
+
+    df_zone = iso.get_lmp_today(market=Markets.DAY_AHEAD_HOURLY, location_type="zone")
+    df_gen = iso.get_lmp_today(
+        market=Markets.DAY_AHEAD_HOURLY, location_type="generator"
+    )
+    assert df_gen.shape[0] > df_zone.shape[0]
+
+    df_zone = iso.get_latest_lmp(market=Markets.DAY_AHEAD_HOURLY, location_type="zone")
+    df_gen = iso.get_latest_lmp(
+        market=Markets.DAY_AHEAD_HOURLY, location_type="generator"
+    )
+    assert df_gen.shape[0] > df_zone.shape[0]
+
+    with pytest.raises(ValueError):
+        df = iso.get_latest_lmp(market=Markets.DAY_AHEAD_HOURLY, location_type="dummy")
