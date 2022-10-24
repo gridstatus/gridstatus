@@ -183,8 +183,14 @@ class NYISO(ISOBase):
             locations=locations,
         )
 
-    @support_date_range(frequency="1D")
-    def get_historical_lmp(self, date, market: str, locations: list = None):
+    @support_date_range(frequency="MS")
+    def get_historical_lmp(
+        self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = None,
+    ):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
         """
@@ -192,6 +198,7 @@ class NYISO(ISOBase):
         if locations is None:
             locations = "ALL"
 
+        assert market is not None, "market must be specified"
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
@@ -203,7 +210,8 @@ class NYISO(ISOBase):
             raise RuntimeError("LMP Market is not supported")
 
         df = self._download_nyiso_archive(
-            date,
+            date=date,
+            end=end,
             dataset_name=marketname,
             filename=filename,
         )
@@ -253,11 +261,12 @@ class NYISO(ISOBase):
             f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"
         )
 
-        # TODO the last 7 days of file are hosted directly as csv
+        # the last 7 days of file are hosted directly as csv
         if end is None and date > pd.Timestamp.now(
             tz=self.default_timezone,
         ).normalize() - pd.DateOffset(days=7):
             df = pd.read_csv(csv_url)
+            df = _handle_time(df)
         else:
             r = requests.get(zip_url)
             z = ZipFile(io.BytesIO(r.content))
@@ -289,37 +298,49 @@ class NYISO(ISOBase):
                 csv_filename = f"{day}{filename}.csv"
                 df = pd.read_csv(z.open(csv_filename))
                 df["File Date"] = d.normalize()
+
+                df = _handle_time(df)
                 all_dfs.append(df)
 
             df = pd.concat(all_dfs)
 
-        if "Time Stamp" in df.columns:
-            time_stamp_col = "Time Stamp"
-        elif "Timestamp" in df.columns:
-            time_stamp_col = "Timestamp"
-
-        def time_to_datetime(s, dst="infer"):
-            return pd.to_datetime(s).dt.tz_localize(
-                self.default_timezone,
-                ambiguous=dst,
-            )
-
-        if "Time Zone" in df.columns:
-            dst = df["Time Zone"] == "EDT"
-            df[time_stamp_col] = time_to_datetime(df[time_stamp_col], dst)
-
-        elif "Name" in df.columns:
-            # once we group by name, the time series for each group is no longer ambiguous
-            df[time_stamp_col] = df.groupby("Name")[time_stamp_col].apply(
-                time_to_datetime,
-                "infer",
-            )
-        else:
-            df[time_stamp_col] = time_to_datetime(df[time_stamp_col], "infer")
-
-        df = df.rename(columns={time_stamp_col: "Time"})
-
         return df
+
+
+def _handle_time(df):
+    if "Time Stamp" in df.columns:
+        time_stamp_col = "Time Stamp"
+    elif "Timestamp" in df.columns:
+        time_stamp_col = "Timestamp"
+
+    def time_to_datetime(s, dst="infer"):
+        return pd.to_datetime(s).dt.tz_localize(
+            NYISO.default_timezone,
+            ambiguous=dst,
+        )
+
+    if "Time Zone" in df.columns:
+        dst = df["Time Zone"] == "EDT"
+        df[time_stamp_col] = time_to_datetime(
+            df[time_stamp_col],
+            dst,
+        )
+
+    elif "Name" in df.columns:
+        # once we group by name, the time series for each group is no longer ambiguous
+        df[time_stamp_col] = df.groupby("Name")[time_stamp_col].apply(
+            time_to_datetime,
+            "infer",
+        )
+    else:
+        df[time_stamp_col] = time_to_datetime(
+            df[time_stamp_col],
+            "infer",
+        )
+
+    df = df.rename(columns={time_stamp_col: "Time"})
+
+    return df
 
 
 """
