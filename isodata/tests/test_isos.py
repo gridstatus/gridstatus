@@ -359,13 +359,23 @@ def test_get_historical_storage(iso):
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
-def test_get_historical_with_date_range(iso):
+def test_get_historical_fuel_mix_with_date_range(iso):
     # range not inclusive, add one to include today
     num_days = 7
     end = pd.Timestamp.now(tz=iso.default_timezone) + pd.Timedelta(days=1)
     start = end - pd.Timedelta(days=num_days)
 
     data = iso.get_historical_fuel_mix(date=start.date(), end=end.date())
+    # make sure right number of days are returned
+    assert data["Time"].dt.day.nunique() == num_days
+
+
+@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
+def test_get_historical_demand_with_date_range(iso):
+    num_days = 7
+    end = pd.Timestamp.now(tz=iso.default_timezone) + pd.Timedelta(days=1)
+    start = end - pd.Timedelta(days=num_days)
+    data = iso.get_historical_demand(date=start.date(), end=end.date())
     # make sure right number of days are returned
     assert data["Time"].dt.day.nunique() == num_days
 

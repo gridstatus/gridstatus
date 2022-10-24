@@ -39,7 +39,7 @@ class NYISO(ISOBase):
     def get_historical_status(self, date):
         """Get status event for a date"""
         status_df = self._download_nyiso_archive(
-            date,
+            date=date,
             dataset_name="RealTimeEvents",
         )
 
@@ -87,8 +87,8 @@ class NYISO(ISOBase):
     @support_date_range(frequency="MS")
     def get_historical_fuel_mix(self, date, end=None):
         mix_df = self._download_nyiso_archive(
-            date,
-            end,
+            date=date,
+            end=end,
             dataset_name="rtfuelmix",
         )
         mix_df = mix_df.pivot_table(
@@ -108,16 +108,19 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_demand)
         return d
 
-    @support_date_range(frequency="1D")
-    def get_historical_demand(self, date):
+    @support_date_range(frequency="MS")
+    def get_historical_demand(self, date, end=None):
         """Returns demand at a previous date in 5 minute intervals"""
-        data = self._download_nyiso_archive(date, dataset_name="pal")
+        data = self._download_nyiso_archive(
+            date=date,
+            end=end,
+            dataset_name="pal",
+        )
 
         # drop NA loads
         data = data.dropna(subset=["Load"])
 
         # TODO demand by zone
-        # TODO this doesnt work when timezone isn't parsing correctly
         demand = data.groupby("Time")["Load"].sum().reset_index()
 
         demand = demand.rename(
@@ -151,6 +154,7 @@ class NYISO(ISOBase):
         """Get load forecast for a previous date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
 
+        # todo optimize this to accept a date range
         data = self._download_nyiso_archive(date, dataset_name="isolf")
 
         data["Forecast Time"] = date
