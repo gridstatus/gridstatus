@@ -63,7 +63,7 @@ class PJM(ISOBase):
         "Get fuel mix for today in hourly intervals"
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    @support_date_range(max_days_per_request=365)
+    @support_date_range(frequency="365D")
     def get_historical_fuel_mix(self, date, end=None):
         # earliest date available appears to be 1/1/2016
         data = {
@@ -106,7 +106,7 @@ class PJM(ISOBase):
         "Get demand for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_demand)
 
-    @support_date_range(max_days_per_request=30)
+    @support_date_range(frequency="30D")
     def get_historical_demand(self, date, end=None):
         """Returns demand at a previous date at 5 minute intervals
 
@@ -235,7 +235,7 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-    @support_date_range(max_days_per_request=365, update_dates=pjm_update_dates)
+    @support_date_range(frequency="365D", update_dates=pjm_update_dates)
     def get_historical_lmp(
         self,
         date,

@@ -79,7 +79,7 @@ class CAISO(ISOBase):
         # todo should this use the latest endpoint?
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_fuel_mix(self, date, verbose=False):
         """
         Get historical fuel mix in 5 minute intervals for a provided day
@@ -102,11 +102,6 @@ class CAISO(ISOBase):
                 "Large hydro": "Large Hydro",
             },
         )
-
-        if "Small hydro" in df.columns:
-            import pdb
-
-            pdb.find_function
 
         # when day light savings time switches, there are na rows
         df = df.dropna()
@@ -133,7 +128,7 @@ class CAISO(ISOBase):
         "Get demand for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_demand)
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_demand(self, date, verbose=False):
         """Return demand at a previous date in 5 minute intervals"""
         url = self.HISTORY_BASE + "/%s/demand.csv"
@@ -163,7 +158,7 @@ class CAISO(ISOBase):
         d = self._today_from_historical(self.get_historical_forecast)
         return d
 
-    @support_date_range(max_days_per_request=31)
+    @support_date_range(frequency="31D")
     def get_historical_forecast(self, date, end=None, sleep=5, verbose=False):
         """Returns load forecast for a previous date in 1 hour intervals
 
@@ -178,11 +173,14 @@ class CAISO(ISOBase):
             + f"&startdatetime={start}&enddatetime={end}"
         )
 
-        df = pd.read_csv(
+        df = _get_oasis(
             url,
-            compression="zip",
             usecols=["INTERVALSTARTTIME_GMT", "MW", "TAC_AREA_NAME"],
-        ).rename(columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load Forecast"})
+            verbose=verbose,
+        ).rename(
+            columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load Forecast"},
+        )
+
         # returns many areas, we only want one overall iso
         df = df[df["TAC_AREA_NAME"] == "CA ISO-TAC"]
 
@@ -222,7 +220,7 @@ class CAISO(ISOBase):
             locations=locations,
         )
 
-    @support_date_range(max_days_per_request=31)
+    @support_date_range(frequency="31D")
     def get_historical_lmp(
         self,
         date,
@@ -345,7 +343,7 @@ class CAISO(ISOBase):
         """
         return self._today_from_historical(self.get_historical_storage)
 
-    @support_date_range(max_days_per_request=1)
+    @support_date_range(frequency="1D")
     def get_historical_storage(self, date, verbose=False):
         """Return storage charging or discharging at a previous date in 5 minute intervals
 
@@ -360,7 +358,7 @@ class CAISO(ISOBase):
         df["Type"] = "Batteries"
         return df
 
-    @support_date_range(max_days_per_request=31)
+    @support_date_range(frequency="31D")
     def get_historical_gas_prices(
         self,
         date,
@@ -412,7 +410,7 @@ class CAISO(ISOBase):
         time.sleep(sleep)
         return df
 
-    @support_date_range(max_days_per_request=31)
+    @support_date_range(frequency="31D")
     def get_historical_ghg_allowance(
         self,
         date,
