@@ -227,7 +227,7 @@ The best part is these APIs work in the same way across all the supported ISOs!
 Here is a list of our current example notebooks. If you have any requests, please post an issue and we'd be happy to publish more!
 
 - [LMP Data - PJM](https://github.com/kmax12/isodata/blob/main/Examples/PJM%20LMP%20Data.ipynb)
-- [Fuel Mix over Time - NYISO](https://github.com/kmax12/isodata/blob/main/Examples/NYISO%20Fuel%20Mix%20Over%20Time.ipynb)
+- [Fuel Mix over Time - NYISO](https://github.com/kmax12/isodata/blob/1b0cc688a25e1b7cde8cb0a3e6c13f29134e2ece/Examples/Fuel%20Mix%20Over%20Time%20-%20NYISO.ipynb)
 
 ## Method Availability
 
