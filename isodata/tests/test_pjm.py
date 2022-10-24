@@ -85,9 +85,6 @@ def _lmp_tests(iso, m):
     assert (hist.groupby("Location")["Time"].count() == 48).all()
 
     # span calendar year
-    end = pd.Timestamp.now().normalize()
-    start = end - pd.Timedelta(days=1)
-
     hist = iso.get_historical_lmp(
         start="2018-12-31",
         end="2019-01-02",
@@ -110,8 +107,9 @@ def _lmp_tests(iso, m):
     check_lmp_columns(hist, m)
 
     # all standard
-    end = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
-    start = end - pd.Timedelta(days=2)
+    # move a few days back to avoid late published data
+    end = pd.Timestamp.now() - pd.Timedelta(days=4)
+    start = end - pd.Timedelta(days=1)
 
     hist = iso.get_historical_lmp(
         start=start,
