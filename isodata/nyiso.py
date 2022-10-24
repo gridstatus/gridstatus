@@ -208,7 +208,7 @@ class NYISO(ISOBase):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
 
-        Supported Location Types: ZONE, GENERATOR
+        Supported Location Types: "zone", "generator"
         """
         if locations is None:
             locations = "ALL"
