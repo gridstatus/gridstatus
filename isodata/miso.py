@@ -48,13 +48,7 @@ class MISO(ISOBase):
 
     def get_latest_demand(self):
         # this is same result as using get_demand_today
-        url = "https://misotodaysoutlook.azurewebsites.net/api/Outlook"
-        r = self._get_json(url)
-
-        return {
-            "time": pd.to_datetime(r[1]["d"]).tz_localize(self.default_timezone),
-            "demand": float(r[1]["v"].replace(",", "")),
-        }
+        return self._latest_from_today(self.get_demand_today)
 
     def get_latest_supply(self):
         """Returns most recent data point for supply in MW"""
