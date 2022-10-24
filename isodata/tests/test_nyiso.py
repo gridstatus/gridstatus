@@ -93,22 +93,25 @@ def test_location_type_parameter():
     df_zone = iso.get_historical_lmp(
         date=date, market=Markets.DAY_AHEAD_HOURLY, location_type="zone"
     )
+    assert (df_zone["Location Type"] == "Zone").all()
     df_gen = iso.get_historical_lmp(
         date=date, market=Markets.DAY_AHEAD_HOURLY, location_type="generator"
     )
-    assert df_gen.shape[0] > df_zone.shape[0]
+    assert (df_gen["Location Type"] == "Generator").all()
 
     df_zone = iso.get_lmp_today(market=Markets.DAY_AHEAD_HOURLY, location_type="zone")
+    assert (df_zone["Location Type"] == "Zone").all()
     df_gen = iso.get_lmp_today(
         market=Markets.DAY_AHEAD_HOURLY, location_type="generator"
     )
-    assert df_gen.shape[0] > df_zone.shape[0]
+    assert (df_gen["Location Type"] == "Generator").all()
 
     df_zone = iso.get_latest_lmp(market=Markets.DAY_AHEAD_HOURLY, location_type="zone")
+    assert (df_zone["Location Type"] == "Zone").all()
     df_gen = iso.get_latest_lmp(
         market=Markets.DAY_AHEAD_HOURLY, location_type="generator"
     )
-    assert df_gen.shape[0] > df_zone.shape[0]
+    assert (df_gen["Location Type"] == "Generator").all()
 
     with pytest.raises(ValueError):
         df = iso.get_latest_lmp(market=Markets.DAY_AHEAD_HOURLY, location_type="dummy")
