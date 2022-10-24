@@ -78,7 +78,7 @@ class support_date_range:
                     closed="left",  # no option for neither :(
                 )
                 dates = dates.tolist()
-                if args_dict["date"] != dates[0]:
+                if len(dates) or args_dict["date"] != dates[0]:
                     dates = [args_dict["date"]] + dates
                 dates = dates + [args_dict["end"]]
 
