@@ -2,6 +2,7 @@ import io
 from zipfile import ZipFile
 
 import pandas as pd
+import pytz
 import requests
 
 import isodata
@@ -248,12 +249,26 @@ class NYISO(ISOBase):
         elif "Timestamp" in df.columns:
             time_stamp_col = "Timestamp"
 
-        if time_stamp_col:
-            df[time_stamp_col] = pd.to_datetime(df[time_stamp_col]).dt.tz_localize(
+        def time_to_datetime(s, dst="infer"):
+            return pd.to_datetime(s).dt.tz_localize(
                 self.default_timezone,
+                ambiguous=dst,
             )
 
-            df = df.rename(columns={time_stamp_col: "Time"})
+        if "Time Zone" in df.columns:
+            dst = df["Time Zone"] == "EDT"
+            df[time_stamp_col] = time_to_datetime(df[time_stamp_col], dst)
+
+        elif "Name" in df.columns:
+            # once we group by name, the time series for each group is no longer ambiguous
+            df[time_stamp_col] = df.groupby("Name")[time_stamp_col].apply(
+                time_to_datetime,
+                "infer",
+            )
+        else:
+            df[time_stamp_col] = time_to_datetime(df[time_stamp_col], "infer")
+
+        df = df.rename(columns={time_stamp_col: "Time"})
 
         return df
 
