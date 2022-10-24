@@ -2,6 +2,7 @@
 
 ## vNext
 
+- Support both Generator and Zone for NYISO LMPs
 - Optimize NYISO Date Range Queries over Historical Data
 
 ## v0.9.0 - Oct 21, 2022
