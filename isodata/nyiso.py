@@ -15,7 +15,7 @@ class NYISO(ISOBase):
     name = "New York ISO"
     iso_id = "nyiso"
     default_timezone = "US/Eastern"
-    markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_5_MIN]
+    markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
     status_homepage = "https://www.nyiso.com/system-conditions"
 
     def get_latest_status(self):
@@ -169,7 +169,7 @@ class NYISO(ISOBase):
         self, date, market: str, locations: list = None, location_type: str = None
     ):
         """
-        Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
+        Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
         """
         if locations is None:
             locations = "ALL"
@@ -221,7 +221,7 @@ class NYISO(ISOBase):
     def _set_marketname(self, market: Markets) -> str:
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
-        elif market == Markets.DAY_AHEAD_5_MIN:
+        elif market == Markets.DAY_AHEAD_HOURLY:
             marketname = "damlbmp"
         else:
             raise RuntimeError("LMP Market is not supported")

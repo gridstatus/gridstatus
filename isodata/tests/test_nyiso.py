@@ -18,7 +18,7 @@ def test_nyiso_edt_to_est():
     assert df.shape[0] >= 145
     df = iso.get_historical_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
     assert df.shape[0] >= 4605
-    df = iso.get_historical_lmp(date=date, market=Markets.DAY_AHEAD_5_MIN)
+    df = iso.get_historical_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
     assert df.shape[0] >= 375
 
     df = iso.get_historical_demand(date=date)
@@ -37,7 +37,7 @@ def test_nyiso_est_to_edt():
     df = iso.get_historical_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
     assert df.shape[0] >= 4215
 
-    df = iso.get_historical_lmp(date=date, market=Markets.DAY_AHEAD_5_MIN)
+    df = iso.get_historical_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
     assert df.shape[0] >= 345
 
     df = iso.get_historical_forecast(date=date)

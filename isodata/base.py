@@ -12,7 +12,6 @@ class Markets(Enum):
     REAL_TIME_5_MIN = "REAL_TIME_5_MIN"
     REAL_TIME_15_MIN = "REAL_TIME_15_MIN"
     REAL_TIME_HOURLY = "REAL_TIME_HOURLY"
-    DAY_AHEAD_5_MIN = "DAY_AHEAD_5_MIN"
     DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
 
     def __contains__(cls, item):
