@@ -70,7 +70,7 @@ class support_date_range:
                     inclusive="neither",
                 )
                 dates = [args_dict["date"]] + dates.tolist() + [args_dict["end"]]
-            except:
+            except TypeError:
                 dates = pd.date_range(
                     args_dict["date"].date(),
                     args_dict["end"].date(),
@@ -78,7 +78,7 @@ class support_date_range:
                     closed="left",  # no option for neither :(
                 )
                 dates = dates.tolist()
-                if len(dates) or args_dict["date"] != dates[0]:
+                if len(dates) == 0 or args_dict["date"] != dates[0]:
                     dates = [args_dict["date"]] + dates
                 dates = dates + [args_dict["end"]]
 
