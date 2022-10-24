@@ -199,7 +199,7 @@ class NYISO(ISOBase):
 
         df["Energy"] = df["LMP"] - (df["Loss"] - df["Congestion"])
         df["Market"] = market.value
-        df["Location Type"] = "Zone" if location_type is "zone" else "Generator"
+        df["Location Type"] = "Zone" if location_type == "zone" else "Generator"
 
         df = df[
             [
