@@ -69,15 +69,21 @@ class support_date_range:
                     freq=self.frequency,
                     inclusive="neither",
                 )
+                dates = [args_dict["date"]] + dates.tolist() + [args_dict["end"]]
             except TypeError:
                 dates = pd.date_range(
                     args_dict["date"].date(),
                     args_dict["end"].date(),
                     freq=self.frequency,
+                    closed="left",  # no option for neither :(
                 )
+                dates = dates.tolist()
+                if args_dict["date"] != dates[0]:
+                    dates = [args_dict["date"]] + dates
+                dates = dates + [args_dict["end"]]
 
             # add end date since it's not included
-            dates = [args_dict["date"]] + dates.tolist() + [args_dict["end"]]
+
             dates = [
                 isodata.utils._handle_date(
                     d,

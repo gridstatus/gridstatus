@@ -243,38 +243,43 @@ class NYISO(ISOBase):
         )
 
         # TODO the last 7 days of file are hosted directly as csv
-        # try:
-        #     df = pd.read_csv(csv_url)
-
-        r = requests.get(zip_url)
-        z = ZipFile(io.BytesIO(r.content))
-
-        all_dfs = []
-        if end is None:
-            date_range = [date]
+        if end is None and date > pd.Timestamp.now(
+            tz=self.default_timezone,
+        ).normalize() - pd.DateOffset(days=7):
+            df = pd.read_csv(csv_url)
         else:
-            try:
-                date_range = pd.date_range(
-                    date,
-                    end,
-                    freq="1D",
-                    inclusive="left",
-                )
-            except TypeError:
-                date_range = pd.date_range(date, end, freq="1D", closed="left")
+            r = requests.get(zip_url)
+            z = ZipFile(io.BytesIO(r.content))
 
-        for d in date_range:
-            d = isodata.utils._handle_date(d)
-            month = d.strftime("%Y%m01")
-            day = d.strftime("%Y%m%d")
+            all_dfs = []
+            if end is None:
+                date_range = [date]
+            else:
+                try:
+                    date_range = pd.date_range(
+                        date,
+                        end,
+                        freq="1D",
+                        inclusive="left",
+                    )
+                except TypeError:
+                    date_range = pd.date_range(
+                        date,
+                        end,
+                        freq="1D",
+                        closed="left",
+                    )
 
-            csv_filename = f"{day}{filename}.csv"
-            df = pd.read_csv(z.open(csv_filename))
-            all_dfs.append(df)
+            for d in date_range:
+                d = isodata.utils._handle_date(d)
+                month = d.strftime("%Y%m01")
+                day = d.strftime("%Y%m%d")
 
-        df = pd.concat(all_dfs)
+                csv_filename = f"{day}{filename}.csv"
+                df = pd.read_csv(z.open(csv_filename))
+                all_dfs.append(df)
 
-        time_stamp_col = None
+            df = pd.concat(all_dfs)
 
         if "Time Stamp" in df.columns:
             time_stamp_col = "Time Stamp"
