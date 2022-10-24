@@ -66,14 +66,14 @@ class support_date_range:
                 dates = pd.date_range(
                     args_dict["date"].date(),
                     args_dict["end"].date(),
-                    freq=f"{self.frequency}",
+                    freq=self.frequency,
                     inclusive="neither",
                 )
             except TypeError:
                 dates = pd.date_range(
                     args_dict["date"].date(),
                     args_dict["end"].date(),
-                    freq=f"{self.frequency}",
+                    freq=self.frequency,
                 )
 
             # add end date since it's not included
@@ -93,8 +93,8 @@ class support_date_range:
 
             start_date = dates[0]
 
-            if self.frequency == "1D":
-                del args_dict["end"]
+            # remove end date and add back later if needed
+            del args_dict["end"]
 
             all_df = []
 
@@ -116,6 +116,7 @@ class support_date_range:
 
                     args_dict["date"] = start_date
 
+                    # no need for end if we are query for just 1 day
                     if self.frequency != "1D":
                         args_dict["end"] = end_date
 
@@ -125,6 +126,7 @@ class support_date_range:
 
                     all_df.append(df)
                     start_date = end_date
+
             df = pd.concat(all_df).reset_index(drop=True)
             return df
 
