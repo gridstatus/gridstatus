@@ -38,6 +38,12 @@ def check_storage(df):
     )
 
 
+def check_status(df):
+    assert set(df.columns) == set(
+        ["Time", "Status", "Notes"],
+    )
+
+
 def test_make_lmp_availability_df():
     isodata.utils.make_lmp_availability_table()
 
@@ -81,13 +87,6 @@ def test_get_latest_status(iso):
 
     # ensure there is a homepage if isodata can retrieve a status
     assert isinstance(iso.status_homepage, str)
-
-
-@pytest.mark.parametrize("iso", [NYISO()])
-def test_get_historical_status(iso):
-    date = "20220609"
-    status = iso.get_historical_status(date)
-    assert isinstance(status, pd.DataFrame)
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
@@ -330,6 +329,18 @@ def test_get_historical_forecast(iso):
     check_forecast(forecast)
 
 
+@pytest.mark.parametrize("iso", [NYISO(), ISONE(), CAISO()])
+def test_get_historical_forecast_with_date_range(iso):
+    end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
+    start = (end - pd.Timedelta(days=7)).date()
+
+    forecast = forecast = iso.get_historical_forecast(
+        start=start,
+        end=end,
+    )
+    check_forecast(forecast)
+
+
 @pytest.mark.parametrize(
     "iso",
     [MISO(), SPP(), Ercot(), ISONE(), CAISO(), PJM(), NYISO()],
@@ -359,13 +370,23 @@ def test_get_historical_storage(iso):
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
-def test_get_historical_with_date_range(iso):
+def test_get_historical_fuel_mix_with_date_range(iso):
     # range not inclusive, add one to include today
     num_days = 7
     end = pd.Timestamp.now(tz=iso.default_timezone) + pd.Timedelta(days=1)
     start = end - pd.Timedelta(days=num_days)
 
     data = iso.get_historical_fuel_mix(date=start.date(), end=end.date())
+    # make sure right number of days are returned
+    assert data["Time"].dt.day.nunique() == num_days
+
+
+@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
+def test_get_historical_demand_with_date_range(iso):
+    num_days = 7
+    end = pd.Timestamp.now(tz=iso.default_timezone) + pd.Timedelta(days=1)
+    start = end - pd.Timedelta(days=num_days)
+    data = iso.get_historical_demand(date=start.date(), end=end.date())
     # make sure right number of days are returned
     assert data["Time"].dt.day.nunique() == num_days
 

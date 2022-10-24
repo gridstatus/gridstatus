@@ -1,5 +1,38 @@
+import pandas as pd
+
 import isodata
 from isodata.base import Markets
+from isodata.tests.test_isos import check_status
+
+
+def test_nyiso_date_range():
+    iso = isodata.NYISO()
+    df = iso.get_historical_fuel_mix(start="Aug 1, 2022", end="Oct 22, 2022")
+    assert df.shape[0] >= 0
+
+
+def test_get_nyiso_historical_status():
+    iso = isodata.NYISO()
+    date = "20220609"
+    status = iso.get_historical_status(date)
+    check_status(status)
+
+    start = "2022-05-01"
+    end = "2022-10-02"
+    status = iso.get_historical_status(start=start, end=end)
+    check_status(status)
+
+
+def test_nyiso_get_historical_lmp_with_range():
+    iso = isodata.NYISO()
+    start = "2021-12-01"
+    end = "2022-2-02"
+    df = iso.get_historical_lmp(
+        start=start,
+        end=end,
+        market=Markets.REAL_TIME_5_MIN,
+    )
+    assert df.shape[0] >= 0
 
 
 def test_nyiso_edt_to_est():

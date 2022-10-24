@@ -35,10 +35,14 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_status)
         return d
 
-    @support_date_range(max_days_per_request=1)
-    def get_historical_status(self, date):
+    @support_date_range(frequency="MS")
+    def get_historical_status(self, date, end=None):
         """Get status event for a date"""
-        status_df = self._download_nyiso_archive(date, "RealTimeEvents")
+        status_df = self._download_nyiso_archive(
+            date=date,
+            end=end,
+            dataset_name="RealTimeEvents",
+        )
 
         status_df = status_df.rename(
             columns={"Message": "Status"},
@@ -62,6 +66,7 @@ class NYISO(ISOBase):
             return row
 
         status_df = status_df.apply(_parse_status, axis=1)
+        status_df = status_df[["Time", "Status", "Notes"]]
         return status_df
 
     def get_latest_fuel_mix(self):
@@ -81,16 +86,19 @@ class NYISO(ISOBase):
         "Get fuel mix for today in 5 minute intervals"
         return self._today_from_historical(self.get_historical_fuel_mix)
 
-    @support_date_range(max_days_per_request=1)
-    def get_historical_fuel_mix(self, date):
-        mix_df = self._download_nyiso_archive(date, "rtfuelmix")
+    @support_date_range(frequency="MS")
+    def get_historical_fuel_mix(self, date, end=None):
+        mix_df = self._download_nyiso_archive(
+            date=date,
+            end=end,
+            dataset_name="rtfuelmix",
+        )
         mix_df = mix_df.pivot_table(
             index="Time",
             columns="Fuel Category",
             values="Gen MW",
             aggfunc="first",
         ).reset_index()
-
         return mix_df
 
     def get_latest_demand(self):
@@ -101,10 +109,14 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_demand)
         return d
 
-    @support_date_range(max_days_per_request=1)
-    def get_historical_demand(self, date):
+    @support_date_range(frequency="MS")
+    def get_historical_demand(self, date, end=None):
         """Returns demand at a previous date in 5 minute intervals"""
-        data = self._download_nyiso_archive(date, "pal")
+        data = self._download_nyiso_archive(
+            date=date,
+            end=end,
+            dataset_name="pal",
+        )
 
         # drop NA loads
         data = data.dropna(subset=["Load"])
@@ -138,17 +150,24 @@ class NYISO(ISOBase):
         d = self._today_from_historical(self.get_historical_forecast)
         return d
 
-    @support_date_range(max_days_per_request=1)
-    def get_historical_forecast(self, date):
+    @support_date_range(frequency="MS")
+    def get_historical_forecast(self, date, end=None):
         """Get load forecast for a previous date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
 
-        data = self._download_nyiso_archive(date, "isolf")
+        # todo optimize this to accept a date range
+        data = self._download_nyiso_archive(
+            date,
+            end=end,
+            dataset_name="isolf",
+        )
 
-        data["Forecast Time"] = date
-
-        data = data[["Forecast Time", "Time", "NYISO"]].rename(
-            columns={"NYISO": "Load Forecast", "Time": "Time"},
+        data = data[["File Date", "Time", "NYISO"]].rename(
+            columns={
+                "File Date": "Forecast Time",
+                "NYISO": "Load Forecast",
+                "Time": "Time",
+            },
         )
 
         return data
@@ -164,8 +183,14 @@ class NYISO(ISOBase):
             locations=locations,
         )
 
-    @support_date_range(max_days_per_request=1)
-    def get_historical_lmp(self, date, market: str, locations: list = None):
+    @support_date_range(frequency="MS")
+    def get_historical_lmp(
+        self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = None,
+    ):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_5_MIN
         """
@@ -173,6 +198,7 @@ class NYISO(ISOBase):
         if locations is None:
             locations = "ALL"
 
+        assert market is not None, "market must be specified"
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
@@ -184,8 +210,9 @@ class NYISO(ISOBase):
             raise RuntimeError("LMP Market is not supported")
 
         df = self._download_nyiso_archive(
-            date,
-            market_name=marketname,
+            date=date,
+            end=end,
+            dataset_name=marketname,
             filename=filename,
         )
 
@@ -219,58 +246,102 @@ class NYISO(ISOBase):
 
         return df
 
-    def _download_nyiso_archive(self, date, market_name, filename=None):
+    def _download_nyiso_archive(self, date, end=None, dataset_name=None, filename=None):
 
         if filename is None:
-            filename = market_name
+            filename = dataset_name
 
         date = isodata.utils._handle_date(date)
         month = date.strftime("%Y%m01")
         day = date.strftime("%Y%m%d")
 
         csv_filename = f"{day}{filename}.csv"
-        csv_url = f"http://mis.nyiso.com/public/csv/{market_name}/{csv_filename}"
+        csv_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{csv_filename}"
         zip_url = (
-            f"http://mis.nyiso.com/public/csv/{market_name}/{month}{filename}_csv.zip"
+            f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"
         )
 
         # the last 7 days of file are hosted directly as csv
-        try:
+        if end is None and date > pd.Timestamp.now(
+            tz=self.default_timezone,
+        ).normalize() - pd.DateOffset(days=7):
             df = pd.read_csv(csv_url)
-        except:
+            df = _handle_time(df)
+            df["File Date"] = date.normalize()
+        else:
             r = requests.get(zip_url)
             z = ZipFile(io.BytesIO(r.content))
-            df = pd.read_csv(z.open(csv_filename))
 
-        time_stamp_col = None
+            all_dfs = []
+            if end is None:
+                date_range = [date]
+            else:
+                try:
+                    date_range = pd.date_range(
+                        date,
+                        end,
+                        freq="1D",
+                        inclusive="left",
+                    )
+                except TypeError:
+                    date_range = pd.date_range(
+                        date,
+                        end,
+                        freq="1D",
+                        closed="left",
+                    )
 
-        if "Time Stamp" in df.columns:
-            time_stamp_col = "Time Stamp"
-        elif "Timestamp" in df.columns:
-            time_stamp_col = "Timestamp"
+            for d in date_range:
+                d = isodata.utils._handle_date(d)
+                month = d.strftime("%Y%m01")
+                day = d.strftime("%Y%m%d")
 
-        def time_to_datetime(s, dst="infer"):
-            return pd.to_datetime(s).dt.tz_localize(
-                self.default_timezone,
-                ambiguous=dst,
-            )
+                csv_filename = f"{day}{filename}.csv"
+                df = pd.read_csv(z.open(csv_filename))
+                df["File Date"] = d.normalize()
 
-        if "Time Zone" in df.columns:
-            dst = df["Time Zone"] == "EDT"
-            df[time_stamp_col] = time_to_datetime(df[time_stamp_col], dst)
+                df = _handle_time(df)
+                all_dfs.append(df)
 
-        elif "Name" in df.columns:
-            # once we group by name, the time series for each group is no longer ambiguous
-            df[time_stamp_col] = df.groupby("Name")[time_stamp_col].apply(
-                time_to_datetime,
-                "infer",
-            )
-        else:
-            df[time_stamp_col] = time_to_datetime(df[time_stamp_col], "infer")
-
-        df = df.rename(columns={time_stamp_col: "Time"})
+            df = pd.concat(all_dfs)
 
         return df
+
+
+def _handle_time(df):
+    if "Time Stamp" in df.columns:
+        time_stamp_col = "Time Stamp"
+    elif "Timestamp" in df.columns:
+        time_stamp_col = "Timestamp"
+
+    def time_to_datetime(s, dst="infer"):
+        return pd.to_datetime(s).dt.tz_localize(
+            NYISO.default_timezone,
+            ambiguous=dst,
+        )
+
+    if "Time Zone" in df.columns:
+        dst = df["Time Zone"] == "EDT"
+        df[time_stamp_col] = time_to_datetime(
+            df[time_stamp_col],
+            dst,
+        )
+
+    elif "Name" in df.columns:
+        # once we group by name, the time series for each group is no longer ambiguous
+        df[time_stamp_col] = df.groupby("Name")[time_stamp_col].apply(
+            time_to_datetime,
+            "infer",
+        )
+    else:
+        df[time_stamp_col] = time_to_datetime(
+            df[time_stamp_col],
+            "infer",
+        )
+
+    df = df.rename(columns={time_stamp_col: "Time"})
+
+    return df
 
 
 """

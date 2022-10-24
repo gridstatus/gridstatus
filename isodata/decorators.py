@@ -15,10 +15,9 @@ def _get_args_dict(fn, args, kwargs):
 
 
 class support_date_range:
-    def __init__(self, max_days_per_request, update_dates=None):
-        """Maximum number of days that can be queried at once"""
-        assert max_days_per_request > 0, "max_days_per_request must be greater than 0"
-        self.max_days_per_request = max_days_per_request
+    def __init__(self, frequency, update_dates=None):
+        """Maximum frequency of ranges"""
+        self.frequency = frequency
         self.update_dates = update_dates
 
     def __call__(self, f):
@@ -60,7 +59,6 @@ class support_date_range:
 
             # use .date() to remove timezone info, which doesnt matter if just a date
 
-            # if using python 3.7, there will be an older version of pandas installed that must used closed
             # Note: this may create a split that will end up being unnecessary after running update dates below.
             # that is because after adding new dates, it's possible that two ranges could be added.
             # Unnecessary optimization right now to include logic to handle this
@@ -68,19 +66,25 @@ class support_date_range:
                 dates = pd.date_range(
                     args_dict["date"].date(),
                     args_dict["end"].date(),
-                    freq=f"{self.max_days_per_request}D",
-                    inclusive="left",
+                    freq=self.frequency,
+                    inclusive="neither",
                 )
+                dates = [args_dict["date"]] + dates.tolist() + [args_dict["end"]]
             except TypeError:
                 dates = pd.date_range(
                     args_dict["date"].date(),
                     args_dict["end"].date(),
-                    freq=f"{self.max_days_per_request}D",
+                    freq=self.frequency,
                     closed="left",
                 )
+                # no option for closed neither :(
+                dates = dates.tolist()
+                if len(dates) == 0 or args_dict["date"].date() != dates[0].date():
+                    dates = [args_dict["date"]] + dates
+                dates = dates + [args_dict["end"]]
 
             # add end date since it's not included
-            dates = dates.tolist() + [args_dict["end"]]
+
             dates = [
                 isodata.utils._handle_date(
                     d,
@@ -96,14 +100,13 @@ class support_date_range:
 
             start_date = dates[0]
 
-            if self.max_days_per_request == 1:
-                del args_dict["end"]
+            # remove end date and add back later if needed
+            del args_dict["end"]
 
             all_df = []
 
-            # every None removes two possible querys
+            # every None removes two possible queries
             total = len(dates) - dates.count(None) * 2 - 1
-            import pdb
 
             with tqdm.tqdm(disable=total <= 1, total=total) as pbar:
 
@@ -119,7 +122,9 @@ class support_date_range:
                         continue
 
                     args_dict["date"] = start_date
-                    if self.max_days_per_request > 1:
+
+                    # no need for end if we are querying for just 1 day
+                    if self.frequency != "1D":
                         args_dict["end"] = end_date
 
                     df = f(**args_dict)
@@ -128,6 +133,7 @@ class support_date_range:
 
                     all_df.append(df)
                     start_date = end_date
+
             df = pd.concat(all_df).reset_index(drop=True)
             return df
 
