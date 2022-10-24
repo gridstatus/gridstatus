@@ -175,11 +175,15 @@ class NYISO(ISOBase):
         return self._latest_lmp_from_today(market=market, locations=locations)
 
     def get_lmp_today(
-        self, market: str, locations: list = None, location_type: str = None
+        self,
+        market: str,
+        locations: list = None,
     ):
         "Get lmp for today"
         return self._today_from_historical(
-            self.get_historical_lmp, market, locations, location_type
+            self.get_historical_lmp,
+            market,
+            locations,
         )
 
     @support_date_range(frequency="MS")
