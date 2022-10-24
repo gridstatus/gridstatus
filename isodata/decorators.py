@@ -75,10 +75,11 @@ class support_date_range:
                     args_dict["date"].date(),
                     args_dict["end"].date(),
                     freq=self.frequency,
-                    closed="left",  # no option for neither :(
+                    closed="left",
                 )
+                # no option for closed neither :(
                 dates = dates.tolist()
-                if len(dates) == 0 or args_dict["date"] != dates[0]:
+                if len(dates) == 0 or args_dict["date"].date() != dates[0].date():
                     dates = [args_dict["date"]] + dates
                 dates = dates + [args_dict["end"]]
 
