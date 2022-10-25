@@ -19,9 +19,9 @@ all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 def list_isos():
 
-    isos = [[i.name, i.iso_id] for i in all_isos]
+    isos = [[i.name, i.iso_id, i.__name__] for i in all_isos]
 
-    return pd.DataFrame(isos, columns=["Name", "Id"])
+    return pd.DataFrame(isos, columns=["Name", "Id", "Class"])
 
 
 def get_iso(iso_id):

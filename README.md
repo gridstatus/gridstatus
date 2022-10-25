@@ -58,21 +58,20 @@ First, we can see all of the ISOs that are supported
 ```
 
 ```
-                                    Name     Id
-0                         California ISO  caiso
-1  Electric Reliability Council of Texas  ercot
-2                           New York ISO  nyiso
-3                   Southwest Power Pool    spp
-4                                    PJM    pjm
-5                       Midcontinent ISO   miso
-6                        ISO New England  isone
+                                    Name     Id  Class
+0                       Midcontinent ISO   miso   MISO
+1                         California ISO  caiso  CAISO
+2                                    PJM    pjm    PJM
+3  Electric Reliability Council of Texas  ercot  Ercot
+4                   Southwest Power Pool    spp    SPP
+5                           New York ISO  nyiso  NYISO
+6                        ISO New England  isone  ISONE
 ```
 
 Next, we can select an ISO we want to use
 
 ```python
->>> iso = isodata.get_iso('caiso')
->>> caiso = iso()
+>>> caiso = isodata.CAISO()
 ```
 
 All ISOs have the same API. Here is how we can get the fuel mix
