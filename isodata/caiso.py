@@ -1,6 +1,5 @@
 import io
 import time
-from sre_parse import Verbose
 from zipfile import ZipFile
 
 import pandas as pd
@@ -132,7 +131,7 @@ class CAISO(ISOBase):
     def get_historical_demand(self, date, verbose=False):
         """Return demand at a previous date in 5 minute intervals"""
         url = self.HISTORY_BASE + "/%s/demand.csv"
-        df = _get_historical(url, date, verbose=Verbose)[["Time", "Current demand"]]
+        df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Demand"})
         df = df.dropna(subset=["Demand"])
 
@@ -365,7 +364,7 @@ class CAISO(ISOBase):
         end=None,
         fuel_region_id="ALL",
         sleep=5,
-        verbose=True,
+        verbose=False,
     ):
         """Return gas prices at a previous date
 
@@ -416,7 +415,7 @@ class CAISO(ISOBase):
         date,
         end=None,
         sleep=5,
-        verbose=True,
+        verbose=False,
     ):
         """Return ghg allowance at a previous date
 
