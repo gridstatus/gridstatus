@@ -127,10 +127,6 @@ class NYISO(ISOBase):
         # TODO load by zone
         load = data.groupby("Time")["Load"].sum().reset_index()
 
-        load = load.rename(
-            columns={"Load": "Load"},
-        )
-
         return load
 
     def get_latest_supply(self):
