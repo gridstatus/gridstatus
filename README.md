@@ -20,9 +20,9 @@
 <a href="#supported-lmp-markets"><b>Supported LMP Markets</b></a> 
 </p>
 
-`isodata` provides a uniform Python API to access energy supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
+`isodata` provides a uniform Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
 
-Currently supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM. See [full availability](#method-availability) below for information on fuel mix, load, supply, load forecast, and LMP pricing data access.
+Currently `isodata` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 
 We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
 
