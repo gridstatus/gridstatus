@@ -1,5 +1,5 @@
 <p align="center">
-<img width=75% src="/isodata-header.png" alt="isodata logo" />
+<img width=75% src="https://github.com/kmax12/isodata/raw/75f0161f50466d4a13e01b57a695ac2a22fc0ca9/isodata-header.png" alt="isodata logo" />
 </p>
 
 <p align="center">
