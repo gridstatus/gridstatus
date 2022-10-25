@@ -12,6 +12,8 @@ from isodata.decorators import support_date_range
 
 
 class CAISO(ISOBase):
+    """California Independent System Operator (CAISO)"""
+
     BASE = "https://www.caiso.com/outlook/SP"
     HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
 

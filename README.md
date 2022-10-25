@@ -26,28 +26,6 @@ Currently `isodata` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 
 We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
 
-## Installation
-
-`isodata` supports python 3.7+. Install with pip
-
-```
-python -m pip install isodata
-```
-
-Upgrade using the following command
-
-```
-python -m pip install --upgrade isodata
-```
-
-Check current version like this
-
-```
->>> import isodata
->>> print(isodata.__version__)
-0.6.0
-```
-
 ## Getting Started
 
 First, we can see all of the ISOs that are supported
