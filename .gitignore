@@ -2,6 +2,7 @@
 .DS_Store
 CAISO.ipynb
 unpacked/*
+docs/generated/*
 
 *.csv
 
