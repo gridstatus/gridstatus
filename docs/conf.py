@@ -104,3 +104,8 @@ favicons = [
         "static-file": "apple-touch-icon.png",
     },
 ]
+
+
+nb_custom_formats = {
+    ".md": ["jupytext.reads", {"fmt": "mystnb"}],
+}
