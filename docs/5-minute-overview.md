@@ -35,6 +35,8 @@ caiso = isodata.CAISO()
 All ISOs have the same API. Here is how we can get the fuel mix
 
 ```{code-cell}
+import requests
+requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':RC4-SHA'
 caiso.get_latest_fuel_mix()
 ```
 
@@ -66,7 +68,7 @@ caiso.get_historical_load("Jan 1, 2020")
 Frequently, we want to get data across multiple days. We can do that by providing a `start` and `end` parameter to any `iso.get_historical_*` method
 
 ```{code-cell}
-:tags: [remove-stdout]
+:tags: [remove-input,remove-stdout,remove-stderr]
 caiso.get_historical_load(start="Jan 1, 2020", end="Feb 1, 2020")
 ```
 
