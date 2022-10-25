@@ -4,9 +4,9 @@ import warnings
 import pandas as pd
 import tqdm
 
-import isodata
-from isodata.base import FuelMix, ISOBase, Markets
-from isodata.decorators import (
+import gridstatus
+from gridstatus.base import FuelMix, ISOBase, Markets
+from gridstatus.decorators import (
     _get_pjm_archive_date,
     pjm_update_dates,
     support_date_range,
@@ -358,7 +358,7 @@ class PJM(ISOBase):
             data = data[data["Location Type"] == location_type]
 
         if locations is not None and locations != "ALL":
-            data = isodata.utils.filter_lmp_locations(
+            data = gridstatus.utils.filter_lmp_locations(
                 data,
                 map(int, locations),
             )
@@ -385,10 +385,10 @@ class PJM(ISOBase):
         final_params.update(default_params)
 
         if start is not None:
-            start = isodata.utils._handle_date(start)
+            start = gridstatus.utils._handle_date(start)
 
             if end:
-                end = isodata.utils._handle_date(end)
+                end = gridstatus.utils._handle_date(end)
             else:
                 end = start + pd.DateOffset(days=1)
 
@@ -463,8 +463,8 @@ class PJM(ISOBase):
 
 
 """
-import isodata
-iso = isodata.PJM()
+import gridstatus
+iso = gridstatus.PJM()
 nodes = iso.get_pnode_ids()
 zones = nodes[nodes["pnode_subtype"] == "ZONE"]
 zone_ids = zones["pnode_id"].tolist()
@@ -475,9 +475,9 @@ pnode_id
 
 if __name__ == "__main__":
 
-    import isodata
+    import gridstatus
 
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
 
     # df = iso.get_historical_fuel_mix(start="1/1/2016", end="10/16/2022")
     df = iso.get_historical_fuel_mix(start="11/6/2016")

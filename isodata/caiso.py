@@ -5,10 +5,10 @@ from zipfile import ZipFile
 import pandas as pd
 import requests
 
-import isodata
-from isodata import utils
-from isodata.base import FuelMix, GridStatus, ISOBase, Markets
-from isodata.decorators import support_date_range
+import gridstatus
+from gridstatus import utils
+from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets
+from gridstatus.decorators import support_date_range
 
 
 class CAISO(ISOBase):
@@ -132,8 +132,8 @@ class CAISO(ISOBase):
         """Return load at a previous date in 5 minute intervals"""
         url = self.HISTORY_BASE + "/%s/demand.csv"
         df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
-        df = df.rename(columns={"Current demand": "Load"})
-        df = df.dropna(subset=["Load"])
+        df = df.rename(columns={"Current demand": "Demand"})
+        df = df.dropna(subset=["Demand"])
 
         return df
 
@@ -527,10 +527,10 @@ def _caiso_handle_start_end(date, end):
 
 
 if __name__ == "__main__":
-    import isodata
+    import gridstatus
 
     print("asd")
-    iso = isodata.CAISO()
+    iso = gridstatus.CAISO()
     df = iso.get_historical_lmp(
         "feb 1, 2020",
         "DAY_AHEAD_HOURLY",

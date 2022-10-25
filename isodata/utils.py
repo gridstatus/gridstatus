@@ -4,15 +4,15 @@ from zipfile import ZipFile
 import pandas as pd
 import requests
 
-import isodata
-from isodata.base import ISOBase, Markets
-from isodata.caiso import CAISO
-from isodata.ercot import Ercot
-from isodata.isone import ISONE
-from isodata.miso import MISO
-from isodata.nyiso import NYISO
-from isodata.pjm import PJM
-from isodata.spp import SPP
+import gridstatus
+from gridstatus.base import ISOBase, Markets
+from gridstatus.caiso import CAISO
+from gridstatus.ercot import Ercot
+from gridstatus.isone import ISONE
+from gridstatus.miso import MISO
+from gridstatus.nyiso import NYISO
+from gridstatus.pjm import PJM
+from gridstatus.spp import SPP
 
 all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
@@ -51,7 +51,7 @@ def make_availability_df():
     ]
 
     availability = {}
-    for i in isodata.all_isos:
+    for i in gridstatus.all_isos:
         availability[i.name] = {}
         for m in methods:
             is_defined = "&#10060;"  # red x

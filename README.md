@@ -1,13 +1,13 @@
 <p align="center">
-<img width=75% src="/isodata-header.png" alt="isodata logo" />
+<img width=75% src="/gridstatus-header.png" alt="gridstatus logo" />
 </p>
 
 <p align="center">
-    <a href="https://github.com/kmax12/isodata/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
-        <img src="https://github.com/kmax12/isodata/workflows/Tests/badge.svg?branch=main" alt="Tests" />
+    <a href="https://github.com/kmax12/gridstatus/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
+        <img src="https://github.com/kmax12/gridstatus/workflows/Tests/badge.svg?branch=main" alt="Tests" />
     </a>
-    <a href="https://badge.fury.io/py/isodata" target="_blank">
-        <img src="https://badge.fury.io/py/isodata.svg?maxAge=2592000" alt="PyPI Version" />
+    <a href="https://badge.fury.io/py/gridstatus" target="_blank">
+        <img src="https://badge.fury.io/py/gridstatus.svg?maxAge=2592000" alt="PyPI Version" />
     </a>
 </p>
 
@@ -20,31 +20,31 @@
 <a href="#supported-lmp-markets"><b>Supported LMP Markets</b></a> 
 </p>
 
-`isodata` provides a uniform Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
+`gridstatus` provides a uniform Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
 
-Currently `isodata` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
+Currently `gridstatus` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 
 We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
 
 ## Installation
 
-`isodata` supports python 3.7+. Install with pip
+`gridstatus` supports python 3.7+. Install with pip
 
 ```
-python -m pip install isodata
+python -m pip install gridstatus
 ```
 
 Upgrade using the following command
 
 ```
-python -m pip install --upgrade isodata
+python -m pip install --upgrade gridstatus
 ```
 
 Check current version like this
 
 ```
->>> import isodata
->>> print(isodata.__version__)
+>>> import gridstatus
+>>> print(gridstatus.__version__)
 0.6.0
 ```
 
@@ -53,8 +53,8 @@ Check current version like this
 First, we can see all of the ISOs that are supported
 
 ```python
->>> import isodata
->>> isodata.list_isos()
+>>> import gridstatus
+>>> gridstatus.list_isos()
 ```
 
 ```
@@ -71,7 +71,7 @@ First, we can see all of the ISOs that are supported
 Next, we can select an ISO we want to use
 
 ```python
->>> caiso = isodata.CAISO()
+>>> caiso = gridstatus.CAISO()
 ```
 
 All ISOs have the same API. Here is how we can get the fuel mix
@@ -152,7 +152,7 @@ we can get today's supply in the same way
 Another dataset we can query is the load forecast
 
 ```
->>> nyiso = isodata.NYISO()
+>>> nyiso = gridstatus.NYISO()
 >>> nyiso.get_forecast_today()
 ```
 
@@ -225,9 +225,9 @@ The best part is these APIs work in the same way across all the supported ISOs!
 
 Here is a list of our current example notebooks. If you have any requests, please post an issue and we'd be happy to publish more!
 
-- [LMP Data - PJM](https://github.com/kmax12/isodata/blob//Examples/PJM%20LMP%20Data.ipynb)
-- [Fuel Mix over Time - NYISO](https://github.com/kmax12/isodata/blob/main/Examples/Fuel%20Mix%20Over%20Time%20-%20NYISO.ipynb)
-- [Downloading Data - CAISO](https://github.com/kmax12/isodata/blob/main//Examples/Downloading%20CAISO%20Data.ipynb)
+- [LMP Data - PJM](https://github.com/kmax12/gridstatus/blob//Examples/PJM%20LMP%20Data.ipynb)
+- [Fuel Mix over Time - NYISO](https://github.com/kmax12/gridstatus/blob/main/Examples/Fuel%20Mix%20Over%20Time%20-%20NYISO.ipynb)
+- [Downloading Data - CAISO](https://github.com/kmax12/gridstatus/blob/main//Examples/Downloading%20CAISO%20Data.ipynb)
 
 ## Method Availability
 
@@ -259,8 +259,8 @@ Here is the current status of availability of each method for each ISO
 We are currently adding Locational Marginal Price (LMP). Even though each BA offers different markets, but you can query them with a standardized API
 
 ```python
->>> import isodata
->>> nyiso = isodata.NYISO()
+>>> import gridstatus
+>>> nyiso = gridstatus.NYISO()
 >>> nyiso.get_lmp_today("REAL_TIME_5_MIN", locations="ALL")
 ```
 
@@ -284,8 +284,8 @@ We are currently adding Locational Marginal Price (LMP). Even though each BA off
 And here is querying CAISO
 
 ```python
->>> import isodata
->>> caiso = isodata.CAISO()
+>>> import gridstatus
+>>> caiso = gridstatus.CAISO()
 >>> caiso.get_lmp_today('DAY_AHEAD_HOURLY', locations=["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"])
 ```
 

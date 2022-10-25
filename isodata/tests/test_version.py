@@ -1,4 +1,4 @@
-from isodata import __version__
+from gridstatus import __version__
 
 
 def test_version():

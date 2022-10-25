@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-from isodata.base import FuelMix, GridStatus, ISOBase
+from gridstatus.base import FuelMix, GridStatus, ISOBase
 
 
 class SPP(ISOBase):

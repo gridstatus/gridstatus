@@ -1,10 +1,10 @@
 import pytest
 
-import isodata
+import gridstatus
 
 
 def test_get_historical_gas_prices():
-    iso = isodata.CAISO()
+    iso = gridstatus.CAISO()
     date = "Oct 15, 2022"
     # no fuel region
     df = iso.get_historical_gas_prices(date=date)
@@ -35,7 +35,7 @@ def test_get_historical_gas_prices():
 
 
 def test_get_historical_ghg_allowance():
-    iso = isodata.CAISO()
+    iso = gridstatus.CAISO()
     date = "Oct 15, 2022"
     df = iso.get_historical_ghg_allowance(date)
 

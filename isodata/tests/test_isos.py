@@ -2,9 +2,9 @@ import pandas as pd
 import pytest
 from pandas.api.types import is_numeric_dtype
 
-import isodata
-from isodata import *
-from isodata.base import FuelMix, GridStatus, ISOBase
+import gridstatus
+from gridstatus import *
+from gridstatus.base import FuelMix, GridStatus, ISOBase
 
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
@@ -45,7 +45,7 @@ def check_status(df):
 
 
 def test_make_lmp_availability_df():
-    isodata.utils.make_lmp_availability_table()
+    gridstatus.utils.make_lmp_availability_table()
 
 
 @pytest.mark.parametrize("iso", all_isos)
@@ -67,17 +67,17 @@ def test_get_fuel_mix(iso):
 
 
 def test_list_isos():
-    assert len(isodata.list_isos()) == 7
+    assert len(gridstatus.list_isos()) == 7
 
 
 def test_get_iso():
-    for iso in isodata.list_isos()["Id"].values:
-        assert issubclass(isodata.get_iso(iso), ISOBase)
+    for iso in gridstatus.list_isos()["Id"].values:
+        assert issubclass(gridstatus.get_iso(iso), ISOBase)
 
 
 def test_get_iso_invalid():
     with pytest.raises(Exception) as e_info:
-        isodata.get_iso("ISO DOESNT EXIST")
+        gridstatus.get_iso("ISO DOESNT EXIST")
 
 
 @pytest.mark.parametrize("iso", [SPP(), NYISO(), ISONE(), CAISO(), Ercot()])
@@ -85,7 +85,7 @@ def test_get_latest_status(iso):
     status = iso.get_latest_status()
     assert isinstance(status, GridStatus)
 
-    # ensure there is a homepage if isodata can retrieve a status
+    # ensure there is a homepage if gridstatus can retrieve a status
     assert isinstance(iso.status_homepage, str)
 
 
@@ -136,7 +136,7 @@ def test_get_supply(iso):
     df = iso.get_historical_supply(date_str)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Supply"]) == set(df.columns)
-    assert df.loc[0]["Time"].date() == isodata.utils._handle_date(date_str).date()
+    assert df.loc[0]["Time"].date() == gridstatus.utils._handle_date(date_str).date()
     assert is_numeric_dtype(df["Supply"])
     assert df.loc[0]["Time"].tz is not None
 

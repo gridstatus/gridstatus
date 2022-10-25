@@ -1,10 +1,10 @@
 .PHONY: test
 test:
-	python -m pytest -s -vv isodata/ -m "not slow"
+	python -m pytest -s -vv gridstatus/ -m "not slow"
 
 .PHONY: test-slow
 test-slow:
-	python -m pytest -s -vv isodata/ -m "slow"
+	python -m pytest -s -vv gridstatus/ -m "slow"
 
 .PHONY: installdeps-dev
 installdeps-dev:
@@ -17,13 +17,13 @@ installdeps-test:
 
 .PHONY: lint
 lint:
-	isort --check-only isodata/
-	black isodata/ -t py310 --check
+	isort --check-only gridstatus/
+	black gridstatus/ -t py310 --check
 
 .PHONY: lint-fix
 lint-fix:
-	black isodata/ -t py310
-	isort isodata/
+	black gridstatus/ -t py310
+	isort gridstatus/
 
 .PHONY: upgradepip
 upgradepip:
@@ -41,5 +41,5 @@ upgradesetuptools:
 package: upgradepip upgradebuild upgradesetuptools
 	python -m build
 	$(eval PACKAGE=$(shell python -c "from pep517.meta import load; metadata = load('.'); print(metadata.version)"))
-	tar -zxvf "dist/isodata-${PACKAGE}.tar.gz"
-	mv "isodata-${PACKAGE}" unpacked
+	tar -zxvf "dist/gridstatus-${PACKAGE}.tar.gz"
+	mv "gridstatus-${PACKAGE}" unpacked
