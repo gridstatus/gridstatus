@@ -66,6 +66,7 @@ caiso.get_historical_load("Jan 1, 2020")
 Frequently, we want to get data across multiple days. We can do that by providing a `start` and `end` parameter to any `iso.get_historical_*` method
 
 ```{code-cell}
+:tags: [remove-stdout]
 caiso.get_historical_load(start="Jan 1, 2020", end="Feb 1, 2020")
 ```
 
