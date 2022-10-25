@@ -1,5 +1,10 @@
 # Changelog
 
+## vNext
+
+- Add Examples Notebooks
+- Renamed all demand methods to load
+
 ## v0.10.0 - Oct 24, 2022
 
 - Support both Generator and Zone for NYISO LMPs

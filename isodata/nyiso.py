@@ -104,17 +104,17 @@ class NYISO(ISOBase):
         ).reset_index()
         return mix_df
 
-    def get_latest_demand(self):
-        return self._latest_from_today(self.get_demand_today)
+    def get_latest_load(self):
+        return self._latest_from_today(self.get_load_today)
 
-    def get_demand_today(self):
-        "Get demand for today in 5 minute intervals"
-        d = self._today_from_historical(self.get_historical_demand)
+    def get_load_today(self):
+        "Get load for today in 5 minute intervals"
+        d = self._today_from_historical(self.get_historical_load)
         return d
 
     @support_date_range(frequency="MS")
-    def get_historical_demand(self, date, end=None):
-        """Returns demand at a previous date in 5 minute intervals"""
+    def get_historical_load(self, date, end=None):
+        """Returns load at a previous date in 5 minute intervals"""
         data = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -124,14 +124,14 @@ class NYISO(ISOBase):
         # drop NA loads
         data = data.dropna(subset=["Load"])
 
-        # TODO demand by zone
-        demand = data.groupby("Time")["Load"].sum().reset_index()
+        # TODO load by zone
+        load = data.groupby("Time")["Load"].sum().reset_index()
 
-        demand = demand.rename(
-            columns={"Load": "Demand"},
+        load = load.rename(
+            columns={"Load": "Load"},
         )
 
-        return demand
+        return load
 
     def get_latest_supply(self):
         """Returns most recent data point for supply in MW
@@ -176,10 +176,15 @@ class NYISO(ISOBase):
         return data
 
     def get_latest_lmp(
-        self, market: str, locations: list = None, location_type: str = None
+        self,
+        market: str,
+        locations: list = None,
+        location_type: str = None,
     ):
         return self._latest_lmp_from_today(
-            market=market, locations=locations, location_type=location_type
+            market=market,
+            locations=locations,
+            location_type=location_type,
         )
 
     def get_lmp_today(
@@ -276,7 +281,7 @@ class NYISO(ISOBase):
             return "gen"
         else:
             raise ValueError(
-                f"Invalid location type. Expected one of: {location_types}"
+                f"Invalid location type. Expected one of: {location_types}",
             )
 
     def _download_nyiso_archive(self, date, end=None, dataset_name=None, filename=None):

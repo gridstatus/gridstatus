@@ -107,11 +107,11 @@ Time: 2022-08-03 18:25:00-07:00
 or the energy demand throughout the current day as a Pandas DataFrame
 
 ```python
->>> caiso.get_demand_today()
+>>> caiso.get_load_today()
 ```
 
 ```
-                         Time   Demand
+                         Time   Load
 0   2022-08-03 00:00:00-07:00  30076.0
 1   2022-08-03 00:05:00-07:00  29966.0
 2   2022-08-03 00:10:00-07:00  29893.0
@@ -177,11 +177,11 @@ Another dataset we can query is the load forecast
 When supported, you can use the historical method calls to get data for a specific day in the past. For example,
 
 ```python
->>> caiso.get_historical_demand("Jan 1, 2020")
+>>> caiso.get_historical_load("Jan 1, 2020")
 ```
 
 ```
-                         Time  Demand
+                         Time  Load
 0   2020-01-01 00:00:00-08:00   21533
 1   2020-01-01 00:05:00-08:00   21429
 2   2020-01-01 00:10:00-08:00   21320
@@ -200,11 +200,11 @@ When supported, you can use the historical method calls to get data for a specif
 Frequently, we want to get data across multiple days. We can do that by providing a `start` and `end` parameter to any `iso.get_historical_*` method
 
 ```python
->>> caiso.get_historical_demand(start="Jan 1, 2020", end="Feb 1, 2020")
+>>> caiso.get_historical_load(start="Jan 1, 2020", end="Feb 1, 2020")
 ```
 
 ```
-                          Time  Demand
+                          Time  Load
 0    2020-01-01 00:00:00-08:00   21533
 1    2020-01-01 00:05:00-08:00   21429
 2    2020-01-01 00:10:00-08:00   21320
@@ -240,15 +240,15 @@ Here is the current status of availability of each method for each ISO
 | :------------------------ | :----------- | :------------- | :------------------------------------ | :-------------- | :--------------- | :------------------- | :------- |
 | `get_latest_status`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#x2705;             | &#10060; |
 | `get_latest_fuel_mix`     | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
-| `get_latest_demand`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_latest_load`         | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
 | `get_latest_supply`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
 | `get_fuel_mix_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
-| `get_demand_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_load_today`          | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
 | `get_forecast_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
 | `get_supply_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
 | `get_storage_today`       | &#10060;     | &#x2705;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
 | `get_historical_fuel_mix` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
-| `get_historical_demand`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_load`     | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
 | `get_historical_forecast` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#10060; |
 | `get_historical_supply`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
 | `get_historical_storage`  | &#10060;     | &#x2705;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
@@ -330,7 +330,7 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, an
 | PJM                                   | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
 | Electric Reliability Council of Texas |                                                            |
 | Southwest Power Pool                  |                                                            |
-| New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_5_MIN`                       |
+| New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
 | ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
 
 <!-- LMP AVAILABILITY TABLE END -->
