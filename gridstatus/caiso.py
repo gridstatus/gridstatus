@@ -132,8 +132,8 @@ class CAISO(ISOBase):
         """Return load at a previous date in 5 minute intervals"""
         url = self.HISTORY_BASE + "/%s/demand.csv"
         df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
-        df = df.rename(columns={"Current demand": "Demand"})
-        df = df.dropna(subset=["Demand"])
+        df = df.rename(columns={"Current demand": "Load"})
+        df = df.dropna(subset=["Load"])
 
         return df
 
