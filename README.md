@@ -20,9 +20,9 @@
 <a href="#supported-lmp-markets"><b>Supported LMP Markets</b></a> 
 </p>
 
-`isodata` provides a uniform API to access energy data from the major Independent System Operators (ISOs) in the United States.
+`isodata` provides a uniform Python API to access energy supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
 
-Currently supports fuel mix, load, supply, load forecast, and LMP pricing data for CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM. See [full availability](#method-availability) below.
+Currently supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM. See [full availability](#method-availability) below for information on fuel mix, load, supply, load forecast, and LMP pricing data access.
 
 We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
 
@@ -226,8 +226,9 @@ The best part is these APIs work in the same way across all the supported ISOs!
 
 Here is a list of our current example notebooks. If you have any requests, please post an issue and we'd be happy to publish more!
 
-- [LMP Data - PJM](https://github.com/kmax12/isodata/blob/main/Examples/PJM%20LMP%20Data.ipynb)
-- [Fuel Mix over Time - NYISO](https://github.com/kmax12/isodata/blob/1b0cc688a25e1b7cde8cb0a3e6c13f29134e2ece/Examples/Fuel%20Mix%20Over%20Time%20-%20NYISO.ipynb)
+- [LMP Data - PJM](https://github.com/kmax12/isodata/blob//Examples/PJM%20LMP%20Data.ipynb)
+- [Fuel Mix over Time - NYISO](https://github.com/kmax12/isodata/blob/main/Examples/Fuel%20Mix%20Over%20Time%20-%20NYISO.ipynb)
+- [Downloading Data - CAISO](https://github.com/kmax12/isodata/blob/main//Examples/Downloading%20CAISO%20Data.ipynb)
 
 ## Method Availability
 
