@@ -19,9 +19,9 @@ all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 def list_isos():
 
-    isos = [[i.name, i.iso_id] for i in all_isos]
+    isos = [[i.name, i.iso_id, i.__name__] for i in all_isos]
 
-    return pd.DataFrame(isos, columns=["Name", "Id"])
+    return pd.DataFrame(isos, columns=["Name", "Id", "Class"])
 
 
 def get_iso(iso_id):
@@ -36,15 +36,15 @@ def make_availability_df():
     methods = [
         "get_latest_status",
         "get_latest_fuel_mix",
-        "get_latest_demand",
+        "get_latest_load",
         "get_latest_supply",
         "get_fuel_mix_today",
-        "get_demand_today",
+        "get_load_today",
         "get_forecast_today",
         "get_supply_today",
         "get_storage_today",
         "get_historical_fuel_mix",
-        "get_historical_demand",
+        "get_historical_load",
         "get_historical_forecast",
         "get_historical_supply",
         "get_historical_storage",

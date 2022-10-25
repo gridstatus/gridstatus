@@ -107,33 +107,33 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_latest_demand(self):
-        """Returns most recent data point for demand in MW
+    def get_latest_load(self):
+        """Returns most recent data point for load in MW
 
         Updates every 5 minutes
         """
-        demand_url = self.BASE + "/demand.csv"
-        df = pd.read_csv(demand_url)
+        load_url = self.BASE + "/demand.csv"
+        df = pd.read_csv(load_url)
 
         # get last non null row
         data = df[~df["Current demand"].isnull()].iloc[-1]
 
         return {
             "time": _make_timestamp(data["Time"], self._current_day()),
-            "demand": data["Current demand"],
+            "load": data["Current demand"],
         }
 
-    def get_demand_today(self):
-        "Get demand for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_demand)
+    def get_load_today(self):
+        "Get load for today in 5 minute intervals"
+        return self._today_from_historical(self.get_historical_load)
 
     @support_date_range(frequency="1D")
-    def get_historical_demand(self, date, verbose=False):
-        """Return demand at a previous date in 5 minute intervals"""
+    def get_historical_load(self, date, verbose=False):
+        """Return load at a previous date in 5 minute intervals"""
         url = self.HISTORY_BASE + "/%s/demand.csv"
         df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
-        df = df.rename(columns={"Current demand": "Demand"})
-        df = df.dropna(subset=["Demand"])
+        df = df.rename(columns={"Current demand": "Load"})
+        df = df.dropna(subset=["Load"])
 
         return df
 

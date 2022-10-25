@@ -63,13 +63,13 @@ class Ercot(ISOBase):
         )
         return df
 
-    def get_latest_demand(self):
-        d = self._get_demand("currentDay").iloc[-1]
+    def get_latest_load(self):
+        d = self._get_load("currentDay").iloc[-1]
 
-        return {"time": d["Time"], "demand": d["Demand"]}
+        return {"time": d["Time"], "load": d["Load"]}
 
-    def _get_demand(self, when):
-        """Returns demand for currentDay or previousDay"""
+    def _get_load(self, when):
+        """Returns load for currentDay or previousDay"""
         # todo switch to https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html
         # says supports last 5 days, appears to support last two weeks
         # df = pd.read_html("https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html")
@@ -79,12 +79,12 @@ class Ercot(ISOBase):
         r = self._get_json(url)
         df = pd.DataFrame(r[when]["data"])
         df = df.dropna(subset=["systemLoad"])
-        df = self._handle_data(df, {"systemLoad": "Demand"})
+        df = self._handle_data(df, {"systemLoad": "Load"})
         return df
 
-    def get_demand_today(self):
-        """Returns demand for today"""
-        return self._get_demand("currentDay")
+    def get_load_today(self):
+        """Returns load for today"""
+        return self._get_load("currentDay")
 
     def get_latest_supply(self):
         return self._latest_from_today(self.get_supply_today)

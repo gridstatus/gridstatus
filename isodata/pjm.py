@@ -99,19 +99,19 @@ class PJM(ISOBase):
         """Returns supply at a previous date at hourly intervals"""
         return self._supply_from_fuel_mix(date)
 
-    def get_latest_demand(self):
-        return self._latest_from_today(self.get_demand_today)
+    def get_latest_load(self):
+        return self._latest_from_today(self.get_load_today)
 
-    def get_demand_today(self):
-        "Get demand for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_demand)
+    def get_load_today(self):
+        "Get load for today in 5 minute intervals"
+        return self._today_from_historical(self.get_historical_load)
 
     @support_date_range(frequency="30D")
-    def get_historical_demand(self, date, end=None):
-        """Returns demand at a previous date at 5 minute intervals
+    def get_historical_load(self, date, end=None):
+        """Returns load at a previous date at 5 minute intervals
 
         Args:
-            date (str or datetime.date): date to get demand for. must be in last 30 days
+            date (str or datetime.date): date to get load for. must be in last 30 days
         """
         # more hourly historical load here: https://dataminer2.pjm.com/feed/hrl_load_metered/definition
 
@@ -123,22 +123,22 @@ class PJM(ISOBase):
             "fields": "area,datetime_beginning_utc,instantaneous_load",
             "area": "PJM RTO",
         }
-        demand = self._get_pjm_json(
+        load = self._get_pjm_json(
             "inst_load",
             start=date,
             end=end,
             params=data,
         )
 
-        demand = demand.drop("area", axis=1)
+        load = load.drop("area", axis=1)
 
-        demand = demand.rename(
+        load = load.rename(
             columns={
-                "instantaneous_load": "Demand",
+                "instantaneous_load": "Load",
             },
         )
 
-        return demand
+        return load
 
     def get_forecast_today(self):
         """Get forecast for today in hourly intervals.

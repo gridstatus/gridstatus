@@ -55,7 +55,7 @@ def test_nyiso_edt_to_est():
     df = iso.get_historical_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
     assert df.shape[0] >= 375
 
-    df = iso.get_historical_demand(date=date)
+    df = iso.get_historical_load(date=date)
     assert df.shape[0] >= 307
 
 
@@ -80,7 +80,7 @@ def test_nyiso_est_to_edt():
     df = iso.get_historical_fuel_mix(date=date)
     assert df.shape[0] >= 281
 
-    df = iso.get_historical_demand(date=date)
+    df = iso.get_historical_load(date=date)
     assert df.shape[0] >= 281
 
 
@@ -90,25 +90,31 @@ def test_location_type_parameter():
     date = "2022-06-09"
 
     df_zone = iso.get_historical_lmp(
-        date=date, market=Markets.DAY_AHEAD_HOURLY, location_type="zone"
+        date=date,
+        market=Markets.DAY_AHEAD_HOURLY,
+        location_type="zone",
     )
     assert (df_zone["Location Type"] == "Zone").all()
     df_gen = iso.get_historical_lmp(
-        date=date, market=Markets.DAY_AHEAD_HOURLY, location_type="generator"
+        date=date,
+        market=Markets.DAY_AHEAD_HOURLY,
+        location_type="generator",
     )
     assert (df_gen["Location Type"] == "Generator").all()
 
     df_zone = iso.get_lmp_today(market=Markets.DAY_AHEAD_HOURLY, location_type="zone")
     assert (df_zone["Location Type"] == "Zone").all()
     df_gen = iso.get_lmp_today(
-        market=Markets.DAY_AHEAD_HOURLY, location_type="generator"
+        market=Markets.DAY_AHEAD_HOURLY,
+        location_type="generator",
     )
     assert (df_gen["Location Type"] == "Generator").all()
 
     df_zone = iso.get_latest_lmp(market=Markets.DAY_AHEAD_HOURLY, location_type="zone")
     assert (df_zone["Location Type"] == "Zone").all()
     df_gen = iso.get_latest_lmp(
-        market=Markets.DAY_AHEAD_HOURLY, location_type="generator"
+        market=Markets.DAY_AHEAD_HOURLY,
+        location_type="generator",
     )
     assert (df_gen["Location Type"] == "Generator").all()
 

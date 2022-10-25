@@ -121,15 +121,15 @@ class ISONE(ISOBase):
 
         return mix_df
 
-    def get_latest_demand(self):
-        return self._latest_from_today(self.get_demand_today)
+    def get_latest_load(self):
+        return self._latest_from_today(self.get_load_today)
 
-    def get_demand_today(self):
-        return self._today_from_historical(self.get_historical_demand)
+    def get_load_today(self):
+        return self._today_from_historical(self.get_historical_load)
 
     @support_date_range(frequency="1D")
-    def get_historical_demand(self, date):
-        """Return demand at a previous date in 5 minute intervals"""
+    def get_historical_load(self, date):
+        """Return load at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
         # supports a start and end date
         date = isodata.utils._handle_date(date)
@@ -142,7 +142,7 @@ class ISONE(ISOBase):
         )
 
         df = data[["Date/Time", "Native Load"]].rename(
-            columns={"Date/Time": "Time", "Native Load": "Demand"},
+            columns={"Date/Time": "Time", "Native Load": "Load"},
         )
 
         return df
