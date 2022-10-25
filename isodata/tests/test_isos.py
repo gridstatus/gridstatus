@@ -142,48 +142,48 @@ def test_get_supply(iso):
 
 
 @pytest.mark.parametrize("iso", all_isos)
-def test_get_demand_today(iso):
-    df = iso.get_demand_today()
+def test_get_load_today(iso):
+    df = iso.get_load_today()
     assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Demand"]) == set(df.columns)
-    assert is_numeric_dtype(df["Demand"])
+    assert set(["Time", "Load"]) == set(df.columns)
+    assert is_numeric_dtype(df["Load"])
     assert isinstance(df.loc[0]["Time"], pd.Timestamp)
     assert df.loc[0]["Time"].tz is not None
 
 
 @pytest.mark.parametrize("iso", all_isos)
-def test_get_latest_demand(iso):
-    demand = iso.get_latest_demand()
-    set(["time", "demand"]) == demand.keys()
-    assert is_numeric_dtype(type(demand["demand"]))
+def test_get_latest_load(iso):
+    load = iso.get_latest_load()
+    set(["time", "load"]) == load.keys()
+    assert is_numeric_dtype(type(load["load"]))
 
 
 @pytest.mark.parametrize("iso", [PJM(), NYISO(), ISONE(), CAISO()])
-def test_get_historical_demand(iso):
+def test_get_historical_load(iso):
     # pick a test date 2 weeks back
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
 
     # date string works
     date_str = test_date.strftime("%Y%m%d")
-    df = iso.get_historical_demand(date_str)
+    df = iso.get_historical_load(date_str)
     assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Demand"]) == set(df.columns)
+    assert set(["Time", "Load"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == date_str
-    assert is_numeric_dtype(df["Demand"])
+    assert is_numeric_dtype(df["Load"])
 
     # timestamp object works
-    df = iso.get_historical_demand(test_date)
+    df = iso.get_historical_load(test_date)
     assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Demand"]) == set(df.columns)
+    assert set(["Time", "Load"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
-    assert is_numeric_dtype(df["Demand"])
+    assert is_numeric_dtype(df["Load"])
 
     # datetime object works
-    df = iso.get_historical_demand(test_date)
+    df = iso.get_historical_load(test_date)
     assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Demand"]) == set(df.columns)
+    assert set(["Time", "Load"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
-    assert is_numeric_dtype(df["Demand"])
+    assert is_numeric_dtype(df["Load"])
 
 
 @pytest.mark.parametrize(
@@ -382,11 +382,11 @@ def test_get_historical_fuel_mix_with_date_range(iso):
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
-def test_get_historical_demand_with_date_range(iso):
+def test_get_historical_load_with_date_range(iso):
     num_days = 7
     end = pd.Timestamp.now(tz=iso.default_timezone) + pd.Timedelta(days=1)
     start = end - pd.Timedelta(days=num_days)
-    data = iso.get_historical_demand(date=start.date(), end=end.date())
+    data = iso.get_historical_load(date=start.date(), end=end.date())
     # make sure right number of days are returned
     assert data["Time"].dt.day.nunique() == num_days
 

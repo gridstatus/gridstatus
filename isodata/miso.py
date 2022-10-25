@@ -46,15 +46,15 @@ class MISO(ISOBase):
         fm = FuelMix(time=time, mix=mix, iso=self.name)
         return fm
 
-    def get_latest_demand(self):
-        # this is same result as using get_demand_today
-        return self._latest_from_today(self.get_demand_today)
+    def get_latest_load(self):
+        # this is same result as using get_load_today
+        return self._latest_from_today(self.get_load_today)
 
     def get_latest_supply(self):
         """Returns most recent data point for supply in MW"""
         return self._latest_supply_from_fuel_mix()
 
-    def get_demand_today(self):
+    def get_load_today(self):
         r = self._get_load_and_forecast_data()
 
         date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
@@ -71,8 +71,8 @@ class MISO(ISOBase):
             ),
         )
         df["Time"] = df["Time"].dt.tz_localize(self.default_timezone)
-        df = df.rename(columns={"Value": "Demand"})
-        df["Demand"] = pd.to_numeric(df["Demand"])
+        df = df.rename(columns={"Value": "Load"})
+        df["Load"] = pd.to_numeric(df["Load"])
 
         return df
 

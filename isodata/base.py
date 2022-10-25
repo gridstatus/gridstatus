@@ -43,13 +43,13 @@ class ISOBase:
     def get_historical_fuel_mix(self, date):
         raise NotImplementedError()
 
-    def get_latest_demand(self):
+    def get_latest_load(self):
         raise NotImplementedError()
 
-    def get_demand_today(self):
+    def get_load_today(self):
         raise NotImplementedError()
 
-    def get_historical_demand(self, date):
+    def get_historical_load(self, date):
         raise NotImplementedError()
 
     def get_forecast_today(self):
