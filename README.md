@@ -31,7 +31,7 @@ python -m pip install --upgrade isodata
 
 ## Documentation and Examples
 
-To learn more visit the [documentation](https://docs.gridstatus.io/).
+To learn more visit the [documentation](https://docs.gridstatus.io/) and view [examples](https://docs.gridstatus.io/en/stable/Examples/index.html)
 
 ## Get Help
 
