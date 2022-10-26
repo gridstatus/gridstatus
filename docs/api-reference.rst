@@ -6,7 +6,8 @@ API Reference
 .. currentmodule:: isodata
 
 Supported Independent System Operators (ISOs)
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 .. currentmodule:: isodata
 
 

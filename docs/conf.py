@@ -8,7 +8,6 @@
 
 project = "isodata"
 copyright = "2022, Max Kanter"
-author = "Max Kanter"
 
 master_doc = "index"
 
@@ -46,6 +45,8 @@ html_theme = "sphinx_book_theme"
 html_logo = "_static/logo.png"
 html_title = "isodata"
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
+
 html_theme_options = {
     "path_to_docs": "docs",
     "repository_url": "https://github.com/kmax12/isodata",
@@ -104,3 +105,13 @@ favicons = [
         "static-file": "apple-touch-icon.png",
     },
 ]
+
+
+# -- Options for notebook output ---------------------------------------------
+nb_execution_excludepatterns = ["Examples/*"]
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".ipynb": "myst-nb",
+    ".myst": "myst-nb",
+}
+nb_execution_mode = "cache"

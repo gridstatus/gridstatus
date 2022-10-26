@@ -29,7 +29,18 @@ We'd love to answer any usage or data access questions! Please let us know by po
 
 installation
 5-minute-overview
+availability
+lmp-availability
 
+```
+
+```{toctree}
+:maxdepth: 1
+:caption: Examples
+
+Examples/Downloading CAISO Data.ipynb
+Examples/Fuel Mix Over Time - NYISO.ipynb
+Examples/PJM LMP Data.ipynb
 ```
 
 ```{toctree}
