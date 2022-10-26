@@ -19,20 +19,16 @@ Next, we can select an ISO we want to use
 caiso = isodata.CAISO()
 ```
 
+all ISOs have the same API. Here is how we can get the fuel mix
+
+```{code-cell}
+caiso.get_latest_fuel_mix()
+```
+
 or the energy demand throughout the current day as a Pandas DataFrame
 
 ```{code-cell}
 caiso.get_load_today()
-```
-
-All ISOs have the same API. Here is how we can get the fuel mix
-
-```{code-cell}
-import requests
-from urllib3.exceptions import InsecureRequestWarning
-from urllib3 import disable_warnings
-disable_warnings(InsecureRequestWarning)
-caiso.get_latest_fuel_mix()
 ```
 
 we can get today's supply in the same way
