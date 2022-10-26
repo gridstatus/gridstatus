@@ -91,19 +91,19 @@ class SPP(ISOBase):
         """Returns most recent data point for supply in MW"""
         return self._latest_supply_from_fuel_mix()
 
-    def get_latest_demand(self):
-        return self._latest_from_today(self.get_demand_today)
+    def get_latest_load(self):
+        return self._latest_from_today(self.get_load_today)
 
-    def get_demand_today(self):
-        """Returns demand for last 24hrs in 5 minute intervals"""
+    def get_load_today(self):
+        """Returns load for last 24hrs in 5 minute intervals"""
 
         df = self._get_load_and_forecast()
 
         df = df.dropna(subset=["Actual Load"])
 
-        df = df.rename(columns={"Actual Load": "Demand"})
+        df = df.rename(columns={"Actual Load": "Load"})
 
-        df = df[["Time", "Demand"]]
+        df = df[["Time", "Load"]]
 
         return df
 

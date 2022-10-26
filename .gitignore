@@ -1,7 +1,9 @@
 ~$isodata-logo.pptx
 .DS_Store
-*.ipynb
+CAISO.ipynb
 unpacked/*
+
+*.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

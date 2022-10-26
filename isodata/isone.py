@@ -9,6 +9,7 @@ import requests
 import isodata
 from isodata import utils
 from isodata.base import FuelMix, GridStatus, ISOBase, Markets
+from isodata.decorators import support_date_range
 
 
 class ISONE(ISOBase):
@@ -49,16 +50,16 @@ class ISONE(ISOBase):
 
         # historical data available
         # https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status/power-system-status-list
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient",
+        data = _make_wsclient_request(
+            url="https://www.iso-ne.com/ws/wsclient",
             data={
                 "_nstmp_requestType": "systemconditions",
                 "_nstmp_requestUrl": "/powersystemconditions/current",
             },
-        ).json()
+        )
 
         # looks like it could return multiple entries
-        condition = r[0]["data"]["PowerSystemConditions"]["PowerSystemCondition"][0]
+        condition = data[0]["data"]["PowerSystemConditions"]["PowerSystemCondition"][0]
         status = condition["SystemCondition"]
         note = condition["ActionDescription"]
         time = pd.Timestamp.now(tz=self.default_timezone).floor(freq="s")
@@ -72,11 +73,11 @@ class ISONE(ISOBase):
         )
 
     def get_latest_fuel_mix(self):
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient",
+        data = _make_wsclient_request(
+            url="https://www.iso-ne.com/ws/wsclient",
             data={"_nstmp_requestType": "fuelmix"},
-        ).json()
-        mix_df = pd.DataFrame(r[0]["data"]["GenFuelMixes"]["GenFuelMix"])
+        )
+        mix_df = pd.DataFrame(data[0]["data"]["GenFuelMixes"]["GenFuelMix"])
         time = pd.Timestamp(
             mix_df["BeginDate"].max(),
             tz=self.default_timezone,
@@ -92,6 +93,7 @@ class ISONE(ISOBase):
         # todo should this use the latest endpoint?
         return self._today_from_historical(self.get_historical_fuel_mix)
 
+    @support_date_range(frequency="1D")
     def get_historical_fuel_mix(self, date):
         """Return fuel mix at a previous date
 
@@ -119,14 +121,15 @@ class ISONE(ISOBase):
 
         return mix_df
 
-    def get_latest_demand(self):
-        return self._latest_from_today(self.get_demand_today)
+    def get_latest_load(self):
+        return self._latest_from_today(self.get_load_today)
 
-    def get_demand_today(self):
-        return self._today_from_historical(self.get_historical_demand)
+    def get_load_today(self):
+        return self._today_from_historical(self.get_historical_load)
 
-    def get_historical_demand(self, date):
-        """Return demand at a previous date in 5 minute intervals"""
+    @support_date_range(frequency="1D")
+    def get_historical_load(self, date):
+        """Return load at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
         # supports a start and end date
         date = isodata.utils._handle_date(date)
@@ -139,7 +142,7 @@ class ISONE(ISOBase):
         )
 
         df = data[["Date/Time", "Native Load"]].rename(
-            columns={"Date/Time": "Time", "Native Load": "Demand"},
+            columns={"Date/Time": "Time", "Native Load": "Load"},
         )
 
         return df
@@ -161,6 +164,7 @@ class ISONE(ISOBase):
         d = self._today_from_historical(self.get_historical_forecast)
         return d
 
+    @support_date_range(frequency="1D")
     def get_historical_forecast(self, date):
         date = isodata.utils._handle_date(date)
 
@@ -180,12 +184,12 @@ class ISONE(ISOBase):
             "_nstmp_inclBtmPv": True,
         }
 
-        r = requests.post(
-            "https://www.iso-ne.com/ws/wsclient",
+        data = _make_wsclient_request(
+            url="https://www.iso-ne.com/ws/wsclient",
             data=data,
-        ).json()
+        )
 
-        data = pd.DataFrame(r[0]["data"]["forecast"])
+        data = pd.DataFrame(data[0]["data"]["forecast"])
 
         data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
             self.default_timezone,
@@ -241,11 +245,12 @@ class ISONE(ISOBase):
         "Get lmp for today in 5 minute intervals"
         return self._today_from_historical(
             self.get_historical_lmp,
-            market,
-            locations,
+            market=market,
+            locations=locations,
             include_id=include_id,
         )
 
+    @support_date_range(frequency="1D")
     def get_historical_lmp(
         self,
         date,
@@ -433,6 +438,13 @@ def _make_request(url, skiprows):
             print("Attempt {} failed. Retrying...".format(attempt + 1))
             attempt += 1
 
+        if r2.status_code != 200:
+            raise RuntimeError(
+                "Failed to get data from {}. Check if ISONE is down and try again later".format(
+                    url,
+                ),
+            )
+
         df = pd.read_csv(
             io.StringIO(r2.content.decode("utf8")),
             skiprows=skiprows,
@@ -440,3 +452,23 @@ def _make_request(url, skiprows):
             engine="python",
         )
         return df
+
+
+def _make_wsclient_request(url, data, verbose=False):
+    """Make request to ISO NE wsclient"""
+    if verbose:
+        print("Requesting data from {}".format(url))
+
+    r = requests.post(
+        "https://www.iso-ne.com/ws/wsclient",
+        data=data,
+    )
+
+    if r.status_code != 200:
+        raise RuntimeError(
+            "Failed to get data from {}. Check if ISONE is down and try again later".format(
+                url,
+            ),
+        )
+
+    return r.json()

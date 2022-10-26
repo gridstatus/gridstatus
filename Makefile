@@ -1,6 +1,9 @@
 .PHONY: test
 test:
-	python -m pytest -s -vv -n auto isodata/
+	python -m pytest -s -vv -n auto isodata/ -m "not slow"
+
+test-slow:
+	python -m pytest -s -vv -n auto isodata/ -m "slow"
 
 .PHONY: installdeps-dev
 installdeps-dev:

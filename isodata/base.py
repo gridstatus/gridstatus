@@ -12,7 +12,6 @@ class Markets(Enum):
     REAL_TIME_5_MIN = "REAL_TIME_5_MIN"
     REAL_TIME_15_MIN = "REAL_TIME_15_MIN"
     REAL_TIME_HOURLY = "REAL_TIME_HOURLY"
-    DAY_AHEAD_5_MIN = "DAY_AHEAD_5_MIN"
     DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
 
     def __contains__(cls, item):
@@ -44,13 +43,13 @@ class ISOBase:
     def get_historical_fuel_mix(self, date):
         raise NotImplementedError()
 
-    def get_latest_demand(self):
+    def get_latest_load(self):
         raise NotImplementedError()
 
-    def get_demand_today(self):
+    def get_load_today(self):
         raise NotImplementedError()
 
-    def get_historical_demand(self, date):
+    def get_historical_load(self, date):
         raise NotImplementedError()
 
     def get_forecast_today(self):
@@ -68,14 +67,14 @@ class ISOBase:
     def get_historical_supply(self, date):
         raise NotImplementedError()
 
-    def get_battery_today(self):
+    def get_storage_today(self):
         raise NotImplementedError()
 
-    def get_historical_battery(self, date):
+    def get_historical_storage(self, date):
         raise NotImplementedError()
 
-    def _latest_lmp_from_today(self, market, locations):
-        lmp_df = self.get_lmp_today(market, locations)
+    def _latest_lmp_from_today(self, market, locations, **kwargs):
+        lmp_df = self.get_lmp_today(market=market, locations=locations, **kwargs)
         # Assume sorted in ascending order
         latest_df = lmp_df.groupby("Location").last().reset_index()
         return latest_df
@@ -90,7 +89,7 @@ class ISOBase:
 
     def _today_from_historical(self, method, *args, **kwargs):
         today = pd.Timestamp.now(self.default_timezone).date()
-        return method(today, *args, **kwargs)
+        return method(date=today, *args, **kwargs)
 
     def _supply_from_fuel_mix(self, date):
         df = self.get_historical_fuel_mix(date)

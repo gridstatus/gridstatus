@@ -2,8 +2,27 @@
 
 ## vNext
 
+- Add Examples Notebooks
+- Renamed all demand methods to load
+
+## v0.10.0 - Oct 24, 2022
+
+- Support both Generator and Zone for NYISO LMPs
+- Optimize NYISO Date Range Queries over Historical Data
+
+## v0.9.0 - Oct 21, 2022
+
+- Support querying by date range for CAISO, PJM, NYISO, and ISONE `get_historical_*` Methods
+- Add gas prices to CAISO
+- Add GHG allowance price to CAISO
+
+## v0.8.0 - Oct 13, 2022
+
+- PJM: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly
 - Add notes to Ercot status
 - Add `.status_homepage` url to ISOs that report a status
+- Add Ercot Historical RTM Settlement Point Prices (SPPs)
+- Refactor storage API to support non-battery storage types
 
 ## v0.7.0 - Aug 23, 2022
 

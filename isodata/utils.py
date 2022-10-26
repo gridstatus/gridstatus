@@ -1,6 +1,8 @@
-from datetime import datetime
+import io
+from zipfile import ZipFile
 
 import pandas as pd
+import requests
 
 import isodata
 from isodata.base import ISOBase, Markets
@@ -17,9 +19,9 @@ all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 def list_isos():
 
-    isos = [[i.name, i.iso_id] for i in all_isos]
+    isos = [[i.name, i.iso_id, i.__name__] for i in all_isos]
 
-    return pd.DataFrame(isos, columns=["Name", "Id"])
+    return pd.DataFrame(isos, columns=["Name", "Id", "Class"])
 
 
 def get_iso(iso_id):
@@ -34,18 +36,18 @@ def make_availability_df():
     methods = [
         "get_latest_status",
         "get_latest_fuel_mix",
-        "get_latest_demand",
+        "get_latest_load",
         "get_latest_supply",
         "get_fuel_mix_today",
-        "get_demand_today",
+        "get_load_today",
         "get_forecast_today",
         "get_supply_today",
-        "get_battery_today",
+        "get_storage_today",
         "get_historical_fuel_mix",
-        "get_historical_demand",
+        "get_historical_load",
         "get_historical_forecast",
         "get_historical_supply",
-        "get_historical_battery",
+        "get_historical_storage",
     ]
 
     availability = {}
@@ -97,7 +99,15 @@ def make_lmp_availability_table():
 
 
 def filter_lmp_locations(data, locations: list):
-    if locations == "ALL":
+    if locations == "ALL" or locations is None:
         return data
 
     return data[data["Location"].isin(locations)]
+
+
+def get_zip_file(url):
+    # todo add retry logic
+    # todo does this need to be a with statement?
+    r = requests.get(url)
+    z = ZipFile(io.BytesIO(r.content))
+    return z.open(z.namelist()[0])

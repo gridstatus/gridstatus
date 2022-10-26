@@ -14,14 +14,15 @@
 <p align="center">
 <a href="#installation"><b>Install</b></a> — 
 <a href="#getting-started"><b>Getting Started</b></a> — 
+<a href="#examples"><b>Example Notebooks</b></a> — 
 <a href="#method-availability"><b>Method Availability</b></a> —  
 <a href="#lmp-pricing-data"><b>LMP Data</b></a> —  
-<a href="#supported-lmp-markets"><b>Supported LMP Markets</b></a> —  
+<a href="#supported-lmp-markets"><b>Supported LMP Markets</b></a> 
 </p>
 
-`isodata` provides a uniform API to access energy data from the major Independent System Operators (ISOs) in the United States.
+`isodata` provides a uniform Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
 
-Currently supports fuel mix, load, supply, load forecast, and LMP pricing data for CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM. See [full availability](#method-availability) below.
+Currently `isodata` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 
 We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
 
@@ -57,21 +58,20 @@ First, we can see all of the ISOs that are supported
 ```
 
 ```
-                                    Name     Id
-0                         California ISO  caiso
-1  Electric Reliability Council of Texas  ercot
-2                           New York ISO  nyiso
-3                   Southwest Power Pool    spp
-4                                    PJM    pjm
-5                       Midcontinent ISO   miso
-6                        ISO New England  isone
+                                    Name     Id  Class
+0                       Midcontinent ISO   miso   MISO
+1                         California ISO  caiso  CAISO
+2                                    PJM    pjm    PJM
+3  Electric Reliability Council of Texas  ercot  Ercot
+4                   Southwest Power Pool    spp    SPP
+5                           New York ISO  nyiso  NYISO
+6                        ISO New England  isone  ISONE
 ```
 
 Next, we can select an ISO we want to use
 
 ```python
->>> iso = isodata.get_iso('caiso')
->>> caiso = iso()
+>>> caiso = isodata.CAISO()
 ```
 
 All ISOs have the same API. Here is how we can get the fuel mix
@@ -106,11 +106,11 @@ Time: 2022-08-03 18:25:00-07:00
 or the energy demand throughout the current day as a Pandas DataFrame
 
 ```python
->>> caiso.get_demand_today()
+>>> caiso.get_load_today()
 ```
 
 ```
-                         Time   Demand
+                         Time   Load
 0   2022-08-03 00:00:00-07:00  30076.0
 1   2022-08-03 00:05:00-07:00  29966.0
 2   2022-08-03 00:10:00-07:00  29893.0
@@ -176,11 +176,11 @@ Another dataset we can query is the load forecast
 When supported, you can use the historical method calls to get data for a specific day in the past. For example,
 
 ```python
->>> caiso.get_historical_demand("Jan 1, 2020")
+>>> caiso.get_historical_load("Jan 1, 2020")
 ```
 
 ```
-                         Time  Demand
+                         Time  Load
 0   2020-01-01 00:00:00-08:00   21533
 1   2020-01-01 00:05:00-08:00   21429
 2   2020-01-01 00:10:00-08:00   21320
@@ -196,29 +196,62 @@ When supported, you can use the historical method calls to get data for a specif
 [289 rows x 2 columns]
 ```
 
-The best part is these APIs work across all the supported ISOs
+Frequently, we want to get data across multiple days. We can do that by providing a `start` and `end` parameter to any `iso.get_historical_*` method
+
+```python
+>>> caiso.get_historical_load(start="Jan 1, 2020", end="Feb 1, 2020")
+```
+
+```
+                          Time  Load
+0    2020-01-01 00:00:00-08:00   21533
+1    2020-01-01 00:05:00-08:00   21429
+2    2020-01-01 00:10:00-08:00   21320
+3    2020-01-01 00:15:00-08:00   21272
+4    2020-01-01 00:20:00-08:00   21193
+...                        ...     ...
+8923 2020-01-31 23:35:00-08:00   21905
+8924 2020-01-31 23:40:00-08:00   21773
+8925 2020-01-31 23:45:00-08:00   21674
+8926 2020-01-31 23:50:00-08:00   21540
+8927 2020-01-31 23:55:00-08:00   21425
+
+[8928 rows x 2 columns]
+```
+
+The best part is these APIs work in the same way across all the supported ISOs!
+
+## Examples
+
+Here is a list of our current example notebooks. If you have any requests, please post an issue and we'd be happy to publish more!
+
+- [LMP Data - PJM](https://github.com/kmax12/isodata/blob//Examples/PJM%20LMP%20Data.ipynb)
+- [Fuel Mix over Time - NYISO](https://github.com/kmax12/isodata/blob/main/Examples/Fuel%20Mix%20Over%20Time%20-%20NYISO.ipynb)
+- [Downloading Data - CAISO](https://github.com/kmax12/isodata/blob/main//Examples/Downloading%20CAISO%20Data.ipynb)
 
 ## Method Availability
 
 Here is the current status of availability of each method for each ISO
 
 <!-- METHOD AVAILABILITY TABLE START -->
-|                           | New York ISO   | California ISO   | Electric Reliability Council of Texas   | ISO New England   | Midcontinent ISO   | Southwest Power Pool   | PJM      |
-|:--------------------------|:---------------|:-----------------|:----------------------------------------|:------------------|:-------------------|:-----------------------|:---------|
-| `get_latest_status`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#x2705;               | &#10060; |
-| `get_latest_fuel_mix`     | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_latest_demand`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_latest_supply`       | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_fuel_mix_today`      | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_demand_today`        | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_forecast_today`      | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#x2705;           | &#x2705;               | &#x2705; |
-| `get_supply_today`        | &#x2705;       | &#x2705;         | &#x2705;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_battery_today`       | &#10060;       | &#x2705;         | &#10060;                                | &#10060;          | &#10060;           | &#10060;               | &#10060; |
-| `get_historical_fuel_mix` | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_historical_demand`   | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_historical_forecast` | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#10060; |
-| `get_historical_supply`   | &#x2705;       | &#x2705;         | &#10060;                                | &#x2705;          | &#10060;           | &#10060;               | &#x2705; |
-| `get_historical_battery`  | &#10060;       | &#x2705;         | &#10060;                                | &#10060;          | &#10060;           | &#10060;               | &#10060; |
+
+|                           | New York ISO | California ISO | Electric Reliability Council of Texas | ISO New England | Midcontinent ISO | Southwest Power Pool | PJM      |
+| :------------------------ | :----------- | :------------- | :------------------------------------ | :-------------- | :--------------- | :------------------- | :------- |
+| `get_latest_status`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#x2705;             | &#10060; |
+| `get_latest_fuel_mix`     | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_latest_load`         | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_latest_supply`       | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_fuel_mix_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_load_today`          | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_forecast_today`      | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#x2705;         | &#x2705;             | &#x2705; |
+| `get_supply_today`        | &#x2705;     | &#x2705;       | &#x2705;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_storage_today`       | &#10060;     | &#x2705;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+| `get_historical_fuel_mix` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_load`     | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_forecast` | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#10060; |
+| `get_historical_supply`   | &#x2705;     | &#x2705;       | &#10060;                              | &#x2705;        | &#10060;         | &#10060;             | &#x2705; |
+| `get_historical_storage`  | &#10060;     | &#x2705;       | &#10060;                              | &#10060;        | &#10060;         | &#10060;             | &#10060; |
+
 <!-- METHOD AVAILABILITY TABLE END -->
 
 ## LMP Pricing Data
@@ -288,15 +321,17 @@ The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, an
 ## Supported LMP Markets
 
 <!-- LMP AVAILABILITY TABLE START -->
+
 |                                       | Markets                                                    |
-|:--------------------------------------|:-----------------------------------------------------------|
+| :------------------------------------ | :--------------------------------------------------------- |
 | Midcontinent ISO                      | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
 | California ISO                        | `REAL_TIME_15_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY` |
-| PJM                                   |                                                            |
+| PJM                                   | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
 | Electric Reliability Council of Texas |                                                            |
 | Southwest Power Pool                  |                                                            |
-| New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_5_MIN`                       |
+| New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
 | ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
+
 <!-- LMP AVAILABILITY TABLE END -->
 
 ## Related projects
