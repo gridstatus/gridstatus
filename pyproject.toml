@@ -17,6 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
 ]
 authors = [
     {name="Max Kanter", email="kmax12@gmail.com"}
@@ -43,6 +44,7 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest == 7.1.2",
+    "pytest-xdist == 3.0.2",
 ]
 dev = [
     "flake8 == 5.0.4",
