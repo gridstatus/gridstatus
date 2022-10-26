@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "isodata"
+project = "gridstatus"
 copyright = "2022, Max Kanter"
 
 master_doc = "index"
@@ -43,13 +43,13 @@ language = "en"
 
 html_theme = "sphinx_book_theme"
 html_logo = "_static/logo.png"
-html_title = "isodata"
+html_title = "gridstatus"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
 html_theme_options = {
     "path_to_docs": "docs",
-    "repository_url": "https://github.com/kmax12/isodata",
+    "repository_url": "https://github.com/kmax12/gridstatus",
     # "repository_branch": "gh-pages",  # For testing
     "launch_buttons": {
         "binderhub_url": "https://mybinder.org",

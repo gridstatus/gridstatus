@@ -3,12 +3,12 @@
 API Reference
 =============
 
-.. currentmodule:: isodata
+.. currentmodule:: gridstatus
 
 Supported Independent System Operators (ISOs)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. currentmodule:: isodata
+.. currentmodule:: gridstatus
 
 
 .. autosummary::

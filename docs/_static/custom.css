@@ -1,12 +1,11 @@
-.navbar_extra_footer{
-    display: none;
+.navbar_extra_footer {
+  display: none;
 }
 
-#isodata-homepage h1 {
-    display: none;
-
+#gridstatus-homepage h1 {
+  display: none;
 }
 
-.cell_output{
-    overflow-x: scroll;
+.cell_output {
+  overflow-x: scroll;
 }

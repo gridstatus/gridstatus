@@ -5,26 +5,26 @@ kernelspec:
   name: python3
 ---
 
-# isodata Homepage
+# gridstatus Homepage
 
 <p align="center">
-<img width=75% src="https://github.com/kmax12/isodata/raw/75f0161f50466d4a13e01b57a695ac2a22fc0ca9/isodata-header.png" alt="isodata logo" />
+<img width=75% src="https://github.com/kmax12/gridstatus/raw/75f0161f50466d4a13e01b57a695ac2a22fc0ca9/gridstatus-header.png" alt="gridstatus logo" />
 </p>
 
 <p align="center">
-    <a href="https://github.com/kmax12/isodata/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
-        <img src="https://github.com/kmax12/isodata/workflows/Tests/badge.svg?branch=main" alt="Tests" />
+    <a href="https://github.com/kmax12/gridstatus/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
+        <img src="https://github.com/kmax12/gridstatus/workflows/Tests/badge.svg?branch=main" alt="Tests" />
     </a>
-    <a href="https://badge.fury.io/py/isodata" target="_blank">
-        <img src="https://badge.fury.io/py/isodata.svg?maxAge=2592000" alt="PyPI Version" />
+    <a href="https://badge.fury.io/py/gridstatus" target="_blank">
+        <img src="https://badge.fury.io/py/gridstatus.svg?maxAge=2592000" alt="PyPI Version" />
     </a>
 </p>
 
-## What is isodata?
+## What is gridstatus?
 
-`isodata` is standardized Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
+`gridstatus` is standardized Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
 
-Currently `isodata` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
+Currently `gridstatus` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 
 We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
 
@@ -33,14 +33,14 @@ We'd love to answer any usage or data access questions! Please let us know by po
 First, we can see all of the ISOs that are supported
 
 ```{code-cell}
-import isodata
-isodata.list_isos()
+import gridstatus
+gridstatus.list_isos()
 ```
 
 Next, we can select an ISO we want to use
 
 ```{code-cell}
-caiso = isodata.CAISO()
+caiso = gridstatus.CAISO()
 ```
 
 ### Fuel Mix
@@ -72,7 +72,7 @@ caiso.get_supply_today()
 Another dataset we can query is the load forecast
 
 ```{code-cell}
-nyiso = isodata.NYISO()
+nyiso = gridstatus.NYISO()
 nyiso.get_forecast_today()
 ```
 
