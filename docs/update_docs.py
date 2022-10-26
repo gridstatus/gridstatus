@@ -16,7 +16,7 @@ def insert_readme(files, start_str, end_str, to_insert):
             f.truncate()
 
 
-files = ["README.md", "docs/availability.md"]
+files = ["availability.md"]
 insert_readme(
     files,
     "<!-- METHOD AVAILABILITY TABLE START -->",
@@ -25,8 +25,7 @@ insert_readme(
 )
 
 insert_readme(
-    # ["files", "docs/lmp_availability.md"],
-    ["README.md"],
+    ["lmp-availability.md"],
     "<!-- LMP AVAILABILITY TABLE START -->",
     "<!-- LMP AVAILABILITY TABLE END -->",
     make_lmp_availability_table(),

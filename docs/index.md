@@ -96,7 +96,7 @@ caiso.get_historical_load(start="Jan 1, 2020", end="Feb 1, 2020")
 The best part is these APIs work in the same way across all the supported ISOs!
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 :caption: Getting Started
 
 installation

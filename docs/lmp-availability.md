@@ -1,5 +1,7 @@
 # Supported LMP Markets
 
+Below are the currently support LMP markets. If the market you want to use isn't listed below, please [file an issue](https://github.com/kmax12/isodata/issues)
+
 <!-- LMP AVAILABILITY TABLE START -->
 
 |                                       | Markets                                                    |
