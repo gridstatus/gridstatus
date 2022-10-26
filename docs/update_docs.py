@@ -25,7 +25,7 @@ insert_readme(
 )
 
 insert_readme(
-    ["lmp-availability.md"],
+    ["lmp.md"],
     "<!-- LMP AVAILABILITY TABLE START -->",
     "<!-- LMP AVAILABILITY TABLE END -->",
     make_lmp_availability_table(),

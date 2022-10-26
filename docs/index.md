@@ -101,7 +101,7 @@ The best part is these APIs work in the same way across all the supported ISOs!
 
 installation
 availability
-lmp-availability
+lmp
 Examples/index
 
 ```
