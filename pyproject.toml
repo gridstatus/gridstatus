@@ -67,7 +67,8 @@ docs = [
     "sphinxext-opengraph",
     "sphinx-thebe",
     "sphinx_togglebutton",
-    "sphinx-favicon"
+    "sphinx-favicon",
+    "sphinx-autoapi"
 ]
 
 [tool.setuptools]

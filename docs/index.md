@@ -110,6 +110,6 @@ Examples/index
 :caption: Reference
 :maxdepth: 1
 
-changelog
 api-reference
+changelog
 ```

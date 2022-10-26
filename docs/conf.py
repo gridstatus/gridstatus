@@ -23,14 +23,13 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_design",
-    "sphinx.ext.autosummary",
+    "autoapi.extension",
     # "sphinx_tabs.tabs",
     "sphinx_thebe",
     "sphinx_togglebutton",
     "sphinxext.opengraph",
     "sphinx-favicon",
-    # For the kitchen sink
-    "sphinx.ext.todo",
+    "sphinx.ext.inheritance_diagram",
 ]
 
 templates_path = ["_templates"]
@@ -115,3 +114,8 @@ source_suffix = {
     ".myst": "myst-nb",
 }
 nb_execution_mode = "cache"
+
+
+autoapi_dirs = ["../gridstatus"]
+autoapi_add_toctree_entry = False
+autoapi_template_dir = "_auto_api_templates"

@@ -1,23 +1,21 @@
 .. _api_ref:
 
-API Reference
-=============
-
-.. currentmodule:: gridstatus
+Supported ISOs
+==============
 
 Supported Independent System Operators (ISOs)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: gridstatus
 
+.. autoapisummary::
+    :nosignatures:
 
-.. autosummary::
-    :toctree: generated/
 
-    CAISO
-    Ercot
-    ISONE
-    MISO
-    NYISO
-    PJM
-    SPP
+    gridstatus.CAISO
+    gridstatus.Ercot
+    gridstatus.ISONE
+    gridstatus.MISO
+    gridstatus.NYISO
+    gridstatus.PJM
+    gridstatus.SPP
