@@ -3,6 +3,7 @@
 CAISO.ipynb
 unpacked/*
 docs/generated/*
+.vscode/settings.json
 
 *.csv
 

@@ -90,7 +90,7 @@ class CAISO(ISOBase):
             dataframe
 
         """
-        url = self._HISTORY_BASE + "/%s/fuelsource.csv"
+        url = _HISTORY_BASE + "/%s/fuelsource.csv"
         df = _get_historical(url, date, verbose=verbose)
 
         # rename some inconsistent columns names to standardize across dates
@@ -130,7 +130,7 @@ class CAISO(ISOBase):
     @support_date_range(frequency="1D")
     def get_historical_load(self, date, verbose=False):
         """Return load at a previous date in 5 minute intervals"""
-        url = self._HISTORY_BASE + "/%s/demand.csv"
+        url = _HISTORY_BASE + "/%s/demand.csv"
         df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
@@ -351,7 +351,7 @@ class CAISO(ISOBase):
         Arguments:
             date: date to return data
         """
-        url = self._HISTORY_BASE + "/%s/storage.csv"
+        url = _HISTORY_BASE + "/%s/storage.csv"
         df = _get_historical(url, date, verbose=verbose)
         df = df.rename(columns={"Batteries": "Supply"})
         df["Type"] = "Batteries"
