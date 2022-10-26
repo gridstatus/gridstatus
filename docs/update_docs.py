@@ -1,5 +1,5 @@
-import isodata
-from isodata.utils import make_availability_table, make_lmp_availability_table
+import gridstatus
+from gridstatus.utils import make_availability_table, make_lmp_availability_table
 
 
 def insert_readme(files, start_str, end_str, to_insert):

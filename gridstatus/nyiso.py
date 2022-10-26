@@ -4,10 +4,10 @@ from zipfile import ZipFile
 import pandas as pd
 import requests
 
-import isodata
-from isodata import utils
-from isodata.base import FuelMix, GridStatus, ISOBase, Markets
-from isodata.decorators import support_date_range
+import gridstatus
+from gridstatus import utils
+from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets
+from gridstatus.decorators import support_date_range
 
 ZONE = "zone"
 GENERATOR = "generator"
@@ -287,7 +287,7 @@ class NYISO(ISOBase):
         if filename is None:
             filename = dataset_name
 
-        date = isodata.utils._handle_date(date)
+        date = gridstatus.utils._handle_date(date)
         month = date.strftime("%Y%m01")
         day = date.strftime("%Y%m%d")
 
@@ -328,7 +328,7 @@ class NYISO(ISOBase):
                     )
 
             for d in date_range:
-                d = isodata.utils._handle_date(d)
+                d = gridstatus.utils._handle_date(d)
                 month = d.strftime("%Y%m01")
                 day = d.strftime("%Y%m%d")
 

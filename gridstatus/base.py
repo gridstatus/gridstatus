@@ -9,6 +9,8 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = "ALL:@SECLEVEL=1"
 
 
 class Markets(Enum):
+    """Names of LMP Markets"""
+
     REAL_TIME_5_MIN = "REAL_TIME_5_MIN"
     REAL_TIME_15_MIN = "REAL_TIME_15_MIN"
     REAL_TIME_HOURLY = "REAL_TIME_HOURLY"

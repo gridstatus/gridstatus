@@ -3,14 +3,14 @@ from ftplib import ftpcp
 import pandas as pd
 import pytest
 
-import isodata
-from isodata.base import Markets
-from isodata.decorators import _get_pjm_archive_date
-from isodata.tests.test_isos import check_lmp_columns
+import gridstatus
+from gridstatus.base import Markets
+from gridstatus.decorators import _get_pjm_archive_date
+from gridstatus.tests.test_isos import check_lmp_columns
 
 
 def test_pjm_no_data():
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
     # raise no error since date in future
     future_date = pd.Timestamp.now().normalize() + pd.Timedelta(days=10)
     with pytest.raises(RuntimeError):
@@ -21,21 +21,21 @@ def test_pjm_no_data():
 
 
 def test_pjm_pnode():
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
     df = iso.get_pnode_ids()
     assert len(df) > 0
 
 
 def test_no_data():
     date = "2000-01-14"
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
     with pytest.raises(RuntimeError):
         df = iso.get_historical_fuel_mix(start=date)
 
 
 def test_dst_shift_back():
     date = "2021-11-07"
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
     df = iso.get_historical_fuel_mix(start=date)
 
     assert len(df["Time"]) == 25  # 25 hours due to shift backwards in time
@@ -44,7 +44,7 @@ def test_dst_shift_back():
 
 def test_dst_shift_forward():
     date = "2021-03-14"
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
     df = iso.get_historical_fuel_mix(start=date)
 
     assert len(df["Time"]) == 23  # 23 hours due to shift forwards in time
@@ -122,7 +122,7 @@ def _lmp_tests(iso, m):
 
 
 def test_pjm_get_historical_lmp_hourly():
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
     markets = [
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
@@ -135,13 +135,13 @@ def test_pjm_get_historical_lmp_hourly():
 
 @pytest.mark.slow
 def test_pjm_get_historical_lmp_5_min():
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
     _lmp_tests(iso, Markets.REAL_TIME_5_MIN)
 
 
 def test_pjm_update_dates():
     args_dict = {
-        "self": isodata.PJM(),
+        "self": gridstatus.PJM(),
         "market": Markets.REAL_TIME_5_MIN,
     }
 
@@ -150,7 +150,7 @@ def test_pjm_update_dates():
         pd.Timestamp("2018-12-31 00:00:00-0500", tz="US/Eastern"),
         pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
     ]
-    new_dates = isodata.pjm.pjm_update_dates(dates, args_dict)
+    new_dates = gridstatus.pjm.pjm_update_dates(dates, args_dict)
     assert new_dates == [
         pd.Timestamp("2018-12-31 00:00:00-0500", tz="US/Eastern"),
         pd.Timestamp("2018-12-31 23:59:00-0500", tz="US/Eastern"),
@@ -162,7 +162,7 @@ def test_pjm_update_dates():
         pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
         pd.Timestamp("2019-02-01 00:00:00-0500", tz="US/Eastern"),
     ]
-    new_dates = isodata.pjm.pjm_update_dates(dates, args_dict)
+    new_dates = gridstatus.pjm.pjm_update_dates(dates, args_dict)
     assert new_dates == [
         pd.Timestamp("2018-12-01 00:00:00-0500", tz="US/Eastern"),
         pd.Timestamp(
@@ -182,7 +182,7 @@ def test_pjm_update_dates():
         pd.Timestamp("2017-12-01 00:00:00-0500", tz="US/Eastern"),
         pd.Timestamp("2020-02-01 00:00:00-0500", tz="US/Eastern"),
     ]
-    new_dates = isodata.pjm.pjm_update_dates(dates, args_dict)
+    new_dates = gridstatus.pjm.pjm_update_dates(dates, args_dict)
     assert new_dates == [
         pd.Timestamp("2017-12-01 00:00:00-0500", tz="US/Eastern"),
         pd.Timestamp(
@@ -222,7 +222,7 @@ def test_pjm_update_dates():
     archive_date = _get_pjm_archive_date(args_dict["market"])
     start = archive_date - pd.Timedelta("1 day")
     end = archive_date + pd.Timedelta("1 day")
-    new_dates = isodata.pjm.pjm_update_dates([start, end], args_dict)
+    new_dates = gridstatus.pjm.pjm_update_dates([start, end], args_dict)
     day_before_archive = archive_date - pd.Timedelta(days=1)
     before_archive = pd.Timestamp(
         year=day_before_archive.year,
@@ -242,7 +242,7 @@ def test_pjm_update_dates():
 
 
 def test_query_by_location_type():
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
     df = iso.get_historical_lmp(
         date="Oct 20, 2022",
         market="DAY_AHEAD_HOURLY",
@@ -255,7 +255,7 @@ def test_query_by_location_type():
 
 @pytest.mark.slow
 def test_pjm_all_pnodes():
-    iso = isodata.PJM()
+    iso = gridstatus.PJM()
     df = iso.get_historical_lmp(
         date="Jan 1, 2022",
         market="REAL_TIME_HOURLY",

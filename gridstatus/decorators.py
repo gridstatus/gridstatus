@@ -5,8 +5,8 @@ from turtle import update
 import pandas as pd
 import tqdm
 
-import isodata
-from isodata.base import Markets
+import gridstatus
+from gridstatus.base import Markets
 
 
 def _get_args_dict(fn, args, kwargs):
@@ -43,7 +43,7 @@ class support_date_range:
                 args_dict["date"] = args_dict["start"]
                 del args_dict["start"]
 
-            args_dict["date"] = isodata.utils._handle_date(
+            args_dict["date"] = gridstatus.utils._handle_date(
                 args_dict["date"],
                 args_dict["self"].default_timezone,
             )
@@ -52,7 +52,7 @@ class support_date_range:
             if "end" not in args_dict:
                 return f(**args_dict)
             else:
-                args_dict["end"] = isodata.utils._handle_date(
+                args_dict["end"] = gridstatus.utils._handle_date(
                     args_dict["end"],
                     args_dict["self"].default_timezone,
                 )
@@ -86,7 +86,7 @@ class support_date_range:
             # add end date since it's not included
 
             dates = [
-                isodata.utils._handle_date(
+                gridstatus.utils._handle_date(
                     d,
                     args_dict["self"].default_timezone,
                 )
@@ -141,10 +141,10 @@ class support_date_range:
 
 
 def _get_pjm_archive_date(market):
-    import isodata
+    import gridstatus
 
     market = Markets(market)
-    tz = isodata.PJM.default_timezone
+    tz = gridstatus.PJM.default_timezone
     if market == Markets.REAL_TIME_5_MIN:
         archive_date = pd.Timestamp.now(
             tz=tz,

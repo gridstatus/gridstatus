@@ -6,10 +6,10 @@ from heapq import merge
 import pandas as pd
 import requests
 
-import isodata
-from isodata import utils
-from isodata.base import FuelMix, GridStatus, ISOBase, Markets
-from isodata.decorators import support_date_range
+import gridstatus
+from gridstatus import utils
+from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets
+from gridstatus.decorators import support_date_range
 
 
 class ISONE(ISOBase):
@@ -101,7 +101,7 @@ class ISONE(ISOBase):
 
         Provided at frequent, but irregular intervals by ISONE
         """
-        date = isodata.utils._handle_date(date)
+        date = gridstatus.utils._handle_date(date)
         url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + date.strftime(
             "%Y%m%d",
         )
@@ -134,7 +134,7 @@ class ISONE(ISOBase):
         """Return load at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
         # supports a start and end date
-        date = isodata.utils._handle_date(date)
+        date = gridstatus.utils._handle_date(date)
         date_str = date.strftime("%Y%m%d")
         url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"
         data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
@@ -168,7 +168,7 @@ class ISONE(ISOBase):
 
     @support_date_range(frequency="1D")
     def get_historical_forecast(self, date):
-        date = isodata.utils._handle_date(date)
+        date = gridstatus.utils._handle_date(date)
 
         start_str = date.strftime("%m/%d/%Y")
         end_str = (date + pd.Timedelta(days=1)).strftime("%m/%d/%Y")
@@ -261,7 +261,7 @@ class ISONE(ISOBase):
         include_id=False,
     ):
         """Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/"""
-        date = isodata.utils._handle_date(date)
+        date = gridstatus.utils._handle_date(date)
         date_str = date.strftime("%Y%m%d")
 
         if locations is None:

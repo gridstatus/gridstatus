@@ -6,16 +6,16 @@ kernelspec:
 
 # Installation
 
-`isodata` supports python 3.7+. Install with pip
+`gridstatus` supports python 3.7+. Install with pip
 
 ```
-python -m pip install isodata
+python -m pip install gridstatus
 ```
 
 Upgrade using the following command
 
 ```
-python -m pip install --upgrade isodata
+python -m pip install --upgrade gridstatus
 ```
 
 Check current version like this
@@ -23,6 +23,6 @@ Check current version like this
 ```{code-cell}
 :tags: [my-tag]
 
-import isodata
-isodata.__version__
+import gridstatus
+gridstatus.__version__
 ```

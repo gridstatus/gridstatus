@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "isodata"
+project = "gridstatus"
 copyright = "2022, Max Kanter"
 
 master_doc = "index"
@@ -23,14 +23,13 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_design",
-    "sphinx.ext.autosummary",
+    "autoapi.extension",
     # "sphinx_tabs.tabs",
     "sphinx_thebe",
     "sphinx_togglebutton",
     "sphinxext.opengraph",
     "sphinx-favicon",
-    # For the kitchen sink
-    "sphinx.ext.todo",
+    "sphinx.ext.inheritance_diagram",
 ]
 
 templates_path = ["_templates"]
@@ -43,13 +42,13 @@ language = "en"
 
 html_theme = "sphinx_book_theme"
 html_logo = "_static/logo.png"
-html_title = "isodata"
+html_title = "gridstatus"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
 html_theme_options = {
     "path_to_docs": "docs",
-    "repository_url": "https://github.com/kmax12/isodata",
+    "repository_url": "https://github.com/kmax12/gridstatus",
     # "repository_branch": "gh-pages",  # For testing
     "launch_buttons": {
         "binderhub_url": "https://mybinder.org",
@@ -115,3 +114,17 @@ source_suffix = {
     ".myst": "myst-nb",
 }
 nb_execution_mode = "cache"
+
+
+autoapi_dirs = ["../gridstatus"]
+autoapi_add_toctree_entry = False
+autoapi_template_dir = "_auto_api_templates"
+autoapi_python_class_content = "both"
+autoapi_options = [
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+    "special-members",
+    "imported-members",
+]

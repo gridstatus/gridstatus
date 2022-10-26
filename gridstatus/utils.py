@@ -4,20 +4,21 @@ from zipfile import ZipFile
 import pandas as pd
 import requests
 
-import isodata
-from isodata.base import ISOBase, Markets
-from isodata.caiso import CAISO
-from isodata.ercot import Ercot
-from isodata.isone import ISONE
-from isodata.miso import MISO
-from isodata.nyiso import NYISO
-from isodata.pjm import PJM
-from isodata.spp import SPP
+import gridstatus
+from gridstatus.base import ISOBase, Markets
+from gridstatus.caiso import CAISO
+from gridstatus.ercot import Ercot
+from gridstatus.isone import ISONE
+from gridstatus.miso import MISO
+from gridstatus.nyiso import NYISO
+from gridstatus.pjm import PJM
+from gridstatus.spp import SPP
 
 all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 
 def list_isos():
+    """List available ISOs"""
 
     isos = [[i.name, i.iso_id, i.__name__] for i in all_isos]
 
@@ -25,6 +26,7 @@ def list_isos():
 
 
 def get_iso(iso_id):
+    """Get an ISO by its id"""
     for i in all_isos:
         if i.iso_id == iso_id:
             return i
@@ -63,7 +65,7 @@ def make_availability_df():
     availability = {}
     for method_type in methods:
         availability[method_type] = {}
-        for i in isodata.all_isos:
+        for i in gridstatus.all_isos:
             availability[method_type][i.__name__] = {}
             for method in methods[method_type]:
                 is_defined = "&#10060;"  # red x

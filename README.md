@@ -1,32 +1,32 @@
 <p align="center">
-<img width=75% src="https://github.com/kmax12/isodata/raw/75f0161f50466d4a13e01b57a695ac2a22fc0ca9/isodata-header.png" alt="isodata logo" />
+<img width=75% src="/gridstatus-header.png" alt="gridstatus logo" />
 </p>
 
 <p align="center">
-    <a href="https://github.com/kmax12/isodata/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
-        <img src="https://github.com/kmax12/isodata/workflows/Tests/badge.svg?branch=main" alt="Tests" />
+    <a href="https://github.com/kmax12/gridstatus/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
+        <img src="https://github.com/kmax12/gridstatus/workflows/Tests/badge.svg?branch=main" alt="Tests" />
     </a>
-    <a href="https://badge.fury.io/py/isodata" target="_blank">
-        <img src="https://badge.fury.io/py/isodata.svg?maxAge=2592000" alt="PyPI Version" />
+    <a href="https://badge.fury.io/py/gridstatus" target="_blank">
+        <img src="https://badge.fury.io/py/gridstatus.svg?maxAge=2592000" alt="PyPI Version" />
     </a>
 </p>
 
-`isodata` provides a uniform Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
+`gridstatus` provides a uniform Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
 
-Currently `isodata` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
+Currently `gridstatus` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 
 ## Installation
 
-`isodata` supports python 3.7+. Install with pip
+`gridstatus` supports python 3.7+. Install with pip
 
 ```
-python -m pip install isodata
+python -m pip install gridstatus
 ```
 
 Upgrade using the following command
 
 ```
-python -m pip install --upgrade isodata
+python -m pip install --upgrade gridstatus
 ```
 
 ## Documentation and Examples

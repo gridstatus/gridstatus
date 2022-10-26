@@ -3,21 +3,33 @@
 API Reference
 =============
 
-.. currentmodule:: isodata
+.. currentmodule:: gridstatus
+
+Utilities
+~~~~~~~~~
+
+.. autoapisummary::
+    gridstatus.get_iso
+    gridstatus.list_isos
+
+LMP Markets
+~~~~~~~~~~~
+
+.. autoapisummary::
+
+    gridstatus.Markets
 
 Supported Independent System Operators (ISOs)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. currentmodule:: isodata
+.. currentmodule:: gridstatus
 
+.. autoapisummary::
 
-.. autosummary::
-    :toctree: generated/
-
-    CAISO
-    Ercot
-    ISONE
-    MISO
-    NYISO
-    PJM
-    SPP
+    gridstatus.CAISO
+    gridstatus.Ercot
+    gridstatus.ISONE
+    gridstatus.MISO
+    gridstatus.NYISO
+    gridstatus.PJM
+    gridstatus.SPP

@@ -1,11 +1,11 @@
 import pandas as pd
 
-from isodata import utils
-from isodata.base import FuelMix, GridStatus, ISOBase
+from gridstatus import utils
+from gridstatus.base import FuelMix, GridStatus, ISOBase
 
 
 class Ercot(ISOBase):
-    """ "Electric Reliability Council of Texas (ERCOT)"""
+    """Electric Reliability Council of Texas (ERCOT)"""
 
     name = "Electric Reliability Council of Texas"
     iso_id = "ercot"

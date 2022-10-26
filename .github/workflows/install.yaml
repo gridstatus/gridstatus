@@ -27,5 +27,5 @@ jobs:
           python -m pip install unpacked/.
       - name: Test import and simple usage
         run: |
-          python -c "import isodata;print(isodata.__version__)"
-          python -c "import isodata;isodata.list_isos()"
+          python -c "import gridstatus;print(gridstatus.__version__)"
+          python -c "import gridstatus;gridstatus.list_isos()"

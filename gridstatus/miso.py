@@ -1,8 +1,8 @@
 import pandas as pd
 from pandas import Timestamp
 
-from isodata import utils
-from isodata.base import FuelMix, ISOBase, Markets
+from gridstatus import utils
+from gridstatus.base import FuelMix, ISOBase, Markets
 
 
 class MISO(ISOBase):
