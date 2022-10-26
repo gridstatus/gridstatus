@@ -8,6 +8,8 @@ from gridstatus.base import FuelMix, GridStatus, ISOBase
 
 
 class SPP(ISOBase):
+    """Southwest Power Pool (SPP)"""
+
     name = "Southwest Power Pool"
     iso_id = "spp"
 

@@ -12,6 +12,8 @@ from gridstatus.decorators import support_date_range
 
 
 class CAISO(ISOBase):
+    """California Independent System Operator (CAISO)"""
+
     BASE = "https://www.caiso.com/outlook/SP"
     HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
 
@@ -65,13 +67,11 @@ class CAISO(ISOBase):
 
         Updates every 5 minutes
         """
-        url = self.BASE + "/fuelsource.csv"
-        df = pd.read_csv(url)
-
-        mix = df.iloc[-1].to_dict()
-        time = _make_timestamp(mix.pop("Time"), self._current_day())
-
-        return FuelMix(time=time, mix=mix, iso=self.name)
+        mix = self.get_fuel_mix_today()
+        latest = mix.iloc[-1]
+        time = latest.pop("Time")
+        mix_dict = latest.to_dict()
+        return FuelMix(time=time, mix=mix_dict, iso=self.name)
 
     def get_fuel_mix_today(self):
         "Get fuel_mix for today in 5 minute intervals"
