@@ -34,6 +34,9 @@ class ISOBase:
     def get_latest_status(self):
         raise NotImplementedError()
 
+    def get_historical_status(self, date):
+        raise NotImplementedError()
+
     def get_latest_fuel_mix(self):
         raise NotImplementedError()
 

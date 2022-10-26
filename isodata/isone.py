@@ -13,6 +13,8 @@ from isodata.decorators import support_date_range
 
 
 class ISONE(ISOBase):
+    """ISO New England (ISONE)"""
+
     name = "ISO New England"
     iso_id = "isone"
     default_timezone = "US/Eastern"

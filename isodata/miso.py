@@ -6,6 +6,8 @@ from isodata.base import FuelMix, ISOBase, Markets
 
 
 class MISO(ISOBase):
+    """Midcontinent Independent System Operator (MISO)"""
+
     BASE = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx"
 
     name = "Midcontinent ISO"

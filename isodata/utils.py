@@ -33,41 +33,60 @@ def get_iso(iso_id):
 
 
 def make_availability_df():
-    methods = [
-        "get_latest_status",
-        "get_latest_fuel_mix",
-        "get_latest_load",
-        "get_latest_supply",
-        "get_fuel_mix_today",
-        "get_load_today",
-        "get_forecast_today",
-        "get_supply_today",
-        "get_storage_today",
-        "get_historical_fuel_mix",
-        "get_historical_load",
-        "get_historical_forecast",
-        "get_historical_supply",
-        "get_historical_storage",
-    ]
+    methods = {
+        "Status": ["get_latest_status", "get_historical_status"],
+        "Fuel Mix": [
+            "get_latest_fuel_mix",
+            "get_fuel_mix_today",
+            "get_historical_fuel_mix",
+        ],
+        "Load": [
+            "get_latest_load",
+            "get_load_today",
+            "get_historical_load",
+        ],
+        "Supply": [
+            "get_latest_supply",
+            "get_supply_today",
+            "get_historical_supply",
+        ],
+        "Load Forecast": [
+            "get_forecast_today",
+            "get_historical_forecast",
+        ],
+        "Storage": [
+            "get_storage_today",
+            "get_historical_storage",
+        ],
+    }
 
     availability = {}
-    for i in isodata.all_isos:
-        availability[i.name] = {}
-        for m in methods:
-            is_defined = "&#10060;"  # red x
-            if getattr(i, m) != getattr(ISOBase, m):
-                is_defined = "&#x2705;"  # green checkmark
-            availability[i.name][m] = is_defined
+    for method_type in methods:
+        availability[method_type] = {}
+        for i in isodata.all_isos:
+            availability[method_type][i.__name__] = {}
+            for method in methods[method_type]:
+                is_defined = "&#10060;"  # red x
+                if getattr(i, method) != getattr(ISOBase, method):
+                    is_defined = "&#x2705;"  # green checkmark
+                availability[method_type][i.__name__][method] = is_defined
 
-    availability_df = pd.DataFrame(availability)
-
-    return availability_df
+    availability_dfs = {}
+    for method_type in methods:
+        availability_dfs[method_type] = pd.DataFrame(availability[method_type])
+    return availability_dfs
 
 
 def make_availability_table():
-    df = make_availability_df()
-    df.index = ["`" + v + "`" for v in df.index.values]
-    return df.to_markdown()
+    dfs = make_availability_df()
+
+    markdown = ""
+    for method_type in dfs:
+        markdown += "## " + method_type + "\n"
+        # df.index = ["`" + v + "`" for v in df.index.values]
+        markdown += dfs[method_type].to_markdown() + "\n"
+
+    return markdown
 
 
 def _handle_date(date, tz=None):
