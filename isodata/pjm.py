@@ -14,6 +14,8 @@ from isodata.decorators import (
 
 
 class PJM(ISOBase):
+    """PJM"""
+
     name = "PJM"
     iso_id = "pjm"
     default_timezone = "US/Eastern"

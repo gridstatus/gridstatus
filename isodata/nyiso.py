@@ -15,6 +15,8 @@ GENERATOR = "generator"
 
 
 class NYISO(ISOBase):
+    """New York Independent System Operator (NYISO)"""
+
     name = "New York ISO"
     iso_id = "nyiso"
     default_timezone = "US/Eastern"

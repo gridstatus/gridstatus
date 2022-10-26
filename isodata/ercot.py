@@ -5,6 +5,8 @@ from isodata.base import FuelMix, GridStatus, ISOBase
 
 
 class Ercot(ISOBase):
+    """ "Electric Reliability Council of Texas (ERCOT)"""
+
     name = "Electric Reliability Council of Texas"
     iso_id = "ercot"
     default_timezone = "US/Central"
