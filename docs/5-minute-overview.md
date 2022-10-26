@@ -19,11 +19,15 @@ Next, we can select an ISO we want to use
 caiso = isodata.CAISO()
 ```
 
+## Fuel Mix
+
 all ISOs have the same API. Here is how we can get the fuel mix
 
 ```{code-cell}
 caiso.get_latest_fuel_mix()
 ```
+
+## Load
 
 or the energy demand throughout the current day as a Pandas DataFrame
 
@@ -31,11 +35,15 @@ or the energy demand throughout the current day as a Pandas DataFrame
 caiso.get_load_today()
 ```
 
+## Supply
+
 we can get today's supply in the same way
 
 ```{code-cell}
 caiso.get_supply_today()
 ```
+
+## Load Forecast
 
 Another dataset we can query is the load forecast
 
@@ -43,6 +51,8 @@ Another dataset we can query is the load forecast
 nyiso = isodata.NYISO()
 nyiso.get_forecast_today()
 ```
+
+## Historical Data
 
 When supported, you can use the historical method calls to get data for a specific day in the past. For example,
 
@@ -56,5 +66,7 @@ Frequently, we want to get data across multiple days. We can do that by providin
 :tags: [remove-input,remove-stdout,remove-stderr]
 caiso.get_historical_load(start="Jan 1, 2020", end="Feb 1, 2020")
 ```
+
+## Next Steps
 
 The best part is these APIs work in the same way across all the supported ISOs!

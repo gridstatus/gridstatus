@@ -15,8 +15,6 @@
 
 Currently `isodata` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 
-We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
-
 ## Installation
 
 `isodata` supports python 3.7+. Install with pip
@@ -31,10 +29,10 @@ Upgrade using the following command
 python -m pip install --upgrade isodata
 ```
 
-## Documentation
+## Documentation and Examples
 
-To learn more visit the [documentation](https://docs.gridstatus.io./)
+To learn more visit the [documentation](https://docs.gridstatus.io/).
 
-## Related projects
+## Get Help
 
-- [pyiso](https://github.com/WattTime/pyiso)
+We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
