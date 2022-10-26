@@ -1,7 +1,9 @@
 # Changelog
 
-## vNext
+## v0.11.0 - Oct 26, 2022
 
+- Renamed library to `gridstatus`
+- New [Documentation](https://docs.gridstatus.io)!
 - Add Examples Notebooks
 - Renamed all demand methods to load
 
