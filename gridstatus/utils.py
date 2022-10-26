@@ -18,6 +18,7 @@ all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 
 def list_isos():
+    """List available ISOs"""
 
     isos = [[i.name, i.iso_id, i.__name__] for i in all_isos]
 
@@ -25,6 +26,7 @@ def list_isos():
 
 
 def get_iso(iso_id):
+    """Get an ISO by its id"""
     for i in all_isos:
         if i.iso_id == iso_id:
             return i

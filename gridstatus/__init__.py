@@ -20,4 +20,15 @@ from gridstatus.pjm import PJM
 all_isos = [NYISO, CAISO, Ercot, ISONE, MISO, SPP, PJM]
 
 
-__all__ = ["NYISO", "CAISO", "Ercot", "ISONE", "MISO", "SPP", "PJM", "Markets"]
+__all__ = [
+    "NYISO",
+    "CAISO",
+    "Ercot",
+    "ISONE",
+    "MISO",
+    "SPP",
+    "PJM",
+    "Markets",
+    "get_iso",
+    "list_isos",
+]

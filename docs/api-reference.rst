@@ -1,7 +1,23 @@
 .. _api_ref:
 
-Supported ISOs
-==============
+API Reference
+=============
+
+.. currentmodule:: gridstatus
+
+Utilities
+~~~~~~~~~
+
+.. autoapisummary::
+    gridstatus.get_iso
+    gridstatus.list_isos
+
+LMP Markets
+~~~~~~~~~~~
+
+.. autoapisummary::
+
+    gridstatus.Markets
 
 Supported Independent System Operators (ISOs)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
