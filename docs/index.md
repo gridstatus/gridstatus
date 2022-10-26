@@ -102,16 +102,8 @@ The best part is these APIs work in the same way across all the supported ISOs!
 installation
 availability
 lmp-availability
+Examples/index
 
-```
-
-```{toctree}
-:maxdepth: 1
-:caption: Examples
-
-Examples/Downloading CAISO Data.ipynb
-Examples/Fuel Mix Over Time - NYISO.ipynb
-Examples/PJM LMP Data.ipynb
 ```
 
 ```{toctree}

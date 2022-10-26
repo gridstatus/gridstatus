@@ -24,5 +24,5 @@ Check current version like this
 :tags: [my-tag]
 
 import isodata
-print(isodata.__version__)
+isodata.__version__
 ```
