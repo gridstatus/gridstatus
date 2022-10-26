@@ -6,7 +6,24 @@ kernelspec:
 
 # LMP Pricing Data
 
-## Overview
+## Support
+
+Below are the currently support LMP markets
+
+<!-- LMP AVAILABILITY TABLE START -->
+|                                       | Markets                                                    |
+|:--------------------------------------|:-----------------------------------------------------------|
+| Midcontinent ISO                      | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
+| California ISO                        | `REAL_TIME_15_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY` |
+| PJM                                   | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
+| Electric Reliability Council of Texas |                                                            |
+| Southwest Power Pool                  |                                                            |
+| New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
+| ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
+<!-- LMP AVAILABILITY TABLE END -->
+
+
+## How to use
 
 We are currently adding Locational Marginal Price (LMP). Even though each BA offers different markets, but you can query them with a standardized API
 
@@ -33,18 +50,3 @@ caiso.markets
 
 The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, and `ISO.get_historical_lmp`.
 
-## Supported Markets
-
-Below are the currently support LMP markets.
-
-<!-- LMP AVAILABILITY TABLE START -->
-|                                       | Markets                                                    |
-|:--------------------------------------|:-----------------------------------------------------------|
-| Midcontinent ISO                      | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
-| California ISO                        | `REAL_TIME_15_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY` |
-| PJM                                   | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
-| Electric Reliability Council of Texas |                                                            |
-| Southwest Power Pool                  |                                                            |
-| New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
-| ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
-<!-- LMP AVAILABILITY TABLE END -->

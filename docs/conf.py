@@ -119,3 +119,12 @@ nb_execution_mode = "cache"
 autoapi_dirs = ["../gridstatus"]
 autoapi_add_toctree_entry = False
 autoapi_template_dir = "_auto_api_templates"
+autoapi_python_class_content = "both"
+autoapi_options = [
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+    "special-members",
+    "imported-members",
+]

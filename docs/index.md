@@ -22,7 +22,7 @@ kernelspec:
 
 ## What is gridstatus?
 
-`gridstatus` is standardized Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
+`gridstatus` is a standardized Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
 
 Currently `gridstatus` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 

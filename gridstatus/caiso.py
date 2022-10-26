@@ -10,12 +10,12 @@ from gridstatus import utils
 from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets
 from gridstatus.decorators import support_date_range
 
+_BASE = "https://www.caiso.com/outlook/SP"
+_HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
+
 
 class CAISO(ISOBase):
     """California Independent System Operator (CAISO)"""
-
-    BASE = "https://www.caiso.com/outlook/SP"
-    HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
 
     name = "California ISO"
     iso_id = "caiso"
@@ -41,7 +41,7 @@ class CAISO(ISOBase):
         return self.get_latest_status().time.date()
 
     def get_stats(self):
-        stats_url = self.BASE + "/stats.txt"
+        stats_url = _BASE + "/stats.txt"
         r = self._get_json(stats_url)
         return r
 
@@ -90,7 +90,7 @@ class CAISO(ISOBase):
             dataframe
 
         """
-        url = self.HISTORY_BASE + "/%s/fuelsource.csv"
+        url = self._HISTORY_BASE + "/%s/fuelsource.csv"
         df = _get_historical(url, date, verbose=verbose)
 
         # rename some inconsistent columns names to standardize across dates
@@ -112,7 +112,7 @@ class CAISO(ISOBase):
 
         Updates every 5 minutes
         """
-        load_url = self.BASE + "/demand.csv"
+        load_url = _BASE + "/demand.csv"
         df = pd.read_csv(load_url)
 
         # get last non null row
@@ -130,7 +130,7 @@ class CAISO(ISOBase):
     @support_date_range(frequency="1D")
     def get_historical_load(self, date, verbose=False):
         """Return load at a previous date in 5 minute intervals"""
-        url = self.HISTORY_BASE + "/%s/demand.csv"
+        url = self._HISTORY_BASE + "/%s/demand.csv"
         df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
@@ -351,7 +351,7 @@ class CAISO(ISOBase):
         Arguments:
             date: date to return data
         """
-        url = self.HISTORY_BASE + "/%s/storage.csv"
+        url = self._HISTORY_BASE + "/%s/storage.csv"
         df = _get_historical(url, date, verbose=verbose)
         df = df.rename(columns={"Batteries": "Supply"})
         df["Type"] = "Batteries"

@@ -9,8 +9,6 @@ Supported Independent System Operators (ISOs)
 .. currentmodule:: gridstatus
 
 .. autoapisummary::
-    :nosignatures:
-
 
     gridstatus.CAISO
     gridstatus.Ercot
