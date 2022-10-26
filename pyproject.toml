@@ -44,6 +44,7 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest == 7.1.2",
+    "pytest-xdist == 3.0.2",
 ]
 dev = [
     "flake8 == 5.0.4",
