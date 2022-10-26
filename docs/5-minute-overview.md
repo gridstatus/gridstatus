@@ -29,6 +29,9 @@ All ISOs have the same API. Here is how we can get the fuel mix
 ```{code-cell}
 import requests
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':RC4-SHA'
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
 caiso.get_latest_fuel_mix()
 ```
 
