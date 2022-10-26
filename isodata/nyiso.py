@@ -365,7 +365,7 @@ def _handle_time(df):
 
     elif "Name" in df.columns:
         # once we group by name, the time series for each group is no longer ambiguous
-        df[time_stamp_col] = df.groupby("Name")[time_stamp_col].apply(
+        df[time_stamp_col] = df.groupby("Name", group_keys=False)[time_stamp_col].apply(
             time_to_datetime,
             "infer",
         )
