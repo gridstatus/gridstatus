@@ -6,9 +6,7 @@
     <a href="https://github.com/kmax12/gridstatus/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
         <img src="https://github.com/kmax12/gridstatus/workflows/Tests/badge.svg?branch=main" alt="Tests" />
     </a>
-    <a href="https://badge.fury.io/py/gridstatus" target="_blank">
-        <img src="https://badge.fury.io/py/gridstatus.svg?maxAge=2592000" alt="PyPI Version" />
-    </a>
+    <a href="https://badge.fury.io/py/gridstatus"><img src="https://badge.fury.io/py/gridstatus.svg" alt="PyPI version" height="18"></a>
 </p>
 
 `gridstatus` provides a uniform Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
