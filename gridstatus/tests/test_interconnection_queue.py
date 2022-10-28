@@ -1,3 +1,5 @@
+import pytest
+
 from gridstatus import CAISO, ISONE, MISO, NYISO, PJM, SPP, Ercot
 from gridstatus.base import _interconnection_columns
 
