@@ -2,11 +2,13 @@ import pdb
 
 import pandas as pd
 
-from isodata import utils
-from isodata.base import FuelMix, GridStatus, ISOBase
+from gridstatus import utils
+from gridstatus.base import FuelMix, GridStatus, ISOBase, NotSupported
 
 
 class Ercot(ISOBase):
+    """Electric Reliability Council of Texas (ERCOT)"""
+
     name = "Electric Reliability Council of Texas"
     iso_id = "ercot"
     default_timezone = "US/Central"
@@ -18,8 +20,12 @@ class Ercot(ISOBase):
 
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
 
-    def get_latest_status(self):
-        r = self._get_json(self.BASE + "/daily-prc.json")
+    def get_status(self, date, verbose=False):
+        """Returns status of grid"""
+        if date != "latest":
+            raise NotSupported()
+
+        r = self._get_json(self.BASE + "/daily-prc.json", verbose=verbose)
 
         time = (
             pd.to_datetime(r["current_condition"]["datetime"], unit="s")
@@ -42,39 +48,48 @@ class Ercot(ISOBase):
             notes=notes,
         )
 
-    def get_latest_fuel_mix(self):
-        df = self.get_fuel_mix_today()
-        currentHour = df.iloc[-1]
+    def get_fuel_mix(self, date):
 
-        mix_dict = {"Wind": currentHour["Wind"], "Solar": currentHour["Solar"]}
+        if date == "latest":
+            df = self.get_fuel_mix("today")
+            currentHour = df.iloc[-1]
 
-        return FuelMix(time=currentHour["Time"], mix=mix_dict, iso=self.name)
+            mix_dict = {"Wind": currentHour["Wind"], "Solar": currentHour["Solar"]}
 
-    def get_fuel_mix_today(self):
-        """Get historical fuel mix
+            return FuelMix(time=currentHour["Time"], mix=mix_dict, iso=self.name)
 
-        Only supports current day
-        """
-        url = self.BASE + "/combine-wind-solar.json"
-        r = self._get_json(url)
+        elif utils.is_today(date):
 
-        # rows with nulls are forecasts
-        df = pd.DataFrame(r["currentDay"]["data"])
-        df = df.dropna(subset=["actualSolar"])
+            url = self.BASE + "/combine-wind-solar.json"
+            r = self._get_json(url)
 
-        df = self._handle_data(
-            df,
-            {"actualSolar": "Solar", "actualWind": "Wind"},
-        )
-        return df
+            # rows with nulls are forecasts
+            df = pd.DataFrame(r["currentDay"]["data"])
+            df = df.dropna(subset=["actualSolar"])
 
-    def get_latest_demand(self):
-        d = self._get_demand("currentDay").iloc[-1]
+            df = self._handle_data(
+                df,
+                {"actualSolar": "Solar", "actualWind": "Wind"},
+            )
+            return df
 
-        return {"time": d["Time"], "demand": d["Demand"]}
+        else:
+            raise NotSupported()
 
-    def _get_demand(self, when):
-        """Returns demand for currentDay or previousDay"""
+    def get_load(self, date, verbose=False):
+        if date == "latest":
+            d = self._get_load("currentDay").iloc[-1]
+
+            return {"time": d["Time"], "load": d["Load"]}
+
+        elif utils.is_today(date):
+            return self._get_load("currentDay")
+
+        else:
+            raise NotSupported()
+
+    def _get_load(self, when):
+        """Returns load for currentDay or previousDay"""
         # todo switch to https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html
         # says supports last 5 days, appears to support last two weeks
         # df = pd.read_html("https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html")
@@ -84,46 +99,47 @@ class Ercot(ISOBase):
         r = self._get_json(url)
         df = pd.DataFrame(r[when]["data"])
         df = df.dropna(subset=["systemLoad"])
-        df = self._handle_data(df, {"systemLoad": "Demand"})
+        df = self._handle_data(df, {"systemLoad": "Load"})
         return df
 
-    def get_demand_today(self):
-        """Returns demand for today"""
-        return self._get_demand("currentDay")
-
-    def get_latest_supply(self):
-        return self._latest_from_today(self.get_supply_today)
-
-    def get_supply_today(self):
+    def get_supply(self, date, verbose=False):
         """Returns most recent data point for supply in MW
 
         Updates every 5 minutes
         """
-        url = "https://www.ercot.com/api/1/services/read/dashboards/todays-outlook.json"
-        r = self._get_json(url)
+        if date == "latest":
+            return self._latest_from_today(self.get_supply)
+        elif utils.is_today(date):
+            url = "https://www.ercot.com/api/1/services/read/dashboards/todays-outlook.json"
+            r = self._get_json(url)
 
-        date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
+            date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
 
-        # ignore last row since that corresponds to midnight following day
-        data = pd.DataFrame(r["data"][:-1])
+            # ignore last row since that corresponds to midnight following day
+            data = pd.DataFrame(r["data"][:-1])
 
-        data["Time"] = pd.to_datetime(
-            date.strftime("%Y-%m-%d")
-            + " "
-            + data["hourEnding"].astype(str).str.zfill(2)
-            + ":"
-            + data["interval"].astype(str).str.zfill(2),
-        ).dt.tz_localize(self.default_timezone)
+            data["Time"] = pd.to_datetime(
+                date.strftime("%Y-%m-%d")
+                + " "
+                + data["hourEnding"].astype(str).str.zfill(2)
+                + ":"
+                + data["interval"].astype(str).str.zfill(2),
+            ).dt.tz_localize(self.default_timezone)
 
-        data = data[data["forecast"] == 0]  # only keep non forecast rows
+            data = data[data["forecast"] == 0]  # only keep non forecast rows
 
-        data = data[["Time", "capacity"]].rename(
-            columns={"capacity": "Supply"},
-        )
+            data = data[["Time", "capacity"]].rename(
+                columns={"capacity": "Supply"},
+            )
 
-        return data
+            return data
+        else:
+            raise NotSupported()
 
-    def get_forecast_today(self):
+    def get_load_forecast(self, date, verbose=False):
+        if date != "today":
+            raise NotSupported()
+
         # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
         # there are a few days of historical date for the forecast
         today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
@@ -151,7 +167,7 @@ class Ercot(ISOBase):
 
         return doc
 
-    def get_historical_rtm_spp(self, year):
+    def get_rtm_spp(self, year):
         """Get Historical RTM Settlement Point Prices (SPPs) for each of the Hubs and Load Zones
 
         Arguments:

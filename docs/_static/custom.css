@@ -1,0 +1,11 @@
+.navbar_extra_footer {
+  display: none;
+}
+
+#gridstatus-homepage h1 {
+  display: none;
+}
+
+.cell_output {
+  overflow-x: auto;
+}

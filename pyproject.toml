@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "isodata"
+name = "gridstatus"
 readme = { file = "README.md", content-type = "text/markdown" }
 description = "API to access energy data"
 dynamic = ["version"]
@@ -17,6 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
 ]
 authors = [
     {name="Max Kanter", email="kmax12@gmail.com"}
@@ -33,23 +34,44 @@ dependencies = [
     "beautifulsoup4 >= 4.8.13",
     "tabulate >= 0.8.10",
     "openpyxl >= 3.0.10",
+    "tqdm >= 4.64.1"
 ]
 
 [project.urls]
-"Source Code"= "https://github.com/kmax12/isodata/"
-"Changes" = "https://github.com/kmax12/isodata/blob/main/CHANGELOG.md"
-"Issue Tracker" = "https://github.com/kmax12/isodata/issues"
+"Source Code"= "https://github.com/kmax12/gridstatus/"
+"Changes" = "https://github.com/kmax12/gridstatus/blob/main/CHANGELOG.md"
+"Issue Tracker" = "https://github.com/kmax12/gridstatus/issues"
 
 [project.optional-dependencies]
 test = [
     "pytest == 7.1.2",
+    "pytest-xdist == 3.0.2",
 ]
 dev = [
     "flake8 == 5.0.4",
     "isort == 5.10.1",
     "black == 22.6.0",
     "pre-commit == 2.20.0",
-    "isodata[dev]",
+    "gridstatus[dev]",
+]
+
+docs = [
+    "ipython == 8.4.0",
+    "jupyter == 1.0.0",
+    "matplotlib == 3.5.2",
+    "sphinx~=4.0",
+    "sphinx-book-theme == 0.3.3",
+    "sphinx-inline-tabs == 2022.1.2b11",
+    "sphinx-copybutton == 0.5.0",
+    "myst-nb == 0.17.1",
+    "sphinx_design",
+    "sphinxext-opengraph",
+    "sphinx-thebe",
+    "sphinx_togglebutton",
+    "sphinx-favicon",
+    "sphinx-autoapi",
+    "plotly",
+    "kaleido"
 ]
 
 [tool.setuptools]
@@ -57,7 +79,7 @@ include-package-data = true
 license-files = ["LICENSE"]
 
 [tool.setuptools.dynamic]
-version = {attr = "isodata.version.__version__"}
+version = {attr = "gridstatus.version.__version__"}
 
 [tool.setuptools.packages.find]
 namespaces = true
@@ -75,13 +97,13 @@ namespaces = true
 
 [tool.pytest.ini_options]
 testpaths = [
-    "isodata/tests/*"
+    "gridstatus/tests/*"
 ]
 
 [tool.isort]
 profile = "black"
-forced_separate = "isodata"
-known_first_party = "isodata"
+forced_separate = "gridstatus"
+known_first_party = "gridstatus"
 skip = "__init__.py"
 multi_line_output = 3
 

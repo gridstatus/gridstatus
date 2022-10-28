@@ -1,13 +1,14 @@
-import re
-
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-from isodata.base import FuelMix, GridStatus, ISOBase
+from gridstatus import utils
+from gridstatus.base import FuelMix, GridStatus, ISOBase, NotSupported
 
 
 class SPP(ISOBase):
+    """Southwest Power Pool (SPP)"""
+
     name = "Southwest Power Pool"
     iso_id = "spp"
 
@@ -18,7 +19,10 @@ class SPP(ISOBase):
         "https://www.spp.org/engineering/generator-interconnection/"
     )
 
-    def get_latest_status(self):
+    def get_status(self, date=None, verbose=False):
+        if date != "latest":
+            raise NotSupported()
+
         url = "https://www.spp.org/markets-operations/current-grid-conditions/"
         html_text = requests.get(url).text
         soup = BeautifulSoup(html_text, "html.parser")
@@ -75,7 +79,11 @@ class SPP(ISOBase):
             iso=self,
         )
 
-    def get_latest_fuel_mix(self):
+    def get_fuel_mix(self, date, verbose=False):
+
+        if date != "latest":
+            raise NotSupported
+
         url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"
         r = self._get_json(url)["response"]
 
@@ -90,32 +98,36 @@ class SPP(ISOBase):
 
         return FuelMix(time=time, mix=current_mix, iso=self.name)
 
-    def get_latest_supply(self):
-        """Returns most recent data point for supply in MW"""
-        return self._latest_supply_from_fuel_mix()
+    def get_supply(self, date, end=None, verbose=False):
+        """Get supply for a date in hourly intervals"""
+        return self._get_supply(date=date, end=end, verbose=verbose)
 
-    def get_latest_demand(self):
-        return self._latest_from_today(self.get_demand_today)
+    def get_load(self, date, verbose=False):
+        """Returns load for last 24hrs in 5 minute intervals"""
 
-    def get_demand_today(self):
-        """Returns demand for last 24hrs in 5 minute intervals"""
+        if date == "latest":
+            return self._latest_from_today(self.get_load)
 
-        df = self._get_load_and_forecast()
+        elif utils.is_today(date):
+            df = self._get_load_and_forecast(verbose=verbose)
 
-        df = df.dropna(subset=["Actual Load"])
+            df = df.dropna(subset=["Actual Load"])
 
-        df = df.rename(columns={"Actual Load": "Demand"})
+            df = df.rename(columns={"Actual Load": "Load"})
 
-        df = df[["Time", "Demand"]]
+            df = df[["Time", "Load"]]
 
-        return df
+            return df
 
-    def get_forecast_today(self, forecast_type="MID_TERM"):
+        else:
+            raise NotSupported()
+
+    def get_load_forecast(self, date, forecast_type="MID_TERM", verbose=False):
         """
 
         type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is every five minutes for a few hours
         """
-        df = self._get_load_and_forecast()
+        df = self._get_load_and_forecast(verbose=verbose)
 
         # gives forecast from before current day
         # only include forecasts start at current day
@@ -145,8 +157,12 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
-    def _get_load_and_forecast(self):
+    def _get_load_and_forecast(self, verbose=False):
         url = "https://marketplace.spp.org/chart-api/load-forecast/asChart"
+
+        if verbose:
+            print("Getting load and forecast from {}".format(url))
+
         r = self._get_json(url)["response"]
 
         data = {"Time": r["labels"]}

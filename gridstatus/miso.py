@@ -4,11 +4,13 @@ import pandas as pd
 import requests
 from pandas import Timestamp
 
-from isodata import utils
-from isodata.base import FuelMix, ISOBase, Markets
+from gridstatus import utils
+from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
 
 
 class MISO(ISOBase):
+    """Midcontinent Independent System Operator (MISO)"""
+
     BASE = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx"
 
     interconnection_homepage = (
@@ -33,7 +35,10 @@ class MISO(ISOBase):
         "ARKANSAS.HUB",
     ]
 
-    def get_latest_fuel_mix(self):
+    def get_fuel_mix(self, date, verbose=False):
+        if date != "latest":
+            raise NotSupported()
+
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url)
 
@@ -53,43 +58,43 @@ class MISO(ISOBase):
         fm = FuelMix(time=time, mix=mix, iso=self.name)
         return fm
 
-    def get_latest_demand(self):
-        # this is same result as using get_demand_today
-        url = "https://misotodaysoutlook.azurewebsites.net/api/Outlook"
-        r = self._get_json(url)
+    def get_supply(self, date, end=None, verbose=False):
+        """Get supply for a date in hourly intervals"""
+        return self._get_supply(date=date, end=end, verbose=verbose)
 
-        return {
-            "time": pd.to_datetime(r[1]["d"]).tz_localize(self.default_timezone),
-            "demand": float(r[1]["v"].replace(",", "")),
-        }
+    def get_load(self, date, verbose=False):
+        if date == "latest":
+            return self._latest_from_today(self.get_load, verbose=verbose)
 
-    def get_latest_supply(self):
-        """Returns most recent data point for supply in MW"""
-        return self._latest_supply_from_fuel_mix()
+        elif utils.is_today(date):
+            r = self._get_load_and_forecast_data()
 
-    def get_demand_today(self):
-        r = self._get_load_and_forecast_data()
+            date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
 
-        date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
+            df = pd.DataFrame([x["Load"] for x in r["LoadInfo"]["FiveMinTotalLoad"]])
 
-        df = pd.DataFrame([x["Load"] for x in r["LoadInfo"]["FiveMinTotalLoad"]])
-
-        df["Time"] = df["Time"].apply(
-            lambda x, date=date: date
-            + pd.Timedelta(
-                hours=int(
-                    x.split(":")[0],
+            df["Time"] = df["Time"].apply(
+                lambda x, date=date: date
+                + pd.Timedelta(
+                    hours=int(
+                        x.split(":")[0],
+                    ),
+                    minutes=int(x.split(":")[1]),
                 ),
-                minutes=int(x.split(":")[1]),
-            ),
-        )
-        df["Time"] = df["Time"].dt.tz_localize(self.default_timezone)
-        df = df.rename(columns={"Value": "Demand"})
-        df["Demand"] = pd.to_numeric(df["Demand"])
+            )
+            df["Time"] = df["Time"].dt.tz_localize(self.default_timezone)
+            df = df.rename(columns={"Value": "Load"})
+            df["Load"] = pd.to_numeric(df["Load"])
 
-        return df
+            return df
+        else:
+            raise NotSupported
 
-    def get_forecast_today(self):
+    def get_load_forecast(self, date, verbose=False):
+
+        if date != "today":
+            raise NotSupported()
+
         r = self._get_load_and_forecast_data()
 
         date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0]).tz_localize(
@@ -115,13 +120,16 @@ class MISO(ISOBase):
         r = self._get_json(url)
         return r
 
-    def get_latest_lmp(self, market: str, locations: list = None):
+    def get_lmp(self, date, market: str, locations: list = None):
         """
         Supported Markets:
 
         REAL_TIME_5_MIN (FiveMinLMP)
         DAY_AHEAD_HOURLY (DayAheadExPostLMP)
         """
+        if date != "latest":
+            raise NotSupported()
+
         if locations is None:
             locations = "ALL"
 

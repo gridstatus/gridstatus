@@ -7,8 +7,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ["3.7", "3.10"]
+        python-version: ["3.7", "3.10", "3.11"]
         os: [ubuntu-latest, macos-latest]
+        exclude:
+          - os: macos-latest # https://github.com/actions/setup-python/issues/531
+            python-version: "3.11"
 
     steps:
       - uses: actions/checkout@v3
@@ -24,5 +27,5 @@ jobs:
           python -m pip install unpacked/.
       - name: Test import and simple usage
         run: |
-          python -c "import isodata;print(isodata.__version__)"
-          python -c "import isodata;isodata.list_isos()"
+          python -c "import gridstatus;print(gridstatus.__version__)"
+          python -c "import gridstatus;gridstatus.list_isos()"

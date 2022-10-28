@@ -3,10 +3,62 @@
 ## vNext
 
 - Add interconnection queue to data for SPP, NYISO, ERCOT, ISONE, PJM, MISO, and CAISO
+
+## v0.12.0 - Oct 28, 2022
+
+- Can now use `"today"` are value for `end` when querying date range
+
+    ```python
+    nyiso.get_fuel_mix(start="Jan 1, 2022", end="today")
+    ```
+
+
+### Breaking Changes
+
+- Simplify method naming. This applies to all method. See below for example
+
+#### New API
+
+```python
+nyiso.get_fuel_mix("latest")
+nyiso.get_fuel_mix("today")
+nyiso.get_fuel_mix("jan 1, 2022")
+```
+
+#### Old API
+```python
+nyiso = gridstatus.NYISO()
+nyiso.get_latest_fuel_mix()
+nyiso.get_fuel_mix_today()
+nyiso.get_historical_fuel_mix("jan 1, 2022")
+```
+
+
+## v0.11.0 - Oct 26, 2022
+
+- Renamed library to `gridstatus`
+- New [Documentation](https://docs.gridstatus.io)!
+- Add Examples Notebooks
+- Renamed all demand methods to load
+
+## v0.10.0 - Oct 24, 2022
+
+- Support both Generator and Zone for NYISO LMPs
+- Optimize NYISO Date Range Queries over Historical Data
+
+## v0.9.0 - Oct 21, 2022
+
+- Support querying by date range for CAISO, PJM, NYISO, and ISONE `get_historical_*` Methods
+- Add gas prices to CAISO
+- Add GHG allowance price to CAISO
+
+## v0.8.0 - Oct 13, 2022
+
+- PJM: add lmp prices for 3 markets: real time 5 minutes, real time hourly, day ahead hourly
 - Add notes to Ercot status
 - Add `.status_homepage` url to ISOs that report a status
 - Add Ercot Historical RTM Settlement Point Prices (SPPs)
-- Refactor storage API to support not battery storage types
+- Refactor storage API to support non-battery storage types
 
 ## v0.7.0 - Aug 23, 2022
 
