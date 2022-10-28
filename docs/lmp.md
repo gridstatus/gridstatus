@@ -30,7 +30,7 @@ We are currently adding Locational Marginal Price (LMP). Even though each BA off
 ```{code-cell}
 import gridstatus
 nyiso = gridstatus.NYISO()
-nyiso.get_lmp_today(market="REAL_TIME_5_MIN", locations="ALL")
+nyiso.get_lmp(date="today", market="REAL_TIME_5_MIN", locations="ALL")
 ```
 
 And here is querying CAISO
@@ -39,7 +39,7 @@ And here is querying CAISO
 import gridstatus
 caiso = gridstatus.CAISO()
 locations = ["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"]
-caiso.get_lmp_today(market='DAY_AHEAD_HOURLY', locations=locations)
+caiso.get_lmp(date="today", market='DAY_AHEAD_HOURLY', locations=locations)
 ```
 
 You can see what markets are available by accessing the `markets` property of an iso. For, example

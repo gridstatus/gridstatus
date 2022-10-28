@@ -195,9 +195,6 @@ class CAISO(ISOBase):
         )
         return df
 
-    def get_latest_lmp(self, market: str, locations: list = None):
-        return
-
     @support_date_range(frequency="31D")
     def get_lmp(
         self,
@@ -309,6 +306,9 @@ class CAISO(ISOBase):
         ]
 
         data = utils.filter_lmp_locations(df, locations)
+
+        # clean up pivot name in header
+        data.columns.name = None
 
         time.sleep(sleep)
 

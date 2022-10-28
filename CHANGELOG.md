@@ -1,6 +1,6 @@
 # Changelog
 
-## vNext
+## v0.12.0 - Oct 28, 2022
 
 - Can now use `"today"` are value for `end` when querying date range
 
