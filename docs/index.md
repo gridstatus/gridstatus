@@ -94,7 +94,7 @@ We can now see there is data for all of January 2021
 import plotly.express as px
 
 fig = px.line(caiso_load, x="Time", y="Load", title="CAISO Load - Jan '21")
-fig.show("svg")
+fig
 ```
 
 ### Next Steps

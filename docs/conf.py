@@ -129,3 +129,7 @@ autoapi_options = [
     "imported-members",
 ]
 autodoc_inherit_docstrings = True
+suppress_warnings = ["mystnb.unknown_mime_type"]
+html_js_files = [
+    "https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js",
+]
