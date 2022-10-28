@@ -2,6 +2,7 @@
 test:
 	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto
 
+.PHONY: test-slow
 test-slow:
 	python -m pytest -s -vv gridstatus/ -m "slow" -n auto
 
