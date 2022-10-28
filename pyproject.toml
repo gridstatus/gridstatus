@@ -69,7 +69,8 @@ docs = [
     "sphinx_togglebutton",
     "sphinx-favicon",
     "sphinx-autoapi",
-    "plotly"
+    "plotly",
+    "kaleido"
 ]
 
 [tool.setuptools]
