@@ -92,6 +92,9 @@ def make_availability_table():
 
 
 def _handle_date(date, tz=None):
+    if isinstance(date, str) and date.lower() == "today":
+        date = pd.Timestamp.now(tz=tz).date()
+
     if not isinstance(date, pd.Timestamp):
         date = pd.to_datetime(date)
 
@@ -132,3 +135,7 @@ def get_zip_file(url):
     r = requests.get(url)
     z = ZipFile(io.BytesIO(r.content))
     return z.open(z.namelist()[0])
+
+
+def is_today(date, tz=None):
+    return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()

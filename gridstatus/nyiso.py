@@ -23,26 +23,19 @@ class NYISO(ISOBase):
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
     status_homepage = "https://www.nyiso.com/system-conditions"
 
-    def get_latest_status(self):
-        latest = self._latest_from_today(self.get_status_today)
-
-        status = GridStatus(
-            time=latest["time"],
-            status=latest["status"],
-            reserves=None,
-            iso=self,
-            notes=latest["notes"],
-        )
-        return status
-
-    def get_status_today(self):
-        """Get status event for today"""
-        d = self._today_from_historical(self.get_historical_status)
-        return d
-
     @support_date_range(frequency="MS")
-    def get_historical_status(self, date, end=None):
-        """Get status event for a date"""
+    def get_status(self, date, end=None, verbose=False):
+
+        if date == "latest":
+            latest = self._latest_from_today(self.get_status)
+            return GridStatus(
+                time=latest["time"],
+                status=latest["status"],
+                reserves=None,
+                iso=self,
+                notes=latest["notes"],
+            )
+
         status_df = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -74,49 +67,43 @@ class NYISO(ISOBase):
         status_df = status_df[["Time", "Status", "Notes"]]
         return status_df
 
-    def get_latest_fuel_mix(self):
-        # note: this is simlar datastructure to pjm
-        url = "https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-current"
-        data = self._get_json(url)
-        mix_df = pd.DataFrame(data["data"])
-        time_str = mix_df["timeStamp"].max()
-        time = pd.Timestamp(time_str)
-        mix_df = mix_df[mix_df["timeStamp"] == time_str].set_index("fuelCategory")[
-            "genMWh"
-        ]
-        mix_dict = mix_df.to_dict()
-        return FuelMix(time=time, mix=mix_dict, iso=self.name)
-
-    def get_fuel_mix_today(self):
-        "Get fuel mix for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_fuel_mix)
-
     @support_date_range(frequency="MS")
-    def get_historical_fuel_mix(self, date, end=None):
+    def get_fuel_mix(self, date, end=None, verbose=False):
+        # note: this is simlar datastructure to pjm
+
+        if date == "latest":
+            url = "https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-current"
+            data = self._get_json(url)
+            mix_df = pd.DataFrame(data["data"])
+            time_str = mix_df["timeStamp"].max()
+            time = pd.Timestamp(time_str)
+            mix_df = mix_df[mix_df["timeStamp"] == time_str].set_index("fuelCategory")[
+                "genMWh"
+            ]
+            mix_dict = mix_df.to_dict()
+            return FuelMix(time=time, mix=mix_dict, iso=self.name)
+
         mix_df = self._download_nyiso_archive(
             date=date,
             end=end,
             dataset_name="rtfuelmix",
         )
+
         mix_df = mix_df.pivot_table(
             index="Time",
             columns="Fuel Category",
             values="Gen MW",
             aggfunc="first",
         ).reset_index()
+
         return mix_df
 
-    def get_latest_load(self):
-        return self._latest_from_today(self.get_load_today)
-
-    def get_load_today(self):
-        "Get load for today in 5 minute intervals"
-        d = self._today_from_historical(self.get_historical_load)
-        return d
-
     @support_date_range(frequency="MS")
-    def get_historical_load(self, date, end=None):
+    def get_load(self, date, end=None, verbose=False):
         """Returns load at a previous date in 5 minute intervals"""
+        if date == "latest":
+            return self._latest_from_today(self.get_load)
+
         data = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -131,29 +118,14 @@ class NYISO(ISOBase):
 
         return load
 
-    def get_latest_supply(self):
-        """Returns most recent data point for supply in MW
-
-        Updates every 5 minutes
-        """
-        return self._latest_supply_from_fuel_mix()
-
-    def get_supply_today(self):
-        "Get supply for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_supply)
-
-    def get_historical_supply(self, date):
-        """Returns supply at a previous date in 5 minute intervals"""
-        return self._supply_from_fuel_mix(date)
-
-    def get_forecast_today(self):
-        """Get load forecast for today in 1 hour intervals"""
-        d = self._today_from_historical(self.get_historical_forecast)
-        return d
+    @support_date_range(frequency="MS")
+    def get_supply(self, date, end=None, verbose=False):
+        """Get supply for a date or date range in hourly intervals"""
+        return self._get_supply(date=date, end=end, verbose=verbose)
 
     @support_date_range(frequency="MS")
-    def get_historical_forecast(self, date, end=None):
-        """Get load forecast for a previous date in 1 hour intervals"""
+    def get_load_forecast(self, date, end=None, verbose=False):
+        """Get load forecast for a date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
 
         # todo optimize this to accept a date range
@@ -173,34 +145,8 @@ class NYISO(ISOBase):
 
         return data
 
-    def get_latest_lmp(
-        self,
-        market: str,
-        locations: list = None,
-        location_type: str = None,
-    ):
-        return self._latest_lmp_from_today(
-            market=market,
-            locations=locations,
-            location_type=location_type,
-        )
-
-    def get_lmp_today(
-        self,
-        market: str,
-        locations: list = None,
-        location_type: str = None,
-    ):
-        "Get lmp for today"
-        return self._today_from_historical(
-            self.get_historical_lmp,
-            market=market,
-            locations=locations,
-            location_type=location_type,
-        )
-
     @support_date_range(frequency="MS")
-    def get_historical_lmp(
+    def get_lmp(
         self,
         date,
         end=None,
@@ -213,6 +159,13 @@ class NYISO(ISOBase):
 
         Supported Location Types: "zone", "generator"
         """
+        if date == "latest":
+            return self._latest_lmp_from_today(
+                market=market,
+                locations=locations,
+                location_type=location_type,
+            )
+
         if locations is None:
             locations = "ALL"
 

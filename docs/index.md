@@ -48,7 +48,7 @@ caiso = gridstatus.CAISO()
 all ISOs have the same API. Here is how we can get the fuel mix
 
 ```{code-cell}
-caiso.get_latest_fuel_mix()
+caiso.get_fuel_mix("latest)
 ```
 
 ### Load
@@ -56,7 +56,7 @@ caiso.get_latest_fuel_mix()
 or the energy demand throughout the current day as a Pandas DataFrame
 
 ```{code-cell}
-caiso.get_load_today()
+caiso.get_load("today")
 ```
 
 ### Supply
@@ -64,7 +64,7 @@ caiso.get_load_today()
 we can get today's supply in the same way
 
 ```{code-cell}
-caiso.get_supply_today()
+caiso.get_supply("today")
 ```
 
 ### Load Forecast
@@ -73,7 +73,7 @@ Another dataset we can query is the load forecast
 
 ```{code-cell}
 nyiso = gridstatus.NYISO()
-nyiso.get_forecast_today()
+nyiso.get_load_forecast("today")
 ```
 
 ### Historical Data
@@ -81,14 +81,14 @@ nyiso.get_forecast_today()
 When supported, you can use the historical method calls to get data for a specific day in the past. For example,
 
 ```{code-cell}
-caiso.get_historical_load("Jan 1, 2020")
+caiso.get_load("Jan 1, 2020")
 ```
 
-Frequently, we want to get data across multiple days. We can do that by providing a `start` and `end` parameter to any `iso.get_historical_*` method
+Frequently, we want to get data across multiple days. We can do that by providing a `start` and `end` parameter to any `iso.get_*` method
 
 ```{code-cell}
 :tags: [remove-input,remove-stdout,remove-stderr]
-caiso.get_historical_load(start="Jan 1, 2020", end="Feb 1, 2020")
+caiso.get_load(start="Jan 1, 2020", end="Feb 1, 2020")
 ```
 
 ### Next Steps

@@ -43,6 +43,9 @@ class support_date_range:
                 args_dict["date"] = args_dict["start"]
                 del args_dict["start"]
 
+            if args_dict["date"] == "latest":
+                return f(*args, **kwargs)
+
             args_dict["date"] = gridstatus.utils._handle_date(
                 args_dict["date"],
                 args_dict["self"].default_timezone,

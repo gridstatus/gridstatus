@@ -51,7 +51,7 @@ def test_make_lmp_availability_df():
 @pytest.mark.parametrize("iso", all_isos)
 def test_get_latest_fuel_mix(iso):
     print(iso)
-    mix = iso.get_latest_fuel_mix()
+    mix = iso.get_fuel_mix("latest")
     assert isinstance(mix, FuelMix)
     assert isinstance(mix.time, pd.Timestamp)
     assert isinstance(mix.mix, pd.DataFrame)
@@ -61,8 +61,8 @@ def test_get_latest_fuel_mix(iso):
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), CAISO(), PJM()])
-def test_get_fuel_mix(iso):
-    df = iso.get_fuel_mix_today()
+def test_get_fuel_mix_today(iso):
+    df = iso.get_fuel_mix("today")
     assert isinstance(df, pd.DataFrame)
 
 
@@ -82,7 +82,7 @@ def test_get_iso_invalid():
 
 @pytest.mark.parametrize("iso", [SPP(), NYISO(), ISONE(), CAISO(), Ercot()])
 def test_get_latest_status(iso):
-    status = iso.get_latest_status()
+    status = iso.get_status("latest")
     assert isinstance(status, GridStatus)
 
     # ensure there is a homepage if gridstatus can retrieve a status
@@ -93,21 +93,21 @@ def test_get_latest_status(iso):
 def test_get_historical_fuel_mix(iso):
     # date string works
     date_str = "04/03/2022"
-    df = iso.get_historical_fuel_mix(date_str)
+    df = iso.get_fuel_mix(date_str)
     assert isinstance(df, pd.DataFrame)
     assert df.loc[0]["Time"].strftime("%m/%d/%Y") == date_str
     assert df.loc[0]["Time"].tz is not None
 
     # timestamp object works
     date_obj = pd.to_datetime("2019/11/19")
-    df = iso.get_historical_fuel_mix(date_obj)
+    df = iso.get_fuel_mix(date_obj)
     assert isinstance(df, pd.DataFrame)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
     assert df.loc[0]["Time"].tz is not None
 
     # datetime object works
     date_obj = pd.to_datetime("2021/05/09").date()
-    df = iso.get_historical_fuel_mix(date_obj)
+    df = iso.get_fuel_mix(date_obj)
     assert isinstance(df, pd.DataFrame)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
     assert df.loc[0]["Time"].tz is not None
@@ -115,7 +115,7 @@ def test_get_historical_fuel_mix(iso):
 
 @pytest.mark.parametrize("iso", all_isos)
 def test_get_latest_supply(iso):
-    supply = iso.get_latest_supply()
+    supply = iso.get_supply("latest")
     set(["time", "supply"]) == supply.keys()
     assert is_numeric_dtype(type(supply["supply"]))
 
@@ -123,7 +123,7 @@ def test_get_latest_supply(iso):
 @pytest.mark.parametrize("iso", [ISONE(), Ercot(), NYISO(), PJM(), CAISO()])
 def test_get_supply_today(iso):
     # todo check that the date is right
-    df = iso.get_supply_today()
+    df = iso.get_supply("today")
     assert isinstance(df, pd.DataFrame)
     set(["Time", "Supply"]) == set(df.columns)
     assert is_numeric_dtype(df["Supply"])
@@ -131,9 +131,9 @@ def test_get_supply_today(iso):
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
-def test_get_supply(iso):
+def test_get_historical_supply(iso):
     date_str = "March 3, 2022"
-    df = iso.get_historical_supply(date_str)
+    df = iso.get_supply(date_str)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Supply"]) == set(df.columns)
     assert df.loc[0]["Time"].date() == gridstatus.utils._handle_date(date_str).date()
@@ -143,7 +143,7 @@ def test_get_supply(iso):
 
 @pytest.mark.parametrize("iso", all_isos)
 def test_get_load_today(iso):
-    df = iso.get_load_today()
+    df = iso.get_load("today")
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Load"]) == set(df.columns)
     assert is_numeric_dtype(df["Load"])
@@ -153,7 +153,7 @@ def test_get_load_today(iso):
 
 @pytest.mark.parametrize("iso", all_isos)
 def test_get_latest_load(iso):
-    load = iso.get_latest_load()
+    load = iso.get_load("latest")
     set(["time", "load"]) == load.keys()
     assert is_numeric_dtype(type(load["load"]))
 
@@ -165,21 +165,21 @@ def test_get_historical_load(iso):
 
     # date string works
     date_str = test_date.strftime("%Y%m%d")
-    df = iso.get_historical_load(date_str)
+    df = iso.get_load(date_str)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Load"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == date_str
     assert is_numeric_dtype(df["Load"])
 
     # timestamp object works
-    df = iso.get_historical_load(test_date)
+    df = iso.get_load(test_date)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Load"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
     assert is_numeric_dtype(df["Load"])
 
     # datetime object works
-    df = iso.get_historical_load(test_date)
+    df = iso.get_load(test_date)
     assert isinstance(df, pd.DataFrame)
     assert set(["Time", "Load"]) == set(df.columns)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
@@ -227,7 +227,7 @@ def test_get_historical_lmp(test):
     date_str = "20220722"
     for m in markets:
         print(iso.iso_id, m)
-        hist = iso.get_historical_lmp(date_str, market=m)
+        hist = iso.get_lmp(date_str, market=m)
         assert isinstance(hist, pd.DataFrame)
         check_lmp_columns(hist, m)
 
@@ -276,7 +276,7 @@ def test_get_latest_lmp(test):
     date_str = "20220722"
     for m in markets:
         print(iso.iso_id, m)
-        latest = iso.get_latest_lmp(m)
+        latest = iso.get_lmp(date="latest", market=m)
         assert isinstance(latest, pd.DataFrame)
         check_lmp_columns(latest, m)
 
@@ -317,15 +317,15 @@ def test_get_lmp_today(test):
     markets = test[iso]["markets"]
 
     for m in markets:
-        today = iso.get_lmp_today(m)
+        today = iso.get_lmp(date="today", market=m)
         assert isinstance(today, pd.DataFrame)
         check_lmp_columns(today, m)
 
 
 @pytest.mark.parametrize("iso", [ISONE(), CAISO(), NYISO()])
-def test_get_historical_forecast(iso):
+def test_get_historical_load_orecast(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
-    forecast = iso.get_historical_forecast(test_date)
+    forecast = iso.get_load_forecast(date=test_date)
     check_forecast(forecast)
 
 
@@ -334,7 +334,7 @@ def test_get_historical_forecast_with_date_range(iso):
     end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
     start = (end - pd.Timedelta(days=7)).date()
 
-    forecast = forecast = iso.get_historical_forecast(
+    forecast = forecast = iso.get_load_forecast(
         start=start,
         end=end,
     )
@@ -345,8 +345,8 @@ def test_get_historical_forecast_with_date_range(iso):
     "iso",
     [MISO(), SPP(), Ercot(), ISONE(), CAISO(), PJM(), NYISO()],
 )
-def test_get_forecast_today(iso):
-    forecast = iso.get_forecast_today()
+def test_get_load_forecast_today(iso):
+    forecast = iso.get_load_forecast("today")
     check_forecast(forecast)
 
 
@@ -355,7 +355,7 @@ def test_get_forecast_today(iso):
     [CAISO()],
 )
 def test_get_storage_today(iso):
-    storage = iso.get_storage_today()
+    storage = iso.get_storage("today")
     check_storage(storage)
 
 
@@ -365,18 +365,18 @@ def test_get_storage_today(iso):
 )
 def test_get_historical_storage(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
-    storage = iso.get_historical_storage(test_date)
+    storage = iso.get_storage(date=test_date)
     check_storage(storage)
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
-def test_get_historical_fuel_mix_with_date_range(iso):
+def test_get_fuel_mix_with_date_range(iso):
     # range not inclusive, add one to include today
     num_days = 7
     end = pd.Timestamp.now(tz=iso.default_timezone) + pd.Timedelta(days=1)
     start = end - pd.Timedelta(days=num_days)
 
-    data = iso.get_historical_fuel_mix(date=start.date(), end=end.date())
+    data = iso.get_fuel_mix(date=start.date(), end=end.date())
     # make sure right number of days are returned
     assert data["Time"].dt.day.nunique() == num_days
 
@@ -386,7 +386,7 @@ def test_get_historical_load_with_date_range(iso):
     num_days = 7
     end = pd.Timestamp.now(tz=iso.default_timezone) + pd.Timedelta(days=1)
     start = end - pd.Timedelta(days=num_days)
-    data = iso.get_historical_load(date=start.date(), end=end.date())
+    data = iso.get_load(date=start.date(), end=end.date())
     # make sure right number of days are returned
     assert data["Time"].dt.day.nunique() == num_days
 
@@ -397,13 +397,13 @@ def test_date_or_start(iso):
     end = pd.Timestamp.now(tz=iso.default_timezone)
     start = end - pd.Timedelta(days=num_days)
 
-    data_date = iso.get_historical_fuel_mix(date=start.date(), end=end.date())
-    data_start = iso.get_historical_fuel_mix(
+    data_date = iso.get_fuel_mix(date=start.date(), end=end.date())
+    data_start = iso.get_fuel_mix(
         start=start.date(),
         end=end.date(),
     )
-    data_date = iso.get_historical_fuel_mix(date=start.date())
-    data_start = iso.get_historical_fuel_mix(start=start.date())
+    data_date = iso.get_fuel_mix(date=start.date())
+    data_start = iso.get_fuel_mix(start=start.date())
 
     with pytest.raises(ValueError):
-        iso.get_historical_fuel_mix(start=start.date(), date=start.date())
+        iso.get_fuel_mix(start=start.date(), date=start.date())
