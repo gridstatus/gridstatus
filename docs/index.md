@@ -1,6 +1,8 @@
 ---
 title: ISODATA
 file_format: mystnb
+mystnb:
+  execution_timeout: 600
 kernelspec:
   name: python3
 ---
@@ -45,7 +47,7 @@ caiso = gridstatus.CAISO()
 
 ### Fuel Mix
 
-all ISOs have the same API. Here is how we can get the fuel mix
+All ISOs have the same API to methods like `get_fuel_mix`, `get_load`, and `get_status`, etc. Here is how we can get the fuel mix
 
 ```{code-cell}
 caiso.get_fuel_mix("today")
@@ -59,14 +61,6 @@ or the energy demand throughout the current day as a Pandas DataFrame
 caiso.get_load("today")
 ```
 
-### Supply
-
-we can get today's supply in the same way
-
-```{code-cell}
-caiso.get_supply("today")
-```
-
 ### Load Forecast
 
 Another dataset we can query is the load forecast
@@ -78,7 +72,7 @@ nyiso.get_load_forecast("today")
 
 ### Historical Data
 
-When supported, you can use the historical method calls to get data for a specific day in the past. For example,
+When [supported](./availability.md), you can use the historical method calls to get data for a specific day in the past. For example,
 
 ```{code-cell}
 caiso.get_load("Jan 1, 2020")
@@ -87,8 +81,20 @@ caiso.get_load("Jan 1, 2020")
 Frequently, we want to get data across multiple days. We can do that by providing a `start` and `end` parameter to any `iso.get_*` method
 
 ```{code-cell}
-:tags: [remove-input,remove-stdout,remove-stderr]
-caiso.get_load(start="Jan 1, 2020", end="Feb 1, 2020")
+:tags: [remove-stdout,remove-stderr]
+caiso_load = caiso.get_load(start="Jan 1, 2021", end="Feb 1, 2021")
+caiso_load
+```
+
+We can now see there is data for all of January 2021
+
+```{code-cell}
+:tags: [remove-stdout,remove-stderr]
+
+import plotly.express as px
+
+fig = px.line(caiso_load, x="Time", y="Load", title="CAISO Load - Jan '21")
+fig.show("svg")
 ```
 
 ### Next Steps

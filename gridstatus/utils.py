@@ -3,9 +3,10 @@ from zipfile import ZipFile
 
 import pandas as pd
 import requests
+import tqdm
 
 import gridstatus
-from gridstatus.base import ISOBase, Markets
+from gridstatus.base import ISOBase, Markets, NotSupported
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
 from gridstatus.isone import ISONE
@@ -35,47 +36,46 @@ def get_iso(iso_id):
 
 
 def make_availability_df():
-    methods = {
-        "Status": ["get_latest_status", "get_historical_status"],
-        "Fuel Mix": [
-            "get_latest_fuel_mix",
-            "get_fuel_mix_today",
-            "get_historical_fuel_mix",
-        ],
-        "Load": [
-            "get_latest_load",
-            "get_load_today",
-            "get_historical_load",
-        ],
-        "Supply": [
-            "get_latest_supply",
-            "get_supply_today",
-            "get_historical_supply",
-        ],
-        "Load Forecast": [
-            "get_forecast_today",
-            "get_historical_forecast",
-        ],
-        "Storage": [
-            "get_storage_today",
-            "get_historical_storage",
-        ],
-    }
+    methods = [
+        "get_status",
+        "get_fuel_mix",
+        "get_load",
+        "get_supply",
+        "get_load_forecast",
+        "get_storage",
+    ]
 
     availability = {}
-    for method_type in methods:
-        availability[method_type] = {}
-        for i in gridstatus.all_isos:
-            availability[method_type][i.__name__] = {}
-            for method in methods[method_type]:
-                is_defined = "&#10060;"  # red x
-                if getattr(i, method) != getattr(ISOBase, method):
-                    is_defined = "&#x2705;"  # green checkmark
-                availability[method_type][i.__name__][method] = is_defined
+    for i in tqdm.tqdm(gridstatus.all_isos):
+        availability[i.__name__] = {}
+        for method in methods:
+            availability[i.__name__][method] = {}
+            for date in ["latest", "today", "historical"]:
+
+                test = date
+                if date == "historical":
+                    test = pd.Timestamp.now(
+                        tz=i.default_timezone,
+                    ).date() - pd.Timedelta(days=3)
+
+                if method == "get_load_forecast" and date == "latest":
+                    is_defined = "&#10060;"  # red x
+
+                else:
+                    try:
+                        getattr(i(), method)(test)
+                        is_defined = "&#x2705;"  # green checkmark
+                    except NotSupported:
+                        is_defined = "&#10060;"  # red x
+                    except NotImplementedError:
+                        is_defined = "&#10060;"  # red x
+
+                availability[i.__name__][method][date] = is_defined
 
     availability_dfs = {}
-    for method_type in methods:
-        availability_dfs[method_type] = pd.DataFrame(availability[method_type])
+    for i in all_isos:
+        availability_dfs[i.__name__] = pd.DataFrame(availability[i.__name__])
+
     return availability_dfs
 
 
@@ -83,18 +83,15 @@ def make_availability_table():
     dfs = make_availability_df()
 
     markdown = ""
-    for method_type in dfs:
-        markdown += "## " + method_type + "\n"
+    for method, df in sorted(dfs.items()):
+        markdown += "## " + method + "\n"
         # df.index = ["`" + v + "`" for v in df.index.values]
-        markdown += dfs[method_type].to_markdown() + "\n"
+        markdown += df.to_markdown() + "\n"
 
     return markdown
 
 
 def _handle_date(date, tz=None):
-    if isinstance(date, str) and date.lower() == "today":
-        date = pd.Timestamp.now(tz=tz).date()
-
     if not isinstance(date, pd.Timestamp):
         date = pd.to_datetime(date)
 

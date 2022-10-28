@@ -128,3 +128,4 @@ autoapi_options = [
     "special-members",
     "imported-members",
 ]
+autodoc_inherit_docstrings = True

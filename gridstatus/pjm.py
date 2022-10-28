@@ -204,11 +204,11 @@ class PJM(ISOBase):
         """Returns LMP at a previous date
 
          Notes:
-             - If start date is prior to the PJM archive date, all data must be downloaded before location filtering can be performed due to limitations of PJM API. The archive date is
+            * If start date is prior to the PJM archive date, all data must be downloaded before location filtering can be performed due to limitations of PJM API. The archive date is
               186 days (~6 months) before today for the 5 minute real time market and 731 days (~2 years) before today for the Hourly Real Time and Day Ahead Hourly markets. Node type filter can
               performed for Real Time Hourly and Day Ahead Hourly markets.
 
-             - If location_type is provided, it is filtered after data is retrieved for Real Time 5 Minute market regardless of the date. This is due to PJM api limitations
+            * If location_type is provided, it is filtered after data is retrieved for Real Time 5 Minute market regardless of the date. This is due to PJM api limitations
 
          Args:
              date (str or datetime.date): date to get LMPs for

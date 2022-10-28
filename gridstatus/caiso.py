@@ -47,8 +47,8 @@ class CAISO(ISOBase):
         r = self._get_json(stats_url)
         return r
 
-    def get_status(self, date) -> str:
-        """Get Current Status of the Grid
+    def get_status(self, date="latest") -> str:
+        """Get Current Status of the Grid. Only date="latest" is supported
 
         Known possible values: Normal, Restricted Maintenance Operations, Flex Alert
         """
@@ -71,10 +71,16 @@ class CAISO(ISOBase):
         """Get fuel mix in 5 minute intervals for a provided day
 
         Arguments:
-            date (datetime, pd.Timestamp, or str): day to return. if string, format should be YYYYMMDD e.g 20200623
+            date (datetime or str): "latest", "today", or an object that can be parsed as a datetime for the day to return data.
+
+            start (datetime or str): start of date range to return. alias for `date` parameter. Only specify one of `date` or `start`.
+
+            end (datetime or str): "today" or an object that can be parsed as a datetime for the day to return data. Only used if requesting a range of dates.
+
+            verbose (bool): print verbose output. Defaults to False.
 
         Returns:
-            dataframe
+            pd.Dataframe: dataframe with columns: Time and columns for each fuel type
         """
         if date == "latest":
             mix = self.get_fuel_mix("today", verbose=verbose)
@@ -141,7 +147,7 @@ class CAISO(ISOBase):
 
         Arguments:
             date(datetime, pd.Timestamp, or str): day to return. if string, format should be YYYYMMDD e.g 20200623
-            sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
+            sleep(int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
 
         """
 
@@ -209,10 +215,10 @@ class CAISO(ISOBase):
 
             market: market to return from. supports:
 
-            locations (list): list of locations to get data from. If no locations are provided, defaults to NP15, SP15, and ZP26, which are the trading hub locations.
+            locations(list): list of locations to get data from. If no locations are provided, defaults to NP15, SP15, and ZP26, which are the trading hub locations.
             For a list of locations, call CAISO.get_pnodes()
 
-            sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
+            sleep(int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
 
         Returns
             dataframe of pricing data
@@ -317,6 +323,9 @@ class CAISO(ISOBase):
         Arguments:
             date: date to return data
         """
+        if date == "latest":
+            return self._latest_from_today(self.get_storage)
+
         url = _HISTORY_BASE + "/%s/storage.csv"
         df = _get_historical(url, date, verbose=verbose)
         df = df.rename(columns={"Batteries": "Supply"})
@@ -337,7 +346,7 @@ class CAISO(ISOBase):
         Arguments:
             date: date to return data
             end: last date of range to return data. if None, returns only date. Defaults to None.
-            fuel_region_id (str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
+            fuel_region_id(str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
         """
 
         start, end = _caiso_handle_start_end(date, end)

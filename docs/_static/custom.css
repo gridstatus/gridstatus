@@ -7,5 +7,5 @@
 }
 
 .cell_output {
-  overflow-x: scroll;
+  overflow-x: autol;
 }
