@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from gridstatus import CAISO, ISONE, MISO, NYISO, PJM, SPP, Ercot
