@@ -48,7 +48,7 @@ caiso = gridstatus.CAISO()
 all ISOs have the same API. Here is how we can get the fuel mix
 
 ```{code-cell}
-caiso.get_fuel_mix("latest)
+caiso.get_fuel_mix("today")
 ```
 
 ### Load

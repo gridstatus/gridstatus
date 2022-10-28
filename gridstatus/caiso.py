@@ -209,7 +209,8 @@ class CAISO(ISOBase):
 
             market: market to return from. supports:
 
-            locations (list): list of locations to get data from. If no locations are provided, defaults to NP15, SP15, and ZP26, which are the trading hub locations. For a list of locations, call CAISO.get_pnodes()
+            locations (list): list of locations to get data from. If no locations are provided, defaults to NP15, SP15, and ZP26, which are the trading hub locations.
+            For a list of locations, call CAISO.get_pnodes()
 
             sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
 

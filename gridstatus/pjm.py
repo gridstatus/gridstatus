@@ -212,10 +212,14 @@ class PJM(ISOBase):
 
          Args:
              date (str or datetime.date): date to get LMPs for
+
              end (str or datetime.date): end date to get LMPs for
+
              market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
+
              locations (list, optional):  list of pnodeid to get LMPs for. Defaults to "hubs". Use get_pnode_ids() to get a list of possible pnode ids.
-                 If "all", will return data from all p nodes (warning there are over 10,000 unique pnodes, so expect millions or billions of rows!)
+             If "all", will return data from all p nodes (warning there are over 10,000 unique pnodes, so expect millions or billions of rows!)
+
              location_type (str, optional):  If specified, will only return data for nodes of this type. Defaults to None. Possible location types are: 'ZONE', 'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
         'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
 
