@@ -438,13 +438,15 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
 
 
 def _get_historical(url, date, verbose=False):
+
     date_str = date.strftime("%Y%m%d")
     date_obj = date
     url = url % date_str
-    df = pd.read_csv(url)
 
     if verbose:
         print("Fetching URL: ", url)
+
+    df = pd.read_csv(url)
 
     df["Time"] = df["Time"].apply(
         _make_timestamp,
@@ -506,8 +508,4 @@ if __name__ == "__main__":
 
     print("asd")
     iso = gridstatus.CAISO()
-    df = iso.get_historical_lmp(
-        "feb 1, 2020",
-        "DAY_AHEAD_HOURLY",
-        locations=["TH_NP15_GEN-APND"],
-    )
+    iso.get_load(start="1/1/2018", end="1/1/2019", verbose=True)
