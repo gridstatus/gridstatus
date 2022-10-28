@@ -5,7 +5,8 @@ import pandas as pd
 import tqdm
 
 import gridstatus
-from gridstatus.base import FuelMix, ISOBase, Markets
+from gridstatus import utils
+from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
 from gridstatus.decorators import (
     _get_pjm_archive_date,
     pjm_update_dates,
@@ -54,19 +55,17 @@ class PJM(ISOBase):
         Markets.DAY_AHEAD_HOURLY,
     ]
 
-    def get_latest_fuel_mix(self):
-        mix = self.get_fuel_mix_today()
-        latest = mix.iloc[-1]
-        time = latest.pop("Time")
-        mix_dict = latest.to_dict()
-        return FuelMix(time=time, mix=mix_dict, iso=self.name)
-
-    def get_fuel_mix_today(self):
-        "Get fuel mix for today in hourly intervals"
-        return self._today_from_historical(self.get_historical_fuel_mix)
-
     @support_date_range(frequency="365D")
-    def get_historical_fuel_mix(self, date, end=None):
+    def get_fuel_mix(self, date, end=None, verbose=False):
+        """Get fuel mix for a date or date range  in hourly intervals"""
+
+        if date == "latest":
+            mix = self.get_fuel_mix("today")
+            latest = mix.iloc[-1]
+            time = latest.pop("Time")
+            mix_dict = latest.to_dict()
+            return FuelMix(time=time, mix=mix_dict, iso=self.name)
+
         # earliest date available appears to be 1/1/2016
         data = {
             "fields": "datetime_beginning_utc,fuel_type,is_renewable,mw",
@@ -90,31 +89,22 @@ class PJM(ISOBase):
 
         return mix_df
 
-    def get_latest_supply(self):
-        return self._latest_supply_from_fuel_mix()
-
-    def get_supply_today(self):
-        "Get supply for today in hourly intervals"
-        return self._today_from_historical(self.get_historical_supply)
-
-    def get_historical_supply(self, date):
-        """Returns supply at a previous date at hourly intervals"""
-        return self._supply_from_fuel_mix(date)
-
-    def get_latest_load(self):
-        return self._latest_from_today(self.get_load_today)
-
-    def get_load_today(self):
-        "Get load for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_load)
+    @support_date_range(frequency="365D")
+    def get_supply(self, date, end=None, verbose=False):
+        """Get supply for a date or date range in hourly intervals"""
+        return self._get_supply(date=date, end=end, verbose=verbose)
 
     @support_date_range(frequency="30D")
-    def get_historical_load(self, date, end=None):
+    def get_load(self, date, end=None):
         """Returns load at a previous date at 5 minute intervals
 
         Args:
             date (str or datetime.date): date to get load for. must be in last 30 days
         """
+
+        if date == "latest":
+            return self._latest_from_today(self.get_load)
+
         # more hourly historical load here: https://dataminer2.pjm.com/feed/hrl_load_metered/definition
 
         # todo can support a load area
@@ -142,12 +132,16 @@ class PJM(ISOBase):
 
         return load
 
-    def get_forecast_today(self):
+    def get_load_forecast(self, date):
         """Get forecast for today in hourly intervals.
 
         Updates every Every half hour on the quarter E.g. 1:15 and 1:45
 
         """
+
+        if date != "today":
+            raise NotSupported()
+
         # todo: should we use the UTC field instead of EPT?
         params = {
             "fields": "evaluated_at_datetime_ept,forecast_area,forecast_datetime_beginning_ept,forecast_load_mw",
@@ -197,48 +191,8 @@ class PJM(ISOBase):
         )
         return nodes
 
-    def get_latest_lmp(
-        self,
-        market: str,
-        locations="hubs",
-        location_type=None,
-        verbose=True,
-    ):
-        """Currently only supports DAY_AHEAD_HOURlY"""
-        market = Markets(market)
-        if market != Markets.DAY_AHEAD_HOURLY:
-            raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
-        return self._latest_lmp_from_today(
-            market=market,
-            locations=locations,
-            location_type=location_type,
-            verbose=verbose,
-        )
-
-    def get_lmp_today(
-        self,
-        market: str,
-        locations="hubs",
-        location_type=None,
-        verbose=True,
-    ):
-        """Get lmp for today
-        Currently only supports DAY_AHEAD_HOURlY
-        """
-        # TODO try to find a different source of data for real time
-        market = Markets(market)
-        if market != Markets.DAY_AHEAD_HOURLY:
-            raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
-        return self._today_from_historical(
-            self.get_historical_lmp,
-            market=market,
-            locations=locations,
-            location_type=location_type,
-            verbose=verbose,
-        )
-
     @support_date_range(frequency="365D", update_dates=pjm_update_dates)
-    def get_historical_lmp(
+    def get_lmp(
         self,
         date,
         market: str,
@@ -250,28 +204,48 @@ class PJM(ISOBase):
         """Returns LMP at a previous date
 
          Notes:
-             - If start date is prior to the PJM archive date, all data must be downloaded before location filtering can be performed due to limitations of PJM API. The archive date is
+            * If start date is prior to the PJM archive date, all data must be downloaded before location filtering can be performed due to limitations of PJM API. The archive date is
               186 days (~6 months) before today for the 5 minute real time market and 731 days (~2 years) before today for the Hourly Real Time and Day Ahead Hourly markets. Node type filter can
               performed for Real Time Hourly and Day Ahead Hourly markets.
 
-             - If location_type is provided, it is filtered after data is retrieved for Real Time 5 Minute market regardless of the date. This is due to PJM api limitations
+            * If location_type is provided, it is filtered after data is retrieved for Real Time 5 Minute market regardless of the date. This is due to PJM api limitations
 
          Args:
              date (str or datetime.date): date to get LMPs for
+
              end (str or datetime.date): end date to get LMPs for
+
              market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
+
              locations (list, optional):  list of pnodeid to get LMPs for. Defaults to "hubs". Use get_pnode_ids() to get a list of possible pnode ids.
-                 If "all", will return data from all p nodes (warning there are over 10,000 unique pnodes, so expect millions or billions of rows!)
+             If "all", will return data from all p nodes (warning there are over 10,000 unique pnodes, so expect millions or billions of rows!)
+
              location_type (str, optional):  If specified, will only return data for nodes of this type. Defaults to None. Possible location types are: 'ZONE', 'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
         'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
 
         """
+        market = Markets(market)
+
+        if date == "latest":
+            """Currently only supports DAY_AHEAD_HOURlY"""
+            if market != Markets.DAY_AHEAD_HOURLY:
+                raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
+            return self._latest_lmp_from_today(
+                market=market,
+                locations=locations,
+                location_type=location_type,
+                verbose=verbose,
+            )
+
+        elif utils.is_today(date):
+            if market != Markets.DAY_AHEAD_HOURLY:
+                raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
+
         if locations == "hubs":
             locations = self.hub_node_ids
 
         params = {}
 
-        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             market_endpoint = "rt_fivemin_hrl_lmps"
             market_type = "rt"

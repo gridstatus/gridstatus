@@ -1,5 +1,7 @@
 import io
 import time
+from datetime import date
+from tabnanny import verbose
 from zipfile import ZipFile
 
 import pandas as pd
@@ -7,7 +9,7 @@ import requests
 
 import gridstatus
 from gridstatus import utils
-from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets
+from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import support_date_range
 
 _BASE = "https://www.caiso.com/outlook/SP"
@@ -38,58 +40,59 @@ class CAISO(ISOBase):
 
     def _current_day(self):
         # get current date from stats api
-        return self.get_latest_status().time.date()
+        return self.get_status(date="latest").time.date()
 
     def get_stats(self):
         stats_url = _BASE + "/stats.txt"
         r = self._get_json(stats_url)
         return r
 
-    def get_latest_status(self) -> str:
-        """Get Current Status of the Grid
+    def get_status(self, date="latest") -> str:
+        """Get Current Status of the Grid. Only date="latest" is supported
 
         Known possible values: Normal, Restricted Maintenance Operations, Flex Alert
         """
 
-        # todo is it possible for this to return more than one element?
-        r = self.get_stats()
+        if date == "latest":
+            # todo is it possible for this to return more than one element?
+            r = self.get_stats()
 
-        time = pd.to_datetime(r["slotDate"]).tz_localize("US/Pacific")
-        # can only store one value for status so we concat them together
-        status = ", ".join(r["gridstatus"])
-        reserves = r["Current_reserve"]
+            time = pd.to_datetime(r["slotDate"]).tz_localize("US/Pacific")
+            # can only store one value for status so we concat them together
+            status = ", ".join(r["gridstatus"])
+            reserves = r["Current_reserve"]
 
-        return GridStatus(time=time, status=status, reserves=reserves, iso=self)
-
-    def get_latest_fuel_mix(self):
-        """
-        Returns most recent data point for fuelmix in MW
-
-        Updates every 5 minutes
-        """
-        mix = self.get_fuel_mix_today()
-        latest = mix.iloc[-1]
-        time = latest.pop("Time")
-        mix_dict = latest.to_dict()
-        return FuelMix(time=time, mix=mix_dict, iso=self.name)
-
-    def get_fuel_mix_today(self):
-        "Get fuel_mix for today in 5 minute intervals"
-        # todo should this use the latest endpoint?
-        return self._today_from_historical(self.get_historical_fuel_mix)
+            return GridStatus(time=time, status=status, reserves=reserves, iso=self)
+        else:
+            raise NotSupported()
 
     @support_date_range(frequency="1D")
-    def get_historical_fuel_mix(self, date, verbose=False):
-        """
-        Get historical fuel mix in 5 minute intervals for a provided day
+    def get_fuel_mix(self, date, end=None, verbose=False):
+        """Get fuel mix in 5 minute intervals for a provided day
 
         Arguments:
-            date(datetime, pd.Timestamp, or str): day to return. if string, format should be YYYYMMDD e.g 20200623
+            date (datetime or str): "latest", "today", or an object that can be parsed as a datetime for the day to return data.
+
+            start (datetime or str): start of date range to return. alias for `date` parameter. Only specify one of `date` or `start`.
+
+            end (datetime or str): "today" or an object that can be parsed as a datetime for the day to return data. Only used if requesting a range of dates.
+
+            verbose (bool): print verbose output. Defaults to False.
 
         Returns:
-            dataframe
-
+            pd.Dataframe: dataframe with columns: Time and columns for each fuel type
         """
+        if date == "latest":
+            mix = self.get_fuel_mix("today", verbose=verbose)
+            latest = mix.iloc[-1]
+            time = latest.pop("Time")
+            mix_dict = latest.to_dict()
+            return FuelMix(time=time, mix=mix_dict, iso=self.name)
+
+        return self._get_historical_fuel_mix(date, verbose=verbose)
+
+    def _get_historical_fuel_mix(self, date, verbose=False):
+
         url = _HISTORY_BASE + "/%s/fuelsource.csv"
         df = _get_historical(url, date, verbose=verbose)
 
@@ -107,63 +110,47 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_latest_load(self):
-        """Returns most recent data point for load in MW
-
-        Updates every 5 minutes
-        """
-        load_url = _BASE + "/demand.csv"
-        df = pd.read_csv(load_url)
-
-        # get last non null row
-        data = df[~df["Current demand"].isnull()].iloc[-1]
-
-        return {
-            "time": _make_timestamp(data["Time"], self._current_day()),
-            "load": data["Current demand"],
-        }
-
-    def get_load_today(self):
-        "Get load for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_load)
-
     @support_date_range(frequency="1D")
-    def get_historical_load(self, date, verbose=False):
+    def get_load(self, date, end=None, verbose=False):
         """Return load at a previous date in 5 minute intervals"""
+
+        if date == "latest":
+            # todo call today
+            load_url = _BASE + "/demand.csv"
+            df = pd.read_csv(load_url)
+
+            # get last non null row
+            data = df[~df["Current demand"].isnull()].iloc[-1]
+
+            return {
+                "time": _make_timestamp(data["Time"], self._current_day()),
+                "load": data["Current demand"],
+            }
+
+        return self._get_historical_load(date, verbose=verbose)
+
+    def _get_historical_load(self, date, verbose=False):
         url = _HISTORY_BASE + "/%s/demand.csv"
         df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
-
         return df
 
-    def get_latest_supply(self):
-        """Returns most recent data point for supply in MW
-
-        Updates every 5 minutes
-        """
-        return self._latest_supply_from_fuel_mix()
-
-    def get_supply_today(self):
-        "Get supply for today in 5 minute intervals"
-        return self._today_from_historical(self.get_historical_supply)
-
-    def get_historical_supply(self, date):
-        """Returns supply at a previous date in 5 minute intervals"""
-        return self._supply_from_fuel_mix(date)
-
-    def get_forecast_today(self):
-        """Get load forecast for today in 1 hour intervals"""
-        d = self._today_from_historical(self.get_historical_forecast)
-        return d
+    @support_date_range(frequency="1D")
+    def get_supply(self, date, end=None, verbose=False):
+        """Get supply for a date or date range in hourly intervals"""
+        return self._get_supply(date=date, end=end, verbose=verbose)
 
     @support_date_range(frequency="31D")
-    def get_historical_forecast(self, date, end=None, sleep=5, verbose=False):
+    def get_load_forecast(self, date, end=None, sleep=5, verbose=False):
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
             date(datetime, pd.Timestamp, or str): day to return. if string, format should be YYYYMMDD e.g 20200623
-            sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds."""
+            sleep(int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
+
+        """
+
         start, end = _caiso_handle_start_end(date, end)
 
         url = (
@@ -209,18 +196,10 @@ class CAISO(ISOBase):
         return df
 
     def get_latest_lmp(self, market: str, locations: list = None):
-        return self._latest_lmp_from_today(market=market, locations=locations)
-
-    def get_lmp_today(self, market: str, locations: list = None):
-        "Get lmp for today in 5 minute intervals"
-        return self._today_from_historical(
-            self.get_historical_lmp,
-            market=market,
-            locations=locations,
-        )
+        return
 
     @support_date_range(frequency="31D")
-    def get_historical_lmp(
+    def get_lmp(
         self,
         date,
         market: str,
@@ -236,13 +215,16 @@ class CAISO(ISOBase):
 
             market: market to return from. supports:
 
-            locations (list): list of locations to get data from. If no locations are provided, defaults to NP15, SP15, and ZP26, which are the trading hub locations. For a list of locations, call CAISO.get_pnodes()
+            locations(list): list of locations to get data from. If no locations are provided, defaults to NP15, SP15, and ZP26, which are the trading hub locations.
+            For a list of locations, call CAISO.get_pnodes()
 
-            sleep (int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
+            sleep(int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
 
         Returns
             dataframe of pricing data
         """
+        if date == "latest":
+            return self._latest_lmp_from_today(market=market, locations=locations)
 
         if locations is None:
             locations = self.trading_hub_locations
@@ -332,7 +314,8 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_storage_today(self):
+    @support_date_range(frequency="1D")
+    def get_storage(self, date, verbose=False):
         """Return storage charging or discharging for today in 5 minute intervals
 
         Negative means charging, positive means discharging
@@ -340,17 +323,9 @@ class CAISO(ISOBase):
         Arguments:
             date: date to return data
         """
-        return self._today_from_historical(self.get_historical_storage)
+        if date == "latest":
+            return self._latest_from_today(self.get_storage)
 
-    @support_date_range(frequency="1D")
-    def get_historical_storage(self, date, verbose=False):
-        """Return storage charging or discharging at a previous date in 5 minute intervals
-
-        Negative means charging, positive means discharging
-
-        Arguments:
-            date: date to return data
-        """
         url = _HISTORY_BASE + "/%s/storage.csv"
         df = _get_historical(url, date, verbose=verbose)
         df = df.rename(columns={"Batteries": "Supply"})
@@ -358,7 +333,7 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="31D")
-    def get_historical_gas_prices(
+    def get_gas_prices(
         self,
         date,
         end=None,
@@ -371,7 +346,7 @@ class CAISO(ISOBase):
         Arguments:
             date: date to return data
             end: last date of range to return data. if None, returns only date. Defaults to None.
-            fuel_region_id (str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
+            fuel_region_id(str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
         """
 
         start, end = _caiso_handle_start_end(date, end)
@@ -410,7 +385,7 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="31D")
-    def get_historical_ghg_allowance(
+    def get_ghg_allowance(
         self,
         date,
         end=None,
@@ -463,13 +438,15 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
 
 
 def _get_historical(url, date, verbose=False):
+
     date_str = date.strftime("%Y%m%d")
     date_obj = date
     url = url % date_str
-    df = pd.read_csv(url)
 
     if verbose:
         print("Fetching URL: ", url)
+
+    df = pd.read_csv(url)
 
     df["Time"] = df["Time"].apply(
         _make_timestamp,
@@ -531,8 +508,4 @@ if __name__ == "__main__":
 
     print("asd")
     iso = gridstatus.CAISO()
-    df = iso.get_historical_lmp(
-        "feb 1, 2020",
-        "DAY_AHEAD_HOURLY",
-        locations=["TH_NP15_GEN-APND"],
-    )
+    iso.get_load(start="1/1/2018", end="1/1/2019", verbose=True)

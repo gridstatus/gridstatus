@@ -48,5 +48,5 @@ You can see what markets are available by accessing the `markets` property of an
 caiso.markets
 ```
 
-The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, and `ISO.get_historical_lmp`.
+The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, and `ISO.get_lmp`.
 

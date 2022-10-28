@@ -1,5 +1,35 @@
 # Changelog
 
+## vNext
+
+- Can now use `"today"` are value for `end` when querying date range
+
+    ```python
+    nyiso.get_fuel_mix(start="Jan 1, 2022", end="today")
+    ```
+
+
+### Breaking Changes
+
+- Simplify method naming. This applies to all method. See below for example
+
+#### New API
+
+```python
+nyiso.get_fuel_mix("latest")
+nyiso.get_fuel_mix("today")
+nyiso.get_fuel_mix("jan 1, 2022")
+```
+
+#### Old API
+```python
+nyiso = gridstatus.NYISO()
+nyiso.get_latest_fuel_mix()
+nyiso.get_fuel_mix_today()
+nyiso.get_historical_fuel_mix("jan 1, 2022")
+```
+
+
 ## v0.11.0 - Oct 26, 2022
 
 - Renamed library to `gridstatus`

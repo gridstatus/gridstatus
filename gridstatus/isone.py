@@ -2,13 +2,14 @@ import io
 import math
 import re
 from heapq import merge
+from tabnanny import verbose
 
 import pandas as pd
 import requests
 
 import gridstatus
 from gridstatus import utils
-from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets
+from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import support_date_range
 
 
@@ -47,8 +48,11 @@ class ISONE(ISOBase):
         ".I.NRTHPORT138": 4017,
     }
 
-    def get_latest_status(self):
+    def get_status(self, date, verbose=False):
         """Get latest status for ISO NE"""
+
+        if date != "latest":
+            raise NotSupported()
 
         # historical data available
         # https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status/power-system-status-list
@@ -74,7 +78,7 @@ class ISONE(ISOBase):
             notes=[note],
         )
 
-    def get_latest_fuel_mix(self):
+    def _get_latest_fuel_mix(self):
         data = _make_wsclient_request(
             url="https://www.iso-ne.com/ws/wsclient",
             data={"_nstmp_requestType": "fuelmix"},
@@ -90,18 +94,17 @@ class ISONE(ISOBase):
 
         return FuelMix(time, mix_dict, self.name)
 
-    def get_fuel_mix_today(self):
-        "Get fuel mix for today"
-        # todo should this use the latest endpoint?
-        return self._today_from_historical(self.get_historical_fuel_mix)
-
     @support_date_range(frequency="1D")
-    def get_historical_fuel_mix(self, date):
+    def get_fuel_mix(self, date, end=None, verbose=False):
         """Return fuel mix at a previous date
 
         Provided at frequent, but irregular intervals by ISONE
         """
-        date = gridstatus.utils._handle_date(date)
+        if date == "latest":
+            return self._get_latest_fuel_mix()
+
+        # todo should getting day today use the latest endpoint?
+
         url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + date.strftime(
             "%Y%m%d",
         )
@@ -123,18 +126,14 @@ class ISONE(ISOBase):
 
         return mix_df
 
-    def get_latest_load(self):
-        return self._latest_from_today(self.get_load_today)
-
-    def get_load_today(self):
-        return self._today_from_historical(self.get_historical_load)
-
     @support_date_range(frequency="1D")
-    def get_historical_load(self, date):
+    def get_load(self, date):
         """Return load at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
         # supports a start and end date
-        date = gridstatus.utils._handle_date(date)
+        if date == "latest":
+            return self._latest_from_today(self.get_load)
+
         date_str = date.strftime("%Y%m%d")
         url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"
         data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
@@ -149,27 +148,14 @@ class ISONE(ISOBase):
 
         return df
 
-    def get_latest_supply(self):
-        """Returns most recent data point for supply in MW"""
-        return self._latest_supply_from_fuel_mix()
-
-    def get_supply_today(self):
-        "Get supply for today in MW"
-        return self._today_from_historical(self.get_historical_supply)
-
-    def get_historical_supply(self, date):
-        """Returns supply at a previous date in MW"""
-        return self._supply_from_fuel_mix(date)
-
-    def get_forecast_today(self):
-        """Get load forecast for today in 1 hour intervals"""
-        d = self._today_from_historical(self.get_historical_forecast)
-        return d
+    @support_date_range(frequency="1D")
+    def get_supply(self, date, end=None, verbose=False):
+        """Get supply for a date or date range in hourly intervals"""
+        return self._get_supply(date=date, end=end, verbose=verbose)
 
     @support_date_range(frequency="1D")
-    def get_historical_forecast(self, date):
-        date = gridstatus.utils._handle_date(date)
-
+    def get_load_forecast(self, date, end=None, verbose=False):
+        """Return forecast at a previous date"""
         start_str = date.strftime("%m/%d/%Y")
         end_str = (date + pd.Timedelta(days=1)).strftime("%m/%d/%Y")
         data = {
@@ -210,7 +196,7 @@ class ISONE(ISOBase):
 
         return df
 
-    def get_latest_lmp(self, market: str, locations: list = None):
+    def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
         """
@@ -243,25 +229,25 @@ class ISONE(ISOBase):
         )
         return data
 
-    def get_lmp_today(self, market: str, locations: list = None, include_id=False):
-        "Get lmp for today in 5 minute intervals"
-        return self._today_from_historical(
-            self.get_historical_lmp,
-            market=market,
-            locations=locations,
-            include_id=include_id,
-        )
-
     @support_date_range(frequency="1D")
-    def get_historical_lmp(
+    def get_lmp(
         self,
         date,
-        market: str,
+        end=None,
+        market: str = None,
         locations: list = None,
         include_id=False,
+        verbose=False,
     ):
         """Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/"""
-        date = gridstatus.utils._handle_date(date)
+
+        if date == "latest":
+            return self._get_latest_lmp(
+                market=market,
+                locations=locations,
+                verbose=verbose,
+            )
+
         date_str = date.strftime("%Y%m%d")
 
         if locations is None:
@@ -383,9 +369,10 @@ class ISONE(ISOBase):
 
         # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:
-            day_ahead = self.get_lmp_today(
-                Markets.DAY_AHEAD_HOURLY,
-                locations,
+            day_ahead = self.get_lmp(
+                date="today",
+                market=Markets.DAY_AHEAD_HOURLY,
+                locations=locations,
                 include_id=True,
             )
             location_mapping = day_ahead.drop_duplicates("Location Id")[

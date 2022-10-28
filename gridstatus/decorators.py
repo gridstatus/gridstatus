@@ -43,6 +43,17 @@ class support_date_range:
                 args_dict["date"] = args_dict["start"]
                 del args_dict["start"]
 
+            if args_dict["date"] == "latest":
+                return f(*args, **kwargs)
+
+            if (
+                isinstance(args_dict["date"], str)
+                and args_dict["date"].lower() == "today"
+            ):
+                args_dict["date"] = pd.Timestamp.now(
+                    tz=args_dict["self"].default_timezone,
+                ).date()
+
             args_dict["date"] = gridstatus.utils._handle_date(
                 args_dict["date"],
                 args_dict["self"].default_timezone,
@@ -52,6 +63,15 @@ class support_date_range:
             if "end" not in args_dict:
                 return f(**args_dict)
             else:
+                if (
+                    isinstance(args_dict["end"], str)
+                    and args_dict["end"].lower() == "today"
+                ):
+                    # add one day since end is exclusive
+                    args_dict["end"] = pd.Timestamp.now(
+                        tz=args_dict["self"].default_timezone,
+                    ).date() + pd.DateOffset(days=1)
+
                 args_dict["end"] = gridstatus.utils._handle_date(
                     args_dict["end"],
                     args_dict["self"].default_timezone,

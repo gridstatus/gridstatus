@@ -14,7 +14,7 @@ def test_pjm_no_data():
     # raise no error since date in future
     future_date = pd.Timestamp.now().normalize() + pd.Timedelta(days=10)
     with pytest.raises(RuntimeError):
-        iso.get_historical_lmp(
+        iso.get_lmp(
             date=future_date,
             market="REAL_TIME_5_MIN",
         )
@@ -30,13 +30,13 @@ def test_no_data():
     date = "2000-01-14"
     iso = gridstatus.PJM()
     with pytest.raises(RuntimeError):
-        df = iso.get_historical_fuel_mix(start=date)
+        df = iso.get_fuel_mix(start=date)
 
 
 def test_dst_shift_back():
     date = "2021-11-07"
     iso = gridstatus.PJM()
-    df = iso.get_historical_fuel_mix(start=date)
+    df = iso.get_fuel_mix(start=date)
 
     assert len(df["Time"]) == 25  # 25 hours due to shift backwards in time
     assert (df["Time"].dt.strftime("%Y-%m-%d") == date).all()
@@ -45,7 +45,7 @@ def test_dst_shift_back():
 def test_dst_shift_forward():
     date = "2021-03-14"
     iso = gridstatus.PJM()
-    df = iso.get_historical_fuel_mix(start=date)
+    df = iso.get_fuel_mix(start=date)
 
     assert len(df["Time"]) == 23  # 23 hours due to shift forwards in time
     assert (df["Time"].dt.strftime("%Y-%m-%d") == date).all()
@@ -58,7 +58,7 @@ def _lmp_tests(iso, m):
     archive_date = _get_pjm_archive_date(m)
     start = archive_date - pd.Timedelta(days=366)
     end = archive_date + pd.Timedelta("1 day")
-    hist = iso.get_historical_lmp(
+    hist = iso.get_lmp(
         start=start,
         end=end,
         location_type="hub",
@@ -73,7 +73,7 @@ def _lmp_tests(iso, m):
     archive_date = _get_pjm_archive_date(m)
     start = archive_date - pd.Timedelta("1 day")
     end = archive_date + pd.Timedelta("1 day")
-    hist = iso.get_historical_lmp(
+    hist = iso.get_lmp(
         start=start,
         end=end,
         location_type="hub",
@@ -85,7 +85,7 @@ def _lmp_tests(iso, m):
     assert (hist.groupby("Location")["Time"].count() == 48).all()
 
     # span calendar year
-    hist = iso.get_historical_lmp(
+    hist = iso.get_lmp(
         start="2018-12-31",
         end="2019-01-02",
         location_type="hub",
@@ -97,7 +97,7 @@ def _lmp_tests(iso, m):
     assert (hist.groupby("Location")["Time"].count() == 48).all()
 
     # all archive
-    hist = iso.get_historical_lmp(
+    hist = iso.get_lmp(
         start="2019-07-15",
         end="2019-07-16",
         location_type="hub",
@@ -111,7 +111,7 @@ def _lmp_tests(iso, m):
     end = pd.Timestamp.now() - pd.Timedelta(days=4)
     start = end - pd.Timedelta(days=1)
 
-    hist = iso.get_historical_lmp(
+    hist = iso.get_lmp(
         start=start,
         end=end,
         location_type="hub",
@@ -121,7 +121,7 @@ def _lmp_tests(iso, m):
     check_lmp_columns(hist, m)
 
 
-def test_pjm_get_historical_lmp_hourly():
+def test_pjm_get_lmp_hourly():
     iso = gridstatus.PJM()
     markets = [
         Markets.REAL_TIME_HOURLY,
@@ -134,7 +134,7 @@ def test_pjm_get_historical_lmp_hourly():
 
 
 @pytest.mark.slow
-def test_pjm_get_historical_lmp_5_min():
+def test_pjm_get_lmp_5_min():
     iso = gridstatus.PJM()
     _lmp_tests(iso, Markets.REAL_TIME_5_MIN)
 
@@ -243,7 +243,7 @@ def test_pjm_update_dates():
 
 def test_query_by_location_type():
     iso = gridstatus.PJM()
-    df = iso.get_historical_lmp(
+    df = iso.get_lmp(
         date="Oct 20, 2022",
         market="DAY_AHEAD_HOURLY",
         location_type="ZONE",
@@ -256,7 +256,7 @@ def test_query_by_location_type():
 @pytest.mark.slow
 def test_pjm_all_pnodes():
     iso = gridstatus.PJM()
-    df = iso.get_historical_lmp(
+    df = iso.get_lmp(
         date="Jan 1, 2022",
         market="REAL_TIME_HOURLY",
         locations="ALL",
