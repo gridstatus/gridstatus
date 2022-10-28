@@ -68,7 +68,8 @@ docs = [
     "sphinx-thebe",
     "sphinx_togglebutton",
     "sphinx-favicon",
-    "sphinx-autoapi"
+    "sphinx-autoapi",
+    "plotly"
 ]
 
 [tool.setuptools]
