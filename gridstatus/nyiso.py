@@ -268,7 +268,7 @@ class NYISO(ISOBase):
             "State",
             "In-Service Date",
             "Name Plate Rating (V) MW",
-            "2022 CRIS (A) MW Summer",
+            "2022 CRIS MW Summer",
             "2022 CRIS MW Winter",
             "2022 Capability MW Summer",
             "2022 Capability MW Winter",
