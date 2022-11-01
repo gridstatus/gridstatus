@@ -413,13 +413,8 @@ class ISONE(ISOBase):
         # not sure what the reportdate value is. it is hardcode into the javascript to add and doesnt work without
         url = "https://irtt.iso-ne.com/reports/exportpublicqueue?ReportDate=638005248000000000&Status=&Jurisdiction="
 
-        # TODO use bytesio everywhere instead of decoding
         r = requests.get(url)
         queue = pd.read_excel(io.BytesIO(r.content), skiprows=4)
-
-        import pdb
-
-        pdb.set_trace()
 
         return queue
 
