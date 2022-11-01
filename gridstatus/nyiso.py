@@ -343,6 +343,186 @@ class NYISO(ISOBase):
 
         return queue
 
+    def get_generators(self, verbose=False):
+        """Get a list of generators in NYISO
+
+        When possible return capacity and fuel type information
+
+        Parameters:
+            verbose (bool): print out requested url
+
+        Returns:
+            pd.DataFrame: a dataframe of generators and locations
+
+            **Possible Columns**
+
+            * Generator Name
+            * PTID
+            * Subzone
+            * Zone
+            * Latitude
+            * Longitude
+            * Owner, Operator, and / or Billing Organization
+            * Station Unit
+            * Town
+            * County
+            * State
+            * In-Service Date
+            * Name Plate Rating (V) MW
+            * 2022 CRIS MW Summer
+            * 2022 CRIS MW Winter
+            * 2022 Capability MW Summer
+            * 2022 Capability MW Winter
+            * Is Dual Fuel
+            * Unit Type
+            * Fuel Type 1
+            * Fuel Type 2
+            * 2021 Net Energy GWh
+            * Notes
+            * Generator Type
+        """
+
+        url = "http://mis.nyiso.com/public/csv/generator/generator.csv"
+
+        if verbose:
+            print(f"Requesting {url}")
+
+        df = pd.read_csv(url)
+
+        # need to be updated once a year. approximately around end of april
+        # find it here: https://www.nyiso.com/gold-book-resources
+        capacity_url_2022 = "https://www.nyiso.com/documents/20142/30338270/2022-NYCA-Generators.xlsx/f0526021-37fd-2c27-94ee-14d0f31878c1"
+
+        if verbose:
+            print(f"Requesting {url}")
+        generators = pd.read_excel(
+            capacity_url_2022,
+            sheet_name=[
+                "Table III-2a",
+                "Table III-2b",
+            ],
+            skiprows=3,
+            header=[0, 1, 2, 3, 4],
+        )
+
+        generators["Table III-2a"]["Generator Type"] = "Market Generator"
+        generators["Table III-2b"]["Generator Type"] = "Non-Market Generator"
+
+        # combined both sheets
+        generators = pd.concat(generators.values())
+
+        # manually transcribed column names
+        generators.columns = [
+            "LINE REF. NO.",
+            "Owner, Operator, and / or Billing Organization",
+            "Station Unit",
+            "Zone",
+            "PTID",
+            "Town",
+            "County",
+            "State",
+            "In-Service Date",
+            "Name Plate Rating (V) MW",
+            "2022 CRIS MW Summer",
+            "2022 CRIS MW Winter",
+            "2022 Capability MW Summer",
+            "2022 Capability MW Winter",
+            "Is Dual Fuel",
+            "Unit Type",
+            "Fuel Type 1",
+            "Fuel Type 2",
+            "2021 Net Energy GWh",
+            "Notes",
+            "Generator Type",
+        ]
+        generators = generators.dropna(subset=["PTID"])
+
+        generators["PTID"] = generators["PTID"].astype(int)
+
+        # in other data
+        generators = generators.drop(columns=["Zone", "LINE REF. NO."])
+
+        combined = pd.merge(df, generators, on=["PTID"], how="left")
+
+        unit_type_map = {
+            "CC": "Combined Cycle",
+            "CG": "Cogeneration",
+            "CT": "Combustion Turbine Portion (CC)",
+            "CW": "Waste Heat Only (CC)",
+            "ES": "Energy Storage",
+            "FC": "Fuel Cell",
+            "GT": "Combustion Turbine",
+            "HY": "Conventional Hydro",
+            "IC": "Internal Combustion",
+            "JE": "Jet Engine",
+            "NB": "Steam (BWR Nuclear)",
+            "NP": "Steam (PWR Nuclear)",
+            "PS": "Pumped Storage Hydro",
+            "PV": "Photovoltaic",
+            "ST": "Steam Turbine (Fossil)",
+            "WT": "Wind Turbine",
+        }
+        combined["Unit Type"] = combined["Unit Type"].map(unit_type_map)
+
+        fuel_type_map = {
+            "BAT": "Battery",
+            "BUT": "Butane",
+            "FO2": "No. 2 Fuel Oil",
+            "FO4": "No. 4 Fuel Oil",
+            "FO6": "No. 6 Fuel Oil",
+            "FW": "Fly Wheel",
+            "JF": "Jet Fuel",
+            "KER": "Kerosene",
+            "MTE": "Methane (Bio Gas)",
+            "NG": "Natural Gas",
+            "OT": "Other (Describe In Footnote)",
+            "REF": "Refuse (Solid Waste)",
+            "SUN": "Sunlight",
+            "UR": "Uranium",
+            "WAT": "Water",
+            "WD": "Wood and/or Wood Waste",
+            "WND": "Wind",
+        }
+        combined["Fuel Type 1"] = combined["Fuel Type 1"].map(
+            fuel_type_map,
+        )
+        combined["Fuel Type 2"] = combined["Fuel Type 2"].map(
+            fuel_type_map,
+        )
+
+        combined["Is Dual Fuel"] = combined["Is Dual Fuel"] == "YES"
+
+        state_code_map = {
+            36: "New York",
+            42: "Pennsylvania",
+            25: "Massachusetts",
+            34: "New Jersey",
+        }
+        combined["State"] = combined["State"].map(state_code_map)
+
+        # todo map county codes to names. info on first sheet of excel
+
+        return combined
+
+    def get_loads(self, verbose=False):
+        """Get a list of loads in NYISO
+
+        Parameters:
+            verbose (bool): print out requested url
+
+        Returns:
+            pd.DataFrame: a dataframe of loads and locations
+        """
+
+        url = "http://mis.nyiso.com/public/csv/load/load.csv"
+
+        if verbose:
+            print(f"Requesting {url}")
+
+        df = pd.read_csv(url)
+
+        return df
+
     def _set_marketname(self, market: Markets) -> str:
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
