@@ -199,6 +199,68 @@ class MISO(ISOBase):
         # there is also a map that plots the locations of these projects:
         queue = pd.DataFrame(data)
 
+        queue = queue.rename(
+            columns={
+                "postGIAStatus": "Post Generator Interconnection Agreement Status",
+                "doneDate": "Interconnection Approval Date",
+            },
+        )
+
+        queue["Capacity (MW)"] = queue[
+            [
+                "summerNetMW",
+                "winterNetMW",
+            ]
+        ].max(axis=1)
+
+        rename = {
+            "projectNumber": "Queue ID",
+            "county": "County",
+            "state": "State",
+            "transmissionOwner": "Transmission Owner",
+            "poiName": "Interconnection Location",
+            "queueDate": "Queue Date",
+            "withdrawnDate": "Withdrawn Date",
+            "applicationStatus": "Status",
+            "Capacity (MW)": "Capacity (MW)",
+            "summerNetMW": "Summer Capacity (MW)",
+            "winterNetMW": "Winter Capacity (MW)",
+            "negInService": "Proposed Completion Date",
+            "fuelType": "Generation Type",
+        }
+
+        extra_columns = [
+            "facilityType",
+            "Post Generator Interconnection Agreement Status",
+            "Interconnection Approval Date",
+            "inService",
+            "giaToExec",
+            "studyCycle",
+            "studyGroup",
+            "studyPhase",
+            "svcType",
+            "dp1ErisMw",
+            "dp1NrisMw",
+            "dp2ErisMw",
+            "dp2NrisMw",
+            "sisPhase1",
+        ]
+
+        missing = [
+            # todo the actual complettion date can be calculated by looking at status and other date columns
+            "Actual Completion Date",
+            "Withdrawal Comment",
+            "Project Name",
+            "Interconnecting Entity",
+        ]
+
+        queue = utils.format_interconnection_df(
+            queue=queue,
+            rename=rename,
+            extra=extra_columns,
+            missing=missing,
+        )
+
         return queue
 
 
