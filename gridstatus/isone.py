@@ -9,7 +9,14 @@ import requests
 
 import gridstatus
 from gridstatus import utils
-from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets, NotSupported
+from gridstatus.base import (
+    FuelMix,
+    GridStatus,
+    InterconnectionQueueStatus,
+    ISOBase,
+    Markets,
+    NotSupported,
+)
 from gridstatus.decorators import support_date_range
 
 
@@ -409,12 +416,90 @@ class ISONE(ISOBase):
         data = utils.filter_lmp_locations(data, locations)
         return data
 
-    def get_interconnection_queue(self):
+    def get_interconnection_queue(self, verbose=False):
+        """Get the interconnection queue. Contains active and withdrawm applications.
+
+        More information: https://www.iso-ne.com/system-planning/interconnection-service/interconnection-request-queue/
+
+
+        Returns:
+            pd.DataFrame -- interconnection queue
+
+        """
         # not sure what the reportdate value is. it is hardcode into the javascript to add and doesnt work without
         url = "https://irtt.iso-ne.com/reports/exportpublicqueue?ReportDate=638005248000000000&Status=&Jurisdiction="
 
+        if verbose:
+            print("Loading interconnection queue from {}".format(url))
+
         r = requests.get(url)
         queue = pd.read_excel(io.BytesIO(r.content), skiprows=4)
+
+        # only keep generator interconnection requests
+        queue = queue[queue["Type"] == "G"]
+
+        queue["Status"] = (
+            queue["W/ D Date"]
+            .isna()
+            .map(
+                {
+                    True: InterconnectionQueueStatus.WITHDRAWN,
+                    False: InterconnectionQueueStatus.ACTIVE,
+                },
+            )
+        )
+
+        queue["Proposed Completion Date"] = queue["Sync Date"]
+
+        rename = {
+            "Position": "Queue ID",
+            "Alternative Name": "Project Name",
+            "Fuel Type": "Generation Type",
+            "Requested": "Queue Date",
+            "County": "County",
+            "State": "State",
+            "Status": "Status",
+            "Interconnection Location": "Interconnection Location",
+            "W/ D Date": "Withdrawn Date",
+            "Net MW": "Capacity (MW)",
+            "Summer MW": "Summer Capacity (MW)",
+            "Winter MW": "Winter Capacity (MW)",
+            "TO Report": "Transmission Owner",
+        }
+
+        # todo: there are a few columns being parsed as "unamed" that aren't being included but should
+        extra_columns = [
+            "Updated",
+            "Unit",
+            "Op Date",
+            "Sync Date",
+            "Serv",
+            "SIS Complete",
+            "I39",
+            "Dev",
+            "Zone",
+            "FS",
+            "SIS",
+            "OS",
+            "FAC",
+            "IA",
+            "Project Status",
+        ]
+
+        missing = [
+            "Interconnecting Entity",
+            "Actual Completion Date",  # because there are only activate and withdrawn projects
+            "Withdrawal Comment",
+        ]
+
+        queue = utils.format_interconnection_df(
+            queue=queue,
+            rename=rename,
+            extra=extra_columns,
+            missing=missing,
+        )
+
+        queue = queue.sort_values("Queue ID")
 
         return queue
 

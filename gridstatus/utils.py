@@ -140,7 +140,9 @@ def is_today(date, tz=None):
 
 def format_interconnection_df(queue, rename, extra=None, missing=None):
     """Format interconnection queue data"""
-    assert set(rename.keys()).issubset(queue.columns)
+    assert set(rename.keys()).issubset(queue.columns), set(
+        rename.keys(),
+    ) - set(queue.columns)
     queue = queue.rename(columns=rename)
     columns = _interconnection_columns.copy()
 

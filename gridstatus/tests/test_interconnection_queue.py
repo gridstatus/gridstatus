@@ -14,7 +14,7 @@ def check_queue(queue):
 
 @pytest.mark.parametrize(
     "iso",
-    [Ercot(), MISO(), CAISO(), PJM(), NYISO()],  # , ISONE(),  SPP()],
+    [ISONE(), Ercot(), MISO(), CAISO(), PJM(), NYISO()],  # , ,  SPP()],
 )
 def test_get_interconnection_queue(iso):
     queue = iso.get_interconnection_queue()
