@@ -225,6 +225,33 @@ class NYISO(ISOBase):
 
         Returns:
             pd.DataFrame: a dataframe of generators and locations
+
+            **Possible Columns**
+
+            * Generator Name
+            * PTID
+            * Subzone
+            * Zone
+            * Latitude
+            * Longitude
+            * Owner, Operator, and / or Billing Organization
+            * Station Unit
+            * Town
+            * County
+            * State
+            * In-Service Date
+            * Name Plate Rating (V) MW
+            * 2022 CRIS MW Summer
+            * 2022 CRIS MW Winter
+            * 2022 Capability MW Summer
+            * 2022 Capability MW Winter
+            * Is Dual Fuel
+            * Unit Type
+            * Fuel Type 1
+            * Fuel Type 2
+            * 2021 Net Energy GWh
+            * Notes
+            * Generator Type
         """
 
         url = "http://mis.nyiso.com/public/csv/generator/generator.csv"
