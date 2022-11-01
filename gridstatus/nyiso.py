@@ -372,7 +372,7 @@ class NYISO(ISOBase):
         }
         combined["State"] = combined["State"].map(state_code_map)
 
-        # todo map county codes to names
+        # todo map county codes to names. info on first sheet of excel
 
         return combined
 
