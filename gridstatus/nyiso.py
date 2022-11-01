@@ -218,7 +218,7 @@ class NYISO(ISOBase):
     def get_generators(self, verbose=False):
         """Get a list of generators in NYISO
 
-        When possible return capacity information and fuel type information
+        When possible return capacity and fuel type information
 
         Parameters:
             verbose (bool): print out requested url
