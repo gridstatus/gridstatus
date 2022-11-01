@@ -425,6 +425,24 @@ class CAISO(ISOBase):
         time.sleep(sleep)
         return df
 
+    def get_interconnection_queue(self):
+        url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
+
+        sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
+
+        # remove legend at the bottom
+        queued_projects = sheets["Grid GenerationQueue"][:-8]
+        completed_projects = sheets["Completed Generation Projects"][:-2]
+        withdrawn_projects = sheets["Withdrawn Generation Projects"][:-2].rename(
+            columns={"Project Name - Confidential": "Project Name"},
+        )
+
+        queue = pd.concat(
+            [queued_projects, completed_projects, withdrawn_projects],
+        )
+
+        return queue
+
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
@@ -487,24 +505,6 @@ def _get_oasis(url, usecols=None, verbose=False):
     )
 
     return df
-
-    def get_interconnection_queue(self):
-        url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
-
-        sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
-
-        # remove legend at the bottom
-        queued_projects = sheets["Grid GenerationQueue"][:-8]
-        completed_projects = sheets["Completed Generation Projects"][:-2]
-        withdrawn_projects = sheets["Withdrawn Generation Projects"][:-2].rename(
-            columns={"Project Name - Confidential": "Project Name"},
-        )
-
-        queue = pd.concat(
-            [queued_projects, completed_projects, withdrawn_projects],
-        )
-
-        return queue
 
 
 def _caiso_handle_start_end(date, end):

@@ -474,10 +474,6 @@ class PJM(ISOBase):
 
         queue = utils.format_interconnection_df(queue, rename)
 
-        import pdb
-
-        pdb.set_trace()
-
         return queue
 
     def _get_key(self):
