@@ -234,7 +234,8 @@ class NYISO(ISOBase):
 
         df = pd.read_csv(url)
 
-        # need to be updated
+        # need to be updated once a year. approximately around end of april
+        # find it here: https://www.nyiso.com/gold-book-resources
         capacity_url_2022 = "https://www.nyiso.com/documents/20142/30338270/2022-NYCA-Generators.xlsx/f0526021-37fd-2c27-94ee-14d0f31878c1"
 
         if verbose:
@@ -284,7 +285,7 @@ class NYISO(ISOBase):
         generators["PTID"] = generators["PTID"].astype(int)
 
         # in other data
-        generators = generators.drop(columns=["Zone"])
+        generators = generators.drop(columns=["Zone", "LINE REF. NO."])
 
         combined = pd.merge(df, generators, on=["PTID"], how="left")
 
