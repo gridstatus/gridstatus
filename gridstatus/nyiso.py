@@ -325,6 +325,18 @@ class NYISO(ISOBase):
         )
 
         queue["Date of IR"] = pd.to_datetime(active["Date of IR"])
+        queue["Proposed COD"] = pd.to_datetime(
+            active["Proposed COD"],
+            errors="coerce",
+        )
+        queue["Proposed  In-Service"] = pd.to_datetime(
+            active["Proposed  In-Service"],
+            errors="coerce",
+        )
+        queue["Proposed Initial-Sync"] = pd.to_datetime(
+            active["Proposed Initial-Sync"],
+            errors="coerce",
+        )
 
         # TODO handle other 2 sheets
         # TODO they publish past queues, but not sure what data is in them that is relevant
