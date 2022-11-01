@@ -6,7 +6,11 @@ kernelspec:
 
 # Interconnection Queues
 
-All ISOs support retreving interconnection queues with the `iso.get_interconnection_queue`
+All ISOs support retreving interconnection queues with the `iso.get_interconnection_queue`.
+
+Each of the ISOs report slightly differently fields for their queues. A best effort was made to standardize column names. When a column couldn't be standardized, it is appended to end of the returned dataframe.
+
+Below you can see preview of each of the interconnection queues
 
 ## NYISO
 

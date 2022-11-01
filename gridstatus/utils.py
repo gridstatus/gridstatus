@@ -138,7 +138,7 @@ def is_today(date, tz=None):
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
 
 
-def format_interconnection_df(queue, rename, extra=None):
+def format_interconnection_df(queue, rename, extra=None, missing=None):
     """Format interconnection queue data"""
     assert set(rename.keys()).issubset(queue.columns)
     queue = queue.rename(columns=rename)
@@ -146,6 +146,10 @@ def format_interconnection_df(queue, rename, extra=None):
 
     if extra:
         columns += extra
+
+    if missing:
+        for m in missing:
+            queue[m] = None
 
     return queue[columns]
 
