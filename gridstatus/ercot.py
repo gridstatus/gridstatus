@@ -49,7 +49,10 @@ class Ercot(ISOBase):
             df = self.get_fuel_mix("today")
             currentHour = df.iloc[-1]
 
-            mix_dict = {"Wind": currentHour["Wind"], "Solar": currentHour["Solar"]}
+            mix_dict = {
+                "Wind": currentHour["Wind"],
+                "Solar": currentHour["Solar"],
+            }
 
             return FuelMix(time=currentHour["Time"], mix=mix_dict, iso=self.name)
 
@@ -119,7 +122,7 @@ class Ercot(ISOBase):
                 + data["hourEnding"].astype(str).str.zfill(2)
                 + ":"
                 + data["interval"].astype(str).str.zfill(2),
-            ).dt.tz_localize(self.default_timezone)
+            ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
             data = data[data["forecast"] == 0]  # only keep non forecast rows
 
@@ -153,7 +156,7 @@ class Ercot(ISOBase):
             .astype(str)
             .str.zfill(2)
             + ":00",
-        ).dt.tz_localize(self.default_timezone)
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
         doc["Forecast Time"] = publish_date
