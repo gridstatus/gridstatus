@@ -138,8 +138,26 @@ def is_today(date, tz=None):
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
 
 
-def format_interconnection_df(queue, rename):
+def format_interconnection_df(queue, rename, extra=None):
     """Format interconnection queue data"""
     assert set(rename.keys()).issubset(queue.columns)
     queue = queue.rename(columns=rename)
-    return queue[_interconnection_columns]
+    columns = _interconnection_columns.copy()
+
+    if extra:
+        columns += extra
+
+    return queue[columns]
+
+
+def get_interconnection_queue():
+    """Get interconnection queue data for all ISOs"""
+    all_queues = []
+    for iso in all_isos:
+        iso = iso()
+        queue = iso.get_interconnection_queue()
+        queue["ISO"] = iso.name
+        all_queues.append(queue)
+
+    all_queues = pd.concat(all_queues).reset_index(drop=True)
+    return all_queues

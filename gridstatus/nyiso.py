@@ -223,22 +223,35 @@ class NYISO(ISOBase):
 
         return df
 
-    def get_interconnection_queue(self):
+    def get_interconnection_queue(self, verbose=False):
         """Return NYISO interconnection queue
 
-        Non-NYISO queue info: https://www3.dps.ny.gov/W/PSCWeb.nsf/All/286D2C179E9A5A8385257FBF003F1F7E?OpenDocument
+        Additional Non-NYISO queue info: https://www3.dps.ny.gov/W/PSCWeb.nsf/All/286D2C179E9A5A8385257FBF003F1F7E?OpenDocument
+
+        Returns:
+            pd.DataFrame: Interconnection queue containing, active, withdrawn, and completed project
+
         """
 
         # 3 sheets - ['Interconnection Queue', 'Withdrawn', 'In Service']
+        # harded coded for now. perhaps this url can be parsed from the html here:
         url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"
+
+        if verbose:
+            print("Downloading interconnection queue from {}".format(url))
+
         all_sheets = pd.read_excel(
             url,
             sheet_name=["Interconnection Queue", "Withdrawn"],
         )
 
         # Drop extra rows at bottom
-        active = all_sheets["Interconnection Queue"].dropna(
-            subset=["Queue Pos.", "Project Name"],
+        active = (
+            all_sheets["Interconnection Queue"]
+            .dropna(
+                subset=["Queue Pos.", "Project Name"],
+            )
+            .copy()
         )
 
         active["Status"] = InterconnectionQueueStatus.ACTIVE.value
@@ -249,7 +262,7 @@ class NYISO(ISOBase):
         withdrawn["Withdrawn Date"] = withdrawn["Last Update"]
         withdrawn["Withdrawal Comment"] = None
 
-        # make compelted look like the other two sheets
+        # make completed look like the other two sheets
         completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1])
         completed.insert(17, "Proposed Initial-Sync", None)
         completed["Status"] = InterconnectionQueueStatus.COMPLETED.value
@@ -258,11 +271,12 @@ class NYISO(ISOBase):
         # the spreadsheet doesnt have a date, so make it null
         completed["Proposed  In-Service"] = None
         completed["Proposed COD"] = None
-        # assume it was withdrawn when last updated
+        # assume it was finished when last updated
         completed["Actual Completion Date"] = completed["Last Update"]
 
         queue = pd.concat([active, withdrawn, completed])
 
+        # fix extra space in column name
         queue = queue.rename(columns={"Utility ": "Utility"})
 
         queue["Type/ Fuel"] = queue["Type/ Fuel"].map(
@@ -310,6 +324,8 @@ class NYISO(ISOBase):
             .max(axis=1)
         )
 
+        queue["Date of IR"] = pd.to_datetime(active["Date of IR"])
+
         # TODO handle other 2 sheets
         # TODO they publish past queues, but not sure what data is in them that is relevant
 
@@ -323,7 +339,7 @@ class NYISO(ISOBase):
             "Interconnection Point": "Interconnection Location",
             "Status": "Status",
             "Date of IR": "Queue Date",
-            "Proposed  In-Service": "Proposed Completion Date",
+            "Proposed COD": "Proposed Completion Date",
             "Type/ Fuel": "Generation Type",
             "Capacity (MW)": "Capacity (MW)",
             "SP (MW)": "Summer Capacity (MW)",
@@ -331,15 +347,16 @@ class NYISO(ISOBase):
         }
 
         extra_columns = [
+            "Proposed  In-Service",
+            "Proposed Initial-Sync",
             "Last Update",
             "Z",
             "S",
             "Availability of Studies",
-            "FS Complete/ SGIA Tender" "Proposed Initial-Sync",
-            "Proposed COD",
+            "FS Complete/ SGIA Tender",
         ]
 
-        queue = utils.format_interconnection_df(queue, rename)
+        queue = utils.format_interconnection_df(queue, rename, extra_columns)
 
         return queue
 
