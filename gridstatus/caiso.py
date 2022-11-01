@@ -513,10 +513,6 @@ class CAISO(ISOBase):
             missing=missing,
         )
 
-        import pdb
-
-        pdb.set_trace()
-
         return queue
 
 
