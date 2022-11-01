@@ -234,6 +234,25 @@ class NYISO(ISOBase):
 
         return df
 
+    def get_loads(self, verbose=False):
+        """Get a list of loads in NYISO
+
+        Parameters:
+            verbose (bool): print out requested url
+
+        Returns:
+            pd.DataFrame: a dataframe of loads and locations
+        """
+
+        url = "http://mis.nyiso.com/public/csv/load/load.csv"
+
+        if verbose:
+            print(f"Requesting {url}")
+
+        df = pd.read_csv(url)
+
+        return df
+
     def _set_marketname(self, market: Markets) -> str:
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"

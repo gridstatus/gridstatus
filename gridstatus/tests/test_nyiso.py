@@ -139,7 +139,6 @@ def test_location_type_parameter():
 def test_nyiso_get_generators():
     iso = gridstatus.NYISO()
     df = iso.get_generators()
-    # Zone   Latitude  Longitude
     columns = [
         "Generator Name",
         "PTID",
@@ -147,6 +146,19 @@ def test_nyiso_get_generators():
         "Zone",
         "Latitude",
         "Longitude",
+    ]
+    assert set(df.columns) == set(columns)
+    assert df.shape[0] >= 0
+
+
+def test_nyiso_get_loads():
+    iso = gridstatus.NYISO()
+    df = iso.get_loads()
+    columns = [
+        "Load Name",
+        "PTID",
+        "Subzone",
+        "Zone",
     ]
     assert set(df.columns) == set(columns)
     assert df.shape[0] >= 0
