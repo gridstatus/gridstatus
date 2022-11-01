@@ -306,8 +306,8 @@ class Ercot(ISOBase):
             "Meets Planning",
             "Meets All Planning",
             "CDR Reporting Zone",
-            "Construction Start",
-            "Construction End",
+            # "Construction Start", # all null
+            # "Construction End", # all null
             "Approved for Energization",
             "Approved for Synchronization",
             "Comment",
