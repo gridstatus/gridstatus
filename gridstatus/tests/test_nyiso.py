@@ -147,7 +147,7 @@ def test_nyiso_get_generators():
         "Latitude",
         "Longitude",
     ]
-    assert set(df.columns) == set(columns)
+    assert set(df.columns).issuperset(set(columns))
     assert df.shape[0] >= 0
 
 
