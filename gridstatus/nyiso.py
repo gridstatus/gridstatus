@@ -215,6 +215,25 @@ class NYISO(ISOBase):
 
         return df
 
+    def get_generators(self, verbose=False):
+        """Get a list of generators in NYISO
+
+        Parameters:
+            verbose (bool): print out requested url
+
+        Returns:
+            pd.DataFrame: a dataframe of generators and locations
+        """
+
+        url = "http://mis.nyiso.com/public/csv/generator/generator.csv"
+
+        if verbose:
+            print(f"Requesting {url}")
+
+        df = pd.read_csv(url)
+
+        return df
+
     def _set_marketname(self, market: Markets) -> str:
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
