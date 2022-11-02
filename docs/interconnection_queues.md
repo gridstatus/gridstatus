@@ -33,16 +33,16 @@ spp.get_interconnection_queue()
 ```
 
 
-## MISO
-```{code-cell}
-miso = gridstatus.MISO()
-miso.get_interconnection_queue()
-```
-
 ## Ercot
 ```{code-cell}
 ercot = gridstatus.Ercot()
 ercot.get_interconnection_queue()
+```
+
+## MISO
+```{code-cell}
+miso = gridstatus.MISO()
+miso.get_interconnection_queue()
 ```
 
 ## ISONE
