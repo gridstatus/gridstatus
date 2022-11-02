@@ -1,5 +1,5 @@
 ---
-title: ISODATA
+title: Grid Status
 file_format: mystnb
 mystnb:
   execution_timeout: 600
@@ -108,6 +108,7 @@ The best part is these APIs work in the same way across all the supported ISOs!
 installation
 availability
 lmp
+interconnection_queues
 Examples/index
 
 ```

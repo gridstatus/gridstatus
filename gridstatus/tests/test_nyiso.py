@@ -162,3 +162,8 @@ def test_nyiso_get_loads():
     ]
     assert set(df.columns) == set(columns)
     assert df.shape[0] >= 0
+
+
+def test_nyiso_interconnection_queue():
+    iso = gridstatus.NYISO()
+    df = iso.get_interconnection_queue()

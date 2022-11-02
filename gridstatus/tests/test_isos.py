@@ -50,7 +50,6 @@ def test_make_lmp_availability_df():
 
 @pytest.mark.parametrize("iso", all_isos)
 def test_get_latest_fuel_mix(iso):
-    print(iso)
     mix = iso.get_fuel_mix("latest")
     assert isinstance(mix, FuelMix)
     assert isinstance(mix.time, pd.Timestamp)
