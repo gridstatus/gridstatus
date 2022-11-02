@@ -151,6 +151,7 @@ def format_interconnection_df(queue, rename, extra=None, missing=None):
 
     if missing:
         for m in missing:
+            assert m not in queue.columns, "Missing column already exists"
             queue[m] = None
 
     return queue[columns]

@@ -449,8 +449,6 @@ class PJM(ISOBase):
         )
         queue = pd.read_excel(io.BytesIO(r.content))
 
-        queue["Interconnecting Entity"] = None
-        queue["Interconnection Location"] = None
         queue["Capacity (MW)"] = queue[["MFO", "MW In Service"]].min(axis=1)
 
         rename = {
@@ -470,9 +468,37 @@ class PJM(ISOBase):
             "MW Energy": "Winter Capacity (MW)",
         }
 
-        extra = ["/ MW In Service"]
+        extra = [
+            "MW In Service",
+            "Commercial Name",
+            "Initial Study",
+            "Feasibility Study",
+            "Feasibility Study Status",
+            "System Impact Study",
+            "System Impact Study Status",
+            "Facilities Study",
+            "Facilities Study Status",
+            "Interim Interconnection Service Agreement",
+            "Interim/Interconnection Service Agreement Status",
+            "Wholesale Market Participation Agreement",
+            "Construction Service Agreement",
+            "Construction Service Agreement Status",
+            "Upgrade Construction Service Agreement",
+            "Upgrade Construction Service Agreement Status",
+            "Backfeed Date",
+            "Long-Term Firm Service Start Date",
+            "Long-Term Firm Service End Date",
+            "Test Energy Date",
+        ]
 
-        queue = utils.format_interconnection_df(queue, rename)
+        missing = ["Interconnecting Entity", "Interconnection Location"]
+
+        queue = utils.format_interconnection_df(
+            queue,
+            rename,
+            extra=extra,
+            missing=missing,
+        )
 
         return queue
 
