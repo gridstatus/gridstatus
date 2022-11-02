@@ -476,34 +476,34 @@ class NYISO(ISOBase):
 
         return df
 
-    def get_capacity_prices(self, date = pd.Timestamp.now(tz="US/Eastern"), verbose=False):
+    def get_capacity_prices(
+        self, date=pd.Timestamp.now(tz="US/Eastern"), verbose=False
+    ):
         """Pull the most recent capacity market report's market clearing prices
-        
+
         Parameters:
             verbose (bool): print out requested url
 
         Returns:
             pd.DataFrame: a dataframe of monthly capacity prices (all three auctions) for each of the four capacity localities within NYISO
         """
-        
-        #todo: it looks like the "27447313" component of the base URL changes every year but I'm not sure what the link between that and the year is...
-        capacity_market_base_url = "https://www.nyiso.com/documents/20142/27447313/ICAP-Market-Report"
-        
-        url = f"{capacity_market_base_url}-{date.month_name()}-{date.year}.xlsx"
-        if verbose: print(url)
 
-        df = pd.read_excel(url,
-                           sheet_name="MCP Table",
-                           header=[0,1]
-                           )
-                    
-        df.rename(columns={"Unnamed: 0_level_0":"","Date":""},
-                  inplace=True)
-        df.set_index("", 
-                     inplace=True)
-        return df.dropna(how='any', axis='columns')
-        
-    
+        # todo: it looks like the "27447313" component of the base URL changes every year but I'm not sure what the link between that and the year is...
+        capacity_market_base_url = (
+            "https://www.nyiso.com/documents/20142/27447313/ICAP-Market-Report"
+        )
+
+        url = f"{capacity_market_base_url}-{date.month_name()}-{date.year}.xlsx"
+        if verbose:
+            print(url)
+
+        df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1])
+
+        df.rename(columns={"Unnamed: 0_level_0": "", "Date": ""}, inplace=True)
+        df.set_index("", inplace=True)
+        return df.dropna(how="any", axis="columns")
+
+
 def _handle_time(df):
     if "Time Stamp" in df.columns:
         time_stamp_col = "Time Stamp"

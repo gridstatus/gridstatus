@@ -135,6 +135,7 @@ def test_location_type_parameter():
             location_type="dummy",
         )
 
+
 def test_nyiso_get_generators():
     iso = gridstatus.NYISO()
     df = iso.get_generators()
@@ -149,6 +150,7 @@ def test_nyiso_get_generators():
     assert set(df.columns).issuperset(set(columns))
     assert df.shape[0] >= 0
 
+
 def test_nyiso_get_loads():
     iso = gridstatus.NYISO()
     df = iso.get_loads()
@@ -160,6 +162,7 @@ def test_nyiso_get_loads():
     ]
     assert set(df.columns) == set(columns)
     assert df.shape[0] >= 0
+
 
 def test_nyiso_get_capacity_prices():
     iso = gridstatus.NYISO()
