@@ -1,6 +1,6 @@
 # Changelog
 
-## vNext
+## v0.13.0 - Nov 2, 2022
 
 - Add interconnection queue to data for SPP, NYISO, ERCOT, ISONE, PJM, MISO, and CAISO
 - Add `get_generators` and `get_loads` to NYISO
