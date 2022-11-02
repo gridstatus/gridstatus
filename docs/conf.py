@@ -30,6 +30,7 @@ extensions = [
     "sphinxext.opengraph",
     "sphinx-favicon",
     "sphinx.ext.inheritance_diagram",
+    "sphinxext.opengraph",
 ]
 
 templates_path = ["_templates"]
@@ -133,3 +134,9 @@ suppress_warnings = ["mystnb.unknown_mime_type"]
 html_js_files = [
     "https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js",
 ]
+
+
+# -- Options for open graph ------------------------------------------------
+
+ogp_site_url = "https://www.gridstatus.io"
+ogp_image = "https://docs.gridstatus.io/en/latest/_static/grid-status-og.png"
