@@ -1,6 +1,11 @@
 from gridstatus.version import __version__
 
-from gridstatus.utils import list_isos, get_iso, make_availability_table
+from gridstatus.utils import (
+    list_isos,
+    get_iso,
+    make_availability_table,
+    get_interconnection_queues,
+)
 from gridstatus import tests
 import gridstatus.base
 import gridstatus.decorators
@@ -31,4 +36,5 @@ __all__ = [
     "Markets",
     "get_iso",
     "list_isos",
+    "get_interconnection_queues",
 ]

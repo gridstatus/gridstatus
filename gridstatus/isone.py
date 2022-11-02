@@ -443,8 +443,8 @@ class ISONE(ISOBase):
             .isna()
             .map(
                 {
-                    True: InterconnectionQueueStatus.WITHDRAWN,
-                    False: InterconnectionQueueStatus.ACTIVE,
+                    True: InterconnectionQueueStatus.WITHDRAWN.value,
+                    False: InterconnectionQueueStatus.ACTIVE.value,
                 },
             )
         )

@@ -266,8 +266,8 @@ class Ercot(ISOBase):
             .isna()
             .map(
                 {
-                    True: InterconnectionQueueStatus.ACTIVE,
-                    False: InterconnectionQueueStatus.COMPLETED,
+                    True: InterconnectionQueueStatus.ACTIVE.value,
+                    False: InterconnectionQueueStatus.COMPLETED.value,
                 },
             )
         )

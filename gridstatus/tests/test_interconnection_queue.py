@@ -23,6 +23,6 @@ def test_get_interconnection_queue(iso):
 
 
 # todo implement this
-# @pytest.mark.slow
-# def test_get_interconnection_queue_all():
-#     gridstatus.utils.get_interconnection_queues()
+@pytest.mark.slow
+def test_get_interconnection_queue_all():
+    gridstatus.utils.get_interconnection_queues()

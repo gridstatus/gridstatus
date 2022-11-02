@@ -219,16 +219,16 @@ class SPP(ISOBase):
 
         queue["Status"] = queue["Status"].map(
             {
-                "IA FULLY EXECUTED/COMMERCIAL OPERATION": InterconnectionQueueStatus.COMPLETED,
-                "IA FULLY EXECUTED/ON SCHEDULE": InterconnectionQueueStatus.COMPLETED,
-                "IA FULLY EXECUTED/ON SUSPENSION": InterconnectionQueueStatus.COMPLETED,
-                "IA PENDING": InterconnectionQueueStatus.ACTIVE,
-                "DISIS STAGE": InterconnectionQueueStatus.ACTIVE,
-                "None": InterconnectionQueueStatus.ACTIVE,
+                "IA FULLY EXECUTED/COMMERCIAL OPERATION": InterconnectionQueueStatus.COMPLETED.value,
+                "IA FULLY EXECUTED/ON SCHEDULE": InterconnectionQueueStatus.COMPLETED.value,
+                "IA FULLY EXECUTED/ON SUSPENSION": InterconnectionQueueStatus.COMPLETED.value,
+                "IA PENDING": InterconnectionQueueStatus.ACTIVE.value,
+                "DISIS STAGE": InterconnectionQueueStatus.ACTIVE.value,
+                "None": InterconnectionQueueStatus.ACTIVE.value,
             },
         )
 
-        queue["Generation Ty[e"] = queue[["Generation Type", "Fuel Type"]].apply(
+        queue["Generation Type"] = queue[["Generation Type", "Fuel Type"]].apply(
             lambda x: " - ".join(x.dropna()),
             axis=1,
         )
@@ -243,7 +243,7 @@ class SPP(ISOBase):
             "Capacity": "Capacity (MW)",
             "MAX Summer MW": "Summer Capacity (MW)",
             "MAX Winter MW": "Winter Capacity (MW)",
-            "Generation Ty[e": "Generation Type",
+            "Generation Type": "Generation Type",
             "Request Received": "Queue Date",
             "Substation or Line": "Interconnection Location",
         }

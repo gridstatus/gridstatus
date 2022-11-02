@@ -157,8 +157,7 @@ def format_interconnection_df(queue, rename, extra=None, missing=None):
     return queue[columns].reset_index(drop=True)
 
 
-# not working
-def _get_interconnection_queues():
+def get_interconnection_queues():
     """Get interconnection queue data for all ISOs"""
     all_queues = []
     for iso in tqdm.tqdm(all_isos):
@@ -167,6 +166,7 @@ def _get_interconnection_queues():
         queue = iso.get_interconnection_queue()[_interconnection_columns]
         queue.insert(0, "ISO", iso.name)
         all_queues.append(queue)
+        pd.concat(all_queues)
 
     all_queues = pd.concat(all_queues).reset_index(drop=True)
     return all_queues
