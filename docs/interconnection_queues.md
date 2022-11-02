@@ -35,24 +35,32 @@ spp.get_interconnection_queue()
 
 ## Ercot
 ```{code-cell}
+:tags: [skip-execution]
+
 ercot = gridstatus.Ercot()
 ercot.get_interconnection_queue()
 ```
 
 ## MISO
 ```{code-cell}
+:tags: [skip-execution]
+
 miso = gridstatus.MISO()
 miso.get_interconnection_queue()
 ```
 
 ## ISONE
 ```{code-cell}
+:tags: [skip-execution]
+
 isone = gridstatus.ISONE()
 isone.get_interconnection_queue()
 ```
 
 ## PJM
 ```{code-cell}
+:tags: [skip-execution]
+
 pjm = gridstatus.PJM()
 pjm.get_interconnection_queue()
 ```

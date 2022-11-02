@@ -1,4 +1,3 @@
-import ssl
 from enum import Enum
 
 import pandas as pd
@@ -70,7 +69,7 @@ class ISOBase:
             if verbose:
                 print("Requesting", args[0], "with", kwargs)
 
-        r = requests.get(*args, **kwargs, verify=ssl.CERT_NONE)
+        r = requests.get(*args, **kwargs)
         r = r.json()
 
         return r
