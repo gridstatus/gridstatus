@@ -69,7 +69,7 @@ class ISOBase:
             if verbose:
                 print("Requesting", args[0], "with", kwargs)
 
-        r = requests.get(*args, **kwargs)
+        r = requests.get(*args, **kwargs, verify=False)
         r = r.json()
 
         return r
