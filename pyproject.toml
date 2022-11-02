@@ -71,7 +71,8 @@ docs = [
     "sphinx-favicon",
     "sphinx-autoapi",
     "plotly",
-    "kaleido"
+    "kaleido",
+    "sphinxext-opengraph"
 ]
 
 [tool.setuptools]
