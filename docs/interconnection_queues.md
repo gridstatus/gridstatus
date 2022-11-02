@@ -26,13 +26,6 @@ caiso = gridstatus.CAISO()
 caiso.get_interconnection_queue()
 ```
 
-
-## PJM
-```{code-cell}
-pjm = gridstatus.PJM()
-pjm.get_interconnection_queue()
-```
-
 ## SPP
 ```{code-cell}
 spp = gridstatus.SPP()
@@ -56,4 +49,10 @@ ercot.get_interconnection_queue()
 ```{code-cell}
 isone = gridstatus.ISONE()
 isone.get_interconnection_queue()
+```
+
+## PJM
+```{code-cell}
+pjm = gridstatus.PJM()
+pjm.get_interconnection_queue()
 ```
