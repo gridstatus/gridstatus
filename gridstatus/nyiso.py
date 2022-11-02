@@ -3,7 +3,6 @@ from zipfile import ZipFile
 
 import pandas as pd
 import requests
-from urllib.error import HTTPError
 
 import gridstatus
 from gridstatus import utils
