@@ -139,4 +139,4 @@ html_js_files = [
 # -- Options for open graph ------------------------------------------------
 
 ogp_site_url = "https://www.gridstatus.io"
-ogp_image = "https://docs.gridstatus.io/en/latest/_static/grid-status-og.png"
+ogp_image = "https://docs.gridstatus.io/en/latest/_static/grid-status-og.jpg"
