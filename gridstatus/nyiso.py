@@ -477,7 +477,7 @@ class NYISO(ISOBase):
 
         return df
 
-    def get_capacity_prices(self, verbose=False):
+    def get_capacity_prices(self, date = pd.Timestamp.now(tz="US/Eastern"), verbose=False):
         """Pull the most recent capacity market report's market clearing prices
         
         Parameters:
@@ -487,30 +487,17 @@ class NYISO(ISOBase):
             pd.DataFrame: a dataframe of monthly capacity prices (all three auctions) for each of the four capacity localities within NYISO
         """
         
-        now = pd.Timestamp.now(tz=self.default_timezone)
-        next_month = now + pd.DateOffset(days=31) # get a date in the next month
-
         #todo: it looks like the "27447313" component of the base URL changes every year but I'm not sure what the link between that and the year is...
         capacity_market_base_url = "https://www.nyiso.com/documents/20142/27447313/ICAP-Market-Report"
         
-        def get_market_clearing_prices(timestamp):
-            url = f"{capacity_market_base_url}-{timestamp.month_name()}-{timestamp.year}.xlsx"
-            if verbose: print(url)
+        url = f"{capacity_market_base_url}-{date.month_name()}-{date.year}.xlsx"
+        if verbose: print(url)
 
-            return pd.read_excel(url,
-                                 sheet_name="MCP Table",
-                                 header=[0,1]
-                                 )
-        
-        try:
-            # the next month's monthly auction must run at least 15 days prior to the start of the month - attempt to pull that and if it doesn't exist pull the current month
-            df = get_market_clearing_prices(timestamp=next_month) 
-        except HTTPError as err:
-            if err.code == 404:
-                df = get_market_clearing_prices(timestamp=now) #this months should exist
-            else:
-                raise
-            
+        df = pd.read_excel(url,
+                           sheet_name="MCP Table",
+                           header=[0,1]
+                           )
+                    
         df.rename(columns={"Unnamed: 0_level_0":"","Date":""},
                   inplace=True)
         df.set_index("", 
