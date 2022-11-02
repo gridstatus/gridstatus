@@ -425,8 +425,11 @@ class CAISO(ISOBase):
         time.sleep(sleep)
         return df
 
-    def get_interconnection_queue(self):
+    def get_interconnection_queue(self, verbose=False):
         url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
+
+        if verbose:
+            print("Downloading interconnection queue from {}".format(url))
 
         sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
 

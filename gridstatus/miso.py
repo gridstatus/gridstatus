@@ -190,8 +190,16 @@ class MISO(ISOBase):
 
         return data
 
-    def get_interconnection_queue(self):
+    def get_interconnection_queue(self, verbose=False):
+        """Get the interconnection queue
+
+        Returns:
+            pd.DataFrame -- Interconnection queue
+        """
         url = "https://www.misoenergy.org/api/giqueue/getprojects"
+
+        if verbose:
+            print("Downloading interconnection queue from {}".format(url))
 
         json_str = requests.get(url).text
         data = json.loads(json_str)

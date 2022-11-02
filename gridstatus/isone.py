@@ -499,7 +499,7 @@ class ISONE(ISOBase):
             missing=missing,
         )
 
-        queue = queue.sort_values("Queue ID")
+        queue = queue.sort_values("Queue ID").reset_index(drop=True)
 
         return queue
 

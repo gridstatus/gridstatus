@@ -154,16 +154,18 @@ def format_interconnection_df(queue, rename, extra=None, missing=None):
             assert m not in queue.columns, "Missing column already exists"
             queue[m] = None
 
-    return queue[columns]
+    return queue[columns].reset_index(drop=True)
 
 
-def get_interconnection_queue():
+# not working
+def _get_interconnection_queues():
     """Get interconnection queue data for all ISOs"""
     all_queues = []
-    for iso in all_isos:
+    for iso in tqdm.tqdm(all_isos):
         iso = iso()
-        queue = iso.get_interconnection_queue()
-        queue["ISO"] = iso.name
+        # only shared columns
+        queue = iso.get_interconnection_queue()[_interconnection_columns]
+        queue.insert(0, "ISO", iso.name)
         all_queues.append(queue)
 
     all_queues = pd.concat(all_queues).reset_index(drop=True)
