@@ -644,7 +644,7 @@ class NYISO(ISOBase):
             pd.DataFrame: a dataframe of monthly capacity prices (all three auctions) for each of the four capacity localities within NYISO
         """
         if date is None:
-            date = pd.Timestamp.now(tz="US/Eastern")
+            date = pd.Timestamp.now(tz=self.default_timezone)
         else:
             date = pd.Timestamp(date)
 
