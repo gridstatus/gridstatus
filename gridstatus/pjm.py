@@ -1,7 +1,9 @@
+import io
 import math
 import warnings
 
 import pandas as pd
+import requests
 import tqdm
 
 import gridstatus
@@ -20,6 +22,10 @@ class PJM(ISOBase):
     name = "PJM"
     iso_id = "pjm"
     default_timezone = "US/Eastern"
+
+    interconnection_queue_homepage = (
+        "https://www.pjm.com/planning/services-requests/interconnection-queues.aspx"
+    )
 
     location_types = [
         "ZONE",
@@ -430,6 +436,72 @@ class PJM(ISOBase):
 
         return df
 
+    def get_interconnection_queue(self):
+        r = requests.post(
+            "https://services.pjm.com/PJMPlanningApi/api/Queue/ExportToXls",
+            headers={
+                # unclear if this key changes. obtained from https://www.pjm.com/dist/interconnectionqueues.71b76ed30033b3ff06bd.js
+                "api-subscription-key": "E29477D0-70E0-4825-89B0-43F460BF9AB4",
+                "Host": "services.pjm.com",
+                "Origin": "https://www.pjm.com",
+                "Referer": "https://www.pjm.com/",
+            },
+        )
+        queue = pd.read_excel(io.BytesIO(r.content))
+
+        queue["Capacity (MW)"] = queue[["MFO", "MW In Service"]].min(axis=1)
+
+        rename = {
+            "Queue Number": "Queue ID",
+            "Name": "Project Name",
+            "County": "County",
+            "State": "State",
+            "Transmission Owner": "Transmission Owner",
+            "Queue Date": "Queue Date",
+            "Withdrawal Date": "Withdrawn Date",
+            "Withdrawn Remarks": "Withdrawal Comment",
+            "Status": "Status",
+            "Revised In Service Date": "Proposed Completion Date",
+            "Actual In Service Date": "Actual Completion Date",
+            "Fuel": "Generation Type",
+            "MW Capacity": "Summer Capacity (MW)",
+            "MW Energy": "Winter Capacity (MW)",
+        }
+
+        extra = [
+            "MW In Service",
+            "Commercial Name",
+            "Initial Study",
+            "Feasibility Study",
+            "Feasibility Study Status",
+            "System Impact Study",
+            "System Impact Study Status",
+            "Facilities Study",
+            "Facilities Study Status",
+            "Interim Interconnection Service Agreement",
+            "Interim/Interconnection Service Agreement Status",
+            "Wholesale Market Participation Agreement",
+            "Construction Service Agreement",
+            "Construction Service Agreement Status",
+            "Upgrade Construction Service Agreement",
+            "Upgrade Construction Service Agreement Status",
+            "Backfeed Date",
+            "Long-Term Firm Service Start Date",
+            "Long-Term Firm Service End Date",
+            "Test Energy Date",
+        ]
+
+        missing = ["Interconnecting Entity", "Interconnection Location"]
+
+        queue = utils.format_interconnection_df(
+            queue,
+            rename,
+            extra=extra,
+            missing=missing,
+        )
+
+        return queue
+
     def _get_key(self):
         settings = self._get_json(
             "https://dataminer2.pjm.com/config/settings.json",
@@ -453,7 +525,12 @@ if __name__ == "__main__":
 
     import gridstatus
 
-    iso = gridstatus.PJM()
+    for i in gridstatus.all_isos:
+        print("\n" + i.name + "\n")
+        for c in i().get_interconnection_queue().columns:
+            print(c.replace("\n", " "))
 
-    # df = iso.get_historical_fuel_mix(start="1/1/2016", end="10/16/2022")
-    df = iso.get_historical_fuel_mix(start="11/6/2016")
+        i().get_interconnection_queue().to_csv(
+            f"debug/queue/{i.iso_id}-queue.csv",
+            index=None,
+        )

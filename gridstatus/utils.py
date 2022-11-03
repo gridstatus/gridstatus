@@ -6,7 +6,7 @@ import requests
 import tqdm
 
 import gridstatus
-from gridstatus.base import ISOBase, Markets, NotSupported
+from gridstatus.base import ISOBase, Markets, NotSupported, _interconnection_columns
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
 from gridstatus.isone import ISONE
@@ -136,3 +136,37 @@ def get_zip_file(url):
 
 def is_today(date, tz=None):
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
+
+
+def format_interconnection_df(queue, rename, extra=None, missing=None):
+    """Format interconnection queue data"""
+    assert set(rename.keys()).issubset(queue.columns), set(
+        rename.keys(),
+    ) - set(queue.columns)
+    queue = queue.rename(columns=rename)
+    columns = _interconnection_columns.copy()
+
+    if extra:
+        columns += extra
+
+    if missing:
+        for m in missing:
+            assert m not in queue.columns, "Missing column already exists"
+            queue[m] = None
+
+    return queue[columns].reset_index(drop=True)
+
+
+def get_interconnection_queues():
+    """Get interconnection queue data for all ISOs"""
+    all_queues = []
+    for iso in tqdm.tqdm(all_isos):
+        iso = iso()
+        # only shared columns
+        queue = iso.get_interconnection_queue()[_interconnection_columns]
+        queue.insert(0, "ISO", iso.name)
+        all_queues.append(queue)
+        pd.concat(all_queues)
+
+    all_queues = pd.concat(all_queues).reset_index(drop=True)
+    return all_queues

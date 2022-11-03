@@ -134,3 +134,36 @@ def test_location_type_parameter():
             market=Markets.DAY_AHEAD_HOURLY,
             location_type="dummy",
         )
+
+
+def test_nyiso_get_generators():
+    iso = gridstatus.NYISO()
+    df = iso.get_generators()
+    columns = [
+        "Generator Name",
+        "PTID",
+        "Subzone",
+        "Zone",
+        "Latitude",
+        "Longitude",
+    ]
+    assert set(df.columns).issuperset(set(columns))
+    assert df.shape[0] >= 0
+
+
+def test_nyiso_get_loads():
+    iso = gridstatus.NYISO()
+    df = iso.get_loads()
+    columns = [
+        "Load Name",
+        "PTID",
+        "Subzone",
+        "Zone",
+    ]
+    assert set(df.columns) == set(columns)
+    assert df.shape[0] >= 0
+
+
+def test_nyiso_interconnection_queue():
+    iso = gridstatus.NYISO()
+    df = iso.get_interconnection_queue()

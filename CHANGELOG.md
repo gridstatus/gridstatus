@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.13.0 - Nov 2, 2022
+
+- Add interconnection queue to data for SPP, NYISO, ERCOT, ISONE, PJM, MISO, and CAISO
+- Add `get_generators` and `get_loads` to NYISO
+
 ## v0.12.0 - Oct 28, 2022
 
 - Can now use `"today"` are value for `end` when querying date range

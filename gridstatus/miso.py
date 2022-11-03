@@ -1,4 +1,7 @@
+import json
+
 import pandas as pd
+import requests
 from pandas import Timestamp
 
 from gridstatus import utils
@@ -9,6 +12,10 @@ class MISO(ISOBase):
     """Midcontinent Independent System Operator (MISO)"""
 
     BASE = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx"
+
+    interconnection_homepage = (
+        "https://www.misoenergy.org/planning/generator-interconnection/GI_Queue/"
+    )
 
     name = "Midcontinent ISO"
     iso_id = "miso"
@@ -182,6 +189,87 @@ class MISO(ISOBase):
         data = utils.filter_lmp_locations(data, locations)
 
         return data
+
+    def get_interconnection_queue(self, verbose=False):
+        """Get the interconnection queue
+
+        Returns:
+            pd.DataFrame -- Interconnection queue
+        """
+        url = "https://www.misoenergy.org/api/giqueue/getprojects"
+
+        if verbose:
+            print("Downloading interconnection queue from {}".format(url))
+
+        json_str = requests.get(url).text
+        data = json.loads(json_str)
+        # todo there are also study documents available:  https://www.misoenergy.org/planning/generator-interconnection/GI_Queue/gi-interactive-queue/
+        # there is also a map that plots the locations of these projects:
+        queue = pd.DataFrame(data)
+
+        queue = queue.rename(
+            columns={
+                "postGIAStatus": "Post Generator Interconnection Agreement Status",
+                "doneDate": "Interconnection Approval Date",
+            },
+        )
+
+        queue["Capacity (MW)"] = queue[
+            [
+                "summerNetMW",
+                "winterNetMW",
+            ]
+        ].max(axis=1)
+
+        rename = {
+            "projectNumber": "Queue ID",
+            "county": "County",
+            "state": "State",
+            "transmissionOwner": "Transmission Owner",
+            "poiName": "Interconnection Location",
+            "queueDate": "Queue Date",
+            "withdrawnDate": "Withdrawn Date",
+            "applicationStatus": "Status",
+            "Capacity (MW)": "Capacity (MW)",
+            "summerNetMW": "Summer Capacity (MW)",
+            "winterNetMW": "Winter Capacity (MW)",
+            "negInService": "Proposed Completion Date",
+            "fuelType": "Generation Type",
+        }
+
+        extra_columns = [
+            "facilityType",
+            "Post Generator Interconnection Agreement Status",
+            "Interconnection Approval Date",
+            "inService",
+            "giaToExec",
+            "studyCycle",
+            "studyGroup",
+            "studyPhase",
+            "svcType",
+            "dp1ErisMw",
+            "dp1NrisMw",
+            "dp2ErisMw",
+            "dp2NrisMw",
+            "sisPhase1",
+        ]
+
+        missing = [
+            # todo the actual complettion date can be calculated by looking at status and other date columns
+            "Actual Completion Date",
+            "Withdrawal Comment",
+            "Project Name",
+            "Interconnecting Entity",
+        ]
+
+        queue = utils.format_interconnection_df(
+            queue=queue,
+            rename=rename,
+            extra=extra_columns,
+            missing=missing,
+        )
+
+        return queue
 
 
 """

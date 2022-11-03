@@ -26,7 +26,8 @@ dependencies = [
     "pandas >= 1.3.0",
     "beautifulsoup4 >= 4.8.13",
     "tabulate >= 0.8.10",
-    "tqdm >= 4.64.1"
+    "tqdm >= 4.64.1",
+    "openpyxl >= 3.0.10"
 ]
 
 [project.urls]
@@ -61,7 +62,8 @@ docs = [
     "sphinx-favicon",
     "sphinx-autoapi",
     "plotly",
-    "kaleido"
+    "kaleido",
+    "sphinxext-opengraph"
 ]
 
 [tool.setuptools]

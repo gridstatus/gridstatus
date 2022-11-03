@@ -24,6 +24,7 @@ class CAISO(ISOBase):
     default_timezone = "US/Pacific"
 
     status_homepage = "https://www.caiso.com/TodaysOutlook/Pages/default.aspx"
+    interconnection_homepage = "https://rimspub.caiso.com/rimsui/logon.do"
 
     # Markets PRC_RTPD_LMP, PRC_HASP_LMP, PRC_LMP
     markets = [
@@ -424,6 +425,99 @@ class CAISO(ISOBase):
         time.sleep(sleep)
         return df
 
+    def get_interconnection_queue(self, verbose=False):
+        url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
+
+        if verbose:
+            print("Downloading interconnection queue from {}".format(url))
+
+        sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
+
+        # remove legend at the bottom
+        queued_projects = sheets["Grid GenerationQueue"][:-8]
+        completed_projects = sheets["Completed Generation Projects"][:-2]
+        withdrawn_projects = sheets["Withdrawn Generation Projects"][:-2].rename(
+            columns={"Project Name - Confidential": "Project Name"},
+        )
+
+        queue = pd.concat(
+            [queued_projects, completed_projects, withdrawn_projects],
+        )
+
+        queue = queue.rename(
+            columns={
+                "Interconnection Request\nReceive Date": "Interconnection Request Receive Date",
+                "Actual\nOn-line Date": "Actual On-line Date",
+                "Current\nOn-line Date": "Current On-line Date",
+                "Interconnection Agreement \nStatus": "Interconnection Agreement Status",
+                "Study\nProcess": "Study Process",
+                "Proposed\nOn-line Date\n(as filed with IR)": "Proposed On-line Date (as filed with IR)",
+                "System Impact Study or \nPhase I Cluster Study": "System Impact Study or Phase I Cluster Study",
+                "Facilities Study (FAS) or \nPhase II Cluster Study": "Facilities Study (FAS) or Phase II Cluster Study",
+                "Optional Study\n(OS)": "Optional Study (OS)",
+            },
+        )
+
+        type_columns = ["Type-1", "Type-2", "Type-3"]
+        queue["Generation Type"] = queue[type_columns].apply(
+            lambda x: " + ".join(x.dropna()),
+            axis=1,
+        )
+
+        rename = {
+            "Queue Position": "Queue ID",
+            "Project Name": "Project Name",
+            "Generation Type": "Generation Type",
+            "Queue Date": "Queue Date",
+            "County": "County",
+            "State": "State",
+            "Application Status": "Status",
+            "Current On-line Date": "Proposed Completion Date",
+            "Actual On-line Date": "Actual Completion Date",
+            "Reason for Withdrawal": "Withdrawal Comment",
+            "Withdrawn Date": "Withdrawn Date",
+            "Utility": "Transmission Owner",
+            "Station or Transmission Line": "Interconnection Location",
+            "Net MWs to Grid": "Capacity (MW)",
+        }
+
+        extra_columns = [
+            "Type-1",
+            "Type-2",
+            "Type-3",
+            "Fuel-1",
+            "Fuel-2",
+            "Fuel-3",
+            "MW-1",
+            "MW-2",
+            "MW-3",
+            "Interconnection Request Receive Date",
+            "Interconnection Agreement Status",
+            "Study Process",
+            "Proposed On-line Date (as filed with IR)",
+            "System Impact Study or Phase I Cluster Study",
+            "Facilities Study (FAS) or Phase II Cluster Study",
+            "Optional Study (OS)",
+            "Full Capacity, Partial or Energy Only (FC/P/EO)",
+            "Off-Peak Deliverability and Economic Only",
+            "Feasibility Study or Supplemental Review",
+        ]
+
+        missing = [
+            "Interconnecting Entity",
+            "Summer Capacity (MW)",
+            "Winter Capacity (MW)",
+        ]
+
+        queue = utils.format_interconnection_df(
+            queue=queue,
+            rename=rename,
+            extra=extra_columns,
+            missing=missing,
+        )
+
+        return queue
+
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
@@ -508,4 +602,4 @@ if __name__ == "__main__":
 
     print("asd")
     iso = gridstatus.CAISO()
-    iso.get_load(start="1/1/2018", end="1/1/2019", verbose=True)
+    iso.get_interconnection_queue()

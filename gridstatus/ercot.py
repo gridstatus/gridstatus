@@ -1,7 +1,16 @@
+import pdb
+import queue
+
 import pandas as pd
 
 from gridstatus import utils
-from gridstatus.base import FuelMix, GridStatus, ISOBase, NotSupported
+from gridstatus.base import (
+    FuelMix,
+    GridStatus,
+    InterconnectionQueueStatus,
+    ISOBase,
+    NotSupported,
+)
 
 
 class Ercot(ISOBase):
@@ -12,6 +21,9 @@ class Ercot(ISOBase):
     default_timezone = "US/Central"
 
     status_homepage = "https://www.ercot.com/gridmktinfo/dashboards/gridconditions"
+    interconnection_homepage = (
+        "http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933"
+    )
 
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
 
@@ -49,7 +61,10 @@ class Ercot(ISOBase):
             df = self.get_fuel_mix("today")
             currentHour = df.iloc[-1]
 
-            mix_dict = {"Wind": currentHour["Wind"], "Solar": currentHour["Solar"]}
+            mix_dict = {
+                "Wind": currentHour["Wind"],
+                "Solar": currentHour["Solar"],
+            }
 
             return FuelMix(time=currentHour["Time"], mix=mix_dict, iso=self.name)
 
@@ -119,7 +134,7 @@ class Ercot(ISOBase):
                 + data["hourEnding"].astype(str).str.zfill(2)
                 + ":"
                 + data["interval"].astype(str).str.zfill(2),
-            ).dt.tz_localize(self.default_timezone)
+            ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
             data = data[data["forecast"] == 0]  # only keep non forecast rows
 
@@ -153,7 +168,7 @@ class Ercot(ISOBase):
             .astype(str)
             .str.zfill(2)
             + ":00",
-        ).dt.tz_localize(self.default_timezone)
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
         doc["Forecast Time"] = publish_date
@@ -180,6 +195,141 @@ class Ercot(ISOBase):
         all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
         return df
+
+    def get_interconnection_queue(self, verbose=False):
+        """Get interconnection queue for ERCOT
+
+        Monthly historical data available here: http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
+        """
+
+        report_type_id = 15933
+        doc_url, date = self._get_document(
+            report_type_id=report_type_id,
+            constructed_name_contains="GIS_Report",
+        )
+
+        # TODO other sheets for small projects, inactive, and cancelled project
+        # TODO see if this data matches up with summaries in excel file
+        # TODO historical data available as well
+
+        if verbose:
+            print("Downloading interconnection queue from: ", doc_url)
+
+        # skip rows and handle header
+        queue = pd.read_excel(
+            doc_url,
+            sheet_name="Project Details - Large Gen",
+            skiprows=30,
+        ).iloc[4:]
+
+        queue["State"] = "Texas"
+        queue["Queue Date"] = queue["Screening Study Started"]
+
+        fuel_type_map = {
+            "BIO": "Biomass",
+            "COA": "Coal",
+            "GAS": "Gas",
+            "GEO": "Geothermal",
+            "HYD": "Hydrogen",
+            "NUC": "Nuclear",
+            "OIL": "Fuel Oil",
+            "OTH": "Other",
+            "PET": "Petcoke",
+            "SOL": "Solar",
+            "WAT": "Water",
+            "WIN": "Wind",
+        }
+
+        technology_type_map = {
+            "BA": "Battery Energy Storage",
+            "CC": "Combined-Cycle",
+            "CE": "Compressed Air Energy Storage",
+            "CP": "Concentrated Solar Power",
+            "EN": "Energy Storage",
+            "FC": "Fuel Cell",
+            "GT": "Combustion (gas) Turbine, but not part of a Combined-Cycle",
+            "HY": "Hydroelectric Turbine",
+            "IC": "Internal Combustion Engine, eg. Reciprocating",
+            "OT": "Other",
+            "PV": "Photovoltaic Solar",
+            "ST": "Steam Turbine other than Combined-Cycle",
+            "WT": "Wind Turbine",
+        }
+
+        queue["Fuel"] = queue["Fuel"].map(fuel_type_map)
+        queue["Technology"] = queue["Technology"].map(technology_type_map)
+
+        queue["Generation Type"] = queue["Fuel"] + " - " + queue["Technology"]
+
+        queue["Status"] = (
+            queue["IA Signed"]
+            .isna()
+            .map(
+                {
+                    True: InterconnectionQueueStatus.ACTIVE.value,
+                    False: InterconnectionQueueStatus.COMPLETED.value,
+                },
+            )
+        )
+
+        queue["Actual Completion Date"] = queue["Approved for Synchronization"]
+
+        rename = {
+            "INR": "Queue ID",
+            "Project Name": "Project Name",
+            "Interconnecting Entity": "Interconnecting Entity",
+            "Projected COD": "Proposed Completion Date",
+            "POI Location": "Interconnection Location",
+            "County": "County",
+            "State": "State",
+            "Capacity (MW)": "Capacity (MW)",
+            "Queue Date": "Queue Date",
+            "Generation Type": "Generation Type",
+            "Actual Completion Date": "Actual Completion Date",
+            "Status": "Status",
+        }
+
+        # todo: there are a few columns being parsed as "unamed" that aren't being included but should
+        extra_columns = [
+            "Fuel",
+            "Technology",
+            "GIM Study Phase",
+            "Screening Study Started",
+            "Screening Study Complete",
+            "FIS Requested",
+            "FIS Approved",
+            "Economic Study Required",
+            "IA Signed",
+            "Air Permit",
+            "GHG Permit",
+            "Water Availability",
+            "Meets Planning",
+            "Meets All Planning",
+            "CDR Reporting Zone",
+            # "Construction Start", # all null
+            # "Construction End", # all null
+            "Approved for Energization",
+            "Approved for Synchronization",
+            "Comment",
+        ]
+
+        missing = [
+            # todo the actual complettion date can be calculated by looking at status and other date columns
+            "Withdrawal Comment",
+            "Transmission Owner",
+            "Summer Capacity (MW)",
+            "Winter Capacity (MW)",
+            "Withdrawn Date",
+        ]
+
+        queue = utils.format_interconnection_df(
+            queue=queue,
+            rename=rename,
+            extra=extra_columns,
+            missing=missing,
+        )
+
+        return queue
 
     def _get_document(
         self,
