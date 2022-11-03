@@ -346,8 +346,13 @@ class CAISO(ISOBase):
 
         Arguments:
             date: date to return data
+
             end: last date of range to return data. if None, returns only date. Defaults to None.
+
             fuel_region_id(str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
+
+        Returns:
+            dataframe of gas prices
         """
 
         start, end = _caiso_handle_start_end(date, end)
