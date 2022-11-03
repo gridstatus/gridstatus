@@ -6,7 +6,14 @@ import requests
 
 import gridstatus
 from gridstatus import utils
-from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets
+from gridstatus.base import (
+    FuelMix,
+    GridStatus,
+    InterconnectionQueueStatus,
+    ISOBase,
+    Markets,
+    _interconnection_columns,
+)
 from gridstatus.decorators import support_date_range
 
 ZONE = "zone"
@@ -22,6 +29,7 @@ class NYISO(ISOBase):
     default_timezone = "US/Eastern"
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
     status_homepage = "https://www.nyiso.com/system-conditions"
+    interconnection_homepage = "https://www.nyiso.com/interconnections"
 
     @support_date_range(frequency="MS")
     def get_status(self, date, end=None, verbose=False):
@@ -214,6 +222,155 @@ class NYISO(ISOBase):
         df = utils.filter_lmp_locations(df, locations)
 
         return df
+
+    def get_interconnection_queue(self, verbose=False):
+        """Return NYISO interconnection queue
+
+        Additional Non-NYISO queue info: https://www3.dps.ny.gov/W/PSCWeb.nsf/All/286D2C179E9A5A8385257FBF003F1F7E?OpenDocument
+
+        Returns:
+            pd.DataFrame: Interconnection queue containing, active, withdrawn, and completed project
+
+        """
+
+        # 3 sheets - ['Interconnection Queue', 'Withdrawn', 'In Service']
+        # harded coded for now. perhaps this url can be parsed from the html here:
+        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"
+
+        if verbose:
+            print("Downloading interconnection queue from {}".format(url))
+
+        all_sheets = pd.read_excel(
+            url,
+            sheet_name=["Interconnection Queue", "Withdrawn"],
+        )
+
+        # Drop extra rows at bottom
+        active = (
+            all_sheets["Interconnection Queue"]
+            .dropna(
+                subset=["Queue Pos.", "Project Name"],
+            )
+            .copy()
+        )
+
+        active["Status"] = InterconnectionQueueStatus.ACTIVE.value
+
+        withdrawn = all_sheets["Withdrawn"]
+        withdrawn["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
+        # assume it was withdrawn when last updated
+        withdrawn["Withdrawn Date"] = withdrawn["Last Update"]
+        withdrawn["Withdrawal Comment"] = None
+
+        # make completed look like the other two sheets
+        completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1])
+        completed.insert(17, "Proposed Initial-Sync", None)
+        completed["Status"] = InterconnectionQueueStatus.COMPLETED.value
+        completed.columns = active.columns
+
+        # the spreadsheet doesnt have a date, so make it null
+        completed["Proposed  In-Service"] = None
+        completed["Proposed COD"] = None
+        # assume it was finished when last updated
+        completed["Actual Completion Date"] = completed["Last Update"]
+
+        queue = pd.concat([active, withdrawn, completed])
+
+        # fix extra space in column name
+        queue = queue.rename(columns={"Utility ": "Utility"})
+
+        queue["Type/ Fuel"] = queue["Type/ Fuel"].map(
+            {
+                "S": "Solar",
+                "ES": "Energy Storage",
+                "W": "Wind",
+                "AC": "AC Transmission",
+                "DC": "DC Transmission",
+                "CT": "Combustion Turbine",
+                "CC": "Combined Cycle",
+                "M": "Methane",
+                #    "CR": "",
+                "H": "Hydro",
+                "L": "Load",
+                "ST": "Steam Turbine",
+                "CC-NG": "Natural Gas",
+                "FC": "Fuel Cell",
+                "PS": "Pumped Storage",
+                "NU": "Nuclear",
+                "D": "Dual Fuel",
+                #    "C": "",
+                "NG": "Natural Gas",
+                "Wo": "Wood",
+                "F": "Flywheel",
+                #    "CW": "",
+                "CC-D": "Combined Cycle - Dual Fuel",
+                "SW": "=Solid Waste",
+                #    "CR=CSR - ES + Solar": "",
+                "CT-NG": "Combustion Turbine - Natural Gas",
+                "DC/AC": "DC/AC Transmission",
+                "CT-D": "Combustion Turbine - Dual Fuel",
+                "CS-NG": "Steam Turbine & Combustion Turbine-  Natural Gas",
+                "ST-NG": "Steam Turbine - Natural Gas",
+            },
+        )
+
+        queue["Capacity (MW)"] = (
+            queue[["SP (MW)", "WP (MW)"]]
+            .replace(
+                "TBD",
+                0,
+            )
+            .astype(float)
+            .max(axis=1)
+        )
+
+        queue["Date of IR"] = pd.to_datetime(active["Date of IR"])
+        queue["Proposed COD"] = pd.to_datetime(
+            active["Proposed COD"],
+            errors="coerce",
+        )
+        queue["Proposed  In-Service"] = pd.to_datetime(
+            active["Proposed  In-Service"],
+            errors="coerce",
+        )
+        queue["Proposed Initial-Sync"] = pd.to_datetime(
+            active["Proposed Initial-Sync"],
+            errors="coerce",
+        )
+
+        # TODO handle other 2 sheets
+        # TODO they publish past queues, but not sure what data is in them that is relevant
+
+        rename = {
+            "Queue Pos.": "Queue ID",
+            "Project Name": "Project Name",
+            "County": "County",
+            "State": "State",
+            "Owner/Developer": "Interconnecting Entity",
+            "Utility": "Transmission Owner",
+            "Interconnection Point": "Interconnection Location",
+            "Status": "Status",
+            "Date of IR": "Queue Date",
+            "Proposed COD": "Proposed Completion Date",
+            "Type/ Fuel": "Generation Type",
+            "Capacity (MW)": "Capacity (MW)",
+            "SP (MW)": "Summer Capacity (MW)",
+            "WP (MW)": "Winter Capacity (MW)",
+        }
+
+        extra_columns = [
+            "Proposed  In-Service",
+            "Proposed Initial-Sync",
+            "Last Update",
+            "Z",
+            "S",
+            "Availability of Studies",
+            "FS Complete/ SGIA Tender",
+        ]
+
+        queue = utils.format_interconnection_df(queue, rename, extra_columns)
+
+        return queue
 
     def get_generators(self, verbose=False):
         """Get a list of generators in NYISO

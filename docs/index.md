@@ -1,5 +1,5 @@
 ---
-title: ISODATA
+title: Grid Status
 file_format: mystnb
 mystnb:
   execution_timeout: 600
@@ -7,7 +7,9 @@ kernelspec:
   name: python3
 ---
 
-# gridstatus Homepage
+
+# What is Grid Status?
+
 
 <p align="center">
 <img width=75% src="https://github.com/kmax12/isodata/raw/c77f933e30bc24a33ef36496d5250da4605b214f/gridstatus-header.png" alt="gridstatus logo" />
@@ -21,8 +23,6 @@ kernelspec:
         <img src="https://badge.fury.io/py/gridstatus.svg?maxAge=2592000" alt="PyPI Version" />
     </a>
 </p>
-
-## What is gridstatus?
 
 `gridstatus` is a standardized Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
 
@@ -108,6 +108,7 @@ The best part is these APIs work in the same way across all the supported ISOs!
 installation
 availability
 lmp
+interconnection_queues
 Examples/index
 
 ```

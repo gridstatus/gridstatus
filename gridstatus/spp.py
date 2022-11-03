@@ -3,7 +3,13 @@ import requests
 from bs4 import BeautifulSoup
 
 from gridstatus import utils
-from gridstatus.base import FuelMix, GridStatus, ISOBase, NotSupported
+from gridstatus.base import (
+    FuelMix,
+    GridStatus,
+    InterconnectionQueueStatus,
+    ISOBase,
+    NotSupported,
+)
 
 
 class SPP(ISOBase):
@@ -15,6 +21,9 @@ class SPP(ISOBase):
     default_timezone = "US/Central"
 
     status_homepage = "https://www.spp.org/markets-operations/current-grid-conditions/"
+    interconnection_homepage = (
+        "https://www.spp.org/engineering/generator-interconnection/"
+    )
 
     def get_status(self, date=None, verbose=False):
         if date != "latest":
@@ -191,6 +200,81 @@ class SPP(ISOBase):
         # https://marketplace.spp.org/pages/generation-mix-rolling-365
         # https://marketplace.spp.org/chart-api/gen-mix-365/asFile
         # 15mb file with five minute resolution
+
+    def get_interconnection_queue(self, verbose=False):
+        """Get interconnection queue
+
+        Returns:
+            pd.DataFrame: Interconnection queue
+
+
+        """
+        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
+        if verbose:
+            print("Getting interconnection queue from {}".format(url))
+
+        queue = pd.read_csv(url, skiprows=1)
+
+        queue["Status (Original)"] = queue["Status"]
+
+        queue["Status"] = queue["Status"].map(
+            {
+                "IA FULLY EXECUTED/COMMERCIAL OPERATION": InterconnectionQueueStatus.COMPLETED.value,
+                "IA FULLY EXECUTED/ON SCHEDULE": InterconnectionQueueStatus.COMPLETED.value,
+                "IA FULLY EXECUTED/ON SUSPENSION": InterconnectionQueueStatus.COMPLETED.value,
+                "IA PENDING": InterconnectionQueueStatus.ACTIVE.value,
+                "DISIS STAGE": InterconnectionQueueStatus.ACTIVE.value,
+                "None": InterconnectionQueueStatus.ACTIVE.value,
+            },
+        )
+
+        queue["Generation Type"] = queue[["Generation Type", "Fuel Type"]].apply(
+            lambda x: " - ".join(x.dropna()),
+            axis=1,
+        )
+
+        queue["Proposed Completion Date"] = queue["Commercial Operation Date"]
+
+        rename = {
+            "Generation Interconnection Number": "Queue ID",
+            " Nearest Town or County": "County",
+            "State": "State",
+            "TO at POI": "Transmission Owner",
+            "Capacity": "Capacity (MW)",
+            "MAX Summer MW": "Summer Capacity (MW)",
+            "MAX Winter MW": "Winter Capacity (MW)",
+            "Generation Type": "Generation Type",
+            "Request Received": "Queue Date",
+            "Substation or Line": "Interconnection Location",
+        }
+
+        # todo: there are a few columns being parsed as "unamed" that aren't being included but should
+        extra_columns = [
+            "In-Service Date",
+            "Commercial Operation Date",
+            "Cessation Date",
+            "Current Cluster",
+            "Cluster Group",
+            "Replacement Generator Commercial Op Date",
+            "Service Type",
+        ]
+
+        missing = [
+            "Project Name",
+            "Interconnecting Entity",
+            "Withdrawn Date",
+            "Withdrawal Comment",
+            "Actual Completion Date",
+        ]
+
+        queue = utils.format_interconnection_df(
+            queue=queue,
+            rename=rename,
+            extra=extra_columns,
+            missing=missing,
+        )
+
+        return queue
 
 
 # historical generation mix
