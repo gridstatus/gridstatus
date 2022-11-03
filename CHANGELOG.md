@@ -1,5 +1,9 @@
 # Changelog
 
+## vNext
+
+- Add `get_capacity_prices` to NYISO
+
 ## v0.13.0 - Nov 2, 2022
 
 - Add interconnection queue to data for SPP, NYISO, ERCOT, ISONE, PJM, MISO, and CAISO

@@ -6,6 +6,7 @@ We'd love to answer any usage or data access questions! Please let us know if yo
 
 Downloading CAISO Data.ipynb
 Fuel Mix Over Time - NYISO.ipynb
+Capacity Prices - NYISO.ipynb
 Interconnection Queues.ipynb
 PJM LMP Data.ipynb
 ```
