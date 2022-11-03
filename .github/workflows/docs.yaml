@@ -24,8 +24,8 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
       - name: Build gridstatus package
         run: make package
-      - name: Install gridstatus 
+      - name: Install gridstatus
         run: |
           python -m pip install "unpacked/[docs]"
       - name: Build docs
-        run: make -C docs/ -e "SPHINXOPTS=-W" clean html
+        run: make -C docs/ -e "SPHINXOPTS=-W -j auto" clean html
