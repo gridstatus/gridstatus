@@ -67,7 +67,12 @@ def _lmp_tests(iso, m):
     assert isinstance(hist, pd.DataFrame)
     check_lmp_columns(hist, m)
     # has every hour in the range
-    assert hist["Time"].drop_duplicates().shape[0] / 24 == (end - start).days
+
+    # check that every day has 24, 24, or 25 hrs
+    unique_hours_per_day = (
+        hist["Time"].drop_duplicates().dt.strftime("%Y-%m-%d").value_counts().unique()
+    )
+    assert set(unique_hours_per_day).issubset([25, 24, 23])
 
     # test span archive date
     archive_date = _get_pjm_archive_date(m)
@@ -82,7 +87,12 @@ def _lmp_tests(iso, m):
     assert isinstance(hist, pd.DataFrame)
     check_lmp_columns(hist, m)
     # 2 days worth of data for each location
-    assert (hist.groupby("Location")["Time"].count() == 48).all()
+    assert (
+        hist.groupby("Location")["Time"].agg(
+            lambda x: x.dt.day.nunique(),
+        )
+        == 2
+    ).all()
 
     # span calendar year
     hist = iso.get_lmp(
