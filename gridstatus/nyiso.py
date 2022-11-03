@@ -646,7 +646,7 @@ class NYISO(ISOBase):
         if date is None:
             date = pd.Timestamp.now(tz=self.default_timezone)
         else:
-            date = pd.Timestamp(date)
+            date = utils._handle_date(date, tz=self.default_timezone)
 
         # todo: it looks like the "27447313" component of the base URL changes every year but I'm not sure what the link between that and the year is...
         capacity_market_base_url = (
