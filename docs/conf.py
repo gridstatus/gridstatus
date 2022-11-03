@@ -115,8 +115,9 @@ source_suffix = {
 }
 nb_execution_mode = "cache"
 
-
+autoapi_type = "python"
 autoapi_dirs = ["../gridstatus"]
+autoapi_root = "autoapi"
 autoapi_add_toctree_entry = False
 autoapi_template_dir = "_auto_api_templates"
 autoapi_python_class_content = "both"
