@@ -476,17 +476,20 @@ class NYISO(ISOBase):
 
         return df
 
-    def get_capacity_prices(
-        self, date=pd.Timestamp.now(tz="US/Eastern"), verbose=False
-    ):
+    def get_capacity_prices(self, date=None, verbose=False):
         """Pull the most recent capacity market report's market clearing prices
 
         Parameters:
+            date (pd.Timestamp): date that will be used to pull latest capacity report (will refer to month and year)
             verbose (bool): print out requested url
 
         Returns:
             pd.DataFrame: a dataframe of monthly capacity prices (all three auctions) for each of the four capacity localities within NYISO
         """
+        if date is None:
+            date = pd.Timestamp.now(tz="US/Eastern")
+        else:
+            date = pd.Timestamp(date)
 
         # todo: it looks like the "27447313" component of the base URL changes every year but I'm not sure what the link between that and the year is...
         capacity_market_base_url = (
