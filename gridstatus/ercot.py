@@ -55,7 +55,17 @@ class Ercot(ISOBase):
             notes=notes,
         )
 
-    def get_fuel_mix(self, date):
+    def get_fuel_mix(self, date, verbose=True):
+        """Get fuel mix in hourly intervals. Currently, ercot only reports solar and wind generation
+
+        Arguments:
+            date(datetime or str): "latest", "today". historical data currently not supported
+
+            verbose(bool): print verbose output. Defaults to False.
+
+        Returns:
+            pd.Dataframe: dataframe with columns: Time and columns for each fuel type (solar and wind)
+        """
 
         if date == "latest":
             df = self.get_fuel_mix("today")
@@ -71,10 +81,10 @@ class Ercot(ISOBase):
         elif utils.is_today(date):
 
             url = self.BASE + "/combine-wind-solar.json"
-            r = self._get_json(url)
+            r = self._get_json(url, verbose=verbose)
 
             # rows with nulls are forecasts
-            df = pd.DataFrame(r["currentDay"]["data"])
+            df = pd.DataFrame(r["currentDay"]["data"].values())
             df = df.dropna(subset=["actualSolar"])
 
             df = self._handle_data(
@@ -178,12 +188,12 @@ class Ercot(ISOBase):
         return doc
 
     def get_rtm_spp(self, year):
-        """Get Historical RTM Settlement Point Prices (SPPs) for each of the Hubs and Load Zones
+        """Get Historical RTM Settlement Point Prices(SPPs) for each of the Hubs and Load Zones
 
         Arguments:
-            year (int): year to get data for
+            year(int): year to get data for
 
-        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
+        Source: https: // www.ercot.com/mp/data-products/data-product-details?id = NP6-785-ER
         """
         doc_url, date = self._get_document(
             13061,
@@ -199,7 +209,7 @@ class Ercot(ISOBase):
     def get_interconnection_queue(self, verbose=False):
         """Get interconnection queue for ERCOT
 
-        Monthly historical data available here: http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
+        Monthly historical data available here: http: // mis.ercot.com/misapp/GetReports.do?reportTypeId = 15933 & reportTitle = GIS % 20Report & showHTMLView = &mimicKey
         """
 
         report_type_id = 15933
@@ -381,4 +391,4 @@ class Ercot(ISOBase):
 
 if __name__ == "__main__":
     iso = Ercot()
-    iso.get_historical_rtm_spp(2020)
+    iso.get_fuel_mix("today")

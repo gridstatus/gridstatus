@@ -547,6 +547,9 @@ def _get_historical(url, date, verbose=False):
 
     df = pd.read_csv(url)
 
+    # sometimes there are extra rows at the end, so this lets us ignore them
+    df = df.dropna(subset=["Time"])
+
     df["Time"] = df["Time"].apply(
         _make_timestamp,
         today=date_obj,
