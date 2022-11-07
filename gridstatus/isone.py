@@ -119,9 +119,7 @@ class ISONE(ISOBase):
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5])
 
-        df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"]).dt.tz_localize(
-            self.default_timezone,
-        )
+        df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
 
         mix_df = df.pivot_table(
             index="Date",
@@ -130,7 +128,14 @@ class ISONE(ISOBase):
             aggfunc="first",
         ).reset_index()
 
+        mix_df["Date"] = mix_df["Date"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous="infer",
+        )
+
         mix_df = mix_df.rename(columns={"Date": "Time"})
+
+        mix_df = mix_df.fillna(0)
 
         return mix_df
 
@@ -556,3 +561,8 @@ def _make_wsclient_request(url, data, verbose=False):
         )
 
     return r.json()
+
+
+if __name__ == "__main__":
+    iso = ISONE()
+    df = iso.get_fuel_mix("today", verbose=True)

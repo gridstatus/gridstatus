@@ -55,7 +55,7 @@ class Ercot(ISOBase):
             notes=notes,
         )
 
-    def get_fuel_mix(self, date, verbose=True):
+    def get_fuel_mix(self, date, verbose=False):
         """Get fuel mix in hourly intervals. Currently, ercot only reports solar and wind generation
 
         Arguments:
