@@ -59,7 +59,7 @@ def test_get_latest_fuel_mix(iso):
     assert isinstance(repr(mix), str)
 
 
-@pytest.mark.parametrize("iso", [ISONE(), NYISO(), CAISO(), PJM()])
+@pytest.mark.parametrize("iso", [Ercot(), ISONE(), NYISO(), CAISO(), PJM()])
 def test_get_fuel_mix_today(iso):
     df = iso.get_fuel_mix("today")
     assert isinstance(df, pd.DataFrame)
