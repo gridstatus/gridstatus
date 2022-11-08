@@ -172,6 +172,10 @@ class PJM(ISOBase):
             self.default_timezone,
         )
 
+        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
         return data
 
     # todo https://dataminer2.pjm.com/feed/load_frcstd_hist/definition

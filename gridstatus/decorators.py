@@ -1,6 +1,4 @@
 import functools
-import sys
-from turtle import update
 
 import pandas as pd
 import tqdm

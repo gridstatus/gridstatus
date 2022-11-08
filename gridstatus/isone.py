@@ -119,8 +119,14 @@ class ISONE(ISOBase):
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5])
 
-        df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"]).dt.tz_localize(
-            self.default_timezone,
+        df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
+
+        # groupby FuelCategory to make it possible to infer DST changes
+        df["Date"] = df.groupby("Fuel Category")["Date"].apply(
+            lambda x: x.dt.tz_localize(
+                self.default_timezone,
+                ambiguous="infer",
+            ),
         )
 
         mix_df = df.pivot_table(
@@ -131,6 +137,8 @@ class ISONE(ISOBase):
         ).reset_index()
 
         mix_df = mix_df.rename(columns={"Date": "Time"})
+
+        mix_df = mix_df.fillna(0)
 
         return mix_df
 
@@ -148,6 +156,7 @@ class ISONE(ISOBase):
 
         data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
             self.default_timezone,
+            ambiguous="infer",
         )
 
         df = data[["Date/Time", "Native Load"]].rename(
@@ -183,15 +192,19 @@ class ISONE(ISOBase):
         data = _make_wsclient_request(
             url="https://www.iso-ne.com/ws/wsclient",
             data=data,
+            verbose=verbose,
         )
 
         data = pd.DataFrame(data[0]["data"]["forecast"])
 
-        data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
-            self.default_timezone,
+        # must convert this way rather than use pd.to_datetime
+        # to handle DST transitions
+        data["BeginDate"] = data["BeginDate"].apply(
+            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
-        data["CreationDate"] = pd.to_datetime(data["CreationDate"]).dt.tz_convert(
-            self.default_timezone,
+
+        data["CreationDate"] = data["BeginDate"].apply(
+            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
 
         df = data[["CreationDate", "BeginDate", "Mw"]].rename(
@@ -312,6 +325,15 @@ class ISONE(ISOBase):
                 url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"
                 data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
                 # todo document hour starting vs ending
+                # for DST end transitions they use 02X to represent repeated 1am hour
+                data["Hour Ending"] = (
+                    data["Hour Ending"]
+                    .replace(
+                        "02X",
+                        "02",
+                    )
+                    .astype(int)
+                )
                 data["Local Time"] = (
                     data["Date"]
                     + " "
@@ -327,6 +349,17 @@ class ISONE(ISOBase):
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
             data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
             # todo document hour starting vs ending
+
+            # for DST end transitions they use 02X to represent repeated 1am hour
+            data["Hour Ending"] = (
+                data["Hour Ending"]
+                .replace(
+                    "02X",
+                    "02",
+                )
+                .astype(int)
+            )
+
             data["Local Time"] = (
                 data["Date"]
                 + " "
@@ -373,7 +406,15 @@ class ISONE(ISOBase):
 
         data["Market"] = market.value
 
-        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(timezone)
+        location_groupby = (
+            "Location Id" if "Location Id" in data.columns else "Location"
+        )
+        data["Time"] = data.groupby(location_groupby)["Time"].transform(
+            lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
+                timezone,
+                ambiguous="infer",
+            ),
+        )
 
         # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:
@@ -556,3 +597,8 @@ def _make_wsclient_request(url, data, verbose=False):
         )
 
     return r.json()
+
+
+if __name__ == "__main__":
+    iso = ISONE()
+    df = iso.get_fuel_mix("today", verbose=True)

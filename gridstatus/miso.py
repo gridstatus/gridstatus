@@ -19,7 +19,8 @@ class MISO(ISOBase):
 
     name = "Midcontinent ISO"
     iso_id = "miso"
-    # says EST in time stamp but EDT is currently in affect. EST == CDT, so using central time for now
+    # miso spans multiple timezones, so picking central
+    # all parsing is done in EST since that is what api returns
     default_timezone = "US/Central"
 
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
@@ -40,10 +41,10 @@ class MISO(ISOBase):
             raise NotSupported()
 
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
-        r = self._get_json(url)
+        r = self._get_json(url, verbose=verbose)
 
         time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
-            self.default_timezone,
+            "EST",
         )
 
         mix = {}
@@ -67,7 +68,7 @@ class MISO(ISOBase):
             return self._latest_from_today(self.get_load, verbose=verbose)
 
         elif utils.is_today(date):
-            r = self._get_load_and_forecast_data()
+            r = self._get_load_and_forecast_data(verbose=verbose)
 
             date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
 
@@ -82,7 +83,7 @@ class MISO(ISOBase):
                     minutes=int(x.split(":")[1]),
                 ),
             )
-            df["Time"] = df["Time"].dt.tz_localize(self.default_timezone)
+            df["Time"] = df["Time"].dt.tz_localize("EST")
             df = df.rename(columns={"Value": "Load"})
             df["Load"] = pd.to_numeric(df["Load"])
 
@@ -95,10 +96,10 @@ class MISO(ISOBase):
         if date != "today":
             raise NotSupported()
 
-        r = self._get_load_and_forecast_data()
+        r = self._get_load_and_forecast_data(verbose=verbose)
 
         date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0]).tz_localize(
-            tz=self.default_timezone,
+            tz="EST",
         )
 
         df = pd.DataFrame(
@@ -115,12 +116,12 @@ class MISO(ISOBase):
 
         return df
 
-    def _get_load_and_forecast_data(self):
+    def _get_load_and_forecast_data(self, verbose=False):
         url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"
-        r = self._get_json(url)
+        r = self._get_json(url, verbose=verbose)
         return r
 
-    def get_lmp(self, date, market: str, locations: list = None):
+    def get_lmp(self, date, market: str, locations: list = None, verbose=False):
         """
         Supported Markets:
 
@@ -134,11 +135,11 @@ class MISO(ISOBase):
             locations = "ALL"
 
         url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json"
-        r = self._get_json(url)
+        r = self._get_json(url, verbose=verbose)
 
         time = r["LMPData"]["RefId"]
         time_str = time[:11] + " " + time[-9:]
-        time = pd.to_datetime(time_str).tz_localize(self.default_timezone)
+        time = pd.to_datetime(time_str).tz_localize("EST")
 
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:

@@ -31,6 +31,9 @@ def check_forecast(df):
         ["Forecast Time", "Time", "Load Forecast"],
     )
 
+    assert check_is_datetime_type(df["Forecast Time"])
+    assert check_is_datetime_type(df["Time"])
+
 
 def check_storage(df):
     assert set(df.columns) == set(
@@ -42,6 +45,12 @@ def check_status(df):
     assert set(df.columns) == set(
         ["Time", "Status", "Notes"],
     )
+
+
+def check_is_datetime_type(series):
+    return pd.core.dtypes.common.is_datetime64_ns_dtype(
+        series,
+    ) | pd.core.dtypes.common.is_timedelta64_ns_dtype(series)
 
 
 def test_make_lmp_availability_df():
@@ -322,7 +331,7 @@ def test_get_lmp_today(test):
 
 
 @pytest.mark.parametrize("iso", [ISONE(), CAISO(), NYISO()])
-def test_get_historical_load_orecast(iso):
+def test_get_historical_load_forecast(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
     forecast = iso.get_load_forecast(date=test_date)
     check_forecast(forecast)
@@ -342,7 +351,7 @@ def test_get_historical_forecast_with_date_range(iso):
 
 @pytest.mark.parametrize(
     "iso",
-    [MISO(), SPP(), Ercot(), ISONE(), CAISO(), PJM(), NYISO()],
+    [PJM(), MISO(), SPP(), Ercot(), ISONE(), CAISO(), NYISO()],
 )
 def test_get_load_forecast_today(iso):
     forecast = iso.get_load_forecast("today")

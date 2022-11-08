@@ -170,3 +170,7 @@ def get_interconnection_queues():
 
     all_queues = pd.concat(all_queues).reset_index(drop=True)
     return all_queues
+
+
+def is_dst_end(date):
+    return (date.dst() - (date + pd.DateOffset(1)).dst()).seconds == 3600

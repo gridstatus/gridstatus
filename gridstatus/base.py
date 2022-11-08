@@ -98,7 +98,7 @@ class ISOBase:
     def get_load(self, date, end=None, verbose=False):
         raise NotImplementedError()
 
-    def get_forecast(self, date, end=None, verbose=False):
+    def get_load_forecast(self, date, end=None, verbose=False):
         raise NotImplementedError()
 
     def get_supply(self, date, end=None, verbose=False):
