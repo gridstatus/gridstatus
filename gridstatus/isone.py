@@ -325,6 +325,15 @@ class ISONE(ISOBase):
                 url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"
                 data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
                 # todo document hour starting vs ending
+                # for DST end transitions they use 02X to represent repeated 1am hour
+                data["Hour Ending"] = (
+                    data["Hour Ending"]
+                    .replace(
+                        "02X",
+                        "02",
+                    )
+                    .astype(int)
+                )
                 data["Local Time"] = (
                     data["Date"]
                     + " "
@@ -340,6 +349,17 @@ class ISONE(ISOBase):
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
             data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
             # todo document hour starting vs ending
+
+            # for DST end transitions they use 02X to represent repeated 1am hour
+            data["Hour Ending"] = (
+                data["Hour Ending"]
+                .replace(
+                    "02X",
+                    "02",
+                )
+                .astype(int)
+            )
+
             data["Local Time"] = (
                 data["Date"]
                 + " "
@@ -386,7 +406,15 @@ class ISONE(ISOBase):
 
         data["Market"] = market.value
 
-        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(timezone)
+        location_groupby = (
+            "Location Id" if "Location Id" in data.columns else "Location"
+        )
+        data["Time"] = data.groupby(location_groupby)["Time"].transform(
+            lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
+                timezone,
+                ambiguous="infer",
+            ),
+        )
 
         # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:

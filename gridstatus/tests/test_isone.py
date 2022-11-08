@@ -10,32 +10,23 @@ def test_isone_fuel_mix():
     assert not data.isna().any().any()
 
 
-def test_isone_dst_end():
-    date = "Nov 6, 2022"
+def test_all(date):
     iso = gridstatus.ISONE()
 
     data = iso.get_fuel_mix(date=date)
-
     data = iso.get_load(date=date)
-
     data = iso.get_supply(date=date)
-
     data = iso.get_load_forecast(date=date)
+    data = iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
+    data = iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
+    data = iso.get_lmp(date=date, market=Markets.REAL_TIME_HOURLY)
 
-    # data = iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
+
+def test_isone_dst_end():
+    date = "Nov 6, 2022"
+    test_all(date)
 
 
 def test_isone_dst_start():
     date = "Mar 13, 2022"
-
-    iso = gridstatus.ISONE()
-
-    data = iso.get_fuel_mix(date=date)
-
-    data = iso.get_load(date=date)
-
-    data = iso.get_supply(date=date)
-
-    data = iso.get_load_forecast(date=date)
-
-    # data = iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
+    test_all(date)
