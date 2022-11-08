@@ -3,6 +3,7 @@
 ## vNext
 
 - Add `get_capacity_prices` to NYISO
+- Fix ISONE Daylight Savings Time handling
 
 ## v0.13.0 - Nov 2, 2022
 
