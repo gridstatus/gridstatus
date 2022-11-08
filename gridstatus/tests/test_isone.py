@@ -10,7 +10,7 @@ def test_isone_fuel_mix():
     assert not data.isna().any().any()
 
 
-def test_all(date):
+def run_all(date):
     iso = gridstatus.ISONE()
 
     data = iso.get_fuel_mix(date=date)
@@ -24,9 +24,9 @@ def test_all(date):
 
 def test_isone_dst_end():
     date = "Nov 6, 2022"
-    test_all(date)
+    run_all(date)
 
 
 def test_isone_dst_start():
     date = "Mar 13, 2022"
-    test_all(date)
+    run_all(date)
