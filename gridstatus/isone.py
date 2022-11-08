@@ -340,9 +340,6 @@ class ISONE(ISOBase):
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
             data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
             # todo document hour starting vs ending
-            import pdb
-
-            pdb.set_trace()
             data["Local Time"] = (
                 data["Date"]
                 + " "
