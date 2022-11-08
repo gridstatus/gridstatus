@@ -10,7 +10,7 @@ from gridstatus import tests
 import gridstatus.base
 import gridstatus.decorators
 
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NotSupported
 
 import gridstatus.utils
 
@@ -37,4 +37,5 @@ __all__ = [
     "get_iso",
     "list_isos",
     "get_interconnection_queues",
+    "NotSupported",
 ]
