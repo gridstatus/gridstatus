@@ -121,17 +121,20 @@ class ISONE(ISOBase):
 
         df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
 
+        # groupby FuelCategory to make it possible to infer DST changes
+        df["Date"] = df.groupby("Fuel Category")["Date"].apply(
+            lambda x: x.dt.tz_localize(
+                self.default_timezone,
+                ambiguous="infer",
+            ),
+        )
+
         mix_df = df.pivot_table(
             index="Date",
             columns="Fuel Category",
             values="Gen Mw",
             aggfunc="first",
         ).reset_index()
-
-        mix_df["Date"] = mix_df["Date"].dt.tz_localize(
-            self.default_timezone,
-            ambiguous="infer",
-        )
 
         mix_df = mix_df.rename(columns={"Date": "Time"})
 
@@ -153,6 +156,7 @@ class ISONE(ISOBase):
 
         data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
             self.default_timezone,
+            ambiguous="infer",
         )
 
         df = data[["Date/Time", "Native Load"]].rename(
@@ -188,15 +192,19 @@ class ISONE(ISOBase):
         data = _make_wsclient_request(
             url="https://www.iso-ne.com/ws/wsclient",
             data=data,
+            verbose=verbose,
         )
 
         data = pd.DataFrame(data[0]["data"]["forecast"])
 
-        data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
-            self.default_timezone,
+        # must convert this way rather than use pd.to_datetime
+        # to handle DST transitions
+        data["BeginDate"] = data["BeginDate"].apply(
+            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
-        data["CreationDate"] = pd.to_datetime(data["CreationDate"]).dt.tz_convert(
-            self.default_timezone,
+
+        data["CreationDate"] = data["BeginDate"].apply(
+            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
 
         df = data[["CreationDate", "BeginDate", "Mw"]].rename(
@@ -332,6 +340,9 @@ class ISONE(ISOBase):
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
             data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
             # todo document hour starting vs ending
+            import pdb
+
+            pdb.set_trace()
             data["Local Time"] = (
                 data["Date"]
                 + " "
