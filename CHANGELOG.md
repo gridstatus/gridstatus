@@ -1,6 +1,6 @@
 # Changelog
 
-## vNext
+## v0.14.0 - Nov 8, 2022
 
 - Add `get_capacity_prices` to NYISO
 - Fix ISONE Daylight Savings Time handling
