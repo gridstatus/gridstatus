@@ -178,13 +178,26 @@ def is_dst_end(date):
     return (date.dst() - (date + pd.DateOffset(1)).dst()).seconds == 3600
 
 
-def load_csv_from_folder(path):
-    """Load csv files from a folder"""
+def load_folder(path):
+    """Load a single dataframe for same schema csv files in a folder
+
+    Arguments:
+        path {str} -- path to folder
+
+    Returns:
+        pd.DataFrame -- dataframe of all files
+    """
     all_files = glob.glob(os.path.join(path, "*.csv"))
+    all_files = sorted(all_files)
 
     dfs = []
     for f in all_files:
         df = pd.read_csv(f, parse_dates=True)
         dfs.append(df)
 
-    return pd.concat(dfs).reset_index(drop=True)
+    data = pd.concat(dfs).reset_index(drop=True)
+
+    # todo make sure dates get parsed
+    # todo make sure rows are sorted by time
+
+    return data

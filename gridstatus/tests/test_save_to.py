@@ -21,6 +21,10 @@ def test_save_to_one_day_per_request(tmp_path):
         "CAISO_get_fuel_mix_20220101.csv",
     ]
 
+    df_2 = gridstatus.load_folder(tmp_path)
+
+    assert (df == df_2).all().all()
+
 
 def test_save_to_with_date_range_requests(tmp_path):
     iso = gridstatus.NYISO()
@@ -38,3 +42,6 @@ def test_save_to_with_date_range_requests(tmp_path):
         "NYISO_get_fuel_mix_20220201_20220202.csv",
         "NYISO_get_fuel_mix_20220130_20220201.csv",
     ]
+
+    df_2 = gridstatus.load_folder(tmp_path)
+    assert (df == df_2).all().all()

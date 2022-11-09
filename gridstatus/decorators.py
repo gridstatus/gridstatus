@@ -29,7 +29,7 @@ class support_date_range:
             if "save_to" in args_dict:
                 save_to = args_dict.pop("save_to")
 
-            error = "raise"
+            error = "ignore"
             errors = []
             if "error" in args_dict:
                 error = args_dict.pop("error")
