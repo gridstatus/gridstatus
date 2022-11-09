@@ -6,6 +6,7 @@ from zipfile import ZipFile
 
 import pandas as pd
 import requests
+import tabula
 
 import gridstatus
 from gridstatus import utils
@@ -523,6 +524,97 @@ class CAISO(ISOBase):
 
         return queue
 
+    @support_date_range(frequency="1D")
+    def get_curtailment(self, date, verbose=False):
+        """Return curtailment data for a given date
+
+        Notes:
+            * requires java to be installed in order to run
+            * Date available from Jan 1, 2019 to present
+
+
+        Arguments:
+            date: date to return data
+            end: last date of range to return data. if None, returns only date. Defaults to None.
+            verbose: print out url being fetched. Defaults to False.
+
+        Returns:
+            dataframe of curtailment data
+        """
+
+        # http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport02dec_2020.pdf
+
+        date_strs = [
+            date.strftime("%b%d_%Y"),
+            date.strftime(
+                "%d%b_%Y",
+            ).lower(),
+            date.strftime("-%b%d_%Y"),
+        ]
+
+        # handle specfic case where dec 02, 2021 has wrong year in file name
+        if date_strs[0] == "Dec02_2021":
+            date_strs = ["02dec_2020"]
+        if date_strs[0] == "Dec02_2020":
+            # this correct, so make sure we don't try the other file since 2021 is published wrong
+            date_strs = ["Dec02_2020"]
+
+        # todo handle not always just 4th pge
+        df = None
+        for date_str in date_strs:
+            for pages in [4, 5]:
+                f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"
+                try:
+                    if verbose:
+                        print("Fetching URL: ", f)
+                    df = tabula.read_pdf(f, pages=pages)[0]
+                    break
+                except:
+                    continue
+
+            if df is not None:
+                break
+
+        if df is None:
+            raise ValueError("Could not find file for {}".format(date))
+
+        # DATE  HOU\rR CURT TYPE  REASON FUEL TYPE  CURTAILED MWH  CURTAILED MW
+        rename = {
+            "DATE": "Date",
+            "HOU\rR": "Hour",
+            "CURT TYPE": "Curtailment Type",
+            "REASON": "Curtailment Reason",
+            "FUEL TYPE": "Fuel Type",
+            "CURTAILED MWH": "Curtailment (MWh)",
+            "CURTAILED MW": "Curtailment (MW)",
+        }
+
+        df = df.rename(columns=rename)
+
+        df["Time"] = date + df["Hour"].apply(lambda x: pd.Timedelta(hours=x))
+
+        df = df.drop(columns=["Date", "Hour"])
+
+        df["Fuel Type"] = df["Fuel Type"].map(
+            {
+                "SOLR": "Solar",
+                "WIND": "Wind",
+            },
+        )
+
+        df = df[
+            [
+                "Time",
+                "Curtailment Type",
+                "Curtailment Reason",
+                "Fuel Type",
+                "Curtailment (MWh)",
+                "Curtailment (MW)",
+            ]
+        ]
+
+        return df
+
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
@@ -610,4 +702,3 @@ if __name__ == "__main__":
 
     print("asd")
     iso = gridstatus.CAISO()
-    iso.get_interconnection_queue()

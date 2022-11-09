@@ -41,3 +41,10 @@ def test_get_ghg_allowance():
 
     assert len(df) == 1
     assert set(df.columns) == {"Time", "GHG Allowance Price"}
+
+
+def test_get_curtailment():
+    iso = gridstatus.CAISO()
+    date = "Oct 15, 2022"
+    df = iso.get_curtailment(date)
+    assert df.shape == (31, 6)
