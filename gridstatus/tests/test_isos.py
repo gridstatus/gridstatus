@@ -429,3 +429,9 @@ def test_date_or_start(iso):
 
     with pytest.raises(ValueError):
         iso.get_fuel_mix(start=start.date(), date=start.date())
+
+
+def test_end_before_start_raises_error():
+    iso = CAISO()
+    with pytest.raises(AssertionError):
+        iso.get_fuel_mix(start="Jan 2, 2021", end="Jan 1, 2021")

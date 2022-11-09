@@ -1,4 +1,5 @@
 import functools
+import os
 import pprint
 
 import pandas as pd
@@ -85,6 +86,13 @@ class support_date_range:
                 args_dict["end"] = gridstatus.utils._handle_date(
                     args_dict["end"],
                     args_dict["self"].default_timezone,
+                )
+
+                assert (
+                    args_dict["end"] > args_dict["date"]
+                ), "End date {} must be after start date {}".format(
+                    args_dict["end"],
+                    args_dict["date"],
                 )
 
             # use .date() to remove timezone info, which doesnt matter if just a date
@@ -197,22 +205,22 @@ class support_date_range:
 def _handle_save_to(df, save_to, args_dict, f):
     if df is not None and save_to is not None:
         if "end" in args_dict:
-            filename = "{}/{}_{}_{}_{}.csv".format(
-                save_to,
+            filename = "{}_{}_{}_{}.csv".format(
                 args_dict["self"].__class__.__name__,
                 f.__name__,
                 args_dict["date"].strftime("%Y%m%d"),
                 args_dict["end"].strftime("%Y%m%d"),
             )
         else:
-            filename = "{}/{}_{}_{}.csv".format(
-                save_to,
+            filename = "{}_{}_{}.csv".format(
                 args_dict["self"].__class__.__name__,
                 f.__name__,
                 args_dict["date"].strftime("%Y%m%d"),
             )
 
-        df.to_csv(filename, index=None)
+        path = os.path.join(save_to, filename)
+
+        df.to_csv(path, index=None)
 
 
 def _get_pjm_archive_date(market):
