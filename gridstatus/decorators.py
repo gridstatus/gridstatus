@@ -1,4 +1,5 @@
 import functools
+import pprint
 
 import pandas as pd
 import tqdm
@@ -22,6 +23,15 @@ class support_date_range:
         @functools.wraps(f)
         def wrapped_f(*args, **kwargs):
             args_dict = _get_args_dict(f, args, kwargs)
+
+            save_to = None
+            if "save_to" in args_dict:
+                save_to = args_dict.pop("save_to")
+
+            error = "raise"
+            errors = []
+            if "error" in args_dict:
+                error = args_dict.pop("error")
 
             if "date" in args_dict and "start" in args_dict:
                 raise ValueError(
@@ -59,7 +69,9 @@ class support_date_range:
 
             # no date range handling required
             if "end" not in args_dict:
-                return f(**args_dict)
+                df = f(**args_dict)
+                _handle_save_to(df, save_to, args_dict, f)
+                return df
             else:
                 if (
                     isinstance(args_dict["end"], str)
@@ -145,17 +157,62 @@ class support_date_range:
                     if self.frequency != "1D":
                         args_dict["end"] = end_date
 
-                    df = f(**args_dict)
+                    try:
+                        df = f(**args_dict)
+                    except Exception as e:
+                        if error == "raise":
+                            raise e
+                        elif error == "ignore":
+                            df = None
+                            errors += [args_dict.copy()]
+                            print("Error: {}".format(e))
+                            print("Args: {}\n".format(args_dict))
+                        else:
+                            raise ValueError(
+                                "Invalid value for error: {}".format(
+                                    error,
+                                ),
+                            )
+
+                    _handle_save_to(df, save_to, args_dict, f)
 
                     pbar.update(1)
 
-                    all_df.append(df)
+                    if df is not None:
+                        all_df.append(df)
+
                     start_date = end_date
 
+            if errors:
+                print("Errors that occurred while getting data:")
+                pprint.pprint(errors)
+
             df = pd.concat(all_df).reset_index(drop=True)
+
             return df
 
         return wrapped_f
+
+
+def _handle_save_to(df, save_to, args_dict, f):
+    if df is not None and save_to is not None:
+        if "end" in args_dict:
+            filename = "{}/{}_{}_{}_{}.csv".format(
+                save_to,
+                args_dict["self"].__class__.__name__,
+                f.__name__,
+                args_dict["date"].strftime("%Y%m%d"),
+                args_dict["end"].strftime("%Y%m%d"),
+            )
+        else:
+            filename = "{}/{}_{}_{}.csv".format(
+                save_to,
+                args_dict["self"].__class__.__name__,
+                f.__name__,
+                args_dict["date"].strftime("%Y%m%d"),
+            )
+
+        df.to_csv(filename, index=None)
 
 
 def _get_pjm_archive_date(market):

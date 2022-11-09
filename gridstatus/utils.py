@@ -1,4 +1,6 @@
+import glob
 import io
+import os
 from zipfile import ZipFile
 
 import pandas as pd
@@ -174,3 +176,15 @@ def get_interconnection_queues():
 
 def is_dst_end(date):
     return (date.dst() - (date + pd.DateOffset(1)).dst()).seconds == 3600
+
+
+def load_csv_from_folder(path):
+    """Load csv files from a folder"""
+    all_files = glob.glob(os.path.join(path, "*.csv"))
+
+    dfs = []
+    for f in all_files:
+        df = pd.read_csv(f, parse_dates=True)
+        dfs.append(df)
+
+    return pd.concat(dfs).reset_index(drop=True)
