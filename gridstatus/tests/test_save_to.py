@@ -12,13 +12,13 @@ def test_save_to_one_day_per_request(tmp_path):
         save_to=tmp_path,
     )
 
-    files = os.listdir(tmp_path)
+    files = sorted(os.listdir(tmp_path))
 
     assert len(files) == 3
     assert files == [
+        "CAISO_get_fuel_mix_20220101.csv",
         "CAISO_get_fuel_mix_20220102.csv",
         "CAISO_get_fuel_mix_20220103.csv",
-        "CAISO_get_fuel_mix_20220101.csv",
     ]
 
     df_2 = gridstatus.load_folder(tmp_path)
@@ -35,12 +35,12 @@ def test_save_to_with_date_range_requests(tmp_path):
         save_to=tmp_path,
     )
 
-    files = os.listdir(tmp_path)
+    files = sorted(os.listdir(tmp_path))
 
     assert len(files) == 2
     assert files == [
-        "NYISO_get_fuel_mix_20220201_20220202.csv",
         "NYISO_get_fuel_mix_20220130_20220201.csv",
+        "NYISO_get_fuel_mix_20220201_20220202.csv",
     ]
 
     df_2 = gridstatus.load_folder(tmp_path)
