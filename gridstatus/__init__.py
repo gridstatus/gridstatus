@@ -14,6 +14,8 @@ from gridstatus.base import Markets, NotSupported
 
 import gridstatus.utils
 
+from gridstatus.utils import load_folder
+
 from gridstatus.nyiso import NYISO
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
@@ -38,4 +40,5 @@ __all__ = [
     "list_isos",
     "get_interconnection_queues",
     "NotSupported",
+    "load_folder",
 ]
