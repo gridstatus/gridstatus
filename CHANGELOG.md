@@ -1,5 +1,9 @@
 # Changelog
 
+## vNext
+
+- Add ability to save intermediate results to disk when fetching data across multiple requests using `save_to` parameter
+
 ## v0.14.0 - Nov 8, 2022
 
 - Add `get_capacity_prices` to NYISO
