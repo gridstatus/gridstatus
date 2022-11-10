@@ -34,7 +34,8 @@ dependencies = [
     "beautifulsoup4 >= 4.8.13",
     "tabulate >= 0.8.10",
     "tqdm >= 4.64.1",
-    "openpyxl >= 3.0.10"
+    "openpyxl >= 3.0.10",
+    "tabula-py >= 2.5.1",
 ]
 
 [project.urls]

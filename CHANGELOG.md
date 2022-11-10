@@ -3,6 +3,7 @@
 ## vNext
 
 - Add ability to save intermediate results to disk when fetching data across multiple requests using `save_to` parameter
+- Add ability to get renewable curtailment data for CAISO
 
 ## v0.14.0 - Nov 8, 2022
 
