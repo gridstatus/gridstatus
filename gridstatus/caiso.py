@@ -530,7 +530,7 @@ class CAISO(ISOBase):
 
         Notes:
             * requires java to be installed in order to run
-            * Date available from Jan 1, 2019 to present
+            * Data available from Jan 1, 2019 to present
 
 
         Arguments:
