@@ -132,7 +132,8 @@ class CAISO(ISOBase):
 
     def _get_historical_load(self, date, verbose=False):
         url = _HISTORY_BASE + "/%s/demand.csv"
-        df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
+        df = _get_historical(url, date, verbose=verbose)
+        df = df[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
         return df
@@ -529,7 +530,7 @@ class CAISO(ISOBase):
 
         Notes:
             * requires java to be installed in order to run
-            * Data available from Jan 1, 2019 to present
+            * Data available from June 30, 2016 to present
 
 
         Arguments:
