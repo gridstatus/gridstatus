@@ -1,7 +1,6 @@
 import io
 import time
-from datetime import date
-from tabnanny import verbose
+from contextlib import redirect_stderr
 from zipfile import ZipFile
 
 import pandas as pd
@@ -560,28 +559,39 @@ class CAISO(ISOBase):
             date_strs = ["Dec02_2020"]
 
         # todo handle not always just 4th pge
-        df = None
+
+        pdf = None
         for date_str in date_strs:
-            for pages in [4, 5]:
-                f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"
+            f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"
+            if verbose:
+                print("Fetching URL: ", f)
+            r = requests.get(f)
+            if b"404 - Page Not Found" in r.content:
+                continue
+            pdf = io.BytesIO(r.content)
+
+        if pdf is None:
+            raise ValueError(
+                "Could not find curtailment PDF for {}".format(date),
+            )
+
+        df = None
+        for pages in [4, 5, 3]:
+            with io.StringIO() as buf, redirect_stderr(buf):
                 try:
-                    if verbose:
-                        print("Fetching URL: ", f)
-                    df = tabula.read_pdf(f, pages=pages)[0]
+                    df = tabula.read_pdf(pdf, pages=pages)[0]
                     break
                 except:
-                    continue
-
-            if df is not None:
-                break
+                    if "Page number does not exist" in buf.getvalue():
+                        continue
 
         if df is None:
-            raise ValueError("Could not find file for {}".format(date))
+            raise ValueError("Could not find table in PDF for {}".format(date))
 
-        # DATE  HOU\rR CURT TYPE  REASON FUEL TYPE  CURTAILED MWH  CURTAILED MW
         rename = {
             "DATE": "Date",
             "HOU\rR": "Hour",
+            "HOUR": "Hour",
             "CURT TYPE": "Curtailment Type",
             "REASON": "Curtailment Reason",
             "FUEL TYPE": "Fuel Type",
@@ -702,3 +712,13 @@ if __name__ == "__main__":
 
     print("asd")
     iso = gridstatus.CAISO()
+
+    # July 1, 2016"
+    df = iso.get_curtailment(
+        start="June 30, 2016",
+        end="2019-01-01",
+        save_to="caiso_curtailment/",
+        verbose=True,
+    )
+
+    print(df)

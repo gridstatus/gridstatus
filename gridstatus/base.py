@@ -179,15 +179,9 @@ class FuelMix:
         self.time = time
         self.unit = unit
 
-        mix_df = (
-            pd.Series(mix, name=self.unit)
-            .sort_values(
-                ascending=False,
-            )
-            .to_frame()
-        )
-        mix_df["Percent"] = mix_df[self.unit] / mix_df[self.unit].sum() * 100
-        mix_df.index.name = "Fuel"
+        mix_df = pd.DataFrame(mix, index=[0])
+        mix_df.insert(0, "Time", time)
+
         self._mix_df = mix_df
 
     def __repr__(self) -> str:
@@ -198,19 +192,24 @@ class FuelMix:
         s += "Total Production: %d %s \n" % (self.total_production, self.unit)
         s += "Time: %s \n" % self.time
 
-        mix = self.mix
-        mix["Percent"] = mix["Percent"].round(1)
+        mix = self.mix.drop("Time", axis=1).T
+        mix.columns = ["MW"]
+        mix["Percent"] = (mix["MW"] / self.total_production * 100).round(1)
         s += tabulate(mix, headers="keys", tablefmt="psql")
 
         return s
 
     @property
     def total_production(self):
-        return self.mix[self.unit].sum()
+        return self.mix.drop("Time", axis=1).sum().sum()
 
     @property
     def mix(self):
         return self._mix_df.copy()
+
+    @property
+    def mix_dict(self):
+        return self.mix.iloc[0].to_dict()
 
 
 """

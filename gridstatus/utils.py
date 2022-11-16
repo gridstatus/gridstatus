@@ -178,7 +178,7 @@ def is_dst_end(date):
     return (date.dst() - (date + pd.DateOffset(1)).dst()).seconds == 3600
 
 
-def load_folder(path):
+def load_folder(path, verbose=True):
     """Load a single dataframe for same schema csv files in a folder
 
     Arguments:
@@ -191,7 +191,7 @@ def load_folder(path):
     all_files = sorted(all_files)
 
     dfs = []
-    for f in all_files:
+    for f in tqdm.tqdm(all_files, disable=not verbose):
         df = pd.read_csv(f, parse_dates=True)
         dfs.append(df)
 
