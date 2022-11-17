@@ -570,24 +570,43 @@ class CAISO(ISOBase):
             if b"404 - Page Not Found" in r.content:
                 continue
             pdf = io.BytesIO(r.content)
+            break
 
         if pdf is None:
             raise ValueError(
                 "Could not find curtailment PDF for {}".format(date),
             )
 
-        df = None
-        for pages in [4, 5, 3]:
-            with io.StringIO() as buf, redirect_stderr(buf):
-                try:
-                    df = tabula.read_pdf(pdf, pages=pages)[0]
-                    break
-                except:
-                    if "Page number does not exist" in buf.getvalue():
-                        continue
+        with io.StringIO() as buf, redirect_stderr(buf):
+            try:
+                tables = tabula.read_pdf(pdf, pages="all")
+            except:
+                print(buf.getvalue())
+                raise RuntimeError("Problem Reading PDF")
 
-        if df is None:
-            raise ValueError("Could not find table in PDF for {}".format(date))
+        index_curtailment_table = list(
+            map(lambda df: "FUEL TYPE" in df.columns, tables),
+        ).index(True)
+        tables = tables[index_curtailment_table:]
+        if len(tables) == 0:
+            raise ValueError("No tables found")
+        elif len(tables) == 1:
+            df = tables[0]
+        elif len(tables) == 2:
+            # this is case where there was a continuation of the curtailment table
+            # on a second page. there is no header, make parsed header of extra table the first row
+            extra_table = tables[1]
+            extra_table = pd.concat(
+                [
+                    extra_table.columns.to_frame().T.replace("Unnamed: 0", None),
+                    extra_table,
+                ],
+            )
+            extra_table.columns = tables[0].columns
+
+            df = pd.concat([tables[0], extra_table]).reset_index()
+        else:
+            raise ValueError("Too many tables found")
 
         rename = {
             "DATE": "Date",
@@ -597,12 +616,18 @@ class CAISO(ISOBase):
             "REASON": "Curtailment Reason",
             "FUEL TYPE": "Fuel Type",
             "CURTAILED MWH": "Curtailment (MWh)",
+            "CURTAILED\rMWH": "Curtailment (MWh)",
             "CURTAILED MW": "Curtailment (MW)",
+            "CURTAILED\rMW": "Curtailment (MW)",
         }
 
         df = df.rename(columns=rename)
 
-        df["Time"] = date + df["Hour"].apply(lambda x: pd.Timedelta(hours=x))
+        df["Hour"] = df["Hour"].astype(int)
+
+        df["Time"] = df["Hour"].apply(
+            lambda x, date=date: date + pd.Timedelta(hours=x),
+        )
 
         df = df.drop(columns=["Date", "Hour"])
 
@@ -714,12 +739,18 @@ if __name__ == "__main__":
     print("asd")
     iso = gridstatus.CAISO()
 
-    # July 1, 2016"
     df = iso.get_curtailment(
-        start="June 30, 2016",
-        end="2019-01-01",
-        save_to="caiso_curtailment/",
+        start="2016-06-30",
+        end="today",
+        save_to="caiso_curtailment_2/",
         verbose=True,
     )
 
-    print(df)
+    # check if any files are missing
+    # import glob
+    # import os
+    # files = glob.glob("caiso_curtailment/*.csv")
+    # dates = pd.Series([pd.to_datetime(f[-12: -4]) for f in files]
+    #                   ).sort_values().to_frame().set_index(0, drop=False)
+    # diffs = dates.diff()[0].dt.days
+    # miss = diffs[diffs > 1]

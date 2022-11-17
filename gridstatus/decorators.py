@@ -28,6 +28,7 @@ class support_date_range:
             save_to = None
             if "save_to" in args_dict:
                 save_to = args_dict.pop("save_to")
+                os.makedirs(save_to, exist_ok=True)
 
             error = "ignore"
             errors = []
