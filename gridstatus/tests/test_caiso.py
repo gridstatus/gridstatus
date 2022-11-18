@@ -48,3 +48,19 @@ def test_get_curtailment():
     date = "Oct 15, 2022"
     df = iso.get_curtailment(date)
     assert df.shape == (31, 6)
+
+
+def test_get_curtailment_2_pages():
+    # test that the function can handle 3 pages of data
+    iso = gridstatus.CAISO()
+    date = "March 15, 2022"
+    df = iso.get_curtailment(date)
+    assert df.shape == (55, 6)
+
+
+def test_get_curtailment_3_pages():
+    # test that the function can handle 3 pages of data
+    iso = gridstatus.CAISO()
+    date = "March 16, 2022"
+    df = iso.get_curtailment(date)
+    assert df.shape == (76, 6)

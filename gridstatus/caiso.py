@@ -592,21 +592,24 @@ class CAISO(ISOBase):
             raise ValueError("No tables found")
         elif len(tables) == 1:
             df = tables[0]
-        elif len(tables) == 2:
+        else:
             # this is case where there was a continuation of the curtailment table
             # on a second page. there is no header, make parsed header of extra table the first row
-            extra_table = tables[1]
-            extra_table = pd.concat(
-                [
-                    extra_table.columns.to_frame().T.replace("Unnamed: 0", None),
-                    extra_table,
-                ],
-            )
-            extra_table.columns = tables[0].columns
 
-            df = pd.concat([tables[0], extra_table]).reset_index()
-        else:
-            raise ValueError("Too many tables found")
+            def _handle_extra_table(extra_table):
+                extra_table = pd.concat(
+                    [
+                        extra_table.columns.to_frame().T.replace("Unnamed: 0", None),
+                        extra_table,
+                    ],
+                )
+                extra_table.columns = tables[0].columns
+
+                return extra_table
+
+            extra_tables = [tables[0]] + [_handle_extra_table(t) for t in tables[1:]]
+
+            df = pd.concat(extra_tables).reset_index()
 
         rename = {
             "DATE": "Date",
@@ -623,7 +626,8 @@ class CAISO(ISOBase):
 
         df = df.rename(columns=rename)
 
-        df["Hour"] = df["Hour"].astype(int)
+        # convert from hour ending to hour beginning
+        df["Hour"] = df["Hour"].astype(int) - 1
 
         df["Time"] = df["Hour"].apply(
             lambda x, date=date: date + pd.Timedelta(hours=x),
