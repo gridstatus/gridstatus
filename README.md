@@ -19,9 +19,9 @@ To preview the data this library provide access to, visit [GridStatus.io](https:
 
 ## Community
 
-* Need Help? Post a GitHub issue 
+* Need Help? Post a [GitHub issue](https://github.com/kmax12/gridstatus/issues) 
 * Want to chat? Join our [Slack](https://join.slack.com/t/gridstatus/shared_invite/zt-1jk6vlzt2-Lzz4pdpjkJYVUJkynOiIvQ)
-* Want to updates? Follow us on Twitter [@grid_status](https://twitter.com/grid_status)
+* Get our updates? Follow us on Twitter [@grid_status](https://twitter.com/grid_status)
 
 ## Installation
 
