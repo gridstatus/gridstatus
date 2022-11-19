@@ -1,7 +1,6 @@
 import io
 import time
-from datetime import date
-from tabnanny import verbose
+from contextlib import redirect_stderr
 from zipfile import ZipFile
 
 import pandas as pd
@@ -133,7 +132,8 @@ class CAISO(ISOBase):
 
     def _get_historical_load(self, date, verbose=False):
         url = _HISTORY_BASE + "/%s/demand.csv"
-        df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
+        df = _get_historical(url, date, verbose=verbose)
+        df = df[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
         return df
@@ -530,7 +530,7 @@ class CAISO(ISOBase):
 
         Notes:
             * requires java to be installed in order to run
-            * Data available from Jan 1, 2019 to present
+            * Data available from June 30, 2016 to present
 
 
         Arguments:
@@ -560,38 +560,78 @@ class CAISO(ISOBase):
             date_strs = ["Dec02_2020"]
 
         # todo handle not always just 4th pge
-        df = None
+
+        pdf = None
         for date_str in date_strs:
-            for pages in [4, 5]:
-                f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"
-                try:
-                    if verbose:
-                        print("Fetching URL: ", f)
-                    df = tabula.read_pdf(f, pages=pages)[0]
-                    break
-                except:
-                    continue
+            f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"
+            if verbose:
+                print("Fetching URL: ", f)
+            r = requests.get(f)
+            if b"404 - Page Not Found" in r.content:
+                continue
+            pdf = io.BytesIO(r.content)
+            break
 
-            if df is not None:
-                break
+        if pdf is None:
+            raise ValueError(
+                "Could not find curtailment PDF for {}".format(date),
+            )
 
-        if df is None:
-            raise ValueError("Could not find file for {}".format(date))
+        with io.StringIO() as buf, redirect_stderr(buf):
+            try:
+                tables = tabula.read_pdf(pdf, pages="all")
+            except:
+                print(buf.getvalue())
+                raise RuntimeError("Problem Reading PDF")
 
-        # DATE  HOU\rR CURT TYPE  REASON FUEL TYPE  CURTAILED MWH  CURTAILED MW
+        index_curtailment_table = list(
+            map(lambda df: "FUEL TYPE" in df.columns, tables),
+        ).index(True)
+        tables = tables[index_curtailment_table:]
+        if len(tables) == 0:
+            raise ValueError("No tables found")
+        elif len(tables) == 1:
+            df = tables[0]
+        else:
+            # this is case where there was a continuation of the curtailment table
+            # on a second page. there is no header, make parsed header of extra table the first row
+
+            def _handle_extra_table(extra_table):
+                extra_table = pd.concat(
+                    [
+                        extra_table.columns.to_frame().T.replace("Unnamed: 0", None),
+                        extra_table,
+                    ],
+                )
+                extra_table.columns = tables[0].columns
+
+                return extra_table
+
+            extra_tables = [tables[0]] + [_handle_extra_table(t) for t in tables[1:]]
+
+            df = pd.concat(extra_tables).reset_index()
+
         rename = {
             "DATE": "Date",
             "HOU\rR": "Hour",
+            "HOUR": "Hour",
             "CURT TYPE": "Curtailment Type",
             "REASON": "Curtailment Reason",
             "FUEL TYPE": "Fuel Type",
             "CURTAILED MWH": "Curtailment (MWh)",
+            "CURTAILED\rMWH": "Curtailment (MWh)",
             "CURTAILED MW": "Curtailment (MW)",
+            "CURTAILED\rMW": "Curtailment (MW)",
         }
 
         df = df.rename(columns=rename)
 
-        df["Time"] = date + df["Hour"].apply(lambda x: pd.Timedelta(hours=x))
+        # convert from hour ending to hour beginning
+        df["Hour"] = df["Hour"].astype(int) - 1
+
+        df["Time"] = df["Hour"].apply(
+            lambda x, date=date: date + pd.Timedelta(hours=x),
+        )
 
         df = df.drop(columns=["Date", "Hour"])
 
@@ -702,3 +742,19 @@ if __name__ == "__main__":
 
     print("asd")
     iso = gridstatus.CAISO()
+
+    df = iso.get_curtailment(
+        start="2016-06-30",
+        end="today",
+        save_to="caiso_curtailment_2/",
+        verbose=True,
+    )
+
+    # check if any files are missing
+    # import glob
+    # import os
+    # files = glob.glob("caiso_curtailment/*.csv")
+    # dates = pd.Series([pd.to_datetime(f[-12: -4]) for f in files]
+    #                   ).sort_values().to_frame().set_index(0, drop=False)
+    # diffs = dates.diff()[0].dt.days
+    # miss = diffs[diffs > 1]

@@ -178,11 +178,12 @@ def is_dst_end(date):
     return (date.dst() - (date + pd.DateOffset(1)).dst()).seconds == 3600
 
 
-def load_folder(path):
+def load_folder(path, time_zone=None, verbose=True):
     """Load a single dataframe for same schema csv files in a folder
 
     Arguments:
         path {str} -- path to folder
+        time_zone {str} -- time zone to localize to timestamps. By default returns as UTC
 
     Returns:
         pd.DataFrame -- dataframe of all files
@@ -191,11 +192,16 @@ def load_folder(path):
     all_files = sorted(all_files)
 
     dfs = []
-    for f in all_files:
+    for f in tqdm.tqdm(all_files, disable=not verbose):
         df = pd.read_csv(f, parse_dates=True)
         dfs.append(df)
 
     data = pd.concat(dfs).reset_index(drop=True)
+
+    if "Time" in data.columns:
+        data["Time"] = pd.to_datetime(data["Time"], utc=True)
+        if time_zone:
+            data["Time"] = data["Time"].dt.tz_convert(time_zone)
 
     # todo make sure dates get parsed
     # todo make sure rows are sorted by time

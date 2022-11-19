@@ -63,6 +63,7 @@ def test_get_latest_fuel_mix(iso):
     assert isinstance(mix, FuelMix)
     assert isinstance(mix.time, pd.Timestamp)
     assert isinstance(mix.mix, pd.DataFrame)
+    assert repr(mix)
     assert len(mix.mix) > 0
     assert mix.iso == iso.name
     assert isinstance(repr(mix), str)
