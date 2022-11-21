@@ -15,7 +15,6 @@ def run_all(date):
 
     data = iso.get_fuel_mix(date=date)
     data = iso.get_load(date=date)
-    data = iso.get_supply(date=date)
     data = iso.get_load_forecast(date=date)
     data = iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
     data = iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)

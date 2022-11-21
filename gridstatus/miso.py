@@ -59,10 +59,6 @@ class MISO(ISOBase):
         fm = FuelMix(time=time, mix=mix, iso=self.name)
         return fm
 
-    def get_supply(self, date, end=None, verbose=False):
-        """Get supply for a date in hourly intervals"""
-        return self._get_supply(date=date, end=end, verbose=verbose)
-
     def get_load(self, date, verbose=False):
         if date == "latest":
             return self._latest_from_today(self.get_load, verbose=verbose)

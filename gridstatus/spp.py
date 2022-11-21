@@ -104,10 +104,6 @@ class SPP(ISOBase):
 
         return FuelMix(time=time, mix=current_mix, iso=self.name)
 
-    def get_supply(self, date, end=None, verbose=False):
-        """Get supply for a date in hourly intervals"""
-        return self._get_supply(date=date, end=end, verbose=verbose)
-
     def get_load(self, date, verbose=False):
         """Returns load for last 24hrs in 5 minute intervals"""
 

@@ -95,13 +95,8 @@ class PJM(ISOBase):
 
         return mix_df
 
-    @support_date_range(frequency="365D")
-    def get_supply(self, date, end=None, verbose=False):
-        """Get supply for a date or date range in hourly intervals"""
-        return self._get_supply(date=date, end=end, verbose=verbose)
-
     @support_date_range(frequency="30D")
-    def get_load(self, date, end=None):
+    def get_load(self, date, end=None, verbose=False):
         """Returns load at a previous date at 5 minute intervals
 
         Args:
@@ -109,7 +104,7 @@ class PJM(ISOBase):
         """
 
         if date == "latest":
-            return self._latest_from_today(self.get_load)
+            return self._latest_from_today(self.get_load, verbose=verbose)
 
         # more hourly historical load here: https://dataminer2.pjm.com/feed/hrl_load_metered/definition
 
@@ -126,6 +121,7 @@ class PJM(ISOBase):
             start=date,
             end=end,
             params=data,
+            verbose=verbose,
         )
 
         load = load.drop("area", axis=1)
@@ -138,7 +134,7 @@ class PJM(ISOBase):
 
         return load
 
-    def get_load_forecast(self, date):
+    def get_load_forecast(self, date, verbose=False):
         """Get forecast for today in hourly intervals.
 
         Updates every Every half hour on the quarter E.g. 1:15 and 1:45
@@ -157,6 +153,7 @@ class PJM(ISOBase):
             "load_frcstd_7_day",
             start=None,
             params=params,
+            verbose=verbose,
         )
         data = data.rename(
             columns={

@@ -48,6 +48,7 @@ class NYISO(ISOBase):
             date=date,
             end=end,
             dataset_name="RealTimeEvents",
+            verbose=verbose,
         )
 
         status_df = status_df.rename(
@@ -81,7 +82,7 @@ class NYISO(ISOBase):
 
         if date == "latest":
             url = "https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-current"
-            data = self._get_json(url)
+            data = self._get_json(url, verbose=verbose)
             mix_df = pd.DataFrame(data["data"])
             time_str = mix_df["timeStamp"].max()
             time = pd.Timestamp(time_str)
@@ -95,6 +96,7 @@ class NYISO(ISOBase):
             date=date,
             end=end,
             dataset_name="rtfuelmix",
+            verbose=verbose,
         )
 
         mix_df = mix_df.pivot_table(
@@ -116,6 +118,7 @@ class NYISO(ISOBase):
             date=date,
             end=end,
             dataset_name="pal",
+            verbose=verbose,
         )
 
         # drop NA loads
@@ -127,11 +130,6 @@ class NYISO(ISOBase):
         return load
 
     @support_date_range(frequency="MS")
-    def get_supply(self, date, end=None, verbose=False):
-        """Get supply for a date or date range in hourly intervals"""
-        return self._get_supply(date=date, end=end, verbose=verbose)
-
-    @support_date_range(frequency="MS")
     def get_load_forecast(self, date, end=None, verbose=False):
         """Get load forecast for a date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
@@ -141,6 +139,7 @@ class NYISO(ISOBase):
             date,
             end=end,
             dataset_name="isolf",
+            verbose=verbose,
         )
 
         data = data[["File Date", "Time", "NYISO"]].rename(
@@ -161,6 +160,7 @@ class NYISO(ISOBase):
         market: str = None,
         locations: list = None,
         location_type: str = None,
+        verbose=False,
     ):
         """
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
@@ -172,6 +172,7 @@ class NYISO(ISOBase):
                 market=market,
                 locations=locations,
                 location_type=location_type,
+                verbose=verbose,
             )
 
         if locations is None:
@@ -191,6 +192,7 @@ class NYISO(ISOBase):
             end=end,
             dataset_name=marketname,
             filename=filename,
+            verbose=verbose,
         )
 
         columns = {
@@ -572,7 +574,14 @@ class NYISO(ISOBase):
                 f"Invalid location type. Expected one of: {location_types}",
             )
 
-    def _download_nyiso_archive(self, date, end=None, dataset_name=None, filename=None):
+    def _download_nyiso_archive(
+        self,
+        date,
+        end=None,
+        dataset_name=None,
+        filename=None,
+        verbose=False,
+    ):
 
         if filename is None:
             filename = dataset_name
@@ -591,10 +600,17 @@ class NYISO(ISOBase):
         if end is None and date > pd.Timestamp.now(
             tz=self.default_timezone,
         ).normalize() - pd.DateOffset(days=7):
+
+            if verbose:
+                print(f"Requesting {csv_url}")
+
             df = pd.read_csv(csv_url)
             df = _handle_time(df)
             df["File Date"] = date.normalize()
         else:
+            if verbose:
+                print(f"Requesting {zip_url}")
+
             r = requests.get(zip_url)
             z = ZipFile(io.BytesIO(r.content))
 
