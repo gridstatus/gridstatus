@@ -138,11 +138,6 @@ class CAISO(ISOBase):
         df = df.dropna(subset=["Load"])
         return df
 
-    @support_date_range(frequency="1D")
-    def get_supply(self, date, end=None, verbose=False):
-        """Get supply for a date or date range in hourly intervals"""
-        return self._get_supply(date=date, end=end, verbose=verbose)
-
     @support_date_range(frequency="31D")
     def get_load_forecast(self, date, end=None, sleep=5, verbose=False):
         """Returns load forecast for a previous date in 1 hour intervals
@@ -751,10 +746,17 @@ if __name__ == "__main__":
     )
 
     # check if any files are missing
-    # import glob
-    # import os
-    # files = glob.glob("caiso_curtailment/*.csv")
-    # dates = pd.Series([pd.to_datetime(f[-12: -4]) for f in files]
-    #                   ).sort_values().to_frame().set_index(0, drop=False)
-    # diffs = dates.diff()[0].dt.days
-    # miss = diffs[diffs > 1]
+    import glob
+    import os
+
+    files = glob.glob("caiso_curtailment/*.csv")
+    dates = (
+        pd.Series(
+            [pd.to_datetime(f[-12:-4]) for f in files],
+        )
+        .sort_values()
+        .to_frame()
+        .set_index(0, drop=False)
+    )
+    diffs = dates.diff()[0].dt.days
+    miss = diffs[diffs > 1]

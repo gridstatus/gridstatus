@@ -101,9 +101,6 @@ class ISOBase:
     def get_load_forecast(self, date, end=None, verbose=False):
         raise NotImplementedError()
 
-    def get_supply(self, date, end=None, verbose=False):
-        raise NotImplemented()
-
     def get_storage(self, date, end=None, verbose=False):
         raise NotImplementedError()
 
@@ -125,12 +122,6 @@ class ISOBase:
         latest.index = latest.index.str.lower()
 
         return latest.to_dict()
-
-    def _get_supply(self, date, end=None, verbose=False):
-        if date == "latest":
-            return self._latest_supply_from_fuel_mix()
-
-        return self._supply_from_fuel_mix(date)
 
     def _supply_from_fuel_mix(self, date):
         df = self.get_fuel_mix(date)

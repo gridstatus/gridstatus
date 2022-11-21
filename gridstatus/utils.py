@@ -42,7 +42,6 @@ def make_availability_df():
         "get_status",
         "get_fuel_mix",
         "get_load",
-        "get_supply",
         "get_load_forecast",
         "get_storage",
     ]

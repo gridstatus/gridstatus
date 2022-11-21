@@ -123,34 +123,6 @@ def test_get_historical_fuel_mix(iso):
 
 
 @pytest.mark.parametrize("iso", all_isos)
-def test_get_latest_supply(iso):
-    supply = iso.get_supply("latest")
-    set(["time", "supply"]) == supply.keys()
-    assert is_numeric_dtype(type(supply["supply"]))
-
-
-@pytest.mark.parametrize("iso", [ISONE(), Ercot(), NYISO(), PJM(), CAISO()])
-def test_get_supply_today(iso):
-    # todo check that the date is right
-    df = iso.get_supply("today")
-    assert isinstance(df, pd.DataFrame)
-    set(["Time", "Supply"]) == set(df.columns)
-    assert is_numeric_dtype(df["Supply"])
-    assert df.loc[0]["Time"].tz is not None
-
-
-@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
-def test_get_historical_supply(iso):
-    date_str = "March 3, 2022"
-    df = iso.get_supply(date_str)
-    assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Supply"]) == set(df.columns)
-    assert df.loc[0]["Time"].date() == gridstatus.utils._handle_date(date_str).date()
-    assert is_numeric_dtype(df["Supply"])
-    assert df.loc[0]["Time"].tz is not None
-
-
-@pytest.mark.parametrize("iso", all_isos)
 def test_get_load_today(iso):
     df = iso.get_load("today")
     assert isinstance(df, pd.DataFrame)

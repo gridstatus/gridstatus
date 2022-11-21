@@ -72,8 +72,9 @@ class Ercot(ISOBase):
             currentHour = df.iloc[-1]
 
             mix_dict = {
-                "Wind": currentHour["Wind"],
                 "Solar": currentHour["Solar"],
+                "Wind": currentHour["Wind"],
+                "Other": currentHour["Other"],
             }
 
             return FuelMix(time=currentHour["Time"], mix=mix_dict, iso=self.name)
@@ -91,7 +92,11 @@ class Ercot(ISOBase):
                 df,
                 {"actualSolar": "Solar", "actualWind": "Wind"},
             )
-            return df
+            supply_df = self._get_supply("today")
+            mix = df.merge(supply_df, on="Time").rename({"Supply": "Other"})
+            mix["Other"] = mix["Supply"] - mix["Solar"] - mix["Wind"]
+
+            return mix[["Time", "Solar", "Wind", "Other"]]
 
         else:
             raise NotSupported()
@@ -122,39 +127,35 @@ class Ercot(ISOBase):
         df = self._handle_data(df, {"systemLoad": "Load"})
         return df
 
-    def get_supply(self, date, verbose=False):
+    def _get_supply(self, date, verbose=False):
         """Returns most recent data point for supply in MW
 
         Updates every 5 minutes
         """
-        if date == "latest":
-            return self._latest_from_today(self.get_supply)
-        elif utils.is_today(date):
-            url = "https://www.ercot.com/api/1/services/read/dashboards/todays-outlook.json"
-            r = self._get_json(url)
+        assert date == "today", "Only today's data is supported"
+        url = "https://www.ercot.com/api/1/services/read/dashboards/todays-outlook.json"
+        r = self._get_json(url)
 
-            date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
+        date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
 
-            # ignore last row since that corresponds to midnight following day
-            data = pd.DataFrame(r["data"][:-1])
+        # ignore last row since that corresponds to midnight following day
+        data = pd.DataFrame(r["data"][:-1])
 
-            data["Time"] = pd.to_datetime(
-                date.strftime("%Y-%m-%d")
-                + " "
-                + data["hourEnding"].astype(str).str.zfill(2)
-                + ":"
-                + data["interval"].astype(str).str.zfill(2),
-            ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+        data["Time"] = pd.to_datetime(
+            date.strftime("%Y-%m-%d")
+            + " "
+            + data["hourEnding"].astype(str).str.zfill(2)
+            + ":"
+            + data["interval"].astype(str).str.zfill(2),
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
-            data = data[data["forecast"] == 0]  # only keep non forecast rows
+        data = data[data["forecast"] == 0]  # only keep non forecast rows
 
-            data = data[["Time", "capacity"]].rename(
-                columns={"capacity": "Supply"},
-            )
+        data = data[["Time", "capacity"]].rename(
+            columns={"capacity": "Supply"},
+        )
 
-            return data
-        else:
-            raise NotSupported()
+        return data
 
     def get_load_forecast(self, date, verbose=False):
         if date != "today":
