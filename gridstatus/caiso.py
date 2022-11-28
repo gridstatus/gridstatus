@@ -683,7 +683,7 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="31D")
-    def get_ancillary_services(
+    def get_as_procurement(
         self,
         date,
         end=None,
@@ -691,7 +691,7 @@ class CAISO(ISOBase):
         sleep=3,
         verbose=False,
     ):
-        """Get ancillary services data from CAISO.
+        """Get ancillary services procurement data from CAISO.
 
         Arguments:
             date: date to return data

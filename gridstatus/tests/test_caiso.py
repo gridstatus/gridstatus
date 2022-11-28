@@ -101,11 +101,11 @@ def check_as_data(df, market):
     assert df.shape[0] > 0
 
 
-def test_caiso_get_ancillary_services():
+def test_caiso_get_as_procurement():
     iso = gridstatus.CAISO()
     date = "Oct 15, 2022"
     for market in ["DAM", "RTM"]:
-        df = iso.get_ancillary_services(date, market=market)
+        df = iso.get_as_procurement(date, market=market)
         check_as_data(df, market)
 
 
