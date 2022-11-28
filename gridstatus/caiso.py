@@ -695,6 +695,8 @@ class CAISO(ISOBase):
             values="MW",
         ).reset_index()
 
+        df.columns.name = None
+
         return df
 
 
