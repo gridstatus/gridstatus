@@ -1,6 +1,6 @@
 .PHONY: test
 test:
-	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto
+	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto  --reruns 5 --reruns-delay 3
 
 test-slow:
 	python -m pytest -s -vv gridstatus/ -m "slow" -n auto

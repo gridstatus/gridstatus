@@ -139,7 +139,7 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="31D")
-    def get_load_forecast(self, date, end=None, sleep=5, verbose=False):
+    def get_load_forecast(self, date, end=None, sleep=3, verbose=False):
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
@@ -160,6 +160,7 @@ class CAISO(ISOBase):
             url,
             usecols=["INTERVALSTARTTIME_GMT", "MW", "TAC_AREA_NAME"],
             verbose=verbose,
+            sleep=sleep,
         ).rename(
             columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load Forecast"},
         )
@@ -167,15 +168,11 @@ class CAISO(ISOBase):
         # returns many areas, we only want one overall iso
         df = df[df["TAC_AREA_NAME"] == "CA ISO-TAC"]
 
-        df["Time"] = pd.to_datetime(
-            df["Time"],
-        ).dt.tz_convert(self.default_timezone)
         df = df.sort_values("Time")
 
         df["Forecast Time"] = df["Time"].iloc[0]
 
         df = df[["Forecast Time", "Time", "Load Forecast"]]
-        time.sleep(sleep)
         return df
 
     def get_pnodes(self):
@@ -257,6 +254,7 @@ class CAISO(ISOBase):
                 PRICE_COL,
             ],
             verbose=verbose,
+            sleep=sleep,
         )
 
         df = df.pivot_table(
@@ -276,10 +274,6 @@ class CAISO(ISOBase):
                 "MCL": "Loss",
             },
         )
-
-        df["Time"] = pd.to_datetime(
-            df["Time"],
-        ).dt.tz_convert(self.default_timezone)
 
         df["Market"] = market.value
         df["Location Type"] = None
@@ -307,8 +301,6 @@ class CAISO(ISOBase):
         # clean up pivot name in header
         data.columns.name = None
 
-        time.sleep(sleep)
-
         return df
 
     @support_date_range(frequency="1D")
@@ -335,7 +327,7 @@ class CAISO(ISOBase):
         date,
         end=None,
         fuel_region_id="ALL",
-        sleep=5,
+        sleep=3,
         verbose=False,
     ):
         """Return gas prices at a previous date
@@ -366,6 +358,7 @@ class CAISO(ISOBase):
                 "PRC",
             ],
             verbose=verbose,
+            sleep=sleep,
         ).rename(
             columns={
                 "INTERVALSTARTTIME_GMT": "Time",
@@ -373,9 +366,6 @@ class CAISO(ISOBase):
                 "PRC": "Price",
             },
         )
-        df["Time"] = pd.to_datetime(
-            df["Time"],
-        ).dt.tz_convert(self.default_timezone)
         df = (
             df.sort_values("Time")
             .sort_values(
@@ -383,7 +373,6 @@ class CAISO(ISOBase):
             )
             .reset_index(drop=True)
         )
-        time.sleep(sleep)
         return df
 
     @support_date_range(frequency="31D")
@@ -391,7 +380,7 @@ class CAISO(ISOBase):
         self,
         date,
         end=None,
-        sleep=5,
+        sleep=3,
         verbose=False,
     ):
         """Return ghg allowance at a previous date
@@ -412,6 +401,7 @@ class CAISO(ISOBase):
                 "GHG_PRC_IDX",
             ],
             verbose=verbose,
+            sleep=sleep,
         ).rename(
             columns={
                 "INTERVALSTARTTIME_GMT": "Time",
@@ -419,11 +409,6 @@ class CAISO(ISOBase):
             },
         )
 
-        df["Time"] = pd.to_datetime(
-            df["Time"],
-        ).dt.tz_convert(self.default_timezone)
-
-        time.sleep(sleep)
         return df
 
     def get_interconnection_queue(self, verbose=False):
@@ -650,6 +635,116 @@ class CAISO(ISOBase):
 
         return df
 
+    @support_date_range(frequency="1D")
+    def get_as_prices(self, date, end=None, sleep=3, verbose=False):
+        """Return AS prices for a given date for each region
+
+        Arguments:
+            date: date to return data
+            end: last date of range to return data. if None, returns only date. Defaults to None.
+            verbose: print out url being fetched. Defaults to False.
+
+        Returns:
+            dataframe of AS prices
+        """
+
+        start, end = _caiso_handle_start_end(date, end)
+
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_AS&version=12&startdatetime={start}&enddatetime={end}&market_run_id=DAM&anc_type=ALL&anc_region=ALL"
+
+        df = _get_oasis(url=url, verbose=verbose, sleep=sleep).rename(
+            columns={
+                "INTERVALSTARTTIME_GMT": "Time",
+                "ANC_REGION": "Region",
+                "MARKET_RUN_ID": "Market",
+            },
+        )
+
+        as_type_map = {
+            "NR": "Non-Spinning Reserves",
+            "RD": "Regulation Down",
+            "RMD": "Regulation Mileage Down",
+            "RMU": "Regulation Mileage Up",
+            "RU": "Regulation Up",
+            "SR": "Spinning Reserves",
+        }
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+
+        df = df.pivot_table(
+            index=["Time", "Region", "Market"],
+            columns="ANC_TYPE",
+            values="MW",
+        ).reset_index()
+
+        df = df.fillna(0)
+
+        df.columns.name = None
+
+        return df
+
+    @support_date_range(frequency="31D")
+    def get_as_procurement(
+        self,
+        date,
+        end=None,
+        market="DAM",
+        sleep=3,
+        verbose=False,
+    ):
+        """Get ancillary services procurement data from CAISO.
+
+        Arguments:
+            date: date to return data
+            end: last date of range to return data. if None, returns only date. Defaults to None.
+            market: DAM or RTM. Defaults to DAM.
+
+        Returns:
+            dataframe of ancillary services data
+        """
+        assert market in ["DAM", "RTM"], "market must be DAM or RTM"
+
+        start, end = _caiso_handle_start_end(date, end)
+
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=AS_RESULTS&version=1&startdatetime={start}&enddatetime={end}&market_run_id={market}&anc_type=ALL&anc_region=ALL"
+
+        df = _get_oasis(url=url, verbose=verbose, sleep=sleep).rename(
+            columns={
+                "INTERVALSTARTTIME_GMT": "Time",
+                "ANC_REGION": "Region",
+                "MARKET_RUN_ID": "Market",
+            },
+        )
+
+        as_type_map = {
+            "NR": "Non-Spinning Reserves",
+            "RD": "Regulation Down",
+            "RMD": "Regulation Mileage Down",
+            "RMU": "Regulation Mileage Up",
+            "RU": "Regulation Up",
+            "SR": "Spinning Reserves",
+        }
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+
+        result_type_map = {
+            "AS_BUY_MW": "Procured (MW)",
+            "AS_SELF_MW": "Self-Provided (MW)",
+            "AS_MW": "Total (MW)",
+            "AS_COST": "Total Cost",
+        }
+        df["RESULT_TYPE"] = df["RESULT_TYPE"].map(result_type_map)
+
+        df["column"] = df["ANC_TYPE"] + " " + df["RESULT_TYPE"]
+
+        df = df.pivot_table(
+            index=["Time", "Region", "Market"],
+            columns="column",
+            values="MW",
+        ).reset_index()
+
+        df.columns.name = None
+
+        return df
+
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
@@ -691,7 +786,7 @@ def _get_historical(url, date, verbose=False):
     return df
 
 
-def _get_oasis(url, usecols=None, verbose=False):
+def _get_oasis(url, usecols=None, verbose=False, sleep=3):
     if verbose:
         print(url)
 
@@ -714,7 +809,19 @@ def _get_oasis(url, usecols=None, verbose=False):
         usecols=usecols,
     )
 
+    if "INTERVALSTARTTIME_GMT" in df.columns:
+        df["INTERVALSTARTTIME_GMT"] = pd.to_datetime(
+            df["INTERVALSTARTTIME_GMT"],
+            utc=True,
+        ).dt.tz_convert(CAISO.default_timezone)
+
+    # avoid rate limiting
+    time.sleep(5)
+
     return df
+
+
+#  get Ancillary Services
 
 
 def _caiso_handle_start_end(date, end):
