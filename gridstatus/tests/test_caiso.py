@@ -64,3 +64,46 @@ def test_get_curtailment_3_pages():
     date = "March 16, 2022"
     df = iso.get_curtailment(date)
     assert df.shape == (76, 6)
+
+
+def check_as_data(df, market):
+    columns = [
+        "Time",
+        "Region",
+        "Market",
+        "Non-Spinning Reserves Procured (MW)",
+        "Non-Spinning Reserves Self-Provided (MW)",
+        "Non-Spinning Reserves Total (MW)",
+        "Non-Spinning Reserves Total Cost",
+        "Regulation Down Procured (MW)",
+        "Regulation Down Self-Provided (MW)",
+        "Regulation Down Total (MW)",
+        "Regulation Down Total Cost",
+        "Regulation Mileage Down Procured (MW)",
+        "Regulation Mileage Down Self-Provided (MW)",
+        "Regulation Mileage Down Total (MW)",
+        "Regulation Mileage Down Total Cost",
+        "Regulation Mileage Up Procured (MW)",
+        "Regulation Mileage Up Self-Provided (MW)",
+        "Regulation Mileage Up Total (MW)",
+        "Regulation Mileage Up Total Cost",
+        "Regulation Up Procured (MW)",
+        "Regulation Up Self-Provided (MW)",
+        "Regulation Up Total (MW)",
+        "Regulation Up Total Cost",
+        "Spinning Reserves Procured (MW)",
+        "Spinning Reserves Self-Provided (MW)",
+        "Spinning Reserves Total (MW)",
+        "Spinning Reserves Total Cost",
+    ]
+    assert df.columns.tolist() == columns
+    assert df["Market"].unique()[0] == market
+    assert df.shape[0] > 0
+
+
+def test_caiso_get_ancillary_services():
+    iso = gridstatus.CAISO()
+    date = "Oct 15, 2022"
+    for market in ["DAM", "RTM"]:
+        df = iso.get_ancillary_services(date, market=market)
+        check_as_data(df, market)
