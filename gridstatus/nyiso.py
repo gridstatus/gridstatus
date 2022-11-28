@@ -83,6 +83,12 @@ class NYISO(ISOBase):
         if date == "latest":
             url = "https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-current"
             data = self._get_json(url, verbose=verbose)
+
+            if data["status"] != "success":
+                raise RuntimeError(
+                    f"Failed to get latest fuel mix. Check if NYISO's API is down.",
+                )
+
             mix_df = pd.DataFrame(data["data"])
             time_str = mix_df["timeStamp"].max()
             time = pd.Timestamp(time_str)
