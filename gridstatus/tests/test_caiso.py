@@ -107,3 +107,23 @@ def test_caiso_get_ancillary_services():
     for market in ["DAM", "RTM"]:
         df = iso.get_ancillary_services(date, market=market)
         check_as_data(df, market)
+
+
+def test_caiso_get_as_prices():
+    iso = gridstatus.CAISO()
+    date = "Oct 15, 2022"
+    df = iso.get_as_prices(date)
+
+    assert df.shape[0] > 0
+
+    assert df.columns.tolist() == [
+        "Time",
+        "Region",
+        "Market",
+        "Non-Spinning Reserves",
+        "Regulation Down",
+        "Regulation Mileage Down",
+        "Regulation Mileage Up",
+        "Regulation Up",
+        "Spinning Reserves",
+    ]
