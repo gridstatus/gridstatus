@@ -139,7 +139,7 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="31D")
-    def get_load_forecast(self, date, end=None, sleep=3, verbose=False):
+    def get_load_forecast(self, date, end=None, sleep=4, verbose=False):
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
@@ -327,7 +327,7 @@ class CAISO(ISOBase):
         date,
         end=None,
         fuel_region_id="ALL",
-        sleep=3,
+        sleep=4,
         verbose=False,
     ):
         """Return gas prices at a previous date
@@ -380,7 +380,7 @@ class CAISO(ISOBase):
         self,
         date,
         end=None,
-        sleep=3,
+        sleep=4,
         verbose=False,
     ):
         """Return ghg allowance at a previous date
@@ -636,7 +636,7 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="1D")
-    def get_as_prices(self, date, end=None, sleep=3, verbose=False):
+    def get_as_prices(self, date, end=None, sleep=4, verbose=False):
         """Return AS prices for a given date for each region
 
         Arguments:
@@ -688,7 +688,7 @@ class CAISO(ISOBase):
         date,
         end=None,
         market="DAM",
-        sleep=3,
+        sleep=4,
         verbose=False,
     ):
         """Get ancillary services procurement data from CAISO.
@@ -786,7 +786,7 @@ def _get_historical(url, date, verbose=False):
     return df
 
 
-def _get_oasis(url, usecols=None, verbose=False, sleep=3):
+def _get_oasis(url, usecols=None, verbose=False, sleep=4):
     if verbose:
         print(url)
 
