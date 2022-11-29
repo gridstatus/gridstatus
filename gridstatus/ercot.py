@@ -1,6 +1,3 @@
-import pdb
-import queue
-
 import pandas as pd
 
 from gridstatus import utils
@@ -11,6 +8,7 @@ from gridstatus.base import (
     ISOBase,
     NotSupported,
 )
+from gridstatus.decorators import support_date_range
 
 
 class Ercot(ISOBase):
@@ -158,6 +156,10 @@ class Ercot(ISOBase):
         return data
 
     def get_load_forecast(self, date, verbose=False):
+        """Returns load forecast
+
+        Currently only supports today's forecast
+        """
         if date != "today":
             raise NotSupported()
 
@@ -187,6 +189,66 @@ class Ercot(ISOBase):
         doc = doc[["Forecast Time", "Time", "Load Forecast"]]
 
         return doc
+
+    @support_date_range("1D")
+    def get_as_prices(self, date, verbose=False):
+        """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
+
+        Arguments:
+            date(datetime or str): date of delivery for AS services
+            verbose(bool): print verbose output. Defaults to False.
+
+        Returns:
+            pd.Dataframe: dataframe with prices for "Non-Spinning Reserves", "Regulation Up", "Regulation Down", "Responsive Reserves",
+
+        """
+        # subtract one day since it's the day ahead market happens on the day before for the delivery day
+        date = date - pd.Timedelta("1D")
+
+        report_type_id = 12329
+        doc_url, date = self._get_document(
+            report_type_id,
+            date,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        if verbose:
+            print("Downloading {}".format(doc_url))
+
+        doc = pd.read_csv(doc_url, compression="zip")
+
+        doc["Time"] = pd.to_datetime(
+            doc["DeliveryDate"]
+            + " "
+            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
+            .astype(str)
+            .str.zfill(2)
+            + ":00",
+        ).dt.tz_localize(self.default_timezone, ambiguous=doc["DSTFlag"] == "Y")
+
+        doc["Market"] = "DAM"
+
+        # NSPIN  REGDN  REGUP    RRS
+        rename = {
+            "NSPIN": "Non-Spinning Reserves",
+            "REGDN": "Regulation Down",
+            "REGUP": "Regulation Up",
+            "RRS": "Responsive Reserves",
+        }
+        data = (
+            doc.pivot_table(
+                index=["Time", "Market"],
+                columns="AncillaryType",
+                values="MCPC",
+            )
+            .rename(columns=rename)
+            .reset_index()
+        )
+
+        data.columns.name = None
+
+        return data
 
     def get_rtm_spp(self, year):
         """Get Historical RTM Settlement Point Prices(SPPs) for each of the Hubs and Load Zones
