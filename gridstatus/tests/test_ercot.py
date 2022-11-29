@@ -42,11 +42,7 @@ def test_ercot_get_as_prices():
     assert df.shape[0] >= 0
     assert df.columns.tolist() == as_cols
     assert df["Time"].unique()[0].date() == today
-    import pdb
 
-    pdb.set_trace()
-
-    # latest
     date = today - pd.Timedelta(days=3)
     df = iso.get_as_prices(date)
     assert df.shape[0] >= 0

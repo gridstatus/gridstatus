@@ -191,7 +191,7 @@ class Ercot(ISOBase):
         return doc
 
     @support_date_range("1D")
-    def get_as_prices(self, date, verbose=True):
+    def get_as_prices(self, date, verbose=False):
         """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
 
         Arguments:
@@ -225,7 +225,7 @@ class Ercot(ISOBase):
             .astype(str)
             .str.zfill(2)
             + ":00",
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+        ).dt.tz_localize(self.default_timezone, ambiguous=doc["DSTFlag"] == "Y")
 
         doc["Market"] = "DAM"
 
@@ -245,6 +245,8 @@ class Ercot(ISOBase):
             .rename(columns=rename)
             .reset_index()
         )
+
+        data.columns.name = None
 
         return data
 
