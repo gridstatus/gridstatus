@@ -136,7 +136,7 @@ class SPP(ISOBase):
         last_actual = df.dropna(subset=["Actual Load"])["Time"].max()
         current_day = last_actual.replace(hour=0, minute=0)
 
-        current_day_forecast = df[df["Time"] > current_day]
+        current_day_forecast = df[df["Time"] > current_day].copy()
 
         # assume forecast is made at last actual
         current_day_forecast["Forecast Time"] = last_actual
