@@ -43,12 +43,12 @@ class CAISO(ISOBase):
         # get current date from stats api
         return self.get_status(date="latest").time.date()
 
-    def get_stats(self):
+    def get_stats(self, verbose=False):
         stats_url = _BASE + "/stats.txt"
-        r = self._get_json(stats_url)
+        r = self._get_json(stats_url, verbose=verbose)
         return r
 
-    def get_status(self, date="latest") -> str:
+    def get_status(self, date="latest", verbose=False) -> str:
         """Get Current Status of the Grid. Only date="latest" is supported
 
         Known possible values: Normal, Restricted Maintenance Operations, Flex Alert
@@ -56,7 +56,7 @@ class CAISO(ISOBase):
 
         if date == "latest":
             # todo is it possible for this to return more than one element?
-            r = self.get_stats()
+            r = self.get_stats(verbose=verbose)
 
             time = pd.to_datetime(r["slotDate"]).tz_localize("US/Pacific")
             # can only store one value for status so we concat them together

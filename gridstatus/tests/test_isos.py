@@ -98,6 +98,22 @@ def test_get_latest_status(iso):
     assert isinstance(iso.status_homepage, str)
 
 
+def test_gridstatus_to_dict():
+    time = pd.Timestamp.now()
+    gs = GridStatus(
+        time=time,
+        status="Test",
+        reserves=None,
+        iso=NYISO,
+    )
+
+    assert gs.to_dict() == {
+        "notes": None,
+        "status": "Test",
+        "time": time,
+    }
+
+
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
 def test_get_historical_fuel_mix(iso):
     # date string works
