@@ -1,11 +1,11 @@
 # Changelog
 
-## vNext
+## v0.15.0 - Dec 2, 2022
 
-- Add ability to save intermediate results to disk when fetching data across multiple requests using `save_to` parameter
 - Add ability to get renewable curtailment data for CAISO
-- Add Ancillary Service methods for CAISO
+- Add Ancillary Service Methods for CAISO
 - Add Ancillary Service Prices for ERCOT
+- Add Ability to save intermediate results to disk when fetching data across multiple requests using `save_to` parameter
 
 ## v0.14.0 - Nov 8, 2022
 
