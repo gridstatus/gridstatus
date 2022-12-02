@@ -163,6 +163,13 @@ class GridStatus:
 
         return s
 
+    def to_dict(self):
+        return {
+            "time": self.time,
+            "status": self.status,
+            "notes": self.notes,
+        }
+
 
 class FuelMix:
     def __init__(self, time, mix, iso=None, unit="MW") -> None:

@@ -122,7 +122,7 @@ class ISONE(ISOBase):
         df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
 
         # groupby FuelCategory to make it possible to infer DST changes
-        df["Date"] = df.groupby("Fuel Category")["Date"].apply(
+        df["Date"] = df.groupby("Fuel Category", group_keys=False)["Date"].apply(
             lambda x: x.dt.tz_localize(
                 self.default_timezone,
                 ambiguous="infer",
@@ -459,7 +459,7 @@ class ISONE(ISOBase):
         ]
 
         if not include_id:
-            data.drop(columns=["Location Id"], inplace=True)
+            data = data.drop(columns=["Location Id"])
 
         data = utils.filter_lmp_locations(data, locations)
         return data
