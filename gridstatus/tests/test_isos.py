@@ -100,15 +100,17 @@ def test_get_latest_status(iso):
 
 def test_gridstatus_to_dict():
     time = pd.Timestamp.now()
+    notes = ["note1", "note2"]
     gs = GridStatus(
         time=time,
         status="Test",
         reserves=None,
+        notes=notes,
         iso=NYISO,
     )
 
     assert gs.to_dict() == {
-        "notes": None,
+        "notes": notes,
         "status": "Test",
         "time": time,
     }
