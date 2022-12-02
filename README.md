@@ -15,7 +15,7 @@ Currently `gridstatus` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 
 ## GridStatus.io
 
-To preview the data this library provide access to, visit [GridStatus.io](https://www.gridstatus.io/)
+To preview some the data this library provide access to, visit [GridStatus.io](https://www.gridstatus.io/).
 
 ## Community
 
