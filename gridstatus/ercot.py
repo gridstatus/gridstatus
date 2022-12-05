@@ -86,7 +86,7 @@ class Ercot(ISOBase):
             df = pd.DataFrame(r["currentDay"]["data"].values())
             df = df.dropna(subset=["actualSolar"])
 
-            df = self._handle_data(
+            df = self._handle_json_data(
                 df,
                 {"actualSolar": "Solar", "actualWind": "Wind"},
             )
@@ -122,7 +122,7 @@ class Ercot(ISOBase):
         r = self._get_json(url)
         df = pd.DataFrame(r[when]["data"])
         df = df.dropna(subset=["systemLoad"])
-        df = self._handle_data(df, {"systemLoad": "Load"})
+        df = self._handle_json_data(df, {"systemLoad": "Load"})
         return df
 
     def _get_supply(self, date, verbose=False):
@@ -441,7 +441,7 @@ class Ercot(ISOBase):
         url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc[1]}"
         return url, doc[0]
 
-    def _handle_data(self, df, columns):
+    def _handle_json_data(self, df, columns):
         df["Time"] = (
             pd.to_datetime(df["epoch"], unit="ms")
             .dt.tz_localize("UTC")
