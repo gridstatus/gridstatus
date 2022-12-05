@@ -24,6 +24,8 @@ class Ercot(ISOBase):
     )
 
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
+    ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"
+    LOAD_HISTORICAL_MAX_DAYS = 14
 
     def get_status(self, date, verbose=False):
         """Returns status of grid"""
@@ -108,14 +110,15 @@ class Ercot(ISOBase):
         elif utils.is_today(date):
             return self._get_load_json("currentDay")
 
+        elif utils.is_within_last_days(date, self.LOAD_HISTORICAL_MAX_DAYS):
+            return self._get_load_html(date)
+
         else:
             raise NotSupported()
 
     def _get_load_json(self, when):
         """Returns load for currentDay or previousDay"""
-        # todo switch to https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html
-        # says supports last 5 days, appears to support last two weeks
-        # df = pd.read_html("https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html")
+        # todo:
         # even more historical data. up to month back i think: https://www.ercot.com/mp/data-products/data-product-details?id=NP6-346-CD
         # hourly load archives: https://www.ercot.com/gridinfo/load/load_hist
         url = self.BASE + "/loadForecastVsActual.json"
@@ -123,6 +126,14 @@ class Ercot(ISOBase):
         df = pd.DataFrame(r[when]["data"])
         df = df.dropna(subset=["systemLoad"])
         df = self._handle_json_data(df, {"systemLoad": "Load"})
+        return df
+
+    def _get_load_html(self, when):
+        """Returns load for currentDay or previousDay"""
+        url = self.ACTUAL_LOADS_URL_FORMAT.format(timestamp=when.strftime("%Y%m%d"))
+        dfs = pd.read_html(url, header=0)
+        df = dfs[0]
+        df = self._handle_html_data(df, {"TOTAL": "Load"})
         return df
 
     def _get_supply(self, date, verbose=False):
@@ -447,6 +458,18 @@ class Ercot(ISOBase):
             .dt.tz_localize("UTC")
             .dt.tz_convert(self.default_timezone)
         )
+
+        cols_to_keep = ["Time"] + list(columns.keys())
+        return df[cols_to_keep].rename(columns=columns)
+
+    def _handle_html_data(self, df, columns):
+        df["Time"] = pd.to_datetime(
+            df["Oper Day"] + "T"
+            # Hour ending starts at 100 ("1:00") so we offset by -1 hour,
+            # and zero fill to 4 characters, so strptime can parse it correctly
+            + (df["Hour Ending"].astype(int) - 100).astype(str).str.zfill(4),
+            format="%m/%d/%YT%H%M",
+        ).dt.tz_localize(self.default_timezone)
 
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
