@@ -101,17 +101,17 @@ class Ercot(ISOBase):
 
     def get_load(self, date, verbose=False):
         if date == "latest":
-            d = self._get_load("currentDay").iloc[-1]
+            d = self._get_load_json("currentDay").iloc[-1]
 
             return {"time": d["Time"], "load": d["Load"]}
 
         elif utils.is_today(date):
-            return self._get_load("currentDay")
+            return self._get_load_json("currentDay")
 
         else:
             raise NotSupported()
 
-    def _get_load(self, when):
+    def _get_load_json(self, when):
         """Returns load for currentDay or previousDay"""
         # todo switch to https://www.ercot.com/content/cdr/html/20220810_actual_loads_of_forecast_zones.html
         # says supports last 5 days, appears to support last two weeks
