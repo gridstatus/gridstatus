@@ -36,6 +36,7 @@ dependencies = [
     "tqdm >= 4.64.1",
     "openpyxl >= 3.0.10",
     "tabula-py >= 2.5.1",
+    "lxml >= 4.9.1",
 ]
 
 [project.urls]
