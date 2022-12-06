@@ -101,6 +101,7 @@ class Ercot(ISOBase):
         else:
             raise NotSupported()
 
+    @support_date_range("1D")
     def get_load(self, date, verbose=False):
         if date == "latest":
             d = self._get_load_json("currentDay").iloc[-1]
