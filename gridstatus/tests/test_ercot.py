@@ -37,7 +37,7 @@ def test_ercot_get_as_prices():
 
     # today
     iso = gridstatus.Ercot()
-    today = pd.Timestamp.now().date()
+    today = pd.Timestamp.now(tz=iso.default_timezone).date()
     df = iso.get_as_prices(today)
     assert df.shape[0] >= 0
     assert df.columns.tolist() == as_cols
@@ -48,3 +48,30 @@ def test_ercot_get_as_prices():
     assert df.shape[0] >= 0
     assert df.columns.tolist() == as_cols
     assert df["Time"].unique()[0].date() == date
+
+
+def test_ercot_get_load_today():
+    cols = [
+        "Time",
+        "Load",
+    ]
+    iso = gridstatus.Ercot()
+    today = pd.Timestamp.now(tz=iso.default_timezone).date()
+    df = iso.get_load(today)
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+    assert df["Time"].unique()[0].date() == today
+
+
+def test_ercot_get_load_3_days_ago():
+    cols = [
+        "Time",
+        "Load",
+    ]
+    iso = gridstatus.Ercot()
+    today = pd.Timestamp.now(tz=iso.default_timezone).date()
+    three_days_ago = today - pd.Timedelta(days=3)
+    df = iso.get_load(three_days_ago)
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+    assert df["Time"].unique()[0].date() == three_days_ago

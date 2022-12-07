@@ -139,6 +139,14 @@ def is_today(date, tz=None):
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
 
 
+def is_within_last_days(date, days, tz=None):
+    """Returns whether date is within N days"""
+    now = pd.Timestamp.now(tz=tz).date()
+    date_value = _handle_date(date, tz=tz).date()
+    period_start = (now - pd.DateOffset(days=days)).date()
+    return date_value <= now and date_value >= period_start
+
+
 def format_interconnection_df(queue, rename, extra=None, missing=None):
     """Format interconnection queue data"""
     assert set(rename.keys()).issubset(queue.columns), set(
