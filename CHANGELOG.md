@@ -1,8 +1,8 @@
 # Changelog
 
-## vNext
+## v0.16.0 - Dec 15, 2022
 
-- Ercot Update Fuel Mix Endpoint URL
+- Ercot Fuel Mix Endpoint URL updated to include more fuel sources
 - Ercot get_load supports more historical data
 
 ## v0.15.0 - Dec 2, 2022
