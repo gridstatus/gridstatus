@@ -96,6 +96,20 @@ class Ercot(ISOBase):
                 ambiguous="infer",
             )
 
+            mix = mix[
+                [
+                    "Time",
+                    "Coal and Lignite",
+                    "Hydro",
+                    "Nuclear",
+                    "Power Storage",
+                    "Solar",
+                    "Wind",
+                    "Natural Gas",
+                    "Other",
+                ]
+            ]
+
             return mix
 
         else:

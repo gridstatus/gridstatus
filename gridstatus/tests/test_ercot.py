@@ -85,10 +85,10 @@ def test_get_ercot_fuel_mix():
         "Coal and Lignite",
         "Hydro",
         "Nuclear",
-        "Other",
         "Power Storage",
         "Solar",
         "Wind",
         "Natural Gas",
+        "Other",
     ]
     assert data.columns.tolist() == cols
