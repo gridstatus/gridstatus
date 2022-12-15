@@ -90,6 +90,12 @@ class Ercot(ISOBase):
             )
             mix.index.name = "Time"
             mix = mix.reset_index()
+
+            mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_localize(
+                self.default_timezone,
+                ambiguous="infer",
+            )
+
             return mix
 
         else:
