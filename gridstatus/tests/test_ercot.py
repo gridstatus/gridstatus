@@ -11,20 +11,6 @@ def test_ercot_get_historical_rtm_spp():
     assert len(rtm) > 0
 
 
-def test_ercot_get_fuel_mix():
-
-    # today
-    iso = gridstatus.Ercot()
-    df = iso.get_fuel_mix("today")
-    assert df.shape[0] >= 0
-    assert df.columns.tolist() == ["Time", "Solar", "Wind", "Other"]
-
-    # latest
-    df = iso.get_fuel_mix("latest").mix
-    assert df.shape[0] >= 0
-    assert df.columns.tolist() == ["Time", "Solar", "Wind", "Other"]
-
-
 def test_ercot_get_as_prices():
     as_cols = [
         "Time",
@@ -77,9 +63,10 @@ def test_ercot_get_load_3_days_ago():
     assert df["Time"].unique()[0].date() == three_days_ago
 
 
-def test_get_ercot_fuel_mix():
+def test_ercot_get_fuel_mix():
+
+    # today
     iso = gridstatus.Ercot()
-    data = iso.get_fuel_mix("today")
     cols = [
         "Time",
         "Coal and Lignite",
@@ -91,4 +78,11 @@ def test_get_ercot_fuel_mix():
         "Natural Gas",
         "Other",
     ]
-    assert data.columns.tolist() == cols
+    df = iso.get_fuel_mix("today")
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+
+    # latest
+    df = iso.get_fuel_mix("latest").mix
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
