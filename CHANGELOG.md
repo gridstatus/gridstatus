@@ -1,5 +1,10 @@
 # Changelog
 
+## vNext
+
+- Ercot Update Fuel Mix Endpoint URL
+- Ercot get_load supports more historical data
+
 ## v0.15.0 - Dec 2, 2022
 
 - Add ability to get renewable curtailment data for CAISO
