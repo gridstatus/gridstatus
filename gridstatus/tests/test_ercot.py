@@ -75,3 +75,20 @@ def test_ercot_get_load_3_days_ago():
     assert df.shape[0] >= 0
     assert df.columns.tolist() == cols
     assert df["Time"].unique()[0].date() == three_days_ago
+
+
+def test_get_ercot_fuel_mix():
+    iso = gridstatus.Ercot()
+    data = iso.get_fuel_mix("today")
+    cols = [
+        "Time",
+        "Coal and Lignite",
+        "Hydro",
+        "Nuclear",
+        "Other",
+        "Power Storage",
+        "Solar",
+        "Wind",
+        "Natural Gas",
+    ]
+    assert data.columns.tolist() == cols

@@ -56,7 +56,7 @@ class Ercot(ISOBase):
         )
 
     def get_fuel_mix(self, date, verbose=False):
-        """Get fuel mix in hourly intervals. Currently, ercot only reports solar and wind generation
+        """Get fuel mix 5 minute intervals
 
         Arguments:
             date(datetime or str): "latest", "today". historical data currently not supported
@@ -69,34 +69,28 @@ class Ercot(ISOBase):
 
         if date == "latest":
             df = self.get_fuel_mix("today")
-            currentHour = df.iloc[-1]
+            latest = df.iloc[-1].to_dict()
+            time = latest.pop("Time")
+            return FuelMix(time=time, mix=latest, iso=self.name)
 
-            mix_dict = {
-                "Solar": currentHour["Solar"],
-                "Wind": currentHour["Wind"],
-                "Other": currentHour["Other"],
-            }
-
-            return FuelMix(time=currentHour["Time"], mix=mix_dict, iso=self.name)
-
+        # todo: can also support yesterday
         elif utils.is_today(date):
-
-            url = self.BASE + "/combine-wind-solar.json"
+            date = utils._handle_date(date)
+            url = self.BASE + "/fuel-mix.json"
             r = self._get_json(url, verbose=verbose)
 
-            # rows with nulls are forecasts
-            df = pd.DataFrame(r["currentDay"]["data"].values())
-            df = df.dropna(subset=["actualSolar"])
+            today_str = date.strftime("%Y-%m-%d")
 
-            df = self._handle_json_data(
-                df,
-                {"actualSolar": "Solar", "actualWind": "Wind"},
+            mix = (
+                pd.DataFrame(r["data"][today_str])
+                .applymap(
+                    lambda x: x["gen"],
+                )
+                .T
             )
-            supply_df = self._get_supply("today")
-            mix = df.merge(supply_df, on="Time").rename({"Supply": "Other"})
-            mix["Other"] = mix["Supply"] - mix["Solar"] - mix["Wind"]
-
-            return mix[["Time", "Solar", "Wind", "Other"]]
+            mix.index.name = "Time"
+            mix = mix.reset_index()
+            return mix
 
         else:
             raise NotSupported()
@@ -131,7 +125,9 @@ class Ercot(ISOBase):
 
     def _get_load_html(self, when):
         """Returns load for currentDay or previousDay"""
-        url = self.ACTUAL_LOADS_URL_FORMAT.format(timestamp=when.strftime("%Y%m%d"))
+        url = self.ACTUAL_LOADS_URL_FORMAT.format(
+            timestamp=when.strftime("%Y%m%d"),
+        )
         dfs = pd.read_html(url, header=0)
         df = dfs[0]
         df = self._handle_html_data(df, {"TOTAL": "Load"})
@@ -478,4 +474,4 @@ class Ercot(ISOBase):
 
 if __name__ == "__main__":
     iso = Ercot()
-    iso.get_fuel_mix("today")
+    iso.get_fuel_mix("latest")
