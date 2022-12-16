@@ -1,4 +1,5 @@
 import io
+import sys
 from zipfile import ZipFile
 
 import pandas as pd
@@ -238,6 +239,7 @@ class Ercot(ISOBase):
             report_type_id=SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID,
             date=today,
             constructed_name_contains="csv.zip",
+            verbose=verbose,
         )
 
         doc = pd.read_csv(doc_url, compression="zip")
@@ -345,6 +347,7 @@ class Ercot(ISOBase):
         doc_url, date = self._get_document(
             report_type_id=GIS_REPORT_RTID,
             constructed_name_contains="GIS_Report",
+            verbose=verbose,
         )
 
         # TODO other sheets for small projects, inactive, and cancelled project
@@ -546,6 +549,7 @@ class Ercot(ISOBase):
             report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
             date=date,
             constructed_name_contains="csv.zip",
+            verbose=verbose,
         )
         df = pd.read_csv(doc_url, compression="zip")
 
@@ -644,6 +648,8 @@ class Ercot(ISOBase):
     ):
         """Get document for a given report type id and date. If multiple document published return the latest"""
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
+        if verbose:
+            print(f"Fetching document {url}", file=sys.stderr)
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
         match = []
         for d in docs:
