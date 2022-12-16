@@ -504,35 +504,45 @@ class Ercot(ISOBase):
         assert market is not None, "market must be specified"
         market = Markets(market)
 
+        unsupported = False
         if market == Markets.REAL_TIME_15_MIN:
             if date == "latest":
-                return self._get_latest_rtm_15min_lmp(
+                return self._get_lmp_rtm15_latest(
                     locations,
                     location_type,
                     verbose,
                 )
             elif utils.is_today(date):
-                return self._get_today_rtm_15min_lmp(
+                return self._get_lmp_rtm15_today(
                     locations,
                     location_type,
                     verbose,
                 )
+            else:
+                unsupported = True
         elif market == Markets.DAY_AHEAD_HOURLY:
             if date == "latest":
-                return self._get_latest_dam_lmp(locations, location_type, verbose)
+                return self._get_lmp_dam_latest(locations, location_type, verbose)
             elif utils.is_today(date):
-                return self._get_today_dam_lmp(locations, location_type, verbose)
+                return self._get_lmp_dam_today(locations, location_type, verbose)
+            else:
+                unsupported = True
         else:
-            raise NotSupported(f"Market {market} not supported for ERCOT")
+            unsupported = True
 
-    def _get_latest_dam_lmp(
+        if unsupported:
+            raise NotSupported(
+                f"Market {market} and/or date {date} are not supported for ERCOT",
+            )
+
+    def _get_lmp_dam_latest(
         self,
         locations: list = None,
         location_type: str = None,
         verbose=False,
     ):
         """Gets today's data and filters all rows matching the maximum time"""
-        df = self._get_today_dam_lmp(
+        df = self._get_lmp_dam_today(
             locations,
             location_type,
             verbose,
@@ -541,7 +551,7 @@ class Ercot(ISOBase):
         df = df[df["Time"] == max_time]
         return df
 
-    def _get_today_dam_lmp(
+    def _get_lmp_dam_today(
         self,
         locations: list = None,
         location_type: str = None,
@@ -596,7 +606,7 @@ class Ercot(ISOBase):
         df = df.reset_index(drop=True)
         return df
 
-    def _get_latest_rtm_15min_lmp(
+    def _get_lmp_rtm15_latest(
         self,
         locations: list = None,
         location_type: str = None,
@@ -649,7 +659,7 @@ class Ercot(ISOBase):
         df = df.reset_index(drop=True)
         return df
 
-    def _get_today_rtm_15min_lmp(
+    def _get_lmp_rtm15_today(
         self,
         locations: list = None,
         location_type: str = None,
@@ -758,7 +768,9 @@ class Ercot(ISOBase):
         constructed_name_contains=None,
         verbose=False,
     ):
-        """Return list of URLs for a given Report Type ID and date"""
+        """Return list of URLs for a given Report Type ID and date
+
+        Note the filtering & exception handling differ from _get_document"""
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
         if verbose:
             print(f"Fetching document {url}", file=sys.stderr)
