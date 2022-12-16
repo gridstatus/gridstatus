@@ -499,7 +499,7 @@ class Ercot(ISOBase):
             locations = "ALL"
 
         if location_type is None:
-            location_type = "zone"
+            location_type = LOCATION_TYPE_ZONE
 
         assert market is not None, "market must be specified"
         market = Markets(market)
