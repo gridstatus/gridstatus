@@ -678,6 +678,40 @@ class Ercot(ISOBase):
         url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc[1]}"
         return url, doc[0]
 
+    def _get_documents(
+        self,
+        report_type_id,
+        date=None,
+        constructed_name_contains=None,
+        verbose=False,
+    ):
+        """Return list of URLs for a given Report Type ID and date"""
+        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
+        if verbose:
+            print(f"Fetching document {url}", file=sys.stderr)
+        docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
+        matches = []
+        for doc in docs:
+            match = True
+
+            if date:
+                doc_date = pd.Timestamp(doc["Document"]["PublishDate"]).tz_convert(
+                    self.default_timezone,
+                )
+                match = match and doc_date.date() == date.date()
+
+            if constructed_name_contains:
+                match = (
+                    match
+                    and constructed_name_contains in doc["Document"]["ConstructedName"]
+                )
+
+            if match:
+                doc_id = doc["Document"]["DocID"]
+                url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"
+                matches.append(url)
+        return matches
+
     def _handle_json_data(self, df, columns):
         df["Time"] = (
             pd.to_datetime(df["epoch"], unit="ms")
