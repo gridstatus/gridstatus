@@ -64,6 +64,11 @@ class Ercot(ISOBase):
         "http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933"
     )
 
+    markets = [
+        Markets.REAL_TIME_15_MIN,
+        Markets.DAY_AHEAD_HOURLY,
+    ]
+
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
     ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"
     LOAD_HISTORICAL_MAX_DAYS = 14
