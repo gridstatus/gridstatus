@@ -493,7 +493,7 @@ class Ercot(ISOBase):
         Supported Location Types: "zone", "hub", "node"
         """
         if not (date == "latest" or utils.is_today(date)):
-            raise NotImplementedError("Only latest and today supported for ERCOT")
+            raise NotSupported(f"date={date} is not supported for LMP")
 
         if locations is None:
             locations = "ALL"
