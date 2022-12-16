@@ -10,6 +10,14 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 
+"""
+Report Type IDs
+"""
+DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 12329
+GIS_REPORT_RTID = 15933
+HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13061
+SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID = 12311
+
 
 class Ercot(ISOBase):
     """Electric Reliability Council of Texas (ERCOT)"""
@@ -195,7 +203,7 @@ class Ercot(ISOBase):
         # there are a few days of historical date for the forecast
         today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
         doc_url, publish_date = self._get_document(
-            report_type_id=12311,
+            report_type_id=SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID,
             date=today,
             constructed_name_contains="csv.zip",
         )
@@ -233,10 +241,9 @@ class Ercot(ISOBase):
         # subtract one day since it's the day ahead market happens on the day before for the delivery day
         date = date - pd.Timedelta("1D")
 
-        report_type_id = 12329
         doc_url, date = self._get_document(
-            report_type_id,
-            date,
+            report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+            date=date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
@@ -287,7 +294,7 @@ class Ercot(ISOBase):
         Source: https: // www.ercot.com/mp/data-products/data-product-details?id = NP6-785-ER
         """
         doc_url, date = self._get_document(
-            13061,
+            report_type_id=HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID,
             constructed_name_contains=f"{year}.zip",
             verbose=True,
         )
@@ -303,9 +310,8 @@ class Ercot(ISOBase):
         Monthly historical data available here: http: // mis.ercot.com/misapp/GetReports.do?reportTypeId = 15933 & reportTitle = GIS % 20Report & showHTMLView = &mimicKey
         """
 
-        report_type_id = 15933
         doc_url, date = self._get_document(
-            report_type_id=report_type_id,
+            report_type_id=GIS_REPORT_RTID,
             constructed_name_contains="GIS_Report",
         )
 
