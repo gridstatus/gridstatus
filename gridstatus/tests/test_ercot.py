@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
+from gridstatus import Markets
 
 
 @pytest.mark.skip(reason="takes too long to run")
@@ -86,3 +87,107 @@ def test_ercot_get_fuel_mix():
     df = iso.get_fuel_mix("latest").mix
     assert df.shape[0] >= 0
     assert df.columns.tolist() == cols
+
+
+@pytest.mark.slow
+def test_ercot_get_lmp_today_real_time_15_minutes_zone():
+    iso = gridstatus.Ercot()
+    cols = [
+        "Location",
+        "Time",
+        "Market",
+        "Location Type",
+        "LMP",
+    ]
+    df = iso.get_lmp(
+        date="today",
+        market=Markets.REAL_TIME_15_MIN,
+        location_type="zone",
+    )
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+
+    markets = df["Market"].unique()
+    assert len(markets) == 1
+    assert markets[0] == Markets.REAL_TIME_15_MIN.value
+
+    location_types = df["Location Type"].unique()
+    assert len(location_types) == 1
+    assert location_types[0] == "Zone"
+
+
+def test_ercot_get_lmp_latest_real_time_15_minutes_zone():
+    iso = gridstatus.Ercot()
+    cols = [
+        "Location",
+        "Time",
+        "Market",
+        "Location Type",
+        "LMP",
+    ]
+    df = iso.get_lmp(
+        date="latest",
+        market=Markets.REAL_TIME_15_MIN,
+        location_type="zone",
+    )
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+
+    markets = df["Market"].unique()
+    assert len(markets) == 1
+    assert markets[0] == Markets.REAL_TIME_15_MIN.value
+
+    location_types = df["Location Type"].unique()
+    assert len(location_types) == 1
+    assert location_types[0] == "Zone"
+
+
+def test_ercot_get_lmp_latest_real_time_15_minutes_hub():
+    iso = gridstatus.Ercot()
+    cols = [
+        "Location",
+        "Time",
+        "Market",
+        "Location Type",
+        "LMP",
+    ]
+    df = iso.get_lmp(
+        date="latest",
+        market=Markets.REAL_TIME_15_MIN,
+        location_type="hub",
+    )
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+    markets = df["Market"].unique()
+    assert len(markets) == 1
+    assert markets[0] == Markets.REAL_TIME_15_MIN.value
+
+    location_types = df["Location Type"].unique()
+    assert len(location_types) == 1
+    assert location_types[0] == "Hub"
+
+
+def test_ercot_get_lmp_latest_real_time_15_minutes_node():
+    iso = gridstatus.Ercot()
+    cols = [
+        "Location",
+        "Time",
+        "Market",
+        "Location Type",
+        "LMP",
+    ]
+    df = iso.get_lmp(
+        date="latest",
+        market=Markets.REAL_TIME_15_MIN,
+        location_type="node",
+    )
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+
+    markets = df["Market"].unique()
+    assert len(markets) == 1
+    assert markets[0] == Markets.REAL_TIME_15_MIN.value
+
+    location_types = df["Location Type"].unique()
+    assert len(location_types) == 1
+    assert location_types[0] == "Node"
