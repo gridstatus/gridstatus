@@ -1,4 +1,8 @@
+import io
+from zipfile import ZipFile
+
 import pandas as pd
+import requests
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -6,17 +10,45 @@ from gridstatus.base import (
     GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
+    Markets,
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
+
+LOCATION_TYPE_HUB = "HUB"
+LOCATION_TYPE_NODE = "NODE"
+LOCATION_TYPE_ZONE = "ZONE"
 
 """
 Report Type IDs
 """
 DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 12329
+DAM_SETTLEMENT_POINT_PRICES_RTID = 12331
 GIS_REPORT_RTID = 15933
 HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13061
+SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID = 10008
+SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID = 12301
 SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID = 12311
+
+
+"""
+Settlement	Point Type	Description
+==========	==========	===========
+Resource Node	RN	Resource Node for normal resource
+Resource Node	PCCRN	Physical Resource Node for combined cycle units
+Resource Node	LCCRN	Logical Resource Node for combined cycle plant
+Resource Node	PUN	Private Area Network Resource Node
+Load Zone	LZ	Congestion Load Zone
+Load Zone	LZ_DC	DCTIE Load Zone
+Hub	HU	Hub
+Hub	SH	ERCOT_345KV_HUBBUSES_AVG
+Hub	AH	ERCOT_HUB_AVG
+============================================================
+Source: https://www.ercot.com/files/docs/2009/10/26/07_tests_for_rsnable_lmps_overview_of_price_valid_tool_09102.ppt
+"""
+RESOURCE_NODE_SETTLEMENT_TYPES = ["RN", "PCCRN", "LCCRN", "PUN"]
+LOAD_ZONE_SETTLEMENT_TYPES = ["LZ", "LZ_DC"]
+HUB_SETTLEMENT_TYPES = ["HU", "SH", "AH"]
 
 
 class Ercot(ISOBase):
@@ -438,6 +470,171 @@ class Ercot(ISOBase):
 
         return queue
 
+    def get_lmp(
+        self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = None,
+        location_type: str = None,
+        verbose=False,
+    ):
+        """Get LMP data for ERCOT"""
+
+        if date == "latest":
+            return self._get_today_lmp(
+                "today",
+                market=market,
+                locations=locations,
+                location_type=location_type,
+                verbose=verbose,
+            )
+            # TODO filter for latest value
+        elif utils.is_today(date):
+            return self._get_today_lmp(
+                date,
+                market=market,
+                locations=locations,
+                location_type=location_type,
+                verbose=verbose,
+            )
+        else:
+            raise NotImplementedError("Only latest and today supported for ERCOT")
+
+    def _get_today_lmp(
+        self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = None,
+        location_type: str = None,
+        verbose=False,
+    ):
+        if locations is None:
+            locations = "ALL"
+
+        if location_type is None:
+            location_type = "HUB"
+
+        assert market is not None, "market must be specified"
+        market = Markets(market)
+
+        if market == Markets.REAL_TIME_5_MIN:
+            return self._get_today_rtm_5min_lmp(
+                date,
+                end,
+                locations,
+                location_type,
+                verbose,
+            )
+        elif market == Markets.DAY_AHEAD_HOURLY:
+            return self._get_today_dam_lmp(date, end, locations, location_type, verbose)
+        else:
+            raise NotSupported(f"Market {market} not supported for ERCOT")
+
+    def _get_today_dam_lmp(
+        self,
+        date,
+        end=None,
+        locations: list = None,
+        location_type: str = None,
+        verbose=False,
+    ):
+        """Get day-ahead hourly Market LMP data for ERCOT"""
+        date = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        doc_url, publish_date = self._get_document(
+            report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
+            date=date,
+            constructed_name_contains="csv.zip",
+        )
+        df = pd.read_csv(doc_url, compression="zip")
+
+        # fetch mapping
+        df["Market"] = Markets.DAY_AHEAD_HOURLY.value
+        df["Location Type"] = self._get_location_type_name(location_type)
+
+        mapping_df = self._get_settlement_point_mapping(location_type=location_type)
+        df = self._filter_by_location_type(df, mapping_df, location_type)
+        df = self._filter_by_locations(df, "SettlementPoint", locations)
+
+        df["Time"] = pd.to_datetime(
+            df["DeliveryDate"]
+            + " "
+            + (df["HourEnding"].str.split(":").str[0].astype(int) - 1)
+            .astype(str)
+            .str.zfill(2)
+            + ":00",
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+
+        df = df.rename(
+            columns={
+                "SettlementPointPrice": "LMP",
+                "SettlementPoint": "Location",
+            },
+        )
+
+        df = df[
+            [
+                "Location",
+                "Time",
+                "Market",
+                "Location Type",
+                "LMP",
+            ]
+        ]
+
+        df = df.reset_index(drop=True)
+        return df
+
+    def _get_today_rtm_5min_lmp(
+        self,
+        date,
+        end=None,
+        locations: list = None,
+        location_type: str = None,
+        verbose=False,
+    ):
+        """Get Real-time 5-minute Market LMP data for ERCOT"""
+        today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        doc_url, publish_date = self._get_document(
+            report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
+            date=today,
+            constructed_name_contains="csv.zip",
+        )
+        df = pd.read_csv(doc_url, compression="zip")
+        df["Market"] = Markets.REAL_TIME_5_MIN.value
+        df["Location Type"] = self._get_location_type_name(location_type)
+
+        df["Time"] = pd.to_datetime(
+            df["DeliveryDate"]
+            + "T"
+            + (df["DeliveryHour"].astype(int)).astype(str).str.zfill(2),
+            format="%m/%d/%YT%H",
+        ).dt.tz_localize(self.default_timezone)
+
+        df = self._filter_by_settlement_point_type(df, location_type)
+        df = self._filter_by_locations(df, "SettlementPointName", locations)
+
+        df = df.rename(
+            columns={
+                "SettlementPointPrice": "LMP",
+                "SettlementPointName": "Location",
+            },
+        )
+
+        df = df[
+            [
+                "Location",
+                "Time",
+                "Market",
+                "Location Type",
+                "LMP",
+            ]
+        ]
+
+        df = df.reset_index(drop=True)
+        return df
+
     def _get_document(
         self,
         report_type_id,
@@ -496,6 +693,70 @@ class Ercot(ISOBase):
 
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
+
+    def _filter_by_settlement_point_type(self, df, location_type):
+        """Filter by settlement point type"""
+        norm_location_type = location_type.upper()
+        if norm_location_type == LOCATION_TYPE_NODE:
+            df = df[df["SettlementPointType"].isin(RESOURCE_NODE_SETTLEMENT_TYPES)]
+        elif norm_location_type == LOCATION_TYPE_ZONE:
+            df = df[df["SettlementPointType"].isin(LOAD_ZONE_SETTLEMENT_TYPES)]
+        elif norm_location_type == LOCATION_TYPE_HUB:
+            df = df[df["SettlementPointType"].isin(HUB_SETTLEMENT_TYPES)]
+        else:
+            raise ValueError(f"Invalid location_type: {location_type}")
+        return df
+
+    def _filter_by_locations(self, df, field_name, locations):
+        """Filter settlement point name by locations list"""
+        if isinstance(locations, list):
+            df = df[df[field_name].isin(locations)]
+        return df
+
+    def _get_location_type_name(self, location_type):
+        norm_location_type = location_type.upper()
+        if norm_location_type == LOCATION_TYPE_NODE:
+            return "Node"
+        elif norm_location_type == LOCATION_TYPE_ZONE:
+            return "Zone"
+        elif norm_location_type == LOCATION_TYPE_HUB:
+            return "Hub"
+        else:
+            raise ValueError(f"Invalid location_type: {location_type}")
+
+    def _get_settlement_point_mapping(self, location_type):
+        """Get mapping of settlement point name to location type"""
+
+        date = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+
+        report_type_id = SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID
+        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
+        docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
+        latest_doc = sorted(docs, key=lambda x: x["Document"]["PublishDate"])[-1]
+        doc_id = latest_doc["Document"]["DocID"]
+        doc_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"
+
+        r = requests.get(doc_url)
+        z = ZipFile(io.BytesIO(r.content))
+        names = z.namelist()
+        settlement_points_file = [
+            name for name in names if "Settlement_Points" in name
+        ][0]
+        df = pd.read_csv(z.open(settlement_points_file))
+        return df
+
+    def _filter_by_location_type(self, df, mapping_df, location_type):
+        """Filter by location type"""
+        if location_type == LOCATION_TYPE_NODE:
+            valid_values = mapping_df["RESOURCE_NODE"].unique()
+        elif location_type == LOCATION_TYPE_ZONE:
+            valid_values = mapping_df["SETTLEMENT_LOAD_ZONE"].unique()
+        elif location_type == LOCATION_TYPE_HUB:
+            valid_values = mapping_df["HUB"].unique()
+        else:
+            raise ValueError(f"Invalid location_type: {location_type}")
+
+        return df[df["SettlementPoint"].isin(valid_values)]
 
 
 if __name__ == "__main__":
