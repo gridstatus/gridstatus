@@ -241,7 +241,6 @@ class Ercot(ISOBase):
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
-
         doc = pd.read_csv(doc_url, compression="zip")
 
         doc["Time"] = pd.to_datetime(
@@ -514,9 +513,28 @@ class Ercot(ISOBase):
                     verbose,
                 )
         elif market == Markets.DAY_AHEAD_HOURLY:
-            return self._get_today_dam_lmp(locations, location_type, verbose)
+            if date == "latest":
+                return self._get_latest_dam_lmp(locations, location_type, verbose)
+            elif utils.is_today(date):
+                return self._get_today_dam_lmp(locations, location_type, verbose)
         else:
             raise NotSupported(f"Market {market} not supported for ERCOT")
+
+    def _get_latest_dam_lmp(
+        self,
+        locations: list = None,
+        location_type: str = None,
+        verbose=False,
+    ):
+        """Gets today's data and filters all rows matching the maximum time"""
+        df = self._get_today_dam_lmp(
+            locations,
+            location_type,
+            verbose,
+        )
+        max_time = df["Time"].max()
+        df = df[df["Time"] == max_time]
+        return df
 
     def _get_today_dam_lmp(
         self,
@@ -532,6 +550,8 @@ class Ercot(ISOBase):
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
+        if verbose:
+            print(f"Fetching {doc_url}", file=sys.stderr)
         df = pd.read_csv(doc_url, compression="zip")
 
         # fetch mapping

@@ -116,7 +116,7 @@ def test_ercot_get_lmp_today_real_time_15_minutes_zone():
     assert location_types[0] == "Zone"
 
 
-def test_ercot_get_lmp_latest_real_time_15_minutes_zone():
+def test_ercot_get_lmp_latest_day_ahead_hourly_zone():
     iso = gridstatus.Ercot()
     cols = [
         "Location",
@@ -127,7 +127,7 @@ def test_ercot_get_lmp_latest_real_time_15_minutes_zone():
     ]
     df = iso.get_lmp(
         date="latest",
-        market=Markets.REAL_TIME_15_MIN,
+        market=Markets.DAY_AHEAD_HOURLY,
         location_type="zone",
     )
     assert df.shape[0] >= 0
@@ -135,14 +135,14 @@ def test_ercot_get_lmp_latest_real_time_15_minutes_zone():
 
     markets = df["Market"].unique()
     assert len(markets) == 1
-    assert markets[0] == Markets.REAL_TIME_15_MIN.value
+    assert markets[0] == Markets.DAY_AHEAD_HOURLY.value
 
     location_types = df["Location Type"].unique()
     assert len(location_types) == 1
     assert location_types[0] == "Zone"
 
 
-def test_ercot_get_lmp_latest_real_time_15_minutes_hub():
+def test_ercot_get_lmp_latest_day_ahead_hourly_hub():
     iso = gridstatus.Ercot()
     cols = [
         "Location",
@@ -153,21 +153,21 @@ def test_ercot_get_lmp_latest_real_time_15_minutes_hub():
     ]
     df = iso.get_lmp(
         date="latest",
-        market=Markets.REAL_TIME_15_MIN,
+        market=Markets.DAY_AHEAD_HOURLY,
         location_type="hub",
     )
     assert df.shape[0] >= 0
     assert df.columns.tolist() == cols
     markets = df["Market"].unique()
     assert len(markets) == 1
-    assert markets[0] == Markets.REAL_TIME_15_MIN.value
+    assert markets[0] == Markets.DAY_AHEAD_HOURLY.value
 
     location_types = df["Location Type"].unique()
     assert len(location_types) == 1
     assert location_types[0] == "Hub"
 
 
-def test_ercot_get_lmp_latest_real_time_15_minutes_node():
+def test_ercot_get_lmp_latest_day_ahead_hourly_node():
     iso = gridstatus.Ercot()
     cols = [
         "Location",
@@ -178,7 +178,7 @@ def test_ercot_get_lmp_latest_real_time_15_minutes_node():
     ]
     df = iso.get_lmp(
         date="latest",
-        market=Markets.REAL_TIME_15_MIN,
+        market=Markets.DAY_AHEAD_HOURLY,
         location_type="node",
     )
     assert df.shape[0] >= 0
@@ -186,7 +186,7 @@ def test_ercot_get_lmp_latest_real_time_15_minutes_node():
 
     markets = df["Market"].unique()
     assert len(markets) == 1
-    assert markets[0] == Markets.REAL_TIME_15_MIN.value
+    assert markets[0] == Markets.DAY_AHEAD_HOURLY.value
 
     location_types = df["Location Type"].unique()
     assert len(location_types) == 1
