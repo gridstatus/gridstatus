@@ -482,37 +482,15 @@ class Ercot(ISOBase):
         location_type: str = None,
         verbose=False,
     ):
-        """Get LMP data for ERCOT"""
+        """Get LMP data for ERCOT
 
-        if date == "latest":
-            return self._get_today_lmp(
-                "today",
-                market=market,
-                locations=locations,
-                location_type=location_type,
-                verbose=verbose,
-            )
-            # TODO filter for latest value
-        elif utils.is_today(date):
-            return self._get_today_lmp(
-                date,
-                market=market,
-                locations=locations,
-                location_type=location_type,
-                verbose=verbose,
-            )
-        else:
+        Supported Markets: REAL_TIME_15_MIN, DAY_AHEAD_HOURLY
+
+        Supported Location Types: "zone", "hub", "node"
+        """
+        if not (date == "latest" or utils.is_today(date)):
             raise NotImplementedError("Only latest and today supported for ERCOT")
 
-    def _get_today_lmp(
-        self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = None,
-        location_type: str = None,
-        verbose=False,
-    ):
         if locations is None:
             locations = "ALL"
 
@@ -522,23 +500,26 @@ class Ercot(ISOBase):
         assert market is not None, "market must be specified"
         market = Markets(market)
 
-        if market == Markets.REAL_TIME_5_MIN:
-            return self._get_today_rtm_5min_lmp(
-                date,
-                end,
-                locations,
-                location_type,
-                verbose,
-            )
+        if market == Markets.REAL_TIME_15_MIN:
+            if date == "latest":
+                return self._get_latest_rtm_15min_lmp(
+                    locations,
+                    location_type,
+                    verbose,
+                )
+            elif utils.is_today(date):
+                return self._get_today_rtm_15min_lmp(
+                    locations,
+                    location_type,
+                    verbose,
+                )
         elif market == Markets.DAY_AHEAD_HOURLY:
-            return self._get_today_dam_lmp(date, end, locations, location_type, verbose)
+            return self._get_today_dam_lmp(locations, location_type, verbose)
         else:
             raise NotSupported(f"Market {market} not supported for ERCOT")
 
     def _get_today_dam_lmp(
         self,
-        date,
-        end=None,
         locations: list = None,
         location_type: str = None,
         verbose=False,
@@ -590,30 +571,34 @@ class Ercot(ISOBase):
         df = df.reset_index(drop=True)
         return df
 
-    def _get_today_rtm_5min_lmp(
+    def _get_latest_rtm_15min_lmp(
         self,
-        date,
-        end=None,
         locations: list = None,
         location_type: str = None,
         verbose=False,
     ):
-        """Get Real-time 5-minute Market LMP data for ERCOT"""
+        """Get Real-time 15-minute Market LMP data for ERCOT
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP6-788-CD
+        """
         today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
         doc_url, publish_date = self._get_document(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
             date=today,
             constructed_name_contains="csv.zip",
+            verbose=verbose,
         )
         df = pd.read_csv(doc_url, compression="zip")
-        df["Market"] = Markets.REAL_TIME_5_MIN.value
+        df["Market"] = Markets.REAL_TIME_15_MIN.value
         df["Location Type"] = self._get_location_type_name(location_type)
 
         df["Time"] = pd.to_datetime(
             df["DeliveryDate"]
             + "T"
-            + (df["DeliveryHour"].astype(int)).astype(str).str.zfill(2),
-            format="%m/%d/%YT%H",
+            + (df["DeliveryHour"].astype(int) - 1).astype(str).str.zfill(2)
+            + ":"
+            + ((df["DeliveryInterval"].astype(int) - 1) * 15).astype(str).str.zfill(2),
+            format="%m/%d/%YT%H:%M",
         ).dt.tz_localize(self.default_timezone)
 
         df = self._filter_by_settlement_point_type(df, location_type)
@@ -636,6 +621,69 @@ class Ercot(ISOBase):
             ]
         ]
 
+        df = df.reset_index(drop=True)
+        return df
+
+    def _get_today_rtm_15min_lmp(
+        self,
+        locations: list = None,
+        location_type: str = None,
+        verbose=False,
+    ):
+        """Get Real-time 15-minute Market LMP data for ERCOT
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
+        """
+        today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        doc_urls = self._get_documents(
+            report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
+            date=today,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        all_df = []
+        for doc_url in doc_urls:
+            if verbose:
+                print(f"Fetching {doc_url}", file=sys.stderr)
+            df = pd.read_csv(doc_url, compression="zip")
+            all_df.append(df)
+        df = pd.concat(all_df).reset_index(drop=True)
+
+        df["Market"] = Markets.REAL_TIME_15_MIN.value
+        df["Location Type"] = self._get_location_type_name(location_type)
+
+        df["Time"] = pd.to_datetime(
+            df["DeliveryDate"]
+            + "T"
+            + (df["DeliveryHour"].astype(int) - 1).astype(str).str.zfill(2)
+            + ":"
+            + ((df["DeliveryInterval"].astype(int) - 1) * 15).astype(str).str.zfill(2),
+            format="%m/%d/%YT%H:%M",
+        ).dt.tz_localize(self.default_timezone)
+
+        # Additional filter as the document may contain the last 15 minutes of yesterday
+        df = df[df["Time"].dt.date == today.date()]
+
+        df = self._filter_by_settlement_point_type(df, location_type)
+        df = self._filter_by_locations(df, "SettlementPointName", locations)
+
+        df = df.rename(
+            columns={
+                "SettlementPointPrice": "LMP",
+                "SettlementPointName": "Location",
+            },
+        )
+
+        df = df[
+            [
+                "Location",
+                "Time",
+                "Market",
+                "Location Type",
+                "LMP",
+            ]
+        ]
         df = df.reset_index(drop=True)
         return df
 
