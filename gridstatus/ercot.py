@@ -167,7 +167,7 @@ class Ercot(ISOBase):
         Updates every 5 minutes
         """
         assert date == "today", "Only today's data is supported"
-        url = "https://www.ercot.com/api/1/services/read/dashboards/todays-outlook.json"
+        url = self.BASE + "/todays-outlook.json"
         r = self._get_json(url)
 
         date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
