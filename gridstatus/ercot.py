@@ -538,7 +538,7 @@ class Ercot(ISOBase):
         df["Market"] = Markets.DAY_AHEAD_HOURLY.value
         df["Location Type"] = self._get_location_type_name(location_type)
 
-        mapping_df = self._get_settlement_point_mapping(location_type=location_type)
+        mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         df = self._filter_by_location_type(df, mapping_df, location_type)
         df = self._filter_by_locations(df, "SettlementPoint", locations)
 
@@ -812,17 +812,19 @@ class Ercot(ISOBase):
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
 
-    def _get_settlement_point_mapping(self, location_type):
-        """Get mapping of settlement point name to location type"""
-
-        date = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+    def _get_settlement_point_mapping(self, verbose=False):
+        """Get dataframe whose columns can help us filter out values"""
 
         report_type_id = SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
+        if verbose:
+            print(f"Fetching document {url}", file=sys.stderr)
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
         latest_doc = sorted(docs, key=lambda x: x["Document"]["PublishDate"])[-1]
         doc_id = latest_doc["Document"]["DocID"]
         doc_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"
+        if verbose:
+            print(f"Fetching {doc_url}", file=sys.stderr)
 
         r = requests.get(doc_url)
         z = ZipFile(io.BytesIO(r.content))
