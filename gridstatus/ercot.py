@@ -835,11 +835,12 @@ class Ercot(ISOBase):
 
     def _filter_by_location_type(self, df, mapping_df, location_type):
         """Filter by location type"""
-        if location_type == LOCATION_TYPE_NODE:
+        norm_location_type = location_type.upper()
+        if norm_location_type == LOCATION_TYPE_NODE:
             valid_values = mapping_df["RESOURCE_NODE"].unique()
-        elif location_type == LOCATION_TYPE_ZONE:
+        elif norm_location_type == LOCATION_TYPE_ZONE:
             valid_values = mapping_df["SETTLEMENT_LOAD_ZONE"].unique()
-        elif location_type == LOCATION_TYPE_HUB:
+        elif norm_location_type == LOCATION_TYPE_HUB:
             valid_values = mapping_df["HUB"].unique()
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
