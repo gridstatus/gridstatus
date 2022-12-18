@@ -23,12 +23,36 @@ LOCATION_TYPE_ZONE = "ZONE"
 """
 Report Type IDs
 """
+# DAM Clearing Prices for Capacity
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-188-CD
 DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 12329
+
+# DAM Settlement Point Prices
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-190-CD
 DAM_SETTLEMENT_POINT_PRICES_RTID = 12331
+
+# GIS Report
+# https://www.ercot.com/mp/data-products/data-product-details?id=PG7-200-ER
 GIS_REPORT_RTID = 15933
+
+# Historical DAM Load Zone and Hub Prices
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-180-ER
+HISTORICAL_DAM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13060
+
+# Historical RTM Load Zone and Hub Prices
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
 HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13061
+
+# Settlement Points List and Electrical Buses Mapping
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-160-SG
 SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID = 10008
+
+# Settlement Point Prices at Resource Nodes, Hubs and Load Zones
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
 SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID = 12301
+
+# Seven-Day Load Forecast by Forecast Zone
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
 SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID = 12311
 
 
