@@ -17,6 +17,10 @@ from gridstatus.nyiso import NYISO
 from gridstatus.pjm import PJM
 from gridstatus.spp import SPP
 
+GREEN_CHECKMARK_HTML_ENTITY = "&#x2705;"
+
+RED_X_HTML_ENTITY = "&#10060;"
+
 all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 
@@ -102,22 +106,43 @@ def _handle_date(date, tz=None):
     return date
 
 
-def make_lmp_availability():
-    lmp_availability = {}
-    for i in all_isos:
-        lmp_availability[i.name] = i.markets
+def make_lmp_availability_df():
+    markets = [
+        Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_15_MIN,
+        Markets.REAL_TIME_HOURLY,
+        Markets.DAY_AHEAD_HOURLY,
+    ]
 
-    return lmp_availability
+    availability = {}
+    for iso in tqdm.tqdm(gridstatus.all_isos):
+        availability[iso.__name__] = {}
+        for market in markets:
+            iso_markets = getattr(iso, "markets")
+            availability[iso.__name__][market] = market in iso_markets
+
+    return pd.DataFrame(availability)
 
 
 def make_lmp_availability_table():
-    a = make_lmp_availability()
-    for iso in a:
-        a[iso] = ["`" + v.value + "`" for v in a[iso]]
-        a[iso] = ", ".join(a[iso])
+    transposed = make_lmp_availability_df().transpose()
 
-    s = pd.Series(a, name="Markets")
-    return s.to_markdown()
+    transposed = transposed.rename(
+        columns={
+            Markets.REAL_TIME_5_MIN: "REAL_TIME_5_MIN",
+            Markets.REAL_TIME_15_MIN: "REAL_TIME_15_MIN",
+            Markets.REAL_TIME_HOURLY: "REAL_TIME_HOURLY",
+            Markets.DAY_AHEAD_HOURLY: "DAY_AHEAD_HOURLY",
+        },
+    )
+
+    transposed = transposed.sort_index().applymap(
+        lambda is_available: GREEN_CHECKMARK_HTML_ENTITY
+        if is_available
+        else RED_X_HTML_ENTITY,
+    )
+
+    return transposed.to_markdown() + "\n"
 
 
 def filter_lmp_locations(data, locations: list):
