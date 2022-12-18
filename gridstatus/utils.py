@@ -64,16 +64,16 @@ def make_availability_df():
                     ).date() - pd.Timedelta(days=3)
 
                 if method == "get_load_forecast" and date == "latest":
-                    is_defined = "&#10060;"  # red x
+                    is_defined = RED_X_HTML_ENTITY
 
                 else:
                     try:
                         getattr(i(), method)(test)
-                        is_defined = "&#x2705;"  # green checkmark
+                        is_defined = GREEN_CHECKMARK_HTML_ENTITY
                     except NotSupported:
-                        is_defined = "&#10060;"  # red x
+                        is_defined = RED_X_HTML_ENTITY
                     except NotImplementedError:
-                        is_defined = "&#10060;"  # red x
+                        is_defined = RED_X_HTML_ENTITY
 
                 availability[i.__name__][method][date] = is_defined
 
