@@ -582,10 +582,12 @@ class Ercot(ISOBase):
         verbose=False,
     ):
         """Get day-ahead hourly Market LMP data for ERCOT"""
-        date = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        today_date = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        # adjust for DAM since it's published a day ahead
+        previous_date = today_date - pd.Timedelta("1D")
         doc_url, publish_date = self._get_document(
             report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
-            date=date,
+            date=previous_date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
