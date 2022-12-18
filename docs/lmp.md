@@ -8,7 +8,7 @@ kernelspec:
 
 ## Support
 
-Below are the currently support LMP markets
+Below are the currently supported LMP markets
 
 <!-- LMP AVAILABILITY TABLE START -->
 |                                       | Markets                                                    |
