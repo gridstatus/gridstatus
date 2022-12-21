@@ -530,14 +530,9 @@ class Ercot(ISOBase):
         assert market is not None, "market must be specified"
         market = Markets(market)
 
-        if market == Markets.REAL_TIME_15_MIN and date == "latest":
-            return self._get_spp_rtm15_latest(
-                locations,
-                location_type,
-                verbose,
-            )
-        elif market == Markets.REAL_TIME_15_MIN and utils.is_today(date):
-            return self._get_spp_rtm15_today(
+        if market == Markets.REAL_TIME_15_MIN:
+            return self._get_spp_rtm15(
+                date,
                 locations,
                 location_type,
                 verbose,
@@ -627,33 +622,6 @@ class Ercot(ISOBase):
         df = df.reset_index(drop=True)
         return df
 
-    def _get_spp_rtm15_latest(
-        self,
-        locations: list = None,
-        location_type: str = None,
-        verbose=False,
-    ):
-        """Get Real-time 15-minute Market SPP data for ERCOT
-
-        https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
-        """
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        doc_info = self._get_document(
-            report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
-            date=today,
-            constructed_name_contains="csv.zip",
-            verbose=verbose,
-        )
-        df = pd.read_csv(doc_info.url, compression="zip")
-        df["Market"] = Markets.REAL_TIME_15_MIN.value
-        df["Location Type"] = self._get_location_type_name(location_type)
-
-        df["Time"] = Ercot._parse_delivery_date_hour_interval(df, self.default_timezone)
-
-        df = self._filter_by_settlement_point_type(df, location_type)
-
-        return Ercot._finalize_spp_df(df, "SettlementPointName", locations)
-
     @staticmethod
     def _parse_delivery_date_hour_ending(df, timezone):
         return pd.to_datetime(
@@ -686,8 +654,9 @@ class Ercot(ISOBase):
             format="%m/%d/%YT%H%M",
         ).dt.tz_localize(timezone, ambiguous="infer")
 
-    def _get_spp_rtm15_today(
+    def _get_spp_rtm15(
         self,
+        date,
         locations: list = None,
         location_type: str = None,
         verbose=False,
@@ -697,31 +666,31 @@ class Ercot(ISOBase):
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        # returns Document(url=,publish_date=)
+        # returns list of Document(url=,publish_date=)
         docs = self._get_documents(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
             date=today,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
+        if date == "latest":
+            # just pluck out the latest document based on publish_date
+            docs = [max(docs, key=lambda x: x.publish_date)]
 
-        all_df = []
+        all_dfs = []
         for doc_info in docs:
             doc_url = doc_info.url
             if verbose:
                 print(f"Fetching {doc_url}", file=sys.stderr)
             df = pd.read_csv(doc_url, compression="zip")
-            all_df.append(df)
-        df = pd.concat(all_df).reset_index(drop=True)
+            all_dfs.append(df)
+        df = pd.concat(all_dfs).reset_index(drop=True)
 
         df["Market"] = Markets.REAL_TIME_15_MIN.value
         df["Location Type"] = self._get_location_type_name(location_type)
-
         df["Time"] = Ercot._parse_delivery_date_hour_interval(df, self.default_timezone)
-
         # Additional filter as the document may contain the last 15 minutes of yesterday
         df = df[df["Time"].dt.date == today.date()]
-
         df = self._filter_by_settlement_point_type(df, location_type)
 
         return Ercot._finalize_spp_df(df, "SettlementPointName", locations)
