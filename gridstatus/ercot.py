@@ -497,7 +497,7 @@ class Ercot(ISOBase):
 
         return queue
 
-    def get_lmp(
+    def get_spp(
         self,
         date,
         end=None,
@@ -506,14 +506,14 @@ class Ercot(ISOBase):
         location_type: str = None,
         verbose=False,
     ):
-        """Get LMP data for ERCOT
+        """Get SPP data for ERCOT
 
         Supported Markets: REAL_TIME_15_MIN, DAY_AHEAD_HOURLY
 
         Supported Location Types: "zone", "hub", "node"
         """
         if not (date == "latest" or utils.is_today(date)):
-            raise NotSupported(f"date={date} is not supported for LMP")
+            raise NotSupported(f"date={date} is not supported for SPP")
 
         if locations is None:
             locations = "ALL"
@@ -525,33 +525,33 @@ class Ercot(ISOBase):
         market = Markets(market)
 
         if market == Markets.REAL_TIME_15_MIN and date == "latest":
-            return self._get_lmp_rtm15_latest(
+            return self._get_spp_rtm15_latest(
                 locations,
                 location_type,
                 verbose,
             )
         elif market == Markets.REAL_TIME_15_MIN and utils.is_today(date):
-            return self._get_lmp_rtm15_today(
+            return self._get_spp_rtm15_today(
                 locations,
                 location_type,
                 verbose,
             )
         elif market == Markets.DAY_AHEAD_HOURLY and date == "latest":
-            return self._get_lmp_dam_latest(locations, location_type, verbose)
+            return self._get_spp_dam_latest(locations, location_type, verbose)
         elif market == Markets.DAY_AHEAD_HOURLY and utils.is_today(date):
-            return self._get_lmp_dam_today(locations, location_type, verbose)
+            return self._get_spp_dam_today(locations, location_type, verbose)
         raise NotSupported(
             f"Market {market} not supported for ERCOT",
         )
 
-    def _get_lmp_dam_latest(
+    def _get_spp_dam_latest(
         self,
         locations: list = None,
         location_type: str = None,
         verbose=False,
     ):
         """Gets today's data and filters all rows matching the maximum time"""
-        df = self._get_lmp_dam_today(
+        df = self._get_spp_dam_today(
             locations,
             location_type,
             verbose,
@@ -560,13 +560,13 @@ class Ercot(ISOBase):
         df = df[df["Time"] == max_time]
         return df
 
-    def _get_lmp_dam_today(
+    def _get_spp_dam_today(
         self,
         locations: list = None,
         location_type: str = None,
         verbose=False,
     ):
-        """Get day-ahead hourly Market LMP data for ERCOT"""
+        """Get day-ahead hourly Market SPP data for ERCOT"""
         today_date = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
         # adjust for DAM since it's published a day ahead
         previous_date = today_date - pd.Timedelta("1D")
@@ -599,7 +599,7 @@ class Ercot(ISOBase):
 
         df = df.rename(
             columns={
-                "SettlementPointPrice": "LMP",
+                "SettlementPointPrice": "SPP",
                 "SettlementPoint": "Location",
             },
         )
@@ -610,22 +610,22 @@ class Ercot(ISOBase):
                 "Time",
                 "Market",
                 "Location Type",
-                "LMP",
+                "SPP",
             ]
         ]
 
         df = df.reset_index(drop=True)
         return df
 
-    def _get_lmp_rtm15_latest(
+    def _get_spp_rtm15_latest(
         self,
         locations: list = None,
         location_type: str = None,
         verbose=False,
     ):
-        """Get Real-time 15-minute Market LMP data for ERCOT
+        """Get Real-time 15-minute Market SPP data for ERCOT
 
-        https://www.ercot.com/mp/data-products/data-product-details?id=NP6-788-CD
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
         today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
         doc_url, publish_date = self._get_document(
@@ -652,7 +652,7 @@ class Ercot(ISOBase):
 
         df = df.rename(
             columns={
-                "SettlementPointPrice": "LMP",
+                "SettlementPointPrice": "SPP",
                 "SettlementPointName": "Location",
             },
         )
@@ -663,20 +663,20 @@ class Ercot(ISOBase):
                 "Time",
                 "Market",
                 "Location Type",
-                "LMP",
+                "SPP",
             ]
         ]
 
         df = df.reset_index(drop=True)
         return df
 
-    def _get_lmp_rtm15_today(
+    def _get_spp_rtm15_today(
         self,
         locations: list = None,
         location_type: str = None,
         verbose=False,
     ):
-        """Get Real-time 15-minute Market LMP data for ERCOT
+        """Get Real-time 15-minute Market SPP data for ERCOT
 
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
@@ -716,7 +716,7 @@ class Ercot(ISOBase):
 
         df = df.rename(
             columns={
-                "SettlementPointPrice": "LMP",
+                "SettlementPointPrice": "SPP",
                 "SettlementPointName": "Location",
             },
         )
@@ -727,7 +727,7 @@ class Ercot(ISOBase):
                 "Time",
                 "Market",
                 "Location Type",
-                "LMP",
+                "SPP",
             ]
         ]
         df = df.reset_index(drop=True)

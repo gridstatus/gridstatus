@@ -90,16 +90,16 @@ def test_ercot_get_fuel_mix():
 
 
 @pytest.mark.slow
-def test_ercot_get_lmp_today_real_time_15_minutes_zone():
+def test_ercot_get_spp_today_real_time_15_minutes_zone():
     iso = gridstatus.Ercot()
     cols = [
         "Location",
         "Time",
         "Market",
         "Location Type",
-        "LMP",
+        "SPP",
     ]
-    df = iso.get_lmp(
+    df = iso.get_spp(
         date="today",
         market=Markets.REAL_TIME_15_MIN,
         location_type="zone",
@@ -116,16 +116,16 @@ def test_ercot_get_lmp_today_real_time_15_minutes_zone():
     assert location_types[0] == "Zone"
 
 
-def test_ercot_get_lmp_latest_day_ahead_hourly_zone():
+def test_ercot_get_spp_latest_day_ahead_hourly_zone():
     iso = gridstatus.Ercot()
     cols = [
         "Location",
         "Time",
         "Market",
         "Location Type",
-        "LMP",
+        "SPP",
     ]
-    df = iso.get_lmp(
+    df = iso.get_spp(
         date="latest",
         market=Markets.DAY_AHEAD_HOURLY,
         location_type="zone",
@@ -142,16 +142,16 @@ def test_ercot_get_lmp_latest_day_ahead_hourly_zone():
     assert location_types[0] == "Zone"
 
 
-def test_ercot_get_lmp_latest_day_ahead_hourly_hub():
+def test_ercot_get_spp_latest_day_ahead_hourly_hub():
     iso = gridstatus.Ercot()
     cols = [
         "Location",
         "Time",
         "Market",
         "Location Type",
-        "LMP",
+        "SPP",
     ]
-    df = iso.get_lmp(
+    df = iso.get_spp(
         date="latest",
         market=Markets.DAY_AHEAD_HOURLY,
         location_type="hub",
@@ -167,16 +167,16 @@ def test_ercot_get_lmp_latest_day_ahead_hourly_hub():
     assert location_types[0] == "Hub"
 
 
-def test_ercot_get_lmp_latest_day_ahead_hourly_node():
+def test_ercot_get_spp_latest_day_ahead_hourly_node():
     iso = gridstatus.Ercot()
     cols = [
         "Location",
         "Time",
         "Market",
         "Location Type",
-        "LMP",
+        "SPP",
     ]
-    df = iso.get_lmp(
+    df = iso.get_spp(
         date="latest",
         market=Markets.DAY_AHEAD_HOURLY,
         location_type="node",
