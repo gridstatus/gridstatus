@@ -524,36 +524,25 @@ class Ercot(ISOBase):
         assert market is not None, "market must be specified"
         market = Markets(market)
 
-        unsupported = False
-        if market == Markets.REAL_TIME_15_MIN:
-            if date == "latest":
-                return self._get_lmp_rtm15_latest(
-                    locations,
-                    location_type,
-                    verbose,
-                )
-            elif utils.is_today(date):
-                return self._get_lmp_rtm15_today(
-                    locations,
-                    location_type,
-                    verbose,
-                )
-            else:
-                unsupported = True
-        elif market == Markets.DAY_AHEAD_HOURLY:
-            if date == "latest":
-                return self._get_lmp_dam_latest(locations, location_type, verbose)
-            elif utils.is_today(date):
-                return self._get_lmp_dam_today(locations, location_type, verbose)
-            else:
-                unsupported = True
-        else:
-            unsupported = True
-
-        if unsupported:
-            raise NotSupported(
-                f"Market {market} and/or date {date} are not supported for ERCOT",
+        if market == Markets.REAL_TIME_15_MIN and date == "latest":
+            return self._get_lmp_rtm15_latest(
+                locations,
+                location_type,
+                verbose,
             )
+        elif market == Markets.REAL_TIME_15_MIN and utils.is_today(date):
+            return self._get_lmp_rtm15_today(
+                locations,
+                location_type,
+                verbose,
+            )
+        elif market == Markets.DAY_AHEAD_HOURLY and date == "latest":
+            return self._get_lmp_dam_latest(locations, location_type, verbose)
+        elif market == Markets.DAY_AHEAD_HOURLY and utils.is_today(date):
+            return self._get_lmp_dam_today(locations, location_type, verbose)
+        raise NotSupported(
+            f"Market {market} not supported for ERCOT",
+        )
 
     def _get_lmp_dam_latest(
         self,
