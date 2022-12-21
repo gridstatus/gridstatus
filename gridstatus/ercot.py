@@ -592,7 +592,6 @@ class Ercot(ISOBase):
 
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         df = self._filter_by_location_type(df, mapping_df, location_type)
-        df = self._filter_by_locations(df, "SettlementPoint", locations)
 
         df["Time"] = pd.to_datetime(
             df["DeliveryDate"]
@@ -603,17 +602,22 @@ class Ercot(ISOBase):
             + ":00",
         ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
-        return self._finalize_spp_df(df, "SettlementPoint")
+        return Ercot._finalize_spp_df(df, "SettlementPoint", locations)
 
     @staticmethod
-    def _finalize_spp_df(df, settlement_point_field):
+    def _finalize_spp_df(df, settlement_point_field, locations):
         """
-        Finalizes DataFrame by renaming and ordering columns, and resetting the index
+        Finalizes DataFrame by:
+        - filtering by locations list
+        - renaming and ordering columns
+        - and resetting the index
 
         Parameters:
             df (DataFrame): DataFrame with SPP data
             settlement_point_field (str): Field name of settlement point to rename to "Location"
         """
+        df = Ercot._filter_by_locations(df, settlement_point_field, locations)
+
         df = df.rename(
             columns={
                 "SettlementPointPrice": "SPP",
@@ -663,9 +667,8 @@ class Ercot(ISOBase):
         ).dt.tz_localize(self.default_timezone)
 
         df = self._filter_by_settlement_point_type(df, location_type)
-        df = self._filter_by_locations(df, "SettlementPointName", locations)
 
-        return self._finalize_spp_df(df, "SettlementPointName")
+        return Ercot._finalize_spp_df(df, "SettlementPointName", locations)
 
     def _get_spp_rtm15_today(
         self,
@@ -711,9 +714,8 @@ class Ercot(ISOBase):
         df = df[df["Time"].dt.date == today.date()]
 
         df = self._filter_by_settlement_point_type(df, location_type)
-        df = self._filter_by_locations(df, "SettlementPointName", locations)
 
-        return self._finalize_spp_df(df, "SettlementPointName")
+        return Ercot._finalize_spp_df(df, "SettlementPointName", locations)
 
     def _get_document(
         self,
@@ -816,7 +818,8 @@ class Ercot(ISOBase):
             raise ValueError(f"Invalid location_type: {location_type}")
         return df
 
-    def _filter_by_locations(self, df, field_name, locations):
+    @staticmethod
+    def _filter_by_locations(df, field_name, locations):
         """Filter settlement point name by locations list"""
         if isinstance(locations, list):
             df = df[df[field_name].isin(locations)]
