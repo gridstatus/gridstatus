@@ -718,7 +718,7 @@ class Ercot(ISOBase):
         date=None,
         constructed_name_contains=None,
         verbose=False,
-    ) -> list[Document]:
+    ) -> list:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
         Returns:
