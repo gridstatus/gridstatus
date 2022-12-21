@@ -5,6 +5,30 @@ import gridstatus
 from gridstatus import Markets
 
 
+def check_ercot_spp(df, market, location_type):
+    """Common checks for SPP data:
+    - Columns
+    - One Market
+    - One Location Type
+    """
+    cols = [
+        "Location",
+        "Time",
+        "Market",
+        "Location Type",
+        "SPP",
+    ]
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+    markets = df["Market"].unique()
+    assert len(markets) == 1
+    assert markets[0] == market.value
+
+    location_types = df["Location Type"].unique()
+    assert len(location_types) == 1
+    assert location_types[0] == location_type
+
+
 @pytest.mark.skip(reason="takes too long to run")
 def test_ercot_get_historical_rtm_spp():
     rtm = gridstatus.Ercot().get_rtm_spp(2020)
@@ -92,105 +116,42 @@ def test_ercot_get_fuel_mix():
 @pytest.mark.slow
 def test_ercot_get_spp_today_real_time_15_minutes_zone():
     iso = gridstatus.Ercot()
-    cols = [
-        "Location",
-        "Time",
-        "Market",
-        "Location Type",
-        "SPP",
-    ]
     df = iso.get_spp(
         date="today",
         market=Markets.REAL_TIME_15_MIN,
         location_type="zone",
     )
-    assert df.shape[0] >= 0
-    assert df.columns.tolist() == cols
-
-    markets = df["Market"].unique()
-    assert len(markets) == 1
-    assert markets[0] == Markets.REAL_TIME_15_MIN.value
-
-    location_types = df["Location Type"].unique()
-    assert len(location_types) == 1
-    assert location_types[0] == "Zone"
+    check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Zone")
 
 
 def test_ercot_get_spp_latest_day_ahead_hourly_zone():
     iso = gridstatus.Ercot()
-    cols = [
-        "Location",
-        "Time",
-        "Market",
-        "Location Type",
-        "SPP",
-    ]
     df = iso.get_spp(
         date="latest",
         market=Markets.DAY_AHEAD_HOURLY,
         location_type="zone",
     )
-    assert df.shape[0] >= 0
-    assert df.columns.tolist() == cols
-
-    markets = df["Market"].unique()
-    assert len(markets) == 1
-    assert markets[0] == Markets.DAY_AHEAD_HOURLY.value
-
-    location_types = df["Location Type"].unique()
-    assert len(location_types) == 1
-    assert location_types[0] == "Zone"
+    check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Zone")
 
 
 def test_ercot_get_spp_latest_day_ahead_hourly_hub():
     iso = gridstatus.Ercot()
-    cols = [
-        "Location",
-        "Time",
-        "Market",
-        "Location Type",
-        "SPP",
-    ]
     df = iso.get_spp(
         date="latest",
         market=Markets.DAY_AHEAD_HOURLY,
         location_type="hub",
     )
-    assert df.shape[0] >= 0
-    assert df.columns.tolist() == cols
-    markets = df["Market"].unique()
-    assert len(markets) == 1
-    assert markets[0] == Markets.DAY_AHEAD_HOURLY.value
-
-    location_types = df["Location Type"].unique()
-    assert len(location_types) == 1
-    assert location_types[0] == "Hub"
+    check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Hub")
 
 
 def test_ercot_get_spp_latest_day_ahead_hourly_node():
     iso = gridstatus.Ercot()
-    cols = [
-        "Location",
-        "Time",
-        "Market",
-        "Location Type",
-        "SPP",
-    ]
     df = iso.get_spp(
         date="latest",
         market=Markets.DAY_AHEAD_HOURLY,
         location_type="node",
     )
-    assert df.shape[0] >= 0
-    assert df.columns.tolist() == cols
-
-    markets = df["Market"].unique()
-    assert len(markets) == 1
-    assert markets[0] == Markets.DAY_AHEAD_HOURLY.value
-
-    location_types = df["Location Type"].unique()
-    assert len(location_types) == 1
-    assert location_types[0] == "Node"
+    check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Node")
 
 
 def test_ercot_parse_delivery_date_hour_interval():
