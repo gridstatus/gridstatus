@@ -593,15 +593,7 @@ class Ercot(ISOBase):
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         df = self._filter_by_location_type(df, mapping_df, location_type)
 
-        df["Time"] = pd.to_datetime(
-            df["DeliveryDate"]
-            + " "
-            + (df["HourEnding"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
-
+        df["Time"] = Ercot._parse_delivery_date_hour_ending(df, self.default_timezone)
         return Ercot._finalize_spp_df(df, "SettlementPoint", locations)
 
     @staticmethod
@@ -656,18 +648,43 @@ class Ercot(ISOBase):
         df["Market"] = Markets.REAL_TIME_15_MIN.value
         df["Location Type"] = self._get_location_type_name(location_type)
 
-        df["Time"] = pd.to_datetime(
+        df["Time"] = Ercot._parse_delivery_date_hour_interval(df, self.default_timezone)
+
+        df = self._filter_by_settlement_point_type(df, location_type)
+
+        return Ercot._finalize_spp_df(df, "SettlementPointName", locations)
+
+    @staticmethod
+    def _parse_delivery_date_hour_ending(df, timezone):
+        return pd.to_datetime(
+            df["DeliveryDate"]
+            + " "
+            + (df["HourEnding"].str.split(":").str[0].astype(int) - 1)
+            .astype(str)
+            .str.zfill(2)
+            + ":00",
+        ).dt.tz_localize(timezone, ambiguous="infer")
+
+    @staticmethod
+    def _parse_delivery_date_hour_interval(df, timezone):
+        return pd.to_datetime(
             df["DeliveryDate"]
             + "T"
             + (df["DeliveryHour"].astype(int) - 1).astype(str).str.zfill(2)
             + ":"
             + ((df["DeliveryInterval"].astype(int) - 1) * 15).astype(str).str.zfill(2),
             format="%m/%d/%YT%H:%M",
-        ).dt.tz_localize(self.default_timezone)
+        ).dt.tz_localize(timezone, ambiguous="infer")
 
-        df = self._filter_by_settlement_point_type(df, location_type)
-
-        return Ercot._finalize_spp_df(df, "SettlementPointName", locations)
+    @staticmethod
+    def _parse_oper_day_hour_ending(df, timezone):
+        return pd.to_datetime(
+            df["Oper Day"] + "T"
+            # Hour ending starts at 100 ("1:00") so we offset by -1 hour,
+            # and zero fill to 4 characters, so strptime can parse it correctly
+            + (df["Hour Ending"].astype(int) - 100).astype(str).str.zfill(4),
+            format="%m/%d/%YT%H%M",
+        ).dt.tz_localize(timezone, ambiguous="infer")
 
     def _get_spp_rtm15_today(
         self,
@@ -700,14 +717,7 @@ class Ercot(ISOBase):
         df["Market"] = Markets.REAL_TIME_15_MIN.value
         df["Location Type"] = self._get_location_type_name(location_type)
 
-        df["Time"] = pd.to_datetime(
-            df["DeliveryDate"]
-            + "T"
-            + (df["DeliveryHour"].astype(int) - 1).astype(str).str.zfill(2)
-            + ":"
-            + ((df["DeliveryInterval"].astype(int) - 1) * 15).astype(str).str.zfill(2),
-            format="%m/%d/%YT%H:%M",
-        ).dt.tz_localize(self.default_timezone)
+        df["Time"] = Ercot._parse_delivery_date_hour_interval(df, self.default_timezone)
 
         # Additional filter as the document may contain the last 15 minutes of yesterday
         df = df[df["Time"].dt.date == today.date()]
@@ -793,14 +803,7 @@ class Ercot(ISOBase):
         return df[cols_to_keep].rename(columns=columns)
 
     def _handle_html_data(self, df, columns):
-        df["Time"] = pd.to_datetime(
-            df["Oper Day"] + "T"
-            # Hour ending starts at 100 ("1:00") so we offset by -1 hour,
-            # and zero fill to 4 characters, so strptime can parse it correctly
-            + (df["Hour Ending"].astype(int) - 100).astype(str).str.zfill(4),
-            format="%m/%d/%YT%H%M",
-        ).dt.tz_localize(self.default_timezone)
-
+        df["Time"] = Ercot._parse_oper_day_hour_ending(df, self.default_timezone)
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
