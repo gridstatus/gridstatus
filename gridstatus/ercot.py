@@ -597,13 +597,23 @@ class Ercot(ISOBase):
             + ":00",
         ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
+        return self._finalize_spp_df(df, "SettlementPoint")
+
+    @staticmethod
+    def _finalize_spp_df(df, settlement_point_field):
+        """
+        Finalizes DataFrame by renaming and ordering columns, and resetting the index
+
+        Parameters:
+            df (DataFrame): DataFrame with SPP data
+            settlement_point_field (str): Field name of settlement point to rename to "Location"
+        """
         df = df.rename(
             columns={
                 "SettlementPointPrice": "SPP",
-                "SettlementPoint": "Location",
+                settlement_point_field: "Location",
             },
         )
-
         df = df[
             [
                 "Location",
@@ -613,7 +623,6 @@ class Ercot(ISOBase):
                 "SPP",
             ]
         ]
-
         df = df.reset_index(drop=True)
         return df
 
@@ -650,25 +659,7 @@ class Ercot(ISOBase):
         df = self._filter_by_settlement_point_type(df, location_type)
         df = self._filter_by_locations(df, "SettlementPointName", locations)
 
-        df = df.rename(
-            columns={
-                "SettlementPointPrice": "SPP",
-                "SettlementPointName": "Location",
-            },
-        )
-
-        df = df[
-            [
-                "Location",
-                "Time",
-                "Market",
-                "Location Type",
-                "SPP",
-            ]
-        ]
-
-        df = df.reset_index(drop=True)
-        return df
+        return self._finalize_spp_df(df, "SettlementPointName")
 
     def _get_spp_rtm15_today(
         self,
@@ -714,24 +705,7 @@ class Ercot(ISOBase):
         df = self._filter_by_settlement_point_type(df, location_type)
         df = self._filter_by_locations(df, "SettlementPointName", locations)
 
-        df = df.rename(
-            columns={
-                "SettlementPointPrice": "SPP",
-                "SettlementPointName": "Location",
-            },
-        )
-
-        df = df[
-            [
-                "Location",
-                "Time",
-                "Market",
-                "Location Type",
-                "SPP",
-            ]
-        ]
-        df = df.reset_index(drop=True)
-        return df
+        return self._finalize_spp_df(df, "SettlementPointName")
 
     def _get_document(
         self,
