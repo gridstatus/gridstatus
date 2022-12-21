@@ -263,13 +263,13 @@ class Ercot(ISOBase):
         # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
         # there are a few days of historical date for the forecast
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        doc_url, publish_date = self._get_document(
+        doc_info = self._get_document(
             report_type_id=SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID,
             date=today,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
-        doc = pd.read_csv(doc_url, compression="zip")
+        doc = pd.read_csv(doc_info.url, compression="zip")
 
         doc["Time"] = pd.to_datetime(
             doc["DeliveryDate"]
@@ -281,7 +281,7 @@ class Ercot(ISOBase):
         ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
-        doc["Forecast Time"] = publish_date
+        doc["Forecast Time"] = doc_info.publish_date
 
         doc = doc[["Forecast Time", "Time", "Load Forecast"]]
 
@@ -302,7 +302,7 @@ class Ercot(ISOBase):
         # subtract one day since it's the day ahead market happens on the day before for the delivery day
         date = date - pd.Timedelta("1D")
 
-        doc_url, date = self._get_document(
+        doc_info = self._get_document(
             report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
             date=date,
             constructed_name_contains="csv.zip",
@@ -310,9 +310,9 @@ class Ercot(ISOBase):
         )
 
         if verbose:
-            print("Downloading {}".format(doc_url))
+            print("Downloading {}".format(doc_info.url))
 
-        doc = pd.read_csv(doc_url, compression="zip")
+        doc = pd.read_csv(doc_info.url, compression="zip")
 
         doc["Time"] = pd.to_datetime(
             doc["DeliveryDate"]
@@ -354,13 +354,13 @@ class Ercot(ISOBase):
 
         Source: https: // www.ercot.com/mp/data-products/data-product-details?id = NP6-785-ER
         """
-        doc_url, date = self._get_document(
+        doc_info = self._get_document(
             report_type_id=HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID,
             constructed_name_contains=f"{year}.zip",
             verbose=True,
         )
 
-        x = utils.get_zip_file(doc_url)
+        x = utils.get_zip_file(doc_info.url)
         all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
         return df
@@ -371,7 +371,7 @@ class Ercot(ISOBase):
         Monthly historical data available here: http: // mis.ercot.com/misapp/GetReports.do?reportTypeId = 15933 & reportTitle = GIS % 20Report & showHTMLView = &mimicKey
         """
 
-        doc_url, date = self._get_document(
+        doc_info = self._get_document(
             report_type_id=GIS_REPORT_RTID,
             constructed_name_contains="GIS_Report",
             verbose=verbose,
@@ -382,11 +382,11 @@ class Ercot(ISOBase):
         # TODO historical data available as well
 
         if verbose:
-            print("Downloading interconnection queue from: ", doc_url)
+            print("Downloading interconnection queue from: ", doc_info.url)
 
         # skip rows and handle header
         queue = pd.read_excel(
-            doc_url,
+            doc_info.url,
             sheet_name="Project Details - Large Gen",
             skiprows=30,
         ).iloc[4:]
@@ -573,15 +573,15 @@ class Ercot(ISOBase):
         today_date = pd.Timestamp.now(tz=self.default_timezone).normalize()
         # adjust for DAM since it's published a day ahead
         previous_date = today_date - pd.Timedelta("1D")
-        doc_url, publish_date = self._get_document(
+        doc_info = self._get_document(
             report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
             date=previous_date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
         if verbose:
-            print(f"Fetching {doc_url}", file=sys.stderr)
-        df = pd.read_csv(doc_url, compression="zip")
+            print(f"Fetching {doc_info.url}", file=sys.stderr)
+        df = pd.read_csv(doc_info.url, compression="zip")
 
         # fetch mapping
         df["Market"] = Markets.DAY_AHEAD_HOURLY.value
@@ -640,13 +640,13 @@ class Ercot(ISOBase):
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        doc_url, publish_date = self._get_document(
+        doc_info = self._get_document(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
             date=today,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
-        df = pd.read_csv(doc_url, compression="zip")
+        df = pd.read_csv(doc_info.url, compression="zip")
         df["Market"] = Markets.REAL_TIME_15_MIN.value
         df["Location Type"] = self._get_location_type_name(location_type)
 
@@ -684,8 +684,8 @@ class Ercot(ISOBase):
         )
 
         all_df = []
-        for doc in docs:
-            doc_url = doc.url
+        for doc_info in docs:
+            doc_url = doc_info.url
             if verbose:
                 print(f"Fetching {doc_url}", file=sys.stderr)
             df = pd.read_csv(doc_url, compression="zip")
@@ -718,38 +718,26 @@ class Ercot(ISOBase):
         date=None,
         constructed_name_contains=None,
         verbose=False,
-    ):
-        """Get document for a given report type id and date. If multiple document published return the latest"""
-        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
-        if verbose:
-            print(f"Fetching document {url}", file=sys.stderr)
-        docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
-        match = []
-        for d in docs:
-            doc_date = pd.Timestamp(d["Document"]["PublishDate"]).tz_convert(
-                self.default_timezone,
-            )
+    ) -> namedtuple:
+        """Searches by Report Type ID, filtering for date and/or constructed name
 
-            # check do we need to check if same timezone?
-            if date and doc_date.date() != date.date():
-                continue
+        Raises a ValueError if no document matches
 
-            if (
-                constructed_name_contains
-                and constructed_name_contains not in d["Document"]["ConstructedName"]
-            ):
-                continue
-
-            match.append((doc_date, d["Document"]["DocID"]))
-
-        if len(match) == 0:
+        Returns:
+             Latest Document namedtuple by publish_date
+        """
+        documents = self._get_documents(
+            report_type_id=report_type_id,
+            date=date,
+            constructed_name_contains=constructed_name_contains,
+            verbose=verbose,
+        )
+        if len(documents) == 0:
             raise ValueError(
                 f"No document found for {report_type_id} on {date}",
             )
 
-        doc = max(match, key=lambda x: x[0])
-        url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc[1]}"
-        return url, doc[0]
+        return max(documents, key=lambda x: x.publish_date)
 
     def _get_documents(
         self,
