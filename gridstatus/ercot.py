@@ -534,43 +534,30 @@ class Ercot(ISOBase):
                 location_type,
                 verbose,
             )
-        elif market == Markets.DAY_AHEAD_HOURLY and date == "latest":
-            return self._get_spp_dam_latest(locations, location_type, verbose)
-        elif market == Markets.DAY_AHEAD_HOURLY and utils.is_today(date):
-            return self._get_spp_dam_today(locations, location_type, verbose)
+        elif market == Markets.DAY_AHEAD_HOURLY:
+            return self._get_spp_dam(date, locations, location_type, verbose)
         raise NotSupported(
             f"Market {market} not supported for ERCOT",
         )
 
-    def _get_spp_dam_latest(
+    def _get_spp_dam(
         self,
-        locations: list = None,
-        location_type: str = None,
-        verbose=False,
-    ):
-        """Gets today's data and filters all rows matching the maximum time"""
-        df = self._get_spp_dam_today(
-            locations,
-            location_type,
-            verbose,
-        )
-        max_time = df["Time"].max()
-        df = df[df["Time"] == max_time]
-        return df
-
-    def _get_spp_dam_today(
-        self,
+        date,
         locations: list = None,
         location_type: str = None,
         verbose=False,
     ):
         """Get day-ahead hourly Market SPP data for ERCOT"""
-        today_date = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        if date == "latest":
+            publish_date = today
+        else:
+            publish_date = utils._handle_date(date, self.default_timezone)
         # adjust for DAM since it's published a day ahead
-        previous_date = today_date - pd.Timedelta("1D")
+        publish_date = publish_date - pd.Timedelta("1D")
         doc_info = self._get_document(
             report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
-            date=previous_date,
+            date=publish_date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
