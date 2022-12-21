@@ -1,5 +1,6 @@
 import io
 import sys
+from collections import namedtuple
 from zipfile import ZipFile
 
 import pandas as pd
@@ -92,6 +93,8 @@ class Ercot(ISOBase):
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
     ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"
     LOAD_HISTORICAL_MAX_DAYS = 14
+
+    Document = namedtuple("Document", ["url", "publish_date"])
 
     def get_status(self, date, verbose=False):
         """Returns status of grid"""
@@ -672,7 +675,8 @@ class Ercot(ISOBase):
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        doc_urls = self._get_documents(
+        # returns Document(url=,publish_date=) namedtuple
+        docs = self._get_documents(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
             date=today,
             constructed_name_contains="csv.zip",
@@ -680,7 +684,8 @@ class Ercot(ISOBase):
         )
 
         all_df = []
-        for doc_url in doc_urls:
+        for doc in docs:
+            doc_url = doc.url
             if verbose:
                 print(f"Fetching {doc_url}", file=sys.stderr)
             df = pd.read_csv(doc_url, compression="zip")
@@ -752,10 +757,12 @@ class Ercot(ISOBase):
         date=None,
         constructed_name_contains=None,
         verbose=False,
-    ):
-        """Return list of URLs for a given Report Type ID and date
+    ) -> list[namedtuple]:
+        """Searches by Report Type ID, filtering for date and/or constructed name
 
-        Note the filtering & exception handling differ from _get_document"""
+        Returns:
+             list of Document namedtuples with URL and Publish Date
+        """
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
         if verbose:
             print(f"Fetching document {url}", file=sys.stderr)
@@ -765,10 +772,10 @@ class Ercot(ISOBase):
             match = True
 
             if date:
-                doc_date = pd.Timestamp(doc["Document"]["PublishDate"]).tz_convert(
+                publish_date = pd.Timestamp(doc["Document"]["PublishDate"]).tz_convert(
                     self.default_timezone,
                 )
-                match = match and doc_date.date() == date.date()
+                match = match and publish_date.date() == date.date()
 
             if constructed_name_contains:
                 match = (
@@ -779,7 +786,8 @@ class Ercot(ISOBase):
             if match:
                 doc_id = doc["Document"]["DocID"]
                 url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"
-                matches.append(url)
+                matches.append(self.Document(url=url, publish_date=publish_date))
+
         return matches
 
     def _handle_json_data(self, df, columns):
