@@ -259,7 +259,7 @@ class Ercot(ISOBase):
 
         # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
         # there are a few days of historical date for the forecast
-        today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         doc_url, publish_date = self._get_document(
             report_type_id=SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID,
             date=today,
@@ -567,7 +567,7 @@ class Ercot(ISOBase):
         verbose=False,
     ):
         """Get day-ahead hourly Market SPP data for ERCOT"""
-        today_date = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        today_date = pd.Timestamp.now(tz=self.default_timezone).normalize()
         # adjust for DAM since it's published a day ahead
         previous_date = today_date - pd.Timedelta("1D")
         doc_url, publish_date = self._get_document(
@@ -636,7 +636,7 @@ class Ercot(ISOBase):
 
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
-        today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         doc_url, publish_date = self._get_document(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
             date=today,
@@ -671,7 +671,7 @@ class Ercot(ISOBase):
 
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
-        today = pd.Timestamp(pd.Timestamp.now(tz=self.default_timezone).date())
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         doc_urls = self._get_documents(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
             date=today,
