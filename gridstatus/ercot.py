@@ -35,10 +35,6 @@ DAM_SETTLEMENT_POINT_PRICES_RTID = 12331
 # https://www.ercot.com/mp/data-products/data-product-details?id=PG7-200-ER
 GIS_REPORT_RTID = 15933
 
-# Historical DAM Load Zone and Hub Prices
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-180-ER
-HISTORICAL_DAM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13060
-
 # Historical RTM Load Zone and Hub Prices
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
 HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13061
