@@ -616,14 +616,13 @@ class Ercot(ISOBase):
             df (DataFrame): DataFrame with SPP data
             settlement_point_field (str): Field name of settlement point to rename to "Location"
         """
-        df = Ercot._filter_by_locations(df, settlement_point_field, locations)
-
         df = df.rename(
             columns={
                 "SettlementPointPrice": "SPP",
                 settlement_point_field: "Location",
             },
         )
+        df = utils.filter_lmp_locations(df, locations)
         df = df[
             [
                 "Location",
@@ -816,13 +815,6 @@ class Ercot(ISOBase):
             df = df[df["SettlementPointType"].isin(HUB_SETTLEMENT_TYPES)]
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
-        return df
-
-    @staticmethod
-    def _filter_by_locations(df, field_name, locations):
-        """Filter settlement point name by locations list"""
-        if isinstance(locations, list):
-            df = df[df[field_name].isin(locations)]
         return df
 
     def _get_location_type_name(self, location_type):
