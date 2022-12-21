@@ -1,6 +1,6 @@
 import io
 import sys
-from collections import namedtuple
+from dataclasses import dataclass
 from zipfile import ZipFile
 
 import pandas as pd
@@ -94,7 +94,10 @@ class Ercot(ISOBase):
     ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"
     LOAD_HISTORICAL_MAX_DAYS = 14
 
-    Document = namedtuple("Document", ["url", "publish_date"])
+    @dataclass
+    class Document:
+        url: str
+        publish_date: pd.Timestamp
 
     def get_status(self, date, verbose=False):
         """Returns status of grid"""
@@ -675,7 +678,7 @@ class Ercot(ISOBase):
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        # returns Document(url=,publish_date=) namedtuple
+        # returns Document(url=,publish_date=)
         docs = self._get_documents(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
             date=today,
@@ -718,13 +721,13 @@ class Ercot(ISOBase):
         date=None,
         constructed_name_contains=None,
         verbose=False,
-    ) -> namedtuple:
+    ) -> Document:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
         Raises a ValueError if no document matches
 
         Returns:
-             Latest Document namedtuple by publish_date
+             Latest Document by publish_date
         """
         documents = self._get_documents(
             report_type_id=report_type_id,
@@ -745,11 +748,11 @@ class Ercot(ISOBase):
         date=None,
         constructed_name_contains=None,
         verbose=False,
-    ) -> list[namedtuple]:
+    ) -> list[Document]:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
         Returns:
-             list of Document namedtuples with URL and Publish Date
+             list of Document with URL and Publish Date
         """
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
         if verbose:
