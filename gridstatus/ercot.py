@@ -835,14 +835,11 @@ class Ercot(ISOBase):
     def _get_settlement_point_mapping(self, verbose=False):
         """Get dataframe whose columns can help us filter out values"""
 
-        report_type_id = SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID
-        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
-        if verbose:
-            print(f"Fetching document {url}", file=sys.stderr)
-        docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
-        latest_doc = sorted(docs, key=lambda x: x["Document"]["PublishDate"])[-1]
-        doc_id = latest_doc["Document"]["DocID"]
-        doc_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"
+        doc_info = self._get_document(
+            report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
+            verbose=verbose,
+        )
+        doc_url = doc_info.url
         if verbose:
             print(f"Fetching {doc_url}", file=sys.stderr)
 
