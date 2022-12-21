@@ -120,7 +120,7 @@ def make_lmp_availability_table():
     return s.to_markdown()
 
 
-def filter_lmp_locations(df, locations: list | str):
+def filter_lmp_locations(df, locations):
     """
     Filters dataframe by locations, which can be a list, "ALL" or None
 
