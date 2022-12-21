@@ -773,10 +773,11 @@ class Ercot(ISOBase):
         for doc in docs:
             match = True
 
+            publish_date = pd.Timestamp(doc["Document"]["PublishDate"]).tz_convert(
+                self.default_timezone,
+            )
+
             if date:
-                publish_date = pd.Timestamp(doc["Document"]["PublishDate"]).tz_convert(
-                    self.default_timezone,
-                )
                 match = match and publish_date.date() == date.date()
 
             if constructed_name_contains:
