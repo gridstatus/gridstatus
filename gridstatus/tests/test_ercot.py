@@ -124,6 +124,20 @@ def test_ercot_get_spp_today_real_time_15_minutes_zone():
     check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Zone")
 
 
+@pytest.mark.slow
+def test_ercot_get_two_days_ago_real_time_15_minutes_zone():
+    iso = gridstatus.Ercot()
+    two_days_ago = pd.Timestamp.now(tz=iso.default_timezone).date() - pd.Timedelta(
+        days=2,
+    )
+    df = iso.get_spp(
+        date=two_days_ago,
+        market=Markets.REAL_TIME_15_MIN,
+        location_type="zone",
+    )
+    check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Zone")
+
+
 def test_ercot_get_spp_latest_day_ahead_hourly_zone():
     iso = gridstatus.Ercot()
     df = iso.get_spp(

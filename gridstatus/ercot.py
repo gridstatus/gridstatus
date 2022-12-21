@@ -518,9 +518,6 @@ class Ercot(ISOBase):
 
         Supported Location Types: "zone", "hub", "node"
         """
-        if not (date == "latest" or utils.is_today(date)):
-            raise NotSupported(f"date={date} is not supported for SPP")
-
         if locations is None:
             locations = "ALL"
 
@@ -666,16 +663,22 @@ class Ercot(ISOBase):
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        if date == "latest":
+            publish_date = today
+        else:
+            publish_date = utils._handle_date(date, self.default_timezone)
         # returns list of Document(url=,publish_date=)
         docs = self._get_documents(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
-            date=today,
+            date=publish_date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
         if date == "latest":
             # just pluck out the latest document based on publish_date
             docs = [max(docs, key=lambda x: x.publish_date)]
+        if len(docs) == 0:
+            raise ValueError(f"Could not fetch SPP data for {date}")
 
         all_dfs = []
         for doc_info in docs:
@@ -690,7 +693,7 @@ class Ercot(ISOBase):
         df["Location Type"] = self._get_location_type_name(location_type)
         df["Time"] = Ercot._parse_delivery_date_hour_interval(df, self.default_timezone)
         # Additional filter as the document may contain the last 15 minutes of yesterday
-        df = df[df["Time"].dt.date == today.date()]
+        df = df[df["Time"].dt.date == publish_date.date()]
         df = self._filter_by_settlement_point_type(df, location_type)
 
         return Ercot._finalize_spp_df(df, "SettlementPointName", locations)
