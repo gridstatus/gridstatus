@@ -579,6 +579,9 @@ class Ercot(ISOBase):
         df = self._filter_by_location_type(df, mapping_df, location_type)
 
         df["Time"] = Ercot._parse_delivery_date_hour_ending(df, self.default_timezone)
+        if date == "latest":
+            max_time = df["Time"].max()
+            df = df[df["Time"] == max_time]
         return Ercot._finalize_spp_df(df, "SettlementPoint", locations)
 
     @staticmethod
