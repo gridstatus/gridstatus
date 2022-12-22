@@ -34,6 +34,8 @@ When submitting a pull request, please make sure to:
 
 * Include a description of the changes you made and provide any additional information that will be helpful to the reviewer of your code
 
+* If relevant to users of the library, add details of your change to `CHANGELOG.md`.
+
 
 ## Setting up a Development Environment
 
