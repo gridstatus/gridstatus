@@ -14,6 +14,8 @@ from gridstatus.base import Markets, NotSupported
 
 import gridstatus.utils
 
+import gridstatus.viz
+
 from gridstatus.utils import load_folder
 
 from gridstatus.nyiso import NYISO
