@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
 #
-# Describes data product given ID
+# Get Report Type ID from Data Product
 #
 # Example:
 #
-#     $ ./describe-data-product.sh NP4-190-CD
-#     {
-#       "misDisplayType_s": "AGE",
-#       "internal-name": "DAM Settlement Point Prices",
-#       "market_s": "Nodal",
-#     <snip>
+#     $ ./get-report-type-id.sh NP4-190-CD
+#     report_type_id: 12331
 #
 
 usage() {
@@ -31,16 +27,19 @@ main() {
 
     BASE_URL='https://www.ercot.com/mp/data-products/data-product-details'
     tmp=$(mktemp)
-    set -o pipefail
     curl -f -s ${BASE_URL}'?id='${data_product_id} \
         | grep 'product =' \
         | sed -e 's/.*product = //g' -e 's,;</script.*,,g' \
         > $tmp \
         ;
-    set +o pipefail
 
-    jq . $tmp;
-    rm -f $tmp
+    if [ ! -s "${tmp}" ]; then
+        echo "ERROR: Data Product '${data_product_id}' not found" >&2
+        rm -f $tmp
+        exit 1
+    else
+        jq -r .reportTypeId_i $tmp;
+        rm -f $tmp
+    fi
 }
-
 main $@
