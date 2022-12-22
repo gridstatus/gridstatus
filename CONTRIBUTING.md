@@ -1,10 +1,8 @@
 # Contributing 
 
-Thank you for considering contributing to our project! We are grateful for any time and effort you put into making this project better. There are several ways you can contribute:
+Thank you for considering contributing to our project! We are grateful for any time and effort you put into making this project better. 
 
-## How to Contribute
-
-There are several ways you can contribute to this project:
+There are several ways you can contribute:
 
 * Submitting bug reports and feature requests
 
@@ -16,11 +14,11 @@ There are several ways you can contribute to this project:
 
 Before contributing, please read this guide. If you have any questions, feel free to ask in our [Slack](https://join.slack.com/t/gridstatus/shared_invite/zt-1jk6vlzt2-Lzz4pdpjkJYVUJkynOiIvQ) or open a GitHub issue.
 
-### Submitting Bug Reports and Feature Requests
+## Submitting Bug Reports and Feature Requests
 
 If you find a bug in the code or have an idea for a new feature, please open a new issue and provide as much detail as possible.
 
-### Submitting Pull Requests
+## Submitting Pull Requests
 
 We welcome pull requests for code changes! Before starting work on a pull request, please check with a maintainer to ensure that no one else is already working on the same change. Typically, this is done by posting a comment on the appropriate GitHub issue stating that you want to work on it.
 
