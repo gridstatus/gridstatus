@@ -37,6 +37,7 @@ dependencies = [
     "openpyxl >= 3.0.10",
     "tabula-py >= 2.5.1",
     "lxml >= 4.9.1",
+    "plotly >= 5.11.0",
 ]
 
 [project.urls]

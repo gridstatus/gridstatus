@@ -6,5 +6,6 @@ We'd love to answer any usage or data access questions! Please let us know if yo
 Ancillary Services.ipynb
 Downloading CAISO Data.ipynb
 Renewable Curtailment.ipynb
+DAM Heat Map.ipynb
 
 ```
