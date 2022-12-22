@@ -529,17 +529,21 @@ class Ercot(ISOBase):
         market = Markets(market)
 
         if market == Markets.REAL_TIME_15_MIN:
-            return self._get_spp_rtm15(
+            df = self._get_spp_rtm15(
                 date,
                 locations,
                 location_type,
                 verbose,
             )
+            settlement_point_field = "SettlementPointName"
         elif market == Markets.DAY_AHEAD_HOURLY:
-            return self._get_spp_dam(date, locations, location_type, verbose)
-        raise NotSupported(
-            f"Market {market} not supported for ERCOT",
-        )
+            df = self._get_spp_dam(date, locations, location_type, verbose)
+            settlement_point_field = "SettlementPoint"
+        else:
+            raise NotSupported(
+                f"Market {market} not supported for ERCOT",
+            )
+        return Ercot._finalize_spp_df(df, settlement_point_field, locations)
 
     def _get_spp_dam(
         self,
@@ -577,7 +581,7 @@ class Ercot(ISOBase):
         if date == "latest":
             max_time = df["Time"].max()
             df = df[df["Time"] == max_time]
-        return Ercot._finalize_spp_df(df, "SettlementPoint", locations)
+        return df
 
     @staticmethod
     def _finalize_spp_df(df, settlement_point_field, locations):
@@ -687,7 +691,7 @@ class Ercot(ISOBase):
         df = df[df["Time"].dt.date == publish_date.date()]
         df = self._filter_by_settlement_point_type(df, location_type)
 
-        return Ercot._finalize_spp_df(df, "SettlementPointName", locations)
+        return df
 
     def _get_document(
         self,
