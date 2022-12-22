@@ -43,7 +43,7 @@ To set up a development environment for this project, you will need to:
 
 * Clone the repository: `git clone https://github.com/kmax12/gridstatus.git`
 
-* Install the project dependencies by running each of the following commands within a virtual env
+* Install the project dependencies by running each of the following commands within a virtualenv
 
     ```
     make installdeps-dev
@@ -51,9 +51,11 @@ To set up a development environment for this project, you will need to:
     make installdeps-docs
     ```
 
+ * Installing the dev dependencies enables a pre-commit hook that ensures linting has been run before committing
+
 The best way to ensure everything is installed correctly by running running the tests. They should all pass. 
 
-## Running Tests and Lint
+## Running Tests and Linting
 
 To ensure that your changes are correct and follow our style guide, we ask you to run the tests and linting before submitting a pull request. You can use the following commands to do so:
 
@@ -70,6 +72,8 @@ make lint
 # Fix linting errors
 make lint-fix
 ```
+
+We use `pytest` for testing, so you can also run the test directly with the `pytest` command. 
 
 
 ## Adding Documentation and Examples
