@@ -515,8 +515,8 @@ class Ercot(ISOBase):
         date,
         end=None,
         market: str = None,
-        locations: list = None,
-        location_type: str = None,
+        locations: list = "ALL",
+        location_type: str = LOCATION_TYPE_ZONE,
         verbose=False,
     ):
         """Get SPP data for ERCOT
@@ -525,12 +525,6 @@ class Ercot(ISOBase):
 
         Supported Location Types: "zone", "hub", "node"
         """
-        if locations is None:
-            locations = "ALL"
-
-        if location_type is None:
-            location_type = LOCATION_TYPE_ZONE
-
         assert market is not None, "market must be specified"
         market = Markets(market)
 
