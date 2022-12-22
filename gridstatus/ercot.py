@@ -90,6 +90,12 @@ class Ercot(ISOBase):
         Markets.DAY_AHEAD_HOURLY,
     ]
 
+    location_types = [
+        LOCATION_TYPE_HUB,
+        LOCATION_TYPE_NODE,
+        LOCATION_TYPE_ZONE,
+    ]
+
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
     ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"
     LOAD_HISTORICAL_MAX_DAYS = 14
