@@ -22,6 +22,8 @@ If you find a bug in the code or have an idea for a new feature, please [search 
 
 We welcome pull requests for code changes! Before starting work on a pull request, please check with a maintainer to ensure that no one else is already working on the same change. Typically, this is done by posting a comment on the appropriate GitHub issue stating that you want to work on it.
 
+Before working on a PR, you should first create a fork of `gridstatus` in your GitHub account and do your work in a new branch that you create in the fork. Read more [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests) about collaborating with Pull Requests.
+
 When submitting a pull request, please make sure to:
 
 * Write tests to cover any changes you make
@@ -30,8 +32,7 @@ When submitting a pull request, please make sure to:
 
 * Follow the existing code styles in place
 
-* Include a detailed description of the changes you made and why they are necessary
-
+* Include a description of the changes you made and provide any additional information that will be helpful to the reviewer of your code
 
 
 ## Setting up a Development Environment
@@ -41,7 +42,7 @@ To set up a development environment for this project, you will need to:
 
 * Install Python 3.7 or higher and make sure java is installed on your system
 
-* Clone the repository: `git clone https://github.com/kmax12/gridstatus.git`
+* Clone the repository. If you are working on a PR, you should clone your fork. 
 
 * Install the project dependencies by running each of the following commands within a virtualenv
 
@@ -99,3 +100,11 @@ All pull requests will be reviewed by one of our maintainers before being merged
 * Test coverage
 
 We may ask for additional changes or clarification before merging a pull request.
+
+## CI/CD
+
+When you submit a PR, the following actions are automatically performed
+
+1. GitHub Actions runs tests the test in all support python versions
+2. GithHub Actions ensures the code is properly linted
+3. Our documentation host, Read the Docs, will build a copy of the docs for your PR
