@@ -151,34 +151,44 @@ def test_ercot_get_two_days_ago_day_ahead_hourly_zone():
     check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Zone")
 
 
-def test_ercot_get_spp_latest_day_ahead_hourly_zone():
+def test_ercot_get_dam_latest_day_ahead_hourly_zone_should_raise_exception():
     iso = gridstatus.Ercot()
-    df = iso.get_spp(
-        date="latest",
-        market=Markets.DAY_AHEAD_HOURLY,
-        location_type="zone",
-    )
-    check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Zone")
+    with pytest.raises(ValueError):
+        df = iso.get_spp(
+            date="latest",
+            market=Markets.DAY_AHEAD_HOURLY,
+            location_type="zone",
+        )
 
 
-def test_ercot_get_spp_latest_day_ahead_hourly_hub():
+def test_ercot_get_dam_today_day_ahead_hourly_hub():
     iso = gridstatus.Ercot()
     df = iso.get_spp(
-        date="latest",
+        date="today",
         market=Markets.DAY_AHEAD_HOURLY,
         location_type="hub",
     )
     check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Hub")
 
 
-def test_ercot_get_spp_latest_day_ahead_hourly_node():
+def test_ercot_get_dam_today_day_ahead_hourly_node():
     iso = gridstatus.Ercot()
     df = iso.get_spp(
-        date="latest",
+        date="today",
         market=Markets.DAY_AHEAD_HOURLY,
         location_type="node",
     )
     check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Node")
+
+
+def test_ercot_get_dam_today_day_ahead_hourly_zone():
+    iso = gridstatus.Ercot()
+    df = iso.get_spp(
+        date="today",
+        market=Markets.DAY_AHEAD_HOURLY,
+        location_type="zone",
+    )
+    check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Zone")
 
 
 def test_ercot_parse_delivery_date_hour_interval():

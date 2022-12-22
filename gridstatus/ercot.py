@@ -551,11 +551,10 @@ class Ercot(ISOBase):
         verbose=False,
     ):
         """Get day-ahead hourly Market SPP data for ERCOT"""
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         if date == "latest":
-            publish_date = today
-        else:
-            publish_date = utils._handle_date(date, self.default_timezone)
+            raise ValueError("DAM is released daily, so use date='today' instead")
+
+        publish_date = utils._handle_date(date, self.default_timezone)
         # adjust for DAM since it's published a day ahead
         publish_date = publish_date - pd.Timedelta("1D")
         doc_info = self._get_document(
@@ -576,9 +575,6 @@ class Ercot(ISOBase):
         df = self._filter_by_location_type(df, mapping_df, location_type)
 
         df["Time"] = Ercot._parse_delivery_date_hour_ending(df, self.default_timezone)
-        if date == "latest":
-            max_time = df["Time"].max()
-            df = df[df["Time"] == max_time]
         return df
 
     @staticmethod
