@@ -531,13 +531,12 @@ class Ercot(ISOBase):
         if market == Markets.REAL_TIME_15_MIN:
             df = self._get_spp_rtm15(
                 date,
-                locations,
                 location_type,
                 verbose,
             )
             settlement_point_field = "SettlementPointName"
         elif market == Markets.DAY_AHEAD_HOURLY:
-            df = self._get_spp_dam(date, locations, location_type, verbose)
+            df = self._get_spp_dam(date, location_type, verbose)
             settlement_point_field = "SettlementPoint"
         else:
             raise NotSupported(
@@ -548,7 +547,6 @@ class Ercot(ISOBase):
     def _get_spp_dam(
         self,
         date,
-        locations: list = None,
         location_type: str = None,
         verbose=False,
     ):
@@ -649,7 +647,6 @@ class Ercot(ISOBase):
     def _get_spp_rtm15(
         self,
         date,
-        locations: list = None,
         location_type: str = None,
         verbose=False,
     ):
