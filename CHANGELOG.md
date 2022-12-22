@@ -3,6 +3,7 @@
 ## vNext 
 
 - Add CAISO LMP Heat Map Example Notebook
+- Add a guide on contributing to gridstatus
 
 ## v0.16.0 - Dec 15, 2022
 
