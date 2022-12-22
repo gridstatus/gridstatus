@@ -14,6 +14,10 @@ installdeps-dev:
 installdeps-test:
 	python -m pip install ".[test]"
 
+.PHONY: installdeps-docs
+installdeps-docs:
+	python -m pip install ".[docs]"
+
 .PHONY: lint
 lint:
 	isort --check-only gridstatus/
