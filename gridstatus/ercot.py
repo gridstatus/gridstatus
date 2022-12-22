@@ -509,6 +509,7 @@ class Ercot(ISOBase):
 
         return queue
 
+    @support_date_range(frequency="1D")
     def get_spp(
         self,
         date,
