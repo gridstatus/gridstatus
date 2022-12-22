@@ -55,7 +55,6 @@ dev = [
     "isort == 5.10.1",
     "black == 22.6.0",
     "pre-commit == 2.20.0",
-    "gridstatus[dev]",
 ]
 
 docs = [

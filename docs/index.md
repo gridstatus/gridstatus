@@ -119,4 +119,5 @@ Examples/index
 
 api-reference
 changelog
+contributing
 ```
