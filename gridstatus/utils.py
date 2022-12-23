@@ -106,6 +106,9 @@ def _handle_date(date, tz=None):
     return date
 
 
+LMP_METHODS = ["get_lmp", "get_spp"]
+
+
 def make_lmp_availability_df():
     markets = [
         Markets.REAL_TIME_5_MIN,
@@ -113,10 +116,17 @@ def make_lmp_availability_df():
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
     ]
-
     availability = {}
+    DOES_NOT_EXIST_SENTINEL = "dne"
     for iso in tqdm.tqdm(gridstatus.all_isos):
-        availability[iso.__name__] = {}
+        availability[iso.__name__] = {"Method": "-"}
+        for method in LMP_METHODS:
+            if (
+                getattr(iso(), method, DOES_NOT_EXIST_SENTINEL)
+                != DOES_NOT_EXIST_SENTINEL
+            ):
+                availability[iso.__name__]["Method"] = f"`{method}`"
+                break
         for market in markets:
             iso_markets = getattr(iso, "markets")
             availability[iso.__name__][market] = market in iso_markets
@@ -124,9 +134,19 @@ def make_lmp_availability_df():
     return pd.DataFrame(availability)
 
 
+def convert_bool_to_emoji(value):
+    """If value is boolean, convert to Green Checkmark or Red X. Otherwise, leave be."""
+    if isinstance(value, bool):
+        if value:
+            return GREEN_CHECKMARK_HTML_ENTITY
+        else:
+            return RED_X_HTML_ENTITY
+    else:
+        return value
+
+
 def make_lmp_availability_table():
     transposed = make_lmp_availability_df().transpose()
-
     transposed = transposed.rename(
         columns={
             Markets.REAL_TIME_5_MIN: "REAL_TIME_5_MIN",
@@ -136,11 +156,7 @@ def make_lmp_availability_table():
         },
     )
 
-    transposed = transposed.sort_index().applymap(
-        lambda is_available: GREEN_CHECKMARK_HTML_ENTITY
-        if is_available
-        else RED_X_HTML_ENTITY,
-    )
+    transposed = transposed.sort_index().applymap(convert_bool_to_emoji)
 
     return transposed.to_markdown() + "\n"
 
