@@ -17,6 +17,10 @@ from gridstatus.nyiso import NYISO
 from gridstatus.pjm import PJM
 from gridstatus.spp import SPP
 
+GREEN_CHECKMARK_HTML_ENTITY = "&#x2705;"
+
+RED_X_HTML_ENTITY = "&#10060;"
+
 all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 
@@ -60,16 +64,16 @@ def make_availability_df():
                     ).date() - pd.Timedelta(days=3)
 
                 if method == "get_load_forecast" and date == "latest":
-                    is_defined = "&#10060;"  # red x
+                    is_defined = RED_X_HTML_ENTITY
 
                 else:
                     try:
                         getattr(i(), method)(test)
-                        is_defined = "&#x2705;"  # green checkmark
+                        is_defined = GREEN_CHECKMARK_HTML_ENTITY
                     except NotSupported:
-                        is_defined = "&#10060;"  # red x
+                        is_defined = RED_X_HTML_ENTITY
                     except NotImplementedError:
-                        is_defined = "&#10060;"  # red x
+                        is_defined = RED_X_HTML_ENTITY
 
                 availability[i.__name__][method][date] = is_defined
 
@@ -102,22 +106,59 @@ def _handle_date(date, tz=None):
     return date
 
 
-def make_lmp_availability():
-    lmp_availability = {}
-    for i in all_isos:
-        lmp_availability[i.name] = i.markets
+LMP_METHODS = ["get_lmp", "get_spp"]
 
-    return lmp_availability
+
+def make_lmp_availability_df():
+    markets = [
+        Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_15_MIN,
+        Markets.REAL_TIME_HOURLY,
+        Markets.DAY_AHEAD_HOURLY,
+    ]
+    availability = {}
+    DOES_NOT_EXIST_SENTINEL = "dne"
+    for iso in tqdm.tqdm(gridstatus.all_isos):
+        availability[iso.__name__] = {"Method": "-"}
+        for method in LMP_METHODS:
+            if (
+                getattr(iso(), method, DOES_NOT_EXIST_SENTINEL)
+                != DOES_NOT_EXIST_SENTINEL
+            ):
+                availability[iso.__name__]["Method"] = f"`{method}`"
+                break
+        for market in markets:
+            iso_markets = getattr(iso, "markets")
+            availability[iso.__name__][market] = market in iso_markets
+
+    return pd.DataFrame(availability)
+
+
+def convert_bool_to_emoji(value):
+    """If value is boolean, convert to Green Checkmark or Red X. Otherwise, leave be."""
+    if isinstance(value, bool):
+        if value:
+            return GREEN_CHECKMARK_HTML_ENTITY
+        else:
+            return RED_X_HTML_ENTITY
+    else:
+        return value
 
 
 def make_lmp_availability_table():
-    a = make_lmp_availability()
-    for iso in a:
-        a[iso] = ["`" + v.value + "`" for v in a[iso]]
-        a[iso] = ", ".join(a[iso])
+    transposed = make_lmp_availability_df().transpose()
+    transposed = transposed.rename(
+        columns={
+            Markets.REAL_TIME_5_MIN: "REAL_TIME_5_MIN",
+            Markets.REAL_TIME_15_MIN: "REAL_TIME_15_MIN",
+            Markets.REAL_TIME_HOURLY: "REAL_TIME_HOURLY",
+            Markets.DAY_AHEAD_HOURLY: "DAY_AHEAD_HOURLY",
+        },
+    )
 
-    s = pd.Series(a, name="Markets")
-    return s.to_markdown()
+    transposed = transposed.sort_index().applymap(convert_bool_to_emoji)
+
+    return transposed.to_markdown() + "\n"
 
 
 def filter_lmp_locations(df, locations):

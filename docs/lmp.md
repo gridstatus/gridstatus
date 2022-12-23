@@ -8,18 +8,19 @@ kernelspec:
 
 ## Support
 
-Below are the currently support LMP markets
+Below are the currently supported LMP markets
 
 <!-- LMP AVAILABILITY TABLE START -->
-|                                       | Markets                                                    |
-|:--------------------------------------|:-----------------------------------------------------------|
-| Midcontinent ISO                      | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
-| California ISO                        | `REAL_TIME_15_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY` |
-| PJM                                   | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
-| Electric Reliability Council of Texas |                                                            |
-| Southwest Power Pool                  |                                                            |
-| New York ISO                          | `REAL_TIME_5_MIN`, `DAY_AHEAD_HOURLY`                      |
-| ISO New England                       | `REAL_TIME_5_MIN`, `REAL_TIME_HOURLY`, `DAY_AHEAD_HOURLY`  |
+|       | Method    | REAL_TIME_5_MIN   | REAL_TIME_15_MIN   | REAL_TIME_HOURLY   | DAY_AHEAD_HOURLY   |
+|:------|:----------|:------------------|:-------------------|:-------------------|:-------------------|
+| CAISO | `get_lmp` | &#10060;          | &#x2705;           | &#x2705;           | &#x2705;           |
+| Ercot | `get_spp` | &#10060;          | &#x2705;           | &#10060;           | &#x2705;           |
+| ISONE | `get_lmp` | &#x2705;          | &#10060;           | &#x2705;           | &#x2705;           |
+| MISO  | `get_lmp` | &#x2705;          | &#10060;           | &#10060;           | &#x2705;           |
+| NYISO | `get_lmp` | &#x2705;          | &#10060;           | &#10060;           | &#x2705;           |
+| PJM   | `get_lmp` | &#x2705;          | &#10060;           | &#x2705;           | &#x2705;           |
+| SPP   | -         | &#10060;          | &#10060;           | &#10060;           | &#10060;           |
+
 <!-- LMP AVAILABILITY TABLE END -->
 
 
@@ -47,6 +48,3 @@ You can see what markets are available by accessing the `markets` property of an
 ```{code-cell}
 caiso.markets
 ```
-
-The possible lmp query methods are `ISO.get_latest_lmp`, `ISO.get_lmp_today`, and `ISO.get_lmp`.
-
