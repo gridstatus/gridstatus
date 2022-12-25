@@ -1,6 +1,6 @@
 .PHONY: test
 test:
-	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto
+	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto  --reruns 5 --reruns-delay 3
 
 .PHONY: test-slow
 test-slow:
@@ -14,6 +14,10 @@ installdeps-dev:
 .PHONY: installdeps-test
 installdeps-test:
 	python -m pip install ".[test]"
+
+.PHONY: installdeps-docs
+installdeps-docs:
+	python -m pip install ".[docs]"
 
 .PHONY: lint
 lint:

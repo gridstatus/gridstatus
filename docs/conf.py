@@ -108,7 +108,7 @@ favicons = [
 
 
 # -- Options for notebook output ---------------------------------------------
-nb_execution_excludepatterns = ["Examples/*"]
+nb_execution_excludepatterns = ["Examples/*", "Examples/*/*"]
 source_suffix = {
     ".rst": "restructuredtext",
     ".ipynb": "myst-nb",

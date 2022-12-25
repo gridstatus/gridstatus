@@ -10,9 +10,13 @@ from gridstatus import tests
 import gridstatus.base
 import gridstatus.decorators
 
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NotSupported
 
 import gridstatus.utils
+
+import gridstatus.viz
+
+from gridstatus.utils import load_folder
 
 from gridstatus.nyiso import NYISO
 from gridstatus.caiso import CAISO
@@ -37,4 +41,6 @@ __all__ = [
     "get_iso",
     "list_isos",
     "get_interconnection_queues",
+    "NotSupported",
+    "load_folder",
 ]

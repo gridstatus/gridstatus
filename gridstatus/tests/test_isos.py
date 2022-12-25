@@ -31,6 +31,9 @@ def check_forecast(df):
         ["Forecast Time", "Time", "Load Forecast"],
     )
 
+    assert check_is_datetime_type(df["Forecast Time"])
+    assert check_is_datetime_type(df["Time"])
+
 
 def check_storage(df):
     assert set(df.columns) == set(
@@ -44,6 +47,12 @@ def check_status(df):
     )
 
 
+def check_is_datetime_type(series):
+    return pd.core.dtypes.common.is_datetime64_ns_dtype(
+        series,
+    ) | pd.core.dtypes.common.is_timedelta64_ns_dtype(series)
+
+
 def test_make_lmp_availability_df():
     gridstatus.utils.make_lmp_availability_table()
 
@@ -54,12 +63,13 @@ def test_get_latest_fuel_mix(iso):
     assert isinstance(mix, FuelMix)
     assert isinstance(mix.time, pd.Timestamp)
     assert isinstance(mix.mix, pd.DataFrame)
+    assert repr(mix)
     assert len(mix.mix) > 0
     assert mix.iso == iso.name
     assert isinstance(repr(mix), str)
 
 
-@pytest.mark.parametrize("iso", [ISONE(), NYISO(), CAISO(), PJM()])
+@pytest.mark.parametrize("iso", [Ercot(), ISONE(), NYISO(), CAISO(), PJM()])
 def test_get_fuel_mix_today(iso):
     df = iso.get_fuel_mix("today")
     assert isinstance(df, pd.DataFrame)
@@ -88,6 +98,24 @@ def test_get_latest_status(iso):
     assert isinstance(iso.status_homepage, str)
 
 
+def test_gridstatus_to_dict():
+    time = pd.Timestamp.now()
+    notes = ["note1", "note2"]
+    gs = GridStatus(
+        time=time,
+        status="Test",
+        reserves=None,
+        notes=notes,
+        iso=NYISO,
+    )
+
+    assert gs.to_dict() == {
+        "notes": notes,
+        "status": "Test",
+        "time": time,
+    }
+
+
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
 def test_get_historical_fuel_mix(iso):
     # date string works
@@ -109,34 +137,6 @@ def test_get_historical_fuel_mix(iso):
     df = iso.get_fuel_mix(date_obj)
     assert isinstance(df, pd.DataFrame)
     assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
-    assert df.loc[0]["Time"].tz is not None
-
-
-@pytest.mark.parametrize("iso", all_isos)
-def test_get_latest_supply(iso):
-    supply = iso.get_supply("latest")
-    set(["time", "supply"]) == supply.keys()
-    assert is_numeric_dtype(type(supply["supply"]))
-
-
-@pytest.mark.parametrize("iso", [ISONE(), Ercot(), NYISO(), PJM(), CAISO()])
-def test_get_supply_today(iso):
-    # todo check that the date is right
-    df = iso.get_supply("today")
-    assert isinstance(df, pd.DataFrame)
-    set(["Time", "Supply"]) == set(df.columns)
-    assert is_numeric_dtype(df["Supply"])
-    assert df.loc[0]["Time"].tz is not None
-
-
-@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
-def test_get_historical_supply(iso):
-    date_str = "March 3, 2022"
-    df = iso.get_supply(date_str)
-    assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Supply"]) == set(df.columns)
-    assert df.loc[0]["Time"].date() == gridstatus.utils._handle_date(date_str).date()
-    assert is_numeric_dtype(df["Supply"])
     assert df.loc[0]["Time"].tz is not None
 
 
@@ -322,7 +322,7 @@ def test_get_lmp_today(test):
 
 
 @pytest.mark.parametrize("iso", [ISONE(), CAISO(), NYISO()])
-def test_get_historical_load_orecast(iso):
+def test_get_historical_load_forecast(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
     forecast = iso.get_load_forecast(date=test_date)
     check_forecast(forecast)
@@ -342,7 +342,7 @@ def test_get_historical_forecast_with_date_range(iso):
 
 @pytest.mark.parametrize(
     "iso",
-    [MISO(), SPP(), Ercot(), ISONE(), CAISO(), PJM(), NYISO()],
+    [PJM(), MISO(), SPP(), Ercot(), ISONE(), CAISO(), NYISO()],
 )
 def test_get_load_forecast_today(iso):
     forecast = iso.get_load_forecast("today")
@@ -420,3 +420,9 @@ def test_date_or_start(iso):
 
     with pytest.raises(ValueError):
         iso.get_fuel_mix(start=start.date(), date=start.date())
+
+
+def test_end_before_start_raises_error():
+    iso = CAISO()
+    with pytest.raises(AssertionError):
+        iso.get_fuel_mix(start="Jan 2, 2021", end="Jan 1, 2021")

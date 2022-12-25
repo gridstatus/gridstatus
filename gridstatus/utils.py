@@ -1,4 +1,6 @@
+import glob
 import io
+import os
 from zipfile import ZipFile
 
 import pandas as pd
@@ -14,6 +16,10 @@ from gridstatus.miso import MISO
 from gridstatus.nyiso import NYISO
 from gridstatus.pjm import PJM
 from gridstatus.spp import SPP
+
+GREEN_CHECKMARK_HTML_ENTITY = "&#x2705;"
+
+RED_X_HTML_ENTITY = "&#10060;"
 
 all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
@@ -40,7 +46,6 @@ def make_availability_df():
         "get_status",
         "get_fuel_mix",
         "get_load",
-        "get_supply",
         "get_load_forecast",
         "get_storage",
     ]
@@ -59,16 +64,16 @@ def make_availability_df():
                     ).date() - pd.Timedelta(days=3)
 
                 if method == "get_load_forecast" and date == "latest":
-                    is_defined = "&#10060;"  # red x
+                    is_defined = RED_X_HTML_ENTITY
 
                 else:
                     try:
                         getattr(i(), method)(test)
-                        is_defined = "&#x2705;"  # green checkmark
+                        is_defined = GREEN_CHECKMARK_HTML_ENTITY
                     except NotSupported:
-                        is_defined = "&#10060;"  # red x
+                        is_defined = RED_X_HTML_ENTITY
                     except NotImplementedError:
-                        is_defined = "&#10060;"  # red x
+                        is_defined = RED_X_HTML_ENTITY
 
                 availability[i.__name__][method][date] = is_defined
 
@@ -101,29 +106,73 @@ def _handle_date(date, tz=None):
     return date
 
 
-def make_lmp_availability():
-    lmp_availability = {}
-    for i in all_isos:
-        lmp_availability[i.name] = i.markets
+LMP_METHODS = ["get_lmp", "get_spp"]
 
-    return lmp_availability
+
+def make_lmp_availability_df():
+    markets = [
+        Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_15_MIN,
+        Markets.REAL_TIME_HOURLY,
+        Markets.DAY_AHEAD_HOURLY,
+    ]
+    availability = {}
+    DOES_NOT_EXIST_SENTINEL = "dne"
+    for iso in tqdm.tqdm(gridstatus.all_isos):
+        availability[iso.__name__] = {"Method": "-"}
+        for method in LMP_METHODS:
+            if (
+                getattr(iso(), method, DOES_NOT_EXIST_SENTINEL)
+                != DOES_NOT_EXIST_SENTINEL
+            ):
+                availability[iso.__name__]["Method"] = f"`{method}`"
+                break
+        for market in markets:
+            iso_markets = getattr(iso, "markets")
+            availability[iso.__name__][market] = market in iso_markets
+
+    return pd.DataFrame(availability)
+
+
+def convert_bool_to_emoji(value):
+    """If value is boolean, convert to Green Checkmark or Red X. Otherwise, leave be."""
+    if isinstance(value, bool):
+        if value:
+            return GREEN_CHECKMARK_HTML_ENTITY
+        else:
+            return RED_X_HTML_ENTITY
+    else:
+        return value
 
 
 def make_lmp_availability_table():
-    a = make_lmp_availability()
-    for iso in a:
-        a[iso] = ["`" + v.value + "`" for v in a[iso]]
-        a[iso] = ", ".join(a[iso])
+    transposed = make_lmp_availability_df().transpose()
+    transposed = transposed.rename(
+        columns={
+            Markets.REAL_TIME_5_MIN: "REAL_TIME_5_MIN",
+            Markets.REAL_TIME_15_MIN: "REAL_TIME_15_MIN",
+            Markets.REAL_TIME_HOURLY: "REAL_TIME_HOURLY",
+            Markets.DAY_AHEAD_HOURLY: "DAY_AHEAD_HOURLY",
+        },
+    )
 
-    s = pd.Series(a, name="Markets")
-    return s.to_markdown()
+    transposed = transposed.sort_index().applymap(convert_bool_to_emoji)
+
+    return transposed.to_markdown() + "\n"
 
 
-def filter_lmp_locations(data, locations: list):
+def filter_lmp_locations(df, locations):
+    """
+    Filters dataframe by locations, which can be a list, "ALL" or None
+
+    Parameters:
+        df: pd.DataFrame
+        locations: "ALL" or list of locations to filter "Location" column by
+    """
     if locations == "ALL" or locations is None:
-        return data
+        return df
 
-    return data[data["Location"].isin(locations)]
+    return df[df["Location"].isin(locations)]
 
 
 def get_zip_file(url):
@@ -136,6 +185,14 @@ def get_zip_file(url):
 
 def is_today(date, tz=None):
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
+
+
+def is_within_last_days(date, days, tz=None):
+    """Returns whether date is within N days"""
+    now = pd.Timestamp.now(tz=tz).date()
+    date_value = _handle_date(date, tz=tz).date()
+    period_start = (now - pd.DateOffset(days=days)).date()
+    return date_value <= now and date_value >= period_start
 
 
 def format_interconnection_df(queue, rename, extra=None, missing=None):
@@ -170,3 +227,38 @@ def get_interconnection_queues():
 
     all_queues = pd.concat(all_queues).reset_index(drop=True)
     return all_queues
+
+
+def is_dst_end(date):
+    return (date.dst() - (date + pd.DateOffset(1)).dst()).seconds == 3600
+
+
+def load_folder(path, time_zone=None, verbose=True):
+    """Load a single dataframe for same schema csv files in a folder
+
+    Arguments:
+        path {str} -- path to folder
+        time_zone {str} -- time zone to localize to timestamps. By default returns as UTC
+
+    Returns:
+        pd.DataFrame -- dataframe of all files
+    """
+    all_files = glob.glob(os.path.join(path, "*.csv"))
+    all_files = sorted(all_files)
+
+    dfs = []
+    for f in tqdm.tqdm(all_files, disable=not verbose):
+        df = pd.read_csv(f, parse_dates=True)
+        dfs.append(df)
+
+    data = pd.concat(dfs).reset_index(drop=True)
+
+    if "Time" in data.columns:
+        data["Time"] = pd.to_datetime(data["Time"], utc=True)
+        if time_zone:
+            data["Time"] = data["Time"].dt.tz_convert(time_zone)
+
+    # todo make sure dates get parsed
+    # todo make sure rows are sorted by time
+
+    return data

@@ -1,11 +1,11 @@
 import io
 import time
-from datetime import date
-from tabnanny import verbose
+from contextlib import redirect_stderr
 from zipfile import ZipFile
 
 import pandas as pd
 import requests
+import tabula
 
 import gridstatus
 from gridstatus import utils
@@ -43,12 +43,12 @@ class CAISO(ISOBase):
         # get current date from stats api
         return self.get_status(date="latest").time.date()
 
-    def get_stats(self):
+    def get_stats(self, verbose=False):
         stats_url = _BASE + "/stats.txt"
-        r = self._get_json(stats_url)
+        r = self._get_json(stats_url, verbose=verbose)
         return r
 
-    def get_status(self, date="latest") -> str:
+    def get_status(self, date="latest", verbose=False) -> str:
         """Get Current Status of the Grid. Only date="latest" is supported
 
         Known possible values: Normal, Restricted Maintenance Operations, Flex Alert
@@ -56,7 +56,7 @@ class CAISO(ISOBase):
 
         if date == "latest":
             # todo is it possible for this to return more than one element?
-            r = self.get_stats()
+            r = self.get_stats(verbose=verbose)
 
             time = pd.to_datetime(r["slotDate"]).tz_localize("US/Pacific")
             # can only store one value for status so we concat them together
@@ -132,18 +132,14 @@ class CAISO(ISOBase):
 
     def _get_historical_load(self, date, verbose=False):
         url = _HISTORY_BASE + "/%s/demand.csv"
-        df = _get_historical(url, date, verbose=verbose)[["Time", "Current demand"]]
+        df = _get_historical(url, date, verbose=verbose)
+        df = df[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
         return df
 
-    @support_date_range(frequency="1D")
-    def get_supply(self, date, end=None, verbose=False):
-        """Get supply for a date or date range in hourly intervals"""
-        return self._get_supply(date=date, end=end, verbose=verbose)
-
     @support_date_range(frequency="31D")
-    def get_load_forecast(self, date, end=None, sleep=5, verbose=False):
+    def get_load_forecast(self, date, end=None, sleep=4, verbose=False):
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
@@ -164,6 +160,7 @@ class CAISO(ISOBase):
             url,
             usecols=["INTERVALSTARTTIME_GMT", "MW", "TAC_AREA_NAME"],
             verbose=verbose,
+            sleep=sleep,
         ).rename(
             columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load Forecast"},
         )
@@ -171,15 +168,11 @@ class CAISO(ISOBase):
         # returns many areas, we only want one overall iso
         df = df[df["TAC_AREA_NAME"] == "CA ISO-TAC"]
 
-        df["Time"] = pd.to_datetime(
-            df["Time"],
-        ).dt.tz_convert(self.default_timezone)
         df = df.sort_values("Time")
 
         df["Forecast Time"] = df["Time"].iloc[0]
 
         df = df[["Forecast Time", "Time", "Load Forecast"]]
-        time.sleep(sleep)
         return df
 
     def get_pnodes(self):
@@ -261,6 +254,7 @@ class CAISO(ISOBase):
                 PRICE_COL,
             ],
             verbose=verbose,
+            sleep=sleep,
         )
 
         df = df.pivot_table(
@@ -280,10 +274,6 @@ class CAISO(ISOBase):
                 "MCL": "Loss",
             },
         )
-
-        df["Time"] = pd.to_datetime(
-            df["Time"],
-        ).dt.tz_convert(self.default_timezone)
 
         df["Market"] = market.value
         df["Location Type"] = None
@@ -311,8 +301,6 @@ class CAISO(ISOBase):
         # clean up pivot name in header
         data.columns.name = None
 
-        time.sleep(sleep)
-
         return df
 
     @support_date_range(frequency="1D")
@@ -339,15 +327,20 @@ class CAISO(ISOBase):
         date,
         end=None,
         fuel_region_id="ALL",
-        sleep=5,
+        sleep=4,
         verbose=False,
     ):
         """Return gas prices at a previous date
 
         Arguments:
             date: date to return data
+
             end: last date of range to return data. if None, returns only date. Defaults to None.
+
             fuel_region_id(str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
+
+        Returns:
+            dataframe of gas prices
         """
 
         start, end = _caiso_handle_start_end(date, end)
@@ -365,6 +358,7 @@ class CAISO(ISOBase):
                 "PRC",
             ],
             verbose=verbose,
+            sleep=sleep,
         ).rename(
             columns={
                 "INTERVALSTARTTIME_GMT": "Time",
@@ -372,9 +366,6 @@ class CAISO(ISOBase):
                 "PRC": "Price",
             },
         )
-        df["Time"] = pd.to_datetime(
-            df["Time"],
-        ).dt.tz_convert(self.default_timezone)
         df = (
             df.sort_values("Time")
             .sort_values(
@@ -382,7 +373,6 @@ class CAISO(ISOBase):
             )
             .reset_index(drop=True)
         )
-        time.sleep(sleep)
         return df
 
     @support_date_range(frequency="31D")
@@ -390,7 +380,7 @@ class CAISO(ISOBase):
         self,
         date,
         end=None,
-        sleep=5,
+        sleep=4,
         verbose=False,
     ):
         """Return ghg allowance at a previous date
@@ -411,6 +401,7 @@ class CAISO(ISOBase):
                 "GHG_PRC_IDX",
             ],
             verbose=verbose,
+            sleep=sleep,
         ).rename(
             columns={
                 "INTERVALSTARTTIME_GMT": "Time",
@@ -418,11 +409,6 @@ class CAISO(ISOBase):
             },
         )
 
-        df["Time"] = pd.to_datetime(
-            df["Time"],
-        ).dt.tz_convert(self.default_timezone)
-
-        time.sleep(sleep)
         return df
 
     def get_interconnection_queue(self, verbose=False):
@@ -518,6 +504,247 @@ class CAISO(ISOBase):
 
         return queue
 
+    @support_date_range(frequency="1D")
+    def get_curtailment(self, date, verbose=False):
+        """Return curtailment data for a given date
+
+        Notes:
+            * requires java to be installed in order to run
+            * Data available from June 30, 2016 to present
+
+
+        Arguments:
+            date: date to return data
+            end: last date of range to return data. if None, returns only date. Defaults to None.
+            verbose: print out url being fetched. Defaults to False.
+
+        Returns:
+            dataframe of curtailment data
+        """
+
+        # http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport02dec_2020.pdf
+
+        date_strs = [
+            date.strftime("%b%d_%Y"),
+            date.strftime(
+                "%d%b_%Y",
+            ).lower(),
+            date.strftime("-%b%d_%Y"),
+        ]
+
+        # handle specfic case where dec 02, 2021 has wrong year in file name
+        if date_strs[0] == "Dec02_2021":
+            date_strs = ["02dec_2020"]
+        if date_strs[0] == "Dec02_2020":
+            # this correct, so make sure we don't try the other file since 2021 is published wrong
+            date_strs = ["Dec02_2020"]
+
+        # todo handle not always just 4th pge
+
+        pdf = None
+        for date_str in date_strs:
+            f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"
+            if verbose:
+                print("Fetching URL: ", f)
+            r = requests.get(f)
+            if b"404 - Page Not Found" in r.content:
+                continue
+            pdf = io.BytesIO(r.content)
+            break
+
+        if pdf is None:
+            raise ValueError(
+                "Could not find curtailment PDF for {}".format(date),
+            )
+
+        with io.StringIO() as buf, redirect_stderr(buf):
+            try:
+                tables = tabula.read_pdf(pdf, pages="all")
+            except:
+                print(buf.getvalue())
+                raise RuntimeError("Problem Reading PDF")
+
+        index_curtailment_table = list(
+            map(lambda df: "FUEL TYPE" in df.columns, tables),
+        ).index(True)
+        tables = tables[index_curtailment_table:]
+        if len(tables) == 0:
+            raise ValueError("No tables found")
+        elif len(tables) == 1:
+            df = tables[0]
+        else:
+            # this is case where there was a continuation of the curtailment table
+            # on a second page. there is no header, make parsed header of extra table the first row
+
+            def _handle_extra_table(extra_table):
+                extra_table = pd.concat(
+                    [
+                        extra_table.columns.to_frame().T.replace("Unnamed: 0", None),
+                        extra_table,
+                    ],
+                )
+                extra_table.columns = tables[0].columns
+
+                return extra_table
+
+            extra_tables = [tables[0]] + [_handle_extra_table(t) for t in tables[1:]]
+
+            df = pd.concat(extra_tables).reset_index()
+
+        rename = {
+            "DATE": "Date",
+            "HOU\rR": "Hour",
+            "HOUR": "Hour",
+            "CURT TYPE": "Curtailment Type",
+            "REASON": "Curtailment Reason",
+            "FUEL TYPE": "Fuel Type",
+            "CURTAILED MWH": "Curtailment (MWh)",
+            "CURTAILED\rMWH": "Curtailment (MWh)",
+            "CURTAILED MW": "Curtailment (MW)",
+            "CURTAILED\rMW": "Curtailment (MW)",
+        }
+
+        df = df.rename(columns=rename)
+
+        # convert from hour ending to hour beginning
+        df["Hour"] = df["Hour"].astype(int) - 1
+
+        df["Time"] = df["Hour"].apply(
+            lambda x, date=date: date + pd.Timedelta(hours=x),
+        )
+
+        df = df.drop(columns=["Date", "Hour"])
+
+        df["Fuel Type"] = df["Fuel Type"].map(
+            {
+                "SOLR": "Solar",
+                "WIND": "Wind",
+            },
+        )
+
+        df = df[
+            [
+                "Time",
+                "Curtailment Type",
+                "Curtailment Reason",
+                "Fuel Type",
+                "Curtailment (MWh)",
+                "Curtailment (MW)",
+            ]
+        ]
+
+        return df
+
+    @support_date_range(frequency="1D")
+    def get_as_prices(self, date, end=None, sleep=4, verbose=False):
+        """Return AS prices for a given date for each region
+
+        Arguments:
+            date: date to return data
+            end: last date of range to return data. if None, returns only date. Defaults to None.
+            verbose: print out url being fetched. Defaults to False.
+
+        Returns:
+            dataframe of AS prices
+        """
+
+        start, end = _caiso_handle_start_end(date, end)
+
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_AS&version=12&startdatetime={start}&enddatetime={end}&market_run_id=DAM&anc_type=ALL&anc_region=ALL"
+
+        df = _get_oasis(url=url, verbose=verbose, sleep=sleep).rename(
+            columns={
+                "INTERVALSTARTTIME_GMT": "Time",
+                "ANC_REGION": "Region",
+                "MARKET_RUN_ID": "Market",
+            },
+        )
+
+        as_type_map = {
+            "NR": "Non-Spinning Reserves",
+            "RD": "Regulation Down",
+            "RMD": "Regulation Mileage Down",
+            "RMU": "Regulation Mileage Up",
+            "RU": "Regulation Up",
+            "SR": "Spinning Reserves",
+        }
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+
+        df = df.pivot_table(
+            index=["Time", "Region", "Market"],
+            columns="ANC_TYPE",
+            values="MW",
+        ).reset_index()
+
+        df = df.fillna(0)
+
+        df.columns.name = None
+
+        return df
+
+    @support_date_range(frequency="31D")
+    def get_as_procurement(
+        self,
+        date,
+        end=None,
+        market="DAM",
+        sleep=4,
+        verbose=False,
+    ):
+        """Get ancillary services procurement data from CAISO.
+
+        Arguments:
+            date: date to return data
+            end: last date of range to return data. if None, returns only date. Defaults to None.
+            market: DAM or RTM. Defaults to DAM.
+
+        Returns:
+            dataframe of ancillary services data
+        """
+        assert market in ["DAM", "RTM"], "market must be DAM or RTM"
+
+        start, end = _caiso_handle_start_end(date, end)
+
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=AS_RESULTS&version=1&startdatetime={start}&enddatetime={end}&market_run_id={market}&anc_type=ALL&anc_region=ALL"
+
+        df = _get_oasis(url=url, verbose=verbose, sleep=sleep).rename(
+            columns={
+                "INTERVALSTARTTIME_GMT": "Time",
+                "ANC_REGION": "Region",
+                "MARKET_RUN_ID": "Market",
+            },
+        )
+
+        as_type_map = {
+            "NR": "Non-Spinning Reserves",
+            "RD": "Regulation Down",
+            "RMD": "Regulation Mileage Down",
+            "RMU": "Regulation Mileage Up",
+            "RU": "Regulation Up",
+            "SR": "Spinning Reserves",
+        }
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+
+        result_type_map = {
+            "AS_BUY_MW": "Procured (MW)",
+            "AS_SELF_MW": "Self-Provided (MW)",
+            "AS_MW": "Total (MW)",
+            "AS_COST": "Total Cost",
+        }
+        df["RESULT_TYPE"] = df["RESULT_TYPE"].map(result_type_map)
+
+        df["column"] = df["ANC_TYPE"] + " " + df["RESULT_TYPE"]
+
+        df = df.pivot_table(
+            index=["Time", "Region", "Market"],
+            columns="column",
+            values="MW",
+        ).reset_index()
+
+        df.columns.name = None
+
+        return df
+
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
@@ -542,6 +769,9 @@ def _get_historical(url, date, verbose=False):
 
     df = pd.read_csv(url)
 
+    # sometimes there are extra rows at the end, so this lets us ignore them
+    df = df.dropna(subset=["Time"])
+
     df["Time"] = df["Time"].apply(
         _make_timestamp,
         today=date_obj,
@@ -556,7 +786,7 @@ def _get_historical(url, date, verbose=False):
     return df
 
 
-def _get_oasis(url, usecols=None, verbose=False):
+def _get_oasis(url, usecols=None, verbose=False, sleep=4):
     if verbose:
         print(url)
 
@@ -579,7 +809,19 @@ def _get_oasis(url, usecols=None, verbose=False):
         usecols=usecols,
     )
 
+    if "INTERVALSTARTTIME_GMT" in df.columns:
+        df["INTERVALSTARTTIME_GMT"] = pd.to_datetime(
+            df["INTERVALSTARTTIME_GMT"],
+            utc=True,
+        ).dt.tz_convert(CAISO.default_timezone)
+
+    # avoid rate limiting
+    time.sleep(5)
+
     return df
+
+
+#  get Ancillary Services
 
 
 def _caiso_handle_start_end(date, end):
@@ -602,4 +844,26 @@ if __name__ == "__main__":
 
     print("asd")
     iso = gridstatus.CAISO()
-    iso.get_interconnection_queue()
+
+    df = iso.get_curtailment(
+        start="2016-06-30",
+        end="today",
+        save_to="caiso_curtailment_2/",
+        verbose=True,
+    )
+
+    # check if any files are missing
+    import glob
+    import os
+
+    files = glob.glob("caiso_curtailment/*.csv")
+    dates = (
+        pd.Series(
+            [pd.to_datetime(f[-12:-4]) for f in files],
+        )
+        .sort_values()
+        .to_frame()
+        .set_index(0, drop=False)
+    )
+    diffs = dates.diff()[0].dt.days
+    miss = diffs[diffs > 1]

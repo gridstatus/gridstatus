@@ -27,7 +27,10 @@ dependencies = [
     "beautifulsoup4 >= 4.8.13",
     "tabulate >= 0.8.10",
     "tqdm >= 4.64.1",
-    "openpyxl >= 3.0.10"
+    "openpyxl >= 3.0.10",
+    "tabula-py >= 2.5.1",
+    "lxml >= 4.9.1",
+    "plotly >= 5.11.0",
 ]
 
 [project.urls]
@@ -39,6 +42,7 @@ dependencies = [
 test = [
     "pytest == 7.1.2",
     "pytest-xdist == 3.0.2",
+    "pytest-rerunfailures == 10.3",
 ]
 dev = [
     "flake8 == 5.0.4",
@@ -90,6 +94,9 @@ namespaces = true
 [tool.pytest.ini_options]
 testpaths = [
     "gridstatus/tests/*"
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
 [tool.isort]

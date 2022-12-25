@@ -1,5 +1,28 @@
 # Changelog
 
+## vNext 
+
+- Add CAISO LMP Heat Map Example Notebook
+- Add a guide on contributing to gridstatus
+- Add Settlement Point Prices for ERCOT
+
+## v0.16.0 - Dec 15, 2022
+
+- Ercot Fuel Mix Endpoint URL updated to include more fuel sources
+- Ercot get_load supports more historical data
+
+## v0.15.0 - Dec 2, 2022
+
+- Add ability to get renewable curtailment data for CAISO
+- Add Ancillary Service Methods for CAISO
+- Add Ancillary Service Prices for ERCOT
+- Add Ability to save intermediate results to disk when fetching data across multiple requests using `save_to` parameter
+
+## v0.14.0 - Nov 8, 2022
+
+- Add `get_capacity_prices` to NYISO
+- Fix ISONE Daylight Savings Time handling
+
 ## v0.13.0 - Nov 2, 2022
 
 - Add interconnection queue to data for SPP, NYISO, ERCOT, ISONE, PJM, MISO, and CAISO

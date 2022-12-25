@@ -104,10 +104,6 @@ class SPP(ISOBase):
 
         return FuelMix(time=time, mix=current_mix, iso=self.name)
 
-    def get_supply(self, date, end=None, verbose=False):
-        """Get supply for a date in hourly intervals"""
-        return self._get_supply(date=date, end=end, verbose=verbose)
-
     def get_load(self, date, verbose=False):
         """Returns load for last 24hrs in 5 minute intervals"""
 
@@ -140,7 +136,7 @@ class SPP(ISOBase):
         last_actual = df.dropna(subset=["Actual Load"])["Time"].max()
         current_day = last_actual.replace(hour=0, minute=0)
 
-        current_day_forecast = df[df["Time"] > current_day]
+        current_day_forecast = df[df["Time"] > current_day].copy()
 
         # assume forecast is made at last actual
         current_day_forecast["Forecast Time"] = last_actual

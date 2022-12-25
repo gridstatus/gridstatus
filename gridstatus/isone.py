@@ -117,10 +117,16 @@ class ISONE(ISOBase):
             "%Y%m%d",
         )
 
-        df = _make_request(url, skiprows=[0, 1, 2, 3, 5])
+        df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
-        df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"]).dt.tz_localize(
-            self.default_timezone,
+        df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
+
+        # groupby FuelCategory to make it possible to infer DST changes
+        df["Date"] = df.groupby("Fuel Category", group_keys=False)["Date"].apply(
+            lambda x: x.dt.tz_localize(
+                self.default_timezone,
+                ambiguous="infer",
+            ),
         )
 
         mix_df = df.pivot_table(
@@ -132,10 +138,12 @@ class ISONE(ISOBase):
 
         mix_df = mix_df.rename(columns={"Date": "Time"})
 
+        mix_df = mix_df.fillna(0)
+
         return mix_df
 
     @support_date_range(frequency="1D")
-    def get_load(self, date):
+    def get_load(self, date, verbose=False):
         """Return load at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
         # supports a start and end date
@@ -144,10 +152,11 @@ class ISONE(ISOBase):
 
         date_str = date.strftime("%Y%m%d")
         url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"
-        data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
+        data = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
         data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
             self.default_timezone,
+            ambiguous="infer",
         )
 
         df = data[["Date/Time", "Native Load"]].rename(
@@ -155,11 +164,6 @@ class ISONE(ISOBase):
         )
 
         return df
-
-    @support_date_range(frequency="1D")
-    def get_supply(self, date, end=None, verbose=False):
-        """Get supply for a date or date range in hourly intervals"""
-        return self._get_supply(date=date, end=end, verbose=verbose)
 
     @support_date_range(frequency="1D")
     def get_load_forecast(self, date, end=None, verbose=False):
@@ -183,15 +187,19 @@ class ISONE(ISOBase):
         data = _make_wsclient_request(
             url="https://www.iso-ne.com/ws/wsclient",
             data=data,
+            verbose=verbose,
         )
 
         data = pd.DataFrame(data[0]["data"]["forecast"])
 
-        data["BeginDate"] = pd.to_datetime(data["BeginDate"]).dt.tz_convert(
-            self.default_timezone,
+        # must convert this way rather than use pd.to_datetime
+        # to handle DST transitions
+        data["BeginDate"] = data["BeginDate"].apply(
+            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
-        data["CreationDate"] = pd.to_datetime(data["CreationDate"]).dt.tz_convert(
-            self.default_timezone,
+
+        data["CreationDate"] = data["BeginDate"].apply(
+            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
 
         df = data[["CreationDate", "BeginDate", "Mw"]].rename(
@@ -213,10 +221,10 @@ class ISONE(ISOBase):
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"
-            data = _make_request(url, skiprows=[0, 1, 2, 4])
+            data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
         elif market == Markets.REAL_TIME_HOURLY:
             url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"
-            data = _make_request(url, skiprows=[0, 1, 2, 4])
+            data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
 
             # todo does this handle single digital hours?
             data["Local Time"] = (
@@ -301,7 +309,11 @@ class ISONE(ISOBase):
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"
                 print("Loading current interval")
                 # this request is very very slow for some reason. I suspect because the server is making the response dynamically
-                data_current = _make_request(url, skiprows=[0, 1, 2, 4])
+                data_current = _make_request(
+                    url,
+                    skiprows=[0, 1, 2, 4],
+                    verbose=verbose,
+                )
                 data_current = data_current[
                     data_current["Local Time"] > data["Local Time"].max()
                 ]
@@ -310,8 +322,21 @@ class ISONE(ISOBase):
         elif market == Markets.REAL_TIME_HOURLY:
             if date.date() < now.date():
                 url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"
-                data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
+                data = _make_request(
+                    url,
+                    skiprows=[0, 1, 2, 3, 5],
+                    verbose=verbose,
+                )
                 # todo document hour starting vs ending
+                # for DST end transitions they use 02X to represent repeated 1am hour
+                data["Hour Ending"] = (
+                    data["Hour Ending"]
+                    .replace(
+                        "02X",
+                        "02",
+                    )
+                    .astype(int)
+                )
                 data["Local Time"] = (
                     data["Date"]
                     + " "
@@ -325,8 +350,23 @@ class ISONE(ISOBase):
 
         elif market == Markets.DAY_AHEAD_HOURLY:
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
-            data = _make_request(url, skiprows=[0, 1, 2, 3, 5])
+            data = _make_request(
+                url,
+                skiprows=[0, 1, 2, 3, 5],
+                verbose=verbose,
+            )
             # todo document hour starting vs ending
+
+            # for DST end transitions they use 02X to represent repeated 1am hour
+            data["Hour Ending"] = (
+                data["Hour Ending"]
+                .replace(
+                    "02X",
+                    "02",
+                )
+                .astype(int)
+            )
+
             data["Local Time"] = (
                 data["Date"]
                 + " "
@@ -373,7 +413,15 @@ class ISONE(ISOBase):
 
         data["Market"] = market.value
 
-        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(timezone)
+        location_groupby = (
+            "Location Id" if "Location Id" in data.columns else "Location"
+        )
+        data["Time"] = data.groupby(location_groupby)["Time"].transform(
+            lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
+                timezone,
+                ambiguous="infer",
+            ),
+        )
 
         # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:
@@ -411,7 +459,7 @@ class ISONE(ISOBase):
         ]
 
         if not include_id:
-            data.drop(columns=["Location Id"], inplace=True)
+            data = data.drop(columns=["Location Id"])
 
         data = utils.filter_lmp_locations(data, locations)
         return data
@@ -504,7 +552,7 @@ class ISONE(ISOBase):
         return queue
 
 
-def _make_request(url, skiprows):
+def _make_request(url, skiprows, verbose):
     with requests.Session() as s:
         # in testing, never takes more than 2 attempts
         attempt = 0
@@ -513,6 +561,9 @@ def _make_request(url, skiprows):
             r1 = s.get(
                 "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
             )
+
+            if verbose:
+                print("Loading data from {}".format(url))
 
             r2 = s.get(url)
 
@@ -556,3 +607,8 @@ def _make_wsclient_request(url, data, verbose=False):
         )
 
     return r.json()
+
+
+if __name__ == "__main__":
+    iso = ISONE()
+    df = iso.get_fuel_mix("today", verbose=True)
