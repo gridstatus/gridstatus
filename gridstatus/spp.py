@@ -37,8 +37,8 @@ class SPP(ISOBase):
         LOCATION_TYPE_HUB,
     ]
 
-    QUERY_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
-    QUERY_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
+    QUERY_RTM_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
+    QUERY_RTM_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
 
     def get_status(self, date=None, verbose=False):
         if date != "latest":
@@ -340,7 +340,7 @@ class SPP(ISOBase):
                 "*",
             ),
         )
-        doc = self._get_json(utils.url_with_query_args(self.QUERY_HUBS_URL, args))
+        doc = self._get_json(utils.url_with_query_args(self.QUERY_RTM_HUBS_URL, args))
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         df["Location"] = df["SETTLEMENT_LOCATION"]
         df["Time"] = SPP._parse_gmt_interval_end(
@@ -368,7 +368,9 @@ class SPP(ISOBase):
                 "*",
             ),
         )
-        doc = self._get_json(utils.url_with_query_args(self.QUERY_INTERFACES_URL, args))
+        doc = self._get_json(
+            utils.url_with_query_args(self.QUERY_RTM_INTERFACES_URL, args),
+        )
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         df["Location"] = df["SETTLEMENT_LOCATION"]
         df["Time"] = SPP._parse_gmt_interval_end(
