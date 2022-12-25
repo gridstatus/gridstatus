@@ -115,7 +115,6 @@ source_suffix = {
     ".myst": "myst-nb",
 }
 nb_execution_mode = "cache"
-nbsphinx_execute = "always"
 
 autoapi_type = "python"
 autoapi_dirs = ["../gridstatus"]
