@@ -19,7 +19,6 @@ jobs:
       - name: Build gridstatus package
         run: make package
       - name: Install gridstatus
-        run: |
-          python -m pip install "unpacked/[docs]"
+        run: python -m pip install "unpacked/[docs]"
       - name: Build docs
         run: make docs

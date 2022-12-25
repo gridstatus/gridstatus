@@ -47,7 +47,7 @@ test = [
 dev = [
     "flake8 == 5.0.4",
     "isort == 5.10.1",
-    "black == 22.6.0",
+    "black[jupyter] == 22.12.0",
     "pre-commit == 2.20.0",
 ]
 docs = [

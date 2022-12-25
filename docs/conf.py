@@ -115,12 +115,12 @@ source_suffix = {
     ".myst": "myst-nb",
 }
 nb_execution_mode = "cache"
+nbsphinx_execute = "always"
 
 autoapi_type = "python"
 autoapi_dirs = ["../gridstatus"]
-autoapi_root = "autoapi"
 autoapi_add_toctree_entry = False
-autoapi_template_dir = "_auto_api_templates"
+autoapi_template_dir = "_autoapi_templates"
 autoapi_python_class_content = "both"
 autoapi_options = [
     "members",
@@ -131,7 +131,10 @@ autoapi_options = [
     "imported-members",
 ]
 autodoc_inherit_docstrings = True
-suppress_warnings = ["mystnb.unknown_mime_type"]
+suppress_warnings = [
+    "mystnb.unknown_mime_type",
+    "autoapi",
+]
 html_js_files = [
     "https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js",
 ]

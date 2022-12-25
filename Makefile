@@ -57,5 +57,5 @@ package: upgradepip upgradebuild upgradesetuptools
 	mv "gridstatus-${PACKAGE}" unpacked
 
 .PHONY: docs
-docs:
+docs: clean
 	make -C docs/ -e "SPHINXOPTS=-j auto" clean html
