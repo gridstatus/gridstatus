@@ -1,6 +1,7 @@
 import glob
 import io
 import os
+from urllib.parse import quote
 from zipfile import ZipFile
 
 import pandas as pd
@@ -262,3 +263,10 @@ def load_folder(path, time_zone=None, verbose=True):
     # todo make sure rows are sorted by time
 
     return data
+
+
+def url_with_query_args(url, qsargs):
+    """Return a URL with query string arguments"""
+    qs = "&".join("{k}={v}".format(k=k, v=quote(v)) for k, v in qsargs)
+    full_url = f"{url}?{qs}"
+    return full_url
