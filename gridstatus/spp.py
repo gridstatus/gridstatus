@@ -13,6 +13,7 @@ from gridstatus.base import (
 )
 
 LOCATION_TYPE_HUB = "HUB"
+LOCATION_TYPE_INTERFACE = "INTERFACE"
 
 
 class SPP(ISOBase):
@@ -37,6 +38,7 @@ class SPP(ISOBase):
     ]
 
     QUERY_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
+    QUERY_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
 
     def get_status(self, date=None, verbose=False):
         if date != "latest":
@@ -298,7 +300,7 @@ class SPP(ISOBase):
 
         Supported Markets: REAL_TIME_5_MIN
 
-        Supported Location Types: "hub"
+        Supported Location Types: "hub", "interface"
         """
         market = Markets(market)
         if market not in (Markets.REAL_TIME_5_MIN,):
@@ -308,6 +310,8 @@ class SPP(ISOBase):
         location_type = SPP._normalize_location_type(location_type)
         if location_type == LOCATION_TYPE_HUB:
             df = self.get_hub_lmp(date, market, locations, location_type, verbose)
+        elif location_type == LOCATION_TYPE_INTERFACE:
+            df = self.get_interface_lmp(date, market, locations, location_type, verbose)
         else:
             raise NotSupported(
                 f"Location type {location_type} is not supported for SPP",
@@ -337,6 +341,34 @@ class SPP(ISOBase):
             ),
         )
         doc = self._get_json(utils.url_with_query_args(self.QUERY_HUBS_URL, args))
+        df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
+        df["Location"] = df["SETTLEMENT_LOCATION"]
+        df["Time"] = SPP._parse_gmt_interval_end(
+            df,
+            pd.Timedelta(minutes=5),
+            self.default_timezone,
+        )
+        return df
+
+    def get_interface_lmp(
+        self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = "ALL",
+        location_type: str = LOCATION_TYPE_INTERFACE,
+        verbose=False,
+    ):
+        args = (
+            ("f", "json"),
+            ("where", "OBJECTID IS NOT NULL"),
+            ("returnGeometry", "false"),
+            (
+                "outFields",
+                "*",
+            ),
+        )
+        doc = self._get_json(utils.url_with_query_args(self.QUERY_INTERFACES_URL, args))
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         df["Location"] = df["SETTLEMENT_LOCATION"]
         df["Time"] = SPP._parse_gmt_interval_end(
@@ -393,7 +425,7 @@ class SPP(ISOBase):
     @staticmethod
     def _normalize_location_type(location_type):
         norm_location_type = location_type.upper()
-        if norm_location_type in (LOCATION_TYPE_HUB,):
+        if norm_location_type in (LOCATION_TYPE_HUB, LOCATION_TYPE_INTERFACE):
             return norm_location_type
         else:
             raise NotSupported(f"Invalid location_type {location_type}")
@@ -402,6 +434,8 @@ class SPP(ISOBase):
     def _get_location_type_name(location_type):
         if location_type == LOCATION_TYPE_HUB:
             return "Hub"
+        elif location_type == LOCATION_TYPE_INTERFACE:
+            return "Interface"
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
 
