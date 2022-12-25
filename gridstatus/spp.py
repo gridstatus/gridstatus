@@ -8,8 +8,11 @@ from gridstatus.base import (
     GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
+    Markets,
     NotSupported,
 )
+
+LOCATION_TYPE_HUB = "HUB"
 
 
 class SPP(ISOBase):
@@ -24,6 +27,16 @@ class SPP(ISOBase):
     interconnection_homepage = (
         "https://www.spp.org/engineering/generator-interconnection/"
     )
+
+    markets = [
+        Markets.REAL_TIME_5_MIN,
+    ]
+
+    location_types = [
+        LOCATION_TYPE_HUB,
+    ]
+
+    QUERY_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
 
     def get_status(self, date=None, verbose=False):
         if date != "latest":
@@ -271,6 +284,126 @@ class SPP(ISOBase):
         )
 
         return queue
+
+    def get_lmp(
+        self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = "ALL",
+        location_type: str = LOCATION_TYPE_HUB,
+        verbose=False,
+    ):
+        """Get LMP data
+
+        Supported Markets: REAL_TIME_5_MIN
+
+        Supported Location Types: "hub"
+        """
+        market = Markets(market)
+        if market not in (Markets.REAL_TIME_5_MIN,):
+            raise NotSupported(f"Market {market} not supported")
+        if date != "latest":
+            raise NotSupported(f"Date {date} is not supported for SPP")
+        location_type = SPP._normalize_location_type(location_type)
+        if location_type == LOCATION_TYPE_HUB:
+            df = self.get_hub_lmp(date, market, locations, location_type, verbose)
+        else:
+            raise NotSupported(
+                f"Location type {location_type} is not supported for SPP",
+            )
+
+        df["Market"] = market.value
+        df["Location Type"] = SPP._get_location_type_name(location_type)
+
+        return SPP._finalize_spp_df(df, locations)
+
+    def get_hub_lmp(
+        self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = "ALL",
+        location_type: str = LOCATION_TYPE_HUB,
+        verbose=False,
+    ):
+        args = (
+            ("f", "json"),
+            ("where", "OBJECTID IS NOT NULL"),
+            ("returnGeometry", "false"),
+            (
+                "outFields",
+                "*",
+            ),
+        )
+        doc = self._get_json(utils.url_with_query_args(self.QUERY_HUBS_URL, args))
+        df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
+        df["Location"] = df["SETTLEMENT_LOCATION"]
+        df["Time"] = SPP._parse_gmt_interval_end(
+            df,
+            pd.Timedelta(minutes=5),
+            self.default_timezone,
+        )
+        return df
+
+    @staticmethod
+    def _finalize_spp_df(df, locations):
+        """
+        Finalizes DataFrame by:
+        - filtering by locations list
+        - renaming and ordering columns
+        - and resetting the index
+
+        Parameters:
+            df (DataFrame): DataFrame with SPP data
+            locations (list): list of locations to filter by
+        """
+        df = df.rename(
+            columns={
+                "LMP": "LMP",  # for posterity
+                "MLC": "Loss",
+                "MCC": "Congestion",
+                "MEC": "Energy",
+            },
+        )
+        df = utils.filter_lmp_locations(df, locations)
+        df = df[
+            [
+                "Time",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
+        df = df.reset_index(drop=True)
+        return df
+
+    @staticmethod
+    def _parse_gmt_interval_end(df, interval_duration: pd.Timedelta, timezone):
+        return df["GMTINTERVALEND"].apply(
+            lambda x: (
+                pd.Timestamp(x, unit="ms", tz="UTC") - interval_duration
+            ).tz_convert(timezone),
+        )
+
+    @staticmethod
+    def _normalize_location_type(location_type):
+        norm_location_type = location_type.upper()
+        if norm_location_type in (LOCATION_TYPE_HUB,):
+            return norm_location_type
+        else:
+            raise NotSupported(f"Invalid location_type {location_type}")
+
+    @staticmethod
+    def _get_location_type_name(location_type):
+        if location_type == LOCATION_TYPE_HUB:
+            return "Hub"
+        else:
+            raise ValueError(f"Invalid location_type: {location_type}")
 
 
 # historical generation mix
