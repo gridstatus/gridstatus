@@ -1,3 +1,11 @@
+.PHONY: clean
+clean:
+	find . -name '*.pyo' -delete
+	find . -name '*.pyc' -delete
+	find . -name __pycache__ -delete
+	find . -name '*~' -delete
+	find . -name '.coverage.*' -delete
+
 .PHONY: test
 test:
 	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto  --reruns 5 --reruns-delay 3
@@ -22,11 +30,11 @@ installdeps-docs:
 .PHONY: lint
 lint:
 	isort --check-only gridstatus/
-	black gridstatus/ -t py310 --check
+	black gridstatus/ -t py311 --check
 
 .PHONY: lint-fix
 lint-fix:
-	black gridstatus/ -t py310
+	black gridstatus/ -t py311
 	isort gridstatus/
 
 .PHONY: upgradepip
