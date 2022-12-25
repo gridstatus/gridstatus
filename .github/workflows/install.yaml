@@ -1,7 +1,5 @@
 name: Install
-
 on: [pull_request]
-
 jobs:
   install:
     runs-on: ${{ matrix.os }}

@@ -55,3 +55,7 @@ package: upgradepip upgradebuild upgradesetuptools
 	$(eval PACKAGE=$(shell python -c "from pep517.meta import load; metadata = load('.'); print(metadata.version)"))
 	tar -zxvf "dist/gridstatus-${PACKAGE}.tar.gz"
 	mv "gridstatus-${PACKAGE}" unpacked
+
+.PHONY: docs
+docs:
+	make -C docs/ -e "SPHINXOPTS=-j auto" clean html

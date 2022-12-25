@@ -1,11 +1,5 @@
 name: Build Docs
-on:
-  pull_request:
-    types: [opened, synchronize]
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+on: [pull_request]
 jobs:
   build_docs:
     name: ${{ matrix.python_version }} build docs
@@ -28,4 +22,4 @@ jobs:
         run: |
           python -m pip install "unpacked/[docs]"
       - name: Build docs
-        run: make -C docs/ -e "SPHINXOPTS=-j auto" clean html
+        run: make docs
