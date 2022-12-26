@@ -364,14 +364,7 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        df = self.get_rtm_hub_lmp_raw(
-            date,
-            end,
-            market,
-            locations,
-            location_type,
-            verbose,
-        )
+        df = self.get_rtm_hub_lmp_raw()
         df["Location"] = df["SETTLEMENT_LOCATION"]
         df["Time"] = SPP._parse_gmt_interval_end(
             df,
@@ -380,15 +373,7 @@ class SPP(ISOBase):
         )
         return df
 
-    def get_rtm_hub_lmp_raw(
-        self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_HUB,
-        verbose=False,
-    ):
+    def get_rtm_hub_lmp_raw(self):
         args = (
             ("f", "json"),
             ("where", "OBJECTID IS NOT NULL"),
@@ -402,15 +387,7 @@ class SPP(ISOBase):
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
-    def get_dam_hub_lmp_raw(
-        self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_HUB,
-        verbose=False,
-    ):
+    def get_dam_hub_lmp_raw(self):
         args = (
             ("f", "json"),
             ("where", "OBJECTID IS NOT NULL"),
@@ -470,14 +447,7 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        df = self.get_rtm_hub_lmp_raw(
-            date,
-            end,
-            market,
-            locations,
-            location_type,
-            verbose,
-        )
+        df = self.get_rtm_hub_lmp_raw()
         df["Location"] = df["SETTLEMENT_LOCATION"]
         df["Time"] = SPP._parse_gmt_interval_end(
             df,
@@ -488,12 +458,6 @@ class SPP(ISOBase):
 
     def get_rtm_hub_lmp_raw(
         self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_HUB,
-        verbose=False,
     ):
         args = (
             ("f", "json"),
@@ -510,12 +474,6 @@ class SPP(ISOBase):
 
     def get_dam_hub_lmp_raw(
         self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_HUB,
-        verbose=False,
     ):
         args = (
             ("f", "json"),
@@ -539,22 +497,8 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        rtm_df = self.get_rtm_hub_lmp_raw(
-            date,
-            end,
-            market,
-            locations,
-            location_type,
-            verbose,
-        )
-        dam_df = self.get_dam_hub_lmp_raw(
-            date,
-            end,
-            market,
-            locations,
-            location_type,
-            verbose,
-        )
+        rtm_df = self.get_rtm_hub_lmp_raw()
+        dam_df = self.get_dam_hub_lmp_raw()
         df = pd.merge(rtm_df, dam_df, on=["OBJECTID"], suffixes=["_DAM", "_RTM"])
 
         df["LMP"] = df["LMP"] - df["SL_LMP_DELTA"]
