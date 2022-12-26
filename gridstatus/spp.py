@@ -303,7 +303,7 @@ class SPP(ISOBase):
         Supported Location Types: "hub", "interface"
         """
         market = Markets(market)
-        if market not in (Markets.REAL_TIME_5_MIN,):
+        if market not in self.markets:
             raise NotSupported(f"Market {market} not supported")
         if date != "latest":
             raise NotSupported(f"Date {date} is not supported for SPP")
