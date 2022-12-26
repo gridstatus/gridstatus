@@ -40,8 +40,8 @@ class SPP(ISOBase):
 
     QUERY_RTM_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
     QUERY_RTM_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
-    QUERY_DELTA_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/1/query"
-    QUERY_DELTA_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/2/query"
+    QUERY_DAM_DELTA_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/1/query"
+    QUERY_DAM_DELTA_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/2/query"
 
     def get_status(self, date=None, verbose=False):
         if date != "latest":
@@ -355,25 +355,7 @@ class SPP(ISOBase):
 
         return SPP._finalize_spp_df(df, locations)
 
-    def get_rtm_hub_lmp(
-        self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_HUB,
-        verbose=False,
-    ):
-        df = self.get_rtm_hub_lmp_raw()
-        df["Location"] = df["SETTLEMENT_LOCATION"]
-        df["Time"] = SPP._parse_gmt_interval_end(
-            df,
-            pd.Timedelta(minutes=5),
-            self.default_timezone,
-        )
-        return df
-
-    def get_rtm_hub_lmp_raw(self):
+    def _get_feature_data(self, base_url):
         args = (
             ("f", "json"),
             ("where", "OBJECTID IS NOT NULL"),
@@ -383,21 +365,7 @@ class SPP(ISOBase):
                 "*",
             ),
         )
-        doc = self._get_json(utils.url_with_query_args(self.QUERY_RTM_HUBS_URL, args))
-        df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
-        return df
-
-    def get_dam_hub_lmp_raw(self):
-        args = (
-            ("f", "json"),
-            ("where", "OBJECTID IS NOT NULL"),
-            ("returnGeometry", "false"),
-            (
-                "outFields",
-                "*",
-            ),
-        )
-        doc = self._get_json(utils.url_with_query_args(self.QUERY_DELTA_HUBS_URL, args))
+        doc = self._get_json(utils.url_with_query_args(base_url, args))
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
@@ -410,22 +378,8 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        rtm_df = self.get_rtm_hub_lmp_raw(
-            date,
-            end,
-            market,
-            locations,
-            location_type,
-            verbose,
-        )
-        dam_df = self.get_dam_hub_lmp_raw(
-            date,
-            end,
-            market,
-            locations,
-            location_type,
-            verbose,
-        )
+        rtm_df = self._get_feature_data(self.QUERY_RTM_HUBS_URL)
+        dam_df = self._get_feature_data(self.QUERY_DAM_DELTA_HUBS_URL)
         df = pd.merge(rtm_df, dam_df, on=["OBJECTID"], suffixes=["_DAM", "_RTM"])
 
         df["LMP"] = df["LMP"] - df["SL_LMP_DELTA"]
@@ -447,45 +401,13 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        df = self.get_rtm_hub_lmp_raw()
+        df = self._get_feature_data(self.QUERY_RTM_HUBS_URL)
         df["Location"] = df["SETTLEMENT_LOCATION"]
         df["Time"] = SPP._parse_gmt_interval_end(
             df,
             pd.Timedelta(minutes=5),
             self.default_timezone,
         )
-        return df
-
-    def get_rtm_hub_lmp_raw(
-        self,
-    ):
-        args = (
-            ("f", "json"),
-            ("where", "OBJECTID IS NOT NULL"),
-            ("returnGeometry", "false"),
-            (
-                "outFields",
-                "*",
-            ),
-        )
-        doc = self._get_json(utils.url_with_query_args(self.QUERY_RTM_HUBS_URL, args))
-        df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
-        return df
-
-    def get_dam_hub_lmp_raw(
-        self,
-    ):
-        args = (
-            ("f", "json"),
-            ("where", "OBJECTID IS NOT NULL"),
-            ("returnGeometry", "false"),
-            (
-                "outFields",
-                "*",
-            ),
-        )
-        doc = self._get_json(utils.url_with_query_args(self.QUERY_DELTA_HUBS_URL, args))
-        df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
     def get_dam_hub_lmp(
@@ -497,8 +419,8 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        rtm_df = self.get_rtm_hub_lmp_raw()
-        dam_df = self.get_dam_hub_lmp_raw()
+        rtm_df = self._get_feature_data(self.QUERY_RTM_HUBS_URL)
+        dam_df = self._get_feature_data(self.QUERY_DAM_DELTA_HUBS_URL)
         df = pd.merge(rtm_df, dam_df, on=["OBJECTID"], suffixes=["_DAM", "_RTM"])
 
         df["LMP"] = df["LMP"] - df["SL_LMP_DELTA"]
@@ -520,68 +442,13 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_INTERFACE,
         verbose=False,
     ):
-        df = self.get_rtm_interface_lmp_raw(
-            date,
-            end,
-            market,
-            locations,
-            location_type,
-            verbose,
-        )
+        df = self._get_feature_data(self.QUERY_RTM_INTERFACES_URL)
         df["Location"] = df["SETTLEMENT_LOCATION"]
         df["Time"] = SPP._parse_gmt_interval_end(
             df,
             pd.Timedelta(minutes=5),
             self.default_timezone,
         )
-        return df
-
-    def get_rtm_interface_lmp_raw(
-        self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_INTERFACE,
-        verbose=False,
-    ):
-        args = (
-            ("f", "json"),
-            ("where", "OBJECTID IS NOT NULL"),
-            ("returnGeometry", "false"),
-            (
-                "outFields",
-                "*",
-            ),
-        )
-        doc = self._get_json(
-            utils.url_with_query_args(self.QUERY_RTM_INTERFACES_URL, args),
-        )
-        df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
-        return df
-
-    def get_dam_interface_lmp_raw(
-        self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_INTERFACE,
-        verbose=False,
-    ):
-        args = (
-            ("f", "json"),
-            ("where", "OBJECTID IS NOT NULL"),
-            ("returnGeometry", "false"),
-            (
-                "outFields",
-                "*",
-            ),
-        )
-        doc = self._get_json(
-            utils.url_with_query_args(self.QUERY_DELTA_INTERFACES_URL, args),
-        )
-        df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
     def get_dam_interface_lmp(
@@ -593,22 +460,8 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_INTERFACE,
         verbose=False,
     ):
-        rtm_df = self.get_rtm_interface_lmp_raw(
-            date,
-            end,
-            market,
-            locations,
-            location_type,
-            verbose,
-        )
-        dam_df = self.get_dam_interface_lmp_raw(
-            date,
-            end,
-            market,
-            locations,
-            location_type,
-            verbose,
-        )
+        rtm_df = self._get_feature_data(self.QUERY_RTM_INTERFACES_URL)
+        dam_df = self._get_feature_data(self.QUERY_DAM_DELTA_INTERFACES_URL)
         df = pd.merge(rtm_df, dam_df, on=["OBJECTID"], suffixes=["_DAM", "_RTM"])
 
         df["LMP"] = df["LMP"] - df["SL_LMP_DELTA"]
