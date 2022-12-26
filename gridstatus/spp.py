@@ -309,9 +309,15 @@ class SPP(ISOBase):
             raise NotSupported(f"Date {date} is not supported for SPP")
         location_type = SPP._normalize_location_type(location_type)
         if location_type == LOCATION_TYPE_HUB:
-            df = self.get_hub_lmp(date, market, locations, location_type, verbose)
+            df = self.get_rtm_hub_lmp(date, market, locations, location_type, verbose)
         elif location_type == LOCATION_TYPE_INTERFACE:
-            df = self.get_interface_lmp(date, market, locations, location_type, verbose)
+            df = self.get_rtm_interface_lmp(
+                date,
+                market,
+                locations,
+                location_type,
+                verbose,
+            )
         else:
             raise NotSupported(
                 f"Location type {location_type} is not supported for SPP",
@@ -322,7 +328,7 @@ class SPP(ISOBase):
 
         return SPP._finalize_spp_df(df, locations)
 
-    def get_hub_lmp(
+    def get_rtm_hub_lmp(
         self,
         date,
         end=None,
@@ -350,7 +356,7 @@ class SPP(ISOBase):
         )
         return df
 
-    def get_interface_lmp(
+    def get_rtm_interface_lmp(
         self,
         date,
         end=None,
