@@ -520,7 +520,7 @@ class SPP(ISOBase):
             )
             paths = files_df["path"].tolist()
         if verbose:
-            print(f"Found {len(paths)} files for {date}")
+            print(f"Found {len(paths)} files for {date}", file=sys.stderr)
         return paths
 
     def _fetch_rtbm_lmp_by_location(self, date, verbose=False):
@@ -561,7 +561,7 @@ class SPP(ISOBase):
         paths = max_file["path"].tolist()
 
         if verbose:
-            print(f"Found {len(paths)} files for {date}")
+            print(f"Found {len(paths)} files for {date}", file=sys.stderr)
         return paths
 
     def _fetch_dam_lmp_by_location(self, date, verbose=False):
