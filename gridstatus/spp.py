@@ -44,6 +44,7 @@ class SPP(ISOBase):
 
     location_types = [
         LOCATION_TYPE_HUB,
+        LOCATION_TYPE_INTERFACE,
     ]
 
     def get_status(self, date=None, verbose=False):
