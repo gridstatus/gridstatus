@@ -122,7 +122,7 @@ def test_parse_gmt_interval_end():
                     "2022-12-26 18:45:00-0600",
                     tz="US/Central",
                 ),
-                "GMTINTERVALEND": 1672102200000,
+                "GMTIntervalEnd": 1672102200000,
             },
         ],
     )
@@ -144,7 +144,7 @@ def test_parse_gmt_interval_end_daylight_savings_time():
                     tz="US/Central",
                 ),
                 # 2022-03-15 13:05:00 CDT
-                "GMTINTERVALEND": 1647367500000,
+                "GMTIntervalEnd": 1647367500000,
             },
         ],
     )

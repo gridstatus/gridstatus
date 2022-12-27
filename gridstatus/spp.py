@@ -392,7 +392,7 @@ class SPP(ISOBase):
     ):
         df = self._fetch_rtbm_lmp_by_location(date, verbose=verbose)
         df["Location"] = df["Settlement Location"]
-        df["Time"] = SPP._parse_csv_gmt_interval_end(
+        df["Time"] = SPP._parse_gmt_interval_end(
             df,
             pd.Timedelta(minutes=5),
             self.default_timezone,
@@ -410,7 +410,7 @@ class SPP(ISOBase):
     ):
         df = self._fetch_dam_lmp_by_location(date, verbose=verbose)
         df["Location"] = df["Settlement Location"]
-        df["Time"] = SPP._parse_csv_gmt_interval_end(
+        df["Time"] = SPP._parse_gmt_interval_end(
             df,
             pd.Timedelta(minutes=5),
             self.default_timezone,
@@ -468,14 +468,6 @@ class SPP(ISOBase):
 
     @staticmethod
     def _parse_gmt_interval_end(df, interval_duration: pd.Timedelta, timezone):
-        return df["GMTINTERVALEND"].apply(
-            lambda x: (
-                pd.Timestamp(x, unit="ms", tz="UTC") - interval_duration
-            ).tz_convert(timezone),
-        )
-
-    @staticmethod
-    def _parse_csv_gmt_interval_end(df, interval_duration: pd.Timedelta, timezone):
         return df["GMTIntervalEnd"].apply(
             lambda x: (
                 pd.Timestamp(x, unit="ms", tz="UTC") - interval_duration
@@ -514,17 +506,6 @@ class SPP(ISOBase):
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
         return df["SETTLEMENT_LOCATION"].unique().tolist()
-
-    def _get_rtbm_lmp_path_by_interface(self, date):
-        file_date = date + pd.Timedelta(minutes=5)
-        # /2022/12/By_Interval/27/RTBM-LMP-SL-202212271005.csv
-        year = file_date.strftime("%Y")
-        month = file_date.strftime("%m")
-        day = file_date.strftime("%d")
-        timestamp = file_date.strftime("%Y%m%d%H%M")
-        path = f"/{year}/{month}/By_Interval/{day}/RTBM-LMP-SL-{timestamp}.csv"
-        print(path)
-        return path
 
     def _fs_get_rtbm_lmp_by_location_paths(self, date, verbose=False):
         """Lists files for Real-Time Balancing Market (RTBM), Locational Marginal Price (LMP) by Settlement Location (SL)"""
