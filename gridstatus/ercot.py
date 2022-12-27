@@ -231,13 +231,15 @@ class Ercot(ISOBase):
         df = self._handle_html_data(df, {"TOTAL": "Load"})
         return df
 
-    def _get_supply(self, date, verbose=False):
+    def _get_todays_outlook_non_forecast(self, date, verbose=False):
         """Returns most recent data point for supply in MW
 
         Updates every 5 minutes
         """
         assert date == "today", "Only today's data is supported"
         url = self.BASE + "/todays-outlook.json"
+        if verbose:
+            print(f"Fetching {url}", file=sys.stderr)
         r = self._get_json(url)
 
         date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
@@ -254,10 +256,6 @@ class Ercot(ISOBase):
         ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         data = data[data["forecast"] == 0]  # only keep non forecast rows
-
-        data = data[["Time", "capacity"]].rename(
-            columns={"capacity": "Supply"},
-        )
 
         return data
 
