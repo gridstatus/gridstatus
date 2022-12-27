@@ -197,7 +197,8 @@ class Ercot(ISOBase):
     def get_load(self, date, verbose=False):
         if date == "latest":
             today_load = self.get_load("today", verbose=verbose)
-            return today_load.iloc[-1].to_dict()
+            latest = today_load.iloc[-1]
+            return {"load": latest["Load"], "time": latest["Time"]}
 
         elif utils.is_today(date):
             df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
