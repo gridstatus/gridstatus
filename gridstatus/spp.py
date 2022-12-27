@@ -25,8 +25,6 @@ LOCATION_TYPE_INTERFACE = "INTERFACE"
 
 QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
 QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
-QUERY_DAM_DELTA_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/1/query"
-QUERY_DAM_DELTA_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/2/query"
 
 
 class SPP(ISOBase):
@@ -345,7 +343,12 @@ class SPP(ISOBase):
         df["Market"] = market.value
         df["Location Type"] = SPP._get_location_type_name(location_type)
 
-        return SPP._finalize_spp_df(df, locations)
+        return self._finalize_spp_df(
+            df,
+            locations=locations,
+            location_type=location_type,
+            verbose=verbose,
+        )
 
     def _get_feature_data(self, base_url, verbose=False):
         """Fetches data from ArcGIS Map Service with Feature Data
@@ -380,17 +383,6 @@ class SPP(ISOBase):
                 f"Location type {location_type} is not supported for Real-Time Market",
             )
 
-    @staticmethod
-    def _get_dam_delta_url(location_type):
-        if location_type == LOCATION_TYPE_HUB:
-            return QUERY_DAM_DELTA_HUBS_URL
-        elif location_type == LOCATION_TYPE_INTERFACE:
-            return QUERY_DAM_DELTA_INTERFACES_URL
-        else:
-            raise NotSupported(
-                f"Location type {location_type} is not supported for Day-Ahead Market Delta",
-            )
-
     def _get_rtm5_lmp(
         self,
         date,
@@ -407,8 +399,6 @@ class SPP(ISOBase):
             pd.Timedelta(minutes=5),
             self.default_timezone,
         )
-        location_list = self._get_location_list(location_type, verbose=verbose)
-        df = df[df["Location"].isin(location_list)]
         return df
 
     def _get_dam_lmp(
@@ -427,14 +417,12 @@ class SPP(ISOBase):
             pd.Timedelta(minutes=5),
             self.default_timezone,
         )
-        location_list = self._get_location_list(location_type, verbose=verbose)
-        df = df[df["Location"].isin(location_list)]
         return df
 
-    @staticmethod
-    def _finalize_spp_df(df, locations):
+    def _finalize_spp_df(self, df, locations, location_type, verbose=False):
         """
         Finalizes DataFrame by:
+        - filtering by location type
         - filtering by locations list
         - renaming and ordering columns
         - and resetting the index
@@ -443,6 +431,9 @@ class SPP(ISOBase):
             df (DataFrame): DataFrame with SPP data
             locations (list): list of locations to filter by
         """
+        location_list = self._get_location_list(location_type, verbose=verbose)
+        df = df[df["Location"].isin(location_list)]
+
         df = df.rename(
             columns={
                 "LMP": "LMP",  # for posterity
@@ -507,33 +498,14 @@ class SPP(ISOBase):
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
 
-    def _get_hubs(self, verbose=False):
-        return (
-            self._get_feature_data(
-                SPP._get_rtm5_url("HUB"),
-                verbose=verbose,
-            )["SETTLEMENT_LOCATION"]
-            .unique()
-            .tolist()
-        )
-
-    def _get_interfaces(self, verbose=False):
-        return (
-            self._get_feature_data(
-                SPP._get_rtm5_url("INTERFACE"),
-                verbose=verbose,
-            )["SETTLEMENT_LOCATION"]
-            .unique()
-            .tolist()
-        )
-
     def _get_location_list(self, location_type, verbose=False):
         if location_type == LOCATION_TYPE_HUB:
-            return self._get_hubs(verbose=verbose)
+            df = self._get_feature_data(QUERY_RTM5_HUBS_URL, verbose=verbose)
         elif location_type == LOCATION_TYPE_INTERFACE:
-            return self._get_interfaces(verbose=verbose)
+            df = self._get_feature_data(QUERY_RTM5_INTERFACES_URL, verbose=verbose)
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
+        return df["SETTLEMENT_LOCATION"].unique().tolist()
 
     def _get_rtbm_lmp_path_by_interface(self, date):
         file_date = date + pd.Timedelta(minutes=5)
