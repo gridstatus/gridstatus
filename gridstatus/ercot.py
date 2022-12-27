@@ -236,7 +236,10 @@ class Ercot(ISOBase):
 
         Updates every 5 minutes
         """
-        assert date == "today", "Only today's data is supported"
+        assert date == "latest" or utils.is_today(
+            date,
+            self.default_timezone,
+        ), "Only today's data is supported"
         url = self.BASE + "/todays-outlook.json"
         if verbose:
             print(f"Fetching {url}", file=sys.stderr)
