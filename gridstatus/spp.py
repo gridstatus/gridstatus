@@ -550,23 +550,27 @@ class SPP(ISOBase):
 
     def _fs_get_dam_lmp_by_location_paths(self, date, verbose=False):
         """Lists files for Day-ahead Market (DAM), Locational Marginal Price (LMP) by Settlement Location (SL)"""
+        paths = []
         if date == "latest":
             raise ValueError("DAM is released daily, so use date='today' instead")
+        elif not utils.is_today(date, self.default_timezone):
+            raise NotSupported("Historical DAM data is not supported currently")
 
-        paths = []
-        if utils.is_today(date, self.default_timezone):
-            date = pd.Timestamp.now(
-                tz=self.default_timezone,
-            ).normalize() + pd.Timedelta(hours=1)
-            files_df = self._file_browser_list(
-                name=FS_DAM_LMP_BY_LOCATION,
-                fs_name=FS_DAM_LMP_BY_LOCATION,
-                type="folder",
-                path=date.strftime("/%Y/%m/By_Day"),
-            )
-            max_name = max(files_df["name"])
-            max_file = files_df[files_df["name"] == max_name]
-            paths = max_file["path"].tolist()
+        date = pd.Timestamp.now(
+            tz=self.default_timezone,
+        ).normalize()
+        # list files for this month
+        files_df = self._file_browser_list(
+            name=FS_DAM_LMP_BY_LOCATION,
+            fs_name=FS_DAM_LMP_BY_LOCATION,
+            type="folder",
+            path=date.strftime("/%Y/%m/By_Day"),
+        )
+        max_name = max(files_df["name"])
+        max_file = files_df[files_df["name"] == max_name]
+        # get latest file
+        paths = max_file["path"].tolist()
+
         if verbose:
             print(f"Found {len(paths)} files for {date}")
         return paths

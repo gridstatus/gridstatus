@@ -10,8 +10,6 @@ from gridstatus import Markets, NotSupported
     [
         (Markets.REAL_TIME_5_MIN, "Hub"),
         (Markets.REAL_TIME_5_MIN, "Interface"),
-        (Markets.DAY_AHEAD_HOURLY, "Hub"),
-        (Markets.DAY_AHEAD_HOURLY, "Interface"),
     ],
 )
 def test_get_lmp_latest(market, location_type):
@@ -42,17 +40,73 @@ def test_get_lmp_latest(market, location_type):
     assert location_types[0] == location_type
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "market,location_type",
+    [
+        (Markets.DAY_AHEAD_HOURLY, "Hub"),
+        (Markets.REAL_TIME_5_MIN, "Hub"),
+    ],
+)
+def test_get_lmp_today(market, location_type):
+    iso = gridstatus.SPP()
+    df = iso.get_lmp(
+        date="today",
+        market=market,
+        location_type=location_type,
+    )
+    cols = [
+        "Time",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+        "Energy",
+        "Congestion",
+        "Loss",
+    ]
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+    markets = df["Market"].unique()
+    assert len(markets) == 1
+    assert markets[0] == market.value
+
+    location_types = df["Location Type"].unique()
+    assert len(location_types) == 1
+    assert location_types[0] == location_type
+
+
 @pytest.mark.parametrize(
     "date,market,location_type",
     [
-        ("today", Markets.REAL_TIME_5_MIN, "Hub"),
-        ("latest", Markets.REAL_TIME_15_MIN, "Hub"),
-        (pd.Timestamp("2020-01-01T00:00:00"), Markets.REAL_TIME_5_MIN, "Hub"),
+        ("latest", Markets.REAL_TIME_15_MIN, "Interface"),
+        (
+            pd.Timestamp.now() - pd.Timedelta(days=2),
+            Markets.REAL_TIME_15_MIN,
+            "Interface",
+        ),
     ],
 )
 def test_get_lmp_unsupported_raises_not_supported(date, market, location_type):
     iso = gridstatus.SPP()
     with pytest.raises(NotSupported):
+        iso.get_lmp(
+            date=date,
+            market=market,
+            location_type=location_type,
+        )
+
+
+@pytest.mark.parametrize(
+    "date,market,location_type",
+    [
+        ("latest", Markets.DAY_AHEAD_HOURLY, "Hub"),
+        ("latest", Markets.DAY_AHEAD_HOURLY, "Interface"),
+    ],
+)
+def test_get_lmp_day_ahead_cannot_have_latest(date, market, location_type):
+    iso = gridstatus.SPP()
+    with pytest.raises(ValueError):
         iso.get_lmp(
             date=date,
             market=market,
