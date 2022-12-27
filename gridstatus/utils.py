@@ -265,8 +265,8 @@ def load_folder(path, time_zone=None, verbose=True):
     return data
 
 
-def url_with_query_args(url, qsargs):
+def url_with_query_args(url: str, qsargs: dict) -> str:
     """Return a URL with query string arguments"""
-    qs = "&".join("{k}={v}".format(k=k, v=quote(v)) for k, v in qsargs)
+    qs = "&".join("{k}={v}".format(k=k, v=quote(v)) for k, v in qsargs.items())
     full_url = f"{url}?{qs}"
     return full_url

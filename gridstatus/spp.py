@@ -354,15 +354,12 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame of features
         """
-        args = (
-            ("f", "json"),
-            ("where", "OBJECTID IS NOT NULL"),
-            ("returnGeometry", "false"),
-            (
-                "outFields",
-                "*",
-            ),
-        )
+        args = {
+            "f": "json",
+            "where": "OBJECTID IS NOT NULL",
+            "returnGeometry": "false",
+            "outFields": "*",
+        }
         url = utils.url_with_query_args(base_url, args)
         if verbose:
             print(f"Fetching feature data from {url}", file=sys.stderr)
@@ -518,10 +515,10 @@ class SPP(ISOBase):
         for path in paths:
             url = utils.url_with_query_args(
                 self._file_browser_download_url(FS_RTBM_LMP_BY_LOCATION),
-                (("path", path),),
+                {"path": path},
             )
             if verbose:
-                print(f"Fetching LMP data from {url}", file=sys.stderr)
+                print(f"Fetching RTM LMP data from {url}", file=sys.stderr)
             df = pd.read_csv(url)
             all_dfs.append(df)
         return pd.concat(all_dfs)
@@ -559,10 +556,10 @@ class SPP(ISOBase):
         for path in paths:
             url = utils.url_with_query_args(
                 self._file_browser_download_url(FS_DAM_LMP_BY_LOCATION),
-                (("path", path),),
+                {"path": path},
             )
             if verbose:
-                print(f"Fetching LMP data from {url}", file=sys.stderr)
+                print(f"Fetching DAM LMP data from {url}", file=sys.stderr)
             df = pd.read_csv(url)
             all_dfs.append(df)
         return pd.concat(all_dfs)
