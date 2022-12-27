@@ -340,11 +340,9 @@ class SPP(ISOBase):
                 f"Location type {location_type} is not supported for SPP",
             )
 
-        df["Market"] = market.value
-        df["Location Type"] = SPP._get_location_type_name(location_type)
-
         return self._finalize_spp_df(
             df,
+            market=market,
             locations=locations,
             location_type=location_type,
             verbose=verbose,
@@ -419,20 +417,30 @@ class SPP(ISOBase):
         )
         return df
 
-    def _finalize_spp_df(self, df, locations, location_type, verbose=False):
+    def _finalize_spp_df(self, df, market, locations, location_type, verbose=False):
         """
-        Finalizes DataFrame by:
-        - filtering by location type
-        - filtering by locations list
-        - renaming and ordering columns
-        - and resetting the index
+        Finalizes DataFrame:
+
+        - Filters Location by location_type
+        - Sets Market
+        - Sets Location Type
+        - Renames and ordering columns
+        - Filters by Location
+        - Resets the index
 
         Parameters:
             df (DataFrame): DataFrame with SPP data
-            locations (list): list of locations to filter by
+            market (str): Market
+            locations (list): List of locations to filter by
+            location_type (str): Location type
+            verbose (bool): Verbose output
         """
+
         location_list = self._get_location_list(location_type, verbose=verbose)
         df = df[df["Location"].isin(location_list)]
+
+        df["Market"] = market.value
+        df["Location Type"] = SPP._get_location_type_name(location_type)
 
         df = df.rename(
             columns={
