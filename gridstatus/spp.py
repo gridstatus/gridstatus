@@ -15,6 +15,10 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 
+FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
+MARKETPLACE_BASE_URL = "https://marketplace.spp.org"
+FILE_BROWSER_API_URL = "https://marketplace.spp.org/file-browser-api/"
+
 LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_INTERFACE = "INTERFACE"
 
@@ -313,11 +317,13 @@ class SPP(ISOBase):
         market = Markets(market)
         if market not in self.markets:
             raise NotSupported(f"Market {market} not supported")
-        if date != "latest":
-            raise NotSupported(f"Date {date} is not supported for SPP")
         location_type = SPP._normalize_location_type(location_type)
         if market == Markets.REAL_TIME_5_MIN:
-            df = self._get_latest_rtm5_lmp(
+            df = self._get_rtm5_lmp(
+                date,
+                end,
+                market,
+                locations,
                 location_type,
                 verbose,
             )
@@ -380,19 +386,24 @@ class SPP(ISOBase):
                 f"Location type {location_type} is not supported for Day-Ahead Market Delta",
             )
 
-    def _get_latest_rtm5_lmp(
+    def _get_rtm5_lmp(
         self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = "ALL",
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        """Fetch latest real-time market data (updated every 5 minutes)"""
-        df = self._get_feature_data(SPP._get_rtm5_url(location_type), verbose=verbose)
-        df["Location"] = df["SETTLEMENT_LOCATION"]
-        df["Time"] = SPP._parse_gmt_interval_end(
+        df = self._fetch_rtbm_lmp_by_location(date, verbose=verbose)
+        df["Location"] = df["Settlement Location"]
+        df["Time"] = SPP._parse_csv_gmt_interval_end(
             df,
             pd.Timedelta(minutes=5),
             self.default_timezone,
         )
+        location_list = self._get_location_list(location_type, verbose=verbose)
+        df = df[df["Location"].isin(location_list)]
         return df
 
     def _get_latest_dam_lmp(
@@ -474,6 +485,14 @@ class SPP(ISOBase):
         )
 
     @staticmethod
+    def _parse_csv_gmt_interval_end(df, interval_duration: pd.Timedelta, timezone):
+        return df["GMTIntervalEnd"].apply(
+            lambda x: (
+                pd.Timestamp(x, unit="ms", tz="UTC") - interval_duration
+            ).tz_convert(timezone),
+        )
+
+    @staticmethod
     def _parse_day_ahead_hour_end(df, timezone):
         # 'DA_HOUREND': '12/26/2022 9:00:00 AM',
         return df["DA_HOUREND"].apply(
@@ -516,6 +535,93 @@ class SPP(ISOBase):
             .unique()
             .tolist()
         )
+
+    def _get_location_list(self, location_type, verbose=False):
+        if location_type == LOCATION_TYPE_HUB:
+            return self._get_hubs(verbose=verbose)
+        elif location_type == LOCATION_TYPE_INTERFACE:
+            return self._get_interfaces(verbose=verbose)
+        else:
+            raise ValueError(f"Invalid location_type: {location_type}")
+
+    def _get_rtbm_lmp_path_by_interface(self, date):
+        file_date = date + pd.Timedelta(minutes=5)
+        # /2022/12/By_Interval/27/RTBM-LMP-SL-202212271005.csv
+        year = file_date.strftime("%Y")
+        month = file_date.strftime("%m")
+        day = file_date.strftime("%d")
+        timestamp = file_date.strftime("%Y%m%d%H%M")
+        path = f"/{year}/{month}/By_Interval/{day}/RTBM-LMP-SL-{timestamp}.csv"
+        print(path)
+        return path
+
+    def _fs_get_rtbm_lmp_by_location_paths(self, date, verbose=False):
+        """Lists files for Real-Time Balancing Market (RTBM), Locational Marginal Price (LMP) by Settlement Location (SL)"""
+        if date == "latest":
+            paths = ["/RTBM-LMP-SL-latestInterval.csv"]
+        elif utils.is_today(date, self.default_timezone):
+            files_df = self._file_browser_list(
+                name=FS_RTBM_LMP_BY_LOCATION,
+                fs_name=FS_RTBM_LMP_BY_LOCATION,
+                type="folder",
+                path=date.strftime("/%Y/%m/By_Interval/%d"),
+            )
+            paths = files_df["path"].tolist()
+        if verbose:
+            print(f"Found {len(paths)} files for {date}")
+        return paths
+
+    def _fetch_rtbm_lmp_by_location(self, date, verbose=False):
+        all_dfs = []
+        paths = self._fs_get_rtbm_lmp_by_location_paths(date, verbose=verbose)
+        for path in paths:
+            url = utils.url_with_query_args(
+                self._file_browser_download_url(FS_RTBM_LMP_BY_LOCATION),
+                (("path", path),),
+            )
+            if verbose:
+                print(f"Fetching LMP data from {url}", file=sys.stderr)
+            df = pd.read_csv(url)
+            all_dfs.append(df)
+        return pd.concat(all_dfs)
+
+    def _get_marketplace_session(self) -> dict:
+        """
+        Returns a session object for the Marketplace API
+        """
+        html = requests.get(MARKETPLACE_BASE_URL)
+        jsessionid = html.cookies.get("JSESSIONID")
+        soup = BeautifulSoup(html.content, "html.parser")
+        csrf_token = soup.find("meta", {"id": "_csrf"}).attrs["content"]
+        csrf_token_header = soup.find("meta", {"id": "_csrf_header"}).attrs["content"]
+
+        return {
+            "cookies": {"JSESSIONID": jsessionid},
+            "headers": {
+                csrf_token_header: csrf_token,
+            },
+        }
+
+    def _file_browser_list(self, name: str, fs_name: str, type: str, path: str):
+        """Lists folders in a browser
+
+        Returns: pd.DataFrame of files, or empty pd.DataFrame on error"""
+        session = self._get_marketplace_session()
+        json_payload = {"name": name, "fsName": fs_name, "type": type, "path": path}
+        list_results = requests.post(
+            FILE_BROWSER_API_URL,
+            json=json_payload,
+            headers=session["headers"],
+            cookies=session["cookies"],
+        )
+        if list_results.status_code == 200:
+            df = pd.DataFrame(list_results.json())
+            return df
+        else:
+            return pd.DataFrame()
+
+    def _file_browser_download_url(self, name):
+        return f"{FILE_BROWSER_API_URL}download/{name}"
 
 
 # historical generation mix
