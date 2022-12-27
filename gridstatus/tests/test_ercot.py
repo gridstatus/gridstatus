@@ -74,6 +74,18 @@ def test_ercot_get_load_today():
     assert df["Time"].unique()[0].date() == today
 
 
+def test_ercot_get_load_latest():
+    expected_keys = {
+        "Time",
+        "Load",
+    }
+    iso = gridstatus.Ercot()
+    today = pd.Timestamp.now(tz=iso.default_timezone).date()
+    load = iso.get_load("latest")
+    assert load.keys() == expected_keys
+    assert load["Time"].date() == today
+
+
 def test_ercot_get_load_3_days_ago():
     cols = [
         "Time",
