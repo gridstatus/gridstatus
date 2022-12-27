@@ -1,3 +1,5 @@
+import sys
+
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -11,9 +13,15 @@ from gridstatus.base import (
     Markets,
     NotSupported,
 )
+from gridstatus.decorators import support_date_range
 
 LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_INTERFACE = "INTERFACE"
+
+QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
+QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
+QUERY_DAM_DELTA_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/1/query"
+QUERY_DAM_DELTA_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/2/query"
 
 
 class SPP(ISOBase):
@@ -37,11 +45,6 @@ class SPP(ISOBase):
     location_types = [
         LOCATION_TYPE_HUB,
     ]
-
-    QUERY_RTM_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
-    QUERY_RTM_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
-    QUERY_DAM_DELTA_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/1/query"
-    QUERY_DAM_DELTA_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/DELTA_FeatureData/MapServer/2/query"
 
     def get_status(self, date=None, verbose=False):
         if date != "latest":
@@ -290,6 +293,7 @@ class SPP(ISOBase):
 
         return queue
 
+    @support_date_range(frequency="1D")
     def get_lmp(
         self,
         date,
@@ -301,7 +305,7 @@ class SPP(ISOBase):
     ):
         """Get LMP data
 
-        Supported Markets: REAL_TIME_5_MIN
+        Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
 
         Supported Location Types: "hub", "interface"
         """
@@ -311,40 +315,16 @@ class SPP(ISOBase):
         if date != "latest":
             raise NotSupported(f"Date {date} is not supported for SPP")
         location_type = SPP._normalize_location_type(location_type)
-        if location_type == LOCATION_TYPE_HUB:
-            if market == Markets.REAL_TIME_5_MIN:
-                df = self.get_rtm_hub_lmp(
-                    date,
-                    market,
-                    locations,
-                    location_type,
-                    verbose,
-                )
-            elif market == Markets.DAY_AHEAD_HOURLY:
-                df = self.get_dam_hub_lmp(
-                    date,
-                    market,
-                    locations,
-                    location_type,
-                    verbose,
-                )
-        elif location_type == LOCATION_TYPE_INTERFACE:
-            if market == Markets.REAL_TIME_5_MIN:
-                df = self.get_rtm_interface_lmp(
-                    date,
-                    market,
-                    locations,
-                    location_type,
-                    verbose,
-                )
-            elif market == Markets.DAY_AHEAD_HOURLY:
-                df = self.get_dam_interface_lmp(
-                    date,
-                    market,
-                    locations,
-                    location_type,
-                    verbose,
-                )
+        if market == Markets.REAL_TIME_5_MIN:
+            df = self._get_latest_rtm5_lmp(
+                location_type,
+                verbose,
+            )
+        elif market == Markets.DAY_AHEAD_HOURLY:
+            df = self._get_latest_dam_lmp(
+                location_type,
+                verbose,
+            )
         else:
             raise NotSupported(
                 f"Location type {location_type} is not supported for SPP",
@@ -355,7 +335,12 @@ class SPP(ISOBase):
 
         return SPP._finalize_spp_df(df, locations)
 
-    def _get_feature_data(self, base_url):
+    def _get_feature_data(self, base_url, verbose=False):
+        """Fetches data from ArcGIS Map Service with Feature Data
+
+        Returns:
+            pd.DataFrame of features
+        """
         args = (
             ("f", "json"),
             ("where", "OBJECTID IS NOT NULL"),
@@ -365,43 +350,42 @@ class SPP(ISOBase):
                 "*",
             ),
         )
-        doc = self._get_json(utils.url_with_query_args(base_url, args))
+        url = utils.url_with_query_args(base_url, args)
+        if verbose:
+            print(f"Fetching feature data from {url}", file=sys.stderr)
+        doc = self._get_json(url)
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
-    def get_dam_hub_lmp(
+    @staticmethod
+    def _get_rtm5_url(location_type):
+        if location_type == LOCATION_TYPE_HUB:
+            return QUERY_RTM5_HUBS_URL
+        elif location_type == LOCATION_TYPE_INTERFACE:
+            return QUERY_RTM5_INTERFACES_URL
+        else:
+            raise NotSupported(
+                f"Location type {location_type} is not supported for Real-Time Market",
+            )
+
+    @staticmethod
+    def _get_dam_delta_url(location_type):
+        if location_type == LOCATION_TYPE_HUB:
+            return QUERY_DAM_DELTA_HUBS_URL
+        elif location_type == LOCATION_TYPE_INTERFACE:
+            return QUERY_DAM_DELTA_INTERFACES_URL
+        else:
+            raise NotSupported(
+                f"Location type {location_type} is not supported for Day-Ahead Market Delta",
+            )
+
+    def _get_latest_rtm5_lmp(
         self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        rtm_df = self._get_feature_data(self.QUERY_RTM_HUBS_URL)
-        dam_df = self._get_feature_data(self.QUERY_DAM_DELTA_HUBS_URL)
-        df = pd.merge(rtm_df, dam_df, on=["OBJECTID"], suffixes=["_DAM", "_RTM"])
-
-        df["LMP"] = df["LMP"] - df["SL_LMP_DELTA"]
-        df["MLC"] = df["MLC"] - df["SL_MLC_DELTA"]
-        df["MCC"] = df["MCC"] - df["SL_MCC_DELTA"]
-        df["MEC"] = df["MEC"] - df["SL_MEC_DELTA"]
-
-        df["Time"] = SPP._parse_day_ahead_hour_end(df, self.default_timezone)
-        df["Location"] = df["SETTLEMENT_LOCATION_DAM"]
-
-        return df
-
-    def get_rtm_hub_lmp(
-        self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_HUB,
-        verbose=False,
-    ):
-        df = self._get_feature_data(self.QUERY_RTM_HUBS_URL)
+        """Fetch latest real-time market data (updated every 5 minutes)"""
+        df = self._get_feature_data(SPP._get_rtm5_url(location_type), verbose=verbose)
         df["Location"] = df["SETTLEMENT_LOCATION"]
         df["Time"] = SPP._parse_gmt_interval_end(
             df,
@@ -410,59 +394,30 @@ class SPP(ISOBase):
         )
         return df
 
-    def get_dam_hub_lmp(
+    def _get_latest_dam_lmp(
         self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        rtm_df = self._get_feature_data(self.QUERY_RTM_HUBS_URL)
-        dam_df = self._get_feature_data(self.QUERY_DAM_DELTA_HUBS_URL)
-        df = pd.merge(rtm_df, dam_df, on=["OBJECTID"], suffixes=["_DAM", "_RTM"])
+        """Calculate the Day-Ahead Market with real-time and day-ahead market delta data
 
-        df["LMP"] = df["LMP"] - df["SL_LMP_DELTA"]
-        df["MLC"] = df["MLC"] - df["SL_MLC_DELTA"]
-        df["MCC"] = df["MCC"] - df["SL_MCC_DELTA"]
-        df["MEC"] = df["MEC"] - df["SL_MEC_DELTA"]
-
-        df["Time"] = SPP._parse_day_ahead_hour_end(df, self.default_timezone)
-        df["Location"] = df["SETTLEMENT_LOCATION_DAM"]
-
-        return df
-
-    def get_rtm_interface_lmp(
-        self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_INTERFACE,
-        verbose=False,
-    ):
-        df = self._get_feature_data(self.QUERY_RTM_INTERFACES_URL)
-        df["Location"] = df["SETTLEMENT_LOCATION"]
-        df["Time"] = SPP._parse_gmt_interval_end(
-            df,
-            pd.Timedelta(minutes=5),
-            self.default_timezone,
+        DELTA = RTM - DAM
+        => DAM = RTM - DELTA
+        """
+        rtm_df = self._get_feature_data(
+            SPP._get_rtm5_url(location_type),
+            verbose=verbose,
         )
-        return df
-
-    def get_dam_interface_lmp(
-        self,
-        date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_INTERFACE,
-        verbose=False,
-    ):
-        rtm_df = self._get_feature_data(self.QUERY_RTM_INTERFACES_URL)
-        dam_df = self._get_feature_data(self.QUERY_DAM_DELTA_INTERFACES_URL)
-        df = pd.merge(rtm_df, dam_df, on=["OBJECTID"], suffixes=["_DAM", "_RTM"])
+        dam_delta_df = self._get_feature_data(
+            SPP._get_dam_delta_url(location_type),
+            verbose=verbose,
+        )
+        df = pd.merge(
+            rtm_df,
+            dam_delta_df,
+            on=["OBJECTID"],
+            suffixes=["_DAM_DELTA", "_RTM"],
+        )
 
         df["LMP"] = df["LMP"] - df["SL_LMP_DELTA"]
         df["MLC"] = df["MLC"] - df["SL_MLC_DELTA"]
@@ -470,8 +425,7 @@ class SPP(ISOBase):
         df["MEC"] = df["MEC"] - df["SL_MEC_DELTA"]
 
         df["Time"] = SPP._parse_day_ahead_hour_end(df, self.default_timezone)
-        df["Location"] = df["SETTLEMENT_LOCATION_DAM"]
-
+        df["Location"] = df["SETTLEMENT_LOCATION_RTM"]
         return df
 
     @staticmethod
