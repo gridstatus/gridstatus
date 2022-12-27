@@ -196,12 +196,13 @@ class Ercot(ISOBase):
     @support_date_range("1D")
     def get_load(self, date, verbose=False):
         if date == "latest":
-            d = self._get_load_json("currentDay").iloc[-1]
-
-            return {"time": d["Time"], "load": d["Load"]}
+            today_load = self.get_load("today", verbose=verbose)
+            return today_load.iloc[-1].to_dict()
 
         elif utils.is_today(date):
-            return self._get_load_json("currentDay")
+            df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
+            df = df.rename(columns={"demand": "Load"})
+            return df[["Time", "Load"]]
 
         elif utils.is_within_last_days(date, self.LOAD_HISTORICAL_MAX_DAYS):
             return self._get_load_html(date)
