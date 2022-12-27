@@ -16,6 +16,7 @@ from gridstatus.base import (
 from gridstatus.decorators import support_date_range
 
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
+FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
 MARKETPLACE_BASE_URL = "https://marketplace.spp.org"
 FILE_BROWSER_API_URL = "https://marketplace.spp.org/file-browser-api/"
 
@@ -328,7 +329,11 @@ class SPP(ISOBase):
                 verbose,
             )
         elif market == Markets.DAY_AHEAD_HOURLY:
-            df = self._get_latest_dam_lmp(
+            df = self._get_dam_lmp(
+                date,
+                end,
+                market,
+                locations,
                 location_type,
                 verbose,
             )
@@ -406,38 +411,24 @@ class SPP(ISOBase):
         df = df[df["Location"].isin(location_list)]
         return df
 
-    def _get_latest_dam_lmp(
+    def _get_dam_lmp(
         self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = "ALL",
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        """Calculate the Day-Ahead Market with real-time and day-ahead market delta data
-
-        DELTA = RTM - DAM
-        => DAM = RTM - DELTA
-        """
-        rtm_df = self._get_feature_data(
-            SPP._get_rtm5_url(location_type),
-            verbose=verbose,
+        df = self._fetch_dam_lmp_by_location(date, verbose=verbose)
+        df["Location"] = df["Settlement Location"]
+        df["Time"] = SPP._parse_csv_gmt_interval_end(
+            df,
+            pd.Timedelta(minutes=5),
+            self.default_timezone,
         )
-        dam_delta_df = self._get_feature_data(
-            SPP._get_dam_delta_url(location_type),
-            verbose=verbose,
-        )
-        df = pd.merge(
-            rtm_df,
-            dam_delta_df,
-            on=["OBJECTID"],
-            suffixes=["_DAM_DELTA", "_RTM"],
-        )
-
-        df["LMP"] = df["LMP"] - df["SL_LMP_DELTA"]
-        df["MLC"] = df["MLC"] - df["SL_MLC_DELTA"]
-        df["MCC"] = df["MCC"] - df["SL_MCC_DELTA"]
-        df["MEC"] = df["MEC"] - df["SL_MEC_DELTA"]
-
-        df["Time"] = SPP._parse_day_ahead_hour_end(df, self.default_timezone)
-        df["Location"] = df["SETTLEMENT_LOCATION_RTM"]
+        location_list = self._get_location_list(location_type, verbose=verbose)
+        df = df[df["Location"].isin(location_list)]
         return df
 
     @staticmethod
@@ -577,6 +568,43 @@ class SPP(ISOBase):
         for path in paths:
             url = utils.url_with_query_args(
                 self._file_browser_download_url(FS_RTBM_LMP_BY_LOCATION),
+                (("path", path),),
+            )
+            if verbose:
+                print(f"Fetching LMP data from {url}", file=sys.stderr)
+            df = pd.read_csv(url)
+            all_dfs.append(df)
+        return pd.concat(all_dfs)
+
+    def _fs_get_dam_lmp_by_location_paths(self, date, verbose=False):
+        """Lists files for Day-ahead Market (DAM), Locational Marginal Price (LMP) by Settlement Location (SL)"""
+        if date == "latest":
+            raise ValueError("DAM is released daily, so use date='today' instead")
+
+        paths = []
+        if utils.is_today(date, self.default_timezone):
+            date = pd.Timestamp.now(
+                tz=self.default_timezone,
+            ).normalize() + pd.Timedelta(hours=1)
+            files_df = self._file_browser_list(
+                name=FS_DAM_LMP_BY_LOCATION,
+                fs_name=FS_DAM_LMP_BY_LOCATION,
+                type="folder",
+                path=date.strftime("/%Y/%m/By_Day"),
+            )
+            max_name = max(files_df["name"])
+            max_file = files_df[files_df["name"] == max_name]
+            paths = max_file["path"].tolist()
+        if verbose:
+            print(f"Found {len(paths)} files for {date}")
+        return paths
+
+    def _fetch_dam_lmp_by_location(self, date, verbose=False):
+        all_dfs = []
+        paths = self._fs_get_dam_lmp_by_location_paths(date, verbose=verbose)
+        for path in paths:
+            url = utils.url_with_query_args(
+                self._file_browser_download_url(FS_DAM_LMP_BY_LOCATION),
                 (("path", path),),
             )
             if verbose:
