@@ -497,6 +497,26 @@ class SPP(ISOBase):
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
 
+    def _get_hubs(self, verbose=False):
+        return (
+            self._get_feature_data(
+                SPP._get_rtm5_url("HUB"),
+                verbose=verbose,
+            )["SETTLEMENT_LOCATION"]
+            .unique()
+            .tolist()
+        )
+
+    def _get_interfaces(self, verbose=False):
+        return (
+            self._get_feature_data(
+                SPP._get_rtm5_url("INTERFACE"),
+                verbose=verbose,
+            )["SETTLEMENT_LOCATION"]
+            .unique()
+            .tolist()
+        )
+
 
 # historical generation mix
 # https://marketplace.spp.org/pages/generation-mix-rolling-365
