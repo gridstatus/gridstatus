@@ -370,17 +370,6 @@ class SPP(ISOBase):
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
-    @staticmethod
-    def _get_rtm5_url(location_type):
-        if location_type == LOCATION_TYPE_HUB:
-            return QUERY_RTM5_HUBS_URL
-        elif location_type == LOCATION_TYPE_INTERFACE:
-            return QUERY_RTM5_INTERFACES_URL
-        else:
-            raise NotSupported(
-                f"Location type {location_type} is not supported for Real-Time Market",
-            )
-
     def _get_rtm5_lmp(
         self,
         date,
