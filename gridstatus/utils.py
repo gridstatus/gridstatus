@@ -1,7 +1,6 @@
 import glob
 import io
 import os
-from urllib.parse import quote
 from zipfile import ZipFile
 
 import pandas as pd
@@ -9,7 +8,7 @@ import requests
 import tqdm
 
 import gridstatus
-from gridstatus.base import ISOBase, Markets, NotSupported, _interconnection_columns
+from gridstatus.base import Markets, NotSupported, _interconnection_columns
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
 from gridstatus.isone import ISONE
