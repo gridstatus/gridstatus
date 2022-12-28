@@ -89,6 +89,17 @@ def test_get_iso_invalid():
         gridstatus.get_iso("ISO DOESNT EXIST")
 
 
+def test_handle_date_today_tz():
+    # make sure it returns a stamp
+    # with the correct timezone
+    tz = "US/Eastern"
+    date = gridstatus.utils._handle_date(
+        "today",
+        tz=tz,
+    )
+    assert date.tzinfo.zone == tz
+
+
 @pytest.mark.parametrize("iso", [SPP(), NYISO(), ISONE(), CAISO(), Ercot()])
 def test_get_latest_status(iso):
     status = iso.get_status("latest")
