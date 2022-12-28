@@ -87,7 +87,7 @@ To add documentation and examples to the project, follow these steps:
 
 2. Add a link to the notebook in `docs/Examples/<folder>/index.md` to include it in the table of contents.
 
-3. Build the documentation to confirm that the notebook is visible. You can do this locally by running `make html` from the root of the `docs/` directory. Read the Docs will also build the documentation on every pull request, which you can view by clicking on the details of the Read The Doc GitHub action from the PR.
+3. Build the documentation to confirm that the notebook is visible. You can do this locally by running `make docs` from the root directory. Read the Docs will also build the documentation on every pull request, which you can view by clicking on the details of the Read The Doc GitHub action from the PR.
 
 We welcome contributions to the documentation and examples, and appreciate any efforts to improve them.
 

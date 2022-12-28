@@ -153,7 +153,7 @@ class Ercot(ISOBase):
 
         # todo: can also support yesterday
         elif utils.is_today(date):
-            date = utils._handle_date(date)
+            date = utils._handle_date(date, tz=self.default_timezone)
             url = self.BASE + "/fuel-mix.json"
             r = self._get_json(url, verbose=verbose)
 
@@ -196,12 +196,14 @@ class Ercot(ISOBase):
     @support_date_range("1D")
     def get_load(self, date, verbose=False):
         if date == "latest":
-            d = self._get_load_json("currentDay").iloc[-1]
-
-            return {"time": d["Time"], "load": d["Load"]}
+            today_load = self.get_load("today", verbose=verbose)
+            latest = today_load.iloc[-1]
+            return {"load": latest["Load"], "time": latest["Time"]}
 
         elif utils.is_today(date):
-            return self._get_load_json("currentDay")
+            df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
+            df = df.rename(columns={"demand": "Load"})
+            return df[["Time", "Load"]]
 
         elif utils.is_within_last_days(date, self.LOAD_HISTORICAL_MAX_DAYS):
             return self._get_load_html(date)
@@ -231,13 +233,18 @@ class Ercot(ISOBase):
         df = self._handle_html_data(df, {"TOTAL": "Load"})
         return df
 
-    def _get_supply(self, date, verbose=False):
+    def _get_todays_outlook_non_forecast(self, date, verbose=False):
         """Returns most recent data point for supply in MW
 
         Updates every 5 minutes
         """
-        assert date == "today", "Only today's data is supported"
+        assert date == "latest" or utils.is_today(
+            date,
+            self.default_timezone,
+        ), "Only today's data is supported"
         url = self.BASE + "/todays-outlook.json"
+        if verbose:
+            print(f"Fetching {url}", file=sys.stderr)
         r = self._get_json(url)
 
         date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
@@ -254,10 +261,6 @@ class Ercot(ISOBase):
         ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         data = data[data["forecast"] == 0]  # only keep non forecast rows
-
-        data = data[["Time", "capacity"]].rename(
-            columns={"capacity": "Supply"},
-        )
 
         return data
 
@@ -552,7 +555,9 @@ class Ercot(ISOBase):
     ):
         """Get day-ahead hourly Market SPP data for ERCOT"""
         if date == "latest":
-            raise ValueError("DAM is released daily, so use date='today' instead")
+            raise ValueError(
+                "DAM is released daily, so use date='today' instead",
+            )
 
         publish_date = utils._handle_date(date, self.default_timezone)
         # adjust for DAM since it's published a day ahead
@@ -574,7 +579,10 @@ class Ercot(ISOBase):
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         df = self._filter_by_location_type(df, mapping_df, location_type)
 
-        df["Time"] = Ercot._parse_delivery_date_hour_ending(df, self.default_timezone)
+        df["Time"] = Ercot._parse_delivery_date_hour_ending(
+            df,
+            self.default_timezone,
+        )
         return df
 
     @staticmethod
@@ -679,7 +687,10 @@ class Ercot(ISOBase):
 
         df["Market"] = Markets.REAL_TIME_15_MIN.value
         df["Location Type"] = self._get_location_type_name(location_type)
-        df["Time"] = Ercot._parse_delivery_date_hour_interval(df, self.default_timezone)
+        df["Time"] = Ercot._parse_delivery_date_hour_interval(
+            df,
+            self.default_timezone,
+        )
         # Additional filter as the document may contain the last 15 minutes of yesterday
         df = df[df["Time"].dt.date == publish_date.date()]
         df = self._filter_by_settlement_point_type(df, location_type)
@@ -749,7 +760,12 @@ class Ercot(ISOBase):
             if match:
                 doc_id = doc["Document"]["DocID"]
                 url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"
-                matches.append(self.Document(url=url, publish_date=publish_date))
+                matches.append(
+                    self.Document(
+                        url=url,
+                        publish_date=publish_date,
+                    ),
+                )
 
         return matches
 
@@ -764,7 +780,10 @@ class Ercot(ISOBase):
         return df[cols_to_keep].rename(columns=columns)
 
     def _handle_html_data(self, df, columns):
-        df["Time"] = Ercot._parse_oper_day_hour_ending(df, self.default_timezone)
+        df["Time"] = Ercot._parse_oper_day_hour_ending(
+            df,
+            self.default_timezone,
+        )
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
@@ -772,7 +791,11 @@ class Ercot(ISOBase):
         """Filter by settlement point type"""
         norm_location_type = location_type.upper()
         if norm_location_type == LOCATION_TYPE_NODE:
-            df = df[df["SettlementPointType"].isin(RESOURCE_NODE_SETTLEMENT_TYPES)]
+            df = df[
+                df["SettlementPointType"].isin(
+                    RESOURCE_NODE_SETTLEMENT_TYPES,
+                )
+            ]
         elif norm_location_type == LOCATION_TYPE_ZONE:
             df = df[df["SettlementPointType"].isin(LOAD_ZONE_SETTLEMENT_TYPES)]
         elif norm_location_type == LOCATION_TYPE_HUB:
