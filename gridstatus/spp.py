@@ -337,7 +337,7 @@ class SPP(ISOBase):
             )
         else:
             raise NotSupported(
-                f"Location type {location_type} is not supported for SPP",
+                f"Market {market} is not supported",
             )
 
         return self._finalize_spp_df(
