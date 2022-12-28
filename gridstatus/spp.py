@@ -1,5 +1,6 @@
 import io
 import sys
+from urllib.parse import urlencode
 
 import pandas as pd
 import requests
@@ -552,16 +553,11 @@ class SPP(ISOBase):
         paths = self._fs_get_rtbm_lmp_by_location_paths(date, verbose=verbose)
         for path in paths:
             if verbose:
-                url = (
-                    requests.Request(
-                        "GET",
-                        url=self._file_browser_download_url(FS_RTBM_LMP_BY_LOCATION),
-                        params={"path": path},
-                    )
-                    .prepare()
-                    .url
+                self._log_url(
+                    "Fetching RTM LMP Data",
+                    url=self._file_browser_download_url(FS_RTBM_LMP_BY_LOCATION),
+                    params={"path": path},
                 )
-                print(f"Fetching RTM LMP data from {url}", file=sys.stderr)
             csv = requests.get(
                 url=self._file_browser_download_url(FS_RTBM_LMP_BY_LOCATION),
                 params={"path": path},
@@ -602,16 +598,11 @@ class SPP(ISOBase):
         paths = self._fs_get_dam_lmp_by_location_paths(date, verbose=verbose)
         for path in paths:
             if verbose:
-                url = (
-                    requests.Request(
-                        "GET",
-                        self._file_browser_download_url(FS_DAM_LMP_BY_LOCATION),
-                        params={"path": path},
-                    )
-                    .prepare()
-                    .url
+                self._log_url(
+                    "Fetching DAM LMP data",
+                    url=self._file_browser_download_url(FS_DAM_LMP_BY_LOCATION),
+                    params={"path": path},
                 )
-                print(f"Fetching DAM LMP data from {url}", file=sys.stderr)
             csv = requests.get(
                 self._file_browser_download_url(FS_DAM_LMP_BY_LOCATION),
                 {"path": path},
@@ -657,6 +648,16 @@ class SPP(ISOBase):
 
     def _file_browser_download_url(self, name):
         return f"{FILE_BROWSER_API_URL}download/{name}"
+
+    def _log_url(self, message, url, params={}):
+        print(
+            "{message}: {url}{qs}".format(
+                message=message,
+                url=url,
+                qs=("?" + urlencode(params)) if params else "",
+            ),
+            file=sys.stderr,
+        )
 
 
 # historical generation mix
