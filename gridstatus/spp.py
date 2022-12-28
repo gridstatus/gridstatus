@@ -652,8 +652,9 @@ class SPP(ISOBase):
         else:
             return pd.DataFrame()
 
-    def _file_browser_download_url(self, fs_name):
-        return f"{FILE_BROWSER_API_URL}download/{fs_name}"
+    def _file_browser_download_url(self, fs_name, params=None):
+        qs = "?" + urlencode(params) if params else ""
+        return f"{FILE_BROWSER_API_URL}download/{fs_name}{qs}"
 
     def _log_url(self, message, url, params={}):
         print(
