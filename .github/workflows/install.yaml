@@ -1,7 +1,5 @@
 name: Install
-
 on: [pull_request]
-
 jobs:
   install:
     runs-on: ${{ matrix.os }}
@@ -9,10 +7,6 @@ jobs:
       matrix:
         python-version: ["3.7", "3.10", "3.11"]
         os: [ubuntu-latest, macos-latest]
-        exclude:
-          - os: macos-latest # https://github.com/actions/setup-python/issues/531
-            python-version: "3.11"
-
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}

@@ -1,7 +1,16 @@
+.PHONY: clean
+clean:
+	find . -name '*.pyo' -delete
+	find . -name '*.pyc' -delete
+	find . -name __pycache__ -delete
+	find . -name '*~' -delete
+	find . -name '.coverage.*' -delete
+
 .PHONY: test
 test:
 	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto  --reruns 5 --reruns-delay 3
 
+.PHONY: test-slow
 test-slow:
 	python -m pytest -s -vv gridstatus/ -m "slow" -n auto
 
@@ -21,11 +30,11 @@ installdeps-docs:
 .PHONY: lint
 lint:
 	isort --check-only gridstatus/
-	black gridstatus/ -t py310 --check
+	black gridstatus/ -t py311 --check
 
 .PHONY: lint-fix
 lint-fix:
-	black gridstatus/ -t py310
+	black gridstatus/ -t py311
 	isort gridstatus/
 
 .PHONY: upgradepip
@@ -46,3 +55,7 @@ package: upgradepip upgradebuild upgradesetuptools
 	$(eval PACKAGE=$(shell python -c "from pep517.meta import load; metadata = load('.'); print(metadata.version)"))
 	tar -zxvf "dist/gridstatus-${PACKAGE}.tar.gz"
 	mv "gridstatus-${PACKAGE}" unpacked
+
+.PHONY: docs
+docs: clean
+	make -C docs/ -e "SPHINXOPTS=-j auto" clean html
