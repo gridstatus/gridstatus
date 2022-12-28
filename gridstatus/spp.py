@@ -316,7 +316,7 @@ class SPP(ISOBase):
 
         Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
 
-        Supported Location Types: "hub", "interface"
+        Supported Location Types: "hub", "interface", "settlement_location"
         """
         market = Markets(market)
         if market not in self.markets:
