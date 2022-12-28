@@ -634,16 +634,6 @@ class SPP(ISOBase):
         qs = "?" + urlencode(params) if params else ""
         return f"{FILE_BROWSER_API_URL}download/{fs_name}{qs}"
 
-    def _log_url(self, message, url, params={}):
-        print(
-            "{message}: {url}{qs}".format(
-                message=message,
-                url=url,
-                qs=("?" + urlencode(params)) if params else "",
-            ),
-            file=sys.stderr,
-        )
-
 
 # historical generation mix
 # https://marketplace.spp.org/pages/generation-mix-rolling-365
