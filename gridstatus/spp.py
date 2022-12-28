@@ -1,3 +1,4 @@
+import io
 import sys
 
 import pandas as pd
@@ -362,10 +363,10 @@ class SPP(ISOBase):
             "returnGeometry": "false",
             "outFields": "*",
         }
-        url = utils.url_with_query_args(base_url, args)
         if verbose:
+            url = requests.Request("GET", url=base_url, params=args).prepare().url
             print(f"Fetching feature data from {url}", file=sys.stderr)
-        doc = self._get_json(url)
+        doc = requests.get(base_url, params=args).json()
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
@@ -553,13 +554,22 @@ class SPP(ISOBase):
         all_dfs = []
         paths = self._fs_get_rtbm_lmp_by_location_paths(date, verbose=verbose)
         for path in paths:
-            url = utils.url_with_query_args(
-                self._file_browser_download_url(FS_RTBM_LMP_BY_LOCATION),
-                {"path": path},
-            )
             if verbose:
+                url = (
+                    requests.Request(
+                        "GET",
+                        url=self._file_browser_download_url(FS_RTBM_LMP_BY_LOCATION),
+                        params={"path": path},
+                    )
+                    .prepare()
+                    .url
+                )
                 print(f"Fetching RTM LMP data from {url}", file=sys.stderr)
-            df = pd.read_csv(url)
+            csv = requests.get(
+                url=self._file_browser_download_url(FS_RTBM_LMP_BY_LOCATION),
+                params={"path": path},
+            )
+            df = pd.read_csv(io.StringIO(csv.content.decode("UTF-8")))
             all_dfs.append(df)
         return pd.concat(all_dfs)
 
@@ -594,13 +604,22 @@ class SPP(ISOBase):
         all_dfs = []
         paths = self._fs_get_dam_lmp_by_location_paths(date, verbose=verbose)
         for path in paths:
-            url = utils.url_with_query_args(
+            if verbose:
+                url = (
+                    requests.Request(
+                        "GET",
+                        self._file_browser_download_url(FS_DAM_LMP_BY_LOCATION),
+                        params={"path": path},
+                    )
+                    .prepare()
+                    .url
+                )
+                print(f"Fetching DAM LMP data from {url}", file=sys.stderr)
+            csv = requests.get(
                 self._file_browser_download_url(FS_DAM_LMP_BY_LOCATION),
                 {"path": path},
             )
-            if verbose:
-                print(f"Fetching DAM LMP data from {url}", file=sys.stderr)
-            df = pd.read_csv(url)
+            df = pd.read_csv(io.StringIO(csv.content.decode("UTF-8")))
             all_dfs.append(df)
         return pd.concat(all_dfs)
 

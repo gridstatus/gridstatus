@@ -263,10 +263,3 @@ def load_folder(path, time_zone=None, verbose=True):
     # todo make sure rows are sorted by time
 
     return data
-
-
-def url_with_query_args(url: str, qsargs: dict) -> str:
-    """Return a URL with query string arguments"""
-    qs = "&".join("{k}={v}".format(k=k, v=quote(v)) for k, v in qsargs.items())
-    full_url = f"{url}?{qs}"
-    return full_url
