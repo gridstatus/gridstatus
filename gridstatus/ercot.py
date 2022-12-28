@@ -196,12 +196,14 @@ class Ercot(ISOBase):
     @support_date_range("1D")
     def get_load(self, date, verbose=False):
         if date == "latest":
-            d = self._get_load_json("currentDay").iloc[-1]
-
-            return {"time": d["Time"], "load": d["Load"]}
+            today_load = self.get_load("today", verbose=verbose)
+            latest = today_load.iloc[-1]
+            return {"load": latest["Load"], "time": latest["Time"]}
 
         elif utils.is_today(date):
-            return self._get_load_json("currentDay")
+            df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
+            df = df.rename(columns={"demand": "Load"})
+            return df[["Time", "Load"]]
 
         elif utils.is_within_last_days(date, self.LOAD_HISTORICAL_MAX_DAYS):
             return self._get_load_html(date)
@@ -231,13 +233,18 @@ class Ercot(ISOBase):
         df = self._handle_html_data(df, {"TOTAL": "Load"})
         return df
 
-    def _get_supply(self, date, verbose=False):
+    def _get_todays_outlook_non_forecast(self, date, verbose=False):
         """Returns most recent data point for supply in MW
 
         Updates every 5 minutes
         """
-        assert date == "today", "Only today's data is supported"
+        assert date == "latest" or utils.is_today(
+            date,
+            self.default_timezone,
+        ), "Only today's data is supported"
         url = self.BASE + "/todays-outlook.json"
+        if verbose:
+            print(f"Fetching {url}", file=sys.stderr)
         r = self._get_json(url)
 
         date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
@@ -254,10 +261,6 @@ class Ercot(ISOBase):
         ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         data = data[data["forecast"] == 0]  # only keep non forecast rows
-
-        data = data[["Time", "capacity"]].rename(
-            columns={"capacity": "Supply"},
-        )
 
         return data
 
