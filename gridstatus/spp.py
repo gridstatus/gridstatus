@@ -363,10 +363,7 @@ class SPP(ISOBase):
             "returnGeometry": "false",
             "outFields": "*",
         }
-        if verbose:
-            url = requests.Request("GET", url=base_url, params=args).prepare().url
-            print(f"Fetching feature data from {url}", file=sys.stderr)
-        doc = requests.get(base_url, params=args).json()
+        doc = self._get_json(base_url, params=args, verbose=verbose)
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
