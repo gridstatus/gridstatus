@@ -5,6 +5,7 @@
 - Add CAISO LMP Heat Map Example Notebook
 - Add a guide on contributing to gridstatus
 - Add Settlement Point Prices for ERCOT
+- SPP: Add today/latest LMP for Real Time 5 minute and Day Ahead Hourly (DAM)
 
 ## v0.16.0 - Dec 15, 2022
 

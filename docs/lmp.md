@@ -19,7 +19,7 @@ Below are the currently supported LMP markets
 | MISO  | `get_lmp` | &#x2705;          | &#10060;           | &#10060;           | &#x2705;           |
 | NYISO | `get_lmp` | &#x2705;          | &#10060;           | &#10060;           | &#x2705;           |
 | PJM   | `get_lmp` | &#x2705;          | &#10060;           | &#x2705;           | &#x2705;           |
-| SPP   | -         | &#10060;          | &#10060;           | &#10060;           | &#10060;           |
+| SPP   | `get_lmp` | &#x2705;          | &#10060;           | &#10060;           | &#x2705;           |
 
 <!-- LMP AVAILABILITY TABLE END -->
 
