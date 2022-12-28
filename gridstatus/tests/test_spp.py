@@ -40,6 +40,36 @@ def test_get_lmp_latest(market, location_type):
     assert location_types[0] == location_type
 
 
+def test_get_lmp_latest_settlement_type_returns_three_location_types():
+    iso = gridstatus.SPP()
+    df = iso.get_lmp(
+        date="latest",
+        market=Markets.REAL_TIME_5_MIN,
+        location_type="SETTLEMENT_LOCATION",
+    )
+    cols = [
+        "Time",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+        "Energy",
+        "Congestion",
+        "Loss",
+    ]
+    assert df.shape[0] >= 0
+    assert df.columns.tolist() == cols
+    markets = df["Market"].unique()
+    assert len(markets) == 1
+    assert markets[0] == Markets.REAL_TIME_5_MIN.value
+
+    assert set(df["Location Type"]) == {
+        "Interface",
+        "Hub",
+        "Settlement Location",
+    }
+
+
 @pytest.mark.slow
 @pytest.mark.parametrize(
     "market,location_type",

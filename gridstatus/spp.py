@@ -22,6 +22,7 @@ FILE_BROWSER_API_URL = "https://marketplace.spp.org/file-browser-api/"
 
 LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_INTERFACE = "INTERFACE"
+LOCATION_TYPE_SETTLEMENT_LOCATION = "SETTLEMENT_LOCATION"
 
 QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
 QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
@@ -48,6 +49,7 @@ class SPP(ISOBase):
     location_types = [
         LOCATION_TYPE_HUB,
         LOCATION_TYPE_INTERFACE,
+        LOCATION_TYPE_SETTLEMENT_LOCATION,
     ]
 
     def get_status(self, date=None, verbose=False):
@@ -316,7 +318,7 @@ class SPP(ISOBase):
         market = Markets(market)
         if market not in self.markets:
             raise NotSupported(f"Market {market} not supported")
-        location_type = SPP._normalize_location_type(location_type)
+        location_type = self._normalize_location_type(location_type)
         if market == Markets.REAL_TIME_5_MIN:
             df = self._get_rtm5_lmp(
                 date,
@@ -407,9 +409,9 @@ class SPP(ISOBase):
         """
         Finalizes DataFrame:
 
-        - Filters Location by location_type
         - Sets Market
-        - Sets Location Type
+        - Filters by location type if needed
+        - Sets location type
         - Renames and ordering columns
         - Filters by Location
         - Resets the index
@@ -422,11 +424,38 @@ class SPP(ISOBase):
             verbose (bool): Verbose output
         """
 
-        location_list = self._get_location_list(location_type, verbose=verbose)
-        df = df[df["Location"].isin(location_list)]
-
         df["Market"] = market.value
-        df["Location Type"] = SPP._get_location_type_name(location_type)
+
+        if location_type == LOCATION_TYPE_SETTLEMENT_LOCATION:
+            # annotate instead of filter
+            hubs = self._get_location_list(LOCATION_TYPE_HUB, verbose=verbose)
+            hub_name = SPP._get_location_type_name(LOCATION_TYPE_HUB)
+
+            interfaces = self._get_location_list(
+                LOCATION_TYPE_INTERFACE,
+                verbose=verbose,
+            )
+            interface_name = SPP._get_location_type_name(LOCATION_TYPE_INTERFACE)
+
+            # Determine Location Type by matching to a hub or interface.
+            # Otherwise, fall back to a settlement location
+            df["Location Type"] = df["Location"].apply(
+                lambda location: SPP._lookup_match(
+                    location,
+                    {
+                        hub_name: hubs,
+                        interface_name: interfaces,
+                    },
+                    default_value=SPP._get_location_type_name(
+                        LOCATION_TYPE_SETTLEMENT_LOCATION,
+                    ),
+                ),
+            )
+        else:
+            # filter
+            location_list = self._get_location_list(location_type, verbose=verbose)
+            df["Location Type"] = SPP._get_location_type_name(location_type)
+            df = df[df["Location"].isin(location_list)]
 
         df = df.rename(
             columns={
@@ -453,6 +482,16 @@ class SPP(ISOBase):
         return df
 
     @staticmethod
+    def _lookup_match(item, lookup, default_value):
+        """Use a dictionary to find the first key-value pair
+        where the value is a list containing the item
+        """
+        for key, values_list in lookup.items():
+            if item in values_list:
+                return key
+        return default_value
+
+    @staticmethod
     def _parse_gmt_interval_end(df, interval_duration: pd.Timedelta, timezone):
         return df["GMTIntervalEnd"].apply(
             lambda x: (
@@ -467,10 +506,9 @@ class SPP(ISOBase):
             lambda x: (pd.Timestamp(x, tz=timezone) - pd.Timedelta(hours=1)),
         )
 
-    @staticmethod
-    def _normalize_location_type(location_type):
+    def _normalize_location_type(self, location_type):
         norm_location_type = location_type.upper()
-        if norm_location_type in (LOCATION_TYPE_HUB, LOCATION_TYPE_INTERFACE):
+        if norm_location_type in self.location_types:
             return norm_location_type
         else:
             raise NotSupported(f"Invalid location_type {location_type}")
@@ -481,6 +519,8 @@ class SPP(ISOBase):
             return "Hub"
         elif location_type == LOCATION_TYPE_INTERFACE:
             return "Interface"
+        elif location_type == LOCATION_TYPE_SETTLEMENT_LOCATION:
+            return "Settlement Location"
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
 
