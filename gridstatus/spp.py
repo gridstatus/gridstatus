@@ -378,7 +378,11 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        df = self._fetch_rtbm_lmp_by_location(date, verbose=verbose)
+        df = self._fetch_and_concat_csvs(
+            self._fs_get_rtbm_lmp_by_location_paths(date, verbose=verbose),
+            fs_name=FS_RTBM_LMP_BY_LOCATION,
+            verbose=verbose,
+        )
         df["Location"] = df["Settlement Location"]
         df["Time"] = SPP._parse_gmt_interval_end(
             df,
@@ -396,7 +400,11 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        df = self._fetch_dam_lmp_by_location(date, verbose=verbose)
+        df = self._fetch_and_concat_csvs(
+            self._fs_get_dam_lmp_by_location_paths(date, verbose=verbose),
+            fs_name=FS_DAM_LMP_BY_LOCATION,
+            verbose=verbose,
+        )
         df["Location"] = df["Settlement Location"]
         df["Time"] = SPP._parse_gmt_interval_end(
             df,
@@ -549,34 +557,13 @@ class SPP(ISOBase):
             print(f"Found {len(paths)} files for {date}", file=sys.stderr)
         return paths
 
-    def _fetch_rtbm_lmp_by_location(self, date, verbose=False):
-        paths = self._fs_get_rtbm_lmp_by_location_paths(date, verbose=verbose)
-        return self._fetch_and_concat_csvs(
-            paths,
-            fs_name=FS_RTBM_LMP_BY_LOCATION,
-            verbose=verbose,
-            verbose_message="Fetching RTM LMP Data",
-        )
-
-    def _fetch_and_concat_csvs(
-        self,
-        paths: list,
-        fs_name: str,
-        verbose: bool = False,
-        verbose_message: str = "Fetching data",
-    ):
+    def _fetch_and_concat_csvs(self, paths: list, fs_name: str, verbose: bool = False):
         all_dfs = []
         for path in tqdm.tqdm(paths):
+            url = self._file_browser_download_url(fs_name, params={"path": path})
             if verbose:
-                self._log_url(
-                    verbose_message,
-                    url=self._file_browser_download_url(fs_name),
-                    params={"path": path},
-                )
-            csv = requests.get(
-                url=self._file_browser_download_url(fs_name),
-                params={"path": path},
-            )
+                print(f"Fetching {url}", file=sys.stderr)
+            csv = requests.get(url)
             df = pd.read_csv(io.StringIO(csv.content.decode("UTF-8")))
             all_dfs.append(df)
         return pd.concat(all_dfs)
@@ -607,15 +594,6 @@ class SPP(ISOBase):
         if verbose:
             print(f"Found {len(paths)} files for {date}", file=sys.stderr)
         return paths
-
-    def _fetch_dam_lmp_by_location(self, date, verbose=False):
-        paths = self._fs_get_dam_lmp_by_location_paths(date, verbose=verbose)
-        return self._fetch_and_concat_csvs(
-            paths,
-            fs_name=FS_DAM_LMP_BY_LOCATION,
-            verbose=verbose,
-            verbose_message="Fetching DAM LMP Data",
-        )
 
     def _get_marketplace_session(self) -> dict:
         """
