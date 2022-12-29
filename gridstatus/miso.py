@@ -2,7 +2,6 @@ import json
 
 import pandas as pd
 import requests
-from pandas import Timestamp
 
 from gridstatus import utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
@@ -198,7 +197,7 @@ class MISO(ISOBase):
         if verbose:
             print("Downloading interconnection queue from {}".format(url))
 
-        json_str = requests.get(url).text
+        json_str = httpio.get(url).text
         data = json.loads(json_str)
         # todo there are also study documents available:  https://www.misoenergy.org/planning/generator-interconnection/GI_Queue/gi-interactive-queue/
         # there is also a map that plots the locations of these projects:

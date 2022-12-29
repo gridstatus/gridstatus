@@ -7,7 +7,7 @@ import requests
 import tqdm
 from bs4 import BeautifulSoup
 
-from gridstatus import utils
+from gridstatus import httpio, utils
 from gridstatus.base import (
     FuelMix,
     GridStatus,
@@ -60,7 +60,7 @@ class SPP(ISOBase):
             raise NotSupported()
 
         url = "https://www.spp.org/markets-operations/current-grid-conditions/"
-        html_text = requests.get(url).text
+        html_text = httpio.get(url).text
         soup = BeautifulSoup(html_text, "html.parser")
         conditions_element = soup.find("h1")
         last_update_time = conditions_element.findNextSibling("p").text[14:-1]
@@ -239,7 +239,7 @@ class SPP(ISOBase):
         if verbose:
             print("Getting interconnection queue from {}".format(url))
 
-        queue = pd.read_csv(url, skiprows=1)
+        queue = httpio.read_csv(url, skiprows=1)
 
         queue["Status (Original)"] = queue["Status"]
 
@@ -563,8 +563,8 @@ class SPP(ISOBase):
             url = self._file_browser_download_url(fs_name, params={"path": path})
             if verbose:
                 print(f"Fetching {url}", file=sys.stderr)
-            csv = requests.get(url)
-            df = pd.read_csv(io.StringIO(csv.content.decode("UTF-8")))
+            csv = httpio.get(url)
+            df = httpio.read_csv(io.StringIO(csv.content.decode("UTF-8")))
             all_dfs.append(df)
         return pd.concat(all_dfs)
 
@@ -599,7 +599,7 @@ class SPP(ISOBase):
         """
         Returns a session object for the Marketplace API
         """
-        html = requests.get(MARKETPLACE_BASE_URL)
+        html = httpio.get(MARKETPLACE_BASE_URL)
         jsessionid = html.cookies.get("JSESSIONID")
         soup = BeautifulSoup(html.content, "html.parser")
         csrf_token = soup.find("meta", {"id": "_csrf"}).attrs["content"]
@@ -618,7 +618,7 @@ class SPP(ISOBase):
         Returns: pd.DataFrame of files, or empty pd.DataFrame on error"""
         session = self._get_marketplace_session()
         json_payload = {"name": name, "fsName": fs_name, "type": type, "path": path}
-        list_results = requests.post(
+        list_results = httpio.post(
             FILE_BROWSER_API_URL,
             json=json_payload,
             headers=session["headers"],

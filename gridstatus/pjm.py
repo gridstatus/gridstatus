@@ -6,8 +6,7 @@ import pandas as pd
 import requests
 import tqdm
 
-import gridstatus
-from gridstatus import utils
+from gridstatus import httpio, utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
 from gridstatus.decorators import (
     _get_pjm_archive_date,
@@ -438,7 +437,7 @@ class PJM(ISOBase):
         return df
 
     def get_interconnection_queue(self):
-        r = requests.post(
+        r = httpio.post(
             "https://services.pjm.com/PJMPlanningApi/api/Queue/ExportToXls",
             headers={
                 # unclear if this key changes. obtained from https://www.pjm.com/dist/interconnectionqueues.71b76ed30033b3ff06bd.js
@@ -448,7 +447,7 @@ class PJM(ISOBase):
                 "Referer": "https://www.pjm.com/",
             },
         )
-        queue = pd.read_excel(io.BytesIO(r.content))
+        queue = httpio.read_excel(io.BytesIO(r.content))
 
         queue["Capacity (MW)"] = queue[["MFO", "MW In Service"]].min(axis=1)
 

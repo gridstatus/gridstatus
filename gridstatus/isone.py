@@ -1,14 +1,10 @@
 import io
 import math
-import re
-from heapq import merge
-from tabnanny import verbose
 
 import pandas as pd
 import requests
 
-import gridstatus
-from gridstatus import utils
+from gridstatus import httpio, utils
 from gridstatus.base import (
     FuelMix,
     GridStatus,
@@ -286,7 +282,7 @@ class ISONE(ISOBase):
                 print("Loading interval {}".format(interval))
                 u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"
                 dfs.append(
-                    pd.read_csv(
+                    httpio.read_csv(
                         u,
                         skiprows=[0, 1, 2, 3, 5],
                         skipfooter=1,
@@ -480,8 +476,8 @@ class ISONE(ISOBase):
         if verbose:
             print("Loading interconnection queue from {}".format(url))
 
-        r = requests.get(url)
-        queue = pd.read_excel(io.BytesIO(r.content), skiprows=4)
+        r = httpio.get(url)
+        queue = httpio.read_excel(io.BytesIO(r.content), skiprows=4)
 
         # only keep generator interconnection requests
         queue = queue[queue["Type"] == "G"]
@@ -553,7 +549,7 @@ class ISONE(ISOBase):
 
 
 def _make_request(url, skiprows, verbose):
-    with requests.Session() as s:
+    with httpio.Session() as s:
         # in testing, never takes more than 2 attempts
         attempt = 0
         while attempt < 3:
@@ -580,7 +576,7 @@ def _make_request(url, skiprows, verbose):
                 ),
             )
 
-        df = pd.read_csv(
+        df = httpio.read_csv(
             io.StringIO(r2.content.decode("utf8")),
             skiprows=skiprows,
             skipfooter=1,
@@ -594,7 +590,7 @@ def _make_wsclient_request(url, data, verbose=False):
     if verbose:
         print("Requesting data from {}".format(url))
 
-    r = requests.post(
+    r = httpio.post(
         "https://www.iso-ne.com/ws/wsclient",
         data=data,
     )

@@ -7,8 +7,7 @@ import pandas as pd
 import requests
 import tabula
 
-import gridstatus
-from gridstatus import utils
+from gridstatus import httpio, utils
 from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import support_date_range
 
@@ -118,7 +117,7 @@ class CAISO(ISOBase):
         if date == "latest":
             # todo call today
             load_url = _BASE + "/demand.csv"
-            df = pd.read_csv(load_url)
+            df = httpio.read_csv(load_url)
 
             # get last non null row
             data = df[~df["Current demand"].isnull()].iloc[-1]
@@ -177,7 +176,7 @@ class CAISO(ISOBase):
 
     def get_pnodes(self):
         url = "http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=ATL_PNODE_MAP&version=1&startdatetime=20220801T07:00-0000&enddatetime=20220802T07:00-0000&pnode_id=ALL"
-        df = pd.read_csv(
+        df = httpio.read_csv(
             url,
             compression="zip",
             usecols=["APNODE_ID", "PNODE_ID"],
@@ -417,7 +416,7 @@ class CAISO(ISOBase):
         if verbose:
             print("Downloading interconnection queue from {}".format(url))
 
-        sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
+        sheets = httpio.read_excel(url, skiprows=3, sheet_name=None)
 
         # remove legend at the bottom
         queued_projects = sheets["Grid GenerationQueue"][:-8]
@@ -546,7 +545,7 @@ class CAISO(ISOBase):
             f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"
             if verbose:
                 print("Fetching URL: ", f)
-            r = requests.get(f)
+            r = httpio.get(f)
             if b"404 - Page Not Found" in r.content:
                 continue
             pdf = io.BytesIO(r.content)
@@ -767,7 +766,7 @@ def _get_historical(url, date, verbose=False):
     if verbose:
         print("Fetching URL: ", url)
 
-    df = pd.read_csv(url)
+    df = httpio.read_csv(url)
 
     # sometimes there are extra rows at the end, so this lets us ignore them
     df = df.dropna(subset=["Time"])
@@ -792,7 +791,7 @@ def _get_oasis(url, usecols=None, verbose=False, sleep=4):
 
     retry_num = 0
     while retry_num < 3:
-        r = requests.get(url)
+        r = httpio.get(url)
 
         if r.status_code == 200:
             break
@@ -804,7 +803,7 @@ def _get_oasis(url, usecols=None, verbose=False, sleep=4):
 
     z = ZipFile(io.BytesIO(r.content))
 
-    df = pd.read_csv(
+    df = httpio.read_csv(
         z.open(z.namelist()[0]),
         usecols=usecols,
     )
@@ -854,7 +853,6 @@ if __name__ == "__main__":
 
     # check if any files are missing
     import glob
-    import os
 
     files = glob.glob("caiso_curtailment/*.csv")
     dates = (

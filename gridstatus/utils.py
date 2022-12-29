@@ -8,6 +8,7 @@ import requests
 import tqdm
 
 import gridstatus
+from gridstatus import httpio
 from gridstatus.base import Markets, NotSupported, _interconnection_columns
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
@@ -181,7 +182,7 @@ def filter_lmp_locations(df, locations):
 def get_zip_file(url):
     # todo add retry logic
     # todo does this need to be a with statement?
-    r = requests.get(url)
+    r = httpio.get(url)
     z = ZipFile(io.BytesIO(r.content))
     return z.open(z.namelist()[0])
 
@@ -251,7 +252,7 @@ def load_folder(path, time_zone=None, verbose=True):
 
     dfs = []
     for f in tqdm.tqdm(all_files, disable=not verbose):
-        df = pd.read_csv(f, parse_dates=True)
+        df = httpio.read_csv(f, parse_dates=True)
         dfs.append(df)
 
     data = pd.concat(dfs).reset_index(drop=True)

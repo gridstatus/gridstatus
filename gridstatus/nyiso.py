@@ -5,14 +5,13 @@ import pandas as pd
 import requests
 
 import gridstatus
-from gridstatus import utils
+from gridstatus import httpio, utils
 from gridstatus.base import (
     FuelMix,
     GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
-    _interconnection_columns,
 )
 from gridstatus.decorators import support_date_range
 
@@ -250,7 +249,7 @@ class NYISO(ISOBase):
         if verbose:
             print("Downloading interconnection queue from {}".format(url))
 
-        all_sheets = pd.read_excel(
+        all_sheets = httpio.read_excel(
             url,
             sheet_name=["Interconnection Queue", "Withdrawn"],
         )
@@ -273,7 +272,7 @@ class NYISO(ISOBase):
         withdrawn["Withdrawal Comment"] = None
 
         # make completed look like the other two sheets
-        completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1])
+        completed = httpio.read_excel(url, sheet_name="In Service", header=[0, 1])
         completed.insert(17, "Proposed Initial-Sync", None)
         completed["Status"] = InterconnectionQueueStatus.COMPLETED.value
         completed.columns = active.columns
@@ -426,7 +425,7 @@ class NYISO(ISOBase):
         if verbose:
             print(f"Requesting {url}")
 
-        df = pd.read_csv(url)
+        df = httpio.read_csv(url)
 
         # need to be updated once a year. approximately around end of april
         # find it here: https://www.nyiso.com/gold-book-resources
@@ -434,7 +433,7 @@ class NYISO(ISOBase):
 
         if verbose:
             print(f"Requesting {url}")
-        generators = pd.read_excel(
+        generators = httpio.read_excel(
             capacity_url_2022,
             sheet_name=[
                 "Table III-2a",
@@ -558,7 +557,7 @@ class NYISO(ISOBase):
         if verbose:
             print(f"Requesting {url}")
 
-        df = pd.read_csv(url)
+        df = httpio.read_csv(url)
 
         return df
 
@@ -612,14 +611,14 @@ class NYISO(ISOBase):
             if verbose:
                 print(f"Requesting {csv_url}")
 
-            df = pd.read_csv(csv_url)
+            df = httpio.read_csv(csv_url)
             df = _handle_time(df)
             df["File Date"] = date.normalize()
         else:
             if verbose:
                 print(f"Requesting {zip_url}")
 
-            r = requests.get(zip_url)
+            r = httpio.get(zip_url)
             z = ZipFile(io.BytesIO(r.content))
 
             all_dfs = []
@@ -647,7 +646,7 @@ class NYISO(ISOBase):
                 day = d.strftime("%Y%m%d")
 
                 csv_filename = f"{day}{filename}.csv"
-                df = pd.read_csv(z.open(csv_filename))
+                df = httpio.read_csv(z.open(csv_filename))
                 df["File Date"] = d.normalize()
 
                 df = _handle_time(df)
@@ -681,7 +680,7 @@ class NYISO(ISOBase):
         if verbose:
             print(url)
 
-        df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1])
+        df = httpio.read_excel(url, sheet_name="MCP Table", header=[0, 1])
 
         df.rename(columns={"Unnamed: 0_level_0": "", "Date": ""}, inplace=True)
         df.set_index("", inplace=True)

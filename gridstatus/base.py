@@ -4,6 +4,8 @@ import pandas as pd
 import requests
 from tabulate import tabulate
 
+from gridstatus import httpio
+
 # TODO: this is needed to make SPP request work. restrict only to SPP
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = "ALL:@SECLEVEL=1"
 
@@ -69,7 +71,7 @@ class ISOBase:
             if verbose:
                 print("Requesting", args[0], "with", kwargs)
 
-        r = requests.get(*args, **kwargs)
+        r = httpio.get(*args, **kwargs)
         r = r.json()
 
         return r

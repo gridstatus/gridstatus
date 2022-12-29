@@ -6,7 +6,7 @@ from zipfile import ZipFile
 import pandas as pd
 import requests
 
-from gridstatus import utils
+from gridstatus import httpio, utils
 from gridstatus.base import (
     FuelMix,
     GridStatus,
@@ -228,7 +228,7 @@ class Ercot(ISOBase):
         url = self.ACTUAL_LOADS_URL_FORMAT.format(
             timestamp=when.strftime("%Y%m%d"),
         )
-        dfs = pd.read_html(url, header=0)
+        dfs = httpio.read_html(url, header=0)
         df = dfs[0]
         df = self._handle_html_data(df, {"TOTAL": "Load"})
         return df
@@ -281,7 +281,7 @@ class Ercot(ISOBase):
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
-        doc = pd.read_csv(doc_info.url, compression="zip")
+        doc = httpio.read_csv(doc_info.url, compression="zip")
 
         doc["Time"] = pd.to_datetime(
             doc["DeliveryDate"]
@@ -324,7 +324,7 @@ class Ercot(ISOBase):
         if verbose:
             print("Downloading {}".format(doc_info.url))
 
-        doc = pd.read_csv(doc_info.url, compression="zip")
+        doc = httpio.read_csv(doc_info.url, compression="zip")
 
         doc["Time"] = pd.to_datetime(
             doc["DeliveryDate"]
@@ -373,7 +373,7 @@ class Ercot(ISOBase):
         )
 
         x = utils.get_zip_file(doc_info.url)
-        all_sheets = pd.read_excel(x, sheet_name=None)
+        all_sheets = httpio.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
         return df
 
@@ -397,7 +397,7 @@ class Ercot(ISOBase):
             print("Downloading interconnection queue from: ", doc_info.url)
 
         # skip rows and handle header
-        queue = pd.read_excel(
+        queue = httpio.read_excel(
             doc_info.url,
             sheet_name="Project Details - Large Gen",
             skiprows=30,
@@ -570,7 +570,7 @@ class Ercot(ISOBase):
         )
         if verbose:
             print(f"Fetching {doc_info.url}", file=sys.stderr)
-        df = pd.read_csv(doc_info.url, compression="zip")
+        df = httpio.read_csv(doc_info.url, compression="zip")
 
         # fetch mapping
         df["Market"] = Markets.DAY_AHEAD_HOURLY.value
@@ -681,7 +681,7 @@ class Ercot(ISOBase):
             doc_url = doc_info.url
             if verbose:
                 print(f"Fetching {doc_url}", file=sys.stderr)
-            df = pd.read_csv(doc_url, compression="zip")
+            df = httpio.read_csv(doc_url, compression="zip")
             all_dfs.append(df)
         df = pd.concat(all_dfs).reset_index(drop=True)
 
@@ -826,13 +826,13 @@ class Ercot(ISOBase):
         if verbose:
             print(f"Fetching {doc_url}", file=sys.stderr)
 
-        r = requests.get(doc_url)
+        r = httpio.get(doc_url)
         z = ZipFile(io.BytesIO(r.content))
         names = z.namelist()
         settlement_points_file = [
             name for name in names if "Settlement_Points" in name
         ][0]
-        df = pd.read_csv(z.open(settlement_points_file))
+        df = httpio.read_csv(z.open(settlement_points_file))
         return df
 
     def _filter_by_location_type(self, df, mapping_df, location_type):
