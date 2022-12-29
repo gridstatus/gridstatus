@@ -5,6 +5,8 @@ import traceback
 import pandas as pd
 import requests
 
+INTERNAL_FILES = ("httpio.py",)
+
 
 class Httpio(object):
     def __new__(cls):
@@ -39,7 +41,7 @@ class Httpio(object):
     def _last_external_filename_lineno():
         """Return the first frame outside of this file in the traceback."""
         for frame in reversed(traceback.extract_stack()):
-            if frame.filename != __file__:
+            if not any(frame.filename.endswith(f) for f in INTERNAL_FILES):
                 return f"{frame.filename}:{frame.lineno}"
 
     def _log_verbose(self, method, args, kwargs):
