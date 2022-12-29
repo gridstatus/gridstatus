@@ -1,9 +1,9 @@
 import pandas as pd
 
-from gridstatus.httpio.auto_hook_dispatch import AutoHookDispatch
+from gridstatus.httpio.auto_adapter_dispatcher import AutoAdapterDispatcher
 
 
-class HttpioPandas(AutoHookDispatch):
+class HttpioPandas(AutoAdapterDispatcher):
     def __new__(cls):
         if not hasattr(cls, "instance"):
             cls.instance = super(HttpioPandas, cls).__new__(cls)

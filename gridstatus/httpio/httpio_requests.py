@@ -1,9 +1,9 @@
 import requests
 
-from gridstatus.httpio.auto_hook_dispatch import AutoHookDispatch
+from gridstatus.httpio.auto_adapter_dispatcher import AutoAdapterDispatcher
 
 
-class HttpioRequests(AutoHookDispatch):
+class HttpioRequests(AutoAdapterDispatcher):
     def __new__(cls):
         if not hasattr(cls, "instance"):
             cls.instance = super(HttpioRequests, cls).__new__(cls)
@@ -20,7 +20,7 @@ class HttpioRequests(AutoHookDispatch):
         value = self._before_hook("post", args, kwargs)
         return value or requests.post(*args, **kwargs)
 
-    class Session(AutoHookDispatch):
+    class Session(AutoAdapterDispatcher):
         def __init__(self):
             super().__init__()
             self.session = requests.Session()
