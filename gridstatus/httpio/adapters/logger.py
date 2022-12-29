@@ -13,6 +13,8 @@ INTERNAL_FILES = (
 
 
 class LoggerAdapter(BaseAdapter):
+    """This adapter will log all httpio calls to stderr"""
+
     def __init__(self):
         super().__init__("logger")
 

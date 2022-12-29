@@ -4,6 +4,8 @@ from gridstatus.httpio.auto_adapter_dispatcher import AutoAdapterDispatcher
 
 
 class HttpioRequests(AutoAdapterDispatcher):
+    """These are drop-in replacements for requests.{get,post} and requests.Session"""
+
     def __new__(cls):
         if not hasattr(cls, "instance"):
             cls.instance = super(HttpioRequests, cls).__new__(cls)

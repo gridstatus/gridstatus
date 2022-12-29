@@ -7,6 +7,11 @@ from gridstatus.httpio.adapters.base import BaseAdapter
 
 
 class PickleCacheAdapter(BaseAdapter):
+    """This cache adapter will pickle values in tmp_dir, using method,
+    args and kwargs to generate a SHA256 hash for the filename. There
+    is no time-to-live support currently.
+    """
+
     def __init__(self, tmp_dir="/tmp"):
         super().__init__("pickle_cache")
         self.tmp_dir = tmp_dir

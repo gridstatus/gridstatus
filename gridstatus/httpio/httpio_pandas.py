@@ -4,6 +4,8 @@ from gridstatus.httpio.auto_adapter_dispatcher import AutoAdapterDispatcher
 
 
 class HttpioPandas(AutoAdapterDispatcher):
+    """These are drop-in replacements for pandas.read_*"""
+
     def __new__(cls):
         if not hasattr(cls, "instance"):
             cls.instance = super(HttpioPandas, cls).__new__(cls)

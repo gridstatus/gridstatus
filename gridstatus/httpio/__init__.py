@@ -1,6 +1,8 @@
 from gridstatus.httpio.httpio_pandas import HttpioPandas
 from gridstatus.httpio.httpio_requests import HttpioRequests
 
+""""For easy access to underlying Adapter Dispatchers"""
+
 
 def read_csv(*args, **kwargs):
     return HttpioPandas().read_csv(*args, **kwargs)

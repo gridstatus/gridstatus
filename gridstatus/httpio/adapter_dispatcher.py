@@ -2,6 +2,13 @@ from collections import OrderedDict
 
 from gridstatus.httpio.adapters.base import BaseAdapter
 
+"""AdapterDispatchers holds a list of adapters which may implement the following methods:
+
+- before_hook: Runs before any method call
+- before_filter: Runs before any method call, and may return a value to short-circuit the method call
+- after_hook: Runs after any method call, with the return value, and whether the value is new or not
+"""
+
 
 class AdapterDispatcher:
     def __init__(self):
@@ -19,7 +26,7 @@ class AdapterDispatcher:
         return self.adapters[key]
 
     def _exec_method(self, method: str, fn, *args, **kwargs):
-        """Execute the method, calling before/after hooks and filters"""
+        """Run before hooks, before filter, call the method if needed, and run after hooks"""
         self._run_before_hooks(method, args, kwargs)
         new_value = False
         value = self._run_before_filters(method, args, kwargs)
