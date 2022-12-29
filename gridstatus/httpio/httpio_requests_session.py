@@ -1,16 +1,12 @@
-import os
-
 import requests
 
-from gridstatus.httpio.adapters.logger import LoggerAdapter
-from gridstatus.httpio.hook_dispatch import HookDispatch
+from gridstatus.httpio.auto_hook_dispatch import AutoHookDispatch
 
 
-class HttpioRequestsSession(HookDispatch):
+class HttpioRequestsSession(AutoHookDispatch):
     def __init__(self):
         super().__init__()
         self.session = requests.Session()
-        self.register_hook(LoggerAdapter("HTTPIO_VERBOSE" in os.environ))
 
     def __enter__(self):
         return self

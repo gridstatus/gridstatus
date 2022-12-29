@@ -1,14 +1,9 @@
-import os
-import sys
-import traceback
-
 import pandas as pd
 
-from gridstatus.httpio.adapters.logger import LoggerAdapter
-from gridstatus.httpio.hook_dispatch import HookDispatch
+from gridstatus.httpio.auto_hook_dispatch import AutoHookDispatch
 
 
-class HttpioPandas(HookDispatch):
+class HttpioPandas(AutoHookDispatch):
     def __new__(cls):
         if not hasattr(cls, "instance"):
             cls.instance = super(HttpioPandas, cls).__new__(cls)
@@ -16,7 +11,6 @@ class HttpioPandas(HookDispatch):
 
     def __init__(self):
         super().__init__()
-        self.register_hook(LoggerAdapter("HTTPIO_VERBOSE" in os.environ))
 
     def read_csv(self, *args, **kwargs):
         self._before_hook("read_csv", args, kwargs)
