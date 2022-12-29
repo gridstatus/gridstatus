@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from zipfile import ZipFile
 
 import pandas as pd
-import requests
 import tqdm
 
 from gridstatus import httpio, utils

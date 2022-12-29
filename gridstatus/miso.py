@@ -1,9 +1,8 @@
 import json
 
 import pandas as pd
-import requests
 
-from gridstatus import utils
+from gridstatus import httpio, utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
 
 

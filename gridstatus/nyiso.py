@@ -2,7 +2,6 @@ import io
 from zipfile import ZipFile
 
 import pandas as pd
-import requests
 
 import gridstatus
 from gridstatus import httpio, utils

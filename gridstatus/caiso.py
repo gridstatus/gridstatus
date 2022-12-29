@@ -4,7 +4,6 @@ from contextlib import redirect_stderr
 from zipfile import ZipFile
 
 import pandas as pd
-import requests
 import tabula
 
 from gridstatus import httpio, utils

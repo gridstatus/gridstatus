@@ -4,7 +4,6 @@ import os
 from zipfile import ZipFile
 
 import pandas as pd
-import requests
 import tqdm
 
 import gridstatus

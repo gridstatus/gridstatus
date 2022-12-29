@@ -3,7 +3,6 @@ import sys
 from urllib.parse import urlencode
 
 import pandas as pd
-import requests
 import tqdm
 from bs4 import BeautifulSoup
 

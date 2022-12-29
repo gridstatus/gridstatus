@@ -2,7 +2,6 @@ import io
 import math
 
 import pandas as pd
-import requests
 
 from gridstatus import httpio, utils
 from gridstatus.base import (
