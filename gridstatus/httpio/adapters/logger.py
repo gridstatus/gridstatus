@@ -12,9 +12,6 @@ INTERNAL_FILES = (
 
 
 class LoggerAdapter(BaseAdapter):
-    def __init__(self, enabled):
-        self.enabled = enabled
-
     @staticmethod
     def _last_external_filename_lineno():
         """Return the first frame outside of this file in the traceback."""
@@ -23,13 +20,12 @@ class LoggerAdapter(BaseAdapter):
                 return f"{frame.filename}:{frame.lineno}"
 
     def before_hook(self, method, args, kwargs):
-        if self.enabled:
-            file_line = self._last_external_filename_lineno()
-            method_args = []
-            method_args += [repr(arg) for arg in args]
-            method_args += [f"{k}={repr(v)}" for k, v in kwargs.items()]
-            method_args = ", ".join(method_args)
-            print(
-                f"{file_line} httpio.{method}({method_args})",
-                file=sys.stderr,
-            )
+        file_line = self._last_external_filename_lineno()
+        method_args = []
+        method_args += [repr(arg) for arg in args]
+        method_args += [f"{k}={repr(v)}" for k, v in kwargs.items()]
+        method_args = ", ".join(method_args)
+        print(
+            f"{file_line} httpio.{method}({method_args})",
+            file=sys.stderr,
+        )
