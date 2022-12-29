@@ -13,13 +13,13 @@ class HttpioPandas(AutoHookDispatch):
         super().__init__()
 
     def read_csv(self, *args, **kwargs):
-        self._before_hook("read_csv", args, kwargs)
-        return pd.read_csv(*args, **kwargs)
+        value = self._before_hook("read_csv", args, kwargs)
+        return value or pd.read_csv(*args, **kwargs)
 
     def read_excel(self, *args, **kwargs):
-        self._before_hook("read_excel", args, kwargs)
-        return pd.read_excel(*args, **kwargs)
+        value = self._before_hook("read_excel", args, kwargs)
+        return value or pd.read_excel(*args, **kwargs)
 
     def read_html(self, *args, **kwargs):
-        self._before_hook("read_html", args, kwargs)
-        return pd.read_html(*args, **kwargs)
+        value = self._before_hook("read_html", args, kwargs)
+        return value or pd.read_html(*args, **kwargs)

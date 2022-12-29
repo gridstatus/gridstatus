@@ -12,4 +12,6 @@ class HookDispatch:
 
     def _before_hook(self, method, args, kwargs):
         for hook in self.hooks:
-            hook.before_hook(method, args, kwargs)
+            value = hook.before_hook(method, args, kwargs)
+            if value is not None:
+                return value
