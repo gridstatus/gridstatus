@@ -22,6 +22,8 @@ class PickleCacheAdapter(BaseAdapter):
         "read_csv",
         "read_excel",
         "read_html",
+        "session.get",
+        "session.post",
     )
 
     def before_filter(self, method, args, kwargs):

@@ -1,15 +1,10 @@
 import pandas as pd
 
-from gridstatus.httpio.auto_adapter_dispatcher import AutoAdapterDispatcher
+from gridstatus.httpio import AdapterDispatcher
 
 
-class HttpioPandas(AutoAdapterDispatcher):
+class HttpioPandas(AdapterDispatcher):
     """These are drop-in replacements for pandas.read_*"""
-
-    def __new__(cls):
-        if not hasattr(cls, "instance"):
-            cls.instance = super(HttpioPandas, cls).__new__(cls)
-        return cls.instance
 
     def __init__(self):
         super().__init__()
