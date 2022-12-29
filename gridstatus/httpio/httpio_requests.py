@@ -13,12 +13,10 @@ class HttpioRequests(AutoAdapterDispatcher):
         super().__init__()
 
     def get(self, *args, **kwargs):
-        value = self._before_hook("get", args, kwargs)
-        return value or requests.get(*args, **kwargs)
+        return self._exec_method("get", requests.get, *args, **kwargs)
 
     def post(self, *args, **kwargs):
-        value = self._before_hook("post", args, kwargs)
-        return value or requests.post(*args, **kwargs)
+        return self._exec_method("post", requests.post, *args, **kwargs)
 
     class Session(AutoAdapterDispatcher):
         def __init__(self):
@@ -32,12 +30,10 @@ class HttpioRequests(AutoAdapterDispatcher):
             self.session.close()
 
         def get(self, *args, **kwargs):
-            value = self._before_hook("session.get", args, kwargs)
-            return value or self.session.get(*args, **kwargs)
+            return self._exec_method("session.get", self.session.get, *args, **kwargs)
 
         def post(self, *args, **kwargs):
-            value = self._before_hook("session.post", args, kwargs)
-            return value or self.session.post(*args, **kwargs)
+            return self._exec_method("session.post", self.session.post, *args, **kwargs)
 
         def __getattr__(self, item):
             return getattr(self.session, item)

@@ -13,13 +13,10 @@ class HttpioPandas(AutoAdapterDispatcher):
         super().__init__()
 
     def read_csv(self, *args, **kwargs):
-        value = self._before_hook("read_csv", args, kwargs)
-        return value or pd.read_csv(*args, **kwargs)
+        return self._exec_method("read_csv", pd.read_csv, *args, **kwargs)
 
     def read_excel(self, *args, **kwargs):
-        value = self._before_hook("read_excel", args, kwargs)
-        return value or pd.read_excel(*args, **kwargs)
+        return self._exec_method("read_excel", pd.read_excel, *args, **kwargs)
 
     def read_html(self, *args, **kwargs):
-        value = self._before_hook("read_html", args, kwargs)
-        return value or pd.read_html(*args, **kwargs)
+        return self._exec_method("read_html", pd.read_html, *args, **kwargs)
