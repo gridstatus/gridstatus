@@ -132,6 +132,8 @@ class PJM(ISOBase):
             },
         )
 
+        load = load[["Time", "Load"]]
+
         return load
 
     def get_load_forecast(self, date, verbose=False):
