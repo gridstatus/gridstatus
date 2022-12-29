@@ -20,3 +20,6 @@ def get(*args, **kwargs):
 
 def post(*args, **kwargs):
     return HttpioRequests().post(*args, **kwargs)
+
+
+Session = HttpioRequests.Session
