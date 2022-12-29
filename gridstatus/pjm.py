@@ -5,6 +5,7 @@ import warnings
 import pandas as pd
 import tqdm
 
+import gridstatus
 from gridstatus import httpio, utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
 from gridstatus.decorators import (
