@@ -1,21 +1,22 @@
-from gridstatus.httpio.httpio import Httpio
+from gridstatus.httpio.httpio_pandas import HttpioPandas
+from gridstatus.httpio.httpio_requests import HttpioRequests
 
 
 def read_csv(*args, **kwargs):
-    return Httpio().pd_read_csv(*args, **kwargs)
+    return HttpioPandas().read_csv(*args, **kwargs)
 
 
 def read_excel(*args, **kwargs):
-    return Httpio().pd_read_excel(*args, **kwargs)
+    return HttpioPandas().read_excel(*args, **kwargs)
 
 
 def read_html(*args, **kwargs):
-    return Httpio().pd_read_html(*args, **kwargs)
+    return HttpioPandas().read_html(*args, **kwargs)
 
 
 def get(*args, **kwargs):
-    return Httpio().requests_get(*args, **kwargs)
+    return HttpioRequests().get(*args, **kwargs)
 
 
 def post(*args, **kwargs):
-    return Httpio().requests_post(*args, **kwargs)
+    return HttpioRequests().post(*args, **kwargs)

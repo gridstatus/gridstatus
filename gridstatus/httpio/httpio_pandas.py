@@ -3,42 +3,35 @@ import sys
 import traceback
 
 import pandas as pd
-import requests
 
 INTERNAL_FILES = (
     "httpio/__init__.py",
-    "httpio/httpio.py",
+    "httpio/httpio_pandas.py",
+    "httpio/httpio_requests.py",
+    "httpio/httpio_requests_session.py",
 )
 
 
-class Httpio(object):
+class HttpioPandas(object):
     def __new__(cls):
         if not hasattr(cls, "instance"):
-            cls.instance = super(Httpio, cls).__new__(cls)
+            cls.instance = super(HttpioPandas, cls).__new__(cls)
         return cls.instance
 
     def __init__(self):
         self.verbose = "HTTPIO_VERBOSE" in os.environ
 
-    def pd_read_csv(self, *args, **kwargs):
+    def read_csv(self, *args, **kwargs):
         self._log_verbose("read_csv", args, kwargs)
         return pd.read_csv(*args, **kwargs)
 
-    def pd_read_excel(self, *args, **kwargs):
+    def read_excel(self, *args, **kwargs):
         self._log_verbose("read_excel", args, kwargs)
         return pd.read_excel(*args, **kwargs)
 
-    def pd_read_html(self, *args, **kwargs):
+    def read_html(self, *args, **kwargs):
         self._log_verbose("read_html", args, kwargs)
         return pd.read_html(*args, **kwargs)
-
-    def requests_get(self, *args, **kwargs):
-        self._log_verbose("get", args, kwargs)
-        return requests.get(*args, **kwargs)
-
-    def requests_post(self, *args, **kwargs):
-        self._log_verbose("post", args, kwargs)
-        return requests.post(*args, **kwargs)
 
     @staticmethod
     def _last_external_filename_lineno():
