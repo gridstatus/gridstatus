@@ -1,22 +1,16 @@
-import sys
-import traceback
+import os
 
 import requests
 
-from gridstatus.httpio import HttpioPandas
-
-INTERNAL_FILES = (
-    "httpio/__init__.py",
-    "httpio/httpio_pandas.py",
-    "httpio/httpio_requests.py",
-    "httpio/httpio_requests_session.py",
-)
+from gridstatus.httpio.adapters.logger import LoggerAdapter
+from gridstatus.httpio.hook_dispatch import HookDispatch
 
 
-class HttpioRequestsSession:
+class HttpioRequestsSession(HookDispatch):
     def __init__(self):
+        super().__init__()
         self.session = requests.Session()
-        self.verbose = HttpioPandas().verbose
+        self.register_hook(LoggerAdapter("HTTPIO_VERBOSE" in os.environ))
 
     def __enter__(self):
         return self
@@ -25,31 +19,12 @@ class HttpioRequestsSession:
         self.session.close()
 
     def get(self, *args, **kwargs):
-        self._log_verbose("session.get", args, kwargs)
+        self._before_hook("session.get", args, kwargs)
         return self.session.get(*args, **kwargs)
 
     def post(self, *args, **kwargs):
-        self._log_verbose("session.post", args, kwargs)
+        self._before_hook("session.post", args, kwargs)
         return self.session.post(*args, **kwargs)
 
     def __getattr__(self, item):
         return getattr(self.session, item)
-
-    @staticmethod
-    def _last_external_filename_lineno():
-        """Return the first frame outside of this file in the traceback."""
-        for frame in reversed(traceback.extract_stack()):
-            if not any(frame.filename.endswith(f) for f in INTERNAL_FILES):
-                return f"{frame.filename}:{frame.lineno}"
-
-    def _log_verbose(self, method, args, kwargs):
-        if self.verbose:
-            file_line = self._last_external_filename_lineno()
-            method_args = []
-            method_args += [repr(arg) for arg in args]
-            method_args += [f"{k}={repr(v)}" for k, v in kwargs.items()]
-            method_args = ", ".join(method_args)
-            print(
-                f"{file_line} httpio.{method}({method_args})",
-                file=sys.stderr,
-            )
