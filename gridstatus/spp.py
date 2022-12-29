@@ -121,16 +121,18 @@ class SPP(ISOBase):
             raise NotSupported
 
         url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"
-        r = self._get_json(url)["response"]
+        r = self._get_json(url, verbose=verbose)["response"]
 
         data = {"Timestamp": r["labels"]}
         data.update((d["label"], d["data"]) for d in r["datasets"])
 
         historical_mix = pd.DataFrame(data)
 
-        current_mix = historical_mix.iloc[0].to_dict()
+        current_mix = historical_mix.iloc[-1].to_dict()
 
-        time = pd.Timestamp(current_mix.pop("Timestamp"))
+        time = pd.Timestamp(
+            current_mix.pop("Timestamp"),
+        ).tz_convert(self.default_timezone)
 
         return FuelMix(time=time, mix=current_mix, iso=self.name)
 
@@ -443,7 +445,9 @@ class SPP(ISOBase):
                 LOCATION_TYPE_INTERFACE,
                 verbose=verbose,
             )
-            interface_name = SPP._get_location_type_name(LOCATION_TYPE_INTERFACE)
+            interface_name = SPP._get_location_type_name(
+                LOCATION_TYPE_INTERFACE,
+            )
 
             # Determine Location Type by matching to a hub or interface.
             # Otherwise, fall back to a settlement location
@@ -461,7 +465,10 @@ class SPP(ISOBase):
             )
         else:
             # filter
-            location_list = self._get_location_list(location_type, verbose=verbose)
+            location_list = self._get_location_list(
+                location_type,
+                verbose=verbose,
+            )
             df["Location Type"] = SPP._get_location_type_name(location_type)
             df = df[df["Location"].isin(location_list)]
 
@@ -536,7 +543,10 @@ class SPP(ISOBase):
         if location_type == LOCATION_TYPE_HUB:
             df = self._get_feature_data(QUERY_RTM5_HUBS_URL, verbose=verbose)
         elif location_type == LOCATION_TYPE_INTERFACE:
-            df = self._get_feature_data(QUERY_RTM5_INTERFACES_URL, verbose=verbose)
+            df = self._get_feature_data(
+                QUERY_RTM5_INTERFACES_URL,
+                verbose=verbose,
+            )
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
         return df["SETTLEMENT_LOCATION"].unique().tolist()
@@ -560,7 +570,10 @@ class SPP(ISOBase):
     def _fetch_and_concat_csvs(self, paths: list, fs_name: str, verbose: bool = False):
         all_dfs = []
         for path in tqdm.tqdm(paths):
-            url = self._file_browser_download_url(fs_name, params={"path": path})
+            url = self._file_browser_download_url(
+                fs_name,
+                params={"path": path},
+            )
             if verbose:
                 print(f"Fetching {url}", file=sys.stderr)
             csv = requests.get(url)
@@ -572,9 +585,13 @@ class SPP(ISOBase):
         """Lists files for Day-ahead Market (DAM), Locational Marginal Price (LMP) by Settlement Location (SL)"""
         paths = []
         if date == "latest":
-            raise ValueError("DAM is released daily, so use date='today' instead")
+            raise ValueError(
+                "DAM is released daily, so use date='today' instead",
+            )
         elif not utils.is_today(date, self.default_timezone):
-            raise NotSupported("Historical DAM data is not supported currently")
+            raise NotSupported(
+                "Historical DAM data is not supported currently",
+            )
 
         date = pd.Timestamp.now(
             tz=self.default_timezone,
@@ -603,7 +620,10 @@ class SPP(ISOBase):
         jsessionid = html.cookies.get("JSESSIONID")
         soup = BeautifulSoup(html.content, "html.parser")
         csrf_token = soup.find("meta", {"id": "_csrf"}).attrs["content"]
-        csrf_token_header = soup.find("meta", {"id": "_csrf_header"}).attrs["content"]
+        csrf_token_header = soup.find(
+            "meta",
+            {"id": "_csrf_header"},
+        ).attrs["content"]
 
         return {
             "cookies": {"JSESSIONID": jsessionid},
@@ -617,7 +637,12 @@ class SPP(ISOBase):
 
         Returns: pd.DataFrame of files, or empty pd.DataFrame on error"""
         session = self._get_marketplace_session()
-        json_payload = {"name": name, "fsName": fs_name, "type": type, "path": path}
+        json_payload = {
+            "name": name,
+            "fsName": fs_name,
+            "type": type,
+            "path": path,
+        }
         list_results = requests.post(
             FILE_BROWSER_API_URL,
             json=json_payload,
