@@ -7,7 +7,7 @@ INTERNAL_FILES = (
     "httpio/__init__.py",
     "httpio/httpio_pandas.py",
     "httpio/httpio_requests.py",
-    "httpio/httpio_requests_session.py",
+    "httpio/logger.py",
 )
 
 
