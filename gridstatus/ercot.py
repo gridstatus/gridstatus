@@ -5,6 +5,7 @@ from zipfile import ZipFile
 
 import pandas as pd
 import requests
+import tqdm
 
 from gridstatus import httpio, utils
 from gridstatus.base import (
@@ -677,7 +678,7 @@ class Ercot(ISOBase):
             raise ValueError(f"Could not fetch SPP data for {date}")
 
         all_dfs = []
-        for doc_info in docs:
+        for doc_info in tqdm.tqdm(docs):
             doc_url = doc_info.url
             if verbose:
                 print(f"Fetching {doc_url}", file=sys.stderr)
