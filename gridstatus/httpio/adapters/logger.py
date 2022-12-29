@@ -4,14 +4,18 @@ import traceback
 from gridstatus.httpio.adapters.base import BaseAdapter
 
 INTERNAL_FILES = (
+    "adapter_dispatcher.py",
+    "adapters/logger.py",
     "httpio/__init__.py",
-    "httpio/httpio_pandas.py",
-    "httpio/httpio_requests.py",
-    "httpio/logger.py",
+    "httpio_pandas.py",
+    "httpio_requests.py",
 )
 
 
 class LoggerAdapter(BaseAdapter):
+    def __init__(self):
+        super().__init__("logger")
+
     @staticmethod
     def _last_external_filename_lineno():
         """Return the first frame outside of this file in the traceback."""
