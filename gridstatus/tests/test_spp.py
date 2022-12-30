@@ -5,6 +5,12 @@ import gridstatus
 from gridstatus import Markets, NotSupported
 
 
+def test_get_fuel_mix_central_time():
+    iso = gridstatus.SPP()
+    fm = iso.get_fuel_mix(date="latest")
+    assert fm.time.tz.zone == iso.default_timezone
+
+
 @pytest.mark.parametrize(
     "market,location_type",
     [
