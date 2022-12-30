@@ -117,4 +117,4 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
-ignore = ["E501", "F405"]
+ignore = ["E501"]
