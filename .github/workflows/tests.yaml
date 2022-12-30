@@ -19,7 +19,7 @@ jobs:
         with:
           path: ~/.cache/pip
           key: python-deps-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}-tests-v01
-      - name: Install dependencies
+      - name: Install dependencies (if cache has not changed)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           python -m pip install ".[test]"
