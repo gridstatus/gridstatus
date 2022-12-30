@@ -117,4 +117,5 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
+# Never enforce `E501` (line length violations), lines cannot be > 79 chars
 ignore = ["E501"]
