@@ -342,7 +342,7 @@ class PJM(ISOBase):
             data = data[data["Location Type"] == location_type]
 
         if locations is not None and locations != "ALL":
-            data = gridstatus.utils.filter_lmp_locations(
+            data = utils.filter_lmp_locations(
                 data,
                 map(int, locations),
             )
@@ -369,10 +369,10 @@ class PJM(ISOBase):
         final_params.update(default_params)
 
         if start is not None:
-            start = gridstatus.utils._handle_date(start)
+            start = utils._handle_date(start)
 
             if end:
-                end = gridstatus.utils._handle_date(end)
+                end = utils._handle_date(end)
             else:
                 end = start + pd.DateOffset(days=1)
 
