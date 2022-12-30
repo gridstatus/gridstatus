@@ -12,13 +12,12 @@ def test_isone_fuel_mix():
 
 def run_all(date):
     iso = gridstatus.ISONE()
-
-    data = iso.get_fuel_mix(date=date)
-    data = iso.get_load(date=date)
-    data = iso.get_load_forecast(date=date)
-    data = iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
-    data = iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
-    data = iso.get_lmp(date=date, market=Markets.REAL_TIME_HOURLY)
+    iso.get_fuel_mix(date=date)
+    iso.get_load(date=date)
+    iso.get_load_forecast(date=date)
+    iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
+    iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
+    iso.get_lmp(date=date, market=Markets.REAL_TIME_HOURLY)
 
 
 def test_isone_dst_end():

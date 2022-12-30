@@ -1,13 +1,9 @@
 import io
 import math
-import re
-from heapq import merge
-from tabnanny import verbose
 
 import pandas as pd
 import requests
 
-import gridstatus
 from gridstatus import utils
 from gridstatus.base import (
     FuelMix,
@@ -558,7 +554,7 @@ def _make_request(url, skiprows, verbose):
         attempt = 0
         while attempt < 3:
             # make first get request to get cookies set
-            r1 = s.get(
+            _ = s.get(
                 "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
             )
 

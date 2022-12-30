@@ -12,7 +12,6 @@ from gridstatus.base import (
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
-    _interconnection_columns,
 )
 from gridstatus.decorators import support_date_range
 
@@ -86,7 +85,7 @@ class NYISO(ISOBase):
 
             if data["status"] != "success":
                 raise RuntimeError(
-                    f"Failed to get latest fuel mix. Check if NYISO's API is down.",
+                    "Failed to get latest fuel mix. Check if NYISO's API is down.",
                 )
 
             mix_df = pd.DataFrame(data["data"])

@@ -7,7 +7,6 @@ import pandas as pd
 import requests
 import tabula
 
-import gridstatus
 from gridstatus import utils
 from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import support_date_range
@@ -560,7 +559,7 @@ class CAISO(ISOBase):
         with io.StringIO() as buf, redirect_stderr(buf):
             try:
                 tables = tabula.read_pdf(pdf, pages="all")
-            except:
+            except Exception:
                 print(buf.getvalue())
                 raise RuntimeError("Problem Reading PDF")
 
@@ -854,7 +853,6 @@ if __name__ == "__main__":
 
     # check if any files are missing
     import glob
-    import os
 
     files = glob.glob("caiso_curtailment/*.csv")
     dates = (

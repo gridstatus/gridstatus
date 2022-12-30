@@ -6,7 +6,6 @@ import pandas as pd
 import requests
 import tqdm
 
-import gridstatus
 from gridstatus import utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
 from gridstatus.decorators import (

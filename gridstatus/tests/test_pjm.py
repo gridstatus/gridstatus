@@ -1,5 +1,3 @@
-from ftplib import ftpcp
-
 import pandas as pd
 import pytest
 
@@ -30,7 +28,7 @@ def test_no_data():
     date = "2000-01-14"
     iso = gridstatus.PJM()
     with pytest.raises(RuntimeError):
-        df = iso.get_fuel_mix(start=date)
+        iso.get_fuel_mix(start=date)
 
 
 def test_dst_shift_back():

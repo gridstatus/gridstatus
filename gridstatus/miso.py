@@ -2,7 +2,6 @@ import json
 
 import pandas as pd
 import requests
-from pandas import Timestamp
 
 from gridstatus import utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported

@@ -1,4 +1,3 @@
-import gridstatus
 from gridstatus.utils import make_availability_table, make_lmp_availability_table
 
 
