@@ -17,6 +17,10 @@ repos:
     hooks:
       - id: add-trailing-comma
         name: Add trailing comma
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.10.1
+    hooks:
+      - id: validate-pyproject
   - repo: https://github.com/PyCQA/isort
     rev: 5.10.1
     hooks:
@@ -32,7 +36,3 @@ repos:
     rev: v0.0.202
     hooks:
       - id: ruff
-  - repo: https://github.com/abravalheri/validate-pyproject
-    rev: v0.10.1
-    hooks:
-      - id: validate-pyproject
