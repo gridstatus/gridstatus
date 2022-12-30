@@ -35,8 +35,8 @@ lint:
 
 .PHONY: lint-fix
 lint-fix:
-	black gridstatus/ -t py311
 	isort gridstatus/
+	black gridstatus/ -t py311
 	ruff gridstatus/ --fix
 
 .PHONY: upgradepip
