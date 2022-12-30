@@ -1,11 +1,5 @@
 name: Lint Check
-on:
-  pull_request:
-    types: [opened, synchronize]
-  push:
-    branches:
-      - main
-
+on: [pull_request]
 jobs:
   lint_test:
     name: 3.11 lint check
@@ -19,6 +13,5 @@ jobs:
       - name: Install package with dev deps
         run: |
           python -m pip install -e ".[dev]"
-      - name: Run lint test
+      - name: Run lint check
         run: make lint
-      - name: Lint with flake8
