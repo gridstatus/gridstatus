@@ -29,13 +29,11 @@ installdeps-docs:
 
 .PHONY: lint
 lint:
-	isort --check-only gridstatus/
 	black gridstatus/ -t py311 --check
 	ruff gridstatus/
 
 .PHONY: lint-fix
 lint-fix:
-	isort gridstatus/
 	black gridstatus/ -t py311
 	ruff gridstatus/ --fix
 
