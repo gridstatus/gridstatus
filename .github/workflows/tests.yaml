@@ -17,8 +17,8 @@ jobs:
       - uses: actions/cache@v3
         id: cache
         with:
-          path: ${{ env.pythonLocation }}
-          key: python-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-tests-v01
+          path: ~/.cache/pip
+          key: python-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}-tests-v01
       - name: Install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
