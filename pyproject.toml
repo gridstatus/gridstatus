@@ -124,3 +124,6 @@ src = ["gridstatus"]
 
 [tool.ruff.isort]
 known-first-party = ["gridstatus"]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["E402", "F401", "I001"]

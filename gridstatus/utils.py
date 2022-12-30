@@ -20,7 +20,6 @@ from gridstatus.spp import SPP
 GREEN_CHECKMARK_HTML_ENTITY = "&#x2705;"
 
 RED_X_HTML_ENTITY = "&#10060;"
-
 all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 
