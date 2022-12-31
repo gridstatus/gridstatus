@@ -17,14 +17,16 @@ jobs:
       - uses: actions/cache@v3
         id: cache
         with:
-          path: ~/.cache/pip
-          key: py-${{ matrix.python-version }}-tests-${{ hashFiles('pyproject.toml') }}-v01
-          restore-keys: |
-            py-${{ matrix.python-version }}-tests-
-      - name: Install dependencies (if cache has not changed)
+          path: ${{ env.pythonLocation }}
+          key: py-${{ matrix.python-version }}-tests-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
+      - name: Install core deps (if cache has changed)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           python -m pip install ".[test]"
+      - name: Install core deps (if cache has not changed)
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: |
+          python -m pip install --no-dependencies .
       - name: Run unit tests
         run: |
           make test
