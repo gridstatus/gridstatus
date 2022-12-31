@@ -16,6 +16,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'pyproject.toml'
+      - uses: actions/cache@v3
+        id: cache
+        with:
+          path: ~/.cache/pip
+          key: py-3.11-lint-${{ hashFiles('pyproject.toml') }}-v01
+          restore-keys: |
+            py-3.11-lint-
       - name: Install package with dev deps
         run: |
           python -m pip install -e ".[dev]"

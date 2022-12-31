@@ -13,12 +13,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: "pyproject.toml"
+          cache-dependency-path: 'pyproject.toml'
       - uses: actions/cache@v3
         id: cache
         with:
           path: ~/.cache/pip
-          key: python-deps-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}-tests-v01
+          key: py-${{ matrix.python-version }}-tests-${{ hashFiles('pyproject.toml') }}-v01
+          restore-keys: |
+            py-${{ matrix.python-version }}-tests-
       - name: Install dependencies (if cache has not changed)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
