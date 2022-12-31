@@ -16,21 +16,9 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: 'pyproject.toml'
-      - uses: actions/cache@v3
-        id: cache
-        with:
-          path: ${{ env.pythonLocation }}
-          key: py-3.11-docs-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
       - name: Install package with dev deps
-        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           python -m pip install -e ".[dev]"
-      - name: Install package without deps
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: |
-          python -m pip install -e --no-dependencies .
       - name: Run lint test
         run: make lint
       - name: Lint with flake8
