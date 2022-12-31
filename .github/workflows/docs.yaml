@@ -18,9 +18,10 @@ jobs:
           key: py-3.10-docs-${{ hashFiles('pyproject.toml') }}-v01
           restore-keys: |
             py-3.10-docs-
-      - name: Build gridstatus package
-        run: make package
-      - name: Install gridstatus
-        run: python -m pip install "unpacked/[docs]"
+      - name: Build gridstatus package and install docs deps (if cache has not changed)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          make package
+          python -m pip install "unpacked/[docs]"
       - name: Build docs
         run: make docs

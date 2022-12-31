@@ -25,7 +25,8 @@ jobs:
           key: py-3.11-lint-${{ hashFiles('pyproject.toml') }}-v01
           restore-keys: |
             py-3.11-lint-
-      - name: Install package with dev deps
+      - name: Install package with dev deps (if cache has not changed)
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           python -m pip install -e ".[dev]"
       - name: Run lint test
