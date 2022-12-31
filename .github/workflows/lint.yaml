@@ -22,12 +22,12 @@ jobs:
         id: cache
         with:
           path: ${{ env.pythonLocation }}
-          key: py-3.11-lint-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
+          key: py-311-docs-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
       - name: Install package with dev deps
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           python -m pip install -e ".[dev]"
-        - name: Install package without deps
+      - name: Install package without deps
         if: steps.cache.outputs.cache-hit == 'true'
         run: |
           python -m pip install -e --no-dependencies .
