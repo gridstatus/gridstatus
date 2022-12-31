@@ -22,7 +22,7 @@ jobs:
         id: cache
         with:
           path: ${{ env.pythonLocation }}
-          key: py-311-docs-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
+          key: py-3.11-docs-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
       - name: Install package with dev deps
         if: steps.cache.outputs.cache-hit != 'true'
         run: |

@@ -15,7 +15,7 @@ jobs:
         id: cache
         with:
           path: ${{ env.pythonLocation }}
-          key: py-310-docs-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
+          key: py-3.10-docs-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
       - name: Build gridstatus package
         run: make package
       - name: Install package with docs deps
