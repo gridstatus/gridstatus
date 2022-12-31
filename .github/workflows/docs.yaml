@@ -14,10 +14,8 @@ jobs:
       - uses: actions/cache@v3
         id: cache
         with:
-          path: ~/.cache/pip
-          key: py-3.10-docs-${{ hashFiles('pyproject.toml') }}-v01
-          restore-keys: |
-            py-3.10-docs-
+          path: ${{ env.pythonLocation }}
+          key: py-3.10-docs-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
       - name: Build gridstatus package and install docs deps
         run: |
           make package

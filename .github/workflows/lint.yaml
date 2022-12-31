@@ -21,10 +21,8 @@ jobs:
       - uses: actions/cache@v3
         id: cache
         with:
-          path: ~/.cache/pip
-          key: py-3.11-lint-${{ hashFiles('pyproject.toml') }}-v01
-          restore-keys: |
-            py-3.11-lint-
+          path: ${{ env.pythonLocation }}
+          key: py-3.11-lint-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
       - name: Install package with dev deps
         run: |
           python -m pip install -e ".[dev]"
