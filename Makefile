@@ -29,13 +29,13 @@ installdeps-docs:
 
 .PHONY: lint
 lint:
-	black gridstatus/ -t py311 --check
 	ruff gridstatus/
+	black gridstatus/ --check
 
 .PHONY: lint-fix
 lint-fix:
-	black gridstatus/ -t py311
 	ruff gridstatus/ --fix
+	black gridstatus/
 
 .PHONY: upgradepip
 upgradepip:

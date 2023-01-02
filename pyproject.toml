@@ -99,6 +99,7 @@ markers = [
 ]
 
 [tool.black]
+line-length = 88
 target-version = ['py311']
 
 [build-system]
@@ -109,8 +110,8 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
-# Never enforce `E501` (line length violations), lines cannot be > 79 chars
-ignore = ["E501"]
+line-length = 88
+ignore = []
 select = [
     # Pyflakes
     "F",
