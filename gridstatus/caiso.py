@@ -92,7 +92,6 @@ class CAISO(ISOBase):
         return self._get_historical_fuel_mix(date, verbose=verbose)
 
     def _get_historical_fuel_mix(self, date, verbose=False):
-
         url = _HISTORY_BASE + "/%s/fuelsource.csv"
         df = _get_historical(url, date, verbose=verbose)
 
@@ -431,14 +430,24 @@ class CAISO(ISOBase):
 
         queue = queue.rename(
             columns={
-                "Interconnection Request\nReceive Date": "Interconnection Request Receive Date",
+                "Interconnection Request\nReceive Date": (
+                    "Interconnection Request Receive Date"
+                ),
                 "Actual\nOn-line Date": "Actual On-line Date",
                 "Current\nOn-line Date": "Current On-line Date",
-                "Interconnection Agreement \nStatus": "Interconnection Agreement Status",
+                "Interconnection Agreement \nStatus": (
+                    "Interconnection Agreement Status"
+                ),
                 "Study\nProcess": "Study Process",
-                "Proposed\nOn-line Date\n(as filed with IR)": "Proposed On-line Date (as filed with IR)",
-                "System Impact Study or \nPhase I Cluster Study": "System Impact Study or Phase I Cluster Study",
-                "Facilities Study (FAS) or \nPhase II Cluster Study": "Facilities Study (FAS) or Phase II Cluster Study",
+                "Proposed\nOn-line Date\n(as filed with IR)": (
+                    "Proposed On-line Date (as filed with IR)"
+                ),
+                "System Impact Study or \nPhase I Cluster Study": (
+                    "System Impact Study or Phase I Cluster Study"
+                ),
+                "Facilities Study (FAS) or \nPhase II Cluster Study": (
+                    "Facilities Study (FAS) or Phase II Cluster Study"
+                ),
                 "Optional Study\n(OS)": "Optional Study (OS)",
             },
         )
@@ -758,7 +767,6 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
 
 
 def _get_historical(url, date, verbose=False):
-
     date_str = date.strftime("%Y%m%d")
     date_obj = date
     url = url % date_str

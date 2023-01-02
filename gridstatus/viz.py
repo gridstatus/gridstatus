@@ -6,7 +6,8 @@ def dam_heat_map(df):
 
     Args:
         df (pd.DataFrame): A DataFrame with columns "Time", "Location", and "LMP".
-        If Hour is specified, it will be used as the x-axis. Otherwise, the hour ending will be used instead of Time
+            If Hour is specified, it will be used as the x-axis.
+            Otherwise, the hour ending will be used instead of Time
 
 
     Returns:

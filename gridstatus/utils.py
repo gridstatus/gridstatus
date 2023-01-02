@@ -55,7 +55,6 @@ def make_availability_df():
         for method in methods:
             availability[i.__name__][method] = {}
             for date in ["latest", "today", "historical"]:
-
                 test = date
                 if date == "historical":
                     test = pd.Timestamp.now(
@@ -240,7 +239,8 @@ def load_folder(path, time_zone=None, verbose=True):
 
     Arguments:
         path {str} -- path to folder
-        time_zone {str} -- time zone to localize to timestamps. By default returns as UTC
+        time_zone {str} -- time zone to localize to timestamps.
+            By default returns as UTC
 
     Returns:
         pd.DataFrame -- dataframe of all files

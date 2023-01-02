@@ -101,7 +101,6 @@ def test_ercot_get_load_3_days_ago():
 
 
 def test_ercot_get_fuel_mix():
-
     # today
     iso = gridstatus.Ercot()
     cols = [

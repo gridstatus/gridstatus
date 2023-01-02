@@ -99,7 +99,8 @@ class SPP(ISOBase):
 
         if (
             status_text
-            == "SPP is currently in Normal Operations with no effective advisories or alerts."
+            == "SPP is currently in Normal Operations with no effective advisories or"
+            " alerts."
         ):
             status = "Normal"
             notes = [status_text]
@@ -116,7 +117,6 @@ class SPP(ISOBase):
         )
 
     def get_fuel_mix(self, date, verbose=False):
-
         if date != "latest":
             raise NotSupported
 
@@ -159,7 +159,8 @@ class SPP(ISOBase):
     def get_load_forecast(self, date, forecast_type="MID_TERM", verbose=False):
         """
 
-        type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is every five minutes for a few hours
+        type (str): MID_TERM is hourly for next 7 days or
+            SHORT_TERM is every five minutes for a few hours
         """
         df = self._get_load_and_forecast(verbose=verbose)
 
@@ -276,7 +277,8 @@ class SPP(ISOBase):
             "Substation or Line": "Interconnection Location",
         }
 
-        # todo: there are a few columns being parsed as "unamed" that aren't being included but should
+        # todo: there are a few columns being parsed
+        # as "unamed" that aren't being included but should
         extra_columns = [
             "In-Service Date",
             "Commercial Operation Date",
@@ -552,7 +554,10 @@ class SPP(ISOBase):
         return df["SETTLEMENT_LOCATION"].unique().tolist()
 
     def _fs_get_rtbm_lmp_by_location_paths(self, date, verbose=False):
-        """Lists files for Real-Time Balancing Market (RTBM), Locational Marginal Price (LMP) by Settlement Location (SL)"""
+        """
+        Lists files for Real-Time Balancing Market (RTBM),
+        Locational Marginal Price (LMP) by Settlement Location (SL)
+        """
         if date == "latest":
             paths = ["/RTBM-LMP-SL-latestInterval.csv"]
         elif utils.is_today(date, self.default_timezone):
@@ -582,7 +587,10 @@ class SPP(ISOBase):
         return pd.concat(all_dfs)
 
     def _fs_get_dam_lmp_by_location_paths(self, date, verbose=False):
-        """Lists files for Day-ahead Market (DAM), Locational Marginal Price (LMP) by Settlement Location (SL)"""
+        """
+        Lists files for Day-ahead Market (DAM),
+        Locational Marginal Price (LMP) by Settlement Location (SL)
+        """
         paths = []
         if date == "latest":
             raise ValueError(

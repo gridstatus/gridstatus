@@ -81,11 +81,14 @@ class ISOBase:
         """Get fuel mix in 5 minute intervals for a provided day
 
         Arguments:
-            date (datetime or str): "latest", "today", or an object that can be parsed as a datetime for the day to return data.
+            date (datetime or str): "latest", "today", or an object that can be parsed
+                as a datetime for the day to return data.
 
-            start (datetime or str): start of date range to return. alias for `date` parameter. Only specify one of `date` or `start`.
+            start (datetime or str): start of date range to return. alias for `date` parameter.
+                Only specify one of `date` or `start`.
 
-            end (datetime or str): "today" or an object that can be parsed as a datetime for the day to return data. Only used if requesting a range of dates.
+            end (datetime or str): "today" or an object that can be parsed as a datetime for the
+                day to return data. Only used if requesting a range of dates.
 
             verbose (bool): print verbose output. Defaults to False.
 

@@ -32,7 +32,6 @@ class NYISO(ISOBase):
 
     @support_date_range(frequency="MS")
     def get_status(self, date, end=None, verbose=False):
-
         if date == "latest":
             latest = self._latest_from_today(self.get_status)
             return GridStatus(
@@ -589,7 +588,6 @@ class NYISO(ISOBase):
         filename=None,
         verbose=False,
     ):
-
         if filename is None:
             filename = dataset_name
 
@@ -607,7 +605,6 @@ class NYISO(ISOBase):
         if end is None and date > pd.Timestamp.now(
             tz=self.default_timezone,
         ).normalize() - pd.DateOffset(days=7):
-
             if verbose:
                 print(f"Requesting {csv_url}")
 

@@ -87,7 +87,6 @@ class MISO(ISOBase):
             raise NotSupported
 
     def get_load_forecast(self, date, verbose=False):
-
         if date != "today":
             raise NotSupported()
 

@@ -148,7 +148,6 @@ class support_date_range:
             total = len(dates) - dates.count(None) * 2 - 1
 
             with tqdm.tqdm(disable=total <= 1, total=total) as pbar:
-
                 for end_date in dates[1:]:
                     # if we come across None, it means we should reset
                     if end_date is None:

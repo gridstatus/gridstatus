@@ -267,7 +267,10 @@ class PJM(ISOBase):
             market_type = "da"
         else:
             raise ValueError(
-                "market must be one of REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY",
+                (
+                    "market must be one of REAL_TIME_5_MIN, REAL_TIME_HOURLY,"
+                    " DAY_AHEAD_HOURLY"
+                ),
             )
 
         if location_type:
@@ -279,7 +282,10 @@ class PJM(ISOBase):
 
             if market == Markets.REAL_TIME_5_MIN:
                 warnings.warn(
-                    "When using Real Time 5 Minute market, location_type filter will happen after all data is downloaded",
+                    (
+                        "When using Real Time 5 Minute market, location_type filter"
+                        " will happen after all data is downloaded"
+                    ),
                 )
             else:
                 params["type"] = f"*{location_type}*"
@@ -298,7 +304,10 @@ class PJM(ISOBase):
 
         elif locations is not None:
             warnings.warn(
-                "Querying before archive date, so filtering by location will happen after all data is downloaded",
+                (
+                    "Querying before archive date, so filtering by location will happen"
+                    " after all data is downloaded"
+                ),
             )
 
         data = self._get_pjm_json(
@@ -524,7 +533,6 @@ pnode_id
 
 
 if __name__ == "__main__":
-
     import gridstatus
 
     for i in gridstatus.all_isos:
