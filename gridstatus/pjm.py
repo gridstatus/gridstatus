@@ -147,7 +147,10 @@ class PJM(ISOBase):
 
         # todo: should we use the UTC field instead of EPT?
         params = {
-            "fields": "evaluated_at_datetime_ept,forecast_area,forecast_datetime_beginning_ept,forecast_load_mw",
+            "fields": (
+                "evaluated_at_datetime_ept,forecast_area,                   "
+                " forecast_datetime_beginning_ept,forecast_load_mw"
+            ),
             "forecast_area": "RTO_COMBINED",
         }
         data = self._get_pjm_json(
@@ -182,7 +185,10 @@ class PJM(ISOBase):
 
     def get_pnode_ids(self):
         data = {
-            "fields": "effective_date,pnode_id,pnode_name,pnode_subtype,pnode_type,termination_date,voltage_level,zone",
+            "fields": (
+                "effective_date,pnode_id,pnode_name,pnode_subtype,               "
+                " pnode_type,termination_date,voltage_level,zone"
+            ),
             "termination_date": "12/31/9999exact",
         }
         nodes = self._get_pjm_json("pnode", start=None, params=data)
@@ -211,25 +217,38 @@ class PJM(ISOBase):
     ):
         """Returns LMP at a previous date
 
-         Notes:
-            * If start date is prior to the PJM archive date, all data must be downloaded before location filtering can be performed due to limitations of PJM API. The archive date is
-              186 days (~6 months) before today for the 5 minute real time market and 731 days (~2 years) before today for the Hourly Real Time and Day Ahead Hourly markets. Node type filter can be
-              performed for Real Time Hourly and Day Ahead Hourly markets.
+        Notes:
+            * If start date is prior to the PJM archive date, all data
+                must be downloaded before location filtering can be performed
+                due to limitations of PJM API. The archive date is
+                186 days (~6 months) before today for the 5 minute real time
+                market and 731 days (~2 years) before today for the Hourly
+                Real Time and Day Ahead Hourly markets. Node type filter can be
+                performed for Real Time Hourly and Day Ahead Hourly markets.
 
-            * If location_type is provided, it is filtered after data is retrieved for Real Time 5 Minute market regardless of the date. This is due to PJM api limitations
+            * If location_type is provided, it is filtered after data
+                is retrieved for Real Time 5 Minute market regardless of the
+                date. This is due to PJM api limitations
 
-         Args:
-             date (str or datetime.date): date to get LMPs for
+        Args:
+            date (str or datetime.date): date to get LMPs for
 
-             end (str or datetime.date): end date to get LMPs for
+            end (str or datetime.date): end date to get LMPs for
 
-             market (str):  Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
+            market (str):  Supported Markets:
+                REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
 
-             locations (list, optional):  list of pnodeid to get LMPs for. Defaults to "hubs". Use get_pnode_ids() to get a list of possible pnode ids.
-             If "all", will return data from all p nodes (warning there are over 10,000 unique pnodes, so expect millions or billions of rows!)
+            locations (list, optional):  list of pnodeid to get LMPs for.
+                Defaults to "hubs". Use get_pnode_ids() to get
+                a list of possible pnode ids. If "all", will
+                return data from all p nodes (warning there are
+                over 10,000 unique pnodes, so expect millions or billions of rows!)
 
-             location_type (str, optional):  If specified, will only return data for nodes of this type. Defaults to None. Possible location types are: 'ZONE', 'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
-        'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
+            location_type (str, optional):  If specified,
+                will only return data for nodes of this type.
+                Defaults to None. Possible location types are: 'ZONE',
+                'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
+                'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
 
         """
         market = Markets(market)
@@ -437,7 +456,8 @@ class PJM(ISOBase):
             # drop datetime_beginning_utc
             df = df.drop(columns=["datetime_beginning_utc"])
 
-            # PJM API is inclusive of end, so we need to drop where end timestamp is included
+            # PJM API is inclusive of end,
+            # so we need to drop where end timestamp is included
             df = df[
                 df["Time"].dt.strftime(
                     "%Y-%m-%d %H:%M",

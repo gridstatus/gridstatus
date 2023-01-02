@@ -27,8 +27,10 @@ LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_INTERFACE = "INTERFACE"
 LOCATION_TYPE_SETTLEMENT_LOCATION = "SETTLEMENT_LOCATION"
 
-QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
-QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
+QUERY_RTM5_HUBS_URL = \
+    "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
+QUERY_RTM5_INTERFACES_URL = \
+    "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
 
 
 class SPP(ISOBase):
@@ -248,9 +250,12 @@ class SPP(ISOBase):
 
         queue["Status"] = queue["Status"].map(
             {
-                "IA FULLY EXECUTED/COMMERCIAL OPERATION": InterconnectionQueueStatus.COMPLETED.value,
-                "IA FULLY EXECUTED/ON SCHEDULE": InterconnectionQueueStatus.COMPLETED.value,
-                "IA FULLY EXECUTED/ON SUSPENSION": InterconnectionQueueStatus.COMPLETED.value,
+                "IA FULLY EXECUTED/COMMERCIAL OPERATION":
+                    InterconnectionQueueStatus.COMPLETED.value,
+                "IA FULLY EXECUTED/ON SCHEDULE":
+                    InterconnectionQueueStatus.COMPLETED.value,
+                "IA FULLY EXECUTED/ON SUSPENSION":
+                    InterconnectionQueueStatus.COMPLETED.value,
                 "IA PENDING": InterconnectionQueueStatus.ACTIVE.value,
                 "DISIS STAGE": InterconnectionQueueStatus.ACTIVE.value,
                 "None": InterconnectionQueueStatus.ACTIVE.value,

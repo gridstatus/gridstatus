@@ -17,7 +17,8 @@ from gridstatus.decorators import support_date_range
 
 ZONE = "zone"
 GENERATOR = "generator"
-"""NYISO offers LMP data at two locational granularities: load zone and point of generator interconnection"""
+"""NYISO offers LMP data at two locational granularities: \
+    load zone and point of generator interconnection"""
 
 
 class NYISO(ISOBase):
@@ -84,7 +85,10 @@ class NYISO(ISOBase):
 
             if data["status"] != "success":
                 raise RuntimeError(
-                    "Failed to get latest fuel mix. Check if NYISO's API is down.",
+                    (
+                        "Failed to get latest fuel mix. Check if                       "
+                        "  NYISO's API is down."
+                    ),
                 )
 
             mix_df = pd.DataFrame(data["data"])
@@ -237,13 +241,14 @@ class NYISO(ISOBase):
         Additional Non-NYISO queue info: https://www3.dps.ny.gov/W/PSCWeb.nsf/All/286D2C179E9A5A8385257FBF003F1F7E?OpenDocument
 
         Returns:
-            pd.DataFrame: Interconnection queue containing, active, withdrawn, and completed project
+            pd.DataFrame: Interconnection queue containing, active, withdrawn,
+                and completed project
 
-        """
+        """  # noqa
 
         # 3 sheets - ['Interconnection Queue', 'Withdrawn', 'In Service']
         # harded coded for now. perhaps this url can be parsed from the html here:
-        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"
+        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
 
         if verbose:
             print("Downloading interconnection queue from {}".format(url))
@@ -347,7 +352,8 @@ class NYISO(ISOBase):
         )
 
         # TODO handle other 2 sheets
-        # TODO they publish past queues, but not sure what data is in them that is relevant
+        # TODO they publish past queues,
+        # but not sure what data is in them that is relevant
 
         rename = {
             "Queue Pos.": "Queue ID",
@@ -428,7 +434,7 @@ class NYISO(ISOBase):
 
         # need to be updated once a year. approximately around end of april
         # find it here: https://www.nyiso.com/gold-book-resources
-        capacity_url_2022 = "https://www.nyiso.com/documents/20142/30338270/2022-NYCA-Generators.xlsx/f0526021-37fd-2c27-94ee-14d0f31878c1"
+        capacity_url_2022 = "https://www.nyiso.com/documents/20142/30338270/2022-NYCA-Generators.xlsx/f0526021-37fd-2c27-94ee-14d0f31878c1"  # noqa
 
         if verbose:
             print(f"Requesting {url}")
@@ -657,18 +663,23 @@ class NYISO(ISOBase):
         """Pull the most recent capacity market report's market clearing prices
 
         Parameters:
-            date (pd.Timestamp): date that will be used to pull latest capacity report (will refer to month and year)
+            date (pd.Timestamp): date that will be used to pull latest capacity
+                report (will refer to month and year)
             verbose (bool): print out requested url
 
         Returns:
-            pd.DataFrame: a dataframe of monthly capacity prices (all three auctions) for each of the four capacity localities within NYISO
+            pd.DataFrame: a dataframe of monthly capacity prices
+                (all three auctions) for each of the four capacity localities
+                within NYISO
         """
         if date is None:
             date = pd.Timestamp.now(tz=self.default_timezone)
         else:
             date = utils._handle_date(date, tz=self.default_timezone)
 
-        # todo: it looks like the "27447313" component of the base URL changes every year but I'm not sure what the link between that and the year is...
+        # todo: it looks like the "27447313" component of the base URL changes
+        # every year but I'm not sure what the link between that and the year
+        # is...
         capacity_market_base_url = (
             "https://www.nyiso.com/documents/20142/27447313/ICAP-Market-Report"
         )

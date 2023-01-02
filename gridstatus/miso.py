@@ -111,7 +111,7 @@ class MISO(ISOBase):
         return df
 
     def _get_load_and_forecast_data(self, verbose=False):
-        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"
+        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json" # noqa
         r = self._get_json(url, verbose=verbose)
         return r
 
@@ -128,7 +128,7 @@ class MISO(ISOBase):
         if locations is None:
             locations = "ALL"
 
-        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json"
+        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json" # noqa
         r = self._get_json(url, verbose=verbose)
 
         time = r["LMPData"]["RefId"]
@@ -250,7 +250,8 @@ class MISO(ISOBase):
         ]
 
         missing = [
-            # todo the actual complettion date can be calculated by looking at status and other date columns
+            # todo the actual complettion date
+            # can be calculated by looking at status and other date columns
             "Actual Completion Date",
             "Withdrawal Comment",
             "Project Name",
@@ -278,4 +279,4 @@ historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time
 
 - ancillary services available in consolidate api
 
-"""
+"""# noqa
