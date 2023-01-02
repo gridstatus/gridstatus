@@ -18,8 +18,8 @@ jobs:
       - uses: actions/cache@v3
         id: cache
         with:
-          path: ${{ env.pythonLocation }} # use cache
-          key: py-${{ matrix.python-version }}-tests-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v00
+          path: ${{ env.pythonLocation }} # create cache
+          key: py-${{ matrix.python-version }}-tests--${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-v01
       - name: Install core deps (if cache has changed)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
