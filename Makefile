@@ -8,8 +8,7 @@ clean:
 
 .PHONY: test
 test:
-	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto  --reruns 5 --reruns-delay 3 >> /dev/null 2>&1
-	exit 0
+	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto  --reruns 5 --reruns-delay 3
 
 .PHONY: test-slow
 test-slow:
