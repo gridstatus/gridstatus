@@ -25,7 +25,9 @@ repos:
     rev: 22.12.0
     hooks:
       - id: black
-        args: [--target-version=py311 --line-length 88]
+        args:
+          - --target-version=py311
+          - --line-length=88
         additional_dependencies: [".[jupyter]"]
         types_or: [python, jupyter]
   - repo: https://github.com/charliermarsh/ruff-pre-commit

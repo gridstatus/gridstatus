@@ -578,9 +578,8 @@ def _make_request(url, skiprows, verbose):
 
         if r2.status_code != 200:
             raise RuntimeError(
-                "Failed to get data from {}. Check if ISONE is down and try again later".format(
-                    url,
-                ),
+                f"Failed to get data from {url}. Check if ISONE is down and \
+                    try again later",
             )
 
         df = pd.read_csv(
@@ -604,9 +603,8 @@ def _make_wsclient_request(url, data, verbose=False):
 
     if r.status_code != 200:
         raise RuntimeError(
-            "Failed to get data from {}. Check if ISONE is down and try again later".format(
-                url,
-            ),
+            f"Failed to get data from {url}. Check if ISONE is down and \
+                try again later",
         )
 
     return r.json()
