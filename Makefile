@@ -12,7 +12,7 @@ test:
 
 .PHONY: test-slow
 test-slow:
-	python -m pytest -s -vv gridstatus/ -m "slow" -n auto 
+	python -m pytest -s -vv gridstatus/ -m "slow" -n auto
 
 .PHONY: installdeps-dev
 installdeps-dev:
