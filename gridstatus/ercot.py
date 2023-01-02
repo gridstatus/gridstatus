@@ -138,13 +138,13 @@ class Ercot(ISOBase):
 
         Arguments:
             date(datetime or str): "latest", "today".
-                historical data currently not supported
+            historical data currently not supported
 
             verbose(bool): print verbose output. Defaults to False.
 
         Returns:
             df (pd.Dataframe): dataframe with columns:
-                Time and columns for each fuel type (solar and wind)
+            Time and columns for each fuel type (solar and wind)
         """
 
         if date == "latest":
@@ -311,7 +311,7 @@ class Ercot(ISOBase):
 
         Returns:
             df (pd.Dataframe): dataframe with prices for "Non-Spinning Reserves",
-                "Regulation Up", "Regulation Down", "Responsive Reserves",
+            "Regulation Up", "Regulation Down", "Responsive Reserves",
 
         """
         # subtract one day since it's the day ahead market happens on the day
@@ -605,8 +605,9 @@ class Ercot(ISOBase):
 
         Parameters:
             df (pd.DataFrame): DataFrame with SPP data
-            settlement_point_field (str):
-                Field name of settlement point to rename to "Location"
+
+            settlement_point_field (str): Field name of
+            settlement point to rename to "Location"
         """
         df = df.rename(
             columns={

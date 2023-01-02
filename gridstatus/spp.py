@@ -160,7 +160,7 @@ class SPP(ISOBase):
         """
 
         type (str): MID_TERM is hourly for next 7 days or
-            SHORT_TERM is every five minutes for a few hours
+        SHORT_TERM is every five minutes for a few hours
         """
         df = self._get_load_and_forecast(verbose=verbose)
 

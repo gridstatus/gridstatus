@@ -240,7 +240,7 @@ def load_folder(path, time_zone=None, verbose=True):
     Arguments:
         path {str} -- path to folder
         time_zone {str} -- time zone to localize to timestamps.
-            By default returns as UTC
+        By default returns as UTC
 
     Returns:
         pd.DataFrame -- dataframe of all files

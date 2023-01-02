@@ -242,7 +242,7 @@ class NYISO(ISOBase):
 
         Returns:
             df (pd.Dataframe): Interconnection queue containing, active, withdrawn,
-                and completed project
+            and completed project
 
         """  # noqa
 
@@ -664,13 +664,14 @@ class NYISO(ISOBase):
 
         Parameters:
             date (pd.Timestamp): date that will be used to pull latest capacity
-                report (will refer to month and year)
+            report (will refer to month and year)
+
             verbose (bool): print out requested url
 
         Returns:
             df (pd.Dataframe): a dataframe of monthly capacity prices
-                (all three auctions) for each of the four capacity localities
-                within NYISO
+            (all three auctions) for each of the four capacity localities
+            within NYISO
         """
         if date is None:
             date = pd.Timestamp.now(tz=self.default_timezone)

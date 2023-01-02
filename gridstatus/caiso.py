@@ -72,21 +72,21 @@ class CAISO(ISOBase):
 
         Arguments:
             date (datetime or str): "latest", "today", or an object
-                that can be parsed as a datetime for the day to return data.
+            that can be parsed as a datetime for the day to return data.
 
             start (datetime or str): start of date range to return.
-                alias for `date` parameter.
-                Only specify one of `date` or `start`.
+            alias for `date` parameter.
+            Only specify one of `date` or `start`.
 
             end (datetime or str): "today" or an object that can be parsed
-                as a datetime for the day to return data.
-                Only used if requesting a range of dates.
+            as a datetime for the day to return data.
+            Only used if requesting a range of dates.
 
             verbose (bool): print verbose output. Defaults to False.
 
         Returns:
             df (pd.Dataframe): dataframe with columns: Time and columns
-                for each fuel type
+            for each fuel type
         """
         if date == "latest":
             mix = self.get_fuel_mix("today", verbose=verbose)
@@ -148,9 +148,10 @@ class CAISO(ISOBase):
 
         Arguments:
             date(datetime, pd.Timestamp, or str): day to return.
-                If string, format should be YYYYMMDD e.g 20200623
+            If string, format should be YYYYMMDD e.g 20200623
+
             sleep(int): number of seconds to sleep before returning to avoid
-                hitting rate limit in regular usage. Defaults to 5 seconds.
+            hitting rate limit in regular usage. Defaults to 5 seconds.
 
         """
 
@@ -213,13 +214,13 @@ class CAISO(ISOBase):
             market: market to return from. supports:
 
             locations(list): list of locations to get data from.
-                If no locations are provided, defaults to NP15, SP15, and ZP26,
-                which are the trading hub locations.
-                For a list of locations, call CAISO.get_pnodes()
+            If no locations are provided, defaults to NP15, SP15, and ZP26,
+            which are the trading hub locations. For a list of locations,
+            call CAISO.get_pnodes()
 
             sleep(int): number of seconds to sleep before returning to
-                avoid hitting rate limit in regular usage.
-                Defaults to 5 seconds.
+            avoid hitting rate limit in regular usage.
+            Defaults to 5 seconds.
 
         Returns
             dataframe of pricing data
@@ -346,11 +347,11 @@ class CAISO(ISOBase):
             date: date to return data
 
             end: last date of range to return data. If None, returns only date.
-                Defaults to None.
+            Defaults to None.
 
             fuel_region_id(str, or list): single fuel region id or list of fuel
-                region ids to return data for. Defaults to ALL, which returns
-                all fuel regions.
+            region ids to return data for. Defaults to ALL, which returns
+            all fuel regions.
 
         Returns:
             dataframe of gas prices
@@ -400,8 +401,9 @@ class CAISO(ISOBase):
 
         Arguments:
             date: date to return data
+
             end: last date of range to return data.
-                If None, returns only date. Defaults to None.
+            If None, returns only date. Defaults to None.
         """
 
         start, end = _caiso_handle_start_end(date, end)
@@ -539,8 +541,10 @@ class CAISO(ISOBase):
 
         Arguments:
             date: date to return data
+
             end: last date of range to return data.
-                If None, returns only date. Defaults to None.
+            If None, returns only date. Defaults to None.
+
             verbose: print out url being fetched. Defaults to False.
 
         Returns:
@@ -669,8 +673,10 @@ class CAISO(ISOBase):
 
         Arguments:
             date: date to return data
+
             end: last date of range to return data.
-                If None, returns only date. Defaults to None.
+            If None, returns only date. Defaults to None.
+
             verbose: print out url being fetched. Defaults to False.
 
         Returns:
@@ -724,8 +730,10 @@ class CAISO(ISOBase):
 
         Arguments:
             date: date to return data
+
             end: last date of range to return data.
-                If None, returns only date. Defaults to None.
+            If None, returns only date. Defaults to None.
+
             market: DAM or RTM. Defaults to DAM.
 
         Returns:

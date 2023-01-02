@@ -219,16 +219,16 @@ class PJM(ISOBase):
 
         Notes:
             * If start date is prior to the PJM archive date, all data
-                must be downloaded before location filtering can be performed
-                due to limitations of PJM API. The archive date is
-                186 days (~6 months) before today for the 5 minute real time
-                market and 731 days (~2 years) before today for the Hourly
-                Real Time and Day Ahead Hourly markets. Node type filter can be
-                performed for Real Time Hourly and Day Ahead Hourly markets.
+            must be downloaded before location filtering can be performed
+            due to limitations of PJM API. The archive date is
+            186 days (~6 months) before today for the 5 minute real time
+            market and 731 days (~2 years) before today for the Hourly
+            Real Time and Day Ahead Hourly markets. Node type filter can be
+            performed for Real Time Hourly and Day Ahead Hourly markets.
 
             * If location_type is provided, it is filtered after data
-                is retrieved for Real Time 5 Minute market regardless of the
-                date. This is due to PJM api limitations
+            is retrieved for Real Time 5 Minute market regardless of the
+            date. This is due to PJM api limitations
 
         Args:
             date (str or datetime.date): date to get LMPs for
@@ -236,19 +236,19 @@ class PJM(ISOBase):
             end (str or datetime.date): end date to get LMPs for
 
             market (str):  Supported Markets:
-                REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
+            REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
 
             locations (list, optional):  list of pnodeid to get LMPs for.
-                Defaults to "hubs". Use get_pnode_ids() to get
-                a list of possible pnode ids. If "all", will
-                return data from all p nodes (warning there are
-                over 10,000 unique pnodes, so expect millions or billions of rows!)
+            Defaults to "hubs". Use get_pnode_ids() to get
+            a list of possible pnode ids. If "all", will
+            return data from all p nodes (warning there are
+            over 10,000 unique pnodes, so expect millions or billions of rows!)
 
             location_type (str, optional):  If specified,
-                will only return data for nodes of this type.
-                Defaults to None. Possible location types are: 'ZONE',
-                'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
-                'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
+            will only return data for nodes of this type.
+            Defaults to None. Possible location types are: 'ZONE',
+            'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
+            'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
 
         """
         market = Markets(market)
