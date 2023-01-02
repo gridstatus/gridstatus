@@ -1,5 +1,15 @@
+import pytest
+
 import gridstatus
 from gridstatus.base import Markets
+
+# toggle for debugging
+VERBOSE = False
+
+DST_BOUNDARIES = [
+    "Mar 13, 2022",
+    "Nov 6, 2022",
+]
 
 
 def test_isone_fuel_mix():
@@ -10,22 +20,26 @@ def test_isone_fuel_mix():
     assert not data.isna().any().any()
 
 
-def run_all(date):
+@pytest.mark.parametrize("date", DST_BOUNDARIES)
+def test_get_fuel_mix(date):
     iso = gridstatus.ISONE()
-
-    data = iso.get_fuel_mix(date=date)
-    data = iso.get_load(date=date)
-    data = iso.get_load_forecast(date=date)
-    data = iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
-    data = iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
-    data = iso.get_lmp(date=date, market=Markets.REAL_TIME_HOURLY)
+    iso.get_fuel_mix(date=date, verbose=VERBOSE)
 
 
-def test_isone_dst_end():
-    date = "Nov 6, 2022"
-    run_all(date)
+@pytest.mark.parametrize("date", DST_BOUNDARIES)
+def test_get_load(date):
+    iso = gridstatus.ISONE()
+    iso.get_load(date=date, verbose=VERBOSE)
 
 
-def test_isone_dst_start():
-    date = "Mar 13, 2022"
-    run_all(date)
+@pytest.mark.parametrize("date", DST_BOUNDARIES)
+def test_get_load_forecast(date):
+    iso = gridstatus.ISONE()
+    iso.get_load_forecast(date=date, verbose=VERBOSE)
+
+
+@pytest.mark.parametrize("date", DST_BOUNDARIES)
+@pytest.mark.parametrize("market", gridstatus.ISONE().markets)
+def test_get_lmp(date, market):
+    iso = gridstatus.ISONE()
+    iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY, verbose=VERBOSE)
