@@ -8,11 +8,11 @@ clean:
 
 .PHONY: test
 test:
-	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto  --reruns 5 --reruns-delay 3
+	python -m pytest -s -vv gridstatus/ -m "not slow" -n auto  --reruns 5 --reruns-delay 3 2>&1 >/dev/null
 
 .PHONY: test-slow
 test-slow:
-	python -m pytest -s -vv gridstatus/ -m "slow" -n auto
+	python -m pytest -s -vv gridstatus/ -m "slow" -n auto 
 
 .PHONY: installdeps-dev
 installdeps-dev:
