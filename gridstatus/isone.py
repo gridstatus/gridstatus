@@ -251,7 +251,8 @@ class ISONE(ISOBase):
         include_id=False,
         verbose=False,
     ):
-        """Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/"""
+        """Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
+        """
 
         if date == "latest":
             return self._get_latest_lmp(
@@ -571,7 +572,8 @@ def _make_request(url, skiprows, verbose):
 
         if r2.status_code != 200:
             raise RuntimeError(
-                "Failed to get data from {}. Check if ISONE is down and try again later".format(
+                "Failed to get data from {}. Check if ISONE is down and try again later"
+                .format(
                     url,
                 ),
             )
@@ -597,7 +599,8 @@ def _make_wsclient_request(url, data, verbose=False):
 
     if r.status_code != 200:
         raise RuntimeError(
-            "Failed to get data from {}. Check if ISONE is down and try again later".format(
+            "Failed to get data from {}. Check if ISONE is down and try again later"
+            .format(
                 url,
             ),
         )
