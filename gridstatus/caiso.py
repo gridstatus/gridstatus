@@ -71,16 +71,22 @@ class CAISO(ISOBase):
         """Get fuel mix in 5 minute intervals for a provided day
 
         Arguments:
-            date (datetime or str): "latest", "today", or an object that can be parsed as a datetime for the day to return data.
+            date (datetime or str): "latest", "today", or an object
+                that can be parsed as a datetime for the day to return data.
 
-            start (datetime or str): start of date range to return. alias for `date` parameter. Only specify one of `date` or `start`.
+            start (datetime or str): start of date range to return.
+                alias for `date` parameter.
+                Only specify one of `date` or `start`.
 
-            end (datetime or str): "today" or an object that can be parsed as a datetime for the day to return data. Only used if requesting a range of dates.
+            end (datetime or str): "today" or an object that can be parsed
+                as a datetime for the day to return data.
+                Only used if requesting a range of dates.
 
             verbose (bool): print verbose output. Defaults to False.
 
         Returns:
-            pd.Dataframe: dataframe with columns: Time and columns for each fuel type
+            df (pd.Dataframe): dataframe with columns: Time and columns
+                for each fuel type
         """
         if date == "latest":
             mix = self.get_fuel_mix("today", verbose=verbose)
@@ -141,8 +147,10 @@ class CAISO(ISOBase):
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
-            date(datetime, pd.Timestamp, or str): day to return. if string, format should be YYYYMMDD e.g 20200623
-            sleep(int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
+            date(datetime, pd.Timestamp, or str): day to return.
+                If string, format should be YYYYMMDD e.g 20200623
+            sleep(int): number of seconds to sleep before returning to avoid
+                hitting rate limit in regular usage. Defaults to 5 seconds.
 
         """
 
@@ -174,7 +182,7 @@ class CAISO(ISOBase):
         return df
 
     def get_pnodes(self):
-        url = "http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=ATL_PNODE_MAP&version=1&startdatetime=20220801T07:00-0000&enddatetime=20220802T07:00-0000&pnode_id=ALL"
+        url = "http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=ATL_PNODE_MAP&version=1&startdatetime=20220801T07:00-0000&enddatetime=20220802T07:00-0000&pnode_id=ALL"  # noqa
         df = pd.read_csv(
             url,
             compression="zip",
@@ -204,10 +212,14 @@ class CAISO(ISOBase):
 
             market: market to return from. supports:
 
-            locations(list): list of locations to get data from. If no locations are provided, defaults to NP15, SP15, and ZP26, which are the trading hub locations.
-            For a list of locations, call CAISO.get_pnodes()
+            locations(list): list of locations to get data from.
+                If no locations are provided, defaults to NP15, SP15, and ZP26,
+                which are the trading hub locations.
+                For a list of locations, call CAISO.get_pnodes()
 
-            sleep(int): number of seconds to sleep before returning to avoid hitting rate limit in regular usage. Defaults to 5 seconds.
+            sleep(int): number of seconds to sleep before returning to
+                avoid hitting rate limit in regular usage.
+                Defaults to 5 seconds.
 
         Returns
             dataframe of pricing data
@@ -241,7 +253,7 @@ class CAISO(ISOBase):
             raise RuntimeError("LMP Market is not supported")
 
         nodes_str = ",".join(locations)
-        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname={query_name}&version={version}&startdatetime={start}&enddatetime={end}&market_run_id={market_run_id}&node={nodes_str}"
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname={query_name}&version={version}&startdatetime={start}&enddatetime={end}&market_run_id={market_run_id}&node={nodes_str}"  # noqa
 
         df = _get_oasis(
             url,
@@ -333,9 +345,12 @@ class CAISO(ISOBase):
         Arguments:
             date: date to return data
 
-            end: last date of range to return data. if None, returns only date. Defaults to None.
+            end: last date of range to return data. If None, returns only date.
+                Defaults to None.
 
-            fuel_region_id(str, or list): single fuel region id or list of fuel region ids to return data for. Defaults to ALL, which returns all fuel regions.
+            fuel_region_id(str, or list): single fuel region id or list of fuel
+                region ids to return data for. Defaults to ALL, which returns
+                all fuel regions.
 
         Returns:
             dataframe of gas prices
@@ -346,7 +361,7 @@ class CAISO(ISOBase):
         if isinstance(fuel_region_id, list):
             fuel_region_id = ",".join(fuel_region_id)
 
-        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_FUEL&version=1&FUEL_REGION_ID={fuel_region_id}&startdatetime={start}&enddatetime={end}"
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_FUEL&version=1&FUEL_REGION_ID={fuel_region_id}&startdatetime={start}&enddatetime={end}"  # noqa
 
         df = _get_oasis(
             url,
@@ -385,12 +400,13 @@ class CAISO(ISOBase):
 
         Arguments:
             date: date to return data
-            end: last date of range to return data. if None, returns only date. Defaults to None.
+            end: last date of range to return data.
+                If None, returns only date. Defaults to None.
         """
 
         start, end = _caiso_handle_start_end(date, end)
 
-        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_GHG_ALLOWANCE&version=1&startdatetime={start}&enddatetime={end}"
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_GHG_ALLOWANCE&version=1&startdatetime={start}&enddatetime={end}"  # noqa
 
         df = _get_oasis(
             url,
@@ -523,7 +539,8 @@ class CAISO(ISOBase):
 
         Arguments:
             date: date to return data
-            end: last date of range to return data. if None, returns only date. Defaults to None.
+            end: last date of range to return data.
+                If None, returns only date. Defaults to None.
             verbose: print out url being fetched. Defaults to False.
 
         Returns:
@@ -544,14 +561,15 @@ class CAISO(ISOBase):
         if date_strs[0] == "Dec02_2021":
             date_strs = ["02dec_2020"]
         if date_strs[0] == "Dec02_2020":
-            # this correct, so make sure we don't try the other file since 2021 is published wrong
+            # this correct, so make sure we don't try the
+            # other file since 2021 is published wrong
             date_strs = ["Dec02_2020"]
 
         # todo handle not always just 4th pge
 
         pdf = None
         for date_str in date_strs:
-            f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"
+            f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"  # noqa
             if verbose:
                 print("Fetching URL: ", f)
             r = requests.get(f)
@@ -581,8 +599,10 @@ class CAISO(ISOBase):
         elif len(tables) == 1:
             df = tables[0]
         else:
-            # this is case where there was a continuation of the curtailment table
-            # on a second page. there is no header, make parsed header of extra table the first row
+            # this is case where there was a continuation of the
+            # curtailment table
+            # on a second page. there is no header,
+            # make parsed header of extra table the first row
 
             def _handle_extra_table(extra_table):
                 extra_table = pd.concat(
@@ -649,7 +669,8 @@ class CAISO(ISOBase):
 
         Arguments:
             date: date to return data
-            end: last date of range to return data. if None, returns only date. Defaults to None.
+            end: last date of range to return data.
+                If None, returns only date. Defaults to None.
             verbose: print out url being fetched. Defaults to False.
 
         Returns:
@@ -658,7 +679,7 @@ class CAISO(ISOBase):
 
         start, end = _caiso_handle_start_end(date, end)
 
-        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_AS&version=12&startdatetime={start}&enddatetime={end}&market_run_id=DAM&anc_type=ALL&anc_region=ALL"
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_AS&version=12&startdatetime={start}&enddatetime={end}&market_run_id=DAM&anc_type=ALL&anc_region=ALL"  # noqa
 
         df = _get_oasis(url=url, verbose=verbose, sleep=sleep).rename(
             columns={
@@ -703,7 +724,8 @@ class CAISO(ISOBase):
 
         Arguments:
             date: date to return data
-            end: last date of range to return data. if None, returns only date. Defaults to None.
+            end: last date of range to return data.
+                If None, returns only date. Defaults to None.
             market: DAM or RTM. Defaults to DAM.
 
         Returns:
@@ -713,7 +735,7 @@ class CAISO(ISOBase):
 
         start, end = _caiso_handle_start_end(date, end)
 
-        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=AS_RESULTS&version=1&startdatetime={start}&enddatetime={end}&market_run_id={market}&anc_type=ALL&anc_region=ALL"
+        url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=AS_RESULTS&version=1&startdatetime={start}&enddatetime={end}&market_run_id={market}&anc_type=ALL&anc_region=ALL"  # noqa
 
         df = _get_oasis(url=url, verbose=verbose, sleep=sleep).rename(
             columns={

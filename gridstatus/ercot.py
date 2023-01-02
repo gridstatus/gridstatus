@@ -67,7 +67,7 @@ Hub	SH	ERCOT_345KV_HUBBUSES_AVG
 Hub	AH	ERCOT_HUB_AVG
 ============================================================
 Source: https://www.ercot.com/files/docs/2009/10/26/07_tests_for_rsnable_lmps_overview_of_price_valid_tool_09102.ppt
-"""
+"""  # noqa
 RESOURCE_NODE_SETTLEMENT_TYPES = ["RN", "PCCRN", "LCCRN", "PUN"]
 LOAD_ZONE_SETTLEMENT_TYPES = ["LZ", "LZ_DC"]
 HUB_SETTLEMENT_TYPES = ["HU", "SH", "AH"]
@@ -97,7 +97,7 @@ class Ercot(ISOBase):
     ]
 
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
-    ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"
+    ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"  # noqa
     LOAD_HISTORICAL_MAX_DAYS = 14
 
     @dataclass
@@ -137,12 +137,14 @@ class Ercot(ISOBase):
         """Get fuel mix 5 minute intervals
 
         Arguments:
-            date(datetime or str): "latest", "today". historical data currently not supported
+            date(datetime or str): "latest", "today".
+                historical data currently not supported
 
             verbose(bool): print verbose output. Defaults to False.
 
         Returns:
-            pd.Dataframe: dataframe with columns: Time and columns for each fuel type (solar and wind)
+            df (pd.Dataframe): dataframe with columns:
+                Time and columns for each fuel type (solar and wind)
         """
 
         if date == "latest":
@@ -308,10 +310,12 @@ class Ercot(ISOBase):
             verbose(bool): print verbose output. Defaults to False.
 
         Returns:
-            pd.Dataframe: dataframe with prices for "Non-Spinning Reserves", "Regulation Up", "Regulation Down", "Responsive Reserves",
+            df (pd.Dataframe): dataframe with prices for "Non-Spinning Reserves",
+                "Regulation Up", "Regulation Down", "Responsive Reserves",
 
         """
-        # subtract one day since it's the day ahead market happens on the day before for the delivery day
+        # subtract one day since it's the day ahead market happens on the day
+        # before for the delivery day
         date = date - pd.Timedelta("1D")
 
         doc_info = self._get_document(
@@ -359,13 +363,15 @@ class Ercot(ISOBase):
         return data
 
     def get_rtm_spp(self, year):
-        """Get Historical RTM Settlement Point Prices(SPPs) for each of the Hubs and Load Zones
+        """Get Historical RTM Settlement Point Prices(SPPs)
+            for each of the Hubs and Load Zones
 
         Arguments:
             year(int): year to get data for
 
-        Source: https: // www.ercot.com/mp/data-products/data-product-details?id = NP6-785-ER
-        """
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
+        """  # noqa
         doc_info = self._get_document(
             report_type_id=HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID,
             constructed_name_contains=f"{year}.zip",
@@ -378,10 +384,12 @@ class Ercot(ISOBase):
         return df
 
     def get_interconnection_queue(self, verbose=False):
-        """Get interconnection queue for ERCOT
-
-        Monthly historical data available here: http: // mis.ercot.com/misapp/GetReports.do?reportTypeId = 15933 & reportTitle = GIS % 20Report & showHTMLView = &mimicKey
         """
+        Get interconnection queue for ERCOT
+
+        Monthly historical data available here:
+            http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
+        """  # noqa
 
         doc_info = self._get_document(
             report_type_id=GIS_REPORT_RTID,
@@ -470,7 +478,8 @@ class Ercot(ISOBase):
             "Status": "Status",
         }
 
-        # todo: there are a few columns being parsed as "unamed" that aren't being included but should
+        # todo: there are a few columns being parsed
+        # as "unamed" that aren't being included but should
         extra_columns = [
             "Fuel",
             "Technology",
@@ -495,7 +504,8 @@ class Ercot(ISOBase):
         ]
 
         missing = [
-            # todo the actual complettion date can be calculated by looking at status and other date columns
+            # todo the actual complettion date can be calculated by
+            # looking at status and other date columns
             "Withdrawal Comment",
             "Transmission Owner",
             "Summer Capacity (MW)",
@@ -594,8 +604,9 @@ class Ercot(ISOBase):
         - and resetting the index
 
         Parameters:
-            df (DataFrame): DataFrame with SPP data
-            settlement_point_field (str): Field name of settlement point to rename to "Location"
+            df (pd.DataFrame): DataFrame with SPP data
+            settlement_point_field (str):
+                Field name of settlement point to rename to "Location"
         """
         df = df.rename(
             columns={
@@ -736,7 +747,7 @@ class Ercot(ISOBase):
         Returns:
              list of Document with URL and Publish Date
         """
-        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"
+        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"  # noqa
         if verbose:
             print(f"Fetching document {url}", file=sys.stderr)
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
@@ -759,7 +770,7 @@ class Ercot(ISOBase):
 
             if match:
                 doc_id = doc["Document"]["DocID"]
-                url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"
+                url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"  # noqa
                 matches.append(
                     self.Document(
                         url=url,

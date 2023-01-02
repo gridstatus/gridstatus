@@ -241,7 +241,7 @@ class NYISO(ISOBase):
         Additional Non-NYISO queue info: https://www3.dps.ny.gov/W/PSCWeb.nsf/All/286D2C179E9A5A8385257FBF003F1F7E?OpenDocument
 
         Returns:
-            pd.DataFrame: Interconnection queue containing, active, withdrawn,
+            df (pd.Dataframe): Interconnection queue containing, active, withdrawn,
                 and completed project
 
         """  # noqa
@@ -395,7 +395,7 @@ class NYISO(ISOBase):
             verbose (bool): print out requested url
 
         Returns:
-            pd.DataFrame: a dataframe of generators and locations
+            df (pd.Dataframe): a dataframe of generators and locations
 
             **Possible Columns**
 
@@ -554,7 +554,7 @@ class NYISO(ISOBase):
             verbose (bool): print out requested url
 
         Returns:
-            pd.DataFrame: a dataframe of loads and locations
+            df (pd.Dataframe): a dataframe of loads and locations
         """
 
         url = "http://mis.nyiso.com/public/csv/load/load.csv"
@@ -668,7 +668,7 @@ class NYISO(ISOBase):
             verbose (bool): print out requested url
 
         Returns:
-            pd.DataFrame: a dataframe of monthly capacity prices
+            df (pd.Dataframe): a dataframe of monthly capacity prices
                 (all three auctions) for each of the four capacity localities
                 within NYISO
         """
