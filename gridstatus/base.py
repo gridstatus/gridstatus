@@ -78,27 +78,6 @@ class ISOBase:
         raise NotImplementedError()
 
     def get_fuel_mix(self, date, end=None, verbose=False):
-        """Get fuel mix in 5 minute intervals for a provided day
-
-        Arguments:
-            date (datetime.date, str): "latest", "today", or an object
-                that can be parsed as a datetime for the day to return data.
-
-            start (datetime.date, str): start of date range to return.
-                alias for `date` parameter.
-                Only specify one of `date` or `start`.
-
-            end (datetime.date, str): "today" or an object that can be parsed
-                as a datetime for the day to return data.
-                Only used if requesting a range of dates.
-
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-
-        Returns:
-            pandas.DataFrame: A DataFrame with columns for Time and columns \
-                for each fuel type
-        """
         raise NotImplementedError()
 
     def get_load(self, date, end=None, verbose=False):

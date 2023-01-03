@@ -238,9 +238,10 @@ def load_folder(path, time_zone=None, verbose=True):
     """Load a single DataFrame for same schema csv files in a folder
 
     Arguments:
-        path {str} -- path to folder
-        time_zone {str} -- time zone to localize to timestamps.
-        By default returns as UTC
+        path (str): path to folder
+        time_zone (str): time zone to localize to timestamps.
+            By default returns as UTC
+        verbose (bool, optional): print verbose output. Defaults to True.
 
     Returns:
         pandas.DataFrame: A DataFrame of all files
