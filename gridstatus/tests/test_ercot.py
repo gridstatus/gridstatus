@@ -101,7 +101,6 @@ def test_ercot_get_load_3_days_ago():
 
 
 def test_ercot_get_fuel_mix():
-
     # today
     iso = gridstatus.Ercot()
     cols = [
@@ -166,7 +165,7 @@ def test_ercot_get_two_days_ago_day_ahead_hourly_zone():
 def test_ercot_get_dam_latest_day_ahead_hourly_zone_should_raise_exception():
     iso = gridstatus.Ercot()
     with pytest.raises(ValueError):
-        df = iso.get_spp(
+        iso.get_spp(
             date="latest",
             market=Markets.DAY_AHEAD_HOURLY,
             location_type="zone",

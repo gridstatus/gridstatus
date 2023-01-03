@@ -1,14 +1,10 @@
 import io
 import math
-import re
 import sys
-from heapq import merge
-from tabnanny import verbose
 
 import pandas as pd
 import requests
 
-import gridstatus
 from gridstatus import utils
 from gridstatus.base import (
     FuelMix,
@@ -28,7 +24,7 @@ class ISONE(ISOBase):
     iso_id = "isone"
     default_timezone = "US/Eastern"
 
-    status_homepage = "https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status"
+    status_homepage = "https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status"  # noqa
     interconnection_homepage = "https://irtt.iso-ne.com/reports/external"
 
     markets = [
@@ -152,7 +148,7 @@ class ISONE(ISOBase):
             return self._latest_from_today(self.get_load)
 
         date_str = date.strftime("%Y%m%d")
-        url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"
+        url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"  # noqa
         data = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
         data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
@@ -216,15 +212,15 @@ class ISONE(ISOBase):
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
-        """
+        """  # noqa
         if locations is None:
             locations = "ALL"
         market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
-            url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"
+            url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
         elif market == Markets.REAL_TIME_HOURLY:
-            url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"
+            url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
 
             # todo does this handle single digital hours?
@@ -256,7 +252,10 @@ class ISONE(ISOBase):
         include_id=False,
         verbose=False,
     ):
-        """Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/"""
+        """
+        Find Node ID mapping:
+            https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
+        """  # noqa
 
         if date == "latest":
             return self._get_latest_lmp(
@@ -285,7 +284,7 @@ class ISONE(ISOBase):
             dfs = []
             for interval in intervals:
                 print("Loading interval {}".format(interval))
-                u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"
+                u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"  # noqa
                 dfs.append(
                     pd.read_csv(
                         u,
@@ -307,9 +306,10 @@ class ISONE(ISOBase):
 
             # add current interval
             if now.date() == date.date():
-                url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"
+                url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
                 print("Loading current interval")
-                # this request is very very slow for some reason. I suspect because the server is making the response dynamically
+                # this request is very very slow for some reason.
+                # I suspect b/c the server is making the response dynamically
                 data_current = _make_request(
                     url,
                     skiprows=[0, 1, 2, 4],
@@ -322,7 +322,7 @@ class ISONE(ISOBase):
 
         elif market == Markets.REAL_TIME_HOURLY:
             if date.date() < now.date():
-                url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"
+                url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
                 data = _make_request(
                     url,
                     skiprows=[0, 1, 2, 3, 5],
@@ -350,7 +350,7 @@ class ISONE(ISOBase):
                 )
 
         elif market == Markets.DAY_AHEAD_HOURLY:
-            url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
+            url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"  # noqa
             data = _make_request(
                 url,
                 skiprows=[0, 1, 2, 3, 5],
@@ -472,11 +472,12 @@ class ISONE(ISOBase):
 
 
         Returns:
-            pd.DataFrame -- interconnection queue
+            pandas.DataFrame: interconnection queue
 
-        """
-        # not sure what the reportdate value is. it is hardcode into the javascript to add and doesnt work without
-        url = "https://irtt.iso-ne.com/reports/exportpublicqueue?ReportDate=638005248000000000&Status=&Jurisdiction="
+        """  # noqa
+        # not sure what the reportdate value is.
+        # it is hardcode into the javascript to add and doesnt work without
+        url = "https://irtt.iso-ne.com/reports/exportpublicqueue?ReportDate=638005248000000000&Status=&Jurisdiction="  # noqa
 
         if verbose:
             print("Loading interconnection queue from {}".format(url))
@@ -516,7 +517,8 @@ class ISONE(ISOBase):
             "TO Report": "Transmission Owner",
         }
 
-        # todo: there are a few columns being parsed as "unamed" that aren't being included but should
+        # todo: there are a few columns being parsed as "unamed"
+        # that aren't being included but should
         extra_columns = [
             "Updated",
             "Unit",
@@ -537,7 +539,8 @@ class ISONE(ISOBase):
 
         missing = [
             "Interconnecting Entity",
-            "Actual Completion Date",  # because there are only activate and withdrawn projects
+            "Actual Completion Date",
+            # because there are only activate and withdrawn projects
             "Withdrawal Comment",
         ]
 
@@ -577,7 +580,8 @@ def _make_request(url, skiprows, verbose):
 
         if response.status_code != 200 or content_type != "text/csv":
             raise RuntimeError(
-                f"Failed to get data from {url}. Check if ISONE is down and try again later",
+                f"Failed to get data from {url}. Check if ISONE is down and \
+                    try again later",
             )
 
         df = pd.read_csv(
@@ -601,9 +605,8 @@ def _make_wsclient_request(url, data, verbose=False):
 
     if r.status_code != 200:
         raise RuntimeError(
-            "Failed to get data from {}. Check if ISONE is down and try again later".format(
-                url,
-            ),
+            f"Failed to get data from {url}. Check if ISONE is down and \
+                try again later",
         )
 
     return r.json()

@@ -4,9 +4,10 @@ import plotly.express as px
 def dam_heat_map(df):
     """Create a heat map of day-ahead location marginal prices.
 
-    Args:
-        df (pd.DataFrame): A DataFrame with columns "Time", "Location", and "LMP".
-        If Hour is specified, it will be used as the x-axis. Otherwise, the hour ending will be used instead of Time
+    Arguments:
+        df (pandas.DataFrame): A DataFrame with columns "Time", "Location", and "LMP".
+            If Hour is specified, it will be used as the x-axis.
+            Otherwise, the hour ending will be used instead of Time
 
 
     Returns:

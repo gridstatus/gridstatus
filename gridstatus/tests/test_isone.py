@@ -42,4 +42,8 @@ def test_get_load_forecast(date):
 @pytest.mark.parametrize("market", gridstatus.ISONE().markets)
 def test_get_lmp(date, market):
     iso = gridstatus.ISONE()
-    iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY, verbose=VERBOSE)
+    iso.get_lmp(
+        date=date,
+        market=Markets.DAY_AHEAD_HOURLY,
+        verbose=VERBOSE,
+    )

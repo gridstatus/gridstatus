@@ -4,7 +4,6 @@ import gridstatus
 
 
 def test_dam_heat_map():
-
     iso = gridstatus.CAISO()
 
     df = iso.get_lmp(
@@ -21,7 +20,8 @@ def test_dam_heat_map():
     assert isinstance(fig, plotly.graph_objs._figure.Figure)
 
     # check if works with hour too
-    # not the best test since we dont know if the viz is actually using it instead of time
+    # not the best test since we dont know if
+    # the viz is actually using it instead of time
     df["Hour"] = df["Time"].dt.hour
     fig = gridstatus.viz.dam_heat_map(df)
     assert isinstance(fig, plotly.graph_objs._figure.Figure)

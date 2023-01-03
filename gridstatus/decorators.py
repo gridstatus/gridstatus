@@ -96,11 +96,15 @@ class support_date_range:
                     args_dict["date"],
                 )
 
-            # use .date() to remove timezone info, which doesnt matter if just a date
+            # use .date() to remove timezone info, which doesnt matter
+            # if just a date
 
-            # Note: this may create a split that will end up being unnecessary after running update dates below.
-            # that is because after adding new dates, it's possible that two ranges could be added.
-            # Unnecessary optimization right now to include logic to handle this
+            # Note: this may create a split that will end up
+            # being unnecessary after running update dates below.
+            # that is because after adding new dates, it's possible that two
+            # ranges could be added.
+            # Unnecessary optimization right now to include
+            # logic to handle this
             try:
                 dates = pd.date_range(
                     args_dict["date"].date(),
@@ -148,7 +152,6 @@ class support_date_range:
             total = len(dates) - dates.count(None) * 2 - 1
 
             with tqdm.tqdm(disable=total <= 1, total=total) as pbar:
-
                 for end_date in dates[1:]:
                     # if we come across None, it means we should reset
                     if end_date is None:

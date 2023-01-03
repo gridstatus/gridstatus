@@ -27,8 +27,8 @@ LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_INTERFACE = "INTERFACE"
 LOCATION_TYPE_SETTLEMENT_LOCATION = "SETTLEMENT_LOCATION"
 
-QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
-QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
+QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"  # noqa
+QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"  # noqa
 
 
 class SPP(ISOBase):
@@ -99,7 +99,8 @@ class SPP(ISOBase):
 
         if (
             status_text
-            == "SPP is currently in Normal Operations with no effective advisories or alerts."
+            == "SPP is currently in Normal Operations with no effective advisories or"
+            " alerts."
         ):
             status = "Normal"
             notes = [status_text]
@@ -116,7 +117,6 @@ class SPP(ISOBase):
         )
 
     def get_fuel_mix(self, date, verbose=False):
-
         if date != "latest":
             raise NotSupported
 
@@ -157,9 +157,14 @@ class SPP(ISOBase):
             raise NotSupported()
 
     def get_load_forecast(self, date, forecast_type="MID_TERM", verbose=False):
-        """
+        """Returns load forecast for next 7 days in hourly intervals
 
-        type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is every five minutes for a few hours
+        Arguments:
+            forecast_type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is
+                every five minutes for a few hours
+
+        Returns:
+            pd.DataFrame: forecast for current day
         """
         df = self._get_load_and_forecast(verbose=verbose)
 
@@ -233,7 +238,7 @@ class SPP(ISOBase):
         """Get interconnection queue
 
         Returns:
-            pd.DataFrame: Interconnection queue
+            pandas.DataFrame: Interconnection queue
 
 
         """
@@ -244,15 +249,16 @@ class SPP(ISOBase):
         queue = pd.read_csv(url, skiprows=1)
 
         queue["Status (Original)"] = queue["Status"]
-
+        completed_val = InterconnectionQueueStatus.COMPLETED.value
+        active_val = InterconnectionQueueStatus.ACTIVE.value
         queue["Status"] = queue["Status"].map(
             {
-                "IA FULLY EXECUTED/COMMERCIAL OPERATION": InterconnectionQueueStatus.COMPLETED.value,
-                "IA FULLY EXECUTED/ON SCHEDULE": InterconnectionQueueStatus.COMPLETED.value,
-                "IA FULLY EXECUTED/ON SUSPENSION": InterconnectionQueueStatus.COMPLETED.value,
-                "IA PENDING": InterconnectionQueueStatus.ACTIVE.value,
-                "DISIS STAGE": InterconnectionQueueStatus.ACTIVE.value,
-                "None": InterconnectionQueueStatus.ACTIVE.value,
+                "IA FULLY EXECUTED/COMMERCIAL OPERATION": completed_val,
+                "IA FULLY EXECUTED/ON SCHEDULE": completed_val,
+                "IA FULLY EXECUTED/ON SUSPENSION": completed_val,
+                "IA PENDING": active_val,
+                "DISIS STAGE": active_val,
+                "None": active_val,
             },
         )
 
@@ -276,7 +282,8 @@ class SPP(ISOBase):
             "Substation or Line": "Interconnection Location",
         }
 
-        # todo: there are a few columns being parsed as "unamed" that aren't being included but should
+        # todo: there are a few columns being parsed
+        # as "unamed" that aren't being included but should
         extra_columns = [
             "In-Service Date",
             "Commercial Operation Date",
@@ -316,9 +323,14 @@ class SPP(ISOBase):
     ):
         """Get LMP data
 
-        Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
+        Supported Markets:
+            - ``REAL_TIME_5_MIN``
+            - ``DAY_AHEAD_HOURLY``
 
-        Supported Location Types: "hub", "interface", "settlement_location"
+        Supported Location Types:
+            - ``hub``
+            - ``interface``
+            - ``settlement_location``
         """
         market = Markets(market)
         if market not in self.markets:
@@ -426,12 +438,12 @@ class SPP(ISOBase):
         - Filters by Location
         - Resets the index
 
-        Parameters:
-            df (DataFrame): DataFrame with SPP data
+        Arguments:
+            pandas.DataFrame: DataFrame with SPP data
             market (str): Market
             locations (list): List of locations to filter by
             location_type (str): Location type
-            verbose (bool): Verbose output
+            verbose (bool, optional): Verbose output
         """
 
         df["Market"] = market.value
@@ -552,7 +564,10 @@ class SPP(ISOBase):
         return df["SETTLEMENT_LOCATION"].unique().tolist()
 
     def _fs_get_rtbm_lmp_by_location_paths(self, date, verbose=False):
-        """Lists files for Real-Time Balancing Market (RTBM), Locational Marginal Price (LMP) by Settlement Location (SL)"""
+        """
+        Lists files for Real-Time Balancing Market (RTBM),
+        Locational Marginal Price (LMP) by Settlement Location (SL)
+        """
         if date == "latest":
             paths = ["/RTBM-LMP-SL-latestInterval.csv"]
         elif utils.is_today(date, self.default_timezone):
@@ -582,7 +597,10 @@ class SPP(ISOBase):
         return pd.concat(all_dfs)
 
     def _fs_get_dam_lmp_by_location_paths(self, date, verbose=False):
-        """Lists files for Day-ahead Market (DAM), Locational Marginal Price (LMP) by Settlement Location (SL)"""
+        """
+        Lists files for Day-ahead Market (DAM),
+        Locational Marginal Price (LMP) by Settlement Location (SL)
+        """
         paths = []
         if date == "latest":
             raise ValueError(

@@ -2,7 +2,6 @@ import json
 
 import pandas as pd
 import requests
-from pandas import Timestamp
 
 from gridstatus import utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
@@ -37,6 +36,17 @@ class MISO(ISOBase):
     ]
 
     def get_fuel_mix(self, date, verbose=False):
+        """Get the fuel mix for a given day for a provided MISO.
+
+        Arguments:
+            date (datetime.date, str): "latest", "today", or an object
+                that can be parsed as a datetime for the day to return data.
+
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: DataFrame with columns "Time", "Load", "Fuel Mix"
+        """
         if date != "latest":
             raise NotSupported()
 
@@ -88,7 +98,6 @@ class MISO(ISOBase):
             raise NotSupported
 
     def get_load_forecast(self, date, verbose=False):
-
         if date != "today":
             raise NotSupported()
 
@@ -113,16 +122,15 @@ class MISO(ISOBase):
         return df
 
     def _get_load_and_forecast_data(self, verbose=False):
-        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"
+        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"  # noqa
         r = self._get_json(url, verbose=verbose)
         return r
 
     def get_lmp(self, date, market: str, locations: list = None, verbose=False):
         """
         Supported Markets:
-
-        REAL_TIME_5_MIN (FiveMinLMP)
-        DAY_AHEAD_HOURLY (DayAheadExPostLMP)
+            - ``REAL_TIME_5_MIN`` - (FiveMinLMP)
+            - ``DAY_AHEAD_HOURLY`` - (DayAheadExPostLMP)
         """
         if date != "latest":
             raise NotSupported()
@@ -130,7 +138,7 @@ class MISO(ISOBase):
         if locations is None:
             locations = "ALL"
 
-        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json"
+        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json"  # noqa
         r = self._get_json(url, verbose=verbose)
 
         time = r["LMPData"]["RefId"]
@@ -191,7 +199,7 @@ class MISO(ISOBase):
         """Get the interconnection queue
 
         Returns:
-            pd.DataFrame -- Interconnection queue
+            pandas.DataFrame: Interconnection queue
         """
         url = "https://www.misoenergy.org/api/giqueue/getprojects"
 
@@ -252,7 +260,8 @@ class MISO(ISOBase):
         ]
 
         missing = [
-            # todo the actual complettion date can be calculated by looking at status and other date columns
+            # todo the actual complettion date
+            # can be calculated by looking at status and other date columns
             "Actual Completion Date",
             "Withdrawal Comment",
             "Project Name",
@@ -280,4 +289,4 @@ historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time
 
 - ancillary services available in consolidate api
 
-"""
+"""  # noqa

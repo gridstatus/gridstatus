@@ -20,7 +20,6 @@ from gridstatus.spp import SPP
 GREEN_CHECKMARK_HTML_ENTITY = "&#x2705;"
 
 RED_X_HTML_ENTITY = "&#10060;"
-
 all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
 
 
@@ -56,7 +55,6 @@ def make_availability_df():
         for method in methods:
             availability[i.__name__][method] = {}
             for date in ["latest", "today", "historical"]:
-
                 test = date
                 if date == "historical":
                     test = pd.Timestamp.now(
@@ -166,10 +164,10 @@ def make_lmp_availability_table():
 
 def filter_lmp_locations(df, locations):
     """
-    Filters dataframe by locations, which can be a list, "ALL" or None
+    Filters DataFrame by locations, which can be a list, "ALL" or None
 
-    Parameters:
-        df: pd.DataFrame
+    Arguments:
+        df (pandas.DataFrame): DataFrame to filter
         locations: "ALL" or list of locations to filter "Location" column by
     """
     if locations == "ALL" or locations is None:
@@ -237,14 +235,16 @@ def is_dst_end(date):
 
 
 def load_folder(path, time_zone=None, verbose=True):
-    """Load a single dataframe for same schema csv files in a folder
+    """Load a single DataFrame for same schema csv files in a folder
 
     Arguments:
-        path {str} -- path to folder
-        time_zone {str} -- time zone to localize to timestamps. By default returns as UTC
+        path (str): path to folder
+        time_zone (str): time zone to localize to timestamps.
+            By default returns as UTC
+        verbose (bool, optional): print verbose output. Defaults to True.
 
     Returns:
-        pd.DataFrame -- dataframe of all files
+        pandas.DataFrame: A DataFrame of all files
     """
     all_files = glob.glob(os.path.join(path, "*.csv"))
     all_files = sorted(all_files)

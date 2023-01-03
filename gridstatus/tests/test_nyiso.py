@@ -1,4 +1,3 @@
-import pandas as pd
 import pytest
 
 import gridstatus
@@ -129,7 +128,7 @@ def test_location_type_parameter():
     assert (df_gen["Location Type"] == "Generator").all()
 
     with pytest.raises(ValueError):
-        df = iso.get_lmp(
+        iso.get_lmp(
             date="latest",
             market=Markets.DAY_AHEAD_HOURLY,
             location_type="dummy",
@@ -166,10 +165,10 @@ def test_nyiso_get_loads():
 
 def test_nyiso_interconnection_queue():
     iso = gridstatus.NYISO()
-    df = iso.get_interconnection_queue()
+    iso.get_interconnection_queue()
 
 
 def test_nyiso_get_capacity_prices():
     iso = gridstatus.NYISO()
     df = iso.get_capacity_prices(verbose=True)
-    assert not df.empty, "Dataframe came back empty"
+    assert not df.empty, "DataFrame came back empty"

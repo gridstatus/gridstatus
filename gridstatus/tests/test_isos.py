@@ -3,7 +3,7 @@ import pytest
 from pandas.api.types import is_numeric_dtype
 
 import gridstatus
-from gridstatus import *
+from gridstatus import CAISO, ISONE, MISO, NYISO, PJM, SPP, Ercot, Markets
 from gridstatus.base import FuelMix, GridStatus, ISOBase
 
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
@@ -85,7 +85,7 @@ def test_get_iso():
 
 
 def test_get_iso_invalid():
-    with pytest.raises(Exception) as e_info:
+    with pytest.raises(Exception):
         gridstatus.get_iso("ISO DOESNT EXIST")
 
 
@@ -281,9 +281,7 @@ def test_get_historical_lmp(test):
 def test_get_latest_lmp(test):
     iso = list(test)[0]
     markets = test[iso]["markets"]
-    locations = test[iso]
 
-    date_str = "20220722"
     for m in markets:
         print(iso.iso_id, m)
         latest = iso.get_lmp(date="latest", market=m)
@@ -421,13 +419,13 @@ def test_date_or_start(iso):
     end = pd.Timestamp.now(tz=iso.default_timezone)
     start = end - pd.Timedelta(days=num_days)
 
-    data_date = iso.get_fuel_mix(date=start.date(), end=end.date())
-    data_start = iso.get_fuel_mix(
+    iso.get_fuel_mix(date=start.date(), end=end.date())
+    iso.get_fuel_mix(
         start=start.date(),
         end=end.date(),
     )
-    data_date = iso.get_fuel_mix(date=start.date())
-    data_start = iso.get_fuel_mix(start=start.date())
+    iso.get_fuel_mix(date=start.date())
+    iso.get_fuel_mix(start=start.date())
 
     with pytest.raises(ValueError):
         iso.get_fuel_mix(start=start.date(), date=start.date())
