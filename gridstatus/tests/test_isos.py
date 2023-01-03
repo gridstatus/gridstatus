@@ -8,12 +8,6 @@ from gridstatus.base import GridStatus, ISOBase
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
-def check_is_datetime_type(series):
-    return pd.core.dtypes.common.is_datetime64_ns_dtype(
-        series,
-    ) | pd.core.dtypes.common.is_timedelta64_ns_dtype(series)
-
-
 def test_make_lmp_availability_df():
     gridstatus.utils.make_lmp_availability_table()
 
