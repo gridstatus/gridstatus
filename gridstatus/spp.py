@@ -164,7 +164,7 @@ class SPP(ISOBase):
                 every five minutes for a few hours
 
         Returns:
-            current_day_forecast (pd.DataFrame): forecast for current day
+            pd.DataFrame: forecast for current day
         """
         df = self._get_load_and_forecast(verbose=verbose)
 
