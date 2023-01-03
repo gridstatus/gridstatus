@@ -57,12 +57,6 @@ def test_make_lmp_availability_df():
     gridstatus.utils.make_lmp_availability_table()
 
 
-@pytest.mark.parametrize("iso", [Ercot(), ISONE(), NYISO(), CAISO(), PJM()])
-def test_get_fuel_mix_today(iso):
-    df = iso.get_fuel_mix("today")
-    assert isinstance(df, pd.DataFrame)
-
-
 def test_list_isos():
     assert len(gridstatus.list_isos()) == 7
 

@@ -19,3 +19,7 @@ class BaseTestISO:
         assert len(mix.mix) > 0
         assert mix.iso == self.iso.name
         assert isinstance(repr(mix), str)
+
+    def test_get_fuel_mix_today(self):
+        df = self.iso.get_fuel_mix("today")
+        assert isinstance(df, pd.DataFrame)
