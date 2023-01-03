@@ -8,12 +8,6 @@ from gridstatus.base import GridStatus, ISOBase
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
-def check_status(df):
-    assert set(df.columns) == set(
-        ["Time", "Status", "Notes"],
-    )
-
-
 def check_is_datetime_type(series):
     return pd.core.dtypes.common.is_datetime64_ns_dtype(
         series,

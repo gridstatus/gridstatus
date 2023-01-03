@@ -2,7 +2,12 @@ import pytest
 
 import gridstatus
 from gridstatus.base import Markets
-from gridstatus.tests.test_isos import check_status
+
+
+def check_status(df):
+    assert set(df.columns) == set(
+        ["Time", "Status", "Notes"],
+    )
 
 
 def test_nyiso_date_range():
