@@ -1,6 +1,7 @@
 import io
 import math
 import re
+import sys
 from heapq import merge
 from tabnanny import verbose
 
@@ -563,7 +564,7 @@ def _make_request(url, skiprows, verbose):
         attempt = 0
         while attempt < 3:
             if verbose:
-                print("Loading data from {}".format(url))
+                print(f"Loading data from {url}", file=sys.stderr)
 
             r2 = s.get(url)
             r2_content_type = r2.headers["Content-Type"]
@@ -571,14 +572,12 @@ def _make_request(url, skiprows, verbose):
             if r2.status_code == 200 and r2_content_type == "text/csv":
                 break
 
-            print("Attempt {} failed. Retrying...".format(attempt + 1))
+            print(f"Attempt {attempt+1} failed. Retrying...", file=sys.stderr)
             attempt += 1
 
         if r2.status_code != 200 or r2_content_type != "text/csv":
             raise RuntimeError(
-                "Failed to get data from {}. Check if ISONE is down and try again later".format(
-                    url,
-                ),
+                f"Failed to get data from {url}. Check if ISONE is down and try again later",
             )
 
         df = pd.read_csv(
