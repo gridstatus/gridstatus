@@ -1,5 +1,7 @@
 import io
 import math
+import sys
+
 
 import pandas as pd
 import requests
@@ -557,33 +559,34 @@ class ISONE(ISOBase):
 
 def _make_request(url, skiprows, verbose):
     with requests.Session() as s:
+        # make first get request to get cookies set
+        s.get(
+            "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
+        )
+
         # in testing, never takes more than 2 attempts
         attempt = 0
         while attempt < 3:
-            # make first get request to get cookies set
-            _ = s.get(
-                "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
-            )
-
             if verbose:
-                print("Loading data from {}".format(url))
+                print(f"Loading data from {url}", file=sys.stderr)
 
-            r2 = s.get(url)
+            response = s.get(url)
+            content_type = response.headers["Content-Type"]
 
-            if r2.status_code == 200:
+            if response.status_code == 200 and content_type == "text/csv":
                 break
 
-            print("Attempt {} failed. Retrying...".format(attempt + 1))
+            print(f"Attempt {attempt+1} failed. Retrying...", file=sys.stderr)
             attempt += 1
 
-        if r2.status_code != 200:
+        if response.status_code != 200 or content_type != "text/csv":
             raise RuntimeError(
                 f"Failed to get data from {url}. Check if ISONE is down and \
                     try again later",
             )
 
         df = pd.read_csv(
-            io.StringIO(r2.content.decode("utf8")),
+            io.StringIO(response.content.decode("utf8")),
             skiprows=skiprows,
             skipfooter=1,
             engine="python",

@@ -25,9 +25,9 @@ class CAISO(ISOBase):
     status_homepage = "https://www.caiso.com/TodaysOutlook/Pages/default.aspx"
     interconnection_homepage = "https://rimspub.caiso.com/rimsui/logon.do"
 
-    # Markets PRC_RTPD_LMP, PRC_HASP_LMP, PRC_LMP
+    # Markets PRC_INTVL_LMP, PRC_RTPD_LMP, PRC_LMP
     markets = [
-        Markets.REAL_TIME_15_MIN,
+        Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
     ]
@@ -239,16 +239,16 @@ class CAISO(ISOBase):
             market_run_id = "DAM"
             version = 12
             PRICE_COL = "MW"
-        elif market == Markets.REAL_TIME_15_MIN:
+        elif market == Markets.REAL_TIME_HOURLY:
             query_name = "PRC_RTPD_LMP"
             market_run_id = "RTPD"
             version = 3
             PRICE_COL = "PRC"
-        elif market == Markets.REAL_TIME_HOURLY:
-            query_name = "PRC_HASP_LMP"
-            market_run_id = "HASP"
+        elif market == Markets.REAL_TIME_5_MIN:
+            query_name = "PRC_INTVL_LMP"
+            market_run_id = "RTM"
             version = 3
-            PRICE_COL = "MW"
+            PRICE_COL = "VALUE"
         else:
             raise RuntimeError("LMP Market is not supported")
 
