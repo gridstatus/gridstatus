@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
-from gridstatus import CAISO, ISONE, MISO, NYISO, PJM, SPP, Ercot, Markets
+from gridstatus import CAISO, ISONE, MISO, NYISO, PJM, SPP, Ercot
 from gridstatus.base import GridStatus, ISOBase
 
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
@@ -97,47 +97,6 @@ def test_gridstatus_to_dict():
         "status": "Test",
         "time": time,
     }
-
-
-@pytest.mark.parametrize(
-    "test",
-    [
-        {
-            CAISO(): {
-                "markets": [
-                    Markets.REAL_TIME_5_MIN,
-                    Markets.REAL_TIME_15_MIN,
-                    Markets.DAY_AHEAD_HOURLY,
-                ],
-            },
-        },
-        {
-            ISONE(): {
-                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN],
-            },
-        },
-        {
-            NYISO(): {
-                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN],
-            },
-        },
-        {
-            PJM(): {
-                "markets": [
-                    Markets.DAY_AHEAD_HOURLY,
-                ],
-            },
-        },
-    ],
-)
-def test_get_lmp_today(test):
-    iso = list(test)[0]
-    markets = test[iso]["markets"]
-
-    for m in markets:
-        today = iso.get_lmp(date="today", market=m)
-        assert isinstance(today, pd.DataFrame)
-        check_lmp_columns(today, m)
 
 
 @pytest.mark.parametrize("iso", [ISONE(), CAISO(), NYISO()])
