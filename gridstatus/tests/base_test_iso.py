@@ -1,6 +1,6 @@
 import pandas as pd
 
-from gridstatus.base import FuelMix
+from gridstatus.base import FuelMix, GridStatus
 
 
 class BaseTestISO:
@@ -23,3 +23,10 @@ class BaseTestISO:
     def test_get_fuel_mix_today(self):
         df = self.iso.get_fuel_mix("today")
         assert isinstance(df, pd.DataFrame)
+
+    def test_get_status_latest(self):
+        status = self.iso.get_status("latest")
+        assert isinstance(status, GridStatus)
+
+        # ensure there is a homepage if gridstatus can retrieve a status
+        assert isinstance(self.iso.status_homepage, str)

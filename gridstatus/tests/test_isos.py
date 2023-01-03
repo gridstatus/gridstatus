@@ -82,15 +82,6 @@ def test_handle_date_today_tz():
     assert date.tzinfo.zone == tz
 
 
-@pytest.mark.parametrize("iso", [SPP(), NYISO(), ISONE(), CAISO(), Ercot()])
-def test_get_latest_status(iso):
-    status = iso.get_status("latest")
-    assert isinstance(status, GridStatus)
-
-    # ensure there is a homepage if gridstatus can retrieve a status
-    assert isinstance(iso.status_homepage, str)
-
-
 def test_gridstatus_to_dict():
     time = pd.Timestamp.now()
     notes = ["note1", "note2"]

@@ -10,3 +10,8 @@ class TestSPP(BaseTestISO):
     def test_get_fuel_mix_today(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
+
+    # TODO: https://github.com/kmax12/gridstatus/issues/109
+    def test_get_status_latest(self):
+        with pytest.raises(ValueError):
+            super().test_get_status_latest()

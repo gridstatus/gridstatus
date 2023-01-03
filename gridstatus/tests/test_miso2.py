@@ -10,3 +10,7 @@ class TestMISO(BaseTestISO):
     def test_get_fuel_mix_today(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
+
+    def test_get_status_latest(self):
+        with pytest.raises(NotImplementedError):
+            super().test_get_status_latest()
