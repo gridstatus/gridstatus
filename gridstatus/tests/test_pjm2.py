@@ -36,7 +36,7 @@ class TestPJM(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_load_forecast_historical()
 
-    @pytest.mark.skip
+    @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
