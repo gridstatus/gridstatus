@@ -185,10 +185,8 @@ class PJM(ISOBase):
 
     def get_pnode_ids(self):
         data = {
-            "fields": (
-                "effective_date,pnode_id,pnode_name,pnode_subtype,               "
-                " pnode_type,termination_date,voltage_level,zone"
-            ),
+            "fields": "effective_date,pnode_id,pnode_name,pnode_subtype,pnode_type\
+                ,termination_date,voltage_level,zone",
             "termination_date": "12/31/9999exact",
         }
         nodes = self._get_pjm_json("pnode", start=None, params=data)
