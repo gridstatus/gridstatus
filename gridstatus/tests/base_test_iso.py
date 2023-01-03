@@ -74,6 +74,15 @@ class BaseTestISO:
         forecast = self.iso.get_load_forecast(date=test_date)
         self._check_forecast(forecast)
 
+    def test_get_load_forecast_historical_with_date_range(self):
+        end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
+        start = (end - pd.Timedelta(days=7)).date()
+        forecast = self.iso.get_load_forecast(
+            start,
+            end=end,
+        )
+        self._check_forecast(forecast)
+
     def test_get_load_historical(self):
         # pick a test date 2 weeks back
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()

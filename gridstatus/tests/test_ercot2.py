@@ -17,3 +17,6 @@ class TestErcot(BaseTestISO):
     def test_get_load_forecast_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_forecast_historical()
+
+    def test_get_load_forecast_historical_with_date_range(self):
+        pass

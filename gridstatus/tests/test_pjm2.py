@@ -40,6 +40,9 @@ class TestPJM(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_load_forecast_historical()
 
+    def test_get_load_forecast_historical_with_date_range(self):
+        pass
+
     def test_get_status_latest(self):
         with pytest.raises(NotImplementedError):
             super().test_get_status_latest()
