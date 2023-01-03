@@ -681,11 +681,36 @@ class NYISO(ISOBase):
         else:
             date = utils._handle_date(date, tz=self.default_timezone)
 
-        # todo: it looks like the "27447313" component of the base URL changes
-        # every year but I'm not sure what the link between that and the year
-        # is...
+        if date.year == 2014:
+            year_code = 1410927
+        elif date.year == 2015:
+            year_code = 1410895
+        elif date.year == 2016:
+            year_code = 1410901
+        if date.year == 2017:
+            year_code = 1410883
+        if date.year == 2018:
+            year_code = 1410889
+        if date.year == 2019:
+            year_code = 4266869
+        elif date.year == 2020:
+            year_code = 10106066
+        elif date.year == 2021:
+            year_code = 18170164
+        elif date.year == 2022:
+            year_code = 27447313
+        elif date.year == 2023:
+            year_code = 35397361
+        else:
+            raise ValueError(
+                "Year not currently supported. Please file an issue.",
+            )
+
+            # todo: it looks like the "27447313" component of the base URL changes
+            # every year but I'm not sure what the link between that and the year
+            # is...
         capacity_market_base_url = (
-            "https://www.nyiso.com/documents/20142/27447313/ICAP-Market-Report"
+            f"https://www.nyiso.com/documents/20142/{year_code}/ICAP-Market-Report"
         )
 
         url = f"{capacity_market_base_url}-{date.month_name()}-{date.year}.xlsx"
