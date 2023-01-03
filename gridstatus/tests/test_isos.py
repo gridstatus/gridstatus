@@ -34,12 +34,6 @@ def check_forecast(df):
     assert check_is_datetime_type(df["Time"])
 
 
-def check_storage(df):
-    assert set(df.columns) == set(
-        ["Time", "Supply", "Type"],
-    )
-
-
 def check_status(df):
     assert set(df.columns) == set(
         ["Time", "Status", "Notes"],
