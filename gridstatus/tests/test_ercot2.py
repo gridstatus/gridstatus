@@ -10,3 +10,6 @@ class TestErcot(BaseTestISO):
     def test_get_fuel_mix_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_historical()
+
+    def test_get_lmp_historical(self, markets=None):
+        pass

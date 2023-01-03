@@ -47,6 +47,14 @@ class BaseTestISO:
         df = self.iso.get_fuel_mix("today")
         assert isinstance(df, pd.DataFrame)
 
+    # @pytest.mark.parametrize in ISO
+    def test_get_lmp_historical(self, market=None):
+        date_str = "20220722"
+        if market is not None:
+            hist = self.iso.get_lmp(date_str, market=market)
+            assert isinstance(hist, pd.DataFrame)
+            self._check_lmp_columns(hist, market)
+
     def test_get_load_historical(self):
         # pick a test date 2 weeks back
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
@@ -92,3 +100,19 @@ class BaseTestISO:
 
         # ensure there is a homepage if gridstatus can retrieve a status
         assert isinstance(self.iso.status_homepage, str)
+
+    @staticmethod
+    def _check_lmp_columns(df, market):
+        assert set(
+            [
+                "Time",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ],
+        ).issubset(df.columns)
+        assert df["Market"].unique()[0] == market.value

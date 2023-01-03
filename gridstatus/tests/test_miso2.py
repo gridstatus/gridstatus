@@ -1,6 +1,6 @@
 import pytest
 
-from gridstatus import MISO, NotSupported
+from gridstatus import MISO, Markets, NotSupported
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -14,6 +14,17 @@ class TestMISO(BaseTestISO):
     def test_get_fuel_mix_today(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
+
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_5_MIN,
+            Markets.DAY_AHEAD_HOURLY,
+        ],
+    )
+    def test_get_lmp_historical(self, market):
+        with pytest.raises(NotSupported):
+            super().test_get_lmp_historical(market)
 
     def test_get_load_historical(self):
         with pytest.raises(NotSupported):

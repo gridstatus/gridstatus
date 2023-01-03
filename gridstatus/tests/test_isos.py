@@ -113,52 +113,6 @@ def test_gridstatus_to_dict():
         },
         {
             ISONE(): {
-                # , Markets.REAL_TIME_5_MIN
-                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_HOURLY],
-            },
-        },
-        {
-            NYISO(): {
-                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN],
-            },
-        },
-        {
-            PJM(): {
-                "markets": [
-                    # Markets.REAL_TIME_5_MIN, TODO renable, but too slow
-                    Markets.REAL_TIME_HOURLY,
-                    Markets.DAY_AHEAD_HOURLY,
-                ],
-            },
-        },
-    ],
-)
-def test_get_historical_lmp(test):
-    iso = list(test)[0]
-    markets = test[iso]["markets"]
-
-    date_str = "20220722"
-    for m in markets:
-        print(iso.iso_id, m)
-        hist = iso.get_lmp(date_str, market=m)
-        assert isinstance(hist, pd.DataFrame)
-        check_lmp_columns(hist, m)
-
-
-@pytest.mark.parametrize(
-    "test",
-    [
-        {
-            CAISO(): {
-                "markets": [
-                    Markets.REAL_TIME_15_MIN,
-                    Markets.DAY_AHEAD_HOURLY,
-                    Markets.REAL_TIME_5_MIN,
-                ],
-            },
-        },
-        {
-            ISONE(): {
                 "markets": [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_HOURLY],
             },
         },
