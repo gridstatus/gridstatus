@@ -392,7 +392,7 @@ class NYISO(ISOBase):
         When possible return capacity and fuel type information
 
         Arguments:
-            verbose (bool, optional): print out requested url
+            verbose (bool, optional): print out requested url. Defaults to False.
 
         Returns:
             pandas.DataFrame: a DataFrame of generators and locations
@@ -551,7 +551,7 @@ class NYISO(ISOBase):
         """Get a list of loads in NYISO
 
         Arguments:
-            verbose (bool, optional): print out requested url
+            verbose (bool, optional): print out requested url. Defaults to False.
 
         Returns:
             pandas.DataFrame: a DataFrame of loads and locations
@@ -666,7 +666,7 @@ class NYISO(ISOBase):
             date (pandas.Timestamp): date that will be used to pull latest capacity
             report (will refer to month and year)
 
-            verbose (bool, optional): print out requested url
+            verbose (bool, optional): print out requested url. Defaults to False.
 
         Returns:
             pandas.DataFrame: a DataFrame of monthly capacity prices
