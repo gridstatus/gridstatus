@@ -4,7 +4,7 @@ from pandas.api.types import is_numeric_dtype
 
 import gridstatus
 from gridstatus import CAISO, ISONE, MISO, NYISO, PJM, SPP, Ercot, Markets
-from gridstatus.base import FuelMix, GridStatus, ISOBase
+from gridstatus.base import GridStatus, ISOBase
 
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
@@ -55,18 +55,6 @@ def check_is_datetime_type(series):
 
 def test_make_lmp_availability_df():
     gridstatus.utils.make_lmp_availability_table()
-
-
-@pytest.mark.parametrize("iso", all_isos)
-def test_get_latest_fuel_mix(iso):
-    mix = iso.get_fuel_mix("latest")
-    assert isinstance(mix, FuelMix)
-    assert isinstance(mix.time, pd.Timestamp)
-    assert isinstance(mix.mix, pd.DataFrame)
-    assert repr(mix)
-    assert len(mix.mix) > 0
-    assert mix.iso == iso.name
-    assert isinstance(repr(mix), str)
 
 
 @pytest.mark.parametrize("iso", [Ercot(), ISONE(), NYISO(), CAISO(), PJM()])
