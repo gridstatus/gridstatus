@@ -160,9 +160,9 @@ class SPP(ISOBase):
         """Returns load forecast for next 7 days in hourly intervals
 
         Arguments:
-            type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is 
+            type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is
                 every five minutes for a few hours
-        
+
         Returns:
             current_day_forecast (pd.DataFrame): forecast for current day
         """
