@@ -4,7 +4,23 @@ import pytest
 import gridstatus
 from gridstatus.base import Markets
 from gridstatus.decorators import _get_pjm_archive_date
-from gridstatus.tests.test_isos import check_lmp_columns
+
+
+def check_lmp_columns(df, market):
+    assert set(
+        [
+            "Time",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ],
+    ).issubset(df.columns)
+
+    assert df["Market"].unique()[0] == market.value
 
 
 def test_pjm_no_data():
