@@ -28,7 +28,7 @@ class CAISO(ISOBase):
     # Markets PRC_INTVL_LMP, PRC_RTPD_LMP, PRC_LMP
     markets = [
         Markets.REAL_TIME_5_MIN,
-        Markets.REAL_TIME_HOURLY,
+        Markets.REAL_TIME_15_MIN,
         Markets.DAY_AHEAD_HOURLY,
     ]
 
@@ -241,7 +241,7 @@ class CAISO(ISOBase):
             market_run_id = "DAM"
             version = 12
             PRICE_COL = "MW"
-        elif market == Markets.REAL_TIME_HOURLY:
+        elif market == Markets.REAL_TIME_15_MIN:
             query_name = "PRC_RTPD_LMP"
             market_run_id = "RTPD"
             version = 3
