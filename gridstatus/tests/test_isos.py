@@ -101,15 +101,6 @@ def test_gridstatus_to_dict():
 
 @pytest.mark.parametrize(
     "iso",
-    [PJM(), MISO(), SPP(), Ercot(), ISONE(), CAISO(), NYISO()],
-)
-def test_get_load_forecast_today(iso):
-    forecast = iso.get_load_forecast("today")
-    check_forecast(forecast)
-
-
-@pytest.mark.parametrize(
-    "iso",
     [CAISO()],
 )
 def test_get_storage_today(iso):
