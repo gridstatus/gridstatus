@@ -561,19 +561,19 @@ def _make_request(url, skiprows, verbose):
             r1 = s.get(
                 "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
             )
-
             if verbose:
                 print("Loading data from {}".format(url))
 
             r2 = s.get(url)
+            r2_content_type = r2.headers["Content-Type"]
 
-            if r2.status_code == 200:
+            if r2.status_code == 200 and r2_content_type == "text/csv":
                 break
 
             print("Attempt {} failed. Retrying...".format(attempt + 1))
             attempt += 1
 
-        if r2.status_code != 200:
+        if r2.status_code != 200 or r2_content_type != "text/csv":
             raise RuntimeError(
                 "Failed to get data from {}. Check if ISONE is down and try again later".format(
                     url,
