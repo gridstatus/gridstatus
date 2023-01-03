@@ -230,6 +230,8 @@ class CAISO(ISOBase):
         if locations is None:
             locations = self.trading_hub_locations
 
+        assert isinstance(locations, list), "locations must be a list"
+
         # todo make sure defaults to local timezone
         start, end = _caiso_handle_start_end(date, end)
 

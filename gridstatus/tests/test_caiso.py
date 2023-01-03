@@ -1,3 +1,5 @@
+import pytest
+
 import gridstatus
 
 
@@ -125,3 +127,10 @@ def test_caiso_get_as_prices():
         "Regulation Up",
         "Spinning Reserves",
     ]
+
+
+def test_locations_must_be_list():
+    iso = gridstatus.CAISO()
+    date = "today"
+    with pytest.raises(AssertionError):
+        iso.get_lmp(date, locations="foo", market="REAL_TIME_5_MIN")
