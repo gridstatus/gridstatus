@@ -536,9 +536,14 @@ class Ercot(ISOBase):
     ):
         """Get SPP data for ERCOT
 
-        Supported Markets: REAL_TIME_15_MIN, DAY_AHEAD_HOURLY
+        Supported Markets:
+            - ``REAL_TIME_15_MIN``
+            - ``DAY_AHEAD_HOURLY``
 
-        Supported Location Types: "zone", "hub", "node"
+        Supported Location Types: 
+            - ``zone``
+            - ``hub``
+            - ``node``
         """
         assert market is not None, "market must be specified"
         market = Markets(market)

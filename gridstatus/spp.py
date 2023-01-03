@@ -323,9 +323,14 @@ class SPP(ISOBase):
     ):
         """Get LMP data
 
-        Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
+        Supported Markets:
+            - ``REAL_TIME_5_MIN``
+            - ``DAY_AHEAD_HOURLY``
 
-        Supported Location Types: "hub", "interface", "settlement_location"
+        Supported Location Types: 
+            - ``hub``
+            - ``interface``
+            - ``settlement_location``
         """
         market = Markets(market)
         if market not in self.markets:

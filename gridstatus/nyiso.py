@@ -173,9 +173,13 @@ class NYISO(ISOBase):
         verbose=False,
     ):
         """
-        Supported Markets: REAL_TIME_5_MIN, DAY_AHEAD_HOURLY
+        Supported Markets:
+            - ``REAL_TIME_5_MIN``
+            - ``DAY_AHEAD_HOURLY``
 
-        Supported Location Types: "zone", "generator"
+        Supported Location Types: 
+            - ``zone``
+            - ``generator``
         """
         if date == "latest":
             return self._latest_lmp_from_today(
@@ -241,8 +245,8 @@ class NYISO(ISOBase):
         Additional Non-NYISO queue info: https://www3.dps.ny.gov/W/PSCWeb.nsf/All/286D2C179E9A5A8385257FBF003F1F7E?OpenDocument
 
         Returns:
-            pandas.DataFrame: Interconnection queue containing, active, withdrawn,
-            and completed project
+            pandas.DataFrame: Interconnection queue containing, active, withdrawn, \
+                and completed project
 
         """  # noqa
 
@@ -669,9 +673,8 @@ class NYISO(ISOBase):
             verbose (bool, optional): print out requested url. Defaults to False.
 
         Returns:
-            pandas.DataFrame: a DataFrame of monthly capacity prices
-                (all three auctions) for each of the four capacity localities
-                within NYISO
+            a DataFrame of monthly capacity prices (all three auctions) for \
+                each of the four capacity localities within NYISO
         """
         if date is None:
             date = pd.Timestamp.now(tz=self.default_timezone)
