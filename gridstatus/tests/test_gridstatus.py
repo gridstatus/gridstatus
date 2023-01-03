@@ -7,6 +7,14 @@ from gridstatus.base import GridStatus, ISOBase
 
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
+"""
+Legacy gridstatus tests file
+
+General tests should be go to BaseTestISO in base_test_iso.py
+
+ISO-specific tests should go to BaseTestISO subclasses found in test_{iso}.py
+"""
+
 
 def test_make_lmp_availability_df():
     gridstatus.utils.make_lmp_availability_table()
