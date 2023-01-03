@@ -566,22 +566,22 @@ def _make_request(url, skiprows, verbose):
             if verbose:
                 print(f"Loading data from {url}", file=sys.stderr)
 
-            r2 = s.get(url)
-            r2_content_type = r2.headers["Content-Type"]
+            response = s.get(url)
+            content_type = response.headers["Content-Type"]
 
-            if r2.status_code == 200 and r2_content_type == "text/csv":
+            if response.status_code == 200 and content_type == "text/csv":
                 break
 
             print(f"Attempt {attempt+1} failed. Retrying...", file=sys.stderr)
             attempt += 1
 
-        if r2.status_code != 200 or r2_content_type != "text/csv":
+        if response.status_code != 200 or content_type != "text/csv":
             raise RuntimeError(
                 f"Failed to get data from {url}. Check if ISONE is down and try again later",
             )
 
         df = pd.read_csv(
-            io.StringIO(r2.content.decode("utf8")),
+            io.StringIO(response.content.decode("utf8")),
             skiprows=skiprows,
             skipfooter=1,
             engine="python",
