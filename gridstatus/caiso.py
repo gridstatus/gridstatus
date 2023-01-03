@@ -85,7 +85,7 @@ class CAISO(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with columns - 'Time' and columns
+            pandas.DataFrame: A DataFrame with columns - 'Time' and columns \
                 for each fuel type.
         """
         if date == "latest":
