@@ -8,23 +8,6 @@ from gridstatus.base import GridStatus, ISOBase
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
-def check_lmp_columns(df, market):
-    assert set(
-        [
-            "Time",
-            "Market",
-            "Location",
-            "Location Type",
-            "LMP",
-            "Energy",
-            "Congestion",
-            "Loss",
-        ],
-    ).issubset(df.columns)
-
-    assert df["Market"].unique()[0] == market.value
-
-
 def check_forecast(df):
     assert set(df.columns) == set(
         ["Forecast Time", "Time", "Load Forecast"],
