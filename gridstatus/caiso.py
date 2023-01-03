@@ -68,7 +68,7 @@ class CAISO(ISOBase):
 
     @support_date_range(frequency="1D")
     def get_fuel_mix(self, date, start=None, end=None, verbose=False):
-        """Get fuel mix in 5 minute intervals for a provided day CAISO
+        """Get fuel mix in 5 minute intervals for a provided day
 
         Arguments:
             date (datetime.date, str): "latest", "today", or an object
@@ -86,7 +86,7 @@ class CAISO(ISOBase):
 
         Returns:
             pandas.DataFrame: A DataFrame with columns - 'Time' and columns
-            for each fuel type.
+                for each fuel type.
         """
         if date == "latest":
             mix = self.get_fuel_mix("today", verbose=verbose)

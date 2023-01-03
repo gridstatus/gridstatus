@@ -606,9 +606,9 @@ class Ercot(ISOBase):
         - and resetting the index
 
         Arguments:
-            pandas.DataFrame: DataFrame with SPP data
+            df (pandas.DataFrame): DataFrame with SPP data
             settlement_point_field (str): Field name of
-            settlement point to rename to "Location"
+                settlement point to rename to "Location"
         """
         df = df.rename(
             columns={

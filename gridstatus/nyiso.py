@@ -664,14 +664,14 @@ class NYISO(ISOBase):
 
         Arguments:
             date (pandas.Timestamp): date that will be used to pull latest capacity
-            report (will refer to month and year)
+                report (will refer to month and year)
 
             verbose (bool, optional): print out requested url. Defaults to False.
 
         Returns:
             pandas.DataFrame: a DataFrame of monthly capacity prices
-            (all three auctions) for each of the four capacity localities
-            within NYISO
+                (all three auctions) for each of the four capacity localities
+                within NYISO
         """
         if date is None:
             date = pd.Timestamp.now(tz=self.default_timezone)

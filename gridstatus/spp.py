@@ -157,10 +157,14 @@ class SPP(ISOBase):
             raise NotSupported()
 
     def get_load_forecast(self, date, forecast_type="MID_TERM", verbose=False):
-        """
+        """Returns load forecast for next 7 days in hourly intervals
 
-        type (str): MID_TERM is hourly for next 7 days or
-        SHORT_TERM is every five minutes for a few hours
+        Arguments:
+            type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is 
+                every five minutes for a few hours
+        
+        Returns:
+            current_day_forecast (pd.DataFrame): forecast for current day
         """
         df = self._get_load_and_forecast(verbose=verbose)
 
