@@ -8,7 +8,6 @@ class TestCAISO(BaseTestISO):
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_15_MIN,
         Markets.REAL_TIME_HOURLY,
     )
     def test_get_lmp_historical(self, market):
@@ -16,7 +15,6 @@ class TestCAISO(BaseTestISO):
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_15_MIN,
         Markets.REAL_TIME_HOURLY,
     )
     def test_get_lmp_latest(self, market):
@@ -24,7 +22,6 @@ class TestCAISO(BaseTestISO):
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_15_MIN,
         Markets.REAL_TIME_HOURLY,
     )
     def test_get_lmp_today(self, market):
