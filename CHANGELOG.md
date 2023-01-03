@@ -1,6 +1,10 @@
 # Changelog
 
-## vNext 
+## vNext
+
+- Update CAISO LMP markets to support real time five minute
+
+## v0.17.0 - Dec 30, 2022
 
 - Add CAISO LMP Heat Map Example Notebook
 - Add Settlement Point Prices for ERCOT
