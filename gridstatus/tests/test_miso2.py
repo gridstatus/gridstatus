@@ -53,3 +53,7 @@ class TestMISO(BaseTestISO):
     def test_get_status_latest(self):
         with pytest.raises(NotImplementedError):
             super().test_get_status_latest()
+
+    def test_get_storage_today(self):
+        with pytest.raises(NotImplementedError):
+            super().test_get_storage_today()

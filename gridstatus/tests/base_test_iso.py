@@ -143,6 +143,10 @@ class BaseTestISO:
         # ensure there is a homepage if gridstatus can retrieve a status
         assert isinstance(self.iso.status_homepage, str)
 
+    def test_get_storage_today(self):
+        storage = self.iso.get_storage("today")
+        self._check_storage(storage)
+
     def _check_forecast(self, df):
         assert set(df.columns) == set(
             ["Forecast Time", "Time", "Load Forecast"],
@@ -171,3 +175,8 @@ class BaseTestISO:
             ],
         ).issubset(df.columns)
         assert df["Market"].unique()[0] == market.value
+
+    def _check_storage(self, df):
+        assert set(df.columns) == set(
+            ["Time", "Supply", "Type"],
+        )

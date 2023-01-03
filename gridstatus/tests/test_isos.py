@@ -103,15 +103,6 @@ def test_gridstatus_to_dict():
     "iso",
     [CAISO()],
 )
-def test_get_storage_today(iso):
-    storage = iso.get_storage("today")
-    check_storage(storage)
-
-
-@pytest.mark.parametrize(
-    "iso",
-    [CAISO()],
-)
 def test_get_historical_storage(iso):
     test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
     storage = iso.get_storage(date=test_date)
