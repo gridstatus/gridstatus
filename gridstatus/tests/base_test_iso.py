@@ -33,6 +33,16 @@ class BaseTestISO:
         assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
         assert df.loc[0]["Time"].tz is not None
 
+    def test_get_fuel_mix_historical_with_date_range(self):
+        # range not inclusive, add one to include today
+        num_days = 7
+        end = pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(days=1)
+        start = end - pd.Timedelta(days=num_days)
+
+        data = self.iso.get_fuel_mix(date=start.date(), end=end.date())
+        # make sure right number of days are returned
+        assert data["Time"].dt.day.nunique() == num_days
+
     def test_get_fuel_mix_latest(self):
         mix = self.iso.get_fuel_mix("latest")
         assert isinstance(mix, FuelMix)

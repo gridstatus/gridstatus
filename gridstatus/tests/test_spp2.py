@@ -11,6 +11,9 @@ class TestSPP(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_historical()
 
+    def test_get_fuel_mix_historical_with_date_range(self):
+        pass
+
     def test_get_fuel_mix_today(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
