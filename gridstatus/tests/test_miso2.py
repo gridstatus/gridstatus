@@ -2,6 +2,7 @@ import pytest
 
 from gridstatus import MISO, Markets, NotSupported
 from gridstatus.tests.base_test_iso import BaseTestISO
+from gridstatus.tests.decorators import with_markets
 
 
 class TestMISO(BaseTestISO):
@@ -21,23 +22,17 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
 
-    @pytest.mark.parametrize(
-        "market",
-        [
-            Markets.REAL_TIME_5_MIN,
-            Markets.DAY_AHEAD_HOURLY,
-        ],
+    @with_markets(
+        Markets.REAL_TIME_5_MIN,
+        Markets.DAY_AHEAD_HOURLY,
     )
     def test_get_lmp_historical(self, market):
         with pytest.raises(NotSupported):
             super().test_get_lmp_historical(market)
 
-    @pytest.mark.parametrize(
-        "market",
-        [
-            Markets.REAL_TIME_5_MIN,
-            Markets.DAY_AHEAD_HOURLY,
-        ],
+    @with_markets(
+        Markets.REAL_TIME_5_MIN,
+        Markets.DAY_AHEAD_HOURLY,
     )
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market)
