@@ -170,5 +170,5 @@ def test_nyiso_interconnection_queue():
 
 def test_nyiso_get_capacity_prices():
     iso = gridstatus.NYISO()
-    df = iso.get_capacity_prices(verbose=True)
+    df = iso.get_capacity_prices(date="Dec 1, 2022", verbose=True)
     assert not df.empty, "DataFrame came back empty"
