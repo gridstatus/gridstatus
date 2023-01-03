@@ -13,7 +13,7 @@ Below are the currently supported LMP markets
 <!-- LMP AVAILABILITY TABLE START -->
 |       | Method    | REAL_TIME_5_MIN   | REAL_TIME_15_MIN   | REAL_TIME_HOURLY   | DAY_AHEAD_HOURLY   |
 |:------|:----------|:------------------|:-------------------|:-------------------|:-------------------|
-| CAISO | `get_lmp` | &#x2705;          | &#10060;           | &#x2705;           | &#x2705;           |
+| CAISO | `get_lmp` | &#x2705;          | &#x2705;           | &#10060;           | &#x2705;           |
 | Ercot | `get_spp` | &#10060;          | &#x2705;           | &#10060;           | &#x2705;           |
 | ISONE | `get_lmp` | &#x2705;          | &#10060;           | &#x2705;           | &#x2705;           |
 | MISO  | `get_lmp` | &#x2705;          | &#10060;           | &#10060;           | &#x2705;           |

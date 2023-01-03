@@ -248,7 +248,7 @@ def test_get_historical_lmp(test):
         {
             CAISO(): {
                 "markets": [
-                    Markets.REAL_TIME_HOURLY,
+                    Markets.REAL_TIME_15_MIN,
                     Markets.DAY_AHEAD_HOURLY,
                     Markets.REAL_TIME_5_MIN,
                 ],
@@ -296,7 +296,7 @@ def test_get_latest_lmp(test):
             CAISO(): {
                 "markets": [
                     Markets.REAL_TIME_5_MIN,
-                    Markets.REAL_TIME_HOURLY,
+                    Markets.REAL_TIME_15_MIN,
                     Markets.DAY_AHEAD_HOURLY,
                 ],
             },

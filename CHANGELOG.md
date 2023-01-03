@@ -4,6 +4,15 @@
 
 - Update CAISO LMP markets to support real time five minute
 
+    ### Breaking Changes
+
+    The following changes were made to CAISO Market:
+
+    - `REAL_TIME_15_MIN` now maps to the FMM market (previously was HASP which is now removed)
+    - `REAL_TIME_5_MIN` now maps to the RTD market
+    - `DAY_AHEAD_HOURLY` unchanged
+
+
 ## v0.17.0 - Dec 30, 2022
 
 - Add CAISO LMP Heat Map Example Notebook
