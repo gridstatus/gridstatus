@@ -143,8 +143,8 @@ class Ercot(ISOBase):
             verbose(bool): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with columns; Time and columns
-                for each fuel type (solar and wind)
+            pandas.DataFrame: A DataFrame with columns; Time and columns for each fuel \
+                type (solar and wind)
         """
 
         if date == "latest":
