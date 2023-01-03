@@ -147,7 +147,7 @@ class CAISO(ISOBase):
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
-            date (datetime, pd.Timestamp, str): day to return.
+            date (datetime.date, pd.Timestamp, str): day to return.
                 If string, format should be YYYYMMDD e.g 20200623
 
             sleep (int): number of seconds to sleep before returning to avoid
