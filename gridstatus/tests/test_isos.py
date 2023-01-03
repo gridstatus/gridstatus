@@ -8,15 +8,6 @@ from gridstatus.base import GridStatus, ISOBase
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
 
 
-def check_forecast(df):
-    assert set(df.columns) == set(
-        ["Forecast Time", "Time", "Load Forecast"],
-    )
-
-    assert check_is_datetime_type(df["Forecast Time"])
-    assert check_is_datetime_type(df["Time"])
-
-
 def check_status(df):
     assert set(df.columns) == set(
         ["Time", "Status", "Notes"],
