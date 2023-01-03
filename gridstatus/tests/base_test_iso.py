@@ -55,6 +55,13 @@ class BaseTestISO:
             assert isinstance(hist, pd.DataFrame)
             self._check_lmp_columns(hist, market)
 
+    # @pytest.mark.parametrize in ISO
+    def test_get_lmp_latest(self, market=None):
+        if market is not None:
+            df = self.iso.get_lmp("latest", market=market)
+            assert isinstance(df, pd.DataFrame)
+            self._check_lmp_columns(df, market)
+
     def test_get_load_historical(self):
         # pick a test date 2 weeks back
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()

@@ -26,6 +26,16 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_lmp_historical(market)
 
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_5_MIN,
+            Markets.DAY_AHEAD_HOURLY,
+        ],
+    )
+    def test_get_lmp_latest(self, market):
+        super().test_get_lmp_latest(market)
+
     def test_get_load_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()

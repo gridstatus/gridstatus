@@ -105,53 +105,6 @@ def test_gridstatus_to_dict():
         {
             CAISO(): {
                 "markets": [
-                    Markets.REAL_TIME_15_MIN,
-                    Markets.DAY_AHEAD_HOURLY,
-                    Markets.REAL_TIME_5_MIN,
-                ],
-            },
-        },
-        {
-            ISONE(): {
-                "markets": [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_HOURLY],
-            },
-        },
-        {
-            MISO(): {
-                "markets": [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY],
-            },
-        },
-        {
-            NYISO(): {
-                "markets": [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN],
-            },
-        },
-        {
-            PJM(): {
-                "markets": [
-                    Markets.DAY_AHEAD_HOURLY,
-                ],
-            },
-        },
-    ],
-)
-def test_get_latest_lmp(test):
-    iso = list(test)[0]
-    markets = test[iso]["markets"]
-
-    for m in markets:
-        print(iso.iso_id, m)
-        latest = iso.get_lmp(date="latest", market=m)
-        assert isinstance(latest, pd.DataFrame)
-        check_lmp_columns(latest, m)
-
-
-@pytest.mark.parametrize(
-    "test",
-    [
-        {
-            CAISO(): {
-                "markets": [
                     Markets.REAL_TIME_5_MIN,
                     Markets.REAL_TIME_15_MIN,
                     Markets.DAY_AHEAD_HOURLY,

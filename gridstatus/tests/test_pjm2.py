@@ -18,6 +18,15 @@ class TestPJM(BaseTestISO):
     def test_get_lmp_historical(self, market):
         super().test_get_lmp_historical(market=market)
 
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.DAY_AHEAD_HOURLY,
+        ],
+    )
+    def test_get_lmp_latest(self, market):
+        super().test_get_lmp_latest(market=market)
+
     def test_get_status_latest(self):
         with pytest.raises(NotImplementedError):
             super().test_get_status_latest()

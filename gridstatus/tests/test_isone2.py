@@ -17,3 +17,13 @@ class TestISONE(BaseTestISO):
     )
     def test_get_lmp_historical(self, market):
         super().test_get_lmp_historical(market=market)
+
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_5_MIN,
+            Markets.REAL_TIME_HOURLY,
+        ],
+    )
+    def test_get_lmp_latest(self, market):
+        super().test_get_lmp_latest(market=market)
