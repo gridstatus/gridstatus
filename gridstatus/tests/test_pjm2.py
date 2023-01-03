@@ -1,6 +1,6 @@
 import pytest
 
-from gridstatus import PJM, Markets
+from gridstatus import PJM, Markets, NotSupported
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -35,6 +35,10 @@ class TestPJM(BaseTestISO):
     )
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
+
+    def test_get_load_forecast_historical(self):
+        with pytest.raises(NotSupported):
+            super().test_get_load_forecast_historical()
 
     def test_get_status_latest(self):
         with pytest.raises(NotImplementedError):

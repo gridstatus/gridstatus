@@ -36,6 +36,10 @@ class TestMISO(BaseTestISO):
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market)
 
+    def test_get_load_forecast_historical(self):
+        with pytest.raises(NotSupported):
+            super().test_get_load_forecast_historical()
+
     def test_get_load_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()

@@ -69,6 +69,11 @@ class BaseTestISO:
             assert isinstance(df, pd.DataFrame)
             self._check_lmp_columns(df, market)
 
+    def test_get_load_forecast_historical(self):
+        test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
+        forecast = self.iso.get_load_forecast(date=test_date)
+        self._check_forecast(forecast)
+
     def test_get_load_historical(self):
         # pick a test date 2 weeks back
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
@@ -114,6 +119,19 @@ class BaseTestISO:
 
         # ensure there is a homepage if gridstatus can retrieve a status
         assert isinstance(self.iso.status_homepage, str)
+
+    def _check_forecast(self, df):
+        assert set(df.columns) == set(
+            ["Forecast Time", "Time", "Load Forecast"],
+        )
+
+        assert self._check_is_datetime_type(df["Forecast Time"])
+        assert self._check_is_datetime_type(df["Time"])
+
+    def _check_is_datetime_type(self, series):
+        return pd.core.dtypes.common.is_datetime64_ns_dtype(
+            series,
+        ) | pd.core.dtypes.common.is_timedelta64_ns_dtype(series)
 
     @staticmethod
     def _check_lmp_columns(df, market):

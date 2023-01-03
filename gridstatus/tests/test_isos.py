@@ -99,25 +99,6 @@ def test_gridstatus_to_dict():
     }
 
 
-@pytest.mark.parametrize("iso", [ISONE(), CAISO(), NYISO()])
-def test_get_historical_load_forecast(iso):
-    test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
-    forecast = iso.get_load_forecast(date=test_date)
-    check_forecast(forecast)
-
-
-@pytest.mark.parametrize("iso", [NYISO(), ISONE(), CAISO()])
-def test_get_historical_forecast_with_date_range(iso):
-    end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
-    start = (end - pd.Timedelta(days=7)).date()
-
-    forecast = forecast = iso.get_load_forecast(
-        start=start,
-        end=end,
-    )
-    check_forecast(forecast)
-
-
 @pytest.mark.parametrize(
     "iso",
     [PJM(), MISO(), SPP(), Ercot(), ISONE(), CAISO(), NYISO()],
