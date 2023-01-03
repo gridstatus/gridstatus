@@ -31,6 +31,7 @@ extensions = [
     "sphinx-favicon",
     "sphinx.ext.inheritance_diagram",
     "sphinxext.opengraph",
+    "sphinx.ext.napoleon",
 ]
 
 templates_path = ["_templates"]

@@ -98,8 +98,8 @@ class PJM(ISOBase):
     def get_load(self, date, end=None, verbose=False):
         """Returns load at a previous date at 5 minute intervals
 
-        Args:
-            date (str or datetime.date): date to get load for. must be in last 30 days
+        Arguments:
+            date (datetime.date, str): date to get load for. must be in last 30 days
         """
 
         if date == "latest":
@@ -230,10 +230,10 @@ class PJM(ISOBase):
             is retrieved for Real Time 5 Minute market regardless of the
             date. This is due to PJM api limitations
 
-        Args:
-            date (str or datetime.date): date to get LMPs for
+        Arguments:
+            date (datetime.date, str): date to get LMPs for
 
-            end (str or datetime.date): end date to get LMPs for
+            end (datetime.date, str): end date to get LMPs for
 
             market (str):  Supported Markets:
             REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY

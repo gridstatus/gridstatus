@@ -234,7 +234,7 @@ class SPP(ISOBase):
         """Get interconnection queue
 
         Returns:
-            df (pd.Dataframe): Interconnection queue
+            pandas.DataFrame: Interconnection queue
 
 
         """
@@ -429,12 +429,12 @@ class SPP(ISOBase):
         - Filters by Location
         - Resets the index
 
-        Parameters:
-            df (pd.DataFrame): DataFrame with SPP data
+        Arguments:
+            pandas.DataFrame: DataFrame with SPP data
             market (str): Market
             locations (list): List of locations to filter by
             location_type (str): Location type
-            verbose (bool): Verbose output
+            verbose (bool, optional): Verbose output
         """
 
         df["Market"] = market.value

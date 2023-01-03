@@ -36,6 +36,17 @@ class MISO(ISOBase):
     ]
 
     def get_fuel_mix(self, date, verbose=False):
+        """_summary_
+
+        Arguments:
+            date (datetime.date, str): "latest", "today", or an object
+                that can be parsed as a datetime for the day to return data.
+
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: DataFrame with columns "Time", "Load", "Fuel Mix"
+        """
         if date != "latest":
             raise NotSupported()
 
@@ -189,7 +200,7 @@ class MISO(ISOBase):
         """Get the interconnection queue
 
         Returns:
-            pd.DataFrame -- Interconnection queue
+            pandas.DataFrame: Interconnection queue
         """
         url = "https://www.misoenergy.org/api/giqueue/getprojects"
 

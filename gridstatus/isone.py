@@ -471,7 +471,7 @@ class ISONE(ISOBase):
 
 
         Returns:
-            pd.DataFrame -- interconnection queue
+            pandas.DataFrame: interconnection queue
 
         """  # noqa
         # not sure what the reportdate value is.

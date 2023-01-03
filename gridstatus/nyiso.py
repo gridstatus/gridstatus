@@ -241,7 +241,7 @@ class NYISO(ISOBase):
         Additional Non-NYISO queue info: https://www3.dps.ny.gov/W/PSCWeb.nsf/All/286D2C179E9A5A8385257FBF003F1F7E?OpenDocument
 
         Returns:
-            df (pd.Dataframe): Interconnection queue containing, active, withdrawn,
+            pandas.DataFrame: Interconnection queue containing, active, withdrawn,
             and completed project
 
         """  # noqa
@@ -391,11 +391,11 @@ class NYISO(ISOBase):
 
         When possible return capacity and fuel type information
 
-        Parameters:
-            verbose (bool): print out requested url
+        Arguments:
+            verbose (bool, optional): print out requested url
 
         Returns:
-            df (pd.Dataframe): a dataframe of generators and locations
+            pandas.DataFrame: a DataFrame of generators and locations
 
             **Possible Columns**
 
@@ -550,11 +550,11 @@ class NYISO(ISOBase):
     def get_loads(self, verbose=False):
         """Get a list of loads in NYISO
 
-        Parameters:
-            verbose (bool): print out requested url
+        Arguments:
+            verbose (bool, optional): print out requested url
 
         Returns:
-            df (pd.Dataframe): a dataframe of loads and locations
+            pandas.DataFrame: a DataFrame of loads and locations
         """
 
         url = "http://mis.nyiso.com/public/csv/load/load.csv"
@@ -662,14 +662,14 @@ class NYISO(ISOBase):
     def get_capacity_prices(self, date=None, verbose=False):
         """Pull the most recent capacity market report's market clearing prices
 
-        Parameters:
-            date (pd.Timestamp): date that will be used to pull latest capacity
+        Arguments:
+            date (pandas.Timestamp): date that will be used to pull latest capacity
             report (will refer to month and year)
 
-            verbose (bool): print out requested url
+            verbose (bool, optional): print out requested url
 
         Returns:
-            df (pd.Dataframe): a dataframe of monthly capacity prices
+            pandas.DataFrame: a DataFrame of monthly capacity prices
             (all three auctions) for each of the four capacity localities
             within NYISO
         """

@@ -67,26 +67,26 @@ class CAISO(ISOBase):
             raise NotSupported()
 
     @support_date_range(frequency="1D")
-    def get_fuel_mix(self, date, end=None, verbose=False):
-        """Get fuel mix in 5 minute intervals for a provided day
+    def get_fuel_mix(self, date, start=None, end=None, verbose=False):
+        """Get fuel mix in 5 minute intervals for a provided day CAISO
 
         Arguments:
-            date (datetime or str): "latest", "today", or an object
-            that can be parsed as a datetime for the day to return data.
+            date (datetime.date, str): "latest", "today", or an object
+                that can be parsed as a datetime for the day to return data.
 
-            start (datetime or str): start of date range to return.
-            alias for `date` parameter.
-            Only specify one of `date` or `start`.
+            start (datetime.date, str): start of date range to return.
+                alias for `date` parameter.
+                Only specify one of `date` or `start`.
 
-            end (datetime or str): "today" or an object that can be parsed
-            as a datetime for the day to return data.
-            Only used if requesting a range of dates.
+            end (datetime.date, str): "today" or an object that can be parsed
+                as a datetime for the day to return data.
+                Only used if requesting a range of dates.
 
-            verbose (bool): print verbose output. Defaults to False.
+            verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            df (pd.Dataframe): dataframe with columns: Time and columns
-            for each fuel type
+            pandas.DataFrame: A DataFrame with columns - 'Time' and columns
+            for each fuel type.
         """
         if date == "latest":
             mix = self.get_fuel_mix("today", verbose=verbose)
@@ -147,11 +147,11 @@ class CAISO(ISOBase):
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
-            date(datetime, pd.Timestamp, or str): day to return.
-            If string, format should be YYYYMMDD e.g 20200623
+            date (datetime, pd.Timestamp, str): day to return.
+                If string, format should be YYYYMMDD e.g 20200623
 
-            sleep(int): number of seconds to sleep before returning to avoid
-            hitting rate limit in regular usage. Defaults to 5 seconds.
+            sleep (int): number of seconds to sleep before returning to avoid
+                hitting rate limit in regular usage. Defaults to 5 seconds.
 
         """
 
@@ -209,21 +209,20 @@ class CAISO(ISOBase):
         """Get day ahead LMP pricing starting at supplied date for a list of locations.
 
         Arguments:
-            date: date to return data
+            date (datetime.date, str): date to return data
 
             market: market to return from. supports:
 
-            locations(list): list of locations to get data from.
-            If no locations are provided, defaults to NP15, SP15, and ZP26,
-            which are the trading hub locations. For a list of locations,
-            call CAISO.get_pnodes()
+            locations (list): list of locations to get data from.
+                If no locations are provided, defaults to NP15, SP15, and ZP26,
+                which are the trading hub locations. For a list of locations,
+                call ``CAISO.get_pnodes()``
 
-            sleep(int): number of seconds to sleep before returning to
-            avoid hitting rate limit in regular usage.
-            Defaults to 5 seconds.
+            sleep (int): number of seconds to sleep before returning to
+                avoid hitting rate limit in regular usage. Defaults to 5 seconds.
 
-        Returns
-            dataframe of pricing data
+        Returns:
+            pandas.DataFrame: A DataFrame of pricing data
         """
         if date == "latest":
             return self._latest_lmp_from_today(market=market, locations=locations)
@@ -321,7 +320,7 @@ class CAISO(ISOBase):
         Negative means charging, positive means discharging
 
         Arguments:
-            date: date to return data
+            date (datetime.date, str): date to return data
         """
         if date == "latest":
             return self._latest_from_today(self.get_storage)
@@ -344,17 +343,17 @@ class CAISO(ISOBase):
         """Return gas prices at a previous date
 
         Arguments:
-            date: date to return data
+            date (datetime.date, str): date to return data
 
-            end: last date of range to return data. If None, returns only date.
-            Defaults to None.
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
 
             fuel_region_id(str, or list): single fuel region id or list of fuel
-            region ids to return data for. Defaults to ALL, which returns
-            all fuel regions.
+                region ids to return data for. Defaults to ALL, which returns
+                all fuel regions.
 
         Returns:
-            dataframe of gas prices
+            pandas.DataFrame: A DataFrame of gas prices
         """
 
         start, end = _caiso_handle_start_end(date, end)
@@ -400,10 +399,10 @@ class CAISO(ISOBase):
         """Return ghg allowance at a previous date
 
         Arguments:
-            date: date to return data
+            date (datetime.date, str): date to return data
 
-            end: last date of range to return data.
-            If None, returns only date. Defaults to None.
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
         """
 
         start, end = _caiso_handle_start_end(date, end)
@@ -540,15 +539,15 @@ class CAISO(ISOBase):
 
 
         Arguments:
-            date: date to return data
+            date (datetime.date, str): date to return data
 
-            end: last date of range to return data.
-            If None, returns only date. Defaults to None.
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
 
             verbose: print out url being fetched. Defaults to False.
 
         Returns:
-            dataframe of curtailment data
+            pandas.DataFrame: A DataFrame of curtailment data
         """
 
         # http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport02dec_2020.pdf
@@ -672,15 +671,15 @@ class CAISO(ISOBase):
         """Return AS prices for a given date for each region
 
         Arguments:
-            date: date to return data
+            date (datetime.date, str): date to return data
 
-            end: last date of range to return data.
-            If None, returns only date. Defaults to None.
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
 
-            verbose: print out url being fetched. Defaults to False.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
 
         Returns:
-            dataframe of AS prices
+            pandas.DataFrame: A DataFrame of AS prices
         """
 
         start, end = _caiso_handle_start_end(date, end)
@@ -729,15 +728,15 @@ class CAISO(ISOBase):
         """Get ancillary services procurement data from CAISO.
 
         Arguments:
-            date: date to return data
+            date (datetime.date, str): date to return data
 
-            end: last date of range to return data.
-            If None, returns only date. Defaults to None.
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
 
             market: DAM or RTM. Defaults to DAM.
 
         Returns:
-            dataframe of ancillary services data
+            pandas.DataFrame: A DataFrame of ancillary services data
         """
         assert market in ["DAM", "RTM"], "market must be DAM or RTM"
 

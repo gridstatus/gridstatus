@@ -164,10 +164,10 @@ def make_lmp_availability_table():
 
 def filter_lmp_locations(df, locations):
     """
-    Filters dataframe by locations, which can be a list, "ALL" or None
+    Filters DataFrame by locations, which can be a list, "ALL" or None
 
-    Parameters:
-        df: pd.DataFrame
+    Arguments:
+        df (pandas.DataFrame): DataFrame to filter
         locations: "ALL" or list of locations to filter "Location" column by
     """
     if locations == "ALL" or locations is None:
@@ -235,7 +235,7 @@ def is_dst_end(date):
 
 
 def load_folder(path, time_zone=None, verbose=True):
-    """Load a single dataframe for same schema csv files in a folder
+    """Load a single DataFrame for same schema csv files in a folder
 
     Arguments:
         path {str} -- path to folder
@@ -243,7 +243,7 @@ def load_folder(path, time_zone=None, verbose=True):
         By default returns as UTC
 
     Returns:
-        pd.DataFrame -- dataframe of all files
+        pandas.DataFrame: A DataFrame of all files
     """
     all_files = glob.glob(os.path.join(path, "*.csv"))
     all_files = sorted(all_files)

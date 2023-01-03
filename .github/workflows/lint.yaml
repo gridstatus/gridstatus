@@ -1,7 +1,7 @@
 name: Lint Check
 on: [pull_request]
 jobs:
-  lint_test:
+  lint_check:
     name: 3.11 lint check
     runs-on: ubuntu-latest
     steps:

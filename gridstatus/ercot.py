@@ -137,14 +137,14 @@ class Ercot(ISOBase):
         """Get fuel mix 5 minute intervals
 
         Arguments:
-            date(datetime or str): "latest", "today".
-            historical data currently not supported
+            date (datetime.date, str): "latest", "today".
+                historical data currently not supported
 
             verbose(bool): print verbose output. Defaults to False.
 
         Returns:
-            df (pd.Dataframe): dataframe with columns:
-            Time and columns for each fuel type (solar and wind)
+            pandas.DataFrame: A DataFrame with columns; Time and columns
+                for each fuel type (solar and wind)
         """
 
         if date == "latest":
@@ -306,12 +306,14 @@ class Ercot(ISOBase):
         """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
 
         Arguments:
-            date(datetime or str): date of delivery for AS services
-            verbose(bool): print verbose output. Defaults to False.
+            date (datetime.date, str): date of delivery for AS services
+
+            verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            df (pd.Dataframe): dataframe with prices for "Non-Spinning Reserves",
-            "Regulation Up", "Regulation Down", "Responsive Reserves",
+
+            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
+                "Regulation Up", "Regulation Down", "Responsive Reserves".
 
         """
         # subtract one day since it's the day ahead market happens on the day
@@ -603,9 +605,8 @@ class Ercot(ISOBase):
         - renaming and ordering columns
         - and resetting the index
 
-        Parameters:
-            df (pd.DataFrame): DataFrame with SPP data
-
+        Arguments:
+            pandas.DataFrame: DataFrame with SPP data
             settlement_point_field (str): Field name of
             settlement point to rename to "Location"
         """
@@ -721,7 +722,7 @@ class Ercot(ISOBase):
         Raises a ValueError if no document matches
 
         Returns:
-             Latest Document by publish_date
+            Latest Document by publish_date
         """
         documents = self._get_documents(
             report_type_id=report_type_id,
@@ -746,7 +747,7 @@ class Ercot(ISOBase):
         """Searches by Report Type ID, filtering for date and/or constructed name
 
         Returns:
-             list of Document with URL and Publish Date
+            list of Document with URL and Publish Date
         """
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"  # noqa
         if verbose:
@@ -828,7 +829,7 @@ class Ercot(ISOBase):
             raise ValueError(f"Invalid location_type: {location_type}")
 
     def _get_settlement_point_mapping(self, verbose=False):
-        """Get dataframe whose columns can help us filter out values"""
+        """Get DataFrame whose columns can help us filter out values"""
 
         doc_info = self._get_document(
             report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
