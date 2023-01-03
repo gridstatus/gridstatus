@@ -554,13 +554,14 @@ class ISONE(ISOBase):
 
 def _make_request(url, skiprows, verbose):
     with requests.Session() as s:
+        # make first get request to get cookies set
+        s.get(
+            "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
+        )
+
         # in testing, never takes more than 2 attempts
         attempt = 0
         while attempt < 3:
-            # make first get request to get cookies set
-            r1 = s.get(
-                "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
-            )
             if verbose:
                 print("Loading data from {}".format(url))
 
