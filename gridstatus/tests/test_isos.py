@@ -101,16 +101,6 @@ def test_gridstatus_to_dict():
 
 
 @pytest.mark.parametrize("iso", all_isos)
-def test_get_load_today(iso):
-    df = iso.get_load("today")
-    assert isinstance(df, pd.DataFrame)
-    assert ["Time", "Load"] == df.columns.tolist()
-    assert is_numeric_dtype(df["Load"])
-    assert isinstance(df.loc[0]["Time"], pd.Timestamp)
-    assert df.loc[0]["Time"].tz is not None
-
-
-@pytest.mark.parametrize("iso", all_isos)
 def test_get_latest_load(iso):
     load = iso.get_load("latest")
     set(["time", "load"]) == load.keys()

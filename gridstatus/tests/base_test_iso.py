@@ -1,4 +1,5 @@
 import pandas as pd
+from pandas.core.dtypes.common import is_numeric_dtype
 
 from gridstatus.base import FuelMix, GridStatus
 
@@ -45,6 +46,14 @@ class BaseTestISO:
     def test_get_fuel_mix_today(self):
         df = self.iso.get_fuel_mix("today")
         assert isinstance(df, pd.DataFrame)
+
+    def test_get_load_today(self):
+        df = self.iso.get_load("today")
+        assert isinstance(df, pd.DataFrame)
+        assert ["Time", "Load"] == df.columns.tolist()
+        assert is_numeric_dtype(df["Load"])
+        assert isinstance(df.loc[0]["Time"], pd.Timestamp)
+        assert df.loc[0]["Time"].tz is not None
 
     def test_get_status_latest(self):
         status = self.iso.get_status("latest")
