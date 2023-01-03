@@ -47,6 +47,11 @@ class BaseTestISO:
         df = self.iso.get_fuel_mix("today")
         assert isinstance(df, pd.DataFrame)
 
+    def test_get_load_latest(self):
+        load = self.iso.get_load("latest")
+        set(["time", "load"]) == load.keys()
+        assert is_numeric_dtype(type(load["load"]))
+
     def test_get_load_today(self):
         df = self.iso.get_load("today")
         assert isinstance(df, pd.DataFrame)

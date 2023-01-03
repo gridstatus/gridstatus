@@ -100,13 +100,6 @@ def test_gridstatus_to_dict():
     }
 
 
-@pytest.mark.parametrize("iso", all_isos)
-def test_get_latest_load(iso):
-    load = iso.get_load("latest")
-    set(["time", "load"]) == load.keys()
-    assert is_numeric_dtype(type(load["load"]))
-
-
 @pytest.mark.parametrize("iso", [PJM(), NYISO(), ISONE(), CAISO()])
 def test_get_historical_load(iso):
     # pick a test date 2 weeks back
