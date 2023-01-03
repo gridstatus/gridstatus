@@ -6,6 +6,8 @@ from gridstatus.tests.decorators import with_markets
 class TestCAISO(BaseTestISO):
     iso = CAISO()
 
+    """get_lmp"""
+
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_HOURLY,

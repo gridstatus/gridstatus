@@ -8,6 +8,8 @@ from gridstatus.tests.decorators import with_markets
 class TestPJM(BaseTestISO):
     iso = PJM()
 
+    """get_lmp"""
+
     @with_markets(
         # Markets.REAL_TIME_5_MIN, # TODO reenable, but too slow
         Markets.REAL_TIME_HOURLY,
@@ -28,6 +30,8 @@ class TestPJM(BaseTestISO):
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
 
+    """get_load_forecast"""
+
     def test_get_load_forecast_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_forecast_historical()
@@ -39,6 +43,8 @@ class TestPJM(BaseTestISO):
     def test_get_status_latest(self):
         with pytest.raises(NotImplementedError):
             super().test_get_status_latest()
+
+    """get_load_storage"""
 
     def test_get_storage_historical(self):
         with pytest.raises(NotImplementedError):

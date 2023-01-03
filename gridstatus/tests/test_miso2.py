@@ -8,6 +8,8 @@ from gridstatus.tests.decorators import with_markets
 class TestMISO(BaseTestISO):
     iso = MISO()
 
+    """get_fuel_mix"""
+
     @pytest.mark.skip
     def test_get_fuel_mix_date_or_start(self):
         pass
@@ -24,6 +26,8 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
 
+    """get_lmp"""
+
     @with_markets(
         Markets.REAL_TIME_5_MIN,
         Markets.DAY_AHEAD_HOURLY,
@@ -39,6 +43,8 @@ class TestMISO(BaseTestISO):
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market)
 
+    """get_load_forecast"""
+
     def test_get_load_forecast_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_forecast_historical()
@@ -46,6 +52,8 @@ class TestMISO(BaseTestISO):
     @pytest.mark.skip
     def test_get_load_forecast_historical_with_date_range(self):
         pass
+
+    """get_load"""
 
     def test_get_load_historical(self):
         with pytest.raises(NotSupported):
@@ -55,9 +63,13 @@ class TestMISO(BaseTestISO):
     def test_get_load_historical_with_date_range(self):
         pass
 
+    """get_status"""
+
     def test_get_status_latest(self):
         with pytest.raises(NotImplementedError):
             super().test_get_status_latest()
+
+    """get_storage"""
 
     def test_get_storage_historical(self):
         with pytest.raises(NotImplementedError):
