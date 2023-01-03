@@ -8,6 +8,7 @@ from gridstatus.tests.decorators import with_markets
 class TestMISO(BaseTestISO):
     iso = MISO()
 
+    @pytest.mark.skip
     def test_get_fuel_mix_date_or_start(self):
         pass
 
@@ -15,6 +16,7 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_historical()
 
+    @pytest.mark.skip
     def test_get_fuel_mix_historical_with_date_range(self):
         pass
 
@@ -41,6 +43,7 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_load_forecast_historical()
 
+    @pytest.mark.skip
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
@@ -48,6 +51,7 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()
 
+    @pytest.mark.skip
     def test_get_load_historical_with_date_range(self):
         pass
 
