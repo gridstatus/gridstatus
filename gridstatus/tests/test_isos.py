@@ -202,7 +202,7 @@ def test_get_historical_load(iso):
         {
             CAISO(): {
                 "markets": [
-                    Markets.REAL_TIME_HOURLY,
+                    Markets.REAL_TIME_15_MIN,
                     Markets.DAY_AHEAD_HOURLY,
                     Markets.REAL_TIME_5_MIN,
                 ],
