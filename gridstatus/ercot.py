@@ -540,7 +540,7 @@ class Ercot(ISOBase):
             - ``REAL_TIME_15_MIN``
             - ``DAY_AHEAD_HOURLY``
 
-        Supported Location Types: 
+        Supported Location Types:
             - ``zone``
             - ``hub``
             - ``node``

@@ -327,7 +327,7 @@ class SPP(ISOBase):
             - ``REAL_TIME_5_MIN``
             - ``DAY_AHEAD_HOURLY``
 
-        Supported Location Types: 
+        Supported Location Types:
             - ``hub``
             - ``interface``
             - ``settlement_location``
