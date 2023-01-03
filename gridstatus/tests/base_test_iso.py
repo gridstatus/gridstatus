@@ -10,6 +10,28 @@ class BaseTestISO:
     def test_init(self):
         assert self.iso is not None
 
+    def test_get_fuel_mix_historical(self):
+        # date string works
+        date_str = "04/03/2022"
+        df = self.iso.get_fuel_mix(date_str)
+        assert isinstance(df, pd.DataFrame)
+        assert df.loc[0]["Time"].strftime("%m/%d/%Y") == date_str
+        assert df.loc[0]["Time"].tz is not None
+
+        # timestamp object works
+        date_obj = pd.to_datetime("2019/11/19")
+        df = self.iso.get_fuel_mix(date_obj)
+        assert isinstance(df, pd.DataFrame)
+        assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
+        assert df.loc[0]["Time"].tz is not None
+
+        # datetime object works
+        date_obj = pd.to_datetime("2021/05/09").date()
+        df = self.iso.get_fuel_mix(date_obj)
+        assert isinstance(df, pd.DataFrame)
+        assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
+        assert df.loc[0]["Time"].tz is not None
+
     def test_get_fuel_mix_latest(self):
         mix = self.iso.get_fuel_mix("latest")
         assert isinstance(mix, FuelMix)
