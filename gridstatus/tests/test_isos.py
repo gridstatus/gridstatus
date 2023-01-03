@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-from pandas.api.types import is_numeric_dtype
 
 import gridstatus
 from gridstatus import CAISO, ISONE, MISO, NYISO, PJM, SPP, Ercot, Markets
@@ -98,34 +97,6 @@ def test_gridstatus_to_dict():
         "status": "Test",
         "time": time,
     }
-
-
-@pytest.mark.parametrize("iso", [PJM(), NYISO(), ISONE(), CAISO()])
-def test_get_historical_load(iso):
-    # pick a test date 2 weeks back
-    test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
-
-    # date string works
-    date_str = test_date.strftime("%Y%m%d")
-    df = iso.get_load(date_str)
-    assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Load"]) == set(df.columns)
-    assert df.loc[0]["Time"].strftime("%Y%m%d") == date_str
-    assert is_numeric_dtype(df["Load"])
-
-    # timestamp object works
-    df = iso.get_load(test_date)
-    assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Load"]) == set(df.columns)
-    assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
-    assert is_numeric_dtype(df["Load"])
-
-    # datetime object works
-    df = iso.get_load(test_date)
-    assert isinstance(df, pd.DataFrame)
-    assert set(["Time", "Load"]) == set(df.columns)
-    assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
-    assert is_numeric_dtype(df["Load"])
 
 
 @pytest.mark.parametrize(

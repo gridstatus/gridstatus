@@ -47,6 +47,32 @@ class BaseTestISO:
         df = self.iso.get_fuel_mix("today")
         assert isinstance(df, pd.DataFrame)
 
+    def test_get_load_historical(self):
+        # pick a test date 2 weeks back
+        test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
+
+        # date string works
+        date_str = test_date.strftime("%Y%m%d")
+        df = self.iso.get_load(date_str)
+        assert isinstance(df, pd.DataFrame)
+        assert set(["Time", "Load"]) == set(df.columns)
+        assert df.loc[0]["Time"].strftime("%Y%m%d") == date_str
+        assert is_numeric_dtype(df["Load"])
+
+        # timestamp object works
+        df = self.iso.get_load(test_date)
+        assert isinstance(df, pd.DataFrame)
+        assert set(["Time", "Load"]) == set(df.columns)
+        assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
+        assert is_numeric_dtype(df["Load"])
+
+        # datetime object works
+        df = self.iso.get_load(test_date)
+        assert isinstance(df, pd.DataFrame)
+        assert set(["Time", "Load"]) == set(df.columns)
+        assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
+        assert is_numeric_dtype(df["Load"])
+
     def test_get_load_latest(self):
         load = self.iso.get_load("latest")
         set(["time", "load"]) == load.keys()
