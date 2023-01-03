@@ -129,8 +129,8 @@ class MISO(ISOBase):
     def get_lmp(self, date, market: str, locations: list = None, verbose=False):
         """
         Supported Markets:
-            - REAL_TIME_5_MIN (FiveMinLMP)
-            - DAY_AHEAD_HOURLY (DayAheadExPostLMP)
+            - ``REAL_TIME_5_MIN`` - (FiveMinLMP)
+            - ``DAY_AHEAD_HOURLY`` - (DayAheadExPostLMP)
         """
         if date != "latest":
             raise NotSupported()
