@@ -99,16 +99,6 @@ def test_gridstatus_to_dict():
     }
 
 
-@pytest.mark.parametrize(
-    "iso",
-    [CAISO()],
-)
-def test_get_historical_storage(iso):
-    test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
-    storage = iso.get_storage(date=test_date)
-    check_storage(storage)
-
-
 # only testing with caiso, assume works with others
 
 

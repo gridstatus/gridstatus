@@ -34,6 +34,10 @@ class TestNYISO(BaseTestISO):
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
 
+    def test_get_storage_historical(self):
+        with pytest.raises(NotImplementedError):
+            super().test_get_storage_historical()
+
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()

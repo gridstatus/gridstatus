@@ -143,6 +143,11 @@ class BaseTestISO:
         # ensure there is a homepage if gridstatus can retrieve a status
         assert isinstance(self.iso.status_homepage, str)
 
+    def test_get_storage_historical(self):
+        test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
+        storage = self.iso.get_storage(date=test_date)
+        self._check_storage(storage)
+
     def test_get_storage_today(self):
         storage = self.iso.get_storage("today")
         self._check_storage(storage)

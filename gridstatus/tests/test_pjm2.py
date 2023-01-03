@@ -47,6 +47,10 @@ class TestPJM(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_status_latest()
 
+    def test_get_storage_historical(self):
+        with pytest.raises(NotImplementedError):
+            super().test_get_storage_historical()
+
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()

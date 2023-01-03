@@ -24,6 +24,10 @@ class TestErcot(BaseTestISO):
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
+    def test_get_storage_historical(self):
+        with pytest.raises(NotImplementedError):
+            super().test_get_storage_historical()
+
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
