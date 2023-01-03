@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
 from gridstatus.base import FuelMix, GridStatus
@@ -10,6 +11,22 @@ class BaseTestISO:
 
     def test_init(self):
         assert self.iso is not None
+
+    def test_get_fuel_mix_date_or_start(self):
+        num_days = 2
+        end = pd.Timestamp.now(tz=self.iso.default_timezone)
+        start = end - pd.Timedelta(days=num_days)
+
+        self.iso.get_fuel_mix(date=start.date(), end=end.date())
+        self.iso.get_fuel_mix(
+            start=start.date(),
+            end=end.date(),
+        )
+        self.iso.get_fuel_mix(date=start.date())
+        self.iso.get_fuel_mix(start=start.date())
+
+        with pytest.raises(ValueError):
+            self.iso.get_fuel_mix(start=start.date(), date=start.date())
 
     def test_get_fuel_mix_historical(self):
         # date string works

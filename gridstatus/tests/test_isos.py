@@ -113,24 +113,6 @@ def test_end_is_today():
     assert data["Time"].dt.day.nunique() == num_days
 
 
-@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
-def test_date_or_start(iso):
-    num_days = 2
-    end = pd.Timestamp.now(tz=iso.default_timezone)
-    start = end - pd.Timedelta(days=num_days)
-
-    iso.get_fuel_mix(date=start.date(), end=end.date())
-    iso.get_fuel_mix(
-        start=start.date(),
-        end=end.date(),
-    )
-    iso.get_fuel_mix(date=start.date())
-    iso.get_fuel_mix(start=start.date())
-
-    with pytest.raises(ValueError):
-        iso.get_fuel_mix(start=start.date(), date=start.date())
-
-
 def test_end_before_start_raises_error():
     iso = CAISO()
     with pytest.raises(AssertionError):

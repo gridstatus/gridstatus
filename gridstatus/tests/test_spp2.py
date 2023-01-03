@@ -7,6 +7,9 @@ from gridstatus.tests.base_test_iso import BaseTestISO
 class TestSPP(BaseTestISO):
     iso = SPP()
 
+    def test_get_fuel_mix_date_or_start(self):
+        pass
+
     def test_get_fuel_mix_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_historical()
