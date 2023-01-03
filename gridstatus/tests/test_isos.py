@@ -114,16 +114,6 @@ def test_end_is_today():
 
 
 @pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
-def test_get_historical_load_with_date_range(iso):
-    num_days = 7
-    end = pd.Timestamp.now(tz=iso.default_timezone) + pd.Timedelta(days=1)
-    start = end - pd.Timedelta(days=num_days)
-    data = iso.get_load(date=start.date(), end=end.date())
-    # make sure right number of days are returned
-    assert data["Time"].dt.day.nunique() == num_days
-
-
-@pytest.mark.parametrize("iso", [ISONE(), NYISO(), PJM(), CAISO()])
 def test_date_or_start(iso):
     num_days = 2
     end = pd.Timestamp.now(tz=iso.default_timezone)

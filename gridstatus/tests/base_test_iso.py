@@ -79,6 +79,14 @@ class BaseTestISO:
             assert isinstance(df, pd.DataFrame)
             self._check_lmp_columns(df, market)
 
+    def test_get_load_historical_with_date_range(self):
+        num_days = 7
+        end = pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(days=1)
+        start = end - pd.Timedelta(days=num_days)
+        data = self.iso.get_load(date=start.date(), end=end.date())
+        # make sure right number of days are returned
+        assert data["Time"].dt.day.nunique() == num_days
+
     def test_get_load_forecast_historical(self):
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
         forecast = self.iso.get_load_forecast(date=test_date)

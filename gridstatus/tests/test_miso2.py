@@ -50,6 +50,9 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()
 
+    def test_get_load_historical_with_date_range(self):
+        pass
+
     def test_get_status_latest(self):
         with pytest.raises(NotImplementedError):
             super().test_get_status_latest()

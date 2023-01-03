@@ -25,6 +25,9 @@ class TestSPP(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()
 
+    def test_get_load_historical_with_date_range(self):
+        pass
+
     # TODO: https://github.com/kmax12/gridstatus/issues/109
     def test_get_status_latest(self):
         with pytest.raises(ValueError):
