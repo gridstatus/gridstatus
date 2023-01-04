@@ -120,6 +120,8 @@ class SPP(ISOBase):
             return self._latest_from_today(self.get_load)
 
         elif utils.is_today(date):
+            date = utils._handle_date(date, self.default_timezone)
+
             df = self._get_load_and_forecast(verbose=verbose)
 
             df = df.dropna(subset=["Actual Load"])
@@ -127,6 +129,9 @@ class SPP(ISOBase):
             df = df.rename(columns={"Actual Load": "Load"})
 
             df = df[["Time", "Load"]]
+
+            # returns two days, so make sure to only return current day's load
+            df = df[df["Time"].dt.date == date.date()]
 
             return df
 
