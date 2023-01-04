@@ -175,5 +175,13 @@ def test_nyiso_interconnection_queue():
 
 def test_nyiso_get_capacity_prices():
     iso = gridstatus.NYISO()
-    df = iso.get_capacity_prices(verbose=True)
+
+    # test 2022, 2023, and today
+    df = iso.get_capacity_prices(date="Dec 1, 2022", verbose=True)
+    assert not df.empty, "DataFrame came back empty"
+
+    df = iso.get_capacity_prices(date="Jan 1, 2023", verbose=True)
+    assert not df.empty, "DataFrame came back empty"
+
+    df = iso.get_capacity_prices(date="today", verbose=True)
     assert not df.empty, "DataFrame came back empty"
