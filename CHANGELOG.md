@@ -8,9 +8,9 @@
 
     The following changes were made to CAISO Market:
 
-    - `REAL_TIME_15_MIN` now maps to the FMM market (previously was HASP which is now removed)
-    - `REAL_TIME_5_MIN` now maps to the RTD market
-    - `DAY_AHEAD_HOURLY` unchanged
+    - `REAL_TIME_HOURLY` removed since this market incorrectly mapped to the HASP market
+    - `REAL_TIME_5_MIN` added and maps to the RTD market
+    - `REAL_TIME_15_MIN` and `DAY_AHEAD_HOURLY` unchanged
 
 
 ## v0.17.0 - Dec 30, 2022
