@@ -1,11 +1,12 @@
 import io
+import re
 import sys
 from urllib.parse import urlencode
 
 import pandas as pd
 import requests
 import tqdm
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -29,6 +30,35 @@ LOCATION_TYPE_SETTLEMENT_LOCATION = "SETTLEMENT_LOCATION"
 
 QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"  # noqa
 QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"  # noqa
+
+RELIABILITY_LEVELS = [
+    "Normal Operations",
+    "Weather Advisory",
+    "Resource Advisory",
+    "Conservative Operations Advisory",
+    "Energy Emergency Alert Level 1",
+    "Energy Emergency Alert Level 2",
+    "Energy Emergency Alert Level 3",
+    "Restoration Event",
+]
+
+LAST_UPDATED_KEYWORDS = [
+    "last updated",
+    "as of",
+]
+
+RELIABILITY_LEVELS_ALIASES = {
+    "Normal Operations": "Normal",
+}
+
+STATUS_STOP_WORDS = [
+    "as",
+    "at",
+    "ct",  # central time
+    "eea",  # energy emergency alert
+    "of",
+    "on",
+]
 
 
 class SPP(ISOBase):
@@ -60,61 +90,8 @@ class SPP(ISOBase):
             raise NotSupported()
 
         url = "https://www.spp.org/markets-operations/current-grid-conditions/"
-        html_text = requests.get(url).text
-        soup = BeautifulSoup(html_text, "html.parser")
-        conditions_element = soup.find("h1")
-        last_update_time = conditions_element.findNextSibling("p").text[14:-1]
-        status_text = (
-            conditions_element.findNextSibling(
-                "p",
-            )
-            .findNextSibling("p")
-            .text
-        )
-
-        date_str = last_update_time[: last_update_time.index(", at ")]
-        if "a.m." in last_update_time:
-            time_str = last_update_time[
-                last_update_time.index(", at ") + 5 : last_update_time.index(" a.m.")
-            ]
-            hour, minute = map(int, time_str.split(":"))
-        elif "p.m." in last_update_time:
-            time_str = last_update_time[
-                last_update_time.index(", at ") + 5 : last_update_time.index(" p.m.")
-            ]
-            hour, minute = map(int, time_str.split(":"))
-            if hour < 12:
-                hour += 12
-        else:
-            raise "Cannot parse time of status"
-
-        date_obj = (
-            pd.to_datetime(date_str)
-            .replace(
-                hour=hour,
-                minute=minute,
-            )
-            .tz_localize(self.default_timezone)
-        )
-
-        if (
-            status_text
-            == "SPP is currently in Normal Operations with no effective advisories or"
-            " alerts."
-        ):
-            status = "Normal"
-            notes = [status_text]
-        else:
-            status = status_text
-            notes = None
-
-        return GridStatus(
-            time=date_obj,
-            status=status,
-            notes=notes,
-            reserves=None,
-            iso=self,
-        )
+        html_text = requests.get(url).content.decode("UTF-8")
+        return self._get_status_from_html(html_text)
 
     def get_fuel_mix(self, date, verbose=False):
         if date != "latest":
@@ -676,6 +653,181 @@ class SPP(ISOBase):
     def _file_browser_download_url(self, fs_name, params=None):
         qs = "?" + urlencode(params) if params else ""
         return f"{FILE_BROWSER_API_URL}download/{fs_name}{qs}"
+
+    @staticmethod
+    def _clean_status_text(text):
+        text = text.lower()
+
+        # remove punctuation
+        text = re.sub(r"[,\.\(\)]", "", text)
+        # remove non-time colons
+        text = re.sub(r":$", "", text)
+        # drop time zone information
+        text = re.sub(r"central time", "", text)
+        # truncate starting with last updated
+        text = re.sub(r".*last updated", "", text)
+
+        # drop stop words
+        tokens = text.split(" ")
+        filtered_words = [
+            token for token in tokens if token.lower() not in STATUS_STOP_WORDS
+        ]
+        text = " ".join(filtered_words)
+
+        return text
+
+    @staticmethod
+    def _extract_timestamp(text, year_hint=None, tz=None):
+        if year_hint is None:
+            year_hint = pd.Timestamp.now(tz=tz).year
+        text = SPP._clean_status_text(text)
+
+        year_search = re.search(r"[0-9]{4}", text)
+        if year_search is None:
+            # append year hint
+            text = f"{text} {year_hint}"
+
+        timestamp = None
+
+        try:
+            # throw the remaining bits at pd.Timestamp
+            timestamp = pd.Timestamp(text, tz=tz)
+        except ValueError:
+            pass
+        if timestamp is pd.NaT:
+            timestamp = None
+        return timestamp
+
+    @staticmethod
+    def _extract_timestamps(texts, year_hint=None, tz=None):
+        timestamps = [
+            SPP._extract_timestamp(t, year_hint=year_hint, tz=tz) for t in texts
+        ]
+        return [t for t in timestamps if t is not None]
+
+    @staticmethod
+    def _match(
+        needles,
+        haystacks,
+        needle_norm_fn=lambda x: x.lower(),
+        haystack_norm_fn=lambda x: x.lower(),
+    ):
+        """Returns items from haystacks if any needles are in them"""
+        return [
+            haystack
+            for haystack in haystacks
+            if any(
+                needle_norm_fn(needle) in haystack_norm_fn(haystack)
+                for needle in needles
+            )
+        ]
+
+    @staticmethod
+    def _get_leaf_elements(elems):
+        """Returns leaf elements, i.e. elements without children"""
+        accum = []
+        for elem in elems:
+            parent = False
+            if isinstance(elem, Tag):
+                children = list(elem.children)
+                if len(children) > 0:
+                    for child in children:
+                        accum += SPP._get_leaf_elements([child])
+                        parent = True
+            if not parent:
+                accum.append(elem)
+        return accum
+
+    def _get_status_candidate_texts(self, html):
+        """Returns a list of text candidates for status and timestamp extraction"""
+        # generic pre-Soup cleanup
+        html = re.sub(r"<[/]?span>", "", html)
+        html = re.sub(r"<br/>", "", html)
+        html = re.sub(r"\xa0", "", html)
+        soup = BeautifulSoup(html, "html.parser")
+        # use <h1> as the north star
+        conditions_element = soup.find("h1")
+        # find all sibling paragraphs, and then their descendant leaves
+        sibling_paragraphs = self._get_leaf_elements(
+            conditions_element.parent.find_all("p"),
+        )
+        # just the text, please
+        return [p.text for p in sibling_paragraphs]
+
+    def _get_status_from_html(self, html_text, year_hint=None):
+        """Extracts timestamp, status, and status notes from HTML"""
+        candidate_texts = self._get_status_candidate_texts(html_text)
+        timestamp = self._get_status_timestamp(candidate_texts, year_hint=year_hint)
+        status, notes = self._get_status_status_and_notes(candidate_texts)
+
+        if timestamp is None:
+            raise RuntimeError("Cannot parse time of status")
+
+        return GridStatus(
+            time=timestamp,
+            status=status,
+            notes=notes,
+            reserves=None,
+            iso=self,
+        )
+
+    def _get_status_timestamp(self, candidate_texts, year_hint=None):
+        """Get timestamp from candidate texts
+
+        Returns
+            pd.Timestamp or None
+        """
+        timestamp_texts = self._match(
+            LAST_UPDATED_KEYWORDS,
+            candidate_texts,
+        )
+
+        new_list = []
+        for text in timestamp_texts:
+            """Truncate to immediately after reliability level,
+            e.g. "blah blah Normal Operations 12:00 PM Central Time"
+            -> "12:00 PM Central Time"
+            """
+            for keyword in RELIABILITY_LEVELS:
+                pos = text.lower().find(keyword.lower())
+                if pos > -1:
+                    pos += len(keyword)
+                    new_list.append(text[pos:])
+            new_list.append(text)
+        timestamp_texts = new_list
+
+        last_updated_timestamps = self._extract_timestamps(
+            timestamp_texts,
+            year_hint=year_hint,
+            tz=self.default_timezone,
+        )
+        return next(iter(last_updated_timestamps), None)
+
+    def _get_status_status_and_notes(self, candidate_texts):
+        """Extracts (status, notes,) tuple from candidates texts"""
+        status_texts = self._match(
+            RELIABILITY_LEVELS,
+            candidate_texts,
+            haystack_norm_fn=lambda x: self._clean_status_text(x),
+        )
+
+        status_text = None
+        if len(status_texts) > 0:
+            status_text = status_texts[0]
+
+        status = status_text  # default
+        notes = None
+
+        norm_status_text = self._clean_status_text(status_text)
+        for level in RELIABILITY_LEVELS:
+            if level.lower() in norm_status_text:
+                status = RELIABILITY_LEVELS_ALIASES.get(level, level)
+                notes = [status_text]
+
+        return (
+            status,
+            notes,
+        )
 
 
 # historical generation mix
