@@ -1,6 +1,6 @@
 import pytest
 
-from gridstatus import SPP, NotSupported
+from gridstatus import SPP, NotSupported, utils
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -36,6 +36,14 @@ class TestSPP(BaseTestISO):
     def test_get_load_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()
+
+    def test_get_load_today(self):
+        today = utils._handle_date(
+            "today",
+            self.iso.default_timezone,
+        )
+        df = self.iso.get_load("today")
+        assert (df["Time"].dt.date == today.date()).all()
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_historical_with_date_range(self):
