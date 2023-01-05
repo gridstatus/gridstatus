@@ -73,7 +73,7 @@ class MISO(ISOBase):
         if date == "latest":
             return self._latest_from_today(self.get_load, verbose=verbose)
 
-        elif utils.is_today(date):
+        elif utils.is_today(date, tz=self.default_timezone):
             r = self._get_load_and_forecast_data(verbose=verbose)
 
             date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])

@@ -154,7 +154,7 @@ class Ercot(ISOBase):
             return FuelMix(time=time, mix=latest, iso=self.name)
 
         # todo: can also support yesterday
-        elif utils.is_today(date):
+        elif utils.is_today(date, tz=self.default_timezone):
             date = utils._handle_date(date, tz=self.default_timezone)
             url = self.BASE + "/fuel-mix.json"
             r = self._get_json(url, verbose=verbose)
@@ -202,13 +202,17 @@ class Ercot(ISOBase):
             latest = today_load.iloc[-1]
             return {"load": latest["Load"], "time": latest["Time"]}
 
-        elif utils.is_today(date):
+        elif utils.is_today(date, tz=self.default_timezone):
             df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
             df = df.rename(columns={"demand": "Load"})
             return df[["Time", "Load"]]
 
-        elif utils.is_within_last_days(date, self.LOAD_HISTORICAL_MAX_DAYS):
-            return self._get_load_html(date)
+        elif utils.is_within_last_days(
+            date,
+            self.LOAD_HISTORICAL_MAX_DAYS,
+            tz=self.default_timezone,
+        ):
+            return self._get_load_html(date, verbose)
 
         else:
             raise NotSupported()
@@ -225,11 +229,15 @@ class Ercot(ISOBase):
         df = self._handle_json_data(df, {"systemLoad": "Load"})
         return df
 
-    def _get_load_html(self, when):
+    def _get_load_html(self, when, verbose=False):
         """Returns load for currentDay or previousDay"""
         url = self.ACTUAL_LOADS_URL_FORMAT.format(
             timestamp=when.strftime("%Y%m%d"),
         )
+
+        if verbose:
+            print(f"Fetching {url}")
+
         dfs = pd.read_html(url, header=0)
         df = dfs[0]
         df = self._handle_html_data(df, {"TOTAL": "Load"})
