@@ -119,7 +119,7 @@ class SPP(ISOBase):
         if date == "latest":
             return self._latest_from_today(self.get_load)
 
-        elif utils.is_today(date):
+        elif utils.is_today(date, tz=self.default_timezone):
             date = utils._handle_date(date, self.default_timezone)
 
             df = self._get_load_and_forecast(verbose=verbose)
@@ -762,7 +762,10 @@ class SPP(ISOBase):
     def _get_status_from_html(self, html_text, year_hint=None):
         """Extracts timestamp, status, and status notes from HTML"""
         candidate_texts = self._get_status_candidate_texts(html_text)
-        timestamp = self._get_status_timestamp(candidate_texts, year_hint=year_hint)
+        timestamp = self._get_status_timestamp(
+            candidate_texts,
+            year_hint=year_hint,
+        )
         status, notes = self._get_status_status_and_notes(candidate_texts)
 
         if timestamp is None:

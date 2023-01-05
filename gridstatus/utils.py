@@ -184,7 +184,7 @@ def get_zip_file(url):
     return z.open(z.namelist()[0])
 
 
-def is_today(date, tz=None):
+def is_today(date, tz):
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
 
 

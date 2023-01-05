@@ -262,7 +262,7 @@ class PJM(ISOBase):
                 verbose=verbose,
             )
 
-        elif utils.is_today(date):
+        elif utils.is_today(date, tz=self.default_timezone):
             if market != Markets.DAY_AHEAD_HOURLY:
                 raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
 
