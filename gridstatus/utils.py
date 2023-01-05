@@ -188,7 +188,7 @@ def is_today(date, tz=None):
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
 
 
-def is_within_last_days(date, days, tz=None):
+def is_within_last_days(date, days, tz):
     """Returns whether date is within N days"""
     now = pd.Timestamp.now(tz=tz).date()
     date_value = _handle_date(date, tz=tz).date()

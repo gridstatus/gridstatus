@@ -207,8 +207,12 @@ class Ercot(ISOBase):
             df = df.rename(columns={"demand": "Load"})
             return df[["Time", "Load"]]
 
-        elif utils.is_within_last_days(date, self.LOAD_HISTORICAL_MAX_DAYS):
-            return self._get_load_html(date)
+        elif utils.is_within_last_days(
+            date,
+            self.LOAD_HISTORICAL_MAX_DAYS,
+            tz=self.default_timezone,
+        ):
+            return self._get_load_html(date, verbose)
 
         else:
             raise NotSupported()
@@ -225,11 +229,15 @@ class Ercot(ISOBase):
         df = self._handle_json_data(df, {"systemLoad": "Load"})
         return df
 
-    def _get_load_html(self, when):
+    def _get_load_html(self, when, verbose=False):
         """Returns load for currentDay or previousDay"""
         url = self.ACTUAL_LOADS_URL_FORMAT.format(
             timestamp=when.strftime("%Y%m%d"),
         )
+
+        if verbose:
+            print(f"Fetching {url}")
+
         dfs = pd.read_html(url, header=0)
         df = dfs[0]
         df = self._handle_html_data(df, {"TOTAL": "Load"})
