@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
-from gridstatus.base import FuelMix, GridStatus
+from gridstatus.base import FuelMix, GridStatus, _interconnection_columns
 
 
 class BaseTestISO:
@@ -75,6 +75,15 @@ class BaseTestISO:
     def test_get_fuel_mix_today(self):
         df = self.iso.get_fuel_mix("today")
         assert isinstance(df, pd.DataFrame)
+
+    """get_interconnection_queue"""
+
+    def test_get_interconnection_queue(self):
+        queue = self.iso.get_interconnection_queue()
+        # todo make sure datetime columns are right type
+        assert isinstance(queue, pd.DataFrame)
+        assert queue.shape[0] > 0
+        assert set(_interconnection_columns).issubset(queue.columns)
 
     """get_lmp"""
 

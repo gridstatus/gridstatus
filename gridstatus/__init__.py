@@ -4,7 +4,6 @@ from gridstatus.utils import (
     list_isos,
     get_iso,
     make_availability_table,
-    get_interconnection_queues,
 )
 from gridstatus import tests
 import gridstatus.base
@@ -40,7 +39,6 @@ __all__ = [
     "Markets",
     "get_iso",
     "list_isos",
-    "get_interconnection_queues",
     "NotSupported",
     "load_folder",
 ]
