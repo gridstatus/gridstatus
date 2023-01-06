@@ -86,7 +86,7 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == cols
         assert df["Time"].unique()[0].date() == three_days_ago
 
-    def test_get_load_latest(self):
+    def test_get_load_latest2(self):
         expected_keys = {
             "time",
             "load",
@@ -96,7 +96,7 @@ class TestErcot(BaseTestISO):
         assert load.keys() == expected_keys
         assert load["time"].date() == today
 
-    def test_get_load_today(self):
+    def test_get_load_today2(self):
         cols = [
             "Time",
             "Load",

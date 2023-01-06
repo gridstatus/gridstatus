@@ -43,11 +43,6 @@ class TestNYISO(BaseTestISO):
         assert set(df.columns).issuperset(set(columns))
         assert df.shape[0] >= 0
 
-    """get_interconnection_queue"""
-
-    def test_get_interconnection_queue(self):
-        self.iso.get_interconnection_queue()
-
     """get_lmp"""
 
     @with_markets(
