@@ -44,7 +44,7 @@ class TestSPP(BaseTestISO):
             (Markets.REAL_TIME_5_MIN, "Interface"),
         ],
     )
-    def test_get_lmp_latest2(self, market, location_type):
+    def test_get_lmp_latest_with_locations(self, market, location_type):
         df = self.iso.get_lmp(
             date="latest",
             market=market,
@@ -177,12 +177,12 @@ class TestSPP(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()
 
-    def test_get_load_today2(self):
+    def test_get_load_today(self):
+        df = super().test_get_load_today()
         today = utils._handle_date(
             "today",
             self.iso.default_timezone,
         )
-        df = self.iso.get_load("today")
         assert (df["Time"].dt.date == today.date()).all()
 
     @pytest.mark.skip(reason="Not Applicable")
