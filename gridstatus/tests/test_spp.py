@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
-from gridstatus import SPP, Markets, NotSupported, utils
+from gridstatus import SPP, Markets, NotSupported
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -176,14 +176,6 @@ class TestSPP(BaseTestISO):
     def test_get_load_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()
-
-    def test_get_load_today(self):
-        df = super().test_get_load_today()
-        today = utils._handle_date(
-            "today",
-            self.iso.default_timezone,
-        )
-        assert (df["Time"].dt.date == today.date()).all()
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_historical_with_date_range(self):
