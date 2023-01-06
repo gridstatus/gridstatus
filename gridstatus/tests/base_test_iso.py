@@ -219,6 +219,8 @@ class BaseTestISO:
 
     @staticmethod
     def _check_lmp_columns(df, market):
+        # todo in future all ISO should return same columns
+        # maybe with the exception of "LMP" breakdown
         assert set(
             [
                 "Time",
@@ -231,7 +233,9 @@ class BaseTestISO:
                 "Loss",
             ],
         ).issubset(df.columns)
+        assert len(df["Market"].unique()) == 1
         assert df["Market"].unique()[0] == market.value
+        assert df.shape[0] >= 0
 
     def _check_storage(self, df):
         assert set(df.columns) == set(
