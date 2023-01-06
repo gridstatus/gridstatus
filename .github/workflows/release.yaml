@@ -12,9 +12,30 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.8"
-      - name: Build distribution 📦
-        run: make package
-      - name: Publish distribution 📦 to PyPI
+      - name: Install packaging
+        run: |
+          python -m pip install pep517
+          python -m pip install packaging
+      - name: Check package version (compare package version with tag)
+        id: check_package_version
+        shell: python
+        run: |
+          from pep517.meta import load
+          from packaging.version import parse
+          metadata = load('.')
+          package_version = metadata.version
+          if parse(package_version) != parse('${{ github.event.release.tag_name }}'):
+            print(f'version mismatch: {package_version} (in package) vs ${{ github.event.release.tag_name }} (GitHub tag)')
+            exit(1)
+          else:
+            print('version match')
+            exit(0)
+      - name: Build distribution
+        run: |
+          rm -rf docs/ gridstatus/tests/ utils/ dist/ build/ unpacked/
+          make package
+      - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          user: 'kmax12'
           password: ${{ secrets.PYPI_API_TOKEN }}
