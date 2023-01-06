@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
-from gridstatus.base import FuelMix, GridStatus
+from gridstatus.base import FuelMix, GridStatus, _interconnection_columns
 
 
 class BaseTestISO:
@@ -11,6 +11,8 @@ class BaseTestISO:
 
     def test_init(self):
         assert self.iso is not None
+
+    """get_fuel_mix"""
 
     def test_get_fuel_mix_date_or_start(self):
         num_days = 2
@@ -74,6 +76,17 @@ class BaseTestISO:
         df = self.iso.get_fuel_mix("today")
         assert isinstance(df, pd.DataFrame)
 
+    """get_interconnection_queue"""
+
+    def test_get_interconnection_queue(self):
+        queue = self.iso.get_interconnection_queue()
+        # todo make sure datetime columns are right type
+        assert isinstance(queue, pd.DataFrame)
+        assert queue.shape[0] > 0
+        assert set(_interconnection_columns).issubset(queue.columns)
+
+    """get_lmp"""
+
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_historical(self, market=None):
         date_str = "20220722"
@@ -96,6 +109,8 @@ class BaseTestISO:
             assert isinstance(df, pd.DataFrame)
             self._check_lmp_columns(df, market)
 
+    """get_load"""
+
     def test_get_load_historical_with_date_range(self):
         num_days = 7
         end = pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(days=1)
@@ -103,24 +118,6 @@ class BaseTestISO:
         data = self.iso.get_load(date=start.date(), end=end.date())
         # make sure right number of days are returned
         assert data["Time"].dt.day.nunique() == num_days
-
-    def test_get_load_forecast_historical(self):
-        test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
-        forecast = self.iso.get_load_forecast(date=test_date)
-        self._check_forecast(forecast)
-
-    def test_get_load_forecast_historical_with_date_range(self):
-        end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
-        start = (end - pd.Timedelta(days=7)).date()
-        forecast = self.iso.get_load_forecast(
-            start,
-            end=end,
-        )
-        self._check_forecast(forecast)
-
-    def test_get_load_forecast_today(self):
-        forecast = self.iso.get_load_forecast("today")
-        self._check_forecast(forecast)
 
     def test_get_load_historical(self):
         # pick a test date 2 weeks back
@@ -152,6 +149,7 @@ class BaseTestISO:
         load = self.iso.get_load("latest")
         set(["time", "load"]) == load.keys()
         assert is_numeric_dtype(type(load["load"]))
+        return load
 
     def test_get_load_today(self):
         df = self.iso.get_load("today")
@@ -160,6 +158,29 @@ class BaseTestISO:
         assert is_numeric_dtype(df["Load"])
         assert isinstance(df.loc[0]["Time"], pd.Timestamp)
         assert df.loc[0]["Time"].tz is not None
+        return df
+
+    """get_load_forecast"""
+
+    def test_get_load_forecast_historical(self):
+        test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
+        forecast = self.iso.get_load_forecast(date=test_date)
+        self._check_forecast(forecast)
+
+    def test_get_load_forecast_historical_with_date_range(self):
+        end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
+        start = (end - pd.Timedelta(days=7)).date()
+        forecast = self.iso.get_load_forecast(
+            start,
+            end=end,
+        )
+        self._check_forecast(forecast)
+
+    def test_get_load_forecast_today(self):
+        forecast = self.iso.get_load_forecast("today")
+        self._check_forecast(forecast)
+
+    """get_status"""
 
     def test_get_status_latest(self):
         status = self.iso.get_status("latest")
@@ -167,6 +188,8 @@ class BaseTestISO:
 
         # ensure there is a homepage if gridstatus can retrieve a status
         assert isinstance(self.iso.status_homepage, str)
+
+    """get_storage"""
 
     def test_get_storage_historical(self):
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
@@ -176,6 +199,8 @@ class BaseTestISO:
     def test_get_storage_today(self):
         storage = self.iso.get_storage("today")
         self._check_storage(storage)
+
+    """other"""
 
     def _check_forecast(self, df):
         assert set(df.columns) == set(

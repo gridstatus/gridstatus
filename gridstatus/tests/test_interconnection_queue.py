@@ -1,28 +1,23 @@
 import pandas as pd
 import pytest
+import tqdm
 
-import gridstatus
-from gridstatus import CAISO, ISONE, MISO, NYISO, PJM, SPP, Ercot
+from gridstatus import all_isos
 from gridstatus.base import _interconnection_columns
-
-
-def check_queue(queue):
-    # todo make sure datetime columns are right type
-    assert isinstance(queue, pd.DataFrame)
-    assert queue.shape[0] > 0
-    assert set(_interconnection_columns).issubset(queue.columns)
-
-
-@pytest.mark.parametrize(
-    "iso",
-    [PJM(), SPP(), ISONE(), Ercot(), MISO(), CAISO(), NYISO()],
-)
-def test_get_interconnection_queue(iso):
-    queue = iso.get_interconnection_queue()
-    check_queue(queue)
 
 
 # todo implement this
 @pytest.mark.slow
 def test_get_interconnection_queue_all():
-    gridstatus.utils.get_interconnection_queues()
+    """Get interconnection queue data for all ISOs"""
+    all_queues = []
+    for iso in tqdm.tqdm(all_isos):
+        iso = iso()
+        # only shared columns
+        queue = iso.get_interconnection_queue()[_interconnection_columns]
+        queue.insert(0, "ISO", iso.name)
+        all_queues.append(queue)
+        pd.concat(all_queues)
+
+    all_queues = pd.concat(all_queues).reset_index(drop=True)
+    return all_queues

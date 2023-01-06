@@ -215,21 +215,6 @@ def format_interconnection_df(queue, rename, extra=None, missing=None):
     return queue[columns].reset_index(drop=True)
 
 
-def get_interconnection_queues():
-    """Get interconnection queue data for all ISOs"""
-    all_queues = []
-    for iso in tqdm.tqdm(all_isos):
-        iso = iso()
-        # only shared columns
-        queue = iso.get_interconnection_queue()[_interconnection_columns]
-        queue.insert(0, "ISO", iso.name)
-        all_queues.append(queue)
-        pd.concat(all_queues)
-
-    all_queues = pd.concat(all_queues).reset_index(drop=True)
-    return all_queues
-
-
 def is_dst_end(date):
     return (date.dst() - (date + pd.DateOffset(1)).dst()).seconds == 3600
 

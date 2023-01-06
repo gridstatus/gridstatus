@@ -133,6 +133,8 @@ class SPP(ISOBase):
             # returns two days, so make sure to only return current day's load
             df = df[df["Time"].dt.date == date.date()]
 
+            df = df.reset_index(drop=True)
+
             return df
 
         else:
