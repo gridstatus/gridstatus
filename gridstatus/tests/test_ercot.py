@@ -86,27 +86,6 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == cols
         assert df["Time"].unique()[0].date() == three_days_ago
 
-    def test_get_load_latest(self):
-        load = super().test_get_load_latest()
-        expected_keys = {
-            "time",
-            "load",
-        }
-        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-        assert load.keys() == expected_keys
-        assert load["time"].date() == today
-
-    def test_get_load_today(self):
-        df = super().test_get_load_today()
-        cols = [
-            "Time",
-            "Load",
-        ]
-        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
-        assert df["Time"].unique()[0].date() == today
-
     """get_load_forecast"""
 
     def test_get_load_forecast_historical(self):

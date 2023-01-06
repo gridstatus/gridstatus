@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
-from gridstatus import SPP, Markets, NotSupported, utils
+from gridstatus import SPP, Markets, NotSupported
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -106,28 +106,13 @@ class TestSPP(BaseTestISO):
             (Markets.REAL_TIME_5_MIN, "Hub"),
         ],
     )
-    def test_get_lmp_today2(self, market, location_type):
+    def test_get_lmp_today_with_location(self, market, location_type):
         df = self.iso.get_lmp(
             date="today",
             market=market,
             location_type=location_type,
         )
-        cols = [
-            "Time",
-            "Market",
-            "Location",
-            "Location Type",
-            "LMP",
-            "Energy",
-            "Congestion",
-            "Loss",
-        ]
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
-        markets = df["Market"].unique()
-        assert len(markets) == 1
-        assert markets[0] == market.value
-
+        BaseTestISO._check_lmp_columns(df, market=market)
         location_types = df["Location Type"].unique()
         assert len(location_types) == 1
         assert location_types[0] == location_type
@@ -176,14 +161,6 @@ class TestSPP(BaseTestISO):
     def test_get_load_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()
-
-    def test_get_load_today(self):
-        df = super().test_get_load_today()
-        today = utils._handle_date(
-            "today",
-            self.iso.default_timezone,
-        )
-        assert (df["Time"].dt.date == today.date()).all()
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_historical_with_date_range(self):
