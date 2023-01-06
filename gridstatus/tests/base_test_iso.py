@@ -149,6 +149,7 @@ class BaseTestISO:
         load = self.iso.get_load("latest")
         set(["time", "load"]) == load.keys()
         assert is_numeric_dtype(type(load["load"]))
+        return load
 
     def test_get_load_today(self):
         df = self.iso.get_load("today")
@@ -157,6 +158,7 @@ class BaseTestISO:
         assert is_numeric_dtype(df["Load"])
         assert isinstance(df.loc[0]["Time"], pd.Timestamp)
         assert df.loc[0]["Time"].tz is not None
+        return df
 
     """get_load_forecast"""
 
