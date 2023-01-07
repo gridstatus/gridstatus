@@ -1,7 +1,9 @@
 import io
 import math
+import re
 import warnings
 
+import bs4
 import pandas as pd
 import requests
 import tqdm
@@ -14,6 +16,10 @@ from gridstatus.decorators import (
     support_date_range,
 )
 from gridstatus.lmp_config import lmp_config
+
+DATAVIEWER_PUBLIC_LMP_URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
+
+LMP_PARTIAL_RENDER_ID = "formLeftPanel:topLeftGrid"
 
 
 class PJM(ISOBase):
@@ -538,6 +544,140 @@ class PJM(ISOBase):
 
         return settings["subscriptionKey"]
 
+    @staticmethod
+    def _get_dataviewer_lmp_session_info(session):
+        response = session.get(DATAVIEWER_PUBLIC_LMP_URL)
+        html = response.content
+        doc = bs4.BeautifulSoup(html, "html.parser")
+
+        scripts = doc.find_all("script", {"nonce": True})
+
+        nonce = None
+        for script in scripts:
+            nonce = script["nonce"]
+            if nonce is not None:
+                break
+
+        lmp_panel_id = None
+        for script in scripts:
+            if LMP_PARTIAL_RENDER_ID in script.text:
+                # assumes it's on the same line
+                lines = [
+                    line
+                    for line in script.text.split("\n")
+                    if LMP_PARTIAL_RENDER_ID in line
+                    and "command_formLeftPanel_" in line
+                ]
+                for line in lines:
+                    match = re.search(r"({[^}]+})", line)
+                    if match:
+                        # extract javascript hash
+                        js_hash = match.group(0)
+                        match2 = re.search(r's:"([^"]+)"', js_hash)
+                        if match2:
+                            lmp_panel_id = match2.group(1)
+                            break
+
+        view_state = None
+        view_states = doc.find_all(
+            "input",
+            {"type": "hidden", "name": "javax.faces.ViewState"},
+        )
+        for view_state in view_states:
+            view_state = view_state["value"]
+            if view_state is not None:
+                break
+
+        if any((val is None for val in [nonce, lmp_panel_id, view_state])):
+            return None
+        else:
+            return {
+                "nonce": nonce,
+                "lmp_panel_id": lmp_panel_id,
+                "view_state": view_state,
+            }
+
+    def _fetch_lmp_table(self, session, lmp_session):
+        nonce = lmp_session["nonce"]
+        panel_id = lmp_session["lmp_panel_id"]
+        view_state = lmp_session["view_state"]
+
+        params = {
+            "javax.faces.partial.ajax": "true",
+            "javax.faces.partial.render": LMP_PARTIAL_RENDER_ID,
+            panel_id: panel_id,
+            "formLeftPanel": "formLeftPanel",
+            "javax.faces.ViewState": view_state,
+            "primefaces.nonce": nonce,
+        }
+        return session.post(DATAVIEWER_PUBLIC_LMP_URL, data=params)
+
+    def _get_lmp_latest(self):
+        with requests.session() as session:
+            lmp_session = self._get_dataviewer_lmp_session_info(session)
+            if lmp_session is None:
+                raise ValueError("Could not get LMP session info")
+
+            response = self._fetch_lmp_table(session, lmp_session)
+            html = response.content
+
+            return self._parse_lmp_table(html)
+
+    @staticmethod
+    def _parse_lmp_table(html):
+        xml_doc = bs4.BeautifulSoup(html, "xml")
+        update = xml_doc.find("update")
+        inner_html = update.text
+
+        html_doc = bs4.BeautifulSoup(inner_html, "html.parser")
+        timestamp_span = html_doc.find(
+            "span",
+            {"id": "formLeftPanel:pjmRtoLoadUpdateTime"},
+        )
+        timestamp_text = timestamp_span.text
+        timestamp_text = re.sub(r"E[SD]T", "", timestamp_text).strip()
+
+        timestamp = pd.Timestamp(
+            pd.to_datetime(timestamp_text, format="%m.%d.%Y %H:%M"),
+            tz=PJM.default_timezone,
+        )
+
+        df = pd.read_html(inner_html)[0]
+        df = df.dropna()
+        df.columns = ["Location", "Data"]
+
+        df["Time"] = timestamp
+        df["DA"] = df["Data"].apply(
+            lambda x: PJM.extract_currency("DA", x)
+            or PJM.extract_int("DA", x)
+            or pd.NA,
+        )
+        df["RT"] = df["Data"].apply(
+            lambda x: PJM.extract_currency("RT", x)
+            or PJM.extract_int("RT", x)
+            or pd.NA,
+        )
+        df["Inst"] = df["Data"].apply(lambda x: PJM.extract_int(r"Inst", x))
+        df["Max"] = df["Data"].apply(lambda x: PJM.extract_currency(r"Max", x))
+        df["Min"] = df["Data"].apply(lambda x: PJM.extract_currency(r"Min", x))
+        return df
+
+    @staticmethod
+    def extract_currency(prefix, data):
+        if isinstance(data, str):
+            match = re.search(prefix + r" \$([0-9\.]+)", data)
+            if match:
+                return float(match.group(1))
+        return None
+
+    @staticmethod
+    def extract_int(prefix, data):
+        if isinstance(data, str):
+            match = re.search(prefix + r" ([0-9,]+)", data.strip())
+            if match:
+                return int(match.group(1).replace(",", ""))
+        return None
+
 
 """
 import gridstatus
@@ -553,12 +693,5 @@ pnode_id
 if __name__ == "__main__":
     import gridstatus
 
-    for i in gridstatus.all_isos:
-        print("\n" + i.name + "\n")
-        for c in i().get_interconnection_queue().columns:
-            print(c.replace("\n", " "))
-
-        i().get_interconnection_queue().to_csv(
-            f"debug/queue/{i.iso_id}-queue.csv",
-            index=None,
-        )
+    df = gridstatus.PJM()._get_lmp_latest()
+    print(df.to_string())
