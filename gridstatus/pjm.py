@@ -253,18 +253,12 @@ class PJM(ISOBase):
 
         if date == "latest":
             """Currently only supports DAY_AHEAD_HOURlY"""
-            if market != Markets.DAY_AHEAD_HOURLY:
-                raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
             return self._latest_lmp_from_today(
                 market=market,
                 locations=locations,
                 location_type=location_type,
                 verbose=verbose,
             )
-
-        elif utils.is_today(date, tz=self.default_timezone):
-            if market != Markets.DAY_AHEAD_HOURLY:
-                raise NotImplementedError("Only supports DAY_AHEAD_HOURLY")
 
         if locations == "hubs":
             locations = self.hub_node_ids
