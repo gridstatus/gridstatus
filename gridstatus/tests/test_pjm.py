@@ -45,15 +45,27 @@ class TestPJM(BaseTestISO):
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_HOURLY,
+        Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_latest(self, market):
-        super().test_get_lmp_latest(market=market)
+        if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_HOURLY]:
+            with pytest.raises(RuntimeError, match="No data found for query"):
+                super().test_get_lmp_latest(market=market)
+        else:
+            super().test_get_lmp_latest(market=market)
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_HOURLY,
+        Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_today(self, market):
-        super().test_get_lmp_today(market=market)
+        if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_HOURLY]:
+            with pytest.raises(RuntimeError, match="No data found for query"):
+                super().test_get_lmp_today(market=market)
+        else:
+            super().test_get_lmp_today(market=market)
 
     def test_get_lmp_no_data(self):
         # raise no error since date in future
