@@ -17,7 +17,7 @@ from gridstatus.decorators import (
 )
 from gridstatus.lmp_config import lmp_config
 
-DATAVIEWER_PUBLIC_LMP_URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
+DATAVIEWER_LMP_URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
 LMP_PARTIAL_RENDER_ID = "formLeftPanel:topLeftGrid"
 
@@ -545,8 +545,8 @@ class PJM(ISOBase):
         return settings["subscriptionKey"]
 
     @staticmethod
-    def _get_dataviewer_lmp_session_info(session):
-        response = session.get(DATAVIEWER_PUBLIC_LMP_URL)
+    def _get_dataviewer_session(session):
+        response = session.get(DATAVIEWER_LMP_URL)
         html = response.content
         doc = bs4.BeautifulSoup(html, "html.parser")
 
@@ -595,33 +595,43 @@ class PJM(ISOBase):
                 "nonce": nonce,
                 "lmp_panel_id": lmp_panel_id,
                 "view_state": view_state,
+                "session": session,
             }
 
-    def _fetch_lmp_table(self, session, lmp_session):
-        nonce = lmp_session["nonce"]
-        panel_id = lmp_session["lmp_panel_id"]
-        view_state = lmp_session["view_state"]
-
-        params = {
-            "javax.faces.partial.ajax": "true",
-            "javax.faces.partial.render": LMP_PARTIAL_RENDER_ID,
-            panel_id: panel_id,
-            "formLeftPanel": "formLeftPanel",
-            "javax.faces.ViewState": view_state,
-            "primefaces.nonce": nonce,
-        }
-        return session.post(DATAVIEWER_PUBLIC_LMP_URL, data=params)
+    def _fetch_lmp_table(self, dv_session):
+        panel_id = dv_session["lmp_panel_id"]
+        return self._dv_fetch(
+            dv_session,
+            {
+                "javax.faces.partial.ajax": "true",
+                "javax.faces.partial.render": LMP_PARTIAL_RENDER_ID,
+                panel_id: panel_id,
+                "formLeftPanel": "formLeftPanel",
+            },
+        )
 
     def _get_lmp_latest(self):
         with requests.session() as session:
-            lmp_session = self._get_dataviewer_lmp_session_info(session)
-            if lmp_session is None:
+            dv_session = self._get_dataviewer_session(session)
+            if dv_session is None:
                 raise ValueError("Could not get LMP session info")
 
-            response = self._fetch_lmp_table(session, lmp_session)
+            response = self._fetch_lmp_table(dv_session)
             html = response.content
 
             return self._parse_lmp_table(html)
+
+    def _dv_fetch(self, dv_session, params):
+        params.update(
+            {
+                "javax.faces.ViewState": dv_session["view_state"],
+                "primefaces.nonce": dv_session["nonce"],
+            },
+        )
+        return dv_session["session"].post(
+            DATAVIEWER_LMP_URL,
+            data=params,
+        )
 
     @staticmethod
     def _parse_lmp_table(html):
