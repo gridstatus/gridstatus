@@ -855,8 +855,32 @@ class PJM(ISOBase):
             final_df = pd.concat(all_dfs)
         else:
             final_df = pd.DataFrame()
-        # TODO: final_df["Energy"] = final_df["LMP"] - final_df["Loss"] - final_df["Congestion"] # noqa E501
+
+        final_df = final_df.rename(
+            columns={
+                "lmp": "LMP",
+                "mlcValue": "Loss",
+                "mccValue": "Congestion",
+            },
+        )
+
+        final_df["Location Type"] = ""  # placeholder
+        final_df["Energy"] = final_df["LMP"] - final_df["Loss"] - final_df["Congestion"]
+
+        final_df = final_df[
+            [
+                "Time",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
         final_df = final_df.sort_values(by=["Time", "Location"])
+
         return final_df
 
     def __debug_nested_data(self, data):
@@ -925,7 +949,16 @@ pnode_id
 if __name__ == "__main__":
     import gridstatus
 
+    pd.options.display.width = 0
+    df = gridstatus.PJM().get_lmp(
+        date="today",
+        market=Markets.DAY_AHEAD_HOURLY,
+        verbose=True,
+    )
+    print(df.to_string())
+
     df = gridstatus.PJM()._get_lmp_latest(verbose=True)
     print(df)
+    print(df.to_string())
     locations = df["Location"].unique().tolist()
     print(f"{len(locations)} locations = {locations}")
