@@ -835,7 +835,7 @@ class PJM(ISOBase):
                 market = Markets.DAY_AHEAD_HOURLY
                 item_id = item_id.replace(" (DA)", "")
             else:
-                market = Markets.REAL_TIME_15_MIN
+                market = Markets.REAL_TIME_5_MIN
             item_data = item["data"]
             df = pd.DataFrame(item_data)
             df["Market"] = market.value
