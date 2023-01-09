@@ -850,6 +850,7 @@ class PJM(ISOBase):
             final_df = pd.concat(all_dfs)
         else:
             final_df = pd.DataFrame()
+        # TODO: final_df["Energy"] = final_df["LMP"] - final_df["Loss"] - final_df["Congestion"] # noqa E501
         final_df = final_df.sort_values(by=["Time", "Location"])
         return final_df
 
