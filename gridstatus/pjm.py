@@ -275,14 +275,87 @@ class PJM(ISOBase):
                     f"location_type must be one of {self.location_types}",
                 )
 
-        return self._get_lmp_via_pjm_json(
-            date,
-            market,
-            end=end,
-            locations=locations,
-            location_type=location_type,
+        if date == "latest":
+            """Supports DAY_AHEAD_HOURlY, REAL_TIME_5_MIN"""
+            return self._latest_lmp_from_today(
+                market=market,
+                locations=locations,
+                location_type=location_type,
+                verbose=verbose,
+            )
+        if utils.is_today(date, tz=self.default_timezone):
+            if market not in (
+                Markets.REAL_TIME_5_MIN,
+                Markets.DAY_AHEAD_HOURLY,
+            ):
+                raise NotSupported(
+                    f"{market.value} is not supported for latest/today",
+                )
+
+        # Plan which APIs to use
+        if utils.is_today(date, tz=self.default_timezone):
+            fetch_dv = market in (
+                Markets.REAL_TIME_5_MIN,
+                Markets.DAY_AHEAD_HOURLY,
+            )
+            fetch_json = market in (Markets.DAY_AHEAD_HOURLY,)
+        else:
+            fetch_json = True
+            # TODO optimize this by checking within 36 hours.
+            # Otherwise, post filtering drops this data anyway
+            fetch_dv = True
+
+        dv_df = None
+        if fetch_dv:
+            dv_df = self._get_lmp_via_dv(
+                date,
+                market,
+                end=end,
+                locations=locations,
+                location_type=location_type,
+                verbose=verbose,
+            )
+
+        json_df = None
+        if fetch_json:
+            json_df = self._get_lmp_via_pjm_json(
+                date,
+                market,
+                end=end,
+                locations=locations,
+                location_type=location_type,
+                verbose=verbose,
+            )
+
+        dfs = [dv_df, json_df]
+        dfs = [df for df in dfs if df is not None]
+
+        # deduplicate data, choosing the _src=json when there are duplicates
+        # in (time, market, location name)
+        df = self._df_deduplicate(
+            dfs,
+            unique_cols=["Time", "Market", "Location Name"],
+            keep_field="_src",
+            keep_value="json",
             verbose=verbose,
         )
+        df.sort_values("Time", inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        df = df[
+            [
+                "Time",
+                "Market",
+                "Location",
+                "Location Name",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+                # "_src",  # uncomment to debug
+            ]
+        ]
+        return df
 
     def _get_lmp_via_pjm_json(
         self,
@@ -294,16 +367,6 @@ class PJM(ISOBase):
         verbose=False,
     ):
         """Fetches data using the pjm_json api"""
-
-        if date == "latest":
-            """Currently only supports DAY_AHEAD_HOURlY"""
-            return self._latest_lmp_from_today(
-                market=market,
-                locations=locations,
-                location_type=location_type,
-                verbose=verbose,
-            )
-
         params = {}
 
         if market == Markets.REAL_TIME_5_MIN:
@@ -393,19 +456,7 @@ class PJM(ISOBase):
             },
         )
         data["Market"] = market.value
-        data = data[
-            [
-                "Time",
-                "Market",
-                "Location",
-                "Location Name",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-        ]
+        data["_src"] = "json"
         # API cannot filter location type for rt 5 min
         if location_type and market == Markets.REAL_TIME_5_MIN:
             data = data[data["Location Type"] == location_type]
@@ -665,6 +716,7 @@ class PJM(ISOBase):
         if len(extensions) > 0:
             data = self._json_loads_nested_jsonstrings(extensions[0].text)
             df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"])
+        df["_src"] = "dv"
         return df
 
     def _dv_lmp_include_all_locations(
@@ -807,7 +859,15 @@ class PJM(ISOBase):
         if verbose:
             print(f"response (truncated) = {response.content[0:256]}", file=sys.stderr)
 
-    def _get_lmp_latest(self, verbose=False):
+    def _get_lmp_via_dv(
+        self,
+        date,
+        market: str,
+        end=None,
+        locations="hubs",
+        location_type=None,
+        verbose=False,
+    ):
         """Get latest LMP data from Data Viewer, which includes RT & DA"""
         with requests.session() as session:
             initial_fetch = session.get(DATAVIEWER_LMP_URL)
@@ -821,7 +881,18 @@ class PJM(ISOBase):
                 raise ValueError("Could not get LMP Chart IDs")
             dv_session.update(chart_ids)
 
-            return self._dv_lmp_fetch_data(dv_session, verbose=verbose)
+            df = self._dv_lmp_fetch_data(dv_session, verbose=verbose)
+            if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
+                df = df[df["Market"] == market.value]
+
+            if end is None:
+                df = df[df["Time"].dt.date == date.date()]
+            else:
+                df = df[
+                    df["Time"].dt.date >= date.date()
+                    and df["Time"].dt.date <= end.date()
+                ]
+            return df
 
     def _dv_lmp_fetch(self, dv_session, params, verbose=False):
         """Fetch with dv_session view state and nonce"""
@@ -875,30 +946,25 @@ class PJM(ISOBase):
                 "mccValue": "Congestion",
             },
         )
-        df["Location Type"] = ""  # placeholder
         df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
 
-        # Populate Location field (location IDs) from Location Name
+        # Pricing Node data provides mappings for Location IDs and Location Types
         pnode_ids = self.get_pnode_ids()
-        lookup = dict(zip(pnode_ids["pnode_name"], pnode_ids["pnode_id"].astype(int)))
+
+        # Location IDs
+        location_ids = dict(
+            zip(pnode_ids["pnode_name"], pnode_ids["pnode_id"].astype(int)),
+        )
         df["Location"] = df["Location Name"].apply(
-            lambda location_name: lookup.get(location_name, pd.NA),
+            lambda location_name: location_ids.get(location_name, pd.NA),
         )
 
-        df = df[
-            [
-                "Time",
-                "Market",
-                "Location",
-                "Location Name",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-        ]
-        df.sort_values(by=["Time", "Location Name"], inplace=True)
+        # Location Types
+        location_types = dict(zip(pnode_ids["pnode_name"], pnode_ids["pnode_subtype"]))
+        df["Location Type"] = df["Location Name"].apply(
+            lambda location_name: location_types.get(location_name, pd.NA),
+        )
+
         return df
 
     def _parse_lmp_item(self, item):
@@ -970,6 +1036,44 @@ class PJM(ISOBase):
                 "chart_parent_source_id": chart_parent_source_id,
             }
 
+    @staticmethod
+    def _df_deduplicate(dfs, unique_cols, keep_field, keep_value, verbose=False):
+        """Deduplicate a list of dataframes based on a list of columns,
+        keeping keep_field=keep_value.  Current DataFrame.drop_duplicates
+        only supports keep=first/last/False
+        """
+        df = pd.concat(dfs)
+        if verbose:
+            print(f"Starting with {len(df)} rows", file=sys.stderr)
+        df.reset_index(inplace=True, drop=True)
+
+        # Extract subset without duplicates
+        unique_df = df.drop_duplicates(subset=unique_cols, keep=False)
+        if verbose:
+            print(f"Unique rows: {len(unique_df)}", file=sys.stderr)
+
+        # Extract subset with duplicates
+        dupe_df = df[~df.index.isin(unique_df.index)]
+        if verbose:
+            print(f"Duplicate rows: {len(dupe_df)}", file=sys.stderr)
+
+        # Filter duplicates (dedupe) by keep_field=keep_value
+        dupe_df = dupe_df[dupe_df[keep_field] == keep_value]
+        if verbose:
+            print(
+                f"Duplicate rows after keeping only "
+                f"{keep_field}={keep_value}: {len(dupe_df)}",
+                file=sys.stderr,
+            )
+
+        # Recompose unique + deduplicated
+        df = pd.concat([unique_df, dupe_df])
+
+        if verbose:
+            print(f"Ending with {len(df)} rows", file=sys.stderr)
+
+        return df
+
 
 """
 import gridstatus
@@ -986,15 +1090,35 @@ if __name__ == "__main__":
     import gridstatus
 
     pd.options.display.width = 0
-    df = gridstatus.PJM().get_lmp(
-        date="today",
-        market=Markets.DAY_AHEAD_HOURLY,
-        verbose=True,
-    )
-    print(df.to_string())
+    iso = gridstatus.PJM()
+    verbose = False
 
-    df = gridstatus.PJM()._get_lmp_latest(verbose=True)
-    print(df)
-    print(df.to_string())
-    locations = df["Location"].unique().tolist()
-    print(f"{len(locations)} locations = {locations}")
+    two_days_ago = pd.Timestamp.now(tz=iso.default_timezone) - pd.Timedelta(days=2)
+    two_weeks_ago = pd.Timestamp.now(tz=iso.default_timezone) - pd.Timedelta(weeks=2)
+
+    combos = (
+        (Markets.DAY_AHEAD_HOURLY, "latest"),
+        (Markets.DAY_AHEAD_HOURLY, "today"),
+        (Markets.DAY_AHEAD_HOURLY, two_days_ago),
+        (Markets.DAY_AHEAD_HOURLY, two_weeks_ago),
+        (Markets.REAL_TIME_5_MIN, "latest"),
+        (Markets.REAL_TIME_5_MIN, "today"),
+        (Markets.REAL_TIME_5_MIN, two_days_ago),
+        (Markets.REAL_TIME_5_MIN, two_weeks_ago),
+        (Markets.REAL_TIME_HOURLY, "latest"),  # not supported
+        (Markets.REAL_TIME_HOURLY, "today"),  # not supported
+        (Markets.REAL_TIME_HOURLY, two_days_ago),
+        (Markets.REAL_TIME_HOURLY, two_weeks_ago),
+    )
+
+    for market, date in combos:
+        try:
+            print(f"date:{date}, market: {market}", file=sys.stderr)
+            df = iso.get_lmp(date=date, market=market, verbose=verbose)
+            print(len(df))
+            if date == "latest":
+                print(df.to_string())
+            else:
+                print(df.head())
+        except Exception as e:
+            print("Error:", e, file=sys.stderr)
