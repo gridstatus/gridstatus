@@ -908,9 +908,6 @@ class PJM(ISOBase):
             item_id = item_id.replace(" (DA)", "")
         else:
             market = Markets.REAL_TIME_5_MIN
-        if re.search(r"[0-9]+ KV", item_id):
-            # clean up Voltage and Station artifacts in name
-            item_id = re.sub(r"([0-9]+) KV.*$", "", item_id).strip()
         item_data = item["data"]
         df = pd.DataFrame(item_data)
         df["Market"] = market.value
