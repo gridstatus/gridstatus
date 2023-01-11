@@ -828,50 +828,36 @@ class PJM(ISOBase):
         return doc
 
     def _parse_lmp_series(self, series):
-        all_dfs = []
+        dfs = []
         for item in series or []:
-            item_id = item["id"]
-            if item_id.endswith(" (DA)"):
-                market = Markets.DAY_AHEAD_HOURLY
-                item_id = item_id.replace(" (DA)", "")
-            else:
-                market = Markets.REAL_TIME_5_MIN
-
-            if re.search(r"[0-9]+ KV", item_id):
-                # clean up Voltage and Station artifacts in name
-                item_id = re.sub(r"([0-9]+) KV.*$", "", item_id).strip()
-
-            item_data = item["data"]
-            df = pd.DataFrame(item_data)
-            df["Market"] = market.value
-            df["Time"] = (
-                pd.to_datetime(df["timestamp"], unit="ms")
-                .dt.tz_localize(tz="UTC")
-                .dt.tz_convert(tz=self.default_timezone)
-            )
-            df["Location"] = item_id
-            all_dfs.append(df)
-        if len(all_dfs) > 0:
-            final_df = pd.concat(all_dfs)
+            dfs.append(self._parse_lmp_item(item))
+        if len(dfs) > 0:
+            df = pd.concat(dfs)
         else:
-            final_df = pd.DataFrame()
-
-        final_df = final_df.rename(
+            df = pd.DataFrame()
+        df = df.rename(
             columns={
                 "lmp": "LMP",
                 "mlcValue": "Loss",
                 "mccValue": "Congestion",
             },
         )
+        df["Location Type"] = ""  # placeholder
+        df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
 
-        final_df["Location Type"] = ""  # placeholder
-        final_df["Energy"] = final_df["LMP"] - final_df["Loss"] - final_df["Congestion"]
+        # Populate Location field (location IDs) from Location Name
+        pnode_ids = self.get_pnode_ids()
+        lookup = dict(zip(pnode_ids["pnode_name"], pnode_ids["pnode_id"].astype(int)))
+        df["Location"] = df["Location Name"].apply(
+            lambda location_name: lookup.get(location_name, pd.NA),
+        )
 
-        final_df = final_df[
+        df = df[
             [
                 "Time",
                 "Market",
                 "Location",
+                "Location Name",
                 "Location Type",
                 "LMP",
                 "Energy",
@@ -879,9 +865,29 @@ class PJM(ISOBase):
                 "Loss",
             ]
         ]
-        final_df = final_df.sort_values(by=["Time", "Location"])
+        df.sort_values(by=["Time", "Location Name"], inplace=True)
+        return df
 
-        return final_df
+    def _parse_lmp_item(self, item):
+        item_id = item["id"]
+        if item_id.endswith(" (DA)"):
+            market = Markets.DAY_AHEAD_HOURLY
+            item_id = item_id.replace(" (DA)", "")
+        else:
+            market = Markets.REAL_TIME_5_MIN
+        if re.search(r"[0-9]+ KV", item_id):
+            # clean up Voltage and Station artifacts in name
+            item_id = re.sub(r"([0-9]+) KV.*$", "", item_id).strip()
+        item_data = item["data"]
+        df = pd.DataFrame(item_data)
+        df["Market"] = market.value
+        df["Time"] = (
+            pd.to_datetime(df["timestamp"], unit="ms")
+            .dt.tz_localize(tz="UTC")
+            .dt.tz_convert(tz=self.default_timezone)
+        )
+        df["Location Name"] = item_id
+        return df
 
     def __debug_nested_data(self, data):
         pd.options.display.width = 0  # DEBUG
