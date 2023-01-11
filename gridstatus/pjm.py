@@ -265,6 +265,36 @@ class PJM(ISOBase):
                 'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
 
         """
+        if locations == "hubs":
+            locations = self.hub_node_ids
+
+        if location_type:
+            location_type = location_type.upper()
+            if location_type not in self.location_types:
+                raise ValueError(
+                    f"location_type must be one of {self.location_types}",
+                )
+
+        return self._get_lmp_via_pjm_json(
+            date,
+            market,
+            end=end,
+            locations=locations,
+            location_type=location_type,
+            verbose=verbose,
+        )
+
+    def _get_lmp_via_pjm_json(
+        self,
+        date,
+        market: str,
+        end=None,
+        locations=None,
+        location_type=None,
+        verbose=False,
+    ):
+        """Fetches data using the pjm_json api"""
+
         if date == "latest":
             """Currently only supports DAY_AHEAD_HOURlY"""
             return self._latest_lmp_from_today(
@@ -274,20 +304,17 @@ class PJM(ISOBase):
                 verbose=verbose,
             )
 
-        if locations == "hubs":
-            locations = self.hub_node_ids
-
         params = {}
 
         if market == Markets.REAL_TIME_5_MIN:
             market_endpoint = "rt_fivemin_hrl_lmps"
             market_type = "rt"
         elif market == Markets.REAL_TIME_HOURLY:
-            # todo implemlement location type filter
+            # todo implement location type filter
             market_endpoint = "rt_hrl_lmps"
             market_type = "rt"
         elif market == Markets.DAY_AHEAD_HOURLY:
-            # todo implemlement location type filter
+            # todo implement location type filter
             market_endpoint = "da_hrl_lmps"
             market_type = "da"
         else:
@@ -299,12 +326,6 @@ class PJM(ISOBase):
             )
 
         if location_type:
-            location_type = location_type.upper()
-            if location_type not in self.location_types:
-                raise ValueError(
-                    f"location_type must be one of {self.location_types}",
-                )
-
             if market == Markets.REAL_TIME_5_MIN:
                 warnings.warn(
                     (
@@ -326,7 +347,6 @@ class PJM(ISOBase):
 
             if locations and locations != "ALL":
                 params["pnode_id"] = ";".join(map(str, locations))
-
         elif locations is not None:
             warnings.warn(
                 (
@@ -343,6 +363,24 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
+        data = self._finalize_pjm_api_lmp_data(
+            data,
+            location_type,
+            locations,
+            market,
+            market_type,
+        )
+
+        return data
+
+    def _finalize_pjm_api_lmp_data(
+        self,
+        data,
+        location_type,
+        locations,
+        market,
+        market_type,
+    ):
         data = data.rename(
             columns={
                 "pnode_id": "Location",
@@ -354,9 +392,7 @@ class PJM(ISOBase):
                 f"marginal_loss_price_{market_type}": "Loss",
             },
         )
-
         data["Market"] = market.value
-
         data = data[
             [
                 "Time",
@@ -370,17 +406,14 @@ class PJM(ISOBase):
                 "Loss",
             ]
         ]
-
         # API cannot filter location type for rt 5 min
         if location_type and market == Markets.REAL_TIME_5_MIN:
             data = data[data["Location Type"] == location_type]
-
         if locations is not None and locations != "ALL":
             data = utils.filter_lmp_locations(
                 data,
                 map(int, locations),
             )
-
         return data
 
     def _get_pjm_json(
