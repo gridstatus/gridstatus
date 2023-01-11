@@ -1113,9 +1113,9 @@ if __name__ == "__main__":
 
     for market, date in combos:
         try:
-            print(f"date:{date}, market: {market}", file=sys.stderr)
+            print(f"date:{date}, market: {market}")
             df = iso.get_lmp(date=date, market=market, verbose=verbose)
-            print(len(df))
+            print(f"{len(df)} rows:")
             if date == "latest":
                 print(df.to_string())
             else:
