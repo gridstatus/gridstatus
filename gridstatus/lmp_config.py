@@ -67,6 +67,7 @@ class lmp_config:
 
     def _parse_signature(self, instance, args, kwargs, tz):
         date = None
+        date_field = None
         market = None
 
         if tz is None:
@@ -83,16 +84,27 @@ class lmp_config:
         args = list(args)
 
         if len(args) == 0:
-            if "date" not in kwargs or "market" not in kwargs:
-                raise ValueError("date and market are required")
-            date = kwargs["date"]
+            if (
+                "date" not in kwargs and "start" not in kwargs
+            ) or "market" not in kwargs:
+                raise ValueError("date/start and market are required")
+            if "date" in kwargs:
+                date_field = "date"
+            else:
+                date_field = "start"
+            date = kwargs[date_field]
             market = kwargs["market"]
         elif len(args) == 1:
-            if "date" in kwargs and "market" in kwargs:
-                date = kwargs["date"]
+            if ("date" in kwargs or "start" in kwargs) and "market" in kwargs:
+                if "date" in kwargs:
+                    date_field = "date"
+                else:
+                    date_field = "start"
+                date = kwargs[date_field]
                 market = kwargs["market"]
             elif "date" in kwargs:
-                date = kwargs["date"]
+                date_field = "start"
+                date = kwargs[date_field]
                 market = args[0]
             elif "market" in kwargs:
                 date = args[0]
@@ -113,14 +125,14 @@ class lmp_config:
 
         if len(args) == 0:
             if modify_date_arg:
-                kwargs["date"] = date
+                kwargs[date_field] = date
             kwargs["market"] = market
         elif len(args) == 1:
-            if "date" in kwargs and "market" not in kwargs:
+            if date_field in kwargs and "market" not in kwargs:
                 if modify_date_arg:
-                    kwargs["date"] = date
+                    kwargs[date_field] = date
                 args[0] = market
-            elif "date" not in kwargs and "market" in kwargs:
+            elif date_field not in kwargs and "market" in kwargs:
                 if modify_date_arg:
                     args[0] = date
                 kwargs["market"] = market
