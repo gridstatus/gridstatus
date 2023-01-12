@@ -109,18 +109,24 @@ class lmp_config:
 
         self._check_support(original_date_arg, date, market, tz)
 
+        modify_date_arg = original_date_arg != "latest"
+
         if len(args) == 0:
-            kwargs["date"] = date
+            if modify_date_arg:
+                kwargs["date"] = date
             kwargs["market"] = market
         elif len(args) == 1:
             if "date" in kwargs and "market" not in kwargs:
-                kwargs["date"] = date
+                if modify_date_arg:
+                    kwargs["date"] = date
                 args[0] = market
             elif "date" not in kwargs and "market" in kwargs:
-                args[0] = date
+                if modify_date_arg:
+                    args[0] = date
                 kwargs["market"] = market
         else:
-            args[0] = date
+            if modify_date_arg:
+                args[0] = date
             args[1] = market
 
         return {
