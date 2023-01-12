@@ -216,7 +216,6 @@ class ISONE(ISOBase):
         """  # noqa
         if locations is None:
             locations = "ALL"
-        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
@@ -278,7 +277,6 @@ class ISONE(ISOBase):
             locations = "ALL"
 
         now = pd.Timestamp.now(tz=self.default_timezone)
-        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             # todo handle intervals for current day
             intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]

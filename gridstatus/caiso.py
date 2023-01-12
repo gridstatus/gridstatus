@@ -243,7 +243,6 @@ class CAISO(ISOBase):
         # todo make sure defaults to local timezone
         start, end = _caiso_handle_start_end(date, end)
 
-        market = Markets(market)
         if market == Markets.DAY_AHEAD_HOURLY:
             query_name = "PRC_LMP"
             market_run_id = "DAM"

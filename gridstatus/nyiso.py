@@ -202,8 +202,6 @@ class NYISO(ISOBase):
         if location_type is None:
             location_type = ZONE
 
-        assert market is not None, "market must be specified"
-        market = Markets(market)
         marketname = self._set_marketname(market)
         location_type = self._set_location_type(location_type)
         filename = marketname + f"_{location_type}"

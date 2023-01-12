@@ -560,9 +560,6 @@ class Ercot(ISOBase):
             - ``hub``
             - ``node``
         """
-        assert market is not None, "market must be specified"
-        market = Markets(market)
-
         if market == Markets.REAL_TIME_15_MIN:
             df = self._get_spp_rtm15(
                 date,

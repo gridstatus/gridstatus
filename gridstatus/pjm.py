@@ -257,8 +257,6 @@ class PJM(ISOBase):
                 'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
 
         """
-        market = Markets(market)
-
         if date == "latest":
             """Currently only supports DAY_AHEAD_HOURlY"""
             return self._latest_lmp_from_today(

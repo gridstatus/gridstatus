@@ -323,7 +323,6 @@ class SPP(ISOBase):
             - ``interface``
             - ``settlement_location``
         """
-        market = Markets(market)
         if market not in self.markets:
             raise NotSupported(f"Market {market} not supported")
         location_type = self._normalize_location_type(location_type)
