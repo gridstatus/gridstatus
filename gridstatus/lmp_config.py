@@ -1,3 +1,4 @@
+import datetime
 import functools
 
 import pandas as pd
@@ -43,13 +44,20 @@ class lmp_config:
     def _parse_date(date, tz):
         if date == "latest":
             return lmp_config.__handle_date("today", tz=tz)
-        elif isinstance(date, str) or isinstance(date, pd.Timestamp):
+        elif (
+            isinstance(date, str)
+            or isinstance(date, pd.Timestamp)
+            or isinstance(date, datetime.date)
+        ):
             final_date = lmp_config.__handle_date(date, tz=tz)
             if not isinstance(final_date, pd.Timestamp):
                 raise ValueError(f"Cannot parse date {repr(date)}")
             return final_date
         else:
-            raise ValueError("date must be string or pd.Timestamp")
+            raise ValueError(
+                "date must be string or pd.Timestamp: "
+                f"{repr(date)} of type ({type(date)})",
+            )
 
     @staticmethod
     def _class_method_wrapper(instance, func, func_sig):
