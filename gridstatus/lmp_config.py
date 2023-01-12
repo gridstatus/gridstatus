@@ -7,11 +7,16 @@ from gridstatus.base import ISOBase, Markets, NotSupported
 
 
 class lmp_config:
+
+    configs = {}
+
     def __init__(self, supports, tz=None):
         self.supports = supports
         self.tz = tz
 
     def __call__(self, func):
+        lmp_config.configs[func.__qualname__] = self.supports
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if self._is_class_method(args, kwargs):
@@ -193,4 +198,14 @@ class lmp_config:
         return (
             lmp_config.__handle_date(date, tz=tz).date()
             == pd.Timestamp.now(tz=tz).date()
+        )
+
+    @classmethod
+    def supports(cls, method, market, date):
+        qualname = method.__qualname__
+        market = Markets(market)
+        return (
+            qualname in cls.configs
+            and market in cls.configs[qualname]
+            and date in cls.configs[qualname][market]
         )
