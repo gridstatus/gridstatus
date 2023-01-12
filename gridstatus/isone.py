@@ -15,6 +15,7 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
+from gridstatus.lmp_config import lmp_config
 
 
 class ISONE(ISOBase):
@@ -242,6 +243,13 @@ class ISONE(ISOBase):
         )
         return data
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_HOURLY: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
+        },
+    )
     @support_date_range(frequency="1D")
     def get_lmp(
         self,
