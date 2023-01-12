@@ -14,6 +14,7 @@ from gridstatus.base import (
     Markets,
 )
 from gridstatus.decorators import support_date_range
+from gridstatus.lmp_config import lmp_config
 
 ZONE = "zone"
 GENERATOR = "generator"
@@ -162,6 +163,12 @@ class NYISO(ISOBase):
 
         return data
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+        },
+    )
     @support_date_range(frequency="MS")
     def get_lmp(
         self,
