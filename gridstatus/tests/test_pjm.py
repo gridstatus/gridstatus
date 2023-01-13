@@ -70,19 +70,105 @@ class TestPJM(BaseTestISO):
                 market="REAL_TIME_5_MIN",
             )
 
-    def test_get_lmp_hourly(self):
-        markets = [
+    @pytest.mark.parametrize(
+        "market",
+        [
             Markets.REAL_TIME_HOURLY,
             Markets.DAY_AHEAD_HOURLY,
-        ]
+        ],
+    )
+    def test_get_lmp_hourly(self, market):
+        print(self.iso.iso_id, market)
+        self._test_get_lmp_one_year_ago_for_one_day(market)
 
-        for m in markets:
-            print(self.iso.iso_id, m)
-            self._lmp_tests(m)
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_HOURLY,
+            Markets.DAY_AHEAD_HOURLY,
+        ],
+    )
+    def test_get_lmp_span_archive_date(self, market):
+        print(self.iso.iso_id, market)
+        # test span archive date
+        archive_date = _get_pjm_archive_date(market)
+        start = archive_date - pd.Timedelta("1 day")
+        end = archive_date + pd.Timedelta("1 day")
+        # uses location_type hub because it has the fewest results, so runs faster
+        hist = self.iso.get_lmp(
+            start=start,
+            end=end,
+            location_type="hub",
+            market=market,
+        )
+        assert isinstance(hist, pd.DataFrame)
+        self._check_lmp_columns(hist, market)
+        # 2 days worth of data for each location
+        assert (
+            hist.groupby("Location")["Time"].agg(
+                lambda x: x.dt.day.nunique(),
+            )
+            == 2
+        ).all()
+
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_HOURLY,
+            Markets.DAY_AHEAD_HOURLY,
+        ],
+    )
+    def test_get_lmp_span_calendar_year(self, market):
+        print(self.iso.iso_id, market)
+        # span calendar year
+        # uses location_type hub because it has the fewest results, so runs faster
+        hist = self.iso.get_lmp(
+            start="2018-12-31",
+            end="2019-01-02",
+            location_type="hub",
+            market=market,
+        )
+        assert isinstance(hist, pd.DataFrame)
+        self._check_lmp_columns(hist, market)
+        # 2 days worth of data for each location
+        assert (hist.groupby("Location")["Time"].count() == 48).all()
+        # all archive
+        # uses location_type hub because it has the fewest results, so runs faster
+        hist = self.iso.get_lmp(
+            start="2019-07-15",
+            end="2019-07-16",
+            location_type="hub",
+            market=market,
+        )
+        assert isinstance(hist, pd.DataFrame)
+        self._check_lmp_columns(hist, market)
+
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_HOURLY,
+            Markets.DAY_AHEAD_HOURLY,
+        ],
+    )
+    def test_get_lmp_span_standard_recent_timeframe(self, market):
+        print(self.iso.iso_id, market)
+        # all standard
+        # move a few days back to avoid late published data
+        end = pd.Timestamp.now() - pd.Timedelta(days=4)
+        start = end - pd.Timedelta(days=1)
+        # uses location_type hub because it has the fewest results, so runs faster
+        hist = self.iso.get_lmp(
+            start=start,
+            end=end,
+            location_type="hub",
+            market=market,
+        )
+        assert isinstance(hist, pd.DataFrame)
+        self._check_lmp_columns(hist, market)
 
     @pytest.mark.slow
-    def test_get_lmp_5_min(self):
-        self._lmp_tests(Markets.REAL_TIME_5_MIN)
+    def test_get_lmp_rtm5_one_day_from_one_year_ago(self):
+        self._test_get_lmp_one_year_ago_for_one_day(Markets.REAL_TIME_5_MIN)
 
     def test_get_lmp_query_by_location_type(self):
         df = self.iso.get_lmp(
@@ -238,13 +324,12 @@ class TestPJM(BaseTestISO):
             end,
         ]
 
-    def _lmp_tests(self, m):
-        # uses location_type hub because it has the fewest results, so runs faster
-
-        # test span archive date and year
+    def _test_get_lmp_one_year_ago_for_one_day(self, m):
+        """test span archive date and year"""
         archive_date = _get_pjm_archive_date(m)
         start = archive_date - pd.Timedelta(days=366)
         end = archive_date + pd.Timedelta("1 day")
+        # uses location_type hub because it has the fewest results, so runs faster
         hist = self.iso.get_lmp(
             start=start,
             end=end,
@@ -264,59 +349,3 @@ class TestPJM(BaseTestISO):
             .unique()
         )
         assert set(unique_hours_per_day).issubset([25, 24, 23])
-
-        # test span archive date
-        archive_date = _get_pjm_archive_date(m)
-        start = archive_date - pd.Timedelta("1 day")
-        end = archive_date + pd.Timedelta("1 day")
-        hist = self.iso.get_lmp(
-            start=start,
-            end=end,
-            location_type="hub",
-            market=m,
-        )
-        assert isinstance(hist, pd.DataFrame)
-        self._check_lmp_columns(hist, m)
-        # 2 days worth of data for each location
-        assert (
-            hist.groupby("Location")["Time"].agg(
-                lambda x: x.dt.day.nunique(),
-            )
-            == 2
-        ).all()
-
-        # span calendar year
-        hist = self.iso.get_lmp(
-            start="2018-12-31",
-            end="2019-01-02",
-            location_type="hub",
-            market=m,
-        )
-        assert isinstance(hist, pd.DataFrame)
-        self._check_lmp_columns(hist, m)
-        # 2 days worth of data for each location
-        assert (hist.groupby("Location")["Time"].count() == 48).all()
-
-        # all archive
-        hist = self.iso.get_lmp(
-            start="2019-07-15",
-            end="2019-07-16",
-            location_type="hub",
-            market=m,
-        )
-        assert isinstance(hist, pd.DataFrame)
-        self._check_lmp_columns(hist, m)
-
-        # all standard
-        # move a few days back to avoid late published data
-        end = pd.Timestamp.now() - pd.Timedelta(days=4)
-        start = end - pd.Timedelta(days=1)
-
-        hist = self.iso.get_lmp(
-            start=start,
-            end=end,
-            location_type="hub",
-            market=m,
-        )
-        assert isinstance(hist, pd.DataFrame)
-        self._check_lmp_columns(hist, m)
