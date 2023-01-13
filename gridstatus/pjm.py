@@ -1013,36 +1013,30 @@ class PJM(ISOBase):
 
     @staticmethod
     def _df_deduplicate(dfs, unique_cols, keep_field, keep_value, verbose=False):
-        """Deduplicate a list of dataframes based on a list of columns,
-        keeping keep_field=keep_value.  Current DataFrame.drop_duplicates
-        only supports keep=first/last/False
+        """Concatenate dataframes and deduplicate based on a list of columns,
+        keeping keep_field=keep_value.
         """
         df = pd.concat(dfs)
         if verbose:
             print(f"Starting with {len(df)} rows", file=sys.stderr)
+
+        keep_fields = sorted(df[keep_field].unique().tolist())
+        if keep_value in keep_fields:
+            if keep_fields[0] == keep_value:
+                dedupe_keep = "first"
+            elif keep_fields[-1] == keep_value:
+                dedupe_keep = "last"
+            else:
+                raise ValueError(
+                    f"keep_value {repr(keep_value)} must be "
+                    f"first or last for de-duplication to work: {keep_fields}",
+                )
+
+            # Extract subset without duplicates
+            df.sort_values(keep_field, ascending=True, inplace=True)
+            df.drop_duplicates(subset=unique_cols, keep=dedupe_keep, inplace=True)
+
         df.reset_index(inplace=True, drop=True)
-
-        # Extract subset without duplicates
-        unique_df = df.drop_duplicates(subset=unique_cols, keep=False)
-        if verbose:
-            print(f"Unique rows: {len(unique_df)}", file=sys.stderr)
-
-        # Extract subset with duplicates
-        dupe_df = df[~df.index.isin(unique_df.index)]
-        if verbose:
-            print(f"Duplicate rows: {len(dupe_df)}", file=sys.stderr)
-
-        # Filter duplicates (dedupe) by keep_field=keep_value
-        dupe_df = dupe_df[dupe_df[keep_field] == keep_value]
-        if verbose:
-            print(
-                f"Duplicate rows after keeping only "
-                f"{keep_field}={keep_value}: {len(dupe_df)}",
-                file=sys.stderr,
-            )
-
-        # Recompose unique + deduplicated
-        df = pd.concat([unique_df, dupe_df])
 
         if verbose:
             print(f"Ending with {len(df)} rows", file=sys.stderr)
