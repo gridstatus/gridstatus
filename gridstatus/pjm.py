@@ -292,29 +292,21 @@ class PJM(ISOBase):
                     f"{market.value} is not supported for latest/today",
                 )
 
-        # Plan which APIs to use
+        # TODO skip fetching DV when outside 36 hour window.
+        dv_df = self._get_lmp_via_dv(
+            date,
+            market,
+            end=end,
+            locations=locations,
+            location_type=location_type,
+            verbose=verbose,
+        )
+
+        # Figure out whether we need to call the JSON API
         if utils.is_today(date, tz=self.default_timezone):
-            fetch_dv = market in (
-                Markets.REAL_TIME_5_MIN,
-                Markets.DAY_AHEAD_HOURLY,
-            )
             fetch_json = market in (Markets.DAY_AHEAD_HOURLY,)
         else:
             fetch_json = True
-            # TODO optimize this by checking within 36 hours.
-            # Otherwise, post filtering drops this data anyway
-            fetch_dv = True
-
-        dv_df = None
-        if fetch_dv:
-            dv_df = self._get_lmp_via_dv(
-                date,
-                market,
-                end=end,
-                locations=locations,
-                location_type=location_type,
-                verbose=verbose,
-            )
 
         json_df = None
         if fetch_json:
