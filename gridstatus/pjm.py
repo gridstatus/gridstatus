@@ -607,9 +607,9 @@ class PJM(ISOBase):
 
     @staticmethod
     def _new_dv_session(session, verbose=False):
-        response = session.get(DATAVIEWER_LMP_URL)
         if verbose:
             print(f"GET {DATAVIEWER_LMP_URL}")
+        response = session.get(DATAVIEWER_LMP_URL)
 
         html = response.content
         doc = bs4.BeautifulSoup(html, "html.parser")
