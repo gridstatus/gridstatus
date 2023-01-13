@@ -23,6 +23,8 @@ DATAVIEWER_LMP_URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf
 
 LMP_PARTIAL_RENDER_ID = "formLeftPanel:topLeftGrid"
 
+DV_LMP_RECENT_NUM_DAYS = 3
+
 
 class PJM(ISOBase):
     """PJM"""
@@ -292,15 +294,19 @@ class PJM(ISOBase):
                     f"{market.value} is not supported for latest/today",
                 )
 
-        # TODO skip fetching DV when outside 36 hour window.
-        dv_df = self._get_lmp_via_dv(
-            date,
-            market,
-            end=end,
-            locations=locations,
-            location_type=location_type,
-            verbose=verbose,
+        recent_threshold = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
+            days=DV_LMP_RECENT_NUM_DAYS,
         )
+        dv_df = None
+        if utils._handle_date(date, tz=self.default_timezone) >= recent_threshold:
+            dv_df = self._get_lmp_via_dv(
+                date,
+                market,
+                end=end,
+                locations=locations,
+                location_type=location_type,
+                verbose=verbose,
+            )
 
         # Figure out whether we need to call the JSON API
         if utils.is_today(date, tz=self.default_timezone):
