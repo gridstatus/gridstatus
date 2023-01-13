@@ -864,8 +864,11 @@ class PJM(ISOBase):
                 df = df[df["Time"].dt.date == date.date()]
             else:
                 df = df[
-                    df["Time"].dt.date >= date.date()
-                    and df["Time"].dt.date <= end.date()
+                    df["Time"].dt.date.between(
+                        date.date(),
+                        end.date(),
+                        inclusive="both",
+                    )
                 ]
             return df
 
