@@ -418,24 +418,7 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        data = self._finalize_pjm_api_lmp_data(
-            data,
-            location_type,
-            locations,
-            market,
-            market_type,
-        )
-
-        return data
-
-    def _finalize_pjm_api_lmp_data(
-        self,
-        data,
-        location_type,
-        locations,
-        market,
-        market_type,
-    ):
+        # finalize data
         data = data.rename(
             columns={
                 "pnode_id": "Location",
