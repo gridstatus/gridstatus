@@ -24,6 +24,7 @@ from gridstatus.isone import ISONE
 from gridstatus.miso import MISO
 from gridstatus.spp import SPP
 from gridstatus.pjm import PJM
+from gridstatus.aeso import AESO
 
 all_isos = [NYISO, CAISO, Ercot, ISONE, MISO, SPP, PJM]
 
@@ -36,6 +37,7 @@ __all__ = [
     "MISO",
     "SPP",
     "PJM",
+    "AESO",
     "Markets",
     "get_iso",
     "list_isos",
