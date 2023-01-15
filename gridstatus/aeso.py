@@ -35,28 +35,7 @@ class AESO(ISOBase):
         if date != "latest":
             raise NotSupported("Only latest fuel mix data is supported")
 
-        html = requests.get(CURRENT_SUPPLY_DEMAND_REPORT_URL)
-        soup = BeautifulSoup(html.text, "html.parser")
-        tables = soup.select("table")
-
-        leaf_tables = []
-        parents = set()
-        for table in tables:
-            table_parent = table.find_parent("table")
-            if table_parent:
-                parents.add(table_parent)
-        for table in tables:
-            if table not in parents:
-                leaf_tables.append(table)
-
-        table_dfs = []
-        for table in leaf_tables:
-            table_dfs += pd.read_html(str(table))
-
-        dfs = {}
-        for df in table_dfs:
-            rv = self._parse_df(df)
-            dfs.update(rv)
+        dfs = self._load_current_supply_demand_dfs()
 
         # transpose Generation table
         df = dfs["GENERATION"].T
@@ -79,6 +58,28 @@ class AESO(ISOBase):
         mix = {k: int(v["GENERATION TNG"]) for k, v in df.to_dict().items()}
 
         return FuelMix(iso=self.name, time=dfs["Time"].iloc[0, 0], mix=mix)
+
+    def _load_current_supply_demand_dfs(self):
+        html = requests.get(CURRENT_SUPPLY_DEMAND_REPORT_URL)
+        soup = BeautifulSoup(html.text, "html.parser")
+        tables = soup.select("table")
+        leaf_tables = []
+        parents = set()
+        for table in tables:
+            table_parent = table.find_parent("table")
+            if table_parent:
+                parents.add(table_parent)
+        for table in tables:
+            if table not in parents:
+                leaf_tables.append(table)
+        table_dfs = []
+        for table in leaf_tables:
+            table_dfs += pd.read_html(str(table))
+        dfs = {}
+        for df in table_dfs:
+            rv = self._parse_df(df)
+            dfs.update(rv)
+        return dfs
 
     @support_date_range(frequency="1D")
     def get_load(self, date, end=None, verbose=False):
