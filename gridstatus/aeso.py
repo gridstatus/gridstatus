@@ -81,6 +81,9 @@ class AESO(ISOBase):
             dfs.update(rv)
         return dfs
 
+    def get_interconnection_queue(self):
+        raise NotSupported("Interconnection queue not supported")
+
     @support_date_range(frequency="1D")
     def get_load(self, date, end=None, verbose=False):
         pass

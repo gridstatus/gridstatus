@@ -25,3 +25,7 @@ class TestAESO(BaseTestISO):
     def test_get_fuel_mix_today(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
+
+    def test_get_interconnection_queue(self):
+        with pytest.raises(NotSupported):
+            super().test_get_interconnection_queue()
