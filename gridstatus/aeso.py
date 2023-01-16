@@ -143,6 +143,7 @@ class AESO(ISOBase):
         elif "SUMMARY" in df.columns:
             df = df.rename(columns={"SUMMARY": "FIELD", "SUMMARY.1": "VALUE"})
             df = df[["FIELD", "VALUE"]]
+            df = df.set_index("FIELD").T
             rv = {"SUMMARY": df}
         elif (
             "BIOMASS AND OTHER" in df.columns
