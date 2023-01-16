@@ -5,8 +5,11 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
+from gridstatus import utils
 from gridstatus.base import FuelMix, ISOBase, NotSupported
 from gridstatus.decorators import support_date_range
+
+ACTUAL_FORECAST_URL = "http://ets.aeso.ca/ets_web/ip/Market/Reports/ActualForecastWMRQHReportServlet"  # noqa 501
 
 CURRENT_SUPPLY_DEMAND_REPORT_URL = (
     "http://ets.aeso.ca/ets_web/ip/Market/Reports/CSDReportServlet"
@@ -71,6 +74,23 @@ class AESO(ISOBase):
             dfs.update(rv)
         return dfs
 
+    def _get_actual_forecast_df(self):
+        all_dfs = []
+        html = requests.get(ACTUAL_FORECAST_URL)
+        soup = BeautifulSoup(html.content, "html.parser")
+        tables = soup.select("table")
+        for table in tables:
+            text = table.get_text().strip()
+            if len(text) == 0:
+                continue
+            dfs = pd.read_html(str(table))
+            for df in dfs:
+                if df.empty:
+                    continue
+                all_dfs.append(df)
+        df = all_dfs[0]
+        return df
+
     def _extract_leaf_tables(self, html):
         leaf_tables = []
         soup = BeautifulSoup(html.text, "html.parser")
@@ -99,9 +119,35 @@ class AESO(ISOBase):
         load_val = summary_df.iloc[0]["Alberta Internal Load (AIL)"]
         return {"time": time, "load": load_val}
 
-    @support_date_range(frequency="31D")
-    def get_load_forecast(self, date, end=None, sleep=4, verbose=False):
-        pass
+    def get_load_forecast(self, date, end=None, verbose=False):
+        if not utils.is_today(date, tz=self.default_timezone):
+            raise NotSupported("Only today's load forecast is supported")
+
+        df = self._get_actual_forecast_df()
+        df["Time"] = self._parse_date_hour_ending(df)
+
+        # approximate last updated timestamp by first
+        # value for Forecast Pool Price
+        fpp = df[["Time", "Forecast Pool Price"]]
+        fpp = fpp[fpp["Forecast Pool Price"] != "-"]
+        forecast_time = fpp["Time"].max()
+
+        df["Forecast Time"] = forecast_time
+
+        df = df.rename(columns={"Forecast AIL": "Load Forecast"})
+        df = df[["Forecast Time", "Time", "Load Forecast"]]
+
+        return df
+
+    def _parse_date_hour_ending(self, df):
+        return pd.to_datetime(
+            df["Date (HE)"].str.split(" ").str[0]
+            + " "
+            + (df["Date (HE)"].str.split(" ").str[1].astype(int) - 1)
+            .astype(str)
+            .str.zfill(2)
+            + ":00",
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
     @support_date_range(frequency="1D")
     def get_storage(self, date, verbose=False):

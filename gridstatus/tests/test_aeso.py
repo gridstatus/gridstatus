@@ -33,3 +33,11 @@ class TestAESO(BaseTestISO):
     def test_get_status_latest(self):
         with pytest.raises(NotSupported):
             super().test_get_status_latest()
+
+    def test_get_load_forecast_historical(self):
+        with pytest.raises(NotSupported):
+            super().test_get_load_forecast_historical()
+
+    def test_get_load_forecast_historical_with_date_range(self):
+        with pytest.raises(NotSupported):
+            super().test_get_load_forecast_historical_with_date_range()
