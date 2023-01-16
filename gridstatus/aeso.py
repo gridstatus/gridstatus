@@ -293,16 +293,3 @@ class AESO(ISOBase):
         rename_columns = {k: f"{prefix} {v}" for k, v in rename_columns.items()}
         df = df.rename(columns=rename_columns).drop(index=0).reset_index(drop=True)
         return df
-
-if __name__ == "__main__":
-    import gridstatus
-
-    control = gridstatus.Ercot().get_fuel_mix("latest")
-    print(f"control = {control}", file=sys.stderr)
-
-    control = gridstatus.NYISO().get_fuel_mix("latest")
-    print(f"control = {control}", file=sys.stderr)
-
-    iso = gridstatus.AESO()
-    fuel_mix = iso.get_fuel_mix("latest")
-    print(f"fuel_mix = {fuel_mix}", file=sys.stderr)
