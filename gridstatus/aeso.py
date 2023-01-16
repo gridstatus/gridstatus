@@ -28,7 +28,7 @@ class AESO(ISOBase):
     trading_hub_locations = []
 
     def get_status(self, date="latest", verbose=False) -> str:
-        pass
+        raise NotSupported("Status not supported")
 
     @support_date_range(frequency="1D")
     def get_fuel_mix(self, date, start=None, end=None, verbose=False):

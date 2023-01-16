@@ -29,3 +29,7 @@ class TestAESO(BaseTestISO):
     def test_get_interconnection_queue(self):
         with pytest.raises(NotSupported):
             super().test_get_interconnection_queue()
+
+    def test_get_status_latest(self):
+        with pytest.raises(NotSupported):
+            super().test_get_status_latest()
