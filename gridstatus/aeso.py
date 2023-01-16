@@ -152,45 +152,8 @@ class AESO(ISOBase):
             + ":00",
         ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
-    @support_date_range(frequency="1D")
     def get_storage(self, date, verbose=False):
         raise NotSupported("Storage not supported")
-
-    @support_date_range(frequency="31D")
-    def get_gas_prices(
-        self,
-        date,
-        end=None,
-        fuel_region_id="ALL",
-        sleep=4,
-        verbose=False,
-    ):
-        pass
-
-    @support_date_range(frequency="31D")
-    def get_ghg_allowance(
-        self,
-        date,
-        end=None,
-        sleep=4,
-        verbose=False,
-    ):
-        pass
-
-    @support_date_range(frequency="1D")
-    def get_as_prices(self, date, end=None, sleep=4, verbose=False):
-        pass
-
-    @support_date_range(frequency="31D")
-    def get_as_procurement(
-        self,
-        date,
-        end=None,
-        market="DAM",
-        sleep=4,
-        verbose=False,
-    ):
-        pass
 
     def _parse_df(self, df):
         rv = {}
