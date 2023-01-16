@@ -33,7 +33,6 @@ class AESO(ISOBase):
     def get_status(self, date="latest", verbose=False) -> str:
         raise NotSupported("Status not supported")
 
-    @support_date_range(frequency="1D")
     def get_fuel_mix(self, date, start=None, end=None, verbose=False):
         if date != "latest":
             raise NotSupported("Only latest fuel mix data is supported")
@@ -113,7 +112,6 @@ class AESO(ISOBase):
     def get_interconnection_queue(self):
         raise NotSupported("Interconnection queue not supported")
 
-    @support_date_range(frequency="1D")
     def get_load(self, date, end=None, verbose=False):
         if date != "latest":
             raise NotSupported("Only latest load data is supported")
@@ -156,7 +154,7 @@ class AESO(ISOBase):
 
     @support_date_range(frequency="1D")
     def get_storage(self, date, verbose=False):
-        pass
+        raise NotSupported("Storage not supported")
 
     @support_date_range(frequency="31D")
     def get_gas_prices(

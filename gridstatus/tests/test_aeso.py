@@ -26,10 +26,38 @@ class TestAESO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
 
+    """get_interconnection_queue"""
+
     def test_get_interconnection_queue(self):
         with pytest.raises(NotSupported):
             super().test_get_interconnection_queue()
 
+    """get_load"""
+
+    def test_get_load_historical_with_date_range(self):
+        with pytest.raises(NotSupported):
+            super().test_get_load_historical_with_date_range()
+
+    def test_get_load_historical(self):
+        with pytest.raises(NotSupported):
+            super().test_get_load_historical()
+
+    def test_get_load_today(self):
+        with pytest.raises(NotSupported):
+            super().test_get_load_today()
+
+    """get_status"""
+
     def test_get_status_latest(self):
         with pytest.raises(NotSupported):
             super().test_get_status_latest()
+
+    """get_storage"""
+
+    def test_get_storage_historical(self):
+        with pytest.raises(NotSupported):
+            super().test_get_storage_historical()
+
+    def test_get_storage_today(self):
+        with pytest.raises(NotSupported):
+            super().test_get_storage_today()
