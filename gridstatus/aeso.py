@@ -86,7 +86,14 @@ class AESO(ISOBase):
 
     @support_date_range(frequency="1D")
     def get_load(self, date, end=None, verbose=False):
-        pass
+        if date != "latest":
+            raise NotSupported("Only latest load data is supported")
+
+        dfs = self._load_current_supply_demand_dfs()
+        time = dfs["Time"].iloc[0, 0]
+        summary_df = dfs["SUMMARY"]
+        load_val = summary_df.iloc[0]["Alberta Internal Load (AIL)"]
+        return {"time": time, "load": load_val}
 
     @support_date_range(frequency="31D")
     def get_load_forecast(self, date, end=None, sleep=4, verbose=False):
