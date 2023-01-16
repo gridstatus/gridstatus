@@ -74,9 +74,14 @@ class AESO(ISOBase):
             dfs.update(rv)
         return dfs
 
-    def _get_actual_forecast_df(self):
+    def _get_actual_forecast_df(self, date=None, end=None):
         all_dfs = []
-        html = requests.get(ACTUAL_FORECAST_URL)
+        params = {}
+        if date is not None:
+            params["beginDate"] = date.strftime("%m%d%Y")
+        if end is not None:
+            params["endDate"] = end.strftime("%m%d%Y")
+        html = requests.get(ACTUAL_FORECAST_URL, params=params)
         soup = BeautifulSoup(html.content, "html.parser")
         tables = soup.select("table")
         for table in tables:
@@ -119,11 +124,11 @@ class AESO(ISOBase):
         load_val = summary_df.iloc[0]["Alberta Internal Load (AIL)"]
         return {"time": time, "load": load_val}
 
+    @support_date_range(frequency="31D")
     def get_load_forecast(self, date, end=None, verbose=False):
-        if not utils.is_today(date, tz=self.default_timezone):
-            raise NotSupported("Only today's load forecast is supported")
-
-        df = self._get_actual_forecast_df()
+        if utils.is_today(date, tz=self.default_timezone):
+            date, end = None, None
+        df = self._get_actual_forecast_df(date, end)
         df["Time"] = self._parse_date_hour_ending(df)
 
         # approximate last updated timestamp by first
