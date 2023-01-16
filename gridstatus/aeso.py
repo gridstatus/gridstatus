@@ -61,17 +61,7 @@ class AESO(ISOBase):
 
     def _load_current_supply_demand_dfs(self):
         html = requests.get(CURRENT_SUPPLY_DEMAND_REPORT_URL)
-        soup = BeautifulSoup(html.text, "html.parser")
-        tables = soup.select("table")
-        leaf_tables = []
-        parents = set()
-        for table in tables:
-            table_parent = table.find_parent("table")
-            if table_parent:
-                parents.add(table_parent)
-        for table in tables:
-            if table not in parents:
-                leaf_tables.append(table)
+        leaf_tables = self._extract_leaf_tables(html)
         table_dfs = []
         for table in leaf_tables:
             table_dfs += pd.read_html(str(table))
@@ -80,6 +70,20 @@ class AESO(ISOBase):
             rv = self._parse_df(df)
             dfs.update(rv)
         return dfs
+
+    def _extract_leaf_tables(self, html):
+        leaf_tables = []
+        soup = BeautifulSoup(html.text, "html.parser")
+        tables = soup.select("table")
+        parents = set()
+        for table in tables:
+            table_parent = table.find_parent("table")
+            if table_parent:
+                parents.add(table_parent)
+        for table in tables:
+            if table not in parents:
+                leaf_tables.append(table)
+        return leaf_tables
 
     def get_interconnection_queue(self):
         raise NotSupported("Interconnection queue not supported")
