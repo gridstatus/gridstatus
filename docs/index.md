@@ -26,7 +26,7 @@ kernelspec:
 
 `gridstatus` is a standardized Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
 
-Currently `gridstatus` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
+Currently `gridstatus` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, PJM, and AESO.
 
 We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
 
