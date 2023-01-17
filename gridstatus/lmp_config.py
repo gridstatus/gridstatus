@@ -59,15 +59,15 @@ class lmp_config:
         instance_kwargs = fn_params["kwargs"]
         return func(*instance_args, **instance_kwargs)
 
-    def _verify_fn_params(self, args_dict):
+    def _verify_fn_params(self, fn_params):
         """Verify date/start and market args/kwargs. Transform values and injects
         them back into the original signature if needed.
 
         Raises:
             ValueError: If date/start or market are missing or invalid
         """
-        args = args_dict["args"]
-        kwargs = args_dict["kwargs"]
+        args = fn_params["args"]
+        kwargs = fn_params["kwargs"]
         instance = args["self"]
 
         date = self._get_first([args, kwargs], ["date", "start"])
@@ -89,7 +89,7 @@ class lmp_config:
         if market != market_value:
             self._set_first([args, kwargs], ["market"], market_value)
 
-        return args_dict
+        return fn_params
 
     def _check_support(self, orig_date, date, market, tz):
         if market not in self.supports:
