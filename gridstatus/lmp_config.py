@@ -27,12 +27,10 @@ class lmp_config:
                     instance,
                     func_args,
                     func_kwargs,
-                    tz=self.tz,
                 )
                 return self._class_method_wrapper(instance, func, func_sig)
             else:
-                func_sig = self._parse_signature(None, args, kwargs, tz=self.tz)
-                return self._function_wrapper(func, func_sig)
+                raise ValueError("Must be class method on ISOBase")
 
         return wrapper
 
@@ -71,29 +69,15 @@ class lmp_config:
         return func(*instance_args, **instance_kwargs)
 
     @staticmethod
-    def _function_wrapper(func, func_sig):
-        return func(*func_sig["args"], **func_sig["kwargs"])
-
-    @staticmethod
     def _parse_market(market):
         return Markets(market)
 
-    def _parse_signature(self, instance, args, kwargs, tz):
+    def _parse_signature(self, instance, args, kwargs):
         date = None
         date_field = None
         market = None
 
-        if tz is None:
-            if instance is not None:
-                if not hasattr(instance, "default_timezone"):
-                    raise ValueError(
-                        "ISO does not have default_timezone set; cannot determine tz",
-                    )
-                else:
-                    tz = instance.default_timezone
-        if tz is None:
-            raise ValueError("Must set tz= arg or ISO default timezone")
-
+        tz = instance.default_timezone
         args = list(args)
 
         if len(args) == 0:

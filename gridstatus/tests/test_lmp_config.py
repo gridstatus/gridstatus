@@ -19,25 +19,12 @@ class ISOZeroSupport(ISOBase):
         print(f"get_lmp({date}, {market})")
 
 
-@lmp_config(supports={}, tz="US/Central")
-def zero_support_get_lmp(self, date, market):
-    print(f"get_lmp({date}, {market})")
-
-
 class ISOTodayHistoricalDayAheadHourly(ISOBase):
     default_timezone = "US/Central"
 
     @lmp_config(supports={Markets.DAY_AHEAD_HOURLY: ["today", "historical"]})
     def get_lmp(self, date, market):
         print(f"get_lmp({date}, {market})")
-
-
-@lmp_config(
-    supports={Markets.DAY_AHEAD_HOURLY: ["today", "historical"]},
-    tz="US/Central",
-)
-def today_historical_day_ahead_hourly_get_lmp(date, market):
-    print(f"get_lmp({date}, {market})")
 
 
 class ISOLatestRealTime15Minutes(ISOBase):
@@ -48,27 +35,16 @@ class ISOLatestRealTime15Minutes(ISOBase):
         print(f"get_lmp({date}, {market})")
 
 
-@lmp_config(supports={Markets.REAL_TIME_15_MIN: ["latest"]}, tz="US/Central")
-def latest_real_time_15_min_get_lmp(date, market):
-    print(f"get_lmp({date}, {market})")
-
-
 def test_lmp_config_support_check_matches():
     iso = ISOLatestRealTime15Minutes()
     iso.get_lmp("latest", Markets.REAL_TIME_15_MIN)
-    latest_real_time_15_min_get_lmp("latest", Markets.REAL_TIME_15_MIN)
     iso.get_lmp("latest", "REAL_TIME_15_MIN")
-    latest_real_time_15_min_get_lmp("latest", "REAL_TIME_15_MIN")
 
     iso = ISOTodayHistoricalDayAheadHourly()
     iso.get_lmp("today", Markets.DAY_AHEAD_HOURLY)
-    today_historical_day_ahead_hourly_get_lmp("today", Markets.DAY_AHEAD_HOURLY)
     iso.get_lmp("today", "DAY_AHEAD_HOURLY")
-    today_historical_day_ahead_hourly_get_lmp("today", "DAY_AHEAD_HOURLY")
     iso.get_lmp(days_ago(2), Markets.DAY_AHEAD_HOURLY)
-    today_historical_day_ahead_hourly_get_lmp(days_ago(2), Markets.DAY_AHEAD_HOURLY)
     iso.get_lmp(days_ago(2), "DAY_AHEAD_HOURLY")
-    today_historical_day_ahead_hourly_get_lmp(days_ago(2), "DAY_AHEAD_HOURLY")
 
 
 def test_lmp_config_signature_combos_success():
@@ -93,22 +69,10 @@ def test_lmp_config_signature_combos_failure():
         iso.get_lmp(date=date)
     with pytest.raises(ValueError):
         iso.get_lmp(market=market)
-    with pytest.raises(ValueError):
-        latest_real_time_15_min_get_lmp(date)
-    with pytest.raises(ValueError):
-        latest_real_time_15_min_get_lmp(market)
-    with pytest.raises(ValueError):
-        latest_real_time_15_min_get_lmp(date=date)
-    with pytest.raises(ValueError):
-        latest_real_time_15_min_get_lmp(market=market)
 
 
 def test_lmp_config_support_check_does_not_match():
     with pytest.raises(NotSupported):
         ISOTodayHistoricalDayAheadHourly().get_lmp("latest", Markets.DAY_AHEAD_HOURLY)
     with pytest.raises(NotSupported):
-        today_historical_day_ahead_hourly_get_lmp("latest", Markets.DAY_AHEAD_HOURLY)
-    with pytest.raises(NotSupported):
         ISOZeroSupport().get_lmp("today", Markets.DAY_AHEAD_HOURLY)
-    with pytest.raises(NotSupported):
-        zero_support_get_lmp("today", Markets.DAY_AHEAD_HOURLY)
