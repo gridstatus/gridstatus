@@ -40,10 +40,6 @@ class lmp_config:
         return len(args) > 0 and isinstance(args[0], ISOBase)
 
     @staticmethod
-    def _validate_market_arg_signature(market):
-        return isinstance(market, str) or isinstance(market, Markets)
-
-    @staticmethod
     def _parse_date(date, tz):
         from gridstatus.utils import _handle_date
 
