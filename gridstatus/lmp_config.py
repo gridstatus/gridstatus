@@ -45,14 +45,16 @@ class lmp_config:
 
     @staticmethod
     def _parse_date(date, tz):
+        from gridstatus.utils import _handle_date
+
         if date == "latest":
-            return lmp_config.__handle_date("today", tz=tz)
+            return _handle_date("today", tz=tz)
         elif (
             isinstance(date, str)
             or isinstance(date, pd.Timestamp)
             or isinstance(date, datetime.date)
         ):
-            final_date = lmp_config.__handle_date(date, tz=tz)
+            final_date = _handle_date(date, tz=tz)
             if not isinstance(final_date, pd.Timestamp):
                 raise ValueError(f"Cannot parse date {repr(date)}")
             return final_date
@@ -147,12 +149,14 @@ class lmp_config:
         if market_arg not in self.supports:
             raise NotSupported(f"{market_arg} not supported")
 
+        from gridstatus.utils import is_today
+
         if original_date_arg in (
             "latest",
             "today",
         ):
             supported = original_date_arg in self.supports[market_arg]
-        elif lmp_config.__is_today(date_arg, tz):
+        elif is_today(date_arg, tz):
             supported = "today" in self.supports[market_arg]
         else:
             supported = "historical" in self.supports[market_arg]
@@ -161,28 +165,6 @@ class lmp_config:
             raise NotSupported(
                 f"{market_arg} does not support {repr(original_date_arg)}",
             )
-
-    # copied from utils.py to avoid circular import
-    @staticmethod
-    def __handle_date(date, tz=None):
-        if date == "today":
-            date = pd.Timestamp.now(tz=tz)
-
-        if not isinstance(date, pd.Timestamp):
-            date = pd.to_datetime(date)
-
-        if tz and date.tzinfo is None:
-            date = date.tz_localize(tz)
-
-        return date
-
-    # copied from utils.py to avoid circular import
-    @staticmethod
-    def __is_today(date, tz):
-        return (
-            lmp_config.__handle_date(date, tz=tz).date()
-            == pd.Timestamp.now(tz=tz).date()
-        )
 
     @classmethod
     def supports(cls, method, market, date):
