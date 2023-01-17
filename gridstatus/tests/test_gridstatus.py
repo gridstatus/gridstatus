@@ -21,7 +21,7 @@ def test_make_lmp_availability_df():
 
 
 def test_list_isos():
-    assert len(gridstatus.list_isos()) == 7
+    assert len(gridstatus.list_isos()) == 8
 
 
 def test_get_iso():
