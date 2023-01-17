@@ -1,5 +1,6 @@
 import datetime
 import functools
+from collections import OrderedDict
 
 import pandas as pd
 
@@ -15,32 +16,24 @@ class lmp_config:
         self.tz = tz
 
     def __call__(self, func):
+
         lmp_config.configs[func.__qualname__] = self.supports
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if self._is_class_method(args, kwargs):
-                instance = args[0]
-                func_args = args[1:]
-                func_kwargs = kwargs
-                func_sig = self._parse_signature(
-                    instance,
-                    func_args,
-                    func_kwargs,
-                )
-                return self._class_method_wrapper(instance, func, func_sig)
+            fn_params = self._get_fn_params(func, args, kwargs)
+            if len(args) > 0 and isinstance(args[0], ISOBase):
+                fn_params = self._verify_fn_params(fn_params)
+                return self._class_method_wrapper(func, fn_params)
             else:
                 raise ValueError("Must be class method on ISOBase")
 
         return wrapper
 
     @staticmethod
-    def _is_class_method(args, kwargs):
-        # args[0] must be "self" and an instance of ISOBase
-        return len(args) > 0 and isinstance(args[0], ISOBase)
-
-    @staticmethod
     def _parse_date(date, tz):
+        """Parse date to pd.Timestamp,
+        to be used later on for validation"""
         from gridstatus.utils import _handle_date
 
         if date == "latest":
@@ -61,109 +54,71 @@ class lmp_config:
             )
 
     @staticmethod
-    def _class_method_wrapper(instance, func, func_sig):
-        instance_args = tuple([instance] + list(func_sig["args"]))
-        instance_kwargs = func_sig["kwargs"]
+    def _class_method_wrapper(func, fn_params):
+        instance_args = tuple(fn_params["args"])
+        instance_kwargs = fn_params["kwargs"]
         return func(*instance_args, **instance_kwargs)
 
-    @staticmethod
-    def _parse_market(market):
-        return Markets(market)
+    def _verify_fn_params(self, args_dict):
+        """Verify date/start and market args/kwargs. Transform values and injects
+        them back into the original signature if needed.
 
-    def _parse_signature(self, instance, args, kwargs):
-        date = None
-        date_field = None
-        market = None
+        Raises:
+            ValueError: If date/start or market are missing or invalid
+        """
+        args = args_dict["args"]
+        kwargs = args_dict["kwargs"]
+        instance = args["self"]
 
+        date = self._get_first([args, kwargs], ["date", "start"])
+        market = self._get_first([args, kwargs], ["market"])
         tz = instance.default_timezone
-        args = list(args)
 
-        if len(args) == 0:
-            if (
-                "date" not in kwargs and "start" not in kwargs
-            ) or "market" not in kwargs:
-                raise ValueError("date/start and market are required")
-            if "date" in kwargs:
-                date_field = "date"
-            else:
-                date_field = "start"
-            date = kwargs[date_field]
-            market = kwargs["market"]
-        elif len(args) == 1:
-            if ("date" in kwargs or "start" in kwargs) and "market" in kwargs:
-                if "date" in kwargs:
-                    date_field = "date"
-                else:
-                    date_field = "start"
-                date = kwargs[date_field]
-                market = kwargs["market"]
-            elif "date" in kwargs:
-                date_field = "start"
-                date = kwargs[date_field]
-                market = args[0]
-            elif "market" in kwargs:
-                date = args[0]
-                market = kwargs["market"]
-            else:
-                raise ValueError("Missing date or market")
-        else:
-            date = args[0]
-            market = args[1]
+        if date is None:
+            raise ValueError("date/start is required")
+        elif market is None:
+            raise ValueError("market is required")
 
-        original_date_arg = date
-        date = self._parse_date(date, tz=tz)
-        market = self._parse_market(market)
+        date_value = self._parse_date(date, tz=tz)
+        market_value = Markets(market)
 
-        self._check_support(original_date_arg, date, market, tz)
+        self._check_support(date, date_value, market_value, tz)
 
-        modify_date_arg = original_date_arg != "latest"
+        if date != date_value:
+            self._set_first([args, kwargs], ["date", "start"], date_value)
+        if market != market_value:
+            self._set_first([args, kwargs], ["market"], market_value)
 
-        if len(args) == 0:
-            if modify_date_arg:
-                kwargs[date_field] = date
-            kwargs["market"] = market
-        elif len(args) == 1:
-            if date_field in kwargs and "market" not in kwargs:
-                if modify_date_arg:
-                    kwargs[date_field] = date
-                args[0] = market
-            elif date_field not in kwargs and "market" in kwargs:
-                if modify_date_arg:
-                    args[0] = date
-                kwargs["market"] = market
-        else:
-            if modify_date_arg:
-                args[0] = date
-            args[1] = market
+        return args_dict
 
-        return {
-            "args": tuple(args),
-            "kwargs": kwargs,
-        }
-
-    def _check_support(self, original_date_arg, date_arg, market_arg, tz):
-        if market_arg not in self.supports:
-            raise NotSupported(f"{market_arg} not supported")
+    def _check_support(self, orig_date, date, market, tz):
+        if market not in self.supports:
+            raise NotSupported(f"{market} not supported")
 
         from gridstatus.utils import is_today
 
-        if original_date_arg in (
+        if orig_date in (
             "latest",
             "today",
         ):
-            supported = original_date_arg in self.supports[market_arg]
-        elif is_today(date_arg, tz):
-            supported = "today" in self.supports[market_arg]
+            supported = orig_date in self.supports[market]
+        elif is_today(date, tz):
+            supported = "today" in self.supports[market]
         else:
-            supported = "historical" in self.supports[market_arg]
+            supported = "historical" in self.supports[market]
 
         if not supported:
             raise NotSupported(
-                f"{market_arg} does not support {repr(original_date_arg)}",
+                f"{market} does not support {repr(orig_date)}",
             )
 
     @classmethod
     def supports(cls, method, market, date):
+        """Check if a method supports a market and date.
+
+        Example:
+            lmp_config.supports(iso.get_lmp, Markets.REAL_TIME_5_MIN, "latest")
+        """
         qualname = method.__qualname__
         market = Markets(market)
         return (
@@ -171,3 +126,28 @@ class lmp_config:
             and market in cls.configs[qualname]
             and date in cls.configs[qualname][market]
         )
+
+    @staticmethod
+    def _get_first(dicts, params):
+        """Find first param in list of dictionaries"""
+        for param in params:
+            for d in dicts:
+                if param in d:
+                    return d[param]
+        return None
+
+    @staticmethod
+    def _set_first(dicts, params, value):
+        """Set first param in list of dictionaries"""
+        for param in params:
+            for d in dicts:
+                if param in d:
+                    d[param] = value
+                    break
+
+    @staticmethod
+    def _get_fn_params(fn, args, kwargs):
+        """Returns args as ordered dictionary and kwargs"""
+        args_names = fn.__code__.co_varnames[: fn.__code__.co_argcount]
+        args_odict = {**OrderedDict(zip(args_names, args))}
+        return {"args": args_odict, "kwargs": kwargs}
