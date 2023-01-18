@@ -135,6 +135,9 @@ class lmp_config:
     def _get_bound_args(fn, args, kwargs) -> inspect.BoundArguments:
         """Returns args as ordered dictionary and kwargs"""
         sig = inspect.signature(fn)
+        if "start" in kwargs and "date" not in kwargs and len(args) < 2:
+            # For @support_date_range which allows start/end kwargs
+            kwargs["date"] = kwargs.pop("start")
         bound_args = sig.bind(*args, **kwargs)
 
         if "self" not in bound_args.arguments:
