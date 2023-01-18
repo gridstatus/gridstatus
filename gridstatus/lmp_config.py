@@ -11,9 +11,8 @@ class lmp_config:
 
     configs = {}
 
-    def __init__(self, supports, tz=None):
+    def __init__(self, supports):
         self.supports = supports
-        self.tz = tz
 
     def __call__(self, func):
 
