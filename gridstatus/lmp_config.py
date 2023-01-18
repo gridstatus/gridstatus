@@ -68,24 +68,30 @@ class lmp_config:
         arguments = bound_args.arguments
         instance = arguments["self"]
 
-        date = self._get_first(arguments, ["date", "start"])
-        market = self._get_first(arguments, ["market"])
-        tz = instance.default_timezone
-
-        if date is None:
+        if "date" in arguments:
+            date = arguments["date"]
+        elif "start" in arguments:
+            date = arguments["start"]
+        else:
             raise ValueError("date/start is required")
-        elif market is None:
+
+        if "market" in arguments:
+            market = arguments["market"]
+        else:
             raise ValueError("market is required")
 
+        tz = instance.default_timezone
         date_value = self._parse_date(date, tz=tz)
         market_value = Markets(market)
 
         self._check_support(date, date_value, market_value, tz)
 
-        if date != "latest" and date_value != date:
-            self._set_first(arguments, ["date", "start"], date_value)
-        if market != market_value:
-            self._set_first(arguments, ["market"], market_value)
+        if date != "latest":
+            if "date" in arguments:
+                arguments["date"] = date_value
+            elif "start" in arguments:
+                arguments["start"] = date_value
+        arguments["market"] = market_value
 
         return bound_args
 
@@ -124,22 +130,6 @@ class lmp_config:
             and market in cls.configs[qualname]
             and date in cls.configs[qualname][market]
         )
-
-    @staticmethod
-    def _get_first(arguments, params):
-        """Find first param in list of dictionaries"""
-        for param in params:
-            if param in arguments:
-                return arguments[param]
-        return None
-
-    @staticmethod
-    def _set_first(arguments, params, value):
-        """Set first param in list of dictionaries"""
-        for param in params:
-            if param in arguments:
-                arguments[param] = value
-                break
 
     @staticmethod
     def _get_bound_args(fn, args, kwargs) -> inspect.BoundArguments:
