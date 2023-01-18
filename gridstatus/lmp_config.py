@@ -119,19 +119,25 @@ class lmp_config:
             )
 
     @classmethod
-    def supports(cls, method, market, date):
-        """Check if a method supports a market and date.
+    def supports(cls, method, market, date=None):
+        """Check if a method supports a market
+        and optionally, a date ("latest", "today", "historical")
 
         Example:
             lmp_config.supports(iso.get_lmp, Markets.REAL_TIME_5_MIN, "latest")
         """
         qualname = method.__qualname__
         market = Markets(market)
-        return (
-            qualname in cls.configs
-            and market in cls.configs[qualname]
-            and date in cls.configs[qualname][market]
-        )
+
+        is_supported = qualname in cls.configs and market in cls.configs[qualname]
+        if date is not None:
+            is_supported = is_supported and date in cls.configs[qualname][market]
+        return is_supported
+
+    @classmethod
+    def get_support(cls, method):
+        """Fetches support config dictionary"""
+        return cls.configs.get(method.__qualname__, {}).copy()
 
     @staticmethod
     def _get_bound_args(fn, args, kwargs) -> inspect.BoundArguments:

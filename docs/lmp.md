@@ -11,15 +11,15 @@ kernelspec:
 Below are the currently supported LMP markets
 
 <!-- LMP AVAILABILITY TABLE START -->
-|       | Method    | REAL_TIME_5_MIN   | REAL_TIME_15_MIN   | REAL_TIME_HOURLY   | DAY_AHEAD_HOURLY   |
-|:------|:----------|:------------------|:-------------------|:-------------------|:-------------------|
-| CAISO | `get_lmp` | &#x2705;          | &#x2705;           | &#10060;           | &#x2705;           |
-| Ercot | `get_spp` | &#10060;          | &#x2705;           | &#10060;           | &#x2705;           |
-| ISONE | `get_lmp` | &#x2705;          | &#10060;           | &#x2705;           | &#x2705;           |
-| MISO  | `get_lmp` | &#x2705;          | &#10060;           | &#10060;           | &#x2705;           |
-| NYISO | `get_lmp` | &#x2705;          | &#10060;           | &#10060;           | &#x2705;           |
-| PJM   | `get_lmp` | &#x2705;          | &#10060;           | &#x2705;           | &#x2705;           |
-| SPP   | `get_lmp` | &#x2705;          | &#10060;           | &#10060;           | &#x2705;           |
+|       | Method    | REAL_TIME_5_MIN           | DAY_AHEAD_HOURLY          | REAL_TIME_15_MIN          | REAL_TIME_HOURLY          |
+|:------|:----------|:--------------------------|:--------------------------|:--------------------------|:--------------------------|
+| CAISO | `get_lmp` | latest, today, historical | latest, today, historical | latest, today, historical | -                         |
+| Ercot | `get_spp` | -                         | latest, today, historical | latest, today, historical | -                         |
+| ISONE | `get_lmp` | latest, today, historical | today, historical         | -                         | latest, today, historical |
+| MISO  | `get_lmp` | latest                    | latest                    | -                         | -                         |
+| NYISO | `get_lmp` | latest, today, historical | latest, today, historical | -                         | -                         |
+| PJM   | `get_lmp` | today, historical         | latest, today, historical | -                         | today, historical         |
+| SPP   | `get_lmp` | latest, today, historical | latest, today, historical | -                         | -                         |
 
 <!-- LMP AVAILABILITY TABLE END -->
 

@@ -12,6 +12,7 @@ from gridstatus.base import Markets, NotSupported, _interconnection_columns
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
 from gridstatus.isone import ISONE
+from gridstatus.lmp_config import lmp_config
 from gridstatus.miso import MISO
 from gridstatus.nyiso import NYISO
 from gridstatus.pjm import PJM
@@ -107,32 +108,31 @@ def _handle_date(date, tz=None):
     return date
 
 
-LMP_METHODS = ["get_lmp", "get_spp"]
+LMP_METHOD_NAMES = ["get_lmp", "get_spp"]
 
 
 def make_lmp_availability_df():
-    markets = [
-        Markets.REAL_TIME_5_MIN,
-        Markets.REAL_TIME_15_MIN,
-        Markets.REAL_TIME_HOURLY,
-        Markets.DAY_AHEAD_HOURLY,
-    ]
     availability = {}
     DOES_NOT_EXIST_SENTINEL = "dne"
     for iso in tqdm.tqdm(gridstatus.all_isos):
         availability[iso.__name__] = {"Method": "-"}
-        for method in LMP_METHODS:
+        matching_method_name = None
+        for method_name in LMP_METHOD_NAMES:
             if (
-                getattr(iso(), method, DOES_NOT_EXIST_SENTINEL)
+                getattr(iso(), method_name, DOES_NOT_EXIST_SENTINEL)
                 != DOES_NOT_EXIST_SENTINEL
             ):
-                availability[iso.__name__]["Method"] = f"`{method}`"
+                matching_method_name = method_name
                 break
-        for market in markets:
-            iso_markets = getattr(iso, "markets")
-            availability[iso.__name__][market] = market in iso_markets
+        if matching_method_name is None:
+            continue
+        availability[iso.__name__]["Method"] = f"`{matching_method_name}`"
+        matching_method = getattr(iso(), matching_method_name)
+        config = lmp_config.get_support(matching_method)
+        for market, supported_dates in config.items():
+            availability[iso.__name__][market.name] = ", ".join(supported_dates)
 
-    return pd.DataFrame(availability)
+    return pd.DataFrame(availability).fillna("-")
 
 
 def convert_bool_to_emoji(value):
