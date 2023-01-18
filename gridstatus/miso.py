@@ -139,9 +139,6 @@ class MISO(ISOBase):
             - ``REAL_TIME_5_MIN`` - (FiveMinLMP)
             - ``DAY_AHEAD_HOURLY`` - (DayAheadExPostLMP)
         """
-        if date != "latest":
-            raise NotSupported()
-
         if locations is None:
             locations = "ALL"
 
