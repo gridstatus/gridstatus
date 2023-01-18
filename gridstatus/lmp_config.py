@@ -25,6 +25,8 @@ class lmp_config:
                 bound_args = self._verify_bound_args(bound_args)
                 return self._class_method_wrapper(func, bound_args)
             else:
+                # This is a runtime check after method is called.
+                # Possible improvement: move this to "compile"-time.
                 raise ValueError("Must be class method on ISOBase")
 
         return wrapper
