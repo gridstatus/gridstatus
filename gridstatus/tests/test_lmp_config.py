@@ -56,18 +56,18 @@ def test_lmp_config_signature_combos_success():
     iso.get_lmp(date=date, market=market)
 
 
-def test_lmp_config_signature_combos_failure():
+def test_lmp_config_signature_combos_failure_propagates_type_errors():
     iso = ISOLatestRealTime15Minutes()
     date = "latest"
     market = "REAL_TIME_15_MIN"
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         iso.get_lmp(date)
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         iso.get_lmp(market)
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         iso.get_lmp(date=date)
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         iso.get_lmp(market=market)
 
 

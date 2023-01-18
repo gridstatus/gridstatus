@@ -1,6 +1,6 @@
 import datetime
 import functools
-from collections import OrderedDict
+import inspect
 
 import pandas as pd
 
@@ -21,10 +21,10 @@ class lmp_config:
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            fn_params = self._get_fn_params(func, args, kwargs)
+            bound_args = self._get_bound_args(func, args, kwargs)
             if len(args) > 0 and isinstance(args[0], ISOBase):
-                fn_params = self._verify_fn_params(fn_params)
-                return self._class_method_wrapper(func, fn_params)
+                bound_args = self._verify_bound_args(bound_args)
+                return self._class_method_wrapper(func, bound_args)
             else:
                 raise ValueError("Must be class method on ISOBase")
 
@@ -54,24 +54,23 @@ class lmp_config:
             )
 
     @staticmethod
-    def _class_method_wrapper(func, fn_params):
-        instance_args = tuple(fn_params["args"])
-        instance_kwargs = fn_params["kwargs"]
+    def _class_method_wrapper(func, bound_args):
+        instance_args = bound_args.args
+        instance_kwargs = bound_args.kwargs
         return func(*instance_args, **instance_kwargs)
 
-    def _verify_fn_params(self, fn_params):
+    def _verify_bound_args(self, bound_args: inspect.BoundArguments):
         """Verify date/start and market args/kwargs. Transform values and injects
         them back into the original signature if needed.
 
         Raises:
             ValueError: If date/start or market are missing or invalid
         """
-        args = fn_params["args"]
-        kwargs = fn_params["kwargs"]
-        instance = args["self"]
+        arguments = bound_args.arguments
+        instance = arguments["self"]
 
-        date = self._get_first([args, kwargs], ["date", "start"])
-        market = self._get_first([args, kwargs], ["market"])
+        date = self._get_first(arguments, ["date", "start"])
+        market = self._get_first(arguments, ["market"])
         tz = instance.default_timezone
 
         if date is None:
@@ -84,12 +83,12 @@ class lmp_config:
 
         self._check_support(date, date_value, market_value, tz)
 
-        if date != date_value:
-            self._set_first([args, kwargs], ["date", "start"], date_value)
+        if date != "latest" and date_value != date:
+            self._set_first(arguments, ["date", "start"], date_value)
         if market != market_value:
-            self._set_first([args, kwargs], ["market"], market_value)
+            self._set_first(arguments, ["market"], market_value)
 
-        return fn_params
+        return bound_args
 
     def _check_support(self, orig_date, date, market, tz):
         if market not in self.supports:
@@ -128,26 +127,28 @@ class lmp_config:
         )
 
     @staticmethod
-    def _get_first(dicts, params):
+    def _get_first(arguments, params):
         """Find first param in list of dictionaries"""
         for param in params:
-            for d in dicts:
-                if param in d:
-                    return d[param]
+            if param in arguments:
+                return arguments[param]
         return None
 
     @staticmethod
-    def _set_first(dicts, params, value):
+    def _set_first(arguments, params, value):
         """Set first param in list of dictionaries"""
         for param in params:
-            for d in dicts:
-                if param in d:
-                    d[param] = value
-                    break
+            if param in arguments:
+                arguments[param] = value
+                break
 
     @staticmethod
-    def _get_fn_params(fn, args, kwargs):
+    def _get_bound_args(fn, args, kwargs) -> inspect.BoundArguments:
         """Returns args as ordered dictionary and kwargs"""
-        args_names = fn.__code__.co_varnames[: fn.__code__.co_argcount]
-        args_odict = {**OrderedDict(zip(args_names, args))}
-        return {"args": args_odict, "kwargs": kwargs}
+        sig = inspect.signature(fn)
+        bound_args = sig.bind(*args, **kwargs)
+
+        if "self" not in bound_args.arguments:
+            raise ValueError("Must be class method on ISOBase")
+
+        return bound_args
