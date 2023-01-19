@@ -5,6 +5,7 @@ import requests
 
 from gridstatus import utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
+from gridstatus.lmp_config import lmp_config
 
 
 class MISO(ISOBase):
@@ -126,15 +127,18 @@ class MISO(ISOBase):
         r = self._get_json(url, verbose=verbose)
         return r
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest"],
+            Markets.DAY_AHEAD_HOURLY: ["latest"],
+        },
+    )
     def get_lmp(self, date, market: str, locations: list = None, verbose=False):
         """
         Supported Markets:
             - ``REAL_TIME_5_MIN`` - (FiveMinLMP)
             - ``DAY_AHEAD_HOURLY`` - (DayAheadExPostLMP)
         """
-        if date != "latest":
-            raise NotSupported()
-
         if locations is None:
             locations = "ALL"
 
@@ -145,7 +149,6 @@ class MISO(ISOBase):
         time_str = time[:11] + " " + time[-9:]
         time = pd.to_datetime(time_str).tz_localize("EST")
 
-        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
         elif market == Markets.DAY_AHEAD_HOURLY:

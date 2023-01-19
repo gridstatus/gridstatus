@@ -13,6 +13,7 @@ from gridstatus.decorators import (
     pjm_update_dates,
     support_date_range,
 )
+from gridstatus.lmp_config import lmp_config
 
 
 class PJM(ISOBase):
@@ -203,6 +204,13 @@ class PJM(ISOBase):
         )
         return nodes
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["today", "historical"],
+            Markets.REAL_TIME_HOURLY: ["today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+        },
+    )
     @support_date_range(frequency="365D", update_dates=pjm_update_dates)
     def get_lmp(
         self,
@@ -249,8 +257,6 @@ class PJM(ISOBase):
                 'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
 
         """
-        market = Markets(market)
-
         if date == "latest":
             """Currently only supports DAY_AHEAD_HOURlY"""
             return self._latest_lmp_from_today(

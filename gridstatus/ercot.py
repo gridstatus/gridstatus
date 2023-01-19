@@ -16,6 +16,7 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
+from gridstatus.lmp_config import lmp_config
 
 LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_NODE = "NODE"
@@ -532,6 +533,12 @@ class Ercot(ISOBase):
 
         return queue
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_15_MIN: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+        },
+    )
     @support_date_range(frequency="1D")
     def get_spp(
         self,
@@ -553,9 +560,6 @@ class Ercot(ISOBase):
             - ``hub``
             - ``node``
         """
-        assert market is not None, "market must be specified"
-        market = Markets(market)
-
         if market == Markets.REAL_TIME_15_MIN:
             df = self._get_spp_rtm15(
                 date,

@@ -15,6 +15,7 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
+from gridstatus.lmp_config import lmp_config
 
 
 class ISONE(ISOBase):
@@ -215,7 +216,6 @@ class ISONE(ISOBase):
         """  # noqa
         if locations is None:
             locations = "ALL"
-        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
@@ -242,6 +242,13 @@ class ISONE(ISOBase):
         )
         return data
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_HOURLY: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
+        },
+    )
     @support_date_range(frequency="1D")
     def get_lmp(
         self,
@@ -270,7 +277,6 @@ class ISONE(ISOBase):
             locations = "ALL"
 
         now = pd.Timestamp.now(tz=self.default_timezone)
-        market = Markets(market)
         if market == Markets.REAL_TIME_5_MIN:
             # todo handle intervals for current day
             intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]

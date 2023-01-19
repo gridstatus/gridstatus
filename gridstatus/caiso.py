@@ -10,6 +10,7 @@ import tabula
 from gridstatus import utils
 from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import support_date_range
+from gridstatus.lmp_config import lmp_config
 
 _BASE = "https://www.caiso.com/outlook/SP"
 _HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
@@ -196,6 +197,13 @@ class CAISO(ISOBase):
         )
         return df
 
+    @lmp_config(
+        supports={
+            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+            Markets.REAL_TIME_15_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+        },
+    )
     @support_date_range(frequency="31D")
     def get_lmp(
         self,
@@ -235,7 +243,6 @@ class CAISO(ISOBase):
         # todo make sure defaults to local timezone
         start, end = _caiso_handle_start_end(date, end)
 
-        market = Markets(market)
         if market == Markets.DAY_AHEAD_HOURLY:
             query_name = "PRC_LMP"
             market_run_id = "DAM"

@@ -14,6 +14,7 @@ from gridstatus.base import (
     Markets,
 )
 from gridstatus.decorators import support_date_range
+from gridstatus.lmp_config import lmp_config
 
 ZONE = "zone"
 GENERATOR = "generator"
@@ -162,6 +163,12 @@ class NYISO(ISOBase):
 
         return data
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+        },
+    )
     @support_date_range(frequency="MS")
     def get_lmp(
         self,
@@ -195,8 +202,6 @@ class NYISO(ISOBase):
         if location_type is None:
             location_type = ZONE
 
-        assert market is not None, "market must be specified"
-        market = Markets(market)
         marketname = self._set_marketname(market)
         location_type = self._set_location_type(location_type)
         filename = marketname + f"_{location_type}"

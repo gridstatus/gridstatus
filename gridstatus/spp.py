@@ -18,6 +18,7 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
+from gridstatus.lmp_config import lmp_config
 
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
@@ -295,6 +296,12 @@ class SPP(ISOBase):
 
         return queue
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+        },
+    )
     @support_date_range(frequency="1D")
     def get_lmp(
         self,
@@ -316,7 +323,6 @@ class SPP(ISOBase):
             - ``interface``
             - ``settlement_location``
         """
-        market = Markets(market)
         if market not in self.markets:
             raise NotSupported(f"Market {market} not supported")
         location_type = self._normalize_location_type(location_type)
