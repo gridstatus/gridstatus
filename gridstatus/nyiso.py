@@ -278,10 +278,12 @@ class NYISO(ISOBase):
         # assume it was withdrawn when last updated
         withdrawn["Withdrawn Date"] = withdrawn["Last Update"]
         withdrawn["Withdrawal Comment"] = None
+        withdrawn = withdrawn.rename(columns={"Utility ": "Utility"})
 
         # make completed look like the other two sheets
         completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1])
-        completed.insert(17, "Proposed Initial-Sync", None)
+        completed.insert(16, "CY Complete Date", None)
+        completed.insert(18, "Proposed Initial-Sync Date", None)
         completed["Status"] = InterconnectionQueueStatus.COMPLETED.value
         completed.columns = active.columns
 
@@ -289,12 +291,11 @@ class NYISO(ISOBase):
         completed["Proposed  In-Service"] = None
         completed["Proposed COD"] = None
         # assume it was finished when last updated
-        completed["Actual Completion Date"] = completed["Last Update"]
+        completed["Actual Completion Date"] = completed["Last Updated Date"]
 
         queue = pd.concat([active, withdrawn, completed])
 
         # fix extra space in column name
-        queue = queue.rename(columns={"Utility ": "Utility"})
 
         queue["Type/ Fuel"] = queue["Type/ Fuel"].map(
             {
@@ -337,21 +338,23 @@ class NYISO(ISOBase):
                 "TBD",
                 0,
             )
+            .replace(" ", 0)
+            .fillna(0)
             .astype(float)
             .max(axis=1)
         )
 
-        queue["Date of IR"] = pd.to_datetime(active["Date of IR"])
+        queue["Date of IR"] = pd.to_datetime(queue["Date of IR"])
         queue["Proposed COD"] = pd.to_datetime(
-            active["Proposed COD"],
+            queue["Proposed COD"],
             errors="coerce",
         )
         queue["Proposed  In-Service"] = pd.to_datetime(
-            active["Proposed  In-Service"],
+            queue["Proposed  In-Service"],
             errors="coerce",
         )
-        queue["Proposed Initial-Sync"] = pd.to_datetime(
-            active["Proposed Initial-Sync"],
+        queue["Proposed Initial-Sync Date"] = pd.to_datetime(
+            queue["Proposed Initial-Sync Date"],
             errors="coerce",
         )
 
@@ -378,12 +381,12 @@ class NYISO(ISOBase):
 
         extra_columns = [
             "Proposed  In-Service",
-            "Proposed Initial-Sync",
-            "Last Update",
+            "Proposed Initial-Sync Date",
+            "Last Updated Date",
             "Z",
             "S",
             "Availability of Studies",
-            "FS Complete/ SGIA Tender",
+            "SGIA Tender Date",
         ]
 
         queue = utils.format_interconnection_df(queue, rename, extra_columns)
