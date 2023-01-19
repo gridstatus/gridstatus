@@ -250,3 +250,19 @@ def load_folder(path, time_zone=None, verbose=True):
     # todo make sure rows are sorted by time
 
     return data
+
+
+def get_interconnection_queues():
+    """Get interconnection queue data for all ISOs"""
+    all_queues = []
+    for iso in tqdm.tqdm(all_isos):
+        iso = iso()
+        # only shared columns
+        queue = iso.get_interconnection_queue()[_interconnection_columns]
+        queue.insert(0, "ISO", iso.name)
+        queue.reset_index(drop=True, inplace=True)
+        all_queues.append(queue)
+        pd.concat(all_queues)
+
+    all_queues = pd.concat(all_queues).reset_index(drop=True)
+    return all_queues
