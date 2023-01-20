@@ -18,7 +18,7 @@ Below are the currently supported LMP markets
 | ISONE | `get_lmp` | latest, today, historical | today, historical         | -                         | latest, today, historical |
 | MISO  | `get_lmp` | latest                    | latest                    | -                         | -                         |
 | NYISO | `get_lmp` | latest, today, historical | latest, today, historical | -                         | -                         |
-| PJM   | `get_lmp` | latest, today, historical | latest, today, historical | -                         | historical                |
+| PJM   | `get_lmp` | latest, today, historical | latest, today, historical | -                         | today, historical         |
 | SPP   | `get_lmp` | latest, today, historical | latest, today, historical | -                         | -                         |
 
 <!-- LMP AVAILABILITY TABLE END -->

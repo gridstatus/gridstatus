@@ -216,9 +216,9 @@ class PJM(ISOBase):
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
-            Markets.REAL_TIME_HOURLY: ["historical"],
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_HOURLY: ["today", "historical"],
         },
     )
     @support_date_range(frequency="365D", update_dates=pjm_update_dates)
@@ -285,14 +285,6 @@ class PJM(ISOBase):
                 location_type=location_type,
                 verbose=verbose,
             )
-        if utils.is_today(date, tz=self.default_timezone):
-            if market not in (
-                Markets.REAL_TIME_5_MIN,
-                Markets.DAY_AHEAD_HOURLY,
-            ):
-                raise NotSupported(
-                    f"{market.value} is not supported for latest/today",
-                )
 
         recent_threshold = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
             days=DV_LMP_RECENT_NUM_DAYS,

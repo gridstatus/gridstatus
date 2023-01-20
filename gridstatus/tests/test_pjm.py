@@ -36,9 +36,9 @@ class TestPJM(BaseTestISO):
     """get_lmp"""
 
     @with_markets(
+        Markets.DAY_AHEAD_HOURLY,
         # Markets.REAL_TIME_5_MIN, # TODO reenable, but too slow
         Markets.REAL_TIME_HOURLY,
-        Markets.DAY_AHEAD_HOURLY,
     )
     def test_get_lmp_historical(self, market):
         super().test_get_lmp_historical(market=market)
