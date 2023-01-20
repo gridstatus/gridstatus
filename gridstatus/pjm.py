@@ -1065,38 +1065,4 @@ pnode_id
 
 
 if __name__ == "__main__":
-    import gridstatus
-
-    pd.options.display.width = 0
-    iso = gridstatus.PJM()
-    verbose = False
-
-    two_days_ago = pd.Timestamp.now(tz=iso.default_timezone) - pd.Timedelta(days=2)
-    two_weeks_ago = pd.Timestamp.now(tz=iso.default_timezone) - pd.Timedelta(weeks=2)
-
-    combos = (
-        (Markets.DAY_AHEAD_HOURLY, "latest"),
-        (Markets.DAY_AHEAD_HOURLY, "today"),
-        (Markets.DAY_AHEAD_HOURLY, two_days_ago),
-        (Markets.DAY_AHEAD_HOURLY, two_weeks_ago),
-        (Markets.REAL_TIME_5_MIN, "latest"),
-        (Markets.REAL_TIME_5_MIN, "today"),
-        (Markets.REAL_TIME_5_MIN, two_days_ago),
-        (Markets.REAL_TIME_5_MIN, two_weeks_ago),
-        (Markets.REAL_TIME_HOURLY, "latest"),  # not supported
-        (Markets.REAL_TIME_HOURLY, "today"),  # not supported
-        (Markets.REAL_TIME_HOURLY, two_days_ago),
-        (Markets.REAL_TIME_HOURLY, two_weeks_ago),
-    )
-
-    for market, date in combos:
-        try:
-            print(f"date:{date}, market: {market}")
-            df = iso.get_lmp(date=date, market=market, verbose=verbose)
-            print(f"{len(df)} rows:")
-            if date == "latest":
-                print(df.to_string())
-            else:
-                print(df.head())
-        except Exception as e:
-            print("Error:", e, file=sys.stderr)
+    pass
