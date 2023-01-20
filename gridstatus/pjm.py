@@ -216,8 +216,8 @@ class PJM(ISOBase):
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_5_MIN: ["today", "historical"],
-            Markets.REAL_TIME_HOURLY: ["today", "historical"],
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_HOURLY: ["historical"],
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
         },
     )
@@ -278,7 +278,7 @@ class PJM(ISOBase):
                 )
 
         if date == "latest":
-            """Supports DAY_AHEAD_HOURlY, REAL_TIME_5_MIN"""
+            """Supports DAY_AHEAD_HOURLY, REAL_TIME_5_MIN"""
             return self._latest_lmp_from_today(
                 market=market,
                 locations=locations,

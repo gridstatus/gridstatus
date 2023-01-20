@@ -48,11 +48,7 @@ class TestPJM(BaseTestISO):
         Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_latest(self, market):
-        if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_HOURLY]:
-            with pytest.raises(NotSupported):
-                super().test_get_lmp_latest(market=market)
-        else:
-            super().test_get_lmp_latest(market=market)
+        super().test_get_lmp_latest(market=market)
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
