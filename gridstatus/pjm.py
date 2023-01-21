@@ -370,13 +370,6 @@ class PJM(ISOBase):
             # todo implement location type filter
             market_endpoint = "da_hrl_lmps"
             market_type = "da"
-        else:
-            raise ValueError(
-                (
-                    "market must be one of REAL_TIME_5_MIN, REAL_TIME_HOURLY,"
-                    " DAY_AHEAD_HOURLY"
-                ),
-            )
 
         if location_type:
             if market == Markets.REAL_TIME_5_MIN:
