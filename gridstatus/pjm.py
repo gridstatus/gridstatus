@@ -363,11 +363,9 @@ class PJM(ISOBase):
             market_endpoint = "rt_fivemin_hrl_lmps"
             market_type = "rt"
         elif market == Markets.REAL_TIME_HOURLY:
-            # todo implement location type filter
             market_endpoint = "rt_hrl_lmps"
             market_type = "rt"
         elif market == Markets.DAY_AHEAD_HOURLY:
-            # todo implement location type filter
             market_endpoint = "da_hrl_lmps"
             market_type = "da"
 
