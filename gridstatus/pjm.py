@@ -630,7 +630,18 @@ class PJM(ISOBase):
                 "session": session,
             }
 
-    def _dv_lmp_fetch_data(self, dv_session, verbose=False):
+    def _dv_lmp_fetch_data(self, session, verbose=False):
+        initial_fetch = session.get(DATAVIEWER_LMP_URL)
+
+        dv_session = self._new_dv_session(session, verbose=verbose)
+        if dv_session is None:
+            raise ValueError("Could not create new DV Session")
+
+        chart_ids = self._dv_lmp_extract_chart_ids(initial_fetch, verbose=verbose)
+        if chart_ids is None:
+            raise ValueError("Could not get LMP Chart IDs")
+        dv_session.update(chart_ids)
+
         data = self._dv_lmp_init_fetch(dv_session, verbose=verbose)
         chart_series_source_id = self._dv_lmp_get_chart_series_source_id(
             data,
@@ -834,18 +845,7 @@ class PJM(ISOBase):
     ):
         """Get latest LMP data from Data Viewer, which includes RT & DA"""
         with requests.session() as session:
-            initial_fetch = session.get(DATAVIEWER_LMP_URL)
-
-            dv_session = self._new_dv_session(session, verbose=verbose)
-            if dv_session is None:
-                raise ValueError("Could not create new DV Session")
-
-            chart_ids = self._dv_lmp_extract_chart_ids(initial_fetch, verbose=verbose)
-            if chart_ids is None:
-                raise ValueError("Could not get LMP Chart IDs")
-            dv_session.update(chart_ids)
-
-            df = self._dv_lmp_fetch_data(dv_session, verbose=verbose)
+            df = self._dv_lmp_fetch_data(session, verbose=verbose)
             if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
                 df = df[df["Market"] == market.value]
 
