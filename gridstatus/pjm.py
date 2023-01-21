@@ -622,7 +622,7 @@ class PJM(ISOBase):
                 break
 
         if nonce is None or view_state is None:
-            return None
+            raise ValueError("Could not create new DV Session")
         else:
             return {
                 "nonce": nonce,
@@ -634,12 +634,7 @@ class PJM(ISOBase):
         initial_fetch = session.get(DATAVIEWER_LMP_URL)
 
         dv_session = self._new_dv_session(session, verbose=verbose)
-        if dv_session is None:
-            raise ValueError("Could not create new DV Session")
-
         chart_ids = self._dv_lmp_extract_chart_ids(initial_fetch, verbose=verbose)
-        if chart_ids is None:
-            raise ValueError("Could not get LMP Chart IDs")
         dv_session.update(chart_ids)
 
         data = self._dv_lmp_init_fetch(dv_session, verbose=verbose)
@@ -1002,6 +997,10 @@ class PJM(ISOBase):
                 "chart_source_id": chart_source_id,
                 "chart_parent_source_id": chart_parent_source_id,
             }
+        else:
+            raise ValueError(
+                "Could not get LMP Chart IDs (chart_source_id or chart_parent_source_id)",  # noqa E501
+            )
 
     @staticmethod
     def _df_deduplicate(dfs, unique_cols, keep_field, keep_value, verbose=False):
