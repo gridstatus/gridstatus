@@ -18,6 +18,7 @@ from gridstatus.decorators import (
     support_date_range,
 )
 from gridstatus.lmp_config import lmp_config
+from gridstatus.pjm_dataviewer import PJMDataViewer
 
 DATAVIEWER_LMP_URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
@@ -291,7 +292,8 @@ class PJM(ISOBase):
         )
         dv_df = None
         if utils._handle_date(date, tz=self.default_timezone) >= recent_threshold:
-            dv_df = self._get_lmp_via_dv(
+            dataviewer = PJMDataViewer(self)
+            dv_df = dataviewer._get_lmp_via_dv(
                 date,
                 market,
                 end=end,
