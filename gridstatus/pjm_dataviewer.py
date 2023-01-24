@@ -372,25 +372,6 @@ class PJMDataViewer:
         df["Location Name"] = item_id
         return df
 
-    def __debug_nested_data(self, data):
-        pd.options.display.width = 0  # DEBUG
-        pairs = []
-        for k1, v1 in data.items():
-            if isinstance(v1, dict):
-                for k2, v2 in v1.items():
-                    if isinstance(v2, list) and len(v2) > 0:
-                        pairs.append(
-                            (
-                                k1,
-                                k2,
-                            ),
-                        )
-
-        for k1, k2 in pairs:
-            df = self._parse_lmp_series(data[k1][k2])
-            print(f"self._parse_lmp_series(data['{k1}']['{k2}'])")
-            print(df)
-
     @staticmethod
     def _dv_lmp_extract_chart_ids(response, verbose=False):
         html = response.content
@@ -426,35 +407,3 @@ class PJMDataViewer:
             raise ValueError(
                 "Could not get LMP Chart IDs (chart_source_id or chart_parent_source_id)",  # noqa E501
             )
-
-    @staticmethod
-    def _df_deduplicate(dfs, unique_cols, keep_field, keep_value, verbose=False):
-        """Concatenate dataframes and deduplicate based on a list of columns,
-        keeping keep_field=keep_value.
-        """
-        df = pd.concat(dfs)
-        if verbose:
-            print(f"Starting with {len(df)} rows", file=sys.stderr)
-
-        keep_fields = sorted(df[keep_field].unique().tolist())
-        if keep_value in keep_fields:
-            if keep_fields[0] == keep_value:
-                dedupe_keep = "first"
-            elif keep_fields[-1] == keep_value:
-                dedupe_keep = "last"
-            else:
-                raise ValueError(
-                    f"keep_value {repr(keep_value)} must be "
-                    f"first or last for de-duplication to work: {keep_fields}",
-                )
-
-            # Extract subset without duplicates
-            df.sort_values(keep_field, ascending=True, inplace=True)
-            df.drop_duplicates(subset=unique_cols, keep=dedupe_keep, inplace=True)
-
-        df.reset_index(inplace=True, drop=True)
-
-        if verbose:
-            print(f"Ending with {len(df)} rows", file=sys.stderr)
-
-        return df
