@@ -97,7 +97,7 @@ def make_availability_table():
 
 def _handle_date(date, tz=None):
     if date == "today":
-        date = pd.Timestamp.now(tz=tz)
+        date = pd.Timestamp.now(tz=tz).normalize()
 
     if not isinstance(date, pd.Timestamp):
         date = pd.to_datetime(date)
@@ -130,7 +130,9 @@ def make_lmp_availability_df():
         matching_method = getattr(iso(), matching_method_name)
         config = lmp_config.get_support(matching_method)
         for market, supported_dates in config.items():
-            availability[iso.__name__][market.name] = ", ".join(supported_dates)
+            availability[iso.__name__][market.name] = ", ".join(
+                supported_dates,
+            )
 
     return pd.DataFrame(availability).fillna("-")
 

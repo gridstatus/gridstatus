@@ -44,6 +44,10 @@ def test_handle_date_today_tz():
     )
     assert date.tzinfo.zone == tz
 
+    assert date.hour == 0
+    assert date.minute == 0
+    assert date.second == 0
+
 
 def test_gridstatus_to_dict():
     time = pd.Timestamp.now()
