@@ -8,8 +8,6 @@ import requests
 
 from gridstatus.base import Markets
 
-DATAVIEWER_LMP_URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
-
 LMP_PARTIAL_RENDER_ID = "formLeftPanel:topLeftGrid"
 
 DV_LMP_RECENT_NUM_DAYS = 3
@@ -20,10 +18,8 @@ class PJMDataViewer:
         self.pjm = pjm
 
     class Session:
-        def __init__(self, nonce, view_state, requests_session):
-            self.nonce = nonce
-            self.view_state = view_state
-            self.requests_session = requests_session
+        def __init__(self, verbose=False):
+            self._fetch_initial(verbose=verbose)
             self.data = {}
 
         def __enter__(self):
@@ -41,52 +37,53 @@ class PJMDataViewer:
         def __setitem__(self, key, value):
             self.data[key] = value
 
-    class LMPSession(Session):
-        def __init__(self, nonce, view_state, requests_session, initial_fetch):
-            super().__init__(nonce, view_state, requests_session)
-            self.initial_fetch = initial_fetch
+        def _fetch_initial(self, verbose=False):
+            """Initial fetch: creating a new requests.Session,
+            extracting the session and view state
+            """
+            session = requests.Session()
+            if verbose:
+                print(f"GET {self.URL}")
+            response = session.get(self.URL)
 
-    @staticmethod
-    def _new_dv_session(verbose=False):
-        session = requests.Session()
-        initial_fetch = session.get(DATAVIEWER_LMP_URL)
-        if verbose:
-            print(f"GET {DATAVIEWER_LMP_URL}")
-        response = session.get(DATAVIEWER_LMP_URL)
+            html = response.content
+            doc = bs4.BeautifulSoup(html, "html.parser")
 
-        html = response.content
-        doc = bs4.BeautifulSoup(html, "html.parser")
+            scripts = doc.find_all("script", {"nonce": True})
 
-        scripts = doc.find_all("script", {"nonce": True})
+            nonce = None
+            for script in scripts:
+                nonce = script["nonce"]
+                if nonce is not None:
+                    break
 
-        nonce = None
-        for script in scripts:
-            nonce = script["nonce"]
-            if nonce is not None:
-                break
-
-        view_state = None
-        view_states = doc.find_all(
-            "input",
-            {"type": "hidden", "name": "javax.faces.ViewState"},
-        )
-        for view_state in view_states:
-            view_state = view_state["value"]
-            if view_state is not None:
-                break
-
-        if nonce is None or view_state is None:
-            raise ValueError("Could not create new DV Session")
-        else:
-            return PJMDataViewer.LMPSession(
-                nonce=nonce,
-                view_state=view_state,
-                requests_session=session,
-                initial_fetch=initial_fetch,
+            view_state = None
+            view_states = doc.find_all(
+                "input",
+                {"type": "hidden", "name": "javax.faces.ViewState"},
             )
+            for view_state in view_states:
+                view_state = view_state["value"]
+                if view_state is not None:
+                    break
+
+            if nonce is None or view_state is None:
+                raise ValueError("Could not create new DV Session")
+            else:
+                self.nonce = nonce
+                self.view_state = view_state
+                self.requests_session = session
+                self.initial_fetch = response
+
+        def post(self, **kwargs):
+            return self.requests_session.post(self.URL, **kwargs)
+
+    class LMPSession(Session):
+
+        URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
     def _dv_lmp_fetch_data(self, verbose=False):
-        with self._new_dv_session(verbose=verbose) as dv_session:
+        with self.LMPSession(verbose=verbose) as dv_session:
             chart_ids = self._dv_lmp_extract_chart_ids(
                 dv_session.initial_fetch,
                 verbose=verbose,
@@ -320,9 +317,8 @@ class PJMDataViewer:
             },
         )
         if verbose:
-            print(f"POST {DATAVIEWER_LMP_URL} with {params}", file=sys.stderr)
-        return dv_session.requests_session.post(
-            DATAVIEWER_LMP_URL,
+            print(f"POST with {params}", file=sys.stderr)
+        return dv_session.post(
             data=params,
         )
 
