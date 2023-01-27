@@ -289,8 +289,7 @@ class PJM(ISOBase):
         )
         dv_df = None
         if utils._handle_date(date, tz=self.default_timezone) >= recent_threshold:
-            dataviewer = PJMDataViewer(self)
-            dv_df = dataviewer._get_lmp_via_dv(
+            dv_df = self._get_lmp_via_dv(
                 date,
                 market,
                 end=end,
@@ -348,6 +347,33 @@ class PJM(ISOBase):
                 # "_src",  # uncomment to debug
             ]
         ]
+        return df
+
+    def _get_lmp_via_dv(
+        self,
+        date,
+        market: str,
+        end=None,
+        locations="hubs",
+        location_type=None,
+        verbose=False,
+    ):
+        """Get latest LMP data from Data Viewer, which includes RT & DA"""
+        dataviewer = PJMDataViewer(self)
+        df = dataviewer._dv_lmp_fetch_data(verbose=verbose)
+        if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
+            df = df[df["Market"] == market.value]
+
+        if end is None:
+            df = df[df["Time"].dt.date == date.date()]
+        else:
+            df = df[
+                df["Time"].dt.date.between(
+                    date.date(),
+                    end.date(),
+                    inclusive="both",
+                )
+            ]
         return df
 
     def _get_lmp_via_pjm_json(
