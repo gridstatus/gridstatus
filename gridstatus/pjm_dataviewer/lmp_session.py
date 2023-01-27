@@ -13,18 +13,8 @@ class LMPSession(Session):
     URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
     def fetch_chart_df(self, tz, verbose=False):
-        # fetch current included_locations and source id
-        (
-            included_locations,
-            included_locations_source_id,
-        ) = self._fetch_location_checkboxes(
-            verbose=verbose,
-        )
-
-        # enable remaining included_locations
-        self._dv_lmp_include_all_locations(
-            included_locations_source_id,
-            included_locations,
+        # enable remaining location_checkboxes
+        self._enable_all_locations(
             verbose=verbose,
         )
 
@@ -80,7 +70,7 @@ class LMPSession(Session):
         """
         Returns a tuple:
 
-        * a dictionary checkboxes[int] = bool where
+        * a dictionary location_checkboxes[int] = bool where
           the key is a numeric index, and the value is the
            checkbox status, i.e. whether the location is included
         * the form source_id to be used in later requests
@@ -98,8 +88,9 @@ class LMPSession(Session):
             verbose=verbose,
         )
         update_docs = self._parse_xml_find_all(response.content, "update")
+
         source_id = None
-        checkboxes = {}
+        location_checkboxes = {}
         for update_doc in update_docs:
             checkbox_elems = update_doc.find_all("input", {"type": "checkbox"})
             for checkbox_elem in checkbox_elems:
@@ -110,32 +101,35 @@ class LMPSession(Session):
                     to_check_idx = int(matches.group(1))
                     if source_id is None:
                         source_id = re.sub(r"_input$", "", matches.group(2))
-                checkboxes[to_check_idx] = checked
+                location_checkboxes[to_check_idx] = checked
 
         return (
-            checkboxes,
+            location_checkboxes,
             source_id,
         )
 
-    def _dv_lmp_include_all_locations(
+    def _enable_all_locations(
         self,
-        filters_source_id,
-        filters,
         verbose=False,
     ):
+        # fetch current location_checkboxes and source id
+        location_checkboxes, source_id = self._fetch_location_checkboxes(
+            verbose=verbose,
+        )
+
         # max_requests is a fallback in case
         # the while loop goes haywire
-        max_requests = len(filters)
+        max_requests = len(location_checkboxes)
         request_count = 0
         while (
-            any(not value for value in filters.values())
+            any(not value for value in location_checkboxes.values())
             and request_count < max_requests
         ):
-            to_check_idx = self._get_next_checkbox_idx(filters)
+            to_check_idx = self._get_next_checkbox_idx(location_checkboxes)
             if to_check_idx is not None:
                 self._dv_lmp_select_checkbox(
-                    filters_source_id,
-                    filters,
+                    source_id,
+                    location_checkboxes,
                     to_check_idx,
                     verbose=verbose,
                 )
