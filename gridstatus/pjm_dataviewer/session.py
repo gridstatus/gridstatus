@@ -1,4 +1,5 @@
 import json
+import sys
 
 import bs4
 import requests
@@ -57,6 +58,18 @@ class Session:
 
         if self.nonce is None or self.view_state is None:
             raise ValueError("Could not start DV Session")
+
+    def fetch(self, params, verbose=False):
+        """Fetch with dv_lmp_session view state and nonce"""
+        params.update(
+            {
+                "javax.faces.ViewState": self.view_state,
+                "primefaces.nonce": self.nonce,
+            },
+        )
+        if verbose:
+            print(f"POST with {params}", file=sys.stderr)
+        return self.post(data=params)
 
     def post(self, **kwargs):
         return self.requests_session.post(self.URL, **kwargs)

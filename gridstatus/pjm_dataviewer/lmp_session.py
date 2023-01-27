@@ -107,7 +107,7 @@ class LMPSession(Session):
             "chart1FrmLmpSelection:dlgLmpSelection_contentLoad": "true",
             "chart1FrmLmpSelection": "chart1FrmLmpSelection",
         }
-        response = self._dv_lmp_fetch(
+        response = self.fetch(
             params,
             verbose=verbose,
         )
@@ -161,7 +161,7 @@ class LMPSession(Session):
         tz,
         verbose=False,
     ):
-        response = self._dv_lmp_fetch(
+        response = self.fetch(
             {
                 "chart1": "chart1",
                 "chart1:chart1valueDataTable_scrollState": "0,0",
@@ -185,7 +185,7 @@ class LMPSession(Session):
         """Initial fetch for LMP data in Data Viewer"""
         chart_source_id = self["chart_source_id"]
         chart_parent_source_id = self["chart_parent_source_id"]
-        return self._dv_lmp_fetch(
+        return self.fetch(
             {
                 chart_parent_source_id: chart_parent_source_id,
                 chart_source_id: chart_source_id,
@@ -196,18 +196,6 @@ class LMPSession(Session):
             },
             verbose=verbose,
         )
-
-    def _dv_lmp_fetch(self, params, verbose=False):
-        """Fetch with dv_lmp_session view state and nonce"""
-        params.update(
-            {
-                "javax.faces.ViewState": self.view_state,
-                "primefaces.nonce": self.nonce,
-            },
-        )
-        if verbose:
-            print(f"POST with {params}", file=sys.stderr)
-        return self.post(data=params)
 
     def _dv_lmp_get_chart_series_source_id(self, response, verbose):
         """Retrieves source ID from update response,
@@ -257,7 +245,7 @@ class LMPSession(Session):
                     f"chart1FrmLmpSelection:tblBusAggregates"
                     f":{idx}:{form_source_id}_input"  # noqa: E501
                 ] = "on"
-        response = self._dv_lmp_fetch(
+        response = self.fetch(
             params,
             verbose=verbose,
         )
