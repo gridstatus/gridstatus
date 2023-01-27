@@ -55,42 +55,43 @@ class PJMDataViewer:
                 "session": session,
             }
 
-    def _dv_lmp_fetch_data(self, session, verbose=False):
-        initial_fetch = session.get(DATAVIEWER_LMP_URL)
+    def _dv_lmp_fetch_data(self, verbose=False):
+        with requests.session() as session:
+            initial_fetch = session.get(DATAVIEWER_LMP_URL)
 
-        dv_session = self._new_dv_session(session, verbose=verbose)
-        chart_ids = self._dv_lmp_extract_chart_ids(initial_fetch, verbose=verbose)
-        dv_session.update(chart_ids)
+            dv_session = self._new_dv_session(session, verbose=verbose)
+            chart_ids = self._dv_lmp_extract_chart_ids(initial_fetch, verbose=verbose)
+            dv_session.update(chart_ids)
 
-        data = self._dv_lmp_init_fetch(dv_session, verbose=verbose)
-        chart_series_source_id = self._dv_lmp_get_chart_series_source_id(
-            data,
-            verbose=verbose,
-        )
+            data = self._dv_lmp_init_fetch(dv_session, verbose=verbose)
+            chart_series_source_id = self._dv_lmp_get_chart_series_source_id(
+                data,
+                verbose=verbose,
+            )
 
-        # fetch current included_locations and source id
-        (
-            included_locations,
-            included_locations_source_id,
-        ) = self._dv_lmp_fetch_included_locations_context(
-            dv_session,
-            verbose=verbose,
-        )
+            # fetch current included_locations and source id
+            (
+                included_locations,
+                included_locations_source_id,
+            ) = self._dv_lmp_fetch_included_locations_context(
+                dv_session,
+                verbose=verbose,
+            )
 
-        # enable remaining included_locations
-        self._dv_lmp_include_all_locations(
-            dv_session,
-            included_locations_source_id,
-            included_locations,
-            verbose=verbose,
-        )
+            # enable remaining included_locations
+            self._dv_lmp_include_all_locations(
+                dv_session,
+                included_locations_source_id,
+                included_locations,
+                verbose=verbose,
+            )
 
-        # fetch chart data
-        return self._dv_lmp_fetch_chart_df(
-            dv_session,
-            chart_series_source_id,
-            verbose=verbose,
-        )
+            # fetch chart data
+            return self._dv_lmp_fetch_chart_df(
+                dv_session,
+                chart_series_source_id,
+                verbose=verbose,
+            )
 
     def _dv_lmp_fetch_chart_df(self, dv_session, chart_source_id, verbose=False):
         response = self._dv_lmp_fetch(
@@ -264,22 +265,21 @@ class PJMDataViewer:
         verbose=False,
     ):
         """Get latest LMP data from Data Viewer, which includes RT & DA"""
-        with requests.session() as session:
-            df = self._dv_lmp_fetch_data(session, verbose=verbose)
-            if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
-                df = df[df["Market"] == market.value]
+        df = self._dv_lmp_fetch_data(verbose=verbose)
+        if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
+            df = df[df["Market"] == market.value]
 
-            if end is None:
-                df = df[df["Time"].dt.date == date.date()]
-            else:
-                df = df[
-                    df["Time"].dt.date.between(
-                        date.date(),
-                        end.date(),
-                        inclusive="both",
-                    )
-                ]
-            return df
+        if end is None:
+            df = df[df["Time"].dt.date == date.date()]
+        else:
+            df = df[
+                df["Time"].dt.date.between(
+                    date.date(),
+                    end.date(),
+                    inclusive="both",
+                )
+            ]
+        return df
 
     def _dv_lmp_fetch(self, dv_session, params, verbose=False):
         """Fetch with dv_session view state and nonce"""
