@@ -83,14 +83,14 @@ class PJMDataViewer:
         URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
     def _dv_lmp_fetch_data(self, verbose=False):
-        with self.LMPSession(verbose=verbose) as dv_session:
+        with self.LMPSession(verbose=verbose) as dv_lmp_session:
             chart_ids = self._dv_lmp_extract_chart_ids(
-                dv_session.initial_fetch,
+                dv_lmp_session.initial_fetch,
                 verbose=verbose,
             )
-            dv_session.update(chart_ids)
+            dv_lmp_session.update(chart_ids)
 
-            data = self._dv_lmp_init_fetch(dv_session, verbose=verbose)
+            data = self._dv_lmp_init_fetch(dv_lmp_session, verbose=verbose)
             chart_series_source_id = self._dv_lmp_get_chart_series_source_id(
                 data,
                 verbose=verbose,
@@ -101,13 +101,13 @@ class PJMDataViewer:
                 included_locations,
                 included_locations_source_id,
             ) = self._dv_lmp_fetch_included_locations_context(
-                dv_session,
+                dv_lmp_session,
                 verbose=verbose,
             )
 
             # enable remaining included_locations
             self._dv_lmp_include_all_locations(
-                dv_session,
+                dv_lmp_session,
                 included_locations_source_id,
                 included_locations,
                 verbose=verbose,
@@ -115,14 +115,14 @@ class PJMDataViewer:
 
             # fetch chart data
             return self._dv_lmp_fetch_chart_df(
-                dv_session,
+                dv_lmp_session,
                 chart_series_source_id,
                 verbose=verbose,
             )
 
-    def _dv_lmp_fetch_chart_df(self, dv_session, chart_source_id, verbose=False):
+    def _dv_lmp_fetch_chart_df(self, dv_lmp_session, chart_source_id, verbose=False):
         response = self._dv_lmp_fetch(
-            dv_session,
+            dv_lmp_session,
             {
                 "chart1": "chart1",
                 "chart1:chart1valueDataTable_scrollState": "0,0",
@@ -144,7 +144,7 @@ class PJMDataViewer:
 
     def _dv_lmp_include_all_locations(
         self,
-        dv_session,
+        dv_lmp_session,
         filters_source_id,
         filters,
         verbose=False,
@@ -160,7 +160,7 @@ class PJMDataViewer:
             to_check_idx = self._get_next_checkbox_idx(filters)
             if to_check_idx is not None:
                 self._dv_lmp_select_checkbox(
-                    dv_session,
+                    dv_lmp_session,
                     filters_source_id,
                     filters,
                     to_check_idx,
@@ -168,12 +168,12 @@ class PJMDataViewer:
                 )
             request_count += 1
 
-    def _dv_lmp_init_fetch(self, dv_session, verbose=False):
+    def _dv_lmp_init_fetch(self, dv_lmp_session, verbose=False):
         """Initial fetch for LMP data in Data Viewer"""
-        chart_source_id = dv_session["chart_source_id"]
-        chart_parent_source_id = dv_session["chart_parent_source_id"]
+        chart_source_id = dv_lmp_session["chart_source_id"]
+        chart_parent_source_id = dv_lmp_session["chart_parent_source_id"]
         return self._dv_lmp_fetch(
-            dv_session,
+            dv_lmp_session,
             {
                 chart_parent_source_id: chart_parent_source_id,
                 chart_source_id: chart_source_id,
@@ -202,7 +202,7 @@ class PJMDataViewer:
 
         return chart_series_source_id
 
-    def _dv_lmp_fetch_included_locations_context(self, dv_session, verbose=False):
+    def _dv_lmp_fetch_included_locations_context(self, dv_lmp_session, verbose=False):
         """
         Returns a tuple:
 
@@ -221,7 +221,7 @@ class PJMDataViewer:
             "chart1FrmLmpSelection": "chart1FrmLmpSelection",
         }
         response = self._dv_lmp_fetch(
-            dv_session,
+            dv_lmp_session,
             params,
             verbose=verbose,
         )
@@ -247,7 +247,7 @@ class PJMDataViewer:
 
     def _dv_lmp_select_checkbox(
         self,
-        dv_session,
+        dv_lmp_session,
         form_source_id,
         checkboxes,
         to_check_idx,
@@ -275,7 +275,7 @@ class PJMDataViewer:
                     f":{idx}:{form_source_id}_input"  # noqa: E501
                 ] = "on"
         response = self._dv_lmp_fetch(
-            dv_session,
+            dv_lmp_session,
             params,
             verbose=verbose,
         )
@@ -308,17 +308,17 @@ class PJMDataViewer:
             ]
         return df
 
-    def _dv_lmp_fetch(self, dv_session, params, verbose=False):
-        """Fetch with dv_session view state and nonce"""
+    def _dv_lmp_fetch(self, dv_lmp_session, params, verbose=False):
+        """Fetch with dv_lmp_session view state and nonce"""
         params.update(
             {
-                "javax.faces.ViewState": dv_session.view_state,
-                "primefaces.nonce": dv_session.nonce,
+                "javax.faces.ViewState": dv_lmp_session.view_state,
+                "primefaces.nonce": dv_lmp_session.nonce,
             },
         )
         if verbose:
             print(f"POST with {params}", file=sys.stderr)
-        return dv_session.post(
+        return dv_lmp_session.post(
             data=params,
         )
 
