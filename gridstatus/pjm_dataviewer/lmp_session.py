@@ -12,7 +12,7 @@ class LMPSession(Session):
 
     URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
-    def fetch_chart_df(self, verbose=False):
+    def fetch_chart_df(self, tz, verbose=False):
         chart_ids = self._dv_lmp_extract_chart_ids(
             self.initial_fetch,
             verbose=verbose,
@@ -43,6 +43,7 @@ class LMPSession(Session):
         # fetch chart data
         return self._dv_lmp_fetch_chart_df(
             chart_series_source_id,
+            tz=tz,
             verbose=verbose,
         )
 
@@ -157,6 +158,7 @@ class LMPSession(Session):
     def _dv_lmp_fetch_chart_df(
         self,
         chart_source_id,
+        tz,
         verbose=False,
     ):
         response = self._dv_lmp_fetch(
@@ -175,7 +177,7 @@ class LMPSession(Session):
         extensions = self._parse_xml_find_all(response.content, "extension")
         if len(extensions) > 0:
             data = self._json_loads_nested_jsonstrings(extensions[0].text)
-            df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"])
+            df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"], tz=tz)
         df["_src"] = "dv"
         return df
 
@@ -265,10 +267,10 @@ class LMPSession(Session):
                 file=sys.stderr,
             )
 
-    def _parse_lmp_series(self, series):
+    def _parse_lmp_series(self, series, tz):
         dfs = []
         for item in series or []:
-            dfs.append(self._parse_lmp_item(item))
+            dfs.append(self._parse_lmp_item(item, tz=tz))
         if len(dfs) > 0:
             df = pd.concat(dfs)
         else:
@@ -282,8 +284,12 @@ class LMPSession(Session):
         )
         df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
 
+        return df
+
+    @staticmethod
+    def finalize_chart_df(df, pjm):
         # Pricing Node data provides mappings for Location IDs and Location Types
-        pnode_ids = self.pjm.get_pnode_ids()
+        pnode_ids = pjm.get_pnode_ids()
 
         # Location IDs
         location_ids = dict(
@@ -303,7 +309,7 @@ class LMPSession(Session):
 
         return df
 
-    def _parse_lmp_item(self, item):
+    def _parse_lmp_item(self, item, tz):
         item_id = item["id"]
         if item_id.endswith(" (DA)"):
             market = Markets.DAY_AHEAD_HOURLY
@@ -316,7 +322,7 @@ class LMPSession(Session):
         df["Time"] = (
             pd.to_datetime(df["timestamp"], unit="ms")
             .dt.tz_localize(tz="UTC")
-            .dt.tz_convert(tz=self.pjm.default_timezone)
+            .dt.tz_convert(tz=tz)
         )
         df["Location Name"] = item_id
         return df

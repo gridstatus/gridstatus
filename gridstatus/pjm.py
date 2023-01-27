@@ -359,8 +359,12 @@ class PJM(ISOBase):
         verbose=False,
     ):
         """Get latest LMP data from Data Viewer, which includes RT & DA"""
-        with LMPSession(pjm=self, verbose=verbose) as dv_lmp_session:
-            df = dv_lmp_session.fetch_chart_df(verbose=verbose)
+        with LMPSession(verbose=verbose) as dv_lmp_session:
+            df = dv_lmp_session.fetch_chart_df(
+                verbose=verbose,
+                tz=self.default_timezone,
+            )
+            df = dv_lmp_session.finalize_chart_df(df=df, pjm=self)
             if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
                 df = df[df["Market"] == market.value]
 
