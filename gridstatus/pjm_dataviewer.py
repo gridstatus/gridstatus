@@ -19,6 +19,28 @@ class PJMDataViewer:
     def __init__(self, pjm):
         self.pjm = pjm
 
+    class Session:
+        def __init__(self, nonce, view_state, session):
+            self.nonce = nonce
+            self.view_state = view_state
+            self.session = session
+            self.data = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self.session.close()
+
+        def update(self, data):
+            self.data.update(data)
+
+        def __getitem__(self, item):
+            return self.data[item]
+
+        def __setitem__(self, key, value):
+            self.data[key] = value
+
     @staticmethod
     def _new_dv_session(session, verbose=False):
         if verbose:
@@ -49,11 +71,11 @@ class PJMDataViewer:
         if nonce is None or view_state is None:
             raise ValueError("Could not create new DV Session")
         else:
-            return {
-                "nonce": nonce,
-                "view_state": view_state,
-                "session": session,
-            }
+            return PJMDataViewer.Session(
+                nonce=nonce,
+                view_state=view_state,
+                session=session,
+            )
 
     def _dv_lmp_fetch_data(self, verbose=False):
         with requests.session() as session:
@@ -285,13 +307,13 @@ class PJMDataViewer:
         """Fetch with dv_session view state and nonce"""
         params.update(
             {
-                "javax.faces.ViewState": dv_session["view_state"],
-                "primefaces.nonce": dv_session["nonce"],
+                "javax.faces.ViewState": dv_session.view_state,
+                "primefaces.nonce": dv_session.nonce,
             },
         )
         if verbose:
             print(f"POST {DATAVIEWER_LMP_URL} with {params}", file=sys.stderr)
-        return dv_session["session"].post(
+        return dv_session.session.post(
             DATAVIEWER_LMP_URL,
             data=params,
         )
