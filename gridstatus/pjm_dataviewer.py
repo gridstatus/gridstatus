@@ -79,6 +79,29 @@ class PJMDataViewer:
         def post(self, **kwargs):
             return self.requests_session.post(self.URL, **kwargs)
 
+        @staticmethod
+        def _parse_xml_find_all(xml_string: str, *args, **kwargs):
+            """From a string, extract <update> CDATA content
+            and return a list of BeautifulSoup-parsed HTML."""
+            xml_doc = bs4.BeautifulSoup(xml_string, "xml")
+            elems = xml_doc.find_all(*args, **kwargs)
+            return [bs4.BeautifulSoup(elem.text, "html.parser") for elem in elems]
+
+        @staticmethod
+        def _get_next_checkbox_idx(checkboxes):
+            to_check_idx = None
+            for idx, is_checked in checkboxes.items():
+                if not is_checked:
+                    to_check_idx = idx
+                    break
+            return to_check_idx
+
+        @staticmethod
+        def _json_loads_nested_jsonstrings(text):
+            """Load JSON where values are JSON-strings"""
+            doc = dict((k, json.loads(v)) for k, v in json.loads(text).items())
+            return doc
+
     class LMPSession(Session):
 
         URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
@@ -405,29 +428,6 @@ class PJMDataViewer:
             )
             df["Location Name"] = item_id
             return df
-
-        @staticmethod
-        def _parse_xml_find_all(xml_string: str, *args, **kwargs):
-            """From a string, extract <update> CDATA content
-            and return a list of BeautifulSoup-parsed HTML."""
-            xml_doc = bs4.BeautifulSoup(xml_string, "xml")
-            elems = xml_doc.find_all(*args, **kwargs)
-            return [bs4.BeautifulSoup(elem.text, "html.parser") for elem in elems]
-
-        @staticmethod
-        def _get_next_checkbox_idx(checkboxes):
-            to_check_idx = None
-            for idx, is_checked in checkboxes.items():
-                if not is_checked:
-                    to_check_idx = idx
-                    break
-            return to_check_idx
-
-        @staticmethod
-        def _json_loads_nested_jsonstrings(text):
-            """Load JSON where values are JSON-strings"""
-            doc = dict((k, json.loads(v)) for k, v in json.loads(text).items())
-            return doc
 
     def _dv_lmp_fetch_data(self, verbose=False):
         with self.LMPSession(pjm=self.pjm, verbose=verbose) as dv_lmp_session:
