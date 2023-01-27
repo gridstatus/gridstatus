@@ -20,11 +20,10 @@ class PJMDataViewer:
         self.pjm = pjm
 
     class Session:
-        def __init__(self, nonce, view_state, requests_session, initial_fetch):
+        def __init__(self, nonce, view_state, requests_session):
             self.nonce = nonce
             self.view_state = view_state
             self.requests_session = requests_session
-            self.initial_fetch = initial_fetch
             self.data = {}
 
         def __enter__(self):
@@ -41,6 +40,11 @@ class PJMDataViewer:
 
         def __setitem__(self, key, value):
             self.data[key] = value
+
+    class LMPSession(Session):
+        def __init__(self, nonce, view_state, requests_session, initial_fetch):
+            super().__init__(nonce, view_state, requests_session)
+            self.initial_fetch = initial_fetch
 
     @staticmethod
     def _new_dv_session(verbose=False):
@@ -74,7 +78,7 @@ class PJMDataViewer:
         if nonce is None or view_state is None:
             raise ValueError("Could not create new DV Session")
         else:
-            return PJMDataViewer.Session(
+            return PJMDataViewer.LMPSession(
                 nonce=nonce,
                 view_state=view_state,
                 requests_session=session,
