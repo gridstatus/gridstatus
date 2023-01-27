@@ -13,13 +13,7 @@ class LMPSession(Session):
     URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
     def fetch_chart_df(self, tz, verbose=False):
-        chart_ids = self._dv_lmp_extract_chart_ids(
-            self.initial_response,
-            verbose=verbose,
-        )
-        self.update(chart_ids)
-
-        data = self._dv_lmp_init_fetch(verbose=verbose)
+        data = self.fetch_initial_chart(verbose=verbose)
         chart_series_source_id = self._dv_lmp_get_chart_series_source_id(
             data,
             verbose=verbose,
@@ -181,10 +175,14 @@ class LMPSession(Session):
         df["_src"] = "dv"
         return df
 
-    def _dv_lmp_init_fetch(self, verbose=False):
+    def fetch_initial_chart(self, verbose=False):
         """Initial fetch for LMP data in Data Viewer"""
-        chart_source_id = self["chart_source_id"]
-        chart_parent_source_id = self["chart_parent_source_id"]
+        chart_ids = self._dv_lmp_extract_chart_ids(
+            self.initial_response,
+            verbose=verbose,
+        )
+        chart_source_id = chart_ids["chart_source_id"]
+        chart_parent_source_id = chart_ids["chart_parent_source_id"]
         return self.fetch(
             {
                 chart_parent_source_id: chart_parent_source_id,
