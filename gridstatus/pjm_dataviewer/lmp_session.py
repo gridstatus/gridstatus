@@ -114,16 +114,9 @@ class LMPSession(Session):
                 )
             request_count += 1
 
-    def _fetch_chart_df(
-        self,
-        tz,
-        verbose=False,
-    ):
-        data = self.fetch_initial_chart(verbose=verbose)
-        chart_source_id = self._dv_lmp_get_chart_series_source_id(
-            data,
-            verbose=verbose,
-        )
+    def _fetch_chart_df(self, tz, verbose=False):
+        data = self.fetch_chart(verbose=verbose)
+        chart_source_id = self._dv_lmp_get_chart_series_source_id(data, verbose=verbose)
         response = self.fetch(
             {
                 "chart1": "chart1",
@@ -144,7 +137,7 @@ class LMPSession(Session):
         df["_src"] = "dv"
         return df
 
-    def fetch_initial_chart(self, verbose=False):
+    def fetch_chart(self, verbose=False):
         """Initial fetch for LMP data in Data Viewer"""
         chart_ids = self._dv_lmp_extract_chart_ids(
             self.initial_response,
@@ -210,7 +203,7 @@ class LMPSession(Session):
             if is_checked:
                 params[
                     f"chart1FrmLmpSelection:tblBusAggregates"
-                    f":{idx}:{form_source_id}_input"  # noqa: E501
+                    f":{idx}:{form_source_id}_input"
                 ] = "on"
         response = self.fetch(
             params,
@@ -222,10 +215,11 @@ class LMPSession(Session):
                 file=sys.stderr,
             )
 
-    def _parse_lmp_series(self, series, tz):
+    @staticmethod
+    def _parse_lmp_series(series, tz):
         dfs = []
         for item in series or []:
-            dfs.append(self._parse_lmp_item(item, tz=tz))
+            dfs.append(LMPSession._parse_lmp_item(item, tz=tz))
         if len(dfs) > 0:
             df = pd.concat(dfs)
         else:
@@ -241,7 +235,8 @@ class LMPSession(Session):
 
         return df
 
-    def _parse_lmp_item(self, item, tz):
+    @staticmethod
+    def _parse_lmp_item(item, tz):
         item_id = item["id"]
         if item_id.endswith(" (DA)"):
             market = Markets.DAY_AHEAD_HOURLY
