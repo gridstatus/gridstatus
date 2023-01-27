@@ -14,7 +14,7 @@ class LMPSession(Session):
 
     def fetch_chart_df(self, tz, verbose=False):
         chart_ids = self._dv_lmp_extract_chart_ids(
-            self.initial_fetch,
+            self.initial_response,
             verbose=verbose,
         )
         self.update(chart_ids)

@@ -9,7 +9,7 @@ class Session:
         self.requests_session = requests.Session()
 
         self.data = {}
-        self.initial_fetch = None
+        self.initial_response = None
         self.nonce = None
         self.view_state = None
 
@@ -34,9 +34,9 @@ class Session:
         """
         if verbose:
             print(f"GET {self.URL}")
-        self.initial_fetch = self.requests_session.get(self.URL)
+        self.initial_response = self.requests_session.get(self.URL)
 
-        html = self.initial_fetch.content
+        html = self.initial_response.content
         doc = bs4.BeautifulSoup(html, "html.parser")
 
         scripts = doc.find_all("script", {"nonce": True})
