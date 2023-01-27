@@ -214,7 +214,7 @@ class CAISO(ISOBase):
         end=None,
         verbose=False,
     ):
-        """Get day ahead LMP pricing starting at supplied date for a list of locations.
+        """Get LMP pricing starting at supplied date for a list of locations.
 
         Arguments:
             date (datetime.date, str): date to return data
