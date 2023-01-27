@@ -1,8 +1,9 @@
 # Changelog
 
-## vNext
+## v0.18.0
 
 - Update CAISO LMP markets to support real time five minute
+- Fix bug affecting NYISO interconnection queues
 
     ### Breaking Changes
 
