@@ -13,17 +13,11 @@ class LMPSession(Session):
     URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
     def fetch_chart_df(self, tz, verbose=False):
-        data = self.fetch_initial_chart(verbose=verbose)
-        chart_series_source_id = self._dv_lmp_get_chart_series_source_id(
-            data,
-            verbose=verbose,
-        )
-
         # fetch current included_locations and source id
         (
             included_locations,
             included_locations_source_id,
-        ) = self._dv_lmp_fetch_included_locations_context(
+        ) = self._fetch_location_checkboxes(
             verbose=verbose,
         )
 
@@ -36,7 +30,6 @@ class LMPSession(Session):
 
         # fetch chart data
         return self._dv_lmp_fetch_chart_df(
-            chart_series_source_id,
             tz=tz,
             verbose=verbose,
         )
@@ -80,7 +73,7 @@ class LMPSession(Session):
                 "Could not get LMP Chart IDs (chart_source_id or chart_parent_source_id)",  # noqa E501
             )
 
-    def _dv_lmp_fetch_included_locations_context(
+    def _fetch_location_checkboxes(
         self,
         verbose=False,
     ):
@@ -92,17 +85,16 @@ class LMPSession(Session):
            checkbox status, i.e. whether the location is included
         * the form source_id to be used in later requests
         """
-        params = {
-            "javax.faces.partial.ajax": "true",
-            "javax.faces.source": "chart1FrmLmpSelection:dlgLmpSelection",
-            "javax.faces.partial.execute": "chart1FrmLmpSelection:dlgLmpSelection",
-            "javax.faces.partial.render": "chart1FrmLmpSelection:dlgLmpSelection",
-            "chart1FrmLmpSelection:dlgLmpSelection": "chart1FrmLmpSelection:dlgLmpSelection",  # noqa: E501
-            "chart1FrmLmpSelection:dlgLmpSelection_contentLoad": "true",
-            "chart1FrmLmpSelection": "chart1FrmLmpSelection",
-        }
         response = self.fetch(
-            params,
+            {
+                "javax.faces.partial.ajax": "true",
+                "javax.faces.source": "chart1FrmLmpSelection:dlgLmpSelection",
+                "javax.faces.partial.execute": "chart1FrmLmpSelection:dlgLmpSelection",
+                "javax.faces.partial.render": "chart1FrmLmpSelection:dlgLmpSelection",
+                "chart1FrmLmpSelection:dlgLmpSelection": "chart1FrmLmpSelection:dlgLmpSelection",  # noqa: E501
+                "chart1FrmLmpSelection:dlgLmpSelection_contentLoad": "true",
+                "chart1FrmLmpSelection": "chart1FrmLmpSelection",
+            },
             verbose=verbose,
         )
         update_docs = self._parse_xml_find_all(response.content, "update")
@@ -151,10 +143,14 @@ class LMPSession(Session):
 
     def _dv_lmp_fetch_chart_df(
         self,
-        chart_source_id,
         tz,
         verbose=False,
     ):
+        data = self.fetch_initial_chart(verbose=verbose)
+        chart_source_id = self._dv_lmp_get_chart_series_source_id(
+            data,
+            verbose=verbose,
+        )
         response = self.fetch(
             {
                 "chart1": "chart1",
