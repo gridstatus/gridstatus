@@ -359,7 +359,8 @@ class PJM(ISOBase):
         verbose=False,
     ):
         """Get latest LMP data from Data Viewer, which includes RT & DA"""
-        with LMPSession(verbose=verbose) as dv_lmp_session:
+        with LMPSession() as dv_lmp_session:
+            dv_lmp_session.start(verbose=verbose)
             df = dv_lmp_session.fetch_chart_df(
                 verbose=verbose,
                 tz=self.default_timezone,
