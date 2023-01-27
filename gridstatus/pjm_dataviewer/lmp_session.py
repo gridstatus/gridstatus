@@ -19,7 +19,7 @@ class LMPSession(Session):
         )
 
         # fetch chart data
-        return self._dv_lmp_fetch_chart_df(
+        return self._fetch_chart_df(
             tz=tz,
             verbose=verbose,
         )
@@ -63,18 +63,11 @@ class LMPSession(Session):
                 "Could not get LMP Chart IDs (chart_source_id or chart_parent_source_id)",  # noqa E501
             )
 
-    def _fetch_location_checkboxes(
+    def _enable_all_locations(
         self,
         verbose=False,
     ):
-        """
-        Returns a tuple:
-
-        * a dictionary location_checkboxes[int] = bool where
-          the key is a numeric index, and the value is the
-           checkbox status, i.e. whether the location is included
-        * the form source_id to be used in later requests
-        """
+        # fetch current location_checkboxes and source id
         response = self.fetch(
             {
                 "javax.faces.partial.ajax": "true",
@@ -103,20 +96,6 @@ class LMPSession(Session):
                         source_id = re.sub(r"_input$", "", matches.group(2))
                 location_checkboxes[to_check_idx] = checked
 
-        return (
-            location_checkboxes,
-            source_id,
-        )
-
-    def _enable_all_locations(
-        self,
-        verbose=False,
-    ):
-        # fetch current location_checkboxes and source id
-        location_checkboxes, source_id = self._fetch_location_checkboxes(
-            verbose=verbose,
-        )
-
         # max_requests is a fallback in case
         # the while loop goes haywire
         max_requests = len(location_checkboxes)
@@ -135,7 +114,7 @@ class LMPSession(Session):
                 )
             request_count += 1
 
-    def _dv_lmp_fetch_chart_df(
+    def _fetch_chart_df(
         self,
         tz,
         verbose=False,
