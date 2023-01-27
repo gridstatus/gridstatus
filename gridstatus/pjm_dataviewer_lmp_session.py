@@ -19,7 +19,7 @@ class DataViewerLMPSession(DataViewerSession):
         )
         self.update(chart_ids)
 
-        data = self._dv_lmp_init_fetch(self, verbose=verbose)
+        data = self._dv_lmp_init_fetch(verbose=verbose)
         chart_series_source_id = self._dv_lmp_get_chart_series_source_id(
             data,
             verbose=verbose,
@@ -30,13 +30,11 @@ class DataViewerLMPSession(DataViewerSession):
             included_locations,
             included_locations_source_id,
         ) = self._dv_lmp_fetch_included_locations_context(
-            self,
             verbose=verbose,
         )
 
         # enable remaining included_locations
         self._dv_lmp_include_all_locations(
-            self,
             included_locations_source_id,
             included_locations,
             verbose=verbose,
@@ -44,7 +42,6 @@ class DataViewerLMPSession(DataViewerSession):
 
         # fetch chart data
         return self._dv_lmp_fetch_chart_df(
-            self,
             chart_series_source_id,
             verbose=verbose,
         )
@@ -90,7 +87,6 @@ class DataViewerLMPSession(DataViewerSession):
 
     def _dv_lmp_fetch_included_locations_context(
         self,
-        dv_lmp_session,
         verbose=False,
     ):
         """
@@ -111,7 +107,6 @@ class DataViewerLMPSession(DataViewerSession):
             "chart1FrmLmpSelection": "chart1FrmLmpSelection",
         }
         response = self._dv_lmp_fetch(
-            dv_lmp_session,
             params,
             verbose=verbose,
         )
@@ -137,7 +132,6 @@ class DataViewerLMPSession(DataViewerSession):
 
     def _dv_lmp_include_all_locations(
         self,
-        dv_lmp_session,
         filters_source_id,
         filters,
         verbose=False,
@@ -153,7 +147,6 @@ class DataViewerLMPSession(DataViewerSession):
             to_check_idx = self._get_next_checkbox_idx(filters)
             if to_check_idx is not None:
                 self._dv_lmp_select_checkbox(
-                    dv_lmp_session,
                     filters_source_id,
                     filters,
                     to_check_idx,
@@ -163,12 +156,10 @@ class DataViewerLMPSession(DataViewerSession):
 
     def _dv_lmp_fetch_chart_df(
         self,
-        dv_lmp_session,
         chart_source_id,
         verbose=False,
     ):
         response = self._dv_lmp_fetch(
-            dv_lmp_session,
             {
                 "chart1": "chart1",
                 "chart1:chart1valueDataTable_scrollState": "0,0",
@@ -188,12 +179,11 @@ class DataViewerLMPSession(DataViewerSession):
         df["_src"] = "dv"
         return df
 
-    def _dv_lmp_init_fetch(self, dv_lmp_session, verbose=False):
+    def _dv_lmp_init_fetch(self, verbose=False):
         """Initial fetch for LMP data in Data Viewer"""
-        chart_source_id = dv_lmp_session["chart_source_id"]
-        chart_parent_source_id = dv_lmp_session["chart_parent_source_id"]
+        chart_source_id = self["chart_source_id"]
+        chart_parent_source_id = self["chart_parent_source_id"]
         return self._dv_lmp_fetch(
-            dv_lmp_session,
             {
                 chart_parent_source_id: chart_parent_source_id,
                 chart_source_id: chart_source_id,
@@ -205,19 +195,17 @@ class DataViewerLMPSession(DataViewerSession):
             verbose=verbose,
         )
 
-    def _dv_lmp_fetch(self, dv_lmp_session, params, verbose=False):
+    def _dv_lmp_fetch(self, params, verbose=False):
         """Fetch with dv_lmp_session view state and nonce"""
         params.update(
             {
-                "javax.faces.ViewState": dv_lmp_session.view_state,
-                "primefaces.nonce": dv_lmp_session.nonce,
+                "javax.faces.ViewState": self.view_state,
+                "primefaces.nonce": self.nonce,
             },
         )
         if verbose:
             print(f"POST with {params}", file=sys.stderr)
-        return dv_lmp_session.post(
-            data=params,
-        )
+        return self.post(data=params)
 
     def _dv_lmp_get_chart_series_source_id(self, response, verbose):
         """Retrieves source ID from update response,
@@ -241,7 +229,6 @@ class DataViewerLMPSession(DataViewerSession):
 
     def _dv_lmp_select_checkbox(
         self,
-        dv_lmp_session,
         form_source_id,
         checkboxes,
         to_check_idx,
@@ -269,7 +256,6 @@ class DataViewerLMPSession(DataViewerSession):
                     f":{idx}:{form_source_id}_input"  # noqa: E501
                 ] = "on"
         response = self._dv_lmp_fetch(
-            dv_lmp_session,
             params,
             verbose=verbose,
         )
