@@ -20,17 +20,18 @@ class PJMDataViewer:
         self.pjm = pjm
 
     class Session:
-        def __init__(self, nonce, view_state, session):
+        def __init__(self, nonce, view_state, requests_session, initial_fetch):
             self.nonce = nonce
             self.view_state = view_state
-            self.session = session
+            self.requests_session = requests_session
+            self.initial_fetch = initial_fetch
             self.data = {}
 
         def __enter__(self):
             return self
 
         def __exit__(self, exc_type, exc_value, traceback):
-            self.session.close()
+            self.requests_session.close()
 
         def update(self, data):
             self.data.update(data)
@@ -42,7 +43,9 @@ class PJMDataViewer:
             self.data[key] = value
 
     @staticmethod
-    def _new_dv_session(session, verbose=False):
+    def _new_dv_session(verbose=False):
+        session = requests.Session()
+        initial_fetch = session.get(DATAVIEWER_LMP_URL)
         if verbose:
             print(f"GET {DATAVIEWER_LMP_URL}")
         response = session.get(DATAVIEWER_LMP_URL)
@@ -74,15 +77,16 @@ class PJMDataViewer:
             return PJMDataViewer.Session(
                 nonce=nonce,
                 view_state=view_state,
-                session=session,
+                requests_session=session,
+                initial_fetch=initial_fetch,
             )
 
     def _dv_lmp_fetch_data(self, verbose=False):
-        with requests.session() as session:
-            initial_fetch = session.get(DATAVIEWER_LMP_URL)
-
-            dv_session = self._new_dv_session(session, verbose=verbose)
-            chart_ids = self._dv_lmp_extract_chart_ids(initial_fetch, verbose=verbose)
+        with self._new_dv_session(verbose=verbose) as dv_session:
+            chart_ids = self._dv_lmp_extract_chart_ids(
+                dv_session.initial_fetch,
+                verbose=verbose,
+            )
             dv_session.update(chart_ids)
 
             data = self._dv_lmp_init_fetch(dv_session, verbose=verbose)
@@ -313,7 +317,7 @@ class PJMDataViewer:
         )
         if verbose:
             print(f"POST {DATAVIEWER_LMP_URL} with {params}", file=sys.stderr)
-        return dv_session.session.post(
+        return dv_session.requests_session.post(
             DATAVIEWER_LMP_URL,
             data=params,
         )
