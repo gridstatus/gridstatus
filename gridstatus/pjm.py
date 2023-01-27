@@ -364,7 +364,7 @@ class PJM(ISOBase):
                 verbose=verbose,
                 tz=self.default_timezone,
             )
-            df = dv_lmp_session.finalize_chart_df(df=df, pjm=self)
+            df = self.finalize_dv_chart_df(df)
             if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
                 df = df[df["Market"] == market.value]
 
@@ -379,6 +379,28 @@ class PJM(ISOBase):
                     )
                 ]
             return df
+
+    def finalize_dv_chart_df(self, df):
+        # Pricing Node data provides mappings for Location IDs and Location Types
+        pnode_ids = self.get_pnode_ids()
+
+        # Location IDs
+        location_ids = dict(
+            zip(pnode_ids["pnode_name"], pnode_ids["pnode_id"].astype(int)),
+        )
+        df["Location"] = df["Location Name"].apply(
+            lambda location_name: location_ids.get(location_name, pd.NA),
+        )
+
+        # Location Types
+        location_types = dict(
+            zip(pnode_ids["pnode_name"], pnode_ids["pnode_subtype"]),
+        )
+        df["Location Type"] = df["Location Name"].apply(
+            lambda location_name: location_types.get(location_name, pd.NA),
+        )
+
+        return df
 
     def _get_lmp_via_pjm_json(
         self,

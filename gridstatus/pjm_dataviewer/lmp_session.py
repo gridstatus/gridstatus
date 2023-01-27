@@ -286,29 +286,6 @@ class LMPSession(Session):
 
         return df
 
-    @staticmethod
-    def finalize_chart_df(df, pjm):
-        # Pricing Node data provides mappings for Location IDs and Location Types
-        pnode_ids = pjm.get_pnode_ids()
-
-        # Location IDs
-        location_ids = dict(
-            zip(pnode_ids["pnode_name"], pnode_ids["pnode_id"].astype(int)),
-        )
-        df["Location"] = df["Location Name"].apply(
-            lambda location_name: location_ids.get(location_name, pd.NA),
-        )
-
-        # Location Types
-        location_types = dict(
-            zip(pnode_ids["pnode_name"], pnode_ids["pnode_subtype"]),
-        )
-        df["Location Type"] = df["Location Name"].apply(
-            lambda location_name: location_types.get(location_name, pd.NA),
-        )
-
-        return df
-
     def _parse_lmp_item(self, item, tz):
         item_id = item["id"]
         if item_id.endswith(" (DA)"):
