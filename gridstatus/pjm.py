@@ -15,7 +15,7 @@ from gridstatus.decorators import (
     support_date_range,
 )
 from gridstatus.lmp_config import lmp_config
-from gridstatus.pjm_dataviewer_lmp_session import DataViewerLMPSession
+from gridstatus.pjm_dataviewer.lmp_session import LMPSession
 
 DATAVIEWER_LMP_URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
@@ -359,7 +359,7 @@ class PJM(ISOBase):
         verbose=False,
     ):
         """Get latest LMP data from Data Viewer, which includes RT & DA"""
-        with DataViewerLMPSession(pjm=self, verbose=verbose) as dv_lmp_session:
+        with LMPSession(pjm=self, verbose=verbose) as dv_lmp_session:
             df = dv_lmp_session.fetch_chart_df(verbose=verbose)
             if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
                 df = df[df["Market"] == market.value]

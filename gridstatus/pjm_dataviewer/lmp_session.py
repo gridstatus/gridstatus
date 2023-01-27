@@ -5,10 +5,10 @@ import bs4
 import pandas as pd
 
 from gridstatus.base import Markets
-from gridstatus.pjm_dataviewer_session import DataViewerSession
+from gridstatus.pjm_dataviewer.session import Session
 
 
-class DataViewerLMPSession(DataViewerSession):
+class LMPSession(Session):
 
     URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 

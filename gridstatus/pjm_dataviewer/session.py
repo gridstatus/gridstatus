@@ -4,7 +4,7 @@ import bs4
 import requests
 
 
-class DataViewerSession:
+class Session:
     def __init__(self, pjm, verbose=False):
         self.pjm = pjm
         self._fetch_initial(verbose=verbose)
