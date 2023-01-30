@@ -13,7 +13,7 @@ class LMPSession(Session):
 
     URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
-    def fetch_chart_df(self, verbose=False):
+    def enable_all_locations_and_fetch_chart_df(self, verbose=False):
         # enable remaining location_checkboxes
         self._enable_all_locations(
             verbose=verbose,
@@ -26,25 +26,42 @@ class LMPSession(Session):
 
     @staticmethod
     def _extract_chart_ids(response, verbose=False):
+        """Extract two element IDs which are important for future API calls"""
         html = response.content
         doc = bs4.BeautifulSoup(html, "html.parser")
-        scripts = doc.find_all("script", {"nonce": True})
 
         chart_source_id = None
+        chart_parent_source_id = None
+
+        """
+        1) Find menuForm
+        2) Find all hidden elements who share a grandparent element with menuForm
+        3) Set ${seed_prefix} to the name of first hidden elements with "j_" prefix
+        4) Find seed in javascript searching for /s:"(${seed_prefix}.*)"/
+        5) chart_source_id is first matching capture group, e.g. "j_idt231:j_idt232"
+        6) chart_parent_source_id is the first token with colons as the delimiter,
+           e.g. "j_idt231"
+        """
         menu_form = doc.find("form", {"id": "menuForm"})
-        grandparent = menu_form.parent.parent
-        hidden_elements = grandparent.find_all("input", {"type": "hidden"})
-        j_hidden_elements = [
-            elem for elem in hidden_elements if elem["name"].startswith("j_")
-        ]
-        seed = j_hidden_elements[0]["name"]
-        for script in scripts:
-            lines = script.text.split("\n")
-            for line in lines:
-                match = re.search(rf's:"({seed}[^"]+)"', line)
-                if match is not None:
-                    chart_source_id = match.group(1)
-                    chart_parent_source_id = chart_source_id.split(":")[0]
+        if menu_form is not None:
+            grandparent = menu_form.parent.parent
+            hidden_elements = grandparent.find_all("input", {"type": "hidden"})
+            j_hidden_elements = [
+                elem for elem in hidden_elements if elem["name"].startswith("j_")
+            ]
+            if len(j_hidden_elements) > 0:
+                seed_prefix = j_hidden_elements[0]["name"]
+                all_lines = [
+                    script.text.split("\n")
+                    for script in doc.find_all("script", {"nonce": True})
+                ]
+                for lines in all_lines:
+                    for line in lines:
+                        match = re.search(rf's:"({seed_prefix}.+?)"', line)
+                        if match is not None:
+                            chart_source_id = match.group(1)
+                            chart_parent_source_id = match.group(1).split(":")[0]
+                            break
 
         if verbose:
             print(f"chart_source_id = {chart_source_id}", file=sys.stderr)
@@ -67,7 +84,10 @@ class LMPSession(Session):
         self,
         verbose=False,
     ):
-        # fetch current location_checkboxes and source id
+        """Fetches the current location checkboxes, enables all of them.
+        This makes N calls for N remaining unchecked locations."""
+
+        # Fetch current selected locations
         response = self.post_api(
             {
                 "javax.faces.partial.ajax": "true",
@@ -82,8 +102,10 @@ class LMPSession(Session):
         )
         update_docs = self._parse_xml_find_all(response.content, "update")
 
-        source_id = None
+        # Extract location checkbox statuses, and form_source_id to be used to update
+        # the checkboxes later on
         location_checkboxes = {}
+        form_source_id = None
         for update_doc in update_docs:
             checkbox_elems = update_doc.find_all("input", {"type": "checkbox"})
             for checkbox_elem in checkbox_elems:
@@ -91,21 +113,21 @@ class LMPSession(Session):
                 checkbox_name = checkbox_elem.get("name")
                 matches = re.search(r":([0-9]+):(j_.+)$", checkbox_name)
                 if matches is not None:
-                    next_checkbox_idx = int(matches.group(1))
-                    if source_id is None:
-                        source_id = re.sub(r"_input$", "", matches.group(2))
-                location_checkboxes[next_checkbox_idx] = checked
+                    next_checkbox_index = int(matches.group(1))
+                    if form_source_id is None:
+                        form_source_id = re.sub(r"_input$", "", matches.group(2))
+                location_checkboxes[next_checkbox_index] = checked
 
-        # max_requests is a fallback in case
-        # the while loop goes haywire
+        # Check all the checkboxes, setting max_requests to the total number
+        # of location checkboxes to prevent infinite loop
         max_requests = len(location_checkboxes)
         request_count = 0
         while (
             any(not value for value in location_checkboxes.values())
             and request_count < max_requests
         ):
-            # find the first unchecked checkbox
-            next_checkbox_idx = next(
+            # find the next unchecked checkbox
+            next_checkbox_index = next(
                 iter(
                     (
                         idx
@@ -115,13 +137,15 @@ class LMPSession(Session):
                     None,
                 ),
             )
-            if next_checkbox_idx is None:
+            if next_checkbox_index is None:
+                # Done!
                 break
             else:
-                self._select_checkbox(
-                    source_id,
+                # Check the next checkbox
+                self._check_location_checkbox(
+                    form_source_id,
                     location_checkboxes,
-                    next_checkbox_idx,
+                    next_checkbox_index,
                     verbose=verbose,
                 )
             request_count += 1
@@ -196,18 +220,21 @@ class LMPSession(Session):
 
         return chart_series_source_id
 
-    def _select_checkbox(
+    def _check_location_checkbox(
         self,
         form_source_id,
-        checkboxes,
-        checkbox_idx,
+        location_checkboxes,
+        checkbox_index,
         verbose=False,
     ):
-        # toggle checkbox
+        # enable location
+        location_checkboxes[checkbox_index] = True
+
+        # generate params reflecting location_checkboxes
         params = {
             "javax.faces.partial.ajax": "true",
-            "javax.faces.source": f"chart1FrmLmpSelection:tblBusAggregates:{checkbox_idx}:{form_source_id}",  # noqa: E501
-            "javax.faces.partial.execute": f"chart1FrmLmpSelection:tblBusAggregates:{checkbox_idx}:{form_source_id}",  # noqa: E501
+            "javax.faces.source": f"chart1FrmLmpSelection:tblBusAggregates:{checkbox_index}:{form_source_id}",  # noqa: E501
+            "javax.faces.partial.execute": f"chart1FrmLmpSelection:tblBusAggregates:{checkbox_index}:{form_source_id}",  # noqa: E501
             "javax.faces.partial.render": "globalMessages",
             "javax.faces.behavior.event": "change",
             "javax.faces.partial.event": "change",
@@ -217,13 +244,14 @@ class LMPSession(Session):
             "chart1FrmLmpSelection:tblBusAggregates:station:filter": "",
             "chart1FrmLmpSelection:tblBusAggregates_scrollState": "0,0",
         }
-        checkboxes[checkbox_idx] = True
-        for idx, is_checked in checkboxes.items():
+        for idx, is_checked in location_checkboxes.items():
             if is_checked:
                 params[
                     f"chart1FrmLmpSelection:tblBusAggregates"
                     f":{idx}:{form_source_id}_input"
                 ] = "on"
+
+        # call the API, ignoring the response unless verbose mode is on
         response = self.post_api(
             params,
             verbose=verbose,
