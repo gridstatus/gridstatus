@@ -13,25 +13,30 @@ class LMPSession(Session):
 
     URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
+    def __init__(self):
+        super().__init__()
+        self.chart_source_id = None
+        self.chart_parent_source_id = None
+
     def enable_all_locations_and_fetch_chart_df(self, verbose=False):
         # enable remaining location_checkboxes
         self._enable_all_locations(
             verbose=verbose,
         )
-
         # fetch chart data
         return self._fetch_chart_df(
             verbose=verbose,
         )
 
-    @staticmethod
-    def _extract_chart_ids(response, verbose=False):
+    def start(self, verbose=False):
+        """Starts the LMP session, and extracts some information
+        from the initial response for future LMP DV calls.
+        """
+        response = super().start(verbose=verbose)
+
         """Extract two element IDs which are important for future API calls"""
         html = response.content
         doc = bs4.BeautifulSoup(html, "html.parser")
-
-        chart_source_id = None
-        chart_parent_source_id = None
 
         """
         1) Find menuForm
@@ -59,23 +64,18 @@ class LMPSession(Session):
                     for line in lines:
                         match = re.search(rf's:"({seed_prefix}.+?)"', line)
                         if match is not None:
-                            chart_source_id = match.group(1)
-                            chart_parent_source_id = match.group(1).split(":")[0]
+                            self.chart_source_id = match.group(1)
+                            self.chart_parent_source_id = match.group(1).split(":")[0]
                             break
 
         if verbose:
-            print(f"chart_source_id = {chart_source_id}", file=sys.stderr)
+            print(f"self.chart_source_id = {self.chart_source_id}", file=sys.stderr)
             print(
-                f"chart_parent_source_id = {chart_parent_source_id}",
+                f"self.chart_parent_source_id = {self.chart_parent_source_id}",
                 file=sys.stderr,
             )
 
-        if chart_source_id is not None and chart_parent_source_id is not None:
-            return {
-                "chart_source_id": chart_source_id,
-                "chart_parent_source_id": chart_parent_source_id,
-            }
-        else:
+        if self.chart_source_id is None or self.chart_parent_source_id is None:
             raise ValueError(
                 "Could not get LMP Chart IDs (chart_source_id or chart_parent_source_id)",  # noqa E501
             )
@@ -151,20 +151,14 @@ class LMPSession(Session):
             request_count += 1
 
     def _fetch_chart_df(self, verbose=False):
-        chart_ids = self._extract_chart_ids(
-            self.initial_response,
-            verbose=verbose,
-        )
-        source_id = chart_ids["chart_source_id"]
-        chart_parent_source_id = chart_ids["chart_parent_source_id"]
         data = self.post_api(
             {
-                chart_parent_source_id: chart_parent_source_id,
-                source_id: source_id,
+                self.chart_parent_source_id: self.chart_parent_source_id,
+                self.chart_source_id: self.chart_source_id,
                 "javax.faces.partial.ajax": "true",
                 "javax.faces.partial.execute": "@all",
                 "javax.faces.partial.render": "tabPanel",
-                "javax.faces.source": source_id,
+                "javax.faces.source": self.chart_source_id,
             },
             verbose=verbose,
         )

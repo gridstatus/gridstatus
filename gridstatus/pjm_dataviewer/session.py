@@ -11,7 +11,6 @@ class Session:
 
     def __init__(self):
         self.requests_session = requests.Session()
-        self.initial_response = None
         self.nonce = None
         self.view_state = None
 
@@ -23,13 +22,15 @@ class Session:
 
     def start(self, verbose=False):
         """Initial fetch: creating a new requests.Session,
-        extracting the session and view state
+        extracting the session and view state.
+
+        Returns:
+            requests.Response: the initial response
         """
         if verbose:
             print(f"GET {self.URL}")
-        self.initial_response = self.requests_session.get(self.URL)
-
-        html = self.initial_response.content
+        response = self.requests_session.get(self.URL)
+        html = response.content
         doc = bs4.BeautifulSoup(html, "html.parser")
 
         scripts = doc.find_all("script", {"nonce": True})
@@ -53,6 +54,8 @@ class Session:
 
         if self.nonce is None or self.view_state is None:
             raise ValueError("Could not find nonce or ViewState")
+
+        return response
 
     def post_api(self, args, verbose=False):
         """POSTs to URL endpoint, adding ViewState and nonce"""
