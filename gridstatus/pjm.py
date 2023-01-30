@@ -382,6 +382,15 @@ class PJM(ISOBase):
         # Pricing Node data provides mappings for Location IDs and Location Types
         pnode_ids = self.get_pnode_ids()
 
+        df = df.rename(
+            columns={
+                "lmp": "LMP",
+                "mlcValue": "Loss",
+                "mccValue": "Congestion",
+            },
+        )
+        df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
+
         # Location IDs
         location_ids = dict(
             zip(pnode_ids["pnode_name"], pnode_ids["pnode_id"].astype(int)),

@@ -264,28 +264,21 @@ class LMPSession(Session):
             df = pd.concat(dfs)
         else:
             df = pd.DataFrame()
-        df = df.rename(
-            columns={
-                "lmp": "LMP",
-                "mlcValue": "Loss",
-                "mccValue": "Congestion",
-            },
-        )
-        df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
-
         return df
 
     def _parse_lmp_item(self, item):
-        # TODO tz_convert to local timezone
+        """Parse a single item from the lmpSeries list"""
         item_id = item["id"]
+        # Determine market based on id
         if item_id.endswith(" (DA)"):
             market = Markets.DAY_AHEAD_HOURLY
             item_id = item_id.replace(" (DA)", "")
         else:
             market = Markets.REAL_TIME_5_MIN
-        item_data = item["data"]
-        df = pd.DataFrame(item_data)
+        df = pd.DataFrame(item["data"])
         df["Market"] = market.value
+        # Convert epoch ms to UTC
         df["Time"] = pd.to_datetime(df["timestamp"], unit="ms").dt.tz_localize(tz="UTC")
+        # Location name is the same as ID
         df["Location Name"] = item_id
         return df
