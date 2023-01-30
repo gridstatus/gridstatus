@@ -298,10 +298,8 @@ class PJM(ISOBase):
                 verbose=verbose,
             )
 
-        # By default, use the JSON API
+        # Use the JSON API, except for real-time today (no data is available)
         fetch_json = True
-        # EXCEPTION: If the date is today/latest, only allow JSON API
-        # for day-ahead hourly
         if (
             utils.is_today(date, tz=self.default_timezone)
             and market != Markets.DAY_AHEAD_HOURLY
