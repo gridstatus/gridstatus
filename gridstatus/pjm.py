@@ -379,8 +379,13 @@ class PJM(ISOBase):
             return df
 
     def finalize_dv_chart_df(self, df, tz):
-        # Pricing Node data provides mappings for Location IDs and Location Types
-        pnode_ids = self.get_pnode_ids()
+        """Finalize DV data by:
+        - renaming columns
+        - calculating Energy
+        - adding Location IDs
+        - adding Location Types
+        - converting times to local timezone
+        """
 
         df = df.rename(
             columns={
@@ -390,6 +395,9 @@ class PJM(ISOBase):
             },
         )
         df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
+
+        # Get pnode IDs for Location data
+        pnode_ids = self.get_pnode_ids()
 
         # Location IDs
         location_ids = dict(
