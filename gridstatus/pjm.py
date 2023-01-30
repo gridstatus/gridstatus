@@ -313,11 +313,11 @@ class PJM(ISOBase):
                 verbose=verbose,
             )
 
-        dfs = [dv_df, json_df]
-        df = pd.concat(dfs)
+        df = pd.concat([dv_df, json_df])
 
-        # deduplicate data, choosing the _src=json when there are duplicates
-        # in (time, market, location name)
+        # Deduplicate data if needed.
+        # Use unique columns: (time, market, location name)
+        # Prefer _src=json for tie-breakers
         cols = ["Time", "Market", "Location Name"]
         keep_fields = sorted(df["_src"].unique().tolist())
         if "json" in keep_fields:
