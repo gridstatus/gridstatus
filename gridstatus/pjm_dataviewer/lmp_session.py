@@ -151,7 +151,23 @@ class LMPSession(Session):
             request_count += 1
 
     def _fetch_chart_df(self, verbose=False):
-        data = self._fetch_chart(verbose=verbose)
+        chart_ids = self._extract_chart_ids(
+            self.initial_response,
+            verbose=verbose,
+        )
+        source_id = chart_ids["chart_source_id"]
+        chart_parent_source_id = chart_ids["chart_parent_source_id"]
+        data = self.post_api(
+            {
+                chart_parent_source_id: chart_parent_source_id,
+                source_id: source_id,
+                "javax.faces.partial.ajax": "true",
+                "javax.faces.partial.execute": "@all",
+                "javax.faces.partial.render": "tabPanel",
+                "javax.faces.source": source_id,
+            },
+            verbose=verbose,
+        )
         chart_source_id = self._get_chart_series_source_id(data, verbose=verbose)
         response = self.post_api(
             {
@@ -179,26 +195,6 @@ class LMPSession(Session):
             df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"])
         df["_src"] = "dv"
         return df
-
-    def _fetch_chart(self, verbose=False):
-        """Initial fetch for LMP data in Data Viewer"""
-        chart_ids = self._extract_chart_ids(
-            self.initial_response,
-            verbose=verbose,
-        )
-        chart_source_id = chart_ids["chart_source_id"]
-        chart_parent_source_id = chart_ids["chart_parent_source_id"]
-        return self.post_api(
-            {
-                chart_parent_source_id: chart_parent_source_id,
-                chart_source_id: chart_source_id,
-                "javax.faces.partial.ajax": "true",
-                "javax.faces.partial.execute": "@all",
-                "javax.faces.partial.render": "tabPanel",
-                "javax.faces.source": chart_source_id,
-            },
-            verbose=verbose,
-        )
 
     def _get_chart_series_source_id(self, response, verbose):
         """Retrieves source ID from update response,
