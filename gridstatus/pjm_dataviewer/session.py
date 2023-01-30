@@ -5,10 +5,12 @@ import requests
 
 
 class Session:
-    def __init__(self, verbose=False):
-        self.requests_session = requests.Session()
+    """Holds a requests.Session, keeping view_state, nonce, and initial response.
 
-        self.data = {}
+    Subclasses should set a URL attribute."""
+
+    def __init__(self):
+        self.requests_session = requests.Session()
         self.initial_response = None
         self.nonce = None
         self.view_state = None
@@ -18,15 +20,6 @@ class Session:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.requests_session.close()
-
-    def update(self, data):
-        self.data.update(data)
-
-    def __getitem__(self, item):
-        return self.data[item]
-
-    def __setitem__(self, key, value):
-        self.data[key] = value
 
     def start(self, verbose=False):
         """Initial fetch: creating a new requests.Session,
@@ -62,7 +55,7 @@ class Session:
             raise ValueError("Could not find nonce or ViewState")
 
     def post_api(self, args, verbose=False):
-        """POST to main API endpoint, adding ViewState and nonce"""
+        """POSTs to URL endpoint, adding ViewState and nonce"""
         args.update(
             {
                 "javax.faces.ViewState": self.view_state,
