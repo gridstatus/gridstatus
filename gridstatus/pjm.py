@@ -318,19 +318,30 @@ class PJM(ISOBase):
             )
 
         dfs = [dv_df, json_df]
-        dfs = [df for df in dfs if df is not None]
+        df = pd.concat(dfs)
 
         # deduplicate data, choosing the _src=json when there are duplicates
         # in (time, market, location name)
-        df = self._df_deduplicate(
-            dfs,
-            unique_cols=["Time", "Market", "Location Name"],
-            keep_field="_src",
-            keep_value="json",
-            verbose=verbose,
-        )
+        cols = ["Time", "Market", "Location Name"]
+        keep_fields = sorted(df["_src"].unique().tolist())
+        if "json" in keep_fields:
+            if verbose:
+                print(f"Starting with {len(df)} rows", file=sys.stderr)
+            if keep_fields[0] == "json":
+                dedupe_keep = "first"
+            elif keep_fields[-1] == "json":
+                dedupe_keep = "last"
+            else:
+                raise ValueError(
+                    f"keep_value {repr('json')} must be "
+                    f"first or last for de-duplication to work: {keep_fields}",
+                )
+            # Extract subset without duplicates
+            df.sort_values("_src", ascending=True, inplace=True)
+            df.drop_duplicates(subset=cols, keep=dedupe_keep, inplace=True)
+            if verbose:
+                print(f"Ending with {len(df)} rows", file=sys.stderr)
         df.sort_values("Time", inplace=True)
-        df.reset_index(drop=True, inplace=True)
         df = df[
             [
                 "Time",
@@ -345,6 +356,7 @@ class PJM(ISOBase):
                 # "_src",  # uncomment to debug
             ]
         ]
+        df.reset_index(drop=True, inplace=True)
         return df
 
     def _get_lmp_via_dv(
@@ -664,38 +676,6 @@ class PJM(ISOBase):
         )
 
         return settings["subscriptionKey"]
-
-    @staticmethod
-    def _df_deduplicate(dfs, unique_cols, keep_field, keep_value, verbose=False):
-        """Concatenate dataframes and deduplicate based on a list of columns,
-        keeping keep_field=keep_value.
-        """
-        df = pd.concat(dfs)
-        if verbose:
-            print(f"Starting with {len(df)} rows", file=sys.stderr)
-
-        keep_fields = sorted(df[keep_field].unique().tolist())
-        if keep_value in keep_fields:
-            if keep_fields[0] == keep_value:
-                dedupe_keep = "first"
-            elif keep_fields[-1] == keep_value:
-                dedupe_keep = "last"
-            else:
-                raise ValueError(
-                    f"keep_value {repr(keep_value)} must be "
-                    f"first or last for de-duplication to work: {keep_fields}",
-                )
-
-            # Extract subset without duplicates
-            df.sort_values(keep_field, ascending=True, inplace=True)
-            df.drop_duplicates(subset=unique_cols, keep=dedupe_keep, inplace=True)
-
-        df.reset_index(inplace=True, drop=True)
-
-        if verbose:
-            print(f"Ending with {len(df)} rows", file=sys.stderr)
-
-        return df
 
 
 """
