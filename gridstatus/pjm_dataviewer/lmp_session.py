@@ -178,13 +178,12 @@ class LMPSession(Session):
         )
         extensions = self._parse_xml_find_all(response.content, "extension")
         if len(extensions) > 0:
-            extension = extensions[0]
             """parse json where values are embedded JSON strings
 
             {'foo': '{"bar":"baz"}'} -> {'foo': {'bar': 'baz'}}
             """
             data = dict(
-                (k, json.loads(v)) for k, v in json.loads(extension.text).items()
+                (k, json.loads(v)) for k, v in json.loads(extensions[0].text).items()
             )
             df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"])
         else:
@@ -256,29 +255,29 @@ class LMPSession(Session):
                 file=sys.stderr,
             )
 
-    def _parse_lmp_series(self, series):
+    @staticmethod
+    def _parse_lmp_series(series):
         dfs = []
         for item in series or []:
-            dfs.append(self._parse_lmp_item(item))
+            item_id = item["id"]
+            # Determine market based on id
+            if item_id.endswith(" (DA)"):
+                market = Markets.DAY_AHEAD_HOURLY
+                item_id = item_id.replace(" (DA)", "")
+            else:
+                market = Markets.REAL_TIME_5_MIN
+            df = pd.DataFrame(item["data"])
+            df["Market"] = market.value
+            # Convert epoch ms to UTC
+            df["Time"] = pd.to_datetime(df["timestamp"], unit="ms").dt.tz_localize(
+                tz="UTC",
+            )
+            # Location name is the same as ID
+            df["Location Name"] = item_id
+            dfs.append(df)
+
         if len(dfs) > 0:
             df = pd.concat(dfs)
         else:
             df = pd.DataFrame()
-        return df
-
-    def _parse_lmp_item(self, item):
-        """Parse a single item from the lmpSeries list"""
-        item_id = item["id"]
-        # Determine market based on id
-        if item_id.endswith(" (DA)"):
-            market = Markets.DAY_AHEAD_HOURLY
-            item_id = item_id.replace(" (DA)", "")
-        else:
-            market = Markets.REAL_TIME_5_MIN
-        df = pd.DataFrame(item["data"])
-        df["Market"] = market.value
-        # Convert epoch ms to UTC
-        df["Time"] = pd.to_datetime(df["timestamp"], unit="ms").dt.tz_localize(tz="UTC")
-        # Location name is the same as ID
-        df["Location Name"] = item_id
         return df
