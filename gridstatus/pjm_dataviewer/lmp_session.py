@@ -25,7 +25,7 @@ class LMPSession(Session):
         )
 
     @staticmethod
-    def _dv_lmp_extract_chart_ids(response, verbose=False):
+    def _extract_chart_ids(response, verbose=False):
         html = response.content
         doc = bs4.BeautifulSoup(html, "html.parser")
         scripts = doc.find_all("script", {"nonce": True})
@@ -118,7 +118,7 @@ class LMPSession(Session):
             if next_checkbox_idx is None:
                 break
             else:
-                self._dv_lmp_select_checkbox(
+                self._select_checkbox(
                     source_id,
                     location_checkboxes,
                     next_checkbox_idx,
@@ -127,8 +127,8 @@ class LMPSession(Session):
             request_count += 1
 
     def _fetch_chart_df(self, verbose=False):
-        data = self.fetch_chart(verbose=verbose)
-        chart_source_id = self._dv_lmp_get_chart_series_source_id(data, verbose=verbose)
+        data = self._fetch_chart(verbose=verbose)
+        chart_source_id = self._get_chart_series_source_id(data, verbose=verbose)
         response = self.post_api(
             {
                 "chart1": "chart1",
@@ -156,9 +156,9 @@ class LMPSession(Session):
         df["_src"] = "dv"
         return df
 
-    def fetch_chart(self, verbose=False):
+    def _fetch_chart(self, verbose=False):
         """Initial fetch for LMP data in Data Viewer"""
-        chart_ids = self._dv_lmp_extract_chart_ids(
+        chart_ids = self._extract_chart_ids(
             self.initial_response,
             verbose=verbose,
         )
@@ -176,7 +176,7 @@ class LMPSession(Session):
             verbose=verbose,
         )
 
-    def _dv_lmp_get_chart_series_source_id(self, response, verbose):
+    def _get_chart_series_source_id(self, response, verbose):
         """Retrieves source ID from update response,
         to be used later for fetching series data"""
         html_update_docs = self._parse_xml_find_all(response.content, "update")
@@ -196,7 +196,7 @@ class LMPSession(Session):
 
         return chart_series_source_id
 
-    def _dv_lmp_select_checkbox(
+    def _select_checkbox(
         self,
         form_source_id,
         checkboxes,
@@ -234,11 +234,10 @@ class LMPSession(Session):
                 file=sys.stderr,
             )
 
-    @staticmethod
-    def _parse_lmp_series(series):
+    def _parse_lmp_series(self, series):
         dfs = []
         for item in series or []:
-            dfs.append(LMPSession._parse_lmp_item(item))
+            dfs.append(self._parse_lmp_item(item))
         if len(dfs) > 0:
             df = pd.concat(dfs)
         else:
@@ -254,8 +253,7 @@ class LMPSession(Session):
 
         return df
 
-    @staticmethod
-    def _parse_lmp_item(item):
+    def _parse_lmp_item(self, item):
         # TODO tz_convert to local timezone
         item_id = item["id"]
         if item_id.endswith(" (DA)"):
