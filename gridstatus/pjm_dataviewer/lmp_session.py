@@ -1,3 +1,4 @@
+import json
 import re
 import sys
 
@@ -144,7 +145,14 @@ class LMPSession(Session):
         )
         extensions = self._parse_xml_find_all(response.content, "extension")
         if len(extensions) > 0:
-            data = self._load_jsonstrings(extensions[0].text)
+            extension = extensions[0]
+            """parse json where values are embedded JSON strings
+
+            {'foo': '{"bar":"baz"}'} -> {'foo': {'bar': 'baz'}}
+            """
+            data = dict(
+                (k, json.loads(v)) for k, v in json.loads(extension.text).items()
+            )
             df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"], tz=tz)
         df["_src"] = "dv"
         return df

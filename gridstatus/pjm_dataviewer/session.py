@@ -1,4 +1,3 @@
-import json
 import sys
 
 import bs4
@@ -81,14 +80,3 @@ class Session:
         xml_doc = bs4.BeautifulSoup(xml_string, "xml")
         elems = xml_doc.find_all(*args, **kwargs)
         return [bs4.BeautifulSoup(elem.text, "html.parser") for elem in elems]
-
-    @staticmethod
-    def _load_jsonstrings(nested_json_string):
-        """Load JSON where values are JSON-strings
-
-        Example: "{'foo': '{\"bar\": \"baz\"}'} -> {'foo': {'bar': 'baz'}}
-        """
-        doc = dict(
-            (k, json.loads(v)) for k, v in json.loads(nested_json_string).items()
-        )
-        return doc
