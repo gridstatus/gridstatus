@@ -368,67 +368,65 @@ class PJM(ISOBase):
         with LMPSession() as dv_lmp_session:
             dv_lmp_session.start(verbose=verbose)
             df = dv_lmp_session.enable_all_locations_and_fetch_chart_df(verbose=verbose)
-            return self._finalize_dv_chart_df(df, market, date, end)
 
-    def _finalize_dv_chart_df(self, df, market, date, end=None):
-        """Finalize DV data by:
-        - renaming columns
-        - calculating Energy
-        - adding Location IDs
-        - adding Location Types
-        - converting times to local timezone
-        - filtering by market
-        - filtering by date
-        """
+            """Finalize DV data by:
+            - renaming columns
+            - calculating Energy
+            - adding Location IDs
+            - adding Location Types
+            - converting times to local timezone
+            - filtering by market
+            - filtering by date
+            """
 
-        df = df.rename(
-            columns={
-                "lmp": "LMP",
-                "mlcValue": "Loss",
-                "mccValue": "Congestion",
-            },
-        )
-        df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
+            df = df.rename(
+                columns={
+                    "lmp": "LMP",
+                    "mlcValue": "Loss",
+                    "mccValue": "Congestion",
+                },
+            )
+            df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
 
-        # Get pnode IDs for Location data
-        pnode_ids = self.get_pnode_ids()
+            # Get pnode IDs for Location data
+            pnode_ids = self.get_pnode_ids()
 
-        # Location IDs
-        location_ids = dict(
-            zip(pnode_ids["pnode_name"], pnode_ids["pnode_id"].astype(int)),
-        )
-        df["Location"] = df["Location Name"].apply(
-            lambda location_name: location_ids.get(location_name, pd.NA),
-        )
+            # Location IDs
+            location_ids = dict(
+                zip(pnode_ids["pnode_name"], pnode_ids["pnode_id"].astype(int)),
+            )
+            df["Location"] = df["Location Name"].apply(
+                lambda location_name: location_ids.get(location_name, pd.NA),
+            )
 
-        # Location Types
-        location_types = dict(
-            zip(pnode_ids["pnode_name"], pnode_ids["pnode_subtype"]),
-        )
-        df["Location Type"] = df["Location Name"].apply(
-            lambda location_name: location_types.get(location_name, pd.NA),
-        )
+            # Location Types
+            location_types = dict(
+                zip(pnode_ids["pnode_name"], pnode_ids["pnode_subtype"]),
+            )
+            df["Location Type"] = df["Location Name"].apply(
+                lambda location_name: location_types.get(location_name, pd.NA),
+            )
 
-        # Convert into local timezone
-        df["Time"] = df["Time"].dt.tz_convert(self.default_timezone)
+            # Convert into local timezone
+            df["Time"] = df["Time"].dt.tz_convert(self.default_timezone)
 
-        # filter market
-        if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
-            df = df[df["Market"] == market.value]
+            # filter market
+            if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
+                df = df[df["Market"] == market.value]
 
-        # filter time based on end
-        if end is None:
-            df = df[df["Time"].dt.date == date.date()]
-        else:
-            df = df[
-                df["Time"].dt.date.between(
-                    date.date(),
-                    end.date(),
-                    inclusive="both",
-                )
-            ]
+            # filter time based on end
+            if end is None:
+                df = df[df["Time"].dt.date == date.date()]
+            else:
+                df = df[
+                    df["Time"].dt.date.between(
+                        date.date(),
+                        end.date(),
+                        inclusive="both",
+                    )
+                ]
 
-        return df
+            return df
 
     def _get_lmp_via_pjm_json(
         self,
