@@ -361,11 +361,8 @@ class PJM(ISOBase):
         """Get latest LMP data from Data Viewer, which includes RT & DA"""
         with LMPSession() as dv_lmp_session:
             dv_lmp_session.start(verbose=verbose)
-            df = dv_lmp_session.fetch_chart_df(
-                verbose=verbose,
-                tz=self.default_timezone,
-            )
-            df = self.finalize_dv_chart_df(df)
+            df = dv_lmp_session.fetch_chart_df(verbose=verbose)
+            df = self.finalize_dv_chart_df(df, tz=self.default_timezone)
             if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
                 df = df[df["Market"] == market.value]
 
@@ -381,7 +378,7 @@ class PJM(ISOBase):
                 ]
             return df
 
-    def finalize_dv_chart_df(self, df):
+    def finalize_dv_chart_df(self, df, tz):
         # Pricing Node data provides mappings for Location IDs and Location Types
         pnode_ids = self.get_pnode_ids()
 
@@ -400,6 +397,9 @@ class PJM(ISOBase):
         df["Location Type"] = df["Location Name"].apply(
             lambda location_name: location_types.get(location_name, pd.NA),
         )
+
+        # Convert into local timezone
+        df["Time"] = df["Time"].dt.tz_convert(tz)
 
         return df
 

@@ -13,7 +13,7 @@ class LMPSession(Session):
 
     URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
 
-    def fetch_chart_df(self, tz, verbose=False):
+    def fetch_chart_df(self, verbose=False):
         # enable remaining location_checkboxes
         self._enable_all_locations(
             verbose=verbose,
@@ -21,7 +21,6 @@ class LMPSession(Session):
 
         # fetch chart data
         return self._fetch_chart_df(
-            tz=tz,
             verbose=verbose,
         )
 
@@ -127,7 +126,7 @@ class LMPSession(Session):
                 )
             request_count += 1
 
-    def _fetch_chart_df(self, tz, verbose=False):
+    def _fetch_chart_df(self, verbose=False):
         data = self.fetch_chart(verbose=verbose)
         chart_source_id = self._dv_lmp_get_chart_series_source_id(data, verbose=verbose)
         response = self.fetch(
@@ -153,7 +152,7 @@ class LMPSession(Session):
             data = dict(
                 (k, json.loads(v)) for k, v in json.loads(extension.text).items()
             )
-            df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"], tz=tz)
+            df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"])
         df["_src"] = "dv"
         return df
 
@@ -236,10 +235,10 @@ class LMPSession(Session):
             )
 
     @staticmethod
-    def _parse_lmp_series(series, tz):
+    def _parse_lmp_series(series):
         dfs = []
         for item in series or []:
-            dfs.append(LMPSession._parse_lmp_item(item, tz=tz))
+            dfs.append(LMPSession._parse_lmp_item(item))
         if len(dfs) > 0:
             df = pd.concat(dfs)
         else:
@@ -256,7 +255,8 @@ class LMPSession(Session):
         return df
 
     @staticmethod
-    def _parse_lmp_item(item, tz):
+    def _parse_lmp_item(item):
+        # TODO tz_convert to local timezone
         item_id = item["id"]
         if item_id.endswith(" (DA)"):
             market = Markets.DAY_AHEAD_HOURLY
@@ -266,10 +266,6 @@ class LMPSession(Session):
         item_data = item["data"]
         df = pd.DataFrame(item_data)
         df["Market"] = market.value
-        df["Time"] = (
-            pd.to_datetime(df["timestamp"], unit="ms")
-            .dt.tz_localize(tz="UTC")
-            .dt.tz_convert(tz=tz)
-        )
+        df["Time"] = pd.to_datetime(df["timestamp"], unit="ms").dt.tz_localize(tz="UTC")
         df["Location Name"] = item_id
         return df
