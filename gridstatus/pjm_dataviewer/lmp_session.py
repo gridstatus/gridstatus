@@ -91,10 +91,10 @@ class LMPSession(Session):
                 checkbox_name = checkbox_elem.get("name")
                 matches = re.search(r":([0-9]+):(j_.+)$", checkbox_name)
                 if matches is not None:
-                    to_check_idx = int(matches.group(1))
+                    next_checkbox_idx = int(matches.group(1))
                     if source_id is None:
                         source_id = re.sub(r"_input$", "", matches.group(2))
-                location_checkboxes[to_check_idx] = checked
+                location_checkboxes[next_checkbox_idx] = checked
 
         # max_requests is a fallback in case
         # the while loop goes haywire
@@ -104,12 +104,24 @@ class LMPSession(Session):
             any(not value for value in location_checkboxes.values())
             and request_count < max_requests
         ):
-            to_check_idx = self._get_next_checkbox_idx(location_checkboxes)
-            if to_check_idx is not None:
+            # find the first unchecked checkbox
+            next_checkbox_idx = next(
+                iter(
+                    (
+                        idx
+                        for idx, is_checked in location_checkboxes.items()
+                        if not is_checked
+                    ),
+                    None,
+                ),
+            )
+            if next_checkbox_idx is None:
+                break
+            else:
                 self._dv_lmp_select_checkbox(
                     source_id,
                     location_checkboxes,
-                    to_check_idx,
+                    next_checkbox_idx,
                     verbose=verbose,
                 )
             request_count += 1
@@ -181,14 +193,14 @@ class LMPSession(Session):
         self,
         form_source_id,
         checkboxes,
-        to_check_idx,
+        checkbox_idx,
         verbose=False,
     ):
         # toggle checkbox
         params = {
             "javax.faces.partial.ajax": "true",
-            "javax.faces.source": f"chart1FrmLmpSelection:tblBusAggregates:{to_check_idx}:{form_source_id}",  # noqa: E501
-            "javax.faces.partial.execute": f"chart1FrmLmpSelection:tblBusAggregates:{to_check_idx}:{form_source_id}",  # noqa: E501
+            "javax.faces.source": f"chart1FrmLmpSelection:tblBusAggregates:{checkbox_idx}:{form_source_id}",  # noqa: E501
+            "javax.faces.partial.execute": f"chart1FrmLmpSelection:tblBusAggregates:{checkbox_idx}:{form_source_id}",  # noqa: E501
             "javax.faces.partial.render": "globalMessages",
             "javax.faces.behavior.event": "change",
             "javax.faces.partial.event": "change",
@@ -198,7 +210,7 @@ class LMPSession(Session):
             "chart1FrmLmpSelection:tblBusAggregates:station:filter": "",
             "chart1FrmLmpSelection:tblBusAggregates_scrollState": "0,0",
         }
-        checkboxes[to_check_idx] = True
+        checkboxes[checkbox_idx] = True
         for idx, is_checked in checkboxes.items():
             if is_checked:
                 params[

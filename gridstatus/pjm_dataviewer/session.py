@@ -83,15 +83,6 @@ class Session:
         return [bs4.BeautifulSoup(elem.text, "html.parser") for elem in elems]
 
     @staticmethod
-    def _get_next_checkbox_idx(checkboxes):
-        to_check_idx = None
-        for idx, is_checked in checkboxes.items():
-            if not is_checked:
-                to_check_idx = idx
-                break
-        return to_check_idx
-
-    @staticmethod
     def _load_jsonstrings(nested_json_string):
         """Load JSON where values are JSON-strings
 
