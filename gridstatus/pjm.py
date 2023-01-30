@@ -284,11 +284,11 @@ class PJM(ISOBase):
                 verbose=verbose,
             )
 
-        recent_threshold = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
+        dv_recent_threshold = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
             days=DV_LMP_RECENT_NUM_DAYS,
         )
         dv_df = None
-        if utils._handle_date(date, tz=self.default_timezone) >= recent_threshold:
+        if utils._handle_date(date, tz=self.default_timezone) >= dv_recent_threshold:
             dv_df = self._get_lmp_via_dv(
                 date,
                 market,
