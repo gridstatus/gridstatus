@@ -40,23 +40,26 @@ class Session:
         doc = bs4.BeautifulSoup(html, "html.parser")
 
         scripts = doc.find_all("script", {"nonce": True})
-
-        for script in scripts:
-            self.nonce = script["nonce"]
-            if self.nonce is not None:
-                break
+        # find first nonce attribute
+        self.nonce = next(
+            iter(script["nonce"] for script in scripts if script["nonce"]),
+            None,
+        )
 
         view_states = doc.find_all(
             "input",
             {"type": "hidden", "name": "javax.faces.ViewState"},
         )
-        for view_state in view_states:
-            self.view_state = view_state["value"]
-            if self.view_state is not None:
-                break
+        # find first value of <input type="hidden" name="javax.faces.ViewState">
+        self.view_state = next(
+            iter(
+                view_state["value"] for view_state in view_states if view_state["value"]
+            ),
+            None,
+        )
 
         if self.nonce is None or self.view_state is None:
-            raise ValueError("Could not start DV Session")
+            raise ValueError("Could not find nonce or ViewState")
 
     def post_api(self, args, verbose=False):
         """POST to main API endpoint, adding ViewState and nonce"""
