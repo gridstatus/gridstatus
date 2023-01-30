@@ -368,29 +368,17 @@ class PJM(ISOBase):
         with LMPSession() as dv_lmp_session:
             dv_lmp_session.start(verbose=verbose)
             df = dv_lmp_session.enable_all_locations_and_fetch_chart_df(verbose=verbose)
-            df = self.finalize_dv_chart_df(df, tz=self.default_timezone)
-            if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
-                df = df[df["Market"] == market.value]
+            return self._finalize_dv_chart_df(df, market, date, end)
 
-            if end is None:
-                df = df[df["Time"].dt.date == date.date()]
-            else:
-                df = df[
-                    df["Time"].dt.date.between(
-                        date.date(),
-                        end.date(),
-                        inclusive="both",
-                    )
-                ]
-            return df
-
-    def finalize_dv_chart_df(self, df, tz):
+    def _finalize_dv_chart_df(self, df, market, date, end=None):
         """Finalize DV data by:
         - renaming columns
         - calculating Energy
         - adding Location IDs
         - adding Location Types
         - converting times to local timezone
+        - filtering by market
+        - filtering by date
         """
 
         df = df.rename(
@@ -422,7 +410,23 @@ class PJM(ISOBase):
         )
 
         # Convert into local timezone
-        df["Time"] = df["Time"].dt.tz_convert(tz)
+        df["Time"] = df["Time"].dt.tz_convert(self.default_timezone)
+
+        # filter market
+        if market in (Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_5_MIN):
+            df = df[df["Market"] == market.value]
+
+        # filter time based on end
+        if end is None:
+            df = df[df["Time"].dt.date == date.date()]
+        else:
+            df = df[
+                df["Time"].dt.date.between(
+                    date.date(),
+                    end.date(),
+                    inclusive="both",
+                )
+            ]
 
         return df
 
