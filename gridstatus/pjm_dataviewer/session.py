@@ -58,20 +58,17 @@ class Session:
         if self.nonce is None or self.view_state is None:
             raise ValueError("Could not start DV Session")
 
-    def fetch(self, params, verbose=False):
-        """Fetch with dv_lmp_session view state and nonce"""
-        params.update(
+    def post_api(self, args, verbose=False):
+        """POST to main API endpoint, adding ViewState and nonce"""
+        args.update(
             {
                 "javax.faces.ViewState": self.view_state,
                 "primefaces.nonce": self.nonce,
             },
         )
         if verbose:
-            print(f"POST with {params}", file=sys.stderr)
-        return self.post(data=params)
-
-    def post(self, **kwargs):
-        return self.requests_session.post(self.URL, **kwargs)
+            print(f"POST with {args}", file=sys.stderr)
+        return self.requests_session.post(self.URL, data=args)
 
     @staticmethod
     def _parse_xml_find_all(xml_string: str, *args, **kwargs):

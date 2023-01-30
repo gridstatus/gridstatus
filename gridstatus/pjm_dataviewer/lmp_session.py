@@ -68,7 +68,7 @@ class LMPSession(Session):
         verbose=False,
     ):
         # fetch current location_checkboxes and source id
-        response = self.fetch(
+        response = self.post_api(
             {
                 "javax.faces.partial.ajax": "true",
                 "javax.faces.source": "chart1FrmLmpSelection:dlgLmpSelection",
@@ -129,7 +129,7 @@ class LMPSession(Session):
     def _fetch_chart_df(self, verbose=False):
         data = self.fetch_chart(verbose=verbose)
         chart_source_id = self._dv_lmp_get_chart_series_source_id(data, verbose=verbose)
-        response = self.fetch(
+        response = self.post_api(
             {
                 "chart1": "chart1",
                 "chart1:chart1valueDataTable_scrollState": "0,0",
@@ -164,7 +164,7 @@ class LMPSession(Session):
         )
         chart_source_id = chart_ids["chart_source_id"]
         chart_parent_source_id = chart_ids["chart_parent_source_id"]
-        return self.fetch(
+        return self.post_api(
             {
                 chart_parent_source_id: chart_parent_source_id,
                 chart_source_id: chart_source_id,
@@ -224,7 +224,7 @@ class LMPSession(Session):
                     f"chart1FrmLmpSelection:tblBusAggregates"
                     f":{idx}:{form_source_id}_input"
                 ] = "on"
-        response = self.fetch(
+        response = self.post_api(
             params,
             verbose=verbose,
         )
