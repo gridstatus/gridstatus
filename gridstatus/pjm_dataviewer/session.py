@@ -92,7 +92,12 @@ class Session:
         return to_check_idx
 
     @staticmethod
-    def _json_loads_nested_jsonstrings(text):
-        """Load JSON where values are JSON-strings"""
-        doc = dict((k, json.loads(v)) for k, v in json.loads(text).items())
+    def _load_jsonstrings(nested_json_string):
+        """Load JSON where values are JSON-strings
+
+        Example: "{'foo': '{\"bar\": \"baz\"}'} -> {'foo': {'bar': 'baz'}}
+        """
+        doc = dict(
+            (k, json.loads(v)) for k, v in json.loads(nested_json_string).items()
+        )
         return doc

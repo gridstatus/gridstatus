@@ -132,7 +132,7 @@ class LMPSession(Session):
         )
         extensions = self._parse_xml_find_all(response.content, "extension")
         if len(extensions) > 0:
-            data = self._json_loads_nested_jsonstrings(extensions[0].text)
+            data = self._load_jsonstrings(extensions[0].text)
             df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"], tz=tz)
         df["_src"] = "dv"
         return df
