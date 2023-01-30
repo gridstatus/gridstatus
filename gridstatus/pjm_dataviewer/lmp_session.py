@@ -151,6 +151,7 @@ class LMPSession(Session):
             request_count += 1
 
     def _fetch_chart_df(self, verbose=False):
+        # Render chart
         data = self.post_api(
             {
                 self.chart_parent_source_id: self.chart_parent_source_id,
@@ -162,20 +163,23 @@ class LMPSession(Session):
             },
             verbose=verbose,
         )
-        chart_source_id = self._get_chart_series_source_id(data, verbose=verbose)
+        # Fetch series source ID
+        chart_series_source_id = self._get_chart_series_source_id(data, verbose=verbose)
+        # Get chart series
         response = self.post_api(
             {
                 "chart1": "chart1",
                 "chart1:chart1valueDataTable_scrollState": "0,0",
-                chart_source_id: chart_source_id,
+                chart_series_source_id: chart_series_source_id,
                 "chart1:typeSelection": "BOTH",
                 "javax.faces.partial.ajax": "true",
                 "javax.faces.partial.execute": "@all",
                 "javax.faces.partial.render": "chart1:selectAggregates chart1:valuesPanel",  # noqa: E501
-                "javax.faces.source": chart_source_id,
+                "javax.faces.source": chart_series_source_id,
             },
             verbose=verbose,
         )
+        # Extract 'extension' XML nodes from response
         extensions = self._parse_xml_find_all(response.content, "extension")
         if len(extensions) > 0:
             """parse json where values are embedded JSON strings
@@ -197,20 +201,15 @@ class LMPSession(Session):
         """Retrieves source ID from update response,
         to be used later for fetching series data"""
         html_update_docs = self._parse_xml_find_all(response.content, "update")
-        html_update_doc = html_update_docs[0]
-        chart_series_source_id = None
-        scripts = html_update_doc.find_all("script")
-        for script in scripts:
-            script_id = script.get("id", None)
-            if script_id is not None:
-                chart_series_source_id = script_id
-                break
+        if len(html_update_docs) == 0:
+            raise ValueError("Could not find update node for chart series source ID")
+        scripts = html_update_docs[0].find_all("script", {"id": True})
+        chart_series_source_id = next(iter(script["id"] for script in scripts), None)
         if verbose:
             print(
                 f"chart_series_source_id = {chart_series_source_id}",
                 file=sys.stderr,
             )
-
         return chart_series_source_id
 
     def _check_location_checkbox(
