@@ -187,6 +187,10 @@ class LMPSession(Session):
                 (k, json.loads(v)) for k, v in json.loads(extension.text).items()
             )
             df = self._parse_lmp_series(data["allLmpValues"]["lmpSeries"])
+        else:
+            raise ValueError(
+                "Could not find data from extension -> allLmpValues -> lmpSeries",
+            )
         df["_src"] = "dv"
         return df
 
