@@ -17,10 +17,6 @@ from gridstatus.decorators import (
 from gridstatus.lmp_config import lmp_config
 from gridstatus.pjm_dataviewer.lmp_session import LMPSession
 
-DATAVIEWER_LMP_URL = "https://dataviewer.pjm.com/dataviewer/pages/public/lmp.jsf"
-
-LMP_PARTIAL_RENDER_ID = "formLeftPanel:topLeftGrid"
-
 DV_LMP_RECENT_NUM_DAYS = 3
 
 
