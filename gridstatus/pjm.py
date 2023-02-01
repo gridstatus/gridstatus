@@ -207,8 +207,8 @@ class PJM(ISOBase):
     @lmp_config(
         supports={
             Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
-            Markets.REAL_TIME_HOURLY: ["latest", "today", "historical"],
-            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+            Markets.REAL_TIME_HOURLY: ["today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
         },
     )
     @support_date_range(frequency="365D", update_dates=pjm_update_dates)
@@ -258,7 +258,6 @@ class PJM(ISOBase):
 
         """
         if date == "latest":
-            """Currently only supports DAY_AHEAD_HOURlY"""
             return self._latest_lmp_from_today(
                 market=market,
                 locations=locations,
@@ -339,12 +338,7 @@ class PJM(ISOBase):
             if "No data found" not in str(e):
                 raise e
 
-            if market_endpoint == "rt_hrl_lmps":
-                market_endpoint = "rt_unverified_hrl_lmps"
-                params[
-                    "fields"
-                ] = "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,pnode_name,total_lmp_rt,type"  # noqa: E501
-            elif market_endpoint == "rt_fivemin_hrl_lmps":
+            if market_endpoint == "rt_fivemin_hrl_lmps":
                 market_endpoint = "rt_unverified_fivemin_lmps"
                 params[
                     "fields"
