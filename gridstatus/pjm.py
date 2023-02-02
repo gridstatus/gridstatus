@@ -488,7 +488,7 @@ class PJM(ISOBase):
 
         return df
 
-    def get_interconnection_queue(self):
+    def get_interconnection_queue(self, verbose=False):
         r = requests.post(
             "https://services.pjm.com/PJMPlanningApi/api/Queue/ExportToXls",
             headers={
