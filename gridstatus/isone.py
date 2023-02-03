@@ -1,6 +1,5 @@
 import io
 import math
-import re
 import sys
 
 import pandas as pd
@@ -485,48 +484,39 @@ class ISONE(ISOBase):
 
         # determine report date from homepage
         if verbose:
-            print("Loading report date from", self.interconnection_homepage)
-        c = requests.get(self.interconnection_homepage)
-        match = re.search(
-            r"url \+ '\?ReportDate=' \+ ([0-9]+) \+ '&Status='",
-            c.text,
-        )
-        report_date = match.group(1)
-
-        url = f"https://irtt.iso-ne.com/reports/exportpublicqueue?ReportDate={report_date}&Status=&Jurisdiction="  # noqa
-
-        if verbose:
-            print("Loading interconnection queue from {}".format(url))
-
-        r = requests.get(url)
-        queue = pd.read_excel(io.BytesIO(r.content), skiprows=4)
+            print("Loading queue", self.interconnection_homepage)
+        r = requests.get("https://irtt.iso-ne.com/reports/external")
+        queue = pd.read_html(r.text, attrs={"id": "publicqueue"})[0]
 
         # only keep generator interconnection requests
-        queue = queue[queue["Type"] == "G"]
+        queue["Type"] = queue["Type"].map(
+            {
+                "G": "Generation",
+                "ETU": "Elective Transmission Upgrade",
+                "TS": "Transmission Service",
+            },
+        )
 
-        queue["Status"] = (
-            queue["W/ D Date"]
-            .isna()
-            .map(
-                {
-                    True: InterconnectionQueueStatus.WITHDRAWN.value,
-                    False: InterconnectionQueueStatus.ACTIVE.value,
-                },
-            )
+        queue["Status"] = queue["Status"].map(
+            {
+                "W": InterconnectionQueueStatus.WITHDRAWN.value,
+                "A": InterconnectionQueueStatus.ACTIVE.value,
+                "C": InterconnectionQueueStatus.COMPLETED.value,
+            },
         )
 
         queue["Proposed Completion Date"] = queue["Sync Date"]
 
         rename = {
-            "Position": "Queue ID",
+            "QP": "Queue ID",
             "Alternative Name": "Project Name",
             "Fuel Type": "Generation Type",
             "Requested": "Queue Date",
             "County": "County",
-            "State": "State",
+            "ST": "State",
             "Status": "Status",
-            "Interconnection Location": "Interconnection Location",
-            "W/ D Date": "Withdrawn Date",
+            "POI": "Interconnection Location",
+            "W/D Date": "Withdrawn Date",
             "Net MW": "Capacity (MW)",
             "Summer MW": "Summer Capacity (MW)",
             "Winter MW": "Winter Capacity (MW)",
@@ -541,7 +531,6 @@ class ISONE(ISOBase):
             "Op Date",
             "Sync Date",
             "Serv",
-            "SIS Complete",
             "I39",
             "Dev",
             "Zone",
@@ -567,7 +556,10 @@ class ISONE(ISOBase):
             missing=missing,
         )
 
-        queue = queue.sort_values("Queue ID").reset_index(drop=True)
+        queue = queue.sort_values(
+            "Queue ID",
+            ascending=False,
+        ).reset_index(drop=True)
 
         return queue
 
