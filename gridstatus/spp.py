@@ -611,8 +611,17 @@ class SPP(ISOBase):
             type="folder",
             path=date.strftime("/%Y/%m/By_Day"),
         )
-        max_name = max(files_df["name"])
-        max_file = files_df[files_df["name"] == max_name]
+
+        files_df["date"] = files_df.name.apply(
+            lambda x: pd.to_datetime(
+                x.strip(".csv").split("-")[-1],
+                format="%Y%m%d%H%M",
+            )
+            .normalize()
+            .tz_localize(self.default_timezone),
+        )
+
+        max_file = files_df[files_df["date"] == date]
         # get latest file
         paths = max_file["path"].tolist()
 
