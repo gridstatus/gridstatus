@@ -206,9 +206,9 @@ class PJM(ISOBase):
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_5_MIN: ["today", "historical"],
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
             Markets.REAL_TIME_HOURLY: ["today", "historical"],
-            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
         },
     )
     @support_date_range(frequency="365D", update_dates=pjm_update_dates)
@@ -258,7 +258,6 @@ class PJM(ISOBase):
 
         """
         if date == "latest":
-            """Currently only supports DAY_AHEAD_HOURlY"""
             return self._latest_lmp_from_today(
                 market=market,
                 locations=locations,
@@ -327,13 +326,37 @@ class PJM(ISOBase):
                 ),
             )
 
-        data = self._get_pjm_json(
-            market_endpoint,
-            start=date,
-            end=end,
-            params=params,
-            verbose=verbose,
-        )
+        try:
+            data = self._get_pjm_json(
+                market_endpoint,
+                start=date,
+                end=end,
+                params=params,
+                verbose=verbose,
+            )
+        except RuntimeError as e:
+            if "No data found" not in str(e):
+                raise e
+
+            if market_endpoint == "rt_fivemin_hrl_lmps":
+                market_endpoint = "rt_unverified_fivemin_lmps"
+                params[
+                    "fields"
+                ] = "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
+
+            data = self._get_pjm_json(
+                market_endpoint,
+                start=date,
+                end=end,
+                params=params,
+                verbose=verbose,
+            )
+
+            data["system_energy_price_rt"] = (
+                data["total_lmp_rt"]
+                - data["congestion_price_rt"]
+                - data["marginal_loss_price_rt"]
+            )
 
         data = data.rename(
             columns={
@@ -465,7 +488,7 @@ class PJM(ISOBase):
 
         return df
 
-    def get_interconnection_queue(self):
+    def get_interconnection_queue(self, verbose=False):
         r = requests.post(
             "https://services.pjm.com/PJMPlanningApi/api/Queue/ExportToXls",
             headers={
