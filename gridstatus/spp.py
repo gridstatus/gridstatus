@@ -621,9 +621,9 @@ class SPP(ISOBase):
             .tz_localize(self.default_timezone),
         )
 
-        max_file = files_df[files_df["date"] == date]
+        matched_file = files_df[files_df["date"] == date]
         # get latest file
-        paths = max_file["path"].tolist()
+        paths = matched_file["path"].tolist()
 
         if verbose:
             print(f"Found {len(paths)} files for {date}", file=sys.stderr)
