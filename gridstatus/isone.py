@@ -1,5 +1,6 @@
 import io
 import math
+import re
 import sys
 
 import pandas as pd
@@ -481,9 +482,18 @@ class ISONE(ISOBase):
             pandas.DataFrame: interconnection queue
 
         """  # noqa
-        # not sure what the reportdate value is.
-        # it is hardcode into the javascript to add and doesnt work without
-        url = "https://irtt.iso-ne.com/reports/exportpublicqueue?ReportDate=638005248000000000&Status=&Jurisdiction="  # noqa
+
+        # determine report date from homepage
+        if verbose:
+            print("Loading report date from", self.interconnection_homepage)
+        c = requests.get(self.interconnection_homepage)
+        match = re.search(
+            r"url \+ '\?ReportDate=' \+ ([0-9]+) \+ '&Status='",
+            c.text,
+        )
+        report_date = match.group(1)
+
+        url = f"https://irtt.iso-ne.com/reports/exportpublicqueue?ReportDate={report_date}&Status=&Jurisdiction="  # noqa
 
         if verbose:
             print("Loading interconnection queue from {}".format(url))
