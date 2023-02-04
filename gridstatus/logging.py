@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from gridstatus.config import config
 
@@ -13,7 +14,7 @@ def configure_logging():
 
     fmt = config.get_option("log_format")
     # by default, StreamHandler logs to stderr
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stderr)
     # log info, debug, warning, error, critical to stdout
     handler.setLevel(logging.INFO)
     handler.setFormatter(logging.Formatter(fmt=fmt))
@@ -22,21 +23,11 @@ def configure_logging():
     return logger
 
 
-def log(msg, verbose=False, debug=False):
+def log(msg, verbose=False):
     # verbose --> info level, meant for all users
     # info level --> confirmation things are working as expected
 
-    # debug --> developers of gridstatus
-    # debug --> Detailed info, typically of interest only when diagnosing problems
-
-    if verbose and debug:
-        raise ValueError("verbose and debug cannot both be True")
-
-    level = logging.WARNING
-    if verbose:
-        level = logging.INFO
-    elif debug:
-        level = logging.DEBUG
+    level = logging.INFO
 
     logger = logging.getLogger("gridstatus")
     logger.log(level=level, msg=msg)
