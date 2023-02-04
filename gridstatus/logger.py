@@ -13,6 +13,8 @@ def log(msg, verbose=False, file="stdout", level=logging.INFO):
         handler = logging.StreamHandler(sys.stdout)
     elif file == "stderr":
         handler = logging.StreamHandler(sys.stderr)
+    elif file and isinstance(file, str):
+        handler = logging.FileHandler(file)
     else:
         raise ValueError(f"{file} is an invalid log stream specified.")
 
