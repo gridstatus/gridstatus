@@ -1,10 +1,10 @@
 import contextlib
 
 CONFIG_DEFAULTS = {
-    "log_format": "%(name)s: %(message)s",
+    "log_format": "%(name)s: %(levelname)s: %(message)s",
 }
-# '%(levelname)s:%(message)s'
-# "file_format": "%(filename)s:%(name)s:%(lineno)d: %(message)s",
+# "%(levelname)s:%(message)s"
+# "%(filename)s:%(name)s:%(lineno)d: %(message)s"
 
 
 class Config:

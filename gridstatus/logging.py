@@ -23,13 +23,11 @@ def configure_logging():
 
 
 def log(msg, verbose=False, debug=False):
-    # verbose --> for all users
-    # verbose --> info level
-    # info --> confirmation things are working as expected
+    # verbose --> info level, meant for all users
+    # info level --> confirmation things are working as expected
 
     # debug --> developers of gridstatus
     # debug --> Detailed info, typically of interest only when diagnosing problems
-    # debug --> debug level --> for developers of gridstatus
 
     if verbose and debug:
         raise ValueError("verbose and debug cannot both be True")
