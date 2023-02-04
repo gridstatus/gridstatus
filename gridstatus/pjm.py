@@ -14,6 +14,7 @@ from gridstatus.decorators import (
     support_date_range,
 )
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logger import log
 
 
 class PJM(ISOBase):
@@ -429,10 +430,8 @@ class PJM(ISOBase):
                 start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
             )
 
-        if verbose:
-            print(
-                f"Retrieving data from {endpoint} with params {final_params}",
-            )
+        msg = f"Retrieving data from {endpoint} with params {final_params}"
+        log(msg, verbose)
 
         api_key = self._get_key()
         r = self._get_json(

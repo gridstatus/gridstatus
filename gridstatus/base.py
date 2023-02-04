@@ -4,6 +4,8 @@ import pandas as pd
 import requests
 from tabulate import tabulate
 
+from gridstatus.logger import log
+
 # TODO: this is needed to make SPP request work. restrict only to SPP
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = "ALL:@SECLEVEL=1"
 
@@ -67,8 +69,8 @@ class ISOBase:
     def _get_json(self, *args, **kwargs):
         if "verbose" in kwargs:
             verbose = kwargs.pop("verbose")
-            if verbose:
-                print("Requesting", args[0], "with", kwargs)
+            msg = "Requesting %s with %s" % (args[0], kwargs)
+            log(msg, verbose=verbose)
 
         r = requests.get(*args, **kwargs)
         r = r.json()
