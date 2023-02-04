@@ -62,6 +62,7 @@ _interconnection_columns = [
 class ISOBase:
     markets = []
     status_homepage = None
+    interconnection_homepage = None
 
     def _get_json(self, *args, **kwargs):
         if "verbose" in kwargs:

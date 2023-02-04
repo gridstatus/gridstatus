@@ -207,6 +207,9 @@ def format_interconnection_df(queue, rename, extra=None, missing=None):
     columns = _interconnection_columns.copy()
 
     if extra:
+        for e in extra:
+            assert e in queue.columns, f"Extra column {e} does not exist"
+
         columns += extra
 
     if missing:

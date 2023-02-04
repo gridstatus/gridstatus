@@ -256,7 +256,7 @@ class Ercot(ISOBase):
             date,
             self.default_timezone,
         ), "Only today's data is supported"
-        url = self.BASE + "/todays-outlook.json"
+        url = self.BASE + "/supply-demand.json"
         if verbose:
             print(f"Fetching {url}", file=sys.stderr)
         r = self._get_json(url)
