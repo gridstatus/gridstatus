@@ -26,6 +26,10 @@ from gridstatus.miso import MISO
 from gridstatus.spp import SPP
 from gridstatus.pjm import PJM
 
+from gridstatus.logging import configure_logging
+
+configure_logging()
+
 all_isos = [NYISO, CAISO, Ercot, ISONE, MISO, SPP, PJM]
 
 

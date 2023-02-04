@@ -16,7 +16,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logger import log
+from gridstatus.logging import log
 
 
 class ISONE(ISOBase):
@@ -579,7 +579,7 @@ def _make_request(url, skiprows, verbose):
         while attempt < 3:
 
             msg = f"Loading data from {url}"
-            log(msg, verbose, file=sys.stderr)
+            log(msg, debug=True)
 
             response = s.get(url)
             content_type = response.headers["Content-Type"]

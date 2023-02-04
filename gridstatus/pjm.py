@@ -14,7 +14,7 @@ from gridstatus.decorators import (
     support_date_range,
 )
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logger import log
+from gridstatus.logging import log
 
 
 class PJM(ISOBase):

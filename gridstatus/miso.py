@@ -6,7 +6,7 @@ import requests
 from gridstatus import utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logger import log
+from gridstatus.logging import log
 
 
 class MISO(ISOBase):

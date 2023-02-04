@@ -1,6 +1,5 @@
 import io
 import re
-import sys
 from urllib.parse import urlencode
 
 import pandas as pd
@@ -19,7 +18,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logger import log
+from gridstatus.logging import log
 
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
@@ -571,7 +570,7 @@ class SPP(ISOBase):
             )
             paths = files_df["path"].tolist()
         msg = f"Found {len(paths)} files for {date}"
-        log(msg, verbose, file=sys.stderr)
+        log(msg, verbose)
         return paths
 
     def _fetch_and_concat_csvs(self, paths: list, fs_name: str, verbose: bool = False):
@@ -582,7 +581,7 @@ class SPP(ISOBase):
                 params={"path": path},
             )
             msg = f"Fetching {url}"
-            log(msg, verbose, file=sys.stderr)
+            log(msg, verbose)
 
             csv = requests.get(url)
             df = pd.read_csv(io.StringIO(csv.content.decode("UTF-8")))
@@ -629,7 +628,7 @@ class SPP(ISOBase):
         paths = matched_file["path"].tolist()
 
         msg = f"Found {len(paths)} files for {date}"
-        log(msg, verbose, file=sys.stderr)
+        log(msg, verbose)
         return paths
 
     def _get_marketplace_session(self) -> dict:

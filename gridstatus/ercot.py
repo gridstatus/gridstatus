@@ -1,5 +1,4 @@
 import io
-import sys
 from dataclasses import dataclass
 from zipfile import ZipFile
 
@@ -17,7 +16,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logger import log
+from gridstatus.logging import log
 
 LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_NODE = "NODE"
@@ -257,7 +256,7 @@ class Ercot(ISOBase):
         url = self.BASE + "/supply-demand.json"
 
         msg = f"Fetching {url}"
-        log(msg, verbose, stream=sys.stderr)
+        log(msg, verbose)
 
         r = self._get_json(url)
 
@@ -602,7 +601,7 @@ class Ercot(ISOBase):
         )
 
         msg = f"Fetching {doc_info.url}"
-        log(msg, verbose=verbose, file=sys.stderr)
+        log(msg, verbose=verbose)
 
         df = pd.read_csv(doc_info.url, compression="zip")
 
@@ -716,7 +715,7 @@ class Ercot(ISOBase):
             doc_url = doc_info.url
 
             msg = f"Fetching {doc_url}"
-            log(msg, verbose, file=sys.stderr)
+            log(msg, verbose)
 
             df = pd.read_csv(doc_url, compression="zip")
             all_dfs.append(df)
@@ -776,7 +775,7 @@ class Ercot(ISOBase):
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"  # noqa
 
         msg = f"Fetching document {url}"
-        log(msg, verbose, file=sys.stderr)
+        log(msg, verbose)
 
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
         matches = []
@@ -864,7 +863,7 @@ class Ercot(ISOBase):
         doc_url = doc_info.url
 
         msg = f"Fetching {doc_url}"
-        log(msg, verbose, file=sys.stderr)
+        log(msg, verbose)
 
         r = requests.get(doc_url)
         z = ZipFile(io.BytesIO(r.content))

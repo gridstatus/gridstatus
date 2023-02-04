@@ -1,6 +1,10 @@
+import contextlib
+
 CONFIG_DEFAULTS = {
     "log_format": "%(name)s: %(message)s",
 }
+# '%(levelname)s:%(message)s'
+# "file_format": "%(filename)s:%(name)s:%(lineno)d: %(message)s",
 
 
 class Config:
@@ -22,6 +26,18 @@ class Config:
         if key not in self._data.keys():
             raise KeyError(f"Invalid option specified: {key}")
         self._data[key] = self._defaults[key]
+
+    @contextlib.contextmanager
+    def with_options(self, **options):
+        old_options = {k: self.get_option(k) for k in options}
+
+        for k, v in options.items():
+            self.set_option(k, v)
+        try:
+            yield
+        finally:
+            for k, v in old_options.items():
+                self.set_option(k, v)
 
     def __repr__(self):
         output_string = "Gridstatus Config Settings\n"
