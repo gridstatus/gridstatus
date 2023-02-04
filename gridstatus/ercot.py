@@ -630,6 +630,18 @@ class Ercot(ISOBase):
 
         data.rename(columns=rename, inplace=True)
 
+        # redorder to match other ancillary function
+        col_order = [
+            "Time",
+            "Market",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Up",
+            "Responsive Reserves",
+        ]
+
+        data = data[col_order].copy()
+
         return data
 
     def _get_spp_dam(
