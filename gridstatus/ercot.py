@@ -53,6 +53,9 @@ SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID = 12301
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
 SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID = 12311
 
+# Historical DAM Clearing Prices for Capacity
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
+HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 13091
 
 """
 Settlement	Point Type	Description
@@ -575,6 +578,59 @@ class Ercot(ISOBase):
                 f"Market {market} not supported for ERCOT",
             )
         return Ercot._finalize_spp_df(df, settlement_point_field, locations)
+
+    def get_as_prices_historical(self, year, verbose=False):
+        """Get historical ancillary service clearing prices in hourly intervals
+            in Day Ahead Market
+
+        Arguments:
+            year(int): year to get data for
+
+        Returns:
+            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
+                "Regulation Up", "Regulation Down", "Responsive Reserves".
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
+        """
+
+        doc_info = self._get_document(
+            report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+            constructed_name_contains=f"{year}.zip",
+            verbose=verbose,
+        )
+
+        x = utils.get_zip_file(doc_info.url)
+        data = pd.read_csv(x)
+
+        data["Time"] = pd.to_datetime(
+            data["Delivery Date"]
+            + " "
+            + (data["Hour Ending"].str.split(":").str[0].astype(int) - 1)
+            .astype(str)
+            .str.zfill(2)
+            + ":00",
+        ).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=data["Repeated Hour Flag"] == "Y",
+        )
+
+        data["Market"] = "DAM"
+
+        # NSPIN  REGDN  REGUP  RRS
+        # some columns from workbook contain trailing/leading whitespace
+        data.columns = [x.strip() for x in data.columns]
+
+        rename = {
+            "NSPIN": "Non-Spinning Reserves",
+            "REGDN": "Regulation Down",
+            "REGUP": "Regulation Up",
+            "RRS": "Responsive Reserves",
+        }
+
+        data.rename(columns=rename, inplace=True)
+
+        return data
 
     def _get_spp_dam(
         self,
