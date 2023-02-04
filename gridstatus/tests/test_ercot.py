@@ -32,6 +32,30 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == as_cols
         assert df["Time"].unique()[0].date() == date
 
+    def test_get_as_prices_historical(self):
+        as_cols = [
+            "Time",
+            "Market",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Up",
+            "Responsive Reserves",
+        ]
+
+        year = 2019
+        first_date = pd.Timestamp(year, 1, 1).date()
+        df = self.iso.get_as_prices_historical(year)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert df["Time"].unique()[0].date() == first_date
+
+        year = year - 1
+        first_date = pd.Timestamp(year, 1, 1).date()
+        df = self.iso.get_as_prices_historical(year)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert df["Time"].unique()[0].date() == first_date
+
     """get_fuel_mix"""
 
     def test_get_fuel_mix(self):
