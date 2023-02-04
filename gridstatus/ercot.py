@@ -602,7 +602,7 @@ class Ercot(ISOBase):
         )
 
         msg = f"Fetching {doc_info.url}"
-        log(msg, verbose=verbose, log_stream=sys.stderr)
+        log(msg, verbose=verbose, file=sys.stderr)
 
         df = pd.read_csv(doc_info.url, compression="zip")
 
@@ -716,7 +716,7 @@ class Ercot(ISOBase):
             doc_url = doc_info.url
 
             msg = f"Fetching {doc_url}"
-            log(msg, verbose, log_stream=sys.stderr)
+            log(msg, verbose, file=sys.stderr)
 
             df = pd.read_csv(doc_url, compression="zip")
             all_dfs.append(df)
@@ -776,7 +776,7 @@ class Ercot(ISOBase):
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"  # noqa
 
         msg = f"Fetching document {url}"
-        log(msg, verbose, log_stream=sys.stderr)
+        log(msg, verbose, file=sys.stderr)
 
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
         matches = []
@@ -864,7 +864,7 @@ class Ercot(ISOBase):
         doc_url = doc_info.url
 
         msg = f"Fetching {doc_url}"
-        log(msg, verbose, log_stream=sys.stderr)
+        log(msg, verbose, file=sys.stderr)
 
         r = requests.get(doc_url)
         z = ZipFile(io.BytesIO(r.content))

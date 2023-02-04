@@ -571,7 +571,7 @@ class SPP(ISOBase):
             )
             paths = files_df["path"].tolist()
         msg = f"Found {len(paths)} files for {date}"
-        log(msg, verbose, log_stream=sys.stderr)
+        log(msg, verbose, file=sys.stderr)
         return paths
 
     def _fetch_and_concat_csvs(self, paths: list, fs_name: str, verbose: bool = False):
@@ -582,7 +582,7 @@ class SPP(ISOBase):
                 params={"path": path},
             )
             msg = f"Fetching {url}"
-            log(msg, verbose, log_stream=sys.stderr)
+            log(msg, verbose, file=sys.stderr)
 
             csv = requests.get(url)
             df = pd.read_csv(io.StringIO(csv.content.decode("UTF-8")))
@@ -629,7 +629,7 @@ class SPP(ISOBase):
         paths = matched_file["path"].tolist()
 
         msg = f"Found {len(paths)} files for {date}"
-        log(msg, verbose, log_stream=sys.stderr)
+        log(msg, verbose, file=sys.stderr)
         return paths
 
     def _get_marketplace_session(self) -> dict:
