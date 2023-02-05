@@ -5,7 +5,7 @@ from zipfile import ZipFile
 import pandas as pd
 import requests
 
-from gridstatus import log, utils
+from gridstatus import utils
 from gridstatus.base import (
     FuelMix,
     GridStatus,
@@ -16,6 +16,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logging import log
 
 LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_NODE = "NODE"

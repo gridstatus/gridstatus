@@ -7,7 +7,7 @@ import requests
 import tqdm
 from bs4 import BeautifulSoup, Tag
 
-from gridstatus import log, utils
+from gridstatus import utils
 from gridstatus.base import (
     FuelMix,
     GridStatus,
@@ -18,6 +18,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logging import log
 
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"

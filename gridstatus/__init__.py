@@ -26,7 +26,7 @@ from gridstatus.miso import MISO
 from gridstatus.spp import SPP
 from gridstatus.pjm import PJM
 
-from gridstatus.logging import configure_logging, log
+from gridstatus.logging import configure_logging
 
 configure_logging()
 
@@ -46,5 +46,4 @@ __all__ = [
     "list_isos",
     "NotSupported",
     "load_folder",
-    "log",
 ]

@@ -7,10 +7,11 @@ import pandas as pd
 import requests
 import tabula
 
-from gridstatus import log, utils
+from gridstatus import utils
 from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logging import log
 
 _BASE = "https://www.caiso.com/outlook/SP"
 _HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
