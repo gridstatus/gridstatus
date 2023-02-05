@@ -6,7 +6,7 @@ import pandas as pd
 import requests
 import tqdm
 
-from gridstatus import utils
+from gridstatus import log, utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
 from gridstatus.decorators import (
     _get_pjm_archive_date,
@@ -14,7 +14,6 @@ from gridstatus.decorators import (
     support_date_range,
 )
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logging import log
 
 
 class PJM(ISOBase):
