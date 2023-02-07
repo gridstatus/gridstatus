@@ -23,7 +23,7 @@ class PJM(ISOBase):
     iso_id = "pjm"
     default_timezone = "US/Eastern"
 
-    interconnection_queue_homepage = (
+    interconnection_homepage = (
         "https://www.pjm.com/planning/services-requests/interconnection-queues.aspx"
     )
 
