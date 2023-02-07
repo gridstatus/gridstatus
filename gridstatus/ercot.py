@@ -15,7 +15,7 @@ from gridstatus.base import (
     Markets,
     NotSupported,
 )
-from gridstatus.decorators import support_date_range
+from gridstatus.decorators import ercot_update_dates, support_date_range
 from gridstatus.lmp_config import lmp_config
 
 LOCATION_TYPE_HUB = "HUB"
@@ -103,6 +103,7 @@ class Ercot(ISOBase):
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
     ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"  # noqa
     LOAD_HISTORICAL_MAX_DAYS = 14
+    AS_PRICES_HISTORICAL_MAX_DAYS = 30
 
     @dataclass
     class Document:
@@ -314,7 +315,7 @@ class Ercot(ISOBase):
         return doc
 
     @support_date_range("1D")
-    def _get_as_prices(self, date, verbose=False):
+    def _get_as_prices_recent(self, date, verbose=False):
         """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
 
         Arguments:
@@ -579,6 +580,7 @@ class Ercot(ISOBase):
             )
         return Ercot._finalize_spp_df(df, settlement_point_field, locations)
 
+    @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
     def get_as_prices(
         self,
         date,
@@ -604,77 +606,78 @@ class Ercot(ISOBase):
             https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
         """
 
-        if not end:
-            return self._get_as_prices(date)
-
-        start = utils._handle_date(date, tz=self.default_timezone)
-
-        # add one day since end is exclusive
-        end = utils._handle_date(end, tz=self.default_timezone) + pd.DateOffset(days=1)
-
-        # annual files, so get all years we'll need to iter over
-        years = {x for x in range(start.year, end.year + 1)}
-
         # use to check if we need to pull daily files
-        max_date = start.date()
+        if (
+            not end
+            and date.date()
+            >= (
+                pd.Timestamp.now(tz=self.default_timezone)
+                - pd.DateOffset(days=self.AS_PRICES_HISTORICAL_MAX_DAYS)
+            ).date()
+        ):
+            return self._get_as_prices_recent(date)
+        elif not end:
+            end = date
+
+        print(date, end)
+
+        doc_info = self._get_document(
+            report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+            constructed_name_contains=f"{date.year}.zip",
+            verbose=verbose,
+        )
+
+        x = utils.get_zip_file(doc_info.url)
+        data = pd.read_csv(x)
+
+        data["Time"] = pd.to_datetime(
+            data["Delivery Date"]
+            + " "
+            + (data["Hour Ending"].str.split(":").str[0].astype(int) - 1)
+            .astype(str)
+            .str.zfill(2)
+            + ":00",
+        ).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=data["Repeated Hour Flag"] == "Y",
+        )
+
+        data["Market"] = "DAM"
+
+        # NSPIN  REGDN  REGUP  RRS
+        # some columns from workbook contain trailing/leading whitespace
+        data.columns = [x.strip() for x in data.columns]
+
+        rename = {
+            "NSPIN": "Non-Spinning Reserves",
+            "REGDN": "Regulation Down",
+            "REGUP": "Regulation Up",
+            "RRS": "Responsive Reserves",
+        }
+
+        data.rename(columns=rename, inplace=True)
+
+        # redorder to match other ancillary function
+        col_order = [
+            "Time",
+            "Market",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Up",
+            "Responsive Reserves",
+        ]
+
+        max_date = data.Time.max().date()
+
         df_list = []
-        for year in years:
-            doc_info = self._get_document(
-                report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
-                constructed_name_contains=f"{year}.zip",
-                verbose=verbose,
-            )
-
-            x = utils.get_zip_file(doc_info.url)
-            data = pd.read_csv(x)
-
-            data["Time"] = pd.to_datetime(
-                data["Delivery Date"]
-                + " "
-                + (data["Hour Ending"].str.split(":").str[0].astype(int) - 1)
-                .astype(str)
-                .str.zfill(2)
-                + ":00",
-            ).dt.tz_localize(
-                self.default_timezone,
-                ambiguous=data["Repeated Hour Flag"] == "Y",
-            )
-
-            data["Market"] = "DAM"
-
-            # NSPIN  REGDN  REGUP  RRS
-            # some columns from workbook contain trailing/leading whitespace
-            data.columns = [x.strip() for x in data.columns]
-
-            rename = {
-                "NSPIN": "Non-Spinning Reserves",
-                "REGDN": "Regulation Down",
-                "REGUP": "Regulation Up",
-                "RRS": "Responsive Reserves",
-            }
-
-            data.rename(columns=rename, inplace=True)
-
-            # redorder to match other ancillary function
-            col_order = [
-                "Time",
-                "Market",
-                "Non-Spinning Reserves",
-                "Regulation Down",
-                "Regulation Up",
-                "Responsive Reserves",
-            ]
-
-            max_date = max(max_date, data.Time.max().date())
-
-            df_list.append(data)
+        df_list.append(data)
 
         # if last df date is less than our specified end
         # date, pull the remaining days. Will only be applicable
         # if end date is within today - 3days
         if max_date < end.date():
             df_list.append(
-                self._get_as_prices(
+                self._get_as_prices_recent(
                     start=max_date,
                     end=end,
                 ),
@@ -685,8 +688,9 @@ class Ercot(ISOBase):
 
         data = (
             data.loc[
-                (data.Time.dt.date >= start.date()) & (data.Time.dt.date <= end.date())
+                (data.Time.dt.date >= date.date()) & (data.Time.dt.date <= end.date())
             ]
+            .drop_duplicates(subset=["Time"])
             .reset_index(drop=True)
             .copy()
         )
