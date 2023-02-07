@@ -314,7 +314,7 @@ class Ercot(ISOBase):
         return doc
 
     @support_date_range("1D")
-    def get_as_prices(self, date, verbose=False):
+    def _get_as_prices(self, date, verbose=False):
         """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
 
         Arguments:
@@ -579,14 +579,24 @@ class Ercot(ISOBase):
             )
         return Ercot._finalize_spp_df(df, settlement_point_field, locations)
 
-    def get_as_prices_historical(self, year, verbose=False):
-        """Get historical ancillary service clearing prices in hourly intervals
-            in Day Ahead Market
+    def get_as_prices(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
 
         Arguments:
-            year(int): year to get data for
+            date (datetime.date, str): date of delivery for AS services
+
+            end (datetime.date, str, optional): if declared, function will return
+                data as a range, from "date" to "end"
+
+            verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
+
             pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
                 "Regulation Up", "Regulation Down", "Responsive Reserves".
 
@@ -594,53 +604,92 @@ class Ercot(ISOBase):
             https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
         """
 
-        doc_info = self._get_document(
-            report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
-            constructed_name_contains=f"{year}.zip",
-            verbose=verbose,
+        if not end:
+            return self._get_as_prices(date)
+
+        start = utils._handle_date(date, tz=self.default_timezone)
+
+        # add one day since end is exclusive
+        end = utils._handle_date(end, tz=self.default_timezone) + pd.DateOffset(days=1)
+
+        # annual files, so get all years we'll need to iter over
+        years = {x for x in range(start.year, end.year + 1)}
+
+        # use to check if we need to pull daily files
+        max_date = start.date()
+        df_list = []
+        for year in years:
+            doc_info = self._get_document(
+                report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+                constructed_name_contains=f"{year}.zip",
+                verbose=verbose,
+            )
+
+            x = utils.get_zip_file(doc_info.url)
+            data = pd.read_csv(x)
+
+            data["Time"] = pd.to_datetime(
+                data["Delivery Date"]
+                + " "
+                + (data["Hour Ending"].str.split(":").str[0].astype(int) - 1)
+                .astype(str)
+                .str.zfill(2)
+                + ":00",
+            ).dt.tz_localize(
+                self.default_timezone,
+                ambiguous=data["Repeated Hour Flag"] == "Y",
+            )
+
+            data["Market"] = "DAM"
+
+            # NSPIN  REGDN  REGUP  RRS
+            # some columns from workbook contain trailing/leading whitespace
+            data.columns = [x.strip() for x in data.columns]
+
+            rename = {
+                "NSPIN": "Non-Spinning Reserves",
+                "REGDN": "Regulation Down",
+                "REGUP": "Regulation Up",
+                "RRS": "Responsive Reserves",
+            }
+
+            data.rename(columns=rename, inplace=True)
+
+            # redorder to match other ancillary function
+            col_order = [
+                "Time",
+                "Market",
+                "Non-Spinning Reserves",
+                "Regulation Down",
+                "Regulation Up",
+                "Responsive Reserves",
+            ]
+
+            max_date = max(max_date, data.Time.max().date())
+
+            df_list.append(data)
+
+        # if last df date is less than our specified end
+        # date, pull the remaining days. Will only be applicable
+        # if end date is within today - 3days
+        if max_date < end.date():
+            df_list.append(
+                self._get_as_prices(
+                    start=max_date,
+                    end=end,
+                ),
+            )
+
+        # join, sort, filter and reset data index
+        data = (pd.concat(df_list).sort_values(by="Time"))[col_order].copy()
+
+        data = (
+            data.loc[
+                (data.Time.dt.date >= start.date()) & (data.Time.dt.date <= end.date())
+            ]
+            .reset_index(drop=True)
+            .copy()
         )
-
-        x = utils.get_zip_file(doc_info.url)
-        data = pd.read_csv(x)
-
-        data["Time"] = pd.to_datetime(
-            data["Delivery Date"]
-            + " "
-            + (data["Hour Ending"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(
-            self.default_timezone,
-            ambiguous=data["Repeated Hour Flag"] == "Y",
-        )
-
-        data["Market"] = "DAM"
-
-        # NSPIN  REGDN  REGUP  RRS
-        # some columns from workbook contain trailing/leading whitespace
-        data.columns = [x.strip() for x in data.columns]
-
-        rename = {
-            "NSPIN": "Non-Spinning Reserves",
-            "REGDN": "Regulation Down",
-            "REGUP": "Regulation Up",
-            "RRS": "Responsive Reserves",
-        }
-
-        data.rename(columns=rename, inplace=True)
-
-        # redorder to match other ancillary function
-        col_order = [
-            "Time",
-            "Market",
-            "Non-Spinning Reserves",
-            "Regulation Down",
-            "Regulation Up",
-            "Responsive Reserves",
-        ]
-
-        data = data[col_order].copy()
 
         return data
 
