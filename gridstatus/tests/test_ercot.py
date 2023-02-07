@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
-from gridstatus import Ercot, Markets, NotSupported, utils
+from gridstatus import Ercot, Markets, NotSupported
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -21,6 +21,7 @@ class TestErcot(BaseTestISO):
 
         # today
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+
         df = self.iso.get_as_prices(today)
         assert df.shape[0] >= 0
         assert df.columns.tolist() == as_cols
@@ -33,12 +34,23 @@ class TestErcot(BaseTestISO):
         assert df["Time"].unique()[0].date() == date
 
         date = pd.Timestamp(2022, 11, 8).date()
-        today = utils._handle_date("today").date()
         df = self.iso.get_as_prices(date, end="today")
         assert df.shape[0] >= 0
         assert df.columns.tolist() == as_cols
         assert df.Time.min().date() == date
         assert df.Time.max().date() == today
+
+        date = today - pd.DateOffset(days=365)
+        df = self.iso.get_as_prices(date)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert df.Time.min().date() == date.date()
+
+        df = self.iso.get_as_prices(date, end=today)
+
+        for check_date in pd.date_range(date, today, freq="D", inclusive="left"):
+            temp = df.loc[df.Time.dt.date == check_date.date()].copy()
+            assert temp.shape[0] > 0
 
     """get_fuel_mix"""
 
