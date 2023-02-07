@@ -330,3 +330,28 @@ def pjm_update_dates(dates, args_dict):
             )
 
     return new_dates
+
+
+def ercot_update_dates(dates, args_dict):
+    date = args_dict["date"]
+    end = args_dict["end"]
+    years = {x for x in range(date.year, end.year + 1)}
+
+    fixed_dates = []
+
+    for i, year in enumerate(years):
+        if i == 0:
+            fixed_dates.append(date)
+            fixed_dates.append(pd.Timestamp(year, 12, 31))
+            fixed_dates.append(None)
+        elif i == len(years) - 1:
+            fixed_dates.append(pd.Timestamp(year, 1, 1))
+            fixed_dates.append(end)
+        else:
+            fixed_dates.append(pd.Timestamp(year, 1, 1))
+            fixed_dates.append(pd.Timestamp(year, 12, 31))
+            fixed_dates.append(None)
+
+    print(fixed_dates)
+
+    return fixed_dates
