@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
-from gridstatus import Ercot, Markets, NotSupported
+from gridstatus import Ercot, Markets, NotSupported, utils
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -32,29 +32,13 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == as_cols
         assert df["Time"].unique()[0].date() == date
 
-    def test_get_as_prices_historical(self):
-        as_cols = [
-            "Time",
-            "Market",
-            "Non-Spinning Reserves",
-            "Regulation Down",
-            "Regulation Up",
-            "Responsive Reserves",
-        ]
-
-        year = 2019
-        first_date = pd.Timestamp(year, 1, 1).date()
-        df = self.iso.get_as_prices_historical(year)
+        date = pd.Timestamp(2022, 11, 8).date()
+        today = utils._handle_date("today").date()
+        df = self.iso.get_as_prices(date, end="today")
         assert df.shape[0] >= 0
         assert df.columns.tolist() == as_cols
-        assert df["Time"].unique()[0].date() == first_date
-
-        year = year - 1
-        first_date = pd.Timestamp(year, 1, 1).date()
-        df = self.iso.get_as_prices_historical(year)
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
-        assert df["Time"].unique()[0].date() == first_date
+        assert df.Time.min().date() == date
+        assert df.Time.max().date() == today
 
     """get_fuel_mix"""
 
