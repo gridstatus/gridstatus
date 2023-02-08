@@ -52,6 +52,14 @@ class TestErcot(BaseTestISO):
             temp = df.loc[df.Time.dt.date == check_date.date()].copy()
             assert temp.shape[0] > 0
 
+        date = pd.Timestamp(2022, 11, 8).date()
+        end = pd.Timestamp(2022, 11, 30).date()
+        df = self.iso.get_as_prices(date, end=end)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert max(df.Time).date() == end
+        assert min(df.Time).date() == date
+
     """get_fuel_mix"""
 
     def test_get_fuel_mix(self):
