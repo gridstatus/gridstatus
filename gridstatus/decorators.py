@@ -25,6 +25,10 @@ class support_date_range:
         def wrapped_f(*args, **kwargs):
             args_dict = _get_args_dict(f, args, kwargs)
 
+            # delete end if None to avoid attribute error
+            if "end" in args_dict and not args_dict["end"]:
+                del args_dict["end"]
+
             save_to = None
             if "save_to" in args_dict:
                 save_to = args_dict.pop("save_to")
@@ -150,6 +154,7 @@ class support_date_range:
 
             # every None removes two possible queries
             total = len(dates) - dates.count(None) * 2 - 1
+            print(dates)
 
             with tqdm.tqdm(disable=total <= 1, total=total) as pbar:
                 for end_date in dates[1:]:
