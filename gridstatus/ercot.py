@@ -347,35 +347,12 @@ class Ercot(ISOBase):
 
         doc = pd.read_csv(doc_info.url, compression="zip")
 
-        doc["Time"] = pd.to_datetime(
-            doc["DeliveryDate"]
-            + " "
-            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(self.default_timezone, ambiguous=doc["DSTFlag"] == "Y")
-
-        doc["Market"] = "DAM"
-
-        # NSPIN  REGDN  REGUP    RRS
-        rename = {
-            "NSPIN": "Non-Spinning Reserves",
-            "REGDN": "Regulation Down",
-            "REGUP": "Regulation Up",
-            "RRS": "Responsive Reserves",
-        }
-        data = (
-            doc.pivot_table(
-                index=["Time", "Market"],
-                columns="AncillaryType",
-                values="MCPC",
-            )
-            .rename(columns=rename)
-            .reset_index()
+        data = Ercot._finalize_as_price_df(
+            doc,
+            self.default_timezone,
+            "DSTFlag",
+            pivot=True,
         )
-
-        data.columns.name = None
 
         return data
 
@@ -627,48 +604,17 @@ class Ercot(ISOBase):
         )
 
         x = utils.get_zip_file(doc_info.url)
-        data = pd.read_csv(x)
+        doc = pd.read_csv(x)
 
-        data["Time"] = pd.to_datetime(
-            data["Delivery Date"]
-            + " "
-            + (data["Hour Ending"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(
+        doc = Ercot._finalize_as_price_df(
+            doc,
             self.default_timezone,
-            ambiguous=data["Repeated Hour Flag"] == "Y",
+            "Repeated Hour Flag",
         )
 
-        data["Market"] = "DAM"
+        max_date = doc.Time.max().date()
 
-        # NSPIN  REGDN  REGUP  RRS
-        # some columns from workbook contain trailing/leading whitespace
-        data.columns = [x.strip() for x in data.columns]
-
-        rename = {
-            "NSPIN": "Non-Spinning Reserves",
-            "REGDN": "Regulation Down",
-            "REGUP": "Regulation Up",
-            "RRS": "Responsive Reserves",
-        }
-
-        data.rename(columns=rename, inplace=True)
-
-        # redorder to match other ancillary function
-        col_order = [
-            "Time",
-            "Market",
-            "Non-Spinning Reserves",
-            "Regulation Down",
-            "Regulation Up",
-            "Responsive Reserves",
-        ]
-
-        max_date = data.Time.max().date()
-
-        df_list = [data]
+        df_list = [doc]
 
         # if last df date is less than our specified end
         # date, pull the remaining days. Will only be applicable
@@ -682,7 +628,7 @@ class Ercot(ISOBase):
             )
 
         # join, sort, filter and reset data index
-        data = (pd.concat(df_list).sort_values(by="Time"))[col_order]
+        data = pd.concat(df_list).sort_values(by="Time")
 
         data = (
             data.loc[
@@ -763,6 +709,63 @@ class Ercot(ISOBase):
         ]
         df = df.reset_index(drop=True)
         return df
+
+    @staticmethod
+    def _finalize_as_price_df(doc, timezone, ambiguous_column, pivot=False):
+        # files sometimes have different naming conventions
+        # a more elegant solution would be nice
+        doc.rename(
+            columns={
+                "Delivery Date": "DeliveryDate",
+                "Hour Ending": "HourEnding",
+            },
+            inplace=True,
+        )
+
+        doc["Time"] = pd.to_datetime(
+            doc["DeliveryDate"]
+            + " "
+            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
+            .astype(str)
+            .str.zfill(2)
+            + ":00",
+        ).dt.tz_localize(timezone, ambiguous=doc[ambiguous_column] == "Y")
+
+        doc["Market"] = "DAM"
+
+        # recent daily files need to be pivoted
+        if pivot:
+            doc = doc.pivot_table(
+                index=["Time", "Market"],
+                columns="AncillaryType",
+                values="MCPC",
+            ).reset_index()
+
+            doc.columns.name = None
+
+        # some columns from workbook contain trailing/leading whitespace
+        doc.columns = [x.strip() for x in doc.columns]
+
+        # NSPIN  REGDN  REGUP  RRS
+        rename = {
+            "NSPIN": "Non-Spinning Reserves",
+            "REGDN": "Regulation Down",
+            "REGUP": "Regulation Up",
+            "RRS": "Responsive Reserves",
+        }
+
+        col_order = [
+            "Time",
+            "Market",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Up",
+            "Responsive Reserves",
+        ]
+
+        doc.rename(columns=rename, inplace=True)
+
+        return doc[col_order]
 
     @staticmethod
     def _parse_delivery_date_hour_ending(df, timezone):
