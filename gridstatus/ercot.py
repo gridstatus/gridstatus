@@ -316,7 +316,9 @@ class Ercot(ISOBase):
 
     @support_date_range("1D")
     def _get_as_prices_recent(self, date, verbose=False):
-        """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
+        """Get ancillary service clearing prices in hourly intervals in Day
+            Ahead Market. This function is can return the last 31 days
+            of ancillary pricing.
 
         Arguments:
             date (datetime.date, str): date of delivery for AS services
