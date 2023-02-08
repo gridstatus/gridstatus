@@ -339,16 +339,13 @@ def pjm_update_dates(dates, args_dict):
 def ercot_update_dates(dates, args_dict):
     date = args_dict["date"]
     end = args_dict["end"]
+
+    if date.year == end.year:
+        return dates
+
     years = {x for x in range(date.year, end.year + 1)}
 
     fixed_dates = []
-
-    if date.year == end.year:
-        fixed_dates.append(date)
-        fixed_dates.append(end)
-        fixed_dates.append(None)
-
-        return fixed_dates
 
     for i, year in enumerate(years):
         if i == 0:
