@@ -339,6 +339,13 @@ def ercot_update_dates(dates, args_dict):
 
     fixed_dates = []
 
+    if date.year == end.year:
+        fixed_dates.append(date)
+        fixed_dates.append(end)
+        fixed_dates.append(None)
+
+        return fixed_dates
+
     for i, year in enumerate(years):
         if i == 0:
             fixed_dates.append(date)
@@ -351,7 +358,5 @@ def ercot_update_dates(dates, args_dict):
             fixed_dates.append(pd.Timestamp(year, 1, 1))
             fixed_dates.append(pd.Timestamp(year, 12, 31))
             fixed_dates.append(None)
-
-    print(fixed_dates)
 
     return fixed_dates
