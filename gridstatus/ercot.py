@@ -666,8 +666,7 @@ class Ercot(ISOBase):
 
         max_date = data.Time.max().date()
 
-        df_list = []
-        df_list.append(data)
+        df_list = [data]
 
         # if last df date is less than our specified end
         # date, pull the remaining days. Will only be applicable
