@@ -154,7 +154,6 @@ class support_date_range:
 
             # every None removes two possible queries
             total = len(dates) - dates.count(None) * 2 - 1
-            print(dates)
 
             with tqdm.tqdm(disable=total <= 1, total=total) as pbar:
                 for end_date in dates[1:]:
