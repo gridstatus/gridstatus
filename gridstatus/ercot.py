@@ -681,7 +681,7 @@ class Ercot(ISOBase):
             )
 
         # join, sort, filter and reset data index
-        data = (pd.concat(df_list).sort_values(by="Time"))[col_order].copy()
+        data = (pd.concat(df_list).sort_values(by="Time"))[col_order]
 
         data = (
             data.loc[
@@ -689,7 +689,6 @@ class Ercot(ISOBase):
             ]
             .drop_duplicates(subset=["Time"])
             .reset_index(drop=True)
-            .copy()
         )
 
         return data
