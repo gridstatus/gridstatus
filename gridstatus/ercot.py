@@ -349,7 +349,6 @@ class Ercot(ISOBase):
 
         data = Ercot._finalize_as_price_df(
             doc,
-            self.default_timezone,
             "DSTFlag",
             pivot=True,
         )
@@ -608,7 +607,6 @@ class Ercot(ISOBase):
 
         doc = Ercot._finalize_as_price_df(
             doc,
-            self.default_timezone,
             "Repeated Hour Flag",
         )
 
@@ -711,7 +709,7 @@ class Ercot(ISOBase):
         return df
 
     @staticmethod
-    def _finalize_as_price_df(doc, timezone, ambiguous_column, pivot=False):
+    def _finalize_as_price_df(doc, ambiguous_column, pivot=False):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
         doc.rename(
@@ -729,7 +727,7 @@ class Ercot(ISOBase):
             .astype(str)
             .str.zfill(2)
             + ":00",
-        ).dt.tz_localize(timezone, ambiguous=doc[ambiguous_column] == "Y")
+        ).dt.tz_localize(Ercot.default_timezone, ambiguous=doc[ambiguous_column] == "Y")
 
         doc["Market"] = "DAM"
 
