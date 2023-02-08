@@ -608,18 +608,15 @@ class Ercot(ISOBase):
 
         # use to check if we need to pull daily files
         if (
-            not end
-            and date.date()
+            date.date()
             >= (
                 pd.Timestamp.now(tz=self.default_timezone)
                 - pd.DateOffset(days=self.AS_PRICES_HISTORICAL_MAX_DAYS)
             ).date()
         ):
-            return self._get_as_prices_recent(date)
+            return self._get_as_prices_recent(date, end=end)
         elif not end:
             end = date
-
-        print(date, end)
 
         doc_info = self._get_document(
             report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
