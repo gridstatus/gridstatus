@@ -21,6 +21,7 @@ class TestErcot(BaseTestISO):
 
         # today
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+
         df = self.iso.get_as_prices(today)
         assert df.shape[0] >= 0
         assert df.columns.tolist() == as_cols
@@ -31,6 +32,33 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == as_cols
         assert df["Time"].unique()[0].date() == date
+
+        date = pd.Timestamp(2022, 11, 8).date()
+        df = self.iso.get_as_prices(date, end="today")
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert df.Time.min().date() == date
+        assert df.Time.max().date() == today
+
+        date = today - pd.DateOffset(days=365)
+        df = self.iso.get_as_prices(date)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert df.Time.min().date() == date.date()
+
+        df = self.iso.get_as_prices(date, end=today)
+
+        for check_date in pd.date_range(date, today, freq="D", inclusive="left"):
+            temp = df.loc[df.Time.dt.date == check_date.date()].copy()
+            assert temp.shape[0] > 0
+
+        date = pd.Timestamp(2022, 11, 8).date()
+        end = pd.Timestamp(2022, 11, 30).date()
+        df = self.iso.get_as_prices(date, end=end)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert max(df.Time).date() == end
+        assert min(df.Time).date() == date
 
     """get_fuel_mix"""
 
