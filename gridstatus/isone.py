@@ -579,7 +579,7 @@ def _make_request(url, skiprows, verbose):
         while attempt < 3:
 
             msg = f"Loading data from {url}"
-            log(msg, verbose=verbose)
+            log(msg, verbose)
 
             response = s.get(url)
             content_type = response.headers["Content-Type"]

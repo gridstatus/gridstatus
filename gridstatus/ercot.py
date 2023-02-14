@@ -663,7 +663,7 @@ class Ercot(ISOBase):
         )
 
         msg = f"Fetching {doc_info.url}"
-        log(msg, verbose=verbose)
+        log(msg, verbose)
 
         df = pd.read_csv(doc_info.url, compression="zip")
 

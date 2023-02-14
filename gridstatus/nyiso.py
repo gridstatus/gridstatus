@@ -291,6 +291,13 @@ class NYISO(ISOBase):
         completed.insert(16, "CY Complete Date", None)
         completed.insert(18, "Proposed Initial-Sync Date", None)
         completed["Status"] = InterconnectionQueueStatus.COMPLETED.value
+
+        if (
+            "SGIA Tender Date" in active.columns
+            and "SGIA Tender Date" not in completed.columns
+        ):
+            active = active.drop(columns=["SGIA Tender Date"])
+        # import pdb; pdb.set_trace()
         completed.columns = active.columns
 
         # the spreadsheet doesnt have a date, so make it null
@@ -725,7 +732,8 @@ class NYISO(ISOBase):
         )
 
         url = f"{capacity_market_base_url}-{date.month_name()}-{date.year}.xlsx"
-        log(msg=f"Requesting {url}", verbose=verbose)
+        msg = f"Requesting {url}"
+        log(msg, verbose)
 
         df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1])
 

@@ -148,7 +148,10 @@ class MISO(ISOBase):
 
         time = r["LMPData"]["RefId"]
         time_str = time[:11] + " " + time[-9:]
-        time = pd.to_datetime(time_str).tz_localize("EST")
+        try:
+            time = pd.to_datetime(time_str).tz_localize("EST")
+        except TypeError:
+            time = pd.to_datetime(time_str).tz_convert("EST")
 
         if market == Markets.REAL_TIME_5_MIN:
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])

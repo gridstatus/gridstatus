@@ -11,5 +11,5 @@ def msg():
 
 def test_log_stdout(msg, capsys):
     log(msg, verbose=True)
-    captured = capsys.readouterr()
-    assert msg, "\n" in captured.out
+    out, _ = capsys.readouterr()
+    assert msg, "\n" in out

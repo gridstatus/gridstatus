@@ -27,9 +27,9 @@ def log(msg, verbose=False):
     # verbose --> info level, meant for all users
     # info level --> confirmation things are working as expected
 
-    if not verbose:
+    if verbose is False:
         return
 
-    level = logging.INFO
+    logging.INFO
     logger = logging.getLogger("gridstatus")
-    logger.log(level=level, msg=msg)
+    logger.info(msg=msg)

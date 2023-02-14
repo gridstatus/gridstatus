@@ -70,7 +70,7 @@ class ISOBase:
         if "verbose" in kwargs:
             verbose = kwargs.pop("verbose")
             msg = f"Requesting {args[0]} with {kwargs}"
-            log(msg, verbose=verbose)
+            log(msg, verbose)
 
         r = requests.get(*args, **kwargs)
         r = r.json()

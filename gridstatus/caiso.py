@@ -337,7 +337,14 @@ class CAISO(ISOBase):
 
         url = _HISTORY_BASE + "/%s/storage.csv"
         df = _get_historical(url, date, verbose=verbose)
-        df = df.rename(columns={"Batteries": "Supply"})
+        # new column in data
+        # ['Time', 'Total batteries', 'Stand-alone batteries', 'Hybrid batteries',
+        # 'Type']
+        if "Total batteries" in df.columns:
+            df = df.rename(columns={"Total batteries": "Supply"})
+            df = df.drop(columns=["Stand-alone batteries", "Hybrid batteries"])
+        else:
+            df = df.rename(columns={"Batteries": "Supply"})
         df["Type"] = "Batteries"
         return df
 
@@ -440,7 +447,7 @@ class CAISO(ISOBase):
         url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
 
         msg = f"Downloading interconnection queue from {url}"
-        log(msg, verbose=verbose)
+        log(msg, verbose)
 
         sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
 
@@ -582,7 +589,7 @@ class CAISO(ISOBase):
 
         pdf = None
         for date_str in date_strs:
-            url = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"  # noqa
+            url = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"  # noqa: E501
 
             msg = f"Fetching URL: {url}"
             log(msg, verbose)
