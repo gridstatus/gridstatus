@@ -25,6 +25,10 @@ class support_date_range:
         def wrapped_f(*args, **kwargs):
             args_dict = _get_args_dict(f, args, kwargs)
 
+            # delete end if None to avoid attribute error
+            if "end" in args_dict and not args_dict["end"]:
+                del args_dict["end"]
+
             save_to = None
             if "save_to" in args_dict:
                 save_to = args_dict.pop("save_to")
@@ -330,3 +334,30 @@ def pjm_update_dates(dates, args_dict):
             )
 
     return new_dates
+
+
+def ercot_update_dates(dates, args_dict):
+    date = args_dict["date"]
+    end = args_dict["end"]
+
+    if date.year == end.year:
+        return dates
+
+    years = {x for x in range(date.year, end.year + 1)}
+
+    fixed_dates = []
+
+    for i, year in enumerate(years):
+        if i == 0:
+            fixed_dates.append(date)
+            fixed_dates.append(pd.Timestamp(year, 12, 31))
+            fixed_dates.append(None)
+        elif i == len(years) - 1:
+            fixed_dates.append(pd.Timestamp(year, 1, 1))
+            fixed_dates.append(end)
+        else:
+            fixed_dates.append(pd.Timestamp(year, 1, 1))
+            fixed_dates.append(pd.Timestamp(year, 12, 31))
+            fixed_dates.append(None)
+
+    return fixed_dates

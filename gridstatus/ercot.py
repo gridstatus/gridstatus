@@ -14,7 +14,7 @@ from gridstatus.base import (
     Markets,
     NotSupported,
 )
-from gridstatus.decorators import support_date_range
+from gridstatus.decorators import ercot_update_dates, support_date_range
 from gridstatus.lmp_config import lmp_config
 from gridstatus.logging import log
 
@@ -53,6 +53,9 @@ SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID = 12301
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
 SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID = 12311
 
+# Historical DAM Clearing Prices for Capacity
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
+HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 13091
 
 """
 Settlement	Point Type	Description
@@ -100,6 +103,7 @@ class Ercot(ISOBase):
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
     ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"  # noqa
     LOAD_HISTORICAL_MAX_DAYS = 14
+    AS_PRICES_HISTORICAL_MAX_DAYS = 30
 
     @dataclass
     class Document:
@@ -313,8 +317,10 @@ class Ercot(ISOBase):
         return doc
 
     @support_date_range("1D")
-    def get_as_prices(self, date, verbose=False):
-        """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
+    def _get_as_prices_recent(self, date, verbose=False):
+        """Get ancillary service clearing prices in hourly intervals in Day
+            Ahead Market. This function is can return the last 31 days
+            of ancillary pricing.
 
         Arguments:
             date (datetime.date, str): date of delivery for AS services
@@ -343,35 +349,11 @@ class Ercot(ISOBase):
 
         doc = pd.read_csv(doc_info.url, compression="zip")
 
-        doc["Time"] = pd.to_datetime(
-            doc["DeliveryDate"]
-            + " "
-            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(self.default_timezone, ambiguous=doc["DSTFlag"] == "Y")
-
-        doc["Market"] = "DAM"
-
-        # NSPIN  REGDN  REGUP    RRS
-        rename = {
-            "NSPIN": "Non-Spinning Reserves",
-            "REGDN": "Regulation Down",
-            "REGUP": "Regulation Up",
-            "RRS": "Responsive Reserves",
-        }
-        data = (
-            doc.pivot_table(
-                index=["Time", "Market"],
-                columns="AncillaryType",
-                values="MCPC",
-            )
-            .rename(columns=rename)
-            .reset_index()
+        data = Ercot._finalize_as_price_df(
+            doc,
+            "DSTFlag",
+            pivot=True,
         )
-
-        data.columns.name = None
 
         return data
 
@@ -578,6 +560,86 @@ class Ercot(ISOBase):
             )
         return Ercot._finalize_spp_df(df, settlement_point_field, locations)
 
+    @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
+    def get_as_prices(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
+
+        Arguments:
+            date (datetime.date, str): date of delivery for AS services
+
+            end (datetime.date, str, optional): if declared, function will return
+                data as a range, from "date" to "end"
+
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+
+            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
+                "Regulation Up", "Regulation Down", "Responsive Reserves".
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
+        """
+
+        # use to check if we need to pull daily files
+        if (
+            date.date()
+            >= (
+                pd.Timestamp.now(tz=self.default_timezone)
+                - pd.DateOffset(days=self.AS_PRICES_HISTORICAL_MAX_DAYS)
+            ).date()
+        ):
+            return self._get_as_prices_recent(date, end=end)
+        elif not end:
+            end = date
+
+        doc_info = self._get_document(
+            report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+            constructed_name_contains=f"{date.year}.zip",
+            verbose=verbose,
+        )
+
+        x = utils.get_zip_file(doc_info.url)
+        doc = pd.read_csv(x)
+
+        doc = Ercot._finalize_as_price_df(
+            doc,
+            "Repeated Hour Flag",
+        )
+
+        max_date = doc.Time.max().date()
+
+        df_list = [doc]
+
+        # if last df date is less than our specified end
+        # date, pull the remaining days. Will only be applicable
+        # if end date is within today - 3days
+        if max_date < end.date():
+            df_list.append(
+                self._get_as_prices_recent(
+                    start=max_date,
+                    end=end,
+                ),
+            )
+
+        # join, sort, filter and reset data index
+        data = pd.concat(df_list).sort_values(by="Time")
+
+        data = (
+            data.loc[
+                (data.Time.dt.date >= date.date()) & (data.Time.dt.date <= end.date())
+            ]
+            .drop_duplicates(subset=["Time"])
+            .reset_index(drop=True)
+        )
+
+        return data
+
     def _get_spp_dam(
         self,
         date,
@@ -649,6 +711,63 @@ class Ercot(ISOBase):
         ]
         df = df.reset_index(drop=True)
         return df
+
+    @staticmethod
+    def _finalize_as_price_df(doc, ambiguous_column, pivot=False):
+        # files sometimes have different naming conventions
+        # a more elegant solution would be nice
+        doc.rename(
+            columns={
+                "Delivery Date": "DeliveryDate",
+                "Hour Ending": "HourEnding",
+            },
+            inplace=True,
+        )
+
+        doc["Time"] = pd.to_datetime(
+            doc["DeliveryDate"]
+            + " "
+            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
+            .astype(str)
+            .str.zfill(2)
+            + ":00",
+        ).dt.tz_localize(Ercot.default_timezone, ambiguous=doc[ambiguous_column] == "Y")
+
+        doc["Market"] = "DAM"
+
+        # recent daily files need to be pivoted
+        if pivot:
+            doc = doc.pivot_table(
+                index=["Time", "Market"],
+                columns="AncillaryType",
+                values="MCPC",
+            ).reset_index()
+
+            doc.columns.name = None
+
+        # some columns from workbook contain trailing/leading whitespace
+        doc.columns = [x.strip() for x in doc.columns]
+
+        # NSPIN  REGDN  REGUP  RRS
+        rename = {
+            "NSPIN": "Non-Spinning Reserves",
+            "REGDN": "Regulation Down",
+            "REGUP": "Regulation Up",
+            "RRS": "Responsive Reserves",
+        }
+
+        col_order = [
+            "Time",
+            "Market",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Up",
+            "Responsive Reserves",
+        ]
+
+        doc.rename(columns=rename, inplace=True)
+
+        return doc[col_order]
 
     @staticmethod
     def _parse_delivery_date_hour_ending(df, timezone):
