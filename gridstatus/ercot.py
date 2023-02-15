@@ -165,11 +165,11 @@ class Ercot(ISOBase):
             r = self._get_json(url, verbose=verbose)
 
             today_str = date.strftime("%Y-%m-%d")
-
             mix = (
                 pd.DataFrame(r["data"][today_str])
                 .applymap(
                     lambda x: x["gen"],
+                    na_action="ignore",
                 )
                 .T
             )
