@@ -135,16 +135,15 @@ class PJM(ISOBase):
             columns="area",
             values="instantaneous_load",
             aggfunc="first",
-        )
+        ).reset_index()
 
-        all_areas = load.columns.tolist()
+        # don't need time column
+        all_areas = load.columns.tolist()[1:]
 
-        # reset index after getting the areas
-        load = load.reset_index()
-
-        # set load to match return column of other ISOs
+        # set Load column name to match return column of other ISOs
         load["Load"] = load["PJM RTO"]
 
+        # return everything in correct order
         load = load[["Time", "Load"] + all_areas]
 
         return load
