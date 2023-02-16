@@ -336,8 +336,14 @@ class CAISO(ISOBase):
 
         url = _HISTORY_BASE + "/%s/storage.csv"
         df = _get_historical(url, date, verbose=verbose)
-        df = df.rename(columns={"Batteries": "Supply"})
-        df["Type"] = "Batteries"
+        df = df.rename(
+            columns={
+                "Total batteries": "Supply",
+                "Stand-alone batteries": "Stand-alone Batteries",
+                "Hybrid batteries": "Hybrid Batteries",
+            },
+        )
+        df = df[["Time", "Supply", "Stand-alone Batteries", "Hybrid Batteries"]]
         return df
 
     @support_date_range(frequency="31D")
