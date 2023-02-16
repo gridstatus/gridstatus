@@ -250,8 +250,6 @@ class BaseTestISO:
         assert df.shape[0] >= 0
 
     def _check_storage(self, df):
-        assert set(df.columns).issuperset(
-            set(
-                ["Time", "Supply"],
-            ),
+        assert set(["Time", "Supply"]).issubset(
+            df.columns,
         )
