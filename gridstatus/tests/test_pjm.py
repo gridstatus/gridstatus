@@ -109,6 +109,40 @@ class TestPJM(BaseTestISO):
 
         assert len(df) > 0
 
+    """ get_load """
+
+    def test_get_load_today(self):
+        df = super().test_get_load_today()
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Load",
+            "AE",
+            "AEP",
+            "APS",
+            "ATSI",
+            "BC",
+            "COMED",  # noqa
+            "DAYTON",
+            "DEOK",
+            "DOM",
+            "DPL",
+            "DUQ",
+            "EKPC",
+            "JC",
+            "ME",
+            "PE",
+            "PEP",  # noqa
+            "PJM MID ATLANTIC REGION",
+            "PJM RTO",
+            "PJM SOUTHERN REGION",  # noqa
+            "PJM WESTERN REGION",
+            "PL",
+            "PN",
+            "PS",
+            "RECO",
+        ]  # noqa
+
     """get_load_forecast"""
 
     def test_get_load_forecast_historical(self):

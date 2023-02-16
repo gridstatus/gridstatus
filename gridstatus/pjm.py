@@ -101,6 +101,12 @@ class PJM(ISOBase):
 
         Arguments:
             date (datetime.date, str): date to get load for. must be in last 30 days
+
+        Notes:
+            Returns data for the following areas: ['AE', 'AEP', 'APS', 'ATSI',
+            'BC', 'COMED', 'DAYTON', 'DEOK', 'DOM', 'DPL', 'DUQ', 'EKPC', 'JC',
+            'ME', 'PE', 'PEP', 'PJM MID ATLANTIC REGION', 'PJM RTO',
+            'PJM SOUTHERN REGION', 'PJM WESTERN REGION', 'PL', 'PN', 'PS', 'RECO']
         """
 
         if date == "latest":
@@ -114,7 +120,6 @@ class PJM(ISOBase):
             "sort": "datetime_beginning_utc",
             "isActiveMetadata": "true",
             "fields": "area,datetime_beginning_utc,instantaneous_load",
-            "area": "PJM RTO",
         }
         load = self._get_pjm_json(
             "inst_load",
@@ -124,15 +129,23 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        load = load.drop("area", axis=1)
-
-        load = load.rename(
-            columns={
-                "instantaneous_load": "Load",
-            },
+        # pivot on area
+        load = load.pivot_table(
+            index="Time",
+            columns="area",
+            values="instantaneous_load",
+            aggfunc="first",
         )
 
-        load = load[["Time", "Load"]]
+        all_areas = load.columns.tolist()
+
+        # reset index after getting the areas
+        load = load.reset_index()
+
+        # set load to match return column of other ISOs
+        load["Load"] = load["PJM RTO"]
+
+        load = load[["Time", "Load"] + all_areas]
 
         return load
 

@@ -126,24 +126,18 @@ class BaseTestISO:
         # date string works
         date_str = test_date.strftime("%Y%m%d")
         df = self.iso.get_load(date_str)
-        assert isinstance(df, pd.DataFrame)
-        assert set(["Time", "Load"]) == set(df.columns)
+        self._check_load(df)
         assert df.loc[0]["Time"].strftime("%Y%m%d") == date_str
-        assert is_numeric_dtype(df["Load"])
 
         # timestamp object works
         df = self.iso.get_load(test_date)
-        assert isinstance(df, pd.DataFrame)
-        assert set(["Time", "Load"]) == set(df.columns)
+        self._check_load(df)
         assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
-        assert is_numeric_dtype(df["Load"])
 
         # datetime object works
         df = self.iso.get_load(test_date)
-        assert isinstance(df, pd.DataFrame)
-        assert set(["Time", "Load"]) == set(df.columns)
+        self._check_load(df)
         assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
-        assert is_numeric_dtype(df["Load"])
 
     def test_get_load_latest(self):
         load = self.iso.get_load("latest")
@@ -154,13 +148,10 @@ class BaseTestISO:
 
     def test_get_load_today(self):
         df = self.iso.get_load("today")
-        assert isinstance(df, pd.DataFrame)
-        assert ["Time", "Load"] == df.columns.tolist()
-        assert is_numeric_dtype(df["Load"])
-        assert isinstance(df.loc[0]["Time"], pd.Timestamp)
-        assert df.loc[0]["Time"].tz is not None
+        self._check_load(df)
         today = pd.Timestamp.now(tz=self.iso.default_timezone)
         assert (df["Time"].dt.date == today.date()).all()
+        return df
 
     """get_load_forecast"""
 
@@ -203,6 +194,13 @@ class BaseTestISO:
         self._check_storage(storage)
 
     """other"""
+
+    def _check_load(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert set(["Time", "Load"]).issubset(df.columns.tolist())
+        assert is_numeric_dtype(df["Load"])
+        assert isinstance(df.loc[0]["Time"], pd.Timestamp)
+        assert df.loc[0]["Time"].tz is not None
 
     def _check_forecast(self, df):
         assert set(df.columns) == set(
