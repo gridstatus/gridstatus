@@ -287,8 +287,10 @@ class NYISO(ISOBase):
 
         # make completed look like the other two sheets
         completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1])
+        completed.insert(15, "SGIA Tender Date", None)
         completed.insert(16, "CY Complete Date", None)
-        completed.insert(18, "Proposed Initial-Sync Date", None)
+        completed.insert(17, "Proposed Initial-Sync Date", None)
+
         completed["Status"] = InterconnectionQueueStatus.COMPLETED.value
         completed.columns = active.columns
 
