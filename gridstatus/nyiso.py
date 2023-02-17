@@ -398,8 +398,6 @@ class NYISO(ISOBase):
 
         queue = utils.format_interconnection_df(queue, rename, extra_columns)
 
-        queue.to_csv("nyiso_interconnection_queue.csv", index=False)
-
         return queue
 
     def get_generators(self, verbose=False):
