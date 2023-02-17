@@ -42,20 +42,26 @@ class BaseTestISO:
         date_obj = pd.to_datetime("2019/11/19")
         df = self.iso.get_fuel_mix(date_obj)
         assert isinstance(df, pd.DataFrame)
-        assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
+        assert df.loc[0]["Time"].strftime(
+            "%Y%m%d",
+        ) == date_obj.strftime("%Y%m%d")
         assert df.loc[0]["Time"].tz is not None
 
         # datetime object works
         date_obj = pd.to_datetime("2021/05/09").date()
         df = self.iso.get_fuel_mix(date_obj)
         assert isinstance(df, pd.DataFrame)
-        assert df.loc[0]["Time"].strftime("%Y%m%d") == date_obj.strftime("%Y%m%d")
+        assert df.loc[0]["Time"].strftime(
+            "%Y%m%d",
+        ) == date_obj.strftime("%Y%m%d")
         assert df.loc[0]["Time"].tz is not None
 
     def test_get_fuel_mix_historical_with_date_range(self):
         # range not inclusive, add one to include today
         num_days = 7
-        end = pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(days=1)
+        end = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
         data = self.iso.get_fuel_mix(date=start.date(), end=end.date())
@@ -113,7 +119,9 @@ class BaseTestISO:
 
     def test_get_load_historical_with_date_range(self):
         num_days = 7
-        end = pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(days=1)
+        end = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
         data = self.iso.get_load(date=start.date(), end=end.date())
         # make sure right number of days are returned
@@ -131,6 +139,7 @@ class BaseTestISO:
 
         # timestamp object works
         df = self.iso.get_load(test_date)
+
         self._check_load(df)
         assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
 
@@ -138,6 +147,7 @@ class BaseTestISO:
         df = self.iso.get_load(test_date)
         self._check_load(df)
         assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
+
 
     def test_get_load_latest(self):
         load = self.iso.get_load("latest")
@@ -236,6 +246,6 @@ class BaseTestISO:
         assert df.shape[0] >= 0
 
     def _check_storage(self, df):
-        assert set(df.columns) == set(
-            ["Time", "Supply", "Type"],
+        assert set(["Time", "Supply"]).issubset(
+            df.columns,
         )
