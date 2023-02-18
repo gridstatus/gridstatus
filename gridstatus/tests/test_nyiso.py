@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from gridstatus import NYISO, Markets
@@ -7,6 +8,88 @@ from gridstatus.tests.decorators import with_markets
 
 class TestNYISO(BaseTestISO):
     iso = NYISO()
+
+    def test_get_as_prices1(self):
+        as_cols = [
+            "Time",
+            "Region Market",
+            "10 Min Spinning Reserve",
+            "10 Min Non-Synchronous Reserve",
+            "30 Min Operating Reserve",
+            "Regulation Capacity",
+            "Regulation Movement",
+        ]
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        df = self.iso.get_as_prices(today)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert df["Time"].unique()[0].date() == today
+
+    def test_get_as_prices2(self):
+        as_cols = [
+            "Time",
+            "Region Market",
+            "10 Min Spinning Reserve",
+            "10 Min Non-Synchronous Reserve",
+            "30 Min Operating Reserve",
+            "Regulation Capacity",
+            "Regulation Movement",
+        ]
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        date = today - pd.Timedelta(days=3)
+        df = self.iso.get_as_prices(date)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert df["Time"].unique()[0].date() == date
+
+    def test_get_as_prices3(self):
+        as_cols = [
+            "Time",
+            "Region Market",
+            "10 Min Spinning Reserve",
+            "10 Min Non-Synchronous Reserve",
+            "30 Min Operating Reserve",
+            "Regulation Capacity",
+            "Regulation Movement",
+        ]
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        date = pd.Timestamp(2022, 11, 8).date()
+        df = self.iso.get_as_prices(date, end="today")
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert df.Time.min().date() == date
+        assert df.Time.max().date() == today
+
+    def test_get_as_prices4(self):
+        as_cols = [
+            "Time",
+            "Region Market",
+            "10 Min Spinning Reserve",
+            "10 Min Non-Synchronous Reserve",
+            "30 Min Operating Reserve",
+            "Regulation Capacity",
+            "Regulation Movement",
+        ]
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        date = today - pd.DateOffset(days=365)
+        df = self.iso.get_as_prices(date)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert df.Time.min().date() == date.date()
+
+        df = self.iso.get_as_prices(date, end=today)
+
+        for check_date in pd.date_range(date, today, freq="D", inclusive="left"):
+            temp = df.loc[df.Time.dt.date == check_date.date()].copy()
+            assert temp.shape[0] > 0
+
+        date = pd.Timestamp(2022, 11, 8).date()
+        end = pd.Timestamp(2022, 11, 30).date()
+        df = self.iso.get_as_prices(date, end=end)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == as_cols
+        assert max(df.Time).date() == end
+        assert min(df.Time).date() == date
 
     """"get_capacity_prices"""
 

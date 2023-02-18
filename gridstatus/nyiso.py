@@ -1,4 +1,5 @@
 import io
+import sys
 from zipfile import ZipFile
 
 import pandas as pd
@@ -580,6 +581,42 @@ class NYISO(ISOBase):
 
         return df
 
+    @support_date_range(frequency="1Y")
+    def get_as_prices(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        df = self._download_nyiso_archive(
+            date=date,
+            end=end,
+            dataset_name="rtasp",
+            verbose=verbose,
+        )
+        df = df.rename(
+            columns={
+                "Name": "Region Market",
+                "10 Min Spinning Reserve ($/MWHr)": "10 Min Spinning Reserve",
+                "10 Min Non-Synchronous Reserve ($/MWHr)": "10 Min Non-Synchronous Reserve",  # noqa
+                "30 Min Operating Reserve ($/MWHr)": "30 Min Operating Reserve",
+                "NYCA Regulation Capacity ($/MWHr)": "Regulation Capacity",
+                "NYCA Regulation Movement ($/MW)": "Regulation Movement",
+            },
+        )
+        df = df[
+            [
+                "Time",
+                "Region Market",
+                "10 Min Spinning Reserve",
+                "10 Min Non-Synchronous Reserve",
+                "30 Min Operating Reserve",
+                "Regulation Capacity",
+                "Regulation Movement",
+            ]
+        ]
+        return df
+
     def _set_marketname(self, market: Markets) -> str:
         if market == Markets.REAL_TIME_5_MIN:
             marketname = "realtime"
@@ -637,6 +674,7 @@ class NYISO(ISOBase):
 
             r = requests.get(zip_url)
             z = ZipFile(io.BytesIO(r.content))
+            filenames = [fileinfo.filename for fileinfo in z.filelist]
 
             all_dfs = []
             if end is None:
@@ -663,11 +701,12 @@ class NYISO(ISOBase):
                 day = d.strftime("%Y%m%d")
 
                 csv_filename = f"{day}{filename}.csv"
-                df = pd.read_csv(z.open(csv_filename))
-                df["File Date"] = d.normalize()
-
-                df = _handle_time(df)
-                all_dfs.append(df)
+                if True or csv_filename in filenames:
+                    df = pd.read_csv(z.open(csv_filename))
+                    print(f"df = {df}", file=sys.stderr)
+                    df["File Date"] = d.normalize()
+                    df = _handle_time(df)
+                    all_dfs.append(df)
 
             df = pd.concat(all_dfs)
 
