@@ -3,6 +3,8 @@
 ## vNext
 
 - Updated ISONE Interconnection Queue to contain completed and withdrawn projects
+- Add all areas to PJM get_load
+- Add load over time visualization
 
 ## v0.18.0 - Jan 27, 2023
 
