@@ -146,8 +146,15 @@ class MISO(ISOBase):
         r = self._get_json(url, verbose=verbose)
 
         time = r["LMPData"]["RefId"]
-        time_str = time[:11] + " " + time[-9:]
-        time = pd.to_datetime(time_str).tz_localize("EST")
+        time_str = time[:11] + " " + time[-9:-4]
+        time_zone = time[-3:]
+        time = (
+            pd.to_datetime(time_str)
+            .tz_localize(
+                time_zone,
+            )
+            .tz_convert(self.default_timezone)
+        )
 
         if market == Markets.REAL_TIME_5_MIN:
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
