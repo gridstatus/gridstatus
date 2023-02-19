@@ -102,11 +102,14 @@ class PJM(ISOBase):
         Arguments:
             date (datetime.date, str): date to get load for. must be in last 30 days
 
-        Notes:
-            Returns data for the following areas: ['AE', 'AEP', 'APS', 'ATSI',
-            'BC', 'COMED', 'DAYTON', 'DEOK', 'DOM', 'DPL', 'DUQ', 'EKPC', 'JC',
-            'ME', 'PE', 'PEP', 'PJM MID ATLANTIC REGION', 'PJM RTO',
-            'PJM SOUTHERN REGION', 'PJM WESTERN REGION', 'PL', 'PN', 'PS', 'RECO']
+        Returns:
+            pd.DataFrame: Load data time series. Columns: Time, Load, and all areas
+
+            * Load columns represent PJM-wide load
+            * Returns data for the following areas: AE, AEP, APS, ATSI,
+            BC, COMED, DAYTON, DEOK, DOM, DPL, DUQ, EKPC, JC,
+            ME, PE, PEP, PJM MID ATLANTIC REGION, PJM RTO,
+            PJM SOUTHERN REGION, PJM WESTERN REGION, PL, PN, PS, RECO
         """
 
         if date == "latest":
