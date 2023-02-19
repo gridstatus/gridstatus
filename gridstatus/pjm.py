@@ -140,6 +140,8 @@ class PJM(ISOBase):
             aggfunc="first",
         ).reset_index()
 
+        load.columns.name = None
+
         # don't need time column
         all_areas = load.columns.tolist()[1:]
 
