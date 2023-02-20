@@ -10,7 +10,7 @@ PYTEST_CMD := python -m pytest -s -vv gridstatus/ -n auto
 
 .PHONY: test
 test:
-	$(PYTEST_CMD) -m "not slow" --reruns 5 --reruns-delay 3 
+	$(PYTEST_CMD) -m "not slow" --reruns 5 --reruns-delay 3
 
 .PHONY: test-slow
 test-slow:
