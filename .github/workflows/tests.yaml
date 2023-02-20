@@ -19,6 +19,7 @@ jobs:
         run: |
           make test
       - uses: codecov/codecov-action@v3
+        if: ${{ matrix.python-version == '3.11' }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ github.workspace }}/coverage.xml
