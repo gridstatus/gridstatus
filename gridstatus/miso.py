@@ -21,7 +21,7 @@ class MISO(ISOBase):
     iso_id = "miso"
     # miso spans multiple timezones, so picking central
     # all parsing is done in EST since that is what api returns
-    default_timezone = "US/Central"
+    default_timezone = "US/Eastern"
 
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
 
