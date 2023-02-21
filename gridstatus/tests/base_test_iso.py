@@ -148,7 +148,6 @@ class BaseTestISO:
         self._check_load(df)
         assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
 
-
     def test_get_load_latest(self):
         load = self.iso.get_load("latest")
         set(["time", "load"]) == load.keys()
