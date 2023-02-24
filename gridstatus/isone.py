@@ -565,15 +565,15 @@ class ISONE(ISOBase):
 
 
 def _make_request(url, skiprows, verbose):
-    with requests.Session() as s:
-        # make first get request to get cookies set
-        s.get(
-            "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
-        )
+    attempt = 0
+    while attempt < 3:
+        with requests.Session() as s:
+            # make first get request to get cookies set
+            s.get(
+                "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
+            )
 
-        # in testing, never takes more than 2 attempts
-        attempt = 0
-        while attempt < 3:
+            # in testing, never takes more than 2 attempts
             if verbose:
                 print(f"Loading data from {url}", file=sys.stderr)
 
@@ -583,22 +583,25 @@ def _make_request(url, skiprows, verbose):
             if response.status_code == 200 and content_type == "text/csv":
                 break
 
-            print(f"Attempt {attempt+1} failed. Retrying...", file=sys.stderr)
+            print(
+                f"Attempt {attempt+1} failed. Retrying...",
+                file=sys.stderr,
+            )
             attempt += 1
 
-        if response.status_code != 200 or content_type != "text/csv":
-            raise RuntimeError(
-                f"Failed to get data from {url}. Check if ISONE is down and \
-                    try again later",
-            )
-
-        df = pd.read_csv(
-            io.StringIO(response.content.decode("utf8")),
-            skiprows=skiprows,
-            skipfooter=1,
-            engine="python",
+    if response.status_code != 200 or content_type != "text/csv":
+        raise RuntimeError(
+            f"Failed to get data from {url}. Check if ISONE is down and \
+                try again later",
         )
-        return df
+
+    df = pd.read_csv(
+        io.StringIO(response.content.decode("utf8")),
+        skiprows=skiprows,
+        skipfooter=1,
+        engine="python",
+    )
+    return df
 
 
 def _make_wsclient_request(url, data, verbose=False):
