@@ -1,7 +1,6 @@
 import io
 import math
 import sys
-import time
 
 import pandas as pd
 import requests
@@ -585,10 +584,9 @@ def _make_request(url, skiprows, verbose):
                 break
 
             print(
-                f"Attempt {attempt+1} failed. Retrying in 3 seconds...",
+                f"Attempt {attempt+1} failed. Retrying...",
                 file=sys.stderr,
             )
-            time.sleep(3)
             attempt += 1
 
     if response.status_code != 200 or content_type != "text/csv":
