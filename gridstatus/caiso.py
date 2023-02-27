@@ -99,8 +99,14 @@ class CAISO(ISOBase):
         return self._get_historical_fuel_mix(date, verbose=verbose)
 
     def _get_historical_fuel_mix(self, date, verbose=False):
-        url = _HISTORY_BASE + "/%s/fuelsource.csv"
-        df = _get_historical(url, date, verbose=verbose)
+        try:
+            url = _HISTORY_BASE + "/%s/fuelsource.csv"
+            df = _get_historical(url, date, verbose=verbose)
+        except Exception:
+            # fallback if today and no historical file yet
+            if utils.is_today(date, self.default_timezone):
+                url = _BASE + "/fuelsource.csv"
+                df = _get_historical(url, date, verbose=verbose)
 
         # rename some inconsistent columns names to standardize across dates
         df = df.rename(
@@ -136,8 +142,15 @@ class CAISO(ISOBase):
         return self._get_historical_load(date, verbose=verbose)
 
     def _get_historical_load(self, date, verbose=False):
-        url = _HISTORY_BASE + "/%s/demand.csv"
-        df = _get_historical(url, date, verbose=verbose)
+        try:
+            url = _HISTORY_BASE + "/%s/demand.csv"
+            df = _get_historical(url, date, verbose=verbose)
+        except Exception:
+            # fallback if today and no historical file yet
+            if utils.is_today(date, self.default_timezone):
+                url = _BASE + "/demand.csv"
+                df = _get_historical(url, date, verbose=verbose)
+
         df = df[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
@@ -811,9 +824,9 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
 
 
 def _get_historical(url, date, verbose=False):
-    date_str = date.strftime("%Y%m%d")
-    date_obj = date
-    url = url % date_str
+    if _HISTORY_BASE in url:
+        date_str = date.strftime("%Y%m%d")
+        url = url % date_str
 
     if verbose:
         print("Fetching URL: ", url)
@@ -825,7 +838,7 @@ def _get_historical(url, date, verbose=False):
 
     df["Time"] = df["Time"].apply(
         _make_timestamp,
-        today=date_obj,
+        today=date,
         timezone="US/Pacific",
     )
 
