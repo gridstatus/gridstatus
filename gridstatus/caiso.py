@@ -347,8 +347,15 @@ class CAISO(ISOBase):
         if date == "latest":
             return self._latest_from_today(self.get_storage)
 
-        url = _HISTORY_BASE + "/%s/storage.csv"
-        df = _get_historical(url, date, verbose=verbose)
+        try:
+            url = _HISTORY_BASE + "/%s/storage.csv"
+            df = _get_historical(url, date, verbose=verbose)
+        except Exception:
+            # fallback if today and no historical file yet
+            if utils.is_today(date, self.default_timezone):
+                url = _BASE + "/storage.csv"
+                df = _get_historical(url, date, verbose=verbose)
+
         df = df.rename(
             columns={
                 "Total batteries": "Supply",
