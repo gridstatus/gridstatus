@@ -284,7 +284,7 @@ class Ercot(ISOBase):
 
         Currently only supports today's forecast
         """
-        if date != "today":
+        if not utils.is_today(date, self.default_timezone):
             raise NotSupported()
 
         # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD

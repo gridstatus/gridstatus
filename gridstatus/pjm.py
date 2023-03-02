@@ -160,7 +160,7 @@ class PJM(ISOBase):
 
         """
 
-        if date != "today":
+        if not utils.is_today(date, self.default_timezone):
             raise NotSupported()
 
         # todo: should we use the UTC field instead of EPT?
