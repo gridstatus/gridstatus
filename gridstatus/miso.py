@@ -99,7 +99,7 @@ class MISO(ISOBase):
             raise NotSupported
 
     def get_load_forecast(self, date, verbose=False):
-        if date != "today":
+        if not utils.is_today(date, self.default_timezone):
             raise NotSupported()
 
         r = self._get_load_and_forecast_data(verbose=verbose)
