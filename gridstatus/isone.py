@@ -356,17 +356,17 @@ class ISONE(ISOBase):
                     skiprows=[0, 1, 2, 3, 5],
                     verbose=verbose,
                 )
-                # todo document hour starting vs ending
             dst_array = None
+            # todo document hour starting vs ending
             if "02X" in data["Hour Ending"].values.astype(str):
-                # Everything before 02X gets a True flag, everything after, a False flag
+                # for DST end transitions they use 02X to represent repeated 1am hour
+                # before 02X is dst, all others non-dst
                 dst_array = np.array(
                     [
                         True if x in ("01", "02") else False
                         for x in data["Hour Ending"].values
                     ],
                 )
-                # for DST end transitions they use 02X to represent repeated 1am hour
                 data["Hour Ending"] = (
                     data["Hour Ending"]
                     .replace(
@@ -441,7 +441,7 @@ class ISONE(ISOBase):
                 ),
             )
         else:
-            # If DST day we need to process altogether
+            # if DST day we need to respect order
             data["Time"] = data["Time"].transform(
                 lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
                     timezone,
