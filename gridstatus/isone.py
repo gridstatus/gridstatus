@@ -2,6 +2,7 @@ import io
 import math
 import sys
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -224,6 +225,7 @@ class ISONE(ISOBase):
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
 
             # todo does this handle single digital hours?
+            # todo does this handle daylight savings time day?
             data["Local Time"] = (
                 data["Local Date"]
                 + " "
@@ -326,15 +328,44 @@ class ISONE(ISOBase):
                 ]
                 data = pd.concat([data, data_current])
 
-        elif market == Markets.REAL_TIME_HOURLY:
-            if date.date() < now.date():
-                url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
+            data = self._process_lmp(
+                data,
+                market,
+                self.default_timezone,
+                locations,
+                include_id=include_id,
+            )
+        elif market in (Markets.REAL_TIME_HOURLY, Markets.DAY_AHEAD_HOURLY):
+            if market == Markets.REAL_TIME_HOURLY:
+                if date.date() < now.date():
+                    url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
+                    data = _make_request(
+                        url,
+                        skiprows=[0, 1, 2, 3, 5],
+                        verbose=verbose,
+                    )
+                else:
+                    raise RuntimeError(
+                        "Today not supported for hourly lmp. Try latest",
+                    )
+
+            elif market == Markets.DAY_AHEAD_HOURLY:
+                url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"  # noqa
                 data = _make_request(
                     url,
                     skiprows=[0, 1, 2, 3, 5],
                     verbose=verbose,
                 )
                 # todo document hour starting vs ending
+            dst_array = None
+            if "02X" in data["Hour Ending"].values.astype(str):
+                # Everything before 02X gets a True flag, everything after, a False flag
+                dst_array = np.array(
+                    [
+                        True if x in ("01", "02") else False
+                        for x in data["Hour Ending"].values
+                    ],
+                )
                 # for DST end transitions they use 02X to represent repeated 1am hour
                 data["Hour Ending"] = (
                     data["Hour Ending"]
@@ -344,35 +375,6 @@ class ISONE(ISOBase):
                     )
                     .astype(int)
                 )
-                data["Local Time"] = (
-                    data["Date"]
-                    + " "
-                    + (data["Hour Ending"] - 1).astype(str).str.zfill(2)
-                    + ":00"
-                )
-            else:
-                raise RuntimeError(
-                    "Today not supported for hourly lmp. Try latest",
-                )
-
-        elif market == Markets.DAY_AHEAD_HOURLY:
-            url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"  # noqa
-            data = _make_request(
-                url,
-                skiprows=[0, 1, 2, 3, 5],
-                verbose=verbose,
-            )
-            # todo document hour starting vs ending
-
-            # for DST end transitions they use 02X to represent repeated 1am hour
-            data["Hour Ending"] = (
-                data["Hour Ending"]
-                .replace(
-                    "02X",
-                    "02",
-                )
-                .astype(int)
-            )
 
             data["Local Time"] = (
                 data["Date"]
@@ -380,16 +382,17 @@ class ISONE(ISOBase):
                 + (data["Hour Ending"] - 1).astype(str).str.zfill(2)
                 + ":00"
             )
+            data = self._process_lmp(
+                data,
+                market,
+                self.default_timezone,
+                locations,
+                include_id=include_id,
+                dst_array=dst_array,
+            )
+
         else:
             raise RuntimeError("LMP Market is not supported")
-
-        data = self._process_lmp(
-            data,
-            market,
-            self.default_timezone,
-            locations,
-            include_id=include_id,
-        )
 
         return data
 
@@ -397,7 +400,15 @@ class ISONE(ISOBase):
         # https://www.iso-ne.com/static-assets/documents/2022/01/2022_daygenbyfuel.xlsx
         # a bunch more here: https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/daily-gen-fuel-type
 
-    def _process_lmp(self, data, market, timezone, locations, include_id=False):
+    def _process_lmp(
+        self,
+        data,
+        market,
+        timezone,
+        locations,
+        include_id=False,
+        dst_array=None,
+    ):
         # each market returns a slight different set of columns
         # real time 5 minute has "Location ID"
         # real time hourly has "Location" that represent location name
@@ -415,21 +426,28 @@ class ISONE(ISOBase):
             "Loss Component": "Loss",
             "Marginal Loss Component": "Loss",
         }
-
         data.rename(columns=rename, inplace=True)
 
         data["Market"] = market.value
 
-        location_groupby = (
-            "Location Id" if "Location Id" in data.columns else "Location"
-        )
-        data["Time"] = data.groupby(location_groupby)["Time"].transform(
-            lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
-                timezone,
-                ambiguous="infer",
-            ),
-        )
-
+        if dst_array is None:
+            location_groupby = (
+                "Location Id" if "Location Id" in data.columns else "Location"
+            )
+            data["Time"] = data.groupby(location_groupby)["Time"].transform(
+                lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
+                    timezone,
+                    ambiguous="infer",
+                ),
+            )
+        else:
+            # If DST day we need to process altogether
+            data["Time"] = data["Time"].transform(
+                lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
+                    timezone,
+                    ambiguous=dst_array,
+                ),
+            )
         # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:
             day_ahead = self.get_lmp(

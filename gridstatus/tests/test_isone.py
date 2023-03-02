@@ -12,6 +12,7 @@ VERBOSE = False
 DST_BOUNDARIES = [
     "Mar 13, 2022",
     "Nov 6, 2022",
+    "Nov 4, 2018",
 ]
 
 
