@@ -420,7 +420,7 @@ class ISONE(ISOBase):
 
         data["Market"] = market.value
         # Location seems to be more unique than Location ID refer to #171
-        location_groupby = "Location"
+        location_groupby = "Location" if "Location" in data.columns else "Location Id"
         # groupby location so that hours are increasing monotonically and can infer dst
         data["Time"] = data.groupby(location_groupby)["Time"].transform(
             lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
