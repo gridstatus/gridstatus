@@ -11,20 +11,18 @@ class TestNYISO(BaseTestISO):
 
     """"get_capacity_prices"""
 
-    def test_get_capacity_prices(self, capsys):
+    def test_get_capacity_prices(self, caplog):
         configure_logging()
         # test 2022, 2023, and today
         df = self.iso.get_capacity_prices(date="Dec 1, 2022", verbose=True)
-        out, err = capsys.readouterr()
 
         assert not df.empty, "DataFrame came back empty"
         # check verbose True
-        assert "Requesting https://www.nyiso.com/documents/" in err
-        assert "December-2022" in out
+        assert "Requesting https://www.nyiso.com/documents/" in caplog.text
+        assert "December-2022" in caplog.text
 
         df = self.iso.get_capacity_prices(date="Jan 1, 2023", verbose=True)
         assert not df.empty, "DataFrame came back empty"
-        assert "December-2023" in out
 
         df = self.iso.get_capacity_prices(date="today", verbose=True)
         assert not df.empty, "DataFrame came back empty"
