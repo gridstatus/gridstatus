@@ -99,8 +99,7 @@ class CAISO(ISOBase):
         return self._get_historical_fuel_mix(date, verbose=verbose)
 
     def _get_historical_fuel_mix(self, date, verbose=False):
-        url = _HISTORY_BASE + "/%s/fuelsource.csv"
-        df = _get_historical(url, date, verbose=verbose)
+        df = _get_historical("fuelsource", date, verbose=verbose)
 
         # rename some inconsistent columns names to standardize across dates
         df = df.rename(
@@ -136,8 +135,8 @@ class CAISO(ISOBase):
         return self._get_historical_load(date, verbose=verbose)
 
     def _get_historical_load(self, date, verbose=False):
-        url = _HISTORY_BASE + "/%s/demand.csv"
-        df = _get_historical(url, date, verbose=verbose)
+        df = _get_historical("demand", date, verbose=verbose)
+
         df = df[["Time", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
@@ -334,8 +333,8 @@ class CAISO(ISOBase):
         if date == "latest":
             return self._latest_from_today(self.get_storage)
 
-        url = _HISTORY_BASE + "/%s/storage.csv"
-        df = _get_historical(url, date, verbose=verbose)
+        df = _get_historical("storage", date, verbose=verbose)
+
         df = df.rename(
             columns={
                 "Total batteries": "Supply",
@@ -810,13 +809,18 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
     )
 
 
-def _get_historical(url, date, verbose=False):
-    date_str = date.strftime("%Y%m%d")
-    date_obj = date
-    url = url % date_str
-
-    if verbose:
-        print("Fetching URL: ", url)
+def _get_historical(file, date, verbose=False):
+    try:
+        date_str = date.strftime("%Y%m%d")
+        url = _HISTORY_BASE + "/%s/%s.csv" % (date_str, file)
+        if verbose:
+            print("Fetching URL: ", url)
+    except Exception:
+        # fallback if today and no historical file yet
+        if utils.is_today(date, CAISO.default_timezone):
+            url = _BASE + "/%s.csv" % file
+            if verbose:
+                print("Fetching URL: ", url)
 
     df = pd.read_csv(url)
 
@@ -825,7 +829,7 @@ def _get_historical(url, date, verbose=False):
 
     df["Time"] = df["Time"].apply(
         _make_timestamp,
-        today=date_obj,
+        today=date,
         timezone="US/Pacific",
     )
 

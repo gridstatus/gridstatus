@@ -21,7 +21,7 @@ class MISO(ISOBase):
     iso_id = "miso"
     # miso spans multiple timezones, so picking central
     # all parsing is done in EST since that is what api returns
-    default_timezone = "US/Central"
+    default_timezone = "US/Eastern"
 
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
 
@@ -99,7 +99,7 @@ class MISO(ISOBase):
             raise NotSupported
 
     def get_load_forecast(self, date, verbose=False):
-        if date != "today":
+        if not utils.is_today(date, self.default_timezone):
             raise NotSupported()
 
         r = self._get_load_and_forecast_data(verbose=verbose)

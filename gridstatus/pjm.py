@@ -55,6 +55,32 @@ class PJM(ISOBase):
         "51287",
     ]
 
+    zone_node_ids = [
+        "1",
+        "3",
+        "51291",
+        "51292",
+        "51293",
+        "51295",
+        "51296",
+        "51297",
+        "51298",
+        "51299",
+        "51300",
+        "51301",
+        "7633629",
+        "8394954",
+        "8445784",
+        "33092371",
+        "34508503",
+        "34964545",
+        "37737283",
+        "116013753",
+        "124076095",
+        "970242670",
+        "1709725933",
+    ]
+
     markets = [
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
@@ -160,7 +186,7 @@ class PJM(ISOBase):
 
         """
 
-        if date != "today":
+        if not utils.is_today(date, self.default_timezone):
             raise NotSupported()
 
         # todo: should we use the UTC field instead of EPT?
