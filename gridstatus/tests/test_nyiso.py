@@ -1,7 +1,6 @@
 import pytest
 
 from gridstatus import NYISO, Markets
-from gridstatus.logging import configure_logging
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 
@@ -12,7 +11,6 @@ class TestNYISO(BaseTestISO):
     """"get_capacity_prices"""
 
     def test_get_capacity_prices(self, caplog):
-        configure_logging()
         # test 2022, 2023, and today
         df = self.iso.get_capacity_prices(date="Dec 1, 2022", verbose=True)
 
