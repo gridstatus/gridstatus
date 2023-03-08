@@ -56,6 +56,32 @@ class PJM(ISOBase):
         "51287",
     ]
 
+    zone_node_ids = [
+        "1",
+        "3",
+        "51291",
+        "51292",
+        "51293",
+        "51295",
+        "51296",
+        "51297",
+        "51298",
+        "51299",
+        "51300",
+        "51301",
+        "7633629",
+        "8394954",
+        "8445784",
+        "33092371",
+        "34508503",
+        "34964545",
+        "37737283",
+        "116013753",
+        "124076095",
+        "970242670",
+        "1709725933",
+    ]
+
     markets = [
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
@@ -102,6 +128,15 @@ class PJM(ISOBase):
 
         Arguments:
             date (datetime.date, str): date to get load for. must be in last 30 days
+
+        Returns:
+            pd.DataFrame: Load data time series. Columns: Time, Load, and all areas
+
+            * Load columns represent PJM-wide load
+            * Returns data for the following areas: AE, AEP, APS, ATSI,
+            BC, COMED, DAYTON, DEOK, DOM, DPL, DUQ, EKPC, JC,
+            ME, PE, PEP, PJM MID ATLANTIC REGION, PJM RTO,
+            PJM SOUTHERN REGION, PJM WESTERN REGION, PL, PN, PS, RECO
         """
 
         if date == "latest":
@@ -115,7 +150,6 @@ class PJM(ISOBase):
             "sort": "datetime_beginning_utc",
             "isActiveMetadata": "true",
             "fields": "area,datetime_beginning_utc,instantaneous_load",
-            "area": "PJM RTO",
         }
         load = self._get_pjm_json(
             "inst_load",
@@ -125,15 +159,24 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        load = load.drop("area", axis=1)
+        # pivot on area
+        load = load.pivot_table(
+            index="Time",
+            columns="area",
+            values="instantaneous_load",
+            aggfunc="first",
+        ).reset_index()
 
-        load = load.rename(
-            columns={
-                "instantaneous_load": "Load",
-            },
-        )
+        load.columns.name = None
 
-        load = load[["Time", "Load"]]
+        # don't need time column
+        all_areas = load.columns.tolist()[1:]
+
+        # set Load column name to match return column of other ISOs
+        load["Load"] = load["PJM RTO"]
+
+        # return everything in correct order
+        load = load[["Time", "Load"] + all_areas]
 
         return load
 
@@ -144,7 +187,7 @@ class PJM(ISOBase):
 
         """
 
-        if date != "today":
+        if not utils.is_today(date, self.default_timezone):
             raise NotSupported()
 
         # todo: should we use the UTC field instead of EPT?

@@ -109,9 +109,20 @@ installation
 availability
 lmp
 interconnection_queues
-Examples/index
-
 ```
+
+```{toctree}
+:maxdepth: 0
+:caption: Examples
+
+Examples/caiso/index.md
+Examples/ercot/index.md
+Examples/nyiso/index.md
+Examples/pjm/index.md
+Examples/spp/index.md
+Examples/misc/index.md
+```
+
 
 ```{toctree}
 :caption: Reference

@@ -25,3 +25,16 @@ def test_dam_heat_map():
     df["Hour"] = df["Time"].dt.hour
     fig = gridstatus.viz.dam_heat_map(df)
     assert isinstance(fig, plotly.graph_objs._figure.Figure)
+
+
+def test_load_over_time():
+
+    iso = gridstatus.CAISO()
+
+    df = iso.get_load("today")
+
+    fig = gridstatus.viz.load_over_time(df)
+    assert isinstance(fig, plotly.graph_objs._figure.Figure)
+
+    fig = gridstatus.viz.load_over_time(df, iso="CAISO")
+    assert isinstance(fig, plotly.graph_objs._figure.Figure)

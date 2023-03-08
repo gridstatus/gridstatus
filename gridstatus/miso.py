@@ -22,7 +22,7 @@ class MISO(ISOBase):
     iso_id = "miso"
     # miso spans multiple timezones, so picking central
     # all parsing is done in EST since that is what api returns
-    default_timezone = "US/Central"
+    default_timezone = "US/Eastern"
 
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
 
@@ -100,7 +100,7 @@ class MISO(ISOBase):
             raise NotSupported
 
     def get_load_forecast(self, date, verbose=False):
-        if date != "today":
+        if not utils.is_today(date, self.default_timezone):
             raise NotSupported()
 
         r = self._get_load_and_forecast_data(verbose=verbose)
@@ -147,11 +147,15 @@ class MISO(ISOBase):
         r = self._get_json(url, verbose=verbose)
 
         time = r["LMPData"]["RefId"]
-        time_str = time[:11] + " " + time[-9:]
-        try:
-            time = pd.to_datetime(time_str).tz_localize("EST")
-        except TypeError:
-            time = pd.to_datetime(time_str).tz_convert("EST")
+        time_str = time[:11] + " " + time[-9:-4]
+        time_zone = time[-3:]
+        time = (
+            pd.to_datetime(time_str)
+            .tz_localize(
+                time_zone,
+            )
+            .tz_convert(self.default_timezone)
+        )
 
         if market == Markets.REAL_TIME_5_MIN:
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])

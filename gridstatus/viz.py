@@ -40,3 +40,32 @@ def dam_heat_map(df):
     fig.update_yaxes(title="")
     fig.update_layout(title_x=0.5)
     return fig
+
+
+def load_over_time(df, iso=None):
+    """Create a line graph of load dataframe"""
+    y = "Load"
+    if len(df.columns) > 3:
+        y = df.columns[2:]
+
+    title = "Load Over Time"
+    if iso:
+        title += " - " + iso
+
+    fig = px.line(
+        df,
+        x=df["Time"],
+        y=y,
+        title=title,
+    )
+    # show legend
+    fig.update_layout(
+        legend=dict(
+            orientation="h",
+            title_text=None,
+            y=-0.2,
+        ),
+    )
+    fig.update_yaxes(title_text="MW")
+
+    return fig

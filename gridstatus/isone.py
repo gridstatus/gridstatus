@@ -420,10 +420,9 @@ class ISONE(ISOBase):
         data.rename(columns=rename, inplace=True)
 
         data["Market"] = market.value
-
-        location_groupby = (
-            "Location Id" if "Location Id" in data.columns else "Location"
-        )
+        # Location seems to be more unique than Location ID refer to #171
+        location_groupby = "Location" if "Location" in data.columns else "Location Id"
+        # groupby location so that hours are increasing monotonically and can infer dst
         data["Time"] = data.groupby(location_groupby)["Time"].transform(
             lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
                 timezone,
@@ -568,18 +567,17 @@ class ISONE(ISOBase):
 
 
 def _make_request(url, skiprows, verbose):
-    with requests.Session() as s:
-        # make first get request to get cookies set
-        s.get(
-            "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
-        )
+    attempt = 0
+    while attempt < 3:
+        with requests.Session() as s:
+            # make first get request to get cookies set
+            s.get(
+                "https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/gen-fuel-mix",
+            )
 
-        # in testing, never takes more than 2 attempts
-        attempt = 0
-        while attempt < 3:
-
-            msg = f"Loading data from {url}"
-            log(msg, verbose)
+            # in testing, never takes more than 2 attempts
+            if verbose:
+                print(f"Loading data from {url}", file=sys.stderr)
 
             response = s.get(url)
             content_type = response.headers["Content-Type"]
@@ -587,22 +585,25 @@ def _make_request(url, skiprows, verbose):
             if response.status_code == 200 and content_type == "text/csv":
                 break
 
-            print(f"Attempt {attempt+1} failed. Retrying...", file=sys.stderr)
+            print(
+                f"Attempt {attempt+1} failed. Retrying...",
+                file=sys.stderr,
+            )
             attempt += 1
 
-        if response.status_code != 200 or content_type != "text/csv":
-            raise RuntimeError(
-                f"Failed to get data from {url}. Check if ISONE is down and \
-                    try again later",
-            )
-
-        df = pd.read_csv(
-            io.StringIO(response.content.decode("utf8")),
-            skiprows=skiprows,
-            skipfooter=1,
-            engine="python",
+    if response.status_code != 200 or content_type != "text/csv":
+        raise RuntimeError(
+            f"Failed to get data from {url}. Check if ISONE is down and \
+                try again later",
         )
-        return df
+
+    df = pd.read_csv(
+        io.StringIO(response.content.decode("utf8")),
+        skiprows=skiprows,
+        skipfooter=1,
+        engine="python",
+    ).drop_duplicates()
+    return df
 
 
 def _make_wsclient_request(url, data, verbose=False):
