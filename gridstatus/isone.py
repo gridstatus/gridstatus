@@ -576,8 +576,8 @@ def _make_request(url, skiprows, verbose):
             )
 
             # in testing, never takes more than 2 attempts
-            if verbose:
-                print(f"Loading data from {url}", file=sys.stderr)
+            msg = f"Loading data from {url}"
+            log(msg, verbose)
 
             response = s.get(url)
             content_type = response.headers["Content-Type"]

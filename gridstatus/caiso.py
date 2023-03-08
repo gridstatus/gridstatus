@@ -816,14 +816,14 @@ def _get_historical(file, date, verbose=False):
     try:
         date_str = date.strftime("%Y%m%d")
         url = _HISTORY_BASE + "/%s/%s.csv" % (date_str, file)
-        if verbose:
-            print("Fetching URL: ", url)
+        msg = f"Fetching URL: {url}"
+        log(msg, verbose)
     except Exception:
         # fallback if today and no historical file yet
         if utils.is_today(date, CAISO.default_timezone):
             url = _BASE + "/%s.csv" % file
-            if verbose:
-                print("Fetching URL: ", url)
+            msg = f"Fetching URL: {url}"
+            log(msg, verbose)
 
     df = pd.read_csv(url)
 
