@@ -1,14 +1,12 @@
 import logging
 import sys
 
-from gridstatus.config import config
-
 
 def configure_logging():
     logger = logging.getLogger("gridstatus")
     if not len(logger.handlers):
         logger.setLevel(logging.INFO)
-        fmt = config.get_option("log_format")
+        fmt = ("%(name)s: %(levelname)s: %(message)s",)
         # by default, StreamHandler logs to stderr
         handler = logging.StreamHandler(sys.stderr)
         # log info, debug, warning, error, critical to stdout
