@@ -28,7 +28,7 @@ extensions = [
     "sphinx_thebe",
     "sphinx_togglebutton",
     "sphinxext.opengraph",
-    "sphinx-favicon",
+    "sphinx_favicon",
     "sphinx.ext.inheritance_diagram",
     "sphinxext.opengraph",
     "sphinx.ext.napoleon",
