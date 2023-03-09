@@ -45,7 +45,7 @@ test = [
     "pytest-rerunfailures == 10.3",
 ]
 dev = [
-    "ruff == 0.0.254",
+    "ruff == 0.0.202",
     "black[jupyter] == 22.12.0",
     "pre-commit == 2.21.0",
 ]
@@ -102,6 +102,13 @@ markers = [
 line-length = 88
 target-version = ['py311']
 
+[build-system]
+requires = [
+    "setuptools >= 61",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
 [tool.ruff]
 line-length = 88
 ignore = []
@@ -123,10 +130,3 @@ known-first-party = ["gridstatus"]
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401", "E402", "F403", "F405", "E501", "I001"]
-
-[build-system]
-requires = [
-    "setuptools >= 61",
-    "wheel",
-]
-build-backend = "setuptools.build_meta"
