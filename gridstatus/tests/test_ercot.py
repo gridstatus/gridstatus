@@ -52,7 +52,7 @@ class TestErcot(BaseTestISO):
 
         # if greater than python 3.7 only
         # becuase of pd.date_range inclusive="left" kwarg
-        if sys.version_info >= (3, 7):
+        if sys.version_info > (3, 7):
             for check_date in pd.date_range(date, today, freq="D", inclusive="left"):
                 temp = df.loc[df.Time.dt.date == check_date.date()].copy()
                 assert temp.shape[0] > 0
