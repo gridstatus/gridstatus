@@ -333,7 +333,7 @@ class Ercot(ISOBase):
         """
         # subtract one day since it's the day ahead market happens on the day
         # before for the delivery day
-        date = date - pd.Timedelta("1D")
+        date = date - pd.DateOffset(day=1)
 
         doc_info = self._get_document(
             report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
@@ -652,7 +652,7 @@ class Ercot(ISOBase):
 
         publish_date = utils._handle_date(date, self.default_timezone)
         # adjust for DAM since it's published a day ahead
-        publish_date = publish_date - pd.Timedelta("1D")
+        publish_date = publish_date.normalize() - pd.DateOffset(days=1)
         doc_info = self._get_document(
             report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
             date=publish_date,
