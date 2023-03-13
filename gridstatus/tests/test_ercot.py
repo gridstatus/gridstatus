@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import pytest
 
@@ -48,9 +50,12 @@ class TestErcot(BaseTestISO):
 
         df = self.iso.get_as_prices(date, end=today)
 
-        for check_date in pd.date_range(date, today, freq="D", inclusive="left"):
-            temp = df.loc[df.Time.dt.date == check_date.date()].copy()
-            assert temp.shape[0] > 0
+        # if greater than python 3.7 only
+        # becuase of pd.date_range inclusive="left" kwarg
+        if os.version_info >= (3, 7):
+            for check_date in pd.date_range(date, today, freq="D", inclusive="left"):
+                temp = df.loc[df.Time.dt.date == check_date.date()].copy()
+                assert temp.shape[0] > 0
 
         date = pd.Timestamp(2022, 11, 8).date()
         end = pd.Timestamp(2022, 11, 30).date()
