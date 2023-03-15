@@ -28,7 +28,7 @@ extensions = [
     "sphinx_thebe",
     "sphinx_togglebutton",
     "sphinxext.opengraph",
-    "sphinx-favicon",
+    "sphinx_favicon",
     "sphinx.ext.inheritance_diagram",
     "sphinxext.opengraph",
     "sphinx.ext.napoleon",
@@ -85,7 +85,7 @@ html_theme_options = {
 
 todo_include_todos = True
 
-# -- Options for sphinx-favicon ----------------------------------------------
+# -- Options for sphinx_favicon ----------------------------------------------
 favicons = [
     {
         "rel": "icon",
