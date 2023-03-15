@@ -69,7 +69,7 @@ class TestPJM(BaseTestISO):
 
     def test_get_lmp_no_data(self):
         # raise no error since date in future
-        future_date = pd.Timestamp.now().normalize() + pd.Timedelta(days=10)
+        future_date = pd.Timestamp.now().normalize() + pd.DateOffset(days=10)
         with pytest.raises(RuntimeError):
             self.iso.get_lmp(
                 date=future_date,
@@ -258,10 +258,10 @@ class TestPJM(BaseTestISO):
 
         # cross archive date
         archive_date = _get_pjm_archive_date(args_dict["market"])
-        start = archive_date - pd.Timedelta("1 day")
-        end = archive_date + pd.Timedelta("1 day")
+        start = archive_date - pd.DateOffset(days=1)
+        end = archive_date + pd.DateOffset(days=1)
         new_dates = gridstatus.pjm.pjm_update_dates([start, end], args_dict)
-        day_before_archive = archive_date - pd.Timedelta(days=1)
+        day_before_archive = archive_date - pd.DateOffset(days=1)
         before_archive = pd.Timestamp(
             year=day_before_archive.year,
             month=day_before_archive.month,
@@ -283,8 +283,8 @@ class TestPJM(BaseTestISO):
 
         # test span archive date and year
         archive_date = _get_pjm_archive_date(m)
-        start = archive_date - pd.Timedelta(days=366)
-        end = archive_date + pd.Timedelta("1 day")
+        start = archive_date - pd.DateOffset(days=366)
+        end = archive_date + pd.DateOffset(days=1)
         hist = self.iso.get_lmp(
             start=start,
             end=end,
@@ -295,7 +295,7 @@ class TestPJM(BaseTestISO):
         self._check_lmp_columns(hist, m)
         # has every hour in the range
 
-        # check that every day has 24, 24, or 25 hrs
+        # check that every day has 23, 24, or 25 hrs
         unique_hours_per_day = (
             hist["Time"]
             .drop_duplicates()
@@ -307,8 +307,8 @@ class TestPJM(BaseTestISO):
 
         # test span archive date
         archive_date = _get_pjm_archive_date(m)
-        start = archive_date - pd.Timedelta("1 day")
-        end = archive_date + pd.Timedelta("1 day")
+        start = archive_date - pd.DateOffset(days=1)
+        end = archive_date + pd.DateOffset(days=1)
         hist = self.iso.get_lmp(
             start=start,
             end=end,
@@ -349,8 +349,8 @@ class TestPJM(BaseTestISO):
 
         # all standard
         # move a few days back to avoid late published data
-        end = pd.Timestamp.now() - pd.Timedelta(days=4)
-        start = end - pd.Timedelta(days=1)
+        end = pd.Timestamp.now() - pd.DateOffset(days=4)
+        start = end - pd.DateOffset(days=1)
 
         hist = self.iso.get_lmp(
             start=start,

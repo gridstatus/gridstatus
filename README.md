@@ -27,7 +27,7 @@ To preview some the data this library provide access to, visit [GridStatus.io](h
 
 ## Installation
 
-`gridstatus` supports python 3.7+. Install with pip
+`gridstatus` supports python 3.8+. Install with pip
 
 ```
 python -m pip install gridstatus
