@@ -6,7 +6,7 @@ kernelspec:
 
 # Installation
 
-`gridstatus` supports python 3.7+. Install with pip
+`gridstatus` supports python 3.8+. Install with pip
 
 ```
 python -m pip install gridstatus

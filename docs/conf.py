@@ -85,7 +85,7 @@ html_theme_options = {
 
 todo_include_todos = True
 
-# -- Options for sphinx-favicon ----------------------------------------------
+# -- Options for sphinx_favicon ----------------------------------------------
 favicons = [
     {
         "rel": "icon",

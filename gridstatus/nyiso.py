@@ -652,20 +652,12 @@ class NYISO(ISOBase):
             if end is None:
                 date_range = [date]
             else:
-                try:
-                    date_range = pd.date_range(
-                        date,
-                        end,
-                        freq="1D",
-                        inclusive="left",
-                    )
-                except TypeError:
-                    date_range = pd.date_range(
-                        date,
-                        end,
-                        freq="1D",
-                        closed="left",
-                    )
+                date_range = pd.date_range(
+                    date,
+                    end,
+                    freq="1D",
+                    inclusive="left",
+                )
 
             for d in date_range:
                 d = gridstatus.utils._handle_date(d)
