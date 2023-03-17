@@ -16,6 +16,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logging import log
 
 
 class ISONE(ISOBase):
@@ -482,8 +483,10 @@ class ISONE(ISOBase):
         """  # noqa
 
         # determine report date from homepage
-        if verbose:
-            print("Loading queue", self.interconnection_homepage)
+
+        msg = f"Loading queue {self.interconnection_homepage}"
+        log(msg, verbose)
+
         r = requests.get("https://irtt.iso-ne.com/reports/external")
         queue = pd.read_html(r.text, attrs={"id": "publicqueue"})[0]
 
@@ -573,8 +576,8 @@ def _make_request(url, skiprows, verbose):
             )
 
             # in testing, never takes more than 2 attempts
-            if verbose:
-                print(f"Loading data from {url}", file=sys.stderr)
+            msg = f"Loading data from {url}"
+            log(msg, verbose)
 
             response = s.get(url)
             content_type = response.headers["Content-Type"]
@@ -605,8 +608,9 @@ def _make_request(url, skiprows, verbose):
 
 def _make_wsclient_request(url, data, verbose=False):
     """Make request to ISO NE wsclient"""
-    if verbose:
-        print("Requesting data from {}".format(url))
+
+    msg = f"Requesting data from {url}"
+    log(msg, verbose)
 
     r = requests.post(
         "https://www.iso-ne.com/ws/wsclient",

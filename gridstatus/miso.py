@@ -6,6 +6,7 @@ import requests
 from gridstatus import utils
 from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logging import log
 
 
 class MISO(ISOBase):
@@ -213,8 +214,8 @@ class MISO(ISOBase):
         """
         url = "https://www.misoenergy.org/api/giqueue/getprojects"
 
-        if verbose:
-            print("Downloading interconnection queue from {}".format(url))
+        msg = f"Downloading interconnection queue from {url}"
+        log(msg, verbose)
 
         json_str = requests.get(url).text
         data = json.loads(json_str)

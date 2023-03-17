@@ -15,6 +15,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logging import log
 
 ZONE = "zone"
 GENERATOR = "generator"
@@ -259,8 +260,8 @@ class NYISO(ISOBase):
         # harded coded for now. perhaps this url can be parsed from the html here:
         url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
 
-        if verbose:
-            print("Downloading interconnection queue from {}".format(url))
+        msg = f"Downloading interconnection queue from {url}"
+        log(msg, verbose)
 
         all_sheets = pd.read_excel(
             url,
@@ -292,6 +293,13 @@ class NYISO(ISOBase):
         completed.insert(17, "Proposed Initial-Sync Date", None)
 
         completed["Status"] = InterconnectionQueueStatus.COMPLETED.value
+
+        if (
+            "SGIA Tender Date" in active.columns
+            and "SGIA Tender Date" not in completed.columns
+        ):
+            active = active.drop(columns=["SGIA Tender Date"])
+        # import pdb; pdb.set_trace()
         completed.columns = active.columns
 
         # the spreadsheet doesnt have a date, so make it null
@@ -441,8 +449,8 @@ class NYISO(ISOBase):
 
         url = "http://mis.nyiso.com/public/csv/generator/generator.csv"
 
-        if verbose:
-            print(f"Requesting {url}")
+        msg = f"Requesting {url}"
+        log(msg, verbose)
 
         df = pd.read_csv(url)
 
@@ -450,8 +458,9 @@ class NYISO(ISOBase):
         # find it here: https://www.nyiso.com/gold-book-resources
         capacity_url_2022 = "https://www.nyiso.com/documents/20142/30338270/2022-NYCA-Generators.xlsx/f0526021-37fd-2c27-94ee-14d0f31878c1"  # noqa
 
-        if verbose:
-            print(f"Requesting {url}")
+        msg = f"Requesting {url}"
+        log(msg, verbose)
+
         generators = pd.read_excel(
             capacity_url_2022,
             sheet_name=[
@@ -573,8 +582,8 @@ class NYISO(ISOBase):
 
         url = "http://mis.nyiso.com/public/csv/load/load.csv"
 
-        if verbose:
-            print(f"Requesting {url}")
+        msg = f"Requesting {url}"
+        log(msg, verbose)
 
         df = pd.read_csv(url)
 
@@ -625,15 +634,16 @@ class NYISO(ISOBase):
         if end is None and date > pd.Timestamp.now(
             tz=self.default_timezone,
         ).normalize() - pd.DateOffset(days=7):
-            if verbose:
-                print(f"Requesting {csv_url}")
+            msg = f"Requesting {csv_url}"
+            log(msg, verbose)
 
             df = pd.read_csv(csv_url)
             df = _handle_time(df)
             df["File Date"] = date.normalize()
         else:
-            if verbose:
-                print(f"Requesting {zip_url}")
+
+            msg = f"Requesting {zip_url}"
+            log(msg, verbose)
 
             r = requests.get(zip_url)
             z = ZipFile(io.BytesIO(r.content))
@@ -716,8 +726,8 @@ class NYISO(ISOBase):
         )
 
         url = f"{capacity_market_base_url}-{date.month_name()}-{date.year}.xlsx"
-        if verbose:
-            print(url)
+        msg = f"Requesting {url}"
+        log(msg, verbose)
 
         df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1])
 

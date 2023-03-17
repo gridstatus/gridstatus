@@ -11,6 +11,7 @@ from gridstatus import utils
 from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logging import log
 
 _BASE = "https://www.caiso.com/outlook/SP"
 _HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
@@ -443,8 +444,8 @@ class CAISO(ISOBase):
     def get_interconnection_queue(self, verbose=False):
         url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
 
-        if verbose:
-            print("Downloading interconnection queue from {}".format(url))
+        msg = f"Downloading interconnection queue from {url}"
+        log(msg, verbose)
 
         sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
 
@@ -586,10 +587,12 @@ class CAISO(ISOBase):
 
         pdf = None
         for date_str in date_strs:
-            f = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"  # noqa
-            if verbose:
-                print("Fetching URL: ", f)
-            r = requests.get(f)
+            url = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"  # noqa: E501
+
+            msg = f"Fetching URL: {url}"
+            log(msg, verbose)
+
+            r = requests.get(url)
             if b"404 - Page Not Found" in r.content:
                 continue
             pdf = io.BytesIO(r.content)
@@ -813,14 +816,14 @@ def _get_historical(file, date, verbose=False):
     try:
         date_str = date.strftime("%Y%m%d")
         url = _HISTORY_BASE + "/%s/%s.csv" % (date_str, file)
-        if verbose:
-            print("Fetching URL: ", url)
+        msg = f"Fetching URL: {url}"
+        log(msg, verbose)
     except Exception:
         # fallback if today and no historical file yet
         if utils.is_today(date, CAISO.default_timezone):
             url = _BASE + "/%s.csv" % file
-            if verbose:
-                print("Fetching URL: ", url)
+            msg = f"Fetching URL: {url}"
+            log(msg, verbose)
 
     df = pd.read_csv(url)
 
@@ -842,8 +845,9 @@ def _get_historical(file, date, verbose=False):
 
 
 def _get_oasis(url, usecols=None, verbose=False, sleep=4):
-    if verbose:
-        print(url)
+
+    msg = f"Fetching URL: {url}"
+    log(msg, verbose)
 
     retry_num = 0
     while retry_num < 3:
