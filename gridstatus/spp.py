@@ -1,6 +1,5 @@
 import io
 import re
-import sys
 from urllib.parse import urlencode
 
 import pandas as pd
@@ -19,6 +18,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logging import log
 
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
@@ -184,8 +184,8 @@ class SPP(ISOBase):
     def _get_load_and_forecast(self, verbose=False):
         url = "https://marketplace.spp.org/chart-api/load-forecast/asChart"
 
-        if verbose:
-            print("Getting load and forecast from {}".format(url))
+        msg = f"Getting load and forecast from {url}"
+        log(msg, verbose)
 
         r = self._get_json(url)["response"]
 
@@ -228,8 +228,9 @@ class SPP(ISOBase):
 
         """
         url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
-        if verbose:
-            print("Getting interconnection queue from {}".format(url))
+
+        msg = f"Getting interconnection queue from {url}"
+        log(msg, verbose)
 
         queue = pd.read_csv(url, skiprows=1)
 
@@ -568,8 +569,8 @@ class SPP(ISOBase):
                 path=date.strftime("/%Y/%m/By_Interval/%d"),
             )
             paths = files_df["path"].tolist()
-        if verbose:
-            print(f"Found {len(paths)} files for {date}", file=sys.stderr)
+        msg = f"Found {len(paths)} files for {date}"
+        log(msg, verbose)
         return paths
 
     def _fetch_and_concat_csvs(self, paths: list, fs_name: str, verbose: bool = False):
@@ -579,8 +580,9 @@ class SPP(ISOBase):
                 fs_name,
                 params={"path": path},
             )
-            if verbose:
-                print(f"Fetching {url}", file=sys.stderr)
+            msg = f"Fetching {url}"
+            log(msg, verbose)
+
             csv = requests.get(url)
             df = pd.read_csv(io.StringIO(csv.content.decode("UTF-8")))
             all_dfs.append(df)
@@ -625,8 +627,8 @@ class SPP(ISOBase):
         # get latest file
         paths = matched_file["path"].tolist()
 
-        if verbose:
-            print(f"Found {len(paths)} files for {date}", file=sys.stderr)
+        msg = f"Found {len(paths)} files for {date}"
+        log(msg, verbose)
         return paths
 
     def _get_marketplace_session(self) -> dict:

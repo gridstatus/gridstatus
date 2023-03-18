@@ -1,5 +1,4 @@
 import io
-import sys
 from dataclasses import dataclass
 from zipfile import ZipFile
 
@@ -17,6 +16,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import ercot_update_dates, support_date_range
 from gridstatus.lmp_config import lmp_config
+from gridstatus.logging import log
 
 LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_NODE = "NODE"
@@ -240,8 +240,8 @@ class Ercot(ISOBase):
             timestamp=when.strftime("%Y%m%d"),
         )
 
-        if verbose:
-            print(f"Fetching {url}")
+        msg = f"Fetching {url}"
+        log(msg, verbose)
 
         dfs = pd.read_html(url, header=0)
         df = dfs[0]
@@ -258,8 +258,10 @@ class Ercot(ISOBase):
             self.default_timezone,
         ), "Only today's data is supported"
         url = self.BASE + "/supply-demand.json"
-        if verbose:
-            print(f"Fetching {url}", file=sys.stderr)
+
+        msg = f"Fetching {url}"
+        log(msg, verbose)
+
         r = self._get_json(url)
 
         date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
@@ -333,7 +335,8 @@ class Ercot(ISOBase):
         """
         # subtract one day since it's the day ahead market happens on the day
         # before for the delivery day
-        date = date - pd.Timedelta("1D")
+
+        date = date - pd.DateOffset(days=1)
 
         doc_info = self._get_document(
             report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
@@ -342,8 +345,8 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        if verbose:
-            print("Downloading {}".format(doc_info.url))
+        msg = f"Downloading {doc_info.url}"
+        log(msg, verbose)
 
         doc = pd.read_csv(doc_info.url, compression="zip")
 
@@ -394,8 +397,8 @@ class Ercot(ISOBase):
         # TODO see if this data matches up with summaries in excel file
         # TODO historical data available as well
 
-        if verbose:
-            print("Downloading interconnection queue from: ", doc_info.url)
+        msg = f"Downloading interconnection queue from: {doc_info.url} "
+        log(msg, verbose)
 
         # skip rows and handle header
         queue = pd.read_excel(
@@ -592,6 +595,7 @@ class Ercot(ISOBase):
                 - pd.DateOffset(days=self.AS_PRICES_HISTORICAL_MAX_DAYS)
             ).date()
         ):
+
             return self._get_as_prices_recent(date, end=end)
         elif not end:
             end = date
@@ -652,15 +656,17 @@ class Ercot(ISOBase):
 
         publish_date = utils._handle_date(date, self.default_timezone)
         # adjust for DAM since it's published a day ahead
-        publish_date = publish_date - pd.Timedelta("1D")
+        publish_date = publish_date.normalize() - pd.DateOffset(days=1)
         doc_info = self._get_document(
             report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
             date=publish_date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
-        if verbose:
-            print(f"Fetching {doc_info.url}", file=sys.stderr)
+
+        msg = f"Fetching {doc_info.url}"
+        log(msg, verbose)
+
         df = pd.read_csv(doc_info.url, compression="zip")
 
         # fetch mapping
@@ -828,8 +834,10 @@ class Ercot(ISOBase):
         all_dfs = []
         for doc_info in docs:
             doc_url = doc_info.url
-            if verbose:
-                print(f"Fetching {doc_url}", file=sys.stderr)
+
+            msg = f"Fetching {doc_url}"
+            log(msg, verbose)
+
             df = pd.read_csv(doc_url, compression="zip")
             all_dfs.append(df)
         df = pd.concat(all_dfs).reset_index(drop=True)
@@ -886,8 +894,10 @@ class Ercot(ISOBase):
             list of Document with URL and Publish Date
         """
         url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"  # noqa
-        if verbose:
-            print(f"Fetching document {url}", file=sys.stderr)
+
+        msg = f"Fetching document {url}"
+        log(msg, verbose)
+
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
         matches = []
         for doc in docs:
@@ -972,8 +982,9 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
         doc_url = doc_info.url
-        if verbose:
-            print(f"Fetching {doc_url}", file=sys.stderr)
+
+        msg = f"Fetching {doc_url}"
+        log(msg, verbose)
 
         r = requests.get(doc_url)
         z = ZipFile(io.BytesIO(r.content))
