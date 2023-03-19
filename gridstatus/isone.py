@@ -1,6 +1,5 @@
 import io
 import math
-import sys
 
 import pandas as pd
 import requests
@@ -587,7 +586,6 @@ def _make_request(url, skiprows, verbose):
 
             print(
                 f"Attempt {attempt+1} failed. Retrying...",
-                file=sys.stderr,
             )
             attempt += 1
 
