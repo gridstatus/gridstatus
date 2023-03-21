@@ -16,15 +16,15 @@ jobs:
         run: |
           python -m pip install ".[test]"
       - name: Run unit tests without coverage
-        if: matrix.python-version != '3.11'
+        if: ${{ matrix.python-version != '3.11' }}
         run: |
           make test
       - name: Run unit tests with coverage
-        if: matrix.python-version == '3.11'
+        if: ${{ matrix.python-version == '3.11' }}
         run: |
           make test-cov
       - uses: codecov/codecov-action@v3
-        if: matrix.python-version  == '3.11'
+        if: ${{ matrix.python-version == '3.11' }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ github.workspace }}/coverage.xml

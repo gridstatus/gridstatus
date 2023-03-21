@@ -6,19 +6,19 @@ clean:
 	find . -name '*~' -delete
 	find . -name '.coverage.*' -delete
 
-PYTEST_CMD := python -m pytest -s -vv gridstatus/ -n auto
+PYTEST_CMD := python -m pytest -s -vv gridstatus/ -n auto --reruns 5 --reruns-delay 3
 
 .PHONY: test
 test:
-	$(PYTEST_CMD) -m "not slow" --reruns 5 --reruns-delay 3
-
-.PHONY: test-slow
-test-slow:
-	$(PYTEST_CMD)
+	$(PYTEST_CMD) -m "not slow"
 
 .PHONY: test-cov
 test-cov:
-	$(PYTEST_CMD) --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
+	$(PYTEST_CMD) -m "not slow" --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
+
+.PHONY: test-slow
+test-slow:
+	$(PYTEST_CMD) -m "slow"
 
 .PHONY: installdeps-dev
 installdeps-dev:
