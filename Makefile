@@ -6,15 +6,16 @@ clean:
 	find . -name '*~' -delete
 	find . -name '.coverage.*' -delete
 
-PYTEST_CMD := python -m pytest -s -vv gridstatus/ -n auto --reruns 5 --reruns-delay 3
+PYTEST_CMD := python -m pytest -s -vv gridstatus/ -n auto
+NOT_SLOW := -m "not slow" --reruns 5 --reruns-delay 3
 
 .PHONY: test
 test:
-	$(PYTEST_CMD) -m "not slow"
+	$(PYTEST_CMD) $(NOT_SLOW)
 
 .PHONY: test-cov
 test-cov:
-	$(PYTEST_CMD) -m "not slow" --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
+	$(PYTEST_CMD) $(NOT_SLOW) --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
 
 .PHONY: test-slow
 test-slow:
