@@ -1,5 +1,11 @@
 name: Tests
-on: [pull_request]
+on: # Run on all pushes and pull requests
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
   build:
     runs-on: ubuntu-latest
