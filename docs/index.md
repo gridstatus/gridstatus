@@ -19,6 +19,9 @@ kernelspec:
     <a href="https://github.com/kmax12/gridstatus/actions?query=branch%3Amain+workflow%3ATests" target="_blank">
         <img src="https://github.com/kmax12/gridstatus/workflows/Tests/badge.svg?branch=main" alt="Tests" />
     </a>
+    <a href="https://codecov.io/gh/kmax12/gridstatus" target="_blank">
+        <img src="https://codecov.io/gh/kmax12/gridstatus/branch/main/graph/badge.svg" alt="Code Coverage"/>
+    </a>
     <a href="https://badge.fury.io/py/gridstatus" target="_blank">
         <img src="https://badge.fury.io/py/gridstatus.svg?maxAge=2592000" alt="PyPI Version" />
     </a>
