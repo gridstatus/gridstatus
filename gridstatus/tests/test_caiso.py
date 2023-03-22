@@ -18,6 +18,8 @@ class TestCAISO(BaseTestISO):
 
         assert df.columns.tolist() == [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Region",
             "Market",
             "Non-Spinning Reserves",
@@ -91,7 +93,12 @@ class TestCAISO(BaseTestISO):
         df = self.iso.get_ghg_allowance(date)
 
         assert len(df) == 1
-        assert set(df.columns) == {"Time", "GHG Allowance Price"}
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "GHG Allowance Price",
+        ]
 
     """get_lmp"""
 
@@ -128,6 +135,8 @@ class TestCAISO(BaseTestISO):
     def _check_as_data(df, market):
         columns = [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Region",
             "Market",
             "Non-Spinning Reserves Procured (MW)",

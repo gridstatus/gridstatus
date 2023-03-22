@@ -97,8 +97,10 @@ class ISOBase:
         lmp_df = self.get_lmp(
             date="today", market=market, locations=locations, **kwargs
         )
+        col_order = lmp_df.columns.tolist()
         # Assume sorted in ascending order
         latest_df = lmp_df.groupby("Location").last().reset_index()
+        latest_df = latest_df[col_order]
         return latest_df
 
     def _latest_from_today(self, method, *args, **kwargs):
@@ -108,17 +110,6 @@ class ISOBase:
         latest.index = latest.index.str.lower()
 
         return latest.to_dict()
-
-    def _supply_from_fuel_mix(self, date):
-        df = self.get_fuel_mix(date)
-        supply_df = df.pop("Time").to_frame()
-        supply_df["Supply"] = df.sum(axis=1)  # sum all the remaining columns
-        return supply_df
-
-    def _latest_supply_from_fuel_mix(self):
-        mix = self.get_fuel_mix(date="latest")
-
-        return {"time": mix.time, "supply": mix.total_production}
 
 
 class GridStatus:
