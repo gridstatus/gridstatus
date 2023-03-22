@@ -215,9 +215,23 @@ class BaseTestISO:
         assert df.loc[0]["Time"].tz is not None
 
     def _check_forecast(self, df):
-        assert set(df.columns) == set(
-            ["Forecast Time", "Time", "Load Forecast"],
-        )
+
+        # allow both formats for now
+        # remove this when all ISOs return start/end
+        if self.iso.iso_id in ["caiso"]:
+            assert set(df.columns) == set(
+                [
+                    "Forecast Time",
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Load Forecast",
+                ],
+            )
+        else:
+            assert set(df.columns) == set(
+                ["Forecast Time", "Time", "Load Forecast"],
+            )
 
         assert self._check_is_datetime_type(df["Forecast Time"])
         assert self._check_is_datetime_type(df["Time"])
