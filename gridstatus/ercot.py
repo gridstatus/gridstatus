@@ -228,18 +228,6 @@ class Ercot(ISOBase):
         else:
             raise NotSupported()
 
-    def _get_load_json(self, when):
-        """Returns load for currentDay or previousDay"""
-        # todo:
-        # even more historical data. up to month back i think: https://www.ercot.com/mp/data-products/data-product-details?id=NP6-346-CD
-        # hourly load archives: https://www.ercot.com/gridinfo/load/load_hist
-        url = self.BASE + "/loadForecastVsActual.json"
-        r = self._get_json(url)
-        df = pd.DataFrame(r[when]["data"])
-        df = df.dropna(subset=["systemLoad"])
-        df = self._handle_json_data(df, {"systemLoad": "Load"})
-        return df
-
     def _get_load_html(self, when, verbose=False):
         """Returns load for currentDay or previousDay"""
         url = self.ACTUAL_LOADS_URL_FORMAT.format(
@@ -324,21 +312,21 @@ class Ercot(ISOBase):
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
-        doc = pd.read_csv(doc_info.url, compression="zip")
 
-        doc["Time"] = pd.to_datetime(
-            doc["DeliveryDate"]
-            + " "
-            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+        doc = self.read_doc(doc_info, verbose=verbose)
 
         doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
         doc["Forecast Time"] = doc_info.publish_date
 
-        doc = doc[["Forecast Time", "Time", "Load Forecast"]]
+        doc = doc[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ]
+        ]
 
         return doc
 
@@ -374,11 +362,10 @@ class Ercot(ISOBase):
         msg = f"Downloading {doc_info.url}"
         log(msg, verbose)
 
-        doc = pd.read_csv(doc_info.url, compression="zip")
+        doc = self.read_doc(doc_info, verbose=verbose)
 
         data = Ercot._finalize_as_price_df(
             doc,
-            "DSTFlag",
             pivot=True,
         )
 
@@ -631,14 +618,9 @@ class Ercot(ISOBase):
             constructed_name_contains=f"{date.year}.zip",
             verbose=verbose,
         )
+        doc = self.read_doc(doc_info, verbose=verbose)
 
-        x = utils.get_zip_file(doc_info.url)
-        doc = pd.read_csv(x)
-
-        doc = Ercot._finalize_as_price_df(
-            doc,
-            "Repeated Hour Flag",
-        )
+        doc = Ercot._finalize_as_price_df(doc)
 
         max_date = doc.Time.max().date()
 
@@ -656,15 +638,17 @@ class Ercot(ISOBase):
             )
 
         # join, sort, filter and reset data index
-        data = pd.concat(df_list).sort_values(by="Time")
+        data = pd.concat(df_list).sort_values(by="Interval Start")
 
         data = (
             data.loc[
                 (data.Time.dt.date >= date.date()) & (data.Time.dt.date <= end.date())
             ]
-            .drop_duplicates(subset=["Time"])
+            .drop_duplicates(subset=["Interval Start"])
             .reset_index(drop=True)
         )
+
+        print(data)
 
         return data
 
@@ -693,7 +677,7 @@ class Ercot(ISOBase):
         msg = f"Fetching {doc_info.url}"
         log(msg, verbose)
 
-        df = pd.read_csv(doc_info.url, compression="zip")
+        df = self.read_doc(doc_info, verbose=verbose)
 
         # fetch mapping
         df["Market"] = Markets.DAY_AHEAD_HOURLY.value
@@ -702,10 +686,6 @@ class Ercot(ISOBase):
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         df = self._filter_by_location_type(df, mapping_df, location_type)
 
-        df["Time"] = Ercot._parse_delivery_date_hour_ending(
-            df,
-            self.default_timezone,
-        )
         return df
 
     @staticmethod
@@ -730,43 +710,27 @@ class Ercot(ISOBase):
         df = utils.filter_lmp_locations(df, locations)
         df = df[
             [
-                "Location",
                 "Time",
-                "Market",
+                "Interval Start",
+                "Interval End",
+                "Location",
                 "Location Type",
+                "Market",
                 "SPP",
             ]
         ]
+        df = df.sort_values(by="Interval Start")
         df = df.reset_index(drop=True)
         return df
 
     @staticmethod
-    def _finalize_as_price_df(doc, ambiguous_column, pivot=False):
-        # files sometimes have different naming conventions
-        # a more elegant solution would be nice
-        doc.rename(
-            columns={
-                "Delivery Date": "DeliveryDate",
-                "Hour Ending": "HourEnding",
-            },
-            inplace=True,
-        )
-
-        doc["Time"] = pd.to_datetime(
-            doc["DeliveryDate"]
-            + " "
-            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(Ercot.default_timezone, ambiguous=doc[ambiguous_column] == "Y")
-
+    def _finalize_as_price_df(doc, pivot=False):
         doc["Market"] = "DAM"
 
         # recent daily files need to be pivoted
         if pivot:
             doc = doc.pivot_table(
-                index=["Time", "Market"],
+                index=["Time", "Interval Start", "Interval End", "Market"],
                 columns="AncillaryType",
                 values="MCPC",
             ).reset_index()
@@ -786,6 +750,8 @@ class Ercot(ISOBase):
 
         col_order = [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Market",
             "Non-Spinning Reserves",
             "Regulation Down",
@@ -796,17 +762,6 @@ class Ercot(ISOBase):
         doc.rename(columns=rename, inplace=True)
 
         return doc[col_order]
-
-    @staticmethod
-    def _parse_delivery_date_hour_ending(df, timezone):
-        return pd.to_datetime(
-            df["DeliveryDate"]
-            + " "
-            + (df["HourEnding"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(timezone, ambiguous="infer")
 
     @staticmethod
     def _parse_delivery_date_hour_interval(df, timezone):
@@ -853,19 +808,15 @@ class Ercot(ISOBase):
 
             msg = f"Fetching {doc_url}"
             log(msg, verbose)
-
-            df = pd.read_csv(doc_url, compression="zip")
+            df = self.read_doc(doc_info, verbose=verbose)
             all_dfs.append(df)
         df = pd.concat(all_dfs).reset_index(drop=True)
+        df.drop
 
         df["Market"] = Markets.REAL_TIME_15_MIN.value
         df["Location Type"] = self._get_location_type_name(location_type)
-        df["Time"] = Ercot._parse_delivery_date_hour_interval(
-            df,
-            self.default_timezone,
-        )
         # Additional filter as the document may contain the last 15 minutes of yesterday
-        df = df[df["Time"].dt.date == publish_date.date()]
+        df = df[df["Interval Start"].dt.date == publish_date.date()]
         df = self._filter_by_settlement_point_type(df, location_type)
 
         return df
@@ -1033,6 +984,84 @@ class Ercot(ISOBase):
             raise ValueError(f"Invalid location_type: {location_type}")
 
         return df[df["SettlementPoint"].isin(valid_values)]
+
+    def read_doc(self, doc, verbose=False):
+        doc = pd.read_csv(doc.url, compression="zip")
+
+        # files sometimes have different naming conventions
+        # a more elegant solution would be nice
+        doc.rename(
+            columns={
+                "Delivery Date": "DeliveryDate",
+                "Hour Ending": "HourEnding",
+                "Repeated Hour Flag": "DSTFlag",
+                "DeliveryHour": "HourEnding",
+                # fix whitespace in column name
+                "DSTFlag    ": "DSTFlag",
+            },
+            inplace=True,
+        )
+
+        original_cols = doc.columns.tolist()
+
+        # i think DeliveryInterval only shows up
+        # in 15 minute data along with DeliveryHour
+        if "DeliveryInterval" in original_cols:
+            interval_length = pd.Timedelta(minutes=15)
+            doc["Interval End"] = (
+                pd.to_datetime(doc["DeliveryDate"])
+                + doc["HourEnding"].apply(
+                    hour_offset,
+                )
+                + (doc["DeliveryInterval"] * interval_length)
+            )
+
+        else:
+            interval_length = pd.Timedelta(hours=1)
+            doc["Interval End"] = pd.to_datetime(doc["DeliveryDate"]) + (
+                doc["HourEnding"].str.split(":").str[0].astype(int)
+            ).apply(hour_offset)
+
+            # if there is a DST skip, add an hour to the previous row
+            # for example, data has 2022-03-13 02:00:00,
+            # but that should be 2022-03-13 03:00:00
+            dst_skip_hour = doc[doc["Interval End"].diff() == pd.Timedelta(hours=2)]
+            for i in dst_skip_hour.index:
+                doc.loc[i - 1, "Interval End"] = doc.loc[
+                    i - 1,
+                    "Interval End",
+                ] + pd.DateOffset(
+                    hours=1,
+                )  # noqa
+
+        doc["Interval End"] = doc["Interval End"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous=doc["DSTFlag"] == "Y",
+        )
+
+        doc["Interval Start"] = doc["Interval End"] - interval_length
+        doc["Time"] = doc["Interval Start"]
+
+        cols_to_keep = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+        ] + original_cols
+
+        # todo try to clean up this logic
+        doc = doc[cols_to_keep]
+        doc.drop(
+            columns=[
+                "DeliveryDate",
+                "HourEnding",
+                "DSTFlag",
+            ],
+            inplace=True,
+        )
+        if "DeliveryInterval" in doc.columns:
+            doc.drop(columns=["DeliveryInterval"], inplace=True)
+
+        return doc
 
 
 def hour_offset(h):

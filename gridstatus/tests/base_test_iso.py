@@ -248,7 +248,7 @@ class BaseTestISO:
 
         # allow both formats for now
         # remove this when all ISOs return start/end
-        if self.iso.iso_id in ["caiso"]:
+        if self.iso.iso_id in ["caiso", "ercot"]:
             assert set(df.columns) == set(
                 [
                     "Time",
