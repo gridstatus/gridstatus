@@ -9,7 +9,6 @@ from bs4 import BeautifulSoup, Tag
 
 from gridstatus import utils
 from gridstatus.base import (
-    FuelMix,
     GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
@@ -106,13 +105,18 @@ class SPP(ISOBase):
 
         historical_mix = pd.DataFrame(data)
 
-        current_mix = historical_mix.iloc[-1].to_dict()
+        historical_mix["Timestamp"] = pd.to_datetime(
+            historical_mix["Timestamp"],
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
 
-        time = pd.Timestamp(
-            current_mix.pop("Timestamp"),
-        ).tz_convert(self.default_timezone)
+        historical_mix.rename(
+            columns={"Timestamp": "Time"},
+            inplace=True,
+        )
 
-        return FuelMix(time=time, mix=current_mix, iso=self.name)
+        return historical_mix.tail(1).reset_index(drop=True)
 
     def get_load(self, date, verbose=False):
         """Returns load for last 24hrs in 5 minute intervals"""

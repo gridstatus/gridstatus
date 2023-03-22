@@ -7,7 +7,6 @@ import requests
 
 from gridstatus import utils
 from gridstatus.base import (
-    FuelMix,
     GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
@@ -154,9 +153,7 @@ class Ercot(ISOBase):
 
         if date == "latest":
             df = self.get_fuel_mix("today")
-            latest = df.iloc[-1].to_dict()
-            time = latest.pop("Time")
-            return FuelMix(time=time, mix=latest, iso=self.name)
+            return df.tail(1).reset_index(drop=True)
 
         # todo: can also support yesterday
         elif utils.is_today(date, tz=self.default_timezone):

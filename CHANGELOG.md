@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.0 - TBD
+
+    ### Breaking Changes
+
+    - Removed `FuelMix` class. `iso.get_fuel_mix(date="latest")` now returns a DataFrame with a single row to make API consistent with other ways of calling the method.
+
 ## v0.19.0 - Feb 19, 2023
 
 - Updated ISONE Interconnection Queue to contain completed and withdrawn projects
@@ -11,14 +17,13 @@
 - Update CAISO LMP markets to support real time five minute
 - Fix bug affecting NYISO interconnection queues
 
-    ### Breaking Changes
+  ### Breaking Changes
 
-    The following changes were made to CAISO Market:
+  The following changes were made to CAISO Market:
 
-    - `REAL_TIME_HOURLY` removed since this market incorrectly mapped to the HASP market
-    - `REAL_TIME_5_MIN` added and maps to the RTD market
-    - `REAL_TIME_15_MIN` and `DAY_AHEAD_HOURLY` unchanged
-
+  - `REAL_TIME_HOURLY` removed since this market incorrectly mapped to the HASP market
+  - `REAL_TIME_5_MIN` added and maps to the RTD market
+  - `REAL_TIME_15_MIN` and `DAY_AHEAD_HOURLY` unchanged
 
 ## v0.17.0 - Dec 30, 2022
 
@@ -54,10 +59,9 @@
 
 - Can now use `"today"` are value for `end` when querying date range
 
-    ```python
-    nyiso.get_fuel_mix(start="Jan 1, 2022", end="today")
-    ```
-
+  ```python
+  nyiso.get_fuel_mix(start="Jan 1, 2022", end="today")
+  ```
 
 ### Breaking Changes
 
@@ -72,13 +76,13 @@ nyiso.get_fuel_mix("jan 1, 2022")
 ```
 
 #### Old API
+
 ```python
 nyiso = gridstatus.NYISO()
 nyiso.get_latest_fuel_mix()
 nyiso.get_fuel_mix_today()
 nyiso.get_historical_fuel_mix("jan 1, 2022")
 ```
-
 
 ## v0.11.0 - Oct 26, 2022
 

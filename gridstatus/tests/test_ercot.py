@@ -80,7 +80,7 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == cols
 
         # latest
-        df = self.iso.get_fuel_mix("latest").mix
+        df = self.iso.get_fuel_mix("latest")
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 

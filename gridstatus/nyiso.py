@@ -7,7 +7,6 @@ import requests
 import gridstatus
 from gridstatus import utils
 from gridstatus.base import (
-    FuelMix,
     GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
@@ -96,11 +95,17 @@ class NYISO(ISOBase):
             mix_df = pd.DataFrame(data["data"])
             time_str = mix_df["timeStamp"].max()
             time = pd.Timestamp(time_str)
-            mix_df = mix_df[mix_df["timeStamp"] == time_str].set_index("fuelCategory")[
-                "genMWh"
-            ]
-            mix_dict = mix_df.to_dict()
-            return FuelMix(time=time, mix=mix_dict, iso=self.name)
+            mix_df = (
+                mix_df[mix_df["timeStamp"] == time_str]
+                .set_index("fuelCategory")[["genMWh"]]
+                .T.reset_index(drop=True)
+            )
+            mix_df.insert(0, "Time", time)
+            mix_df["Time"] = mix_df["Time"].dt.tz_convert(
+                self.default_timezone,
+            )
+            mix_df.columns.name = None
+            return mix_df.tail(1)
 
         mix_df = self._download_nyiso_archive(
             date=date,

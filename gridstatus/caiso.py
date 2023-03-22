@@ -8,7 +8,7 @@ import requests
 import tabula
 
 from gridstatus import utils
-from gridstatus.base import FuelMix, GridStatus, ISOBase, Markets, NotSupported
+from gridstatus.base import GridStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.lmp_config import lmp_config
 from gridstatus.logging import log
@@ -92,10 +92,7 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             mix = self.get_fuel_mix("today", verbose=verbose)
-            latest = mix.iloc[-1]
-            time = latest.pop("Time")
-            mix_dict = latest.to_dict()
-            return FuelMix(time=time, mix=mix_dict, iso=self.name)
+            return mix.tail(1).reset_index(drop=True)
 
         return self._get_historical_fuel_mix(date, verbose=verbose)
 
