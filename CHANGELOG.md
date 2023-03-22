@@ -4,7 +4,7 @@
 
     ### Breaking Changes
 
-        - Removed `FuelMix` class. `iso.get_fuel_mix(date="latest")` now returns a DataFrame with a single row to make API consistent with other ways of calling the method.
+    - Removed `FuelMix` class. `iso.get_fuel_mix(date="latest")` now returns a DataFrame with a single row to make API consistent with other ways of calling the method.
 
 ## v0.19.0 - Feb 19, 2023
 
