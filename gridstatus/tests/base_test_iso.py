@@ -239,6 +239,7 @@ class BaseTestISO:
 
     def _check_load(self, df):
         assert isinstance(df, pd.DataFrame)
+        assert df.shape[0] >= 0
         self._check_time_columns(df)
         assert "Load" in df.columns
         assert is_numeric_dtype(df["Load"])

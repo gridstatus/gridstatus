@@ -107,15 +107,10 @@ class TestErcot(BaseTestISO):
         pass
 
     def test_get_load_3_days_ago(self):
-        cols = [
-            "Time",
-            "Load",
-        ]
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         three_days_ago = today - pd.Timedelta(days=3)
         df = self.iso.get_load(three_days_ago)
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        self._check_load(df)
         assert df["Time"].unique()[0].date() == three_days_ago
 
     """get_load_forecast"""

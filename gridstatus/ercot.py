@@ -215,14 +215,15 @@ class Ercot(ISOBase):
         elif utils.is_today(date, tz=self.default_timezone):
             df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
             df = df.rename(columns={"demand": "Load"})
-            return df[["Time", "Load"]]
+            return df[["Time", "Interval Start", "Interval End", "Load"]]
 
         elif utils.is_within_last_days(
             date,
             self.LOAD_HISTORICAL_MAX_DAYS,
             tz=self.default_timezone,
         ):
-            return self._get_load_html(date, verbose)
+            df = self._get_load_html(date, verbose)
+            return df[["Time", "Interval Start", "Interval End", "Load"]]
 
         else:
             raise NotSupported()
@@ -271,20 +272,40 @@ class Ercot(ISOBase):
 
         date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
 
-        # ignore last row since that corresponds to midnight following day
-        data = pd.DataFrame(r["data"][:-1])
+        data = pd.DataFrame(r["data"])
 
-        data["Time"] = pd.to_datetime(
-            date.strftime("%Y-%m-%d")
-            + " "
-            + data["hourEnding"].astype(str).str.zfill(2)
-            + ":"
-            + data["interval"].astype(str).str.zfill(2),
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+        data["Interval End"] = (
+            date
+            + data["hourEnding"].apply(
+                hour_offset,
+            )
+            + data["interval"].apply(interval_offset)
+        )
 
+        data["Interval End"] = data["Interval End"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous="infer",
+        )
+
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+        data["Time"] = data["Interval Start"]
+
+        data = data[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "demand",
+                "forecast",
+                "capacity",
+            ]
+        ]
+
+        # keep today's data only
+        data = data[data["Time"].dt.date == date]
         data = data[data["forecast"] == 0]  # only keep non forecast rows
 
-        return data
+        return data.reset_index(drop=True)
 
     def get_load_forecast(self, date, verbose=False):
         """Returns load forecast
@@ -798,16 +819,6 @@ class Ercot(ISOBase):
             format="%m/%d/%YT%H:%M",
         ).dt.tz_localize(timezone, ambiguous="infer")
 
-    @staticmethod
-    def _parse_oper_day_hour_ending(df, timezone):
-        return pd.to_datetime(
-            df["Oper Day"] + "T"
-            # Hour ending starts at 100 ("1:00") so we offset by -1 hour,
-            # and zero fill to 4 characters, so strptime can parse it correctly
-            + (df["Hour Ending"].astype(int) - 100).astype(str).str.zfill(4),
-            format="%m/%d/%YT%H%M",
-        ).dt.tz_localize(timezone, ambiguous="infer")
-
     def _get_spp_rtm15(
         self,
         date,
@@ -944,11 +955,20 @@ class Ercot(ISOBase):
         return df[cols_to_keep].rename(columns=columns)
 
     def _handle_html_data(self, df, columns):
-        df["Time"] = Ercot._parse_oper_day_hour_ending(
-            df,
+        df["Interval End"] = pd.to_datetime(df["Oper Day"]) + (
+            df["Hour Ending"] / 100
+        ).apply(hour_offset)
+        df["Interval End"] = df["Interval End"].dt.tz_localize(
             self.default_timezone,
         )
-        cols_to_keep = ["Time"] + list(columns.keys())
+        df["Interval Start"] = df["Interval End"] - pd.DateOffset(hours=1)
+        df["Time"] = df["Interval Start"]
+
+        cols_to_keep = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+        ] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
     def _filter_by_settlement_point_type(self, df, location_type):
@@ -1013,6 +1033,18 @@ class Ercot(ISOBase):
             raise ValueError(f"Invalid location_type: {location_type}")
 
         return df[df["SettlementPoint"].isin(valid_values)]
+
+
+def hour_offset(h):
+    if h == 24:
+        return pd.DateOffset(days=1)
+    return pd.DateOffset(hours=h)
+
+
+def interval_offset(m):
+    if m == 60:
+        return pd.DateOffset(hours=1)
+    return pd.DateOffset(minutes=m)
 
 
 if __name__ == "__main__":
