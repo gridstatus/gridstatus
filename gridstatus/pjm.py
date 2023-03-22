@@ -117,6 +117,8 @@ class PJM(ISOBase):
             aggfunc="first",
         ).reset_index()
 
+        mix_df.columns.name = None
+
         return mix_df
 
     @support_date_range(frequency="30D")
