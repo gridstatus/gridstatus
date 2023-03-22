@@ -170,17 +170,25 @@ class Ercot(ISOBase):
                 )
                 .T
             )
-            mix.index.name = "Time"
+            mix.index.name = "Interval End"
             mix = mix.reset_index()
 
-            mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_localize(
+            mix["Interval End"] = pd.to_datetime(mix["Interval End"]).dt.tz_localize(
                 self.default_timezone,
                 ambiguous="infer",
             )
 
+            # most timestamps are a few seconds off round 5 minute ticks
+            # round to nearest minute
+            mix["Interval End"] = mix["Interval End"].round("min")
+            mix["Interval Start"] = mix["Interval End"] - pd.Timedelta(minutes=5)
+            mix["Time"] = mix["Interval Start"]
+
             mix = mix[
                 [
                     "Time",
+                    "Interval Start",
+                    "Interval End",
                     "Coal and Lignite",
                     "Hydro",
                     "Nuclear",

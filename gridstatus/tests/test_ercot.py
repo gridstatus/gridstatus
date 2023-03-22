@@ -66,6 +66,8 @@ class TestErcot(BaseTestISO):
         # today
         cols = [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Coal and Lignite",
             "Hydro",
             "Nuclear",
@@ -76,11 +78,13 @@ class TestErcot(BaseTestISO):
             "Other",
         ]
         df = self.iso.get_fuel_mix("today")
+        self._check_fuel_mix(df)
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
         # latest
         df = self.iso.get_fuel_mix("latest")
+        self._check_fuel_mix(df)
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
