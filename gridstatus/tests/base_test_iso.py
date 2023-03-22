@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
-from gridstatus.base import FuelMix, GridStatus, _interconnection_columns
+from gridstatus.base import GridStatus, _interconnection_columns
 
 
 class BaseTestISO:
@@ -70,13 +70,13 @@ class BaseTestISO:
 
     def test_get_fuel_mix_latest(self):
         mix = self.iso.get_fuel_mix("latest")
-        assert isinstance(mix, FuelMix)
-        assert isinstance(mix.time, pd.Timestamp)
-        assert isinstance(mix.mix, pd.DataFrame)
-        assert repr(mix)
-        assert len(mix.mix) > 0
-        assert mix.iso == self.iso.name
-        assert isinstance(repr(mix), str)
+        print(mix)
+        assert isinstance(mix, pd.DataFrame)
+        assert len(mix) == 1
+        assert isinstance(mix.Time.iloc[0], pd.Timestamp)
+        assert mix.index.name is None
+        assert mix.index.tolist() == [0]
+        assert mix.columns.name is None
 
     def test_get_fuel_mix_today(self):
         df = self.iso.get_fuel_mix("today")
@@ -141,12 +141,16 @@ class BaseTestISO:
         df = self.iso.get_load(test_date)
 
         self._check_load(df)
-        assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
+        assert df.loc[0]["Time"].strftime(
+            "%Y%m%d",
+        ) == test_date.strftime("%Y%m%d")
 
         # datetime object works
         df = self.iso.get_load(test_date)
         self._check_load(df)
-        assert df.loc[0]["Time"].strftime("%Y%m%d") == test_date.strftime("%Y%m%d")
+        assert df.loc[0]["Time"].strftime(
+            "%Y%m%d",
+        ) == test_date.strftime("%Y%m%d")
 
     def test_get_load_latest(self):
         load = self.iso.get_load("latest")

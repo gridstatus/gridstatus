@@ -9,7 +9,6 @@ from bs4 import BeautifulSoup, Tag
 
 from gridstatus import utils
 from gridstatus.base import (
-    FuelMix,
     GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
@@ -112,7 +111,11 @@ class SPP(ISOBase):
             current_mix.pop("Timestamp"),
         ).tz_convert(self.default_timezone)
 
-        return FuelMix(time=time, mix=current_mix, iso=self.name)
+        import pdb
+
+        pdb.set_trace()
+
+        return time
 
     def get_load(self, date, verbose=False):
         """Returns load for last 24hrs in 5 minute intervals"""

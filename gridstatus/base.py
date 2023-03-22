@@ -1,8 +1,6 @@
 from enum import Enum
 
-import pandas as pd
 import requests
-from tabulate import tabulate
 
 from gridstatus.logging import log
 
@@ -157,62 +155,3 @@ class GridStatus:
             "status": self.status,
             "notes": self.notes,
         }
-
-
-class FuelMix:
-    def __init__(self, time, mix, iso=None, unit="MW") -> None:
-        self.iso = iso
-        self.time = time
-        self.unit = unit
-
-        mix_df = pd.DataFrame(mix, index=[0])
-        mix_df.insert(0, "Time", time)
-
-        self._mix_df = mix_df
-
-    def __repr__(self) -> str:
-        # TODO sort by magnitude
-        s = ""
-        if self.iso:
-            s += "ISO: " + self.iso + "\n"
-        s += "Total Production: %d %s \n" % (self.total_production, self.unit)
-        s += "Time: %s \n" % self.time
-
-        mix = self.mix.drop("Time", axis=1).T
-        mix.columns = ["MW"]
-        mix["Percent"] = (mix["MW"] / self.total_production * 100).round(1)
-        s += tabulate(mix, headers="keys", tablefmt="psql")
-
-        return s
-
-    @property
-    def total_production(self):
-        return self.mix.drop("Time", axis=1).sum().sum()
-
-    @property
-    def mix(self):
-        return self._mix_df.copy()
-
-    @property
-    def mix_dict(self):
-        return self.mix.iloc[0].to_dict()
-
-
-"""
-Todos
-
-- fuel mix
-    - how standardize should the mix be?
-    - mark renewables
-    - historical data
-    - is the unit mh or mhw?
-- units for return values
-- documentation
-    - include where the data is from
-    - time step differences
-    - what is the interval
-    - api reference
-    -
-
-- get_historical_fuel_mix vs get_fuel_mix_trend
-"""

@@ -7,7 +7,7 @@ import requests
 import tqdm
 
 from gridstatus import utils
-from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
+from gridstatus.base import ISOBase, Markets, NotSupported
 from gridstatus.decorators import (
     _get_pjm_archive_date,
     pjm_update_dates,
@@ -94,10 +94,7 @@ class PJM(ISOBase):
 
         if date == "latest":
             mix = self.get_fuel_mix("today")
-            latest = mix.iloc[-1]
-            time = latest.pop("Time")
-            mix_dict = latest.to_dict()
-            return FuelMix(time=time, mix=mix_dict, iso=self.name)
+            return mix.tail(1).reset_index(drop=True)
 
         # earliest date available appears to be 1/1/2016
         data = {

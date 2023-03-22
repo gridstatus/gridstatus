@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 
 from gridstatus import utils
-from gridstatus.base import FuelMix, ISOBase, Markets, NotSupported
+from gridstatus.base import ISOBase, Markets, NotSupported
 from gridstatus.lmp_config import lmp_config
 from gridstatus.logging import log
 
@@ -66,10 +66,10 @@ class MISO(ISOBase):
                 amount = 0
             mix[fuel["CATEGORY"]] = amount
 
-        # print(r["TotalMW"])  # todo - this total does add up to each part
-
-        fm = FuelMix(time=time, mix=mix, iso=self.name)
-        return fm
+        df = pd.DataFrame(mix, index=[time])
+        df.index.name = "Time"
+        df = df.reset_index()
+        return df
 
     def get_load(self, date, verbose=False):
         if date == "latest":

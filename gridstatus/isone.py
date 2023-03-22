@@ -6,7 +6,6 @@ import requests
 
 from gridstatus import utils
 from gridstatus.base import (
-    FuelMix,
     GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
@@ -96,9 +95,10 @@ class ISONE(ISOBase):
         )
 
         # todo has marginal flag
-        mix_dict = mix_df.set_index("FuelCategory")["GenMw"].to_dict()
-
-        return FuelMix(time, mix_dict, self.name)
+        mix_df = mix_df.set_index("FuelCategory")[["GenMw"]].T.reset_index(drop=True)
+        mix_df.insert(0, "Time", time)
+        mix_df.columns.name = None
+        return mix_df
 
     @support_date_range(frequency="1D")
     def get_fuel_mix(self, date, end=None, verbose=False):
