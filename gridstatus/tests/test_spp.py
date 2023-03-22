@@ -33,7 +33,7 @@ class TestSPP(BaseTestISO):
 
     def test_get_fuel_mix_central_time(self):
         fm = self.iso.get_fuel_mix(date="latest")
-        assert fm.time.tz.zone == self.iso.default_timezone
+        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
 
     """get_lmp"""
 
@@ -381,7 +381,10 @@ class TestSPP(BaseTestISO):
         with open(filename_path, "r") as f:
             contents = f.read()
         try:
-            status = self.iso._get_status_from_html(contents, year_hint=year_hint)
+            status = self.iso._get_status_from_html(
+                contents,
+                year_hint=year_hint,
+            )
         except Exception as e:
             raise Exception(f"Error parsing {filename}: {e}")
         return status
