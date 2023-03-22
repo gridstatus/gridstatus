@@ -135,7 +135,7 @@ class CAISO(ISOBase):
     def _get_historical_load(self, date, verbose=False):
         df = _get_historical("demand", date, verbose=verbose)
 
-        df = df[["Time", "Current demand"]]
+        df = df[["Time", "Interval Start", "Interval End", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
         return df
@@ -313,7 +313,7 @@ class CAISO(ISOBase):
         # clean up pivot name in header
         data.columns.name = None
 
-        return df
+        return data
 
     @support_date_range(frequency="1D")
     def get_storage(self, date, verbose=False):
