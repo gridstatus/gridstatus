@@ -330,47 +330,6 @@ class Ercot(ISOBase):
 
         return doc
 
-    @support_date_range("1D")
-    def _get_as_prices_recent(self, date, verbose=False):
-        """Get ancillary service clearing prices in hourly intervals in Day
-            Ahead Market. This function is can return the last 31 days
-            of ancillary pricing.
-
-        Arguments:
-            date (datetime.date, str): date of delivery for AS services
-
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        Returns:
-
-            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
-                "Regulation Up", "Regulation Down", "Responsive Reserves".
-
-        """
-        # subtract one day since it's the day ahead market happens on the day
-        # before for the delivery day
-
-        date = date - pd.DateOffset(days=1)
-
-        doc_info = self._get_document(
-            report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
-            date=date,
-            constructed_name_contains="csv.zip",
-            verbose=verbose,
-        )
-
-        msg = f"Downloading {doc_info.url}"
-        log(msg, verbose)
-
-        doc = self.read_doc(doc_info, verbose=verbose)
-
-        data = Ercot._finalize_as_price_df(
-            doc,
-            pivot=True,
-        )
-
-        return data
-
     def get_rtm_spp(self, year):
         """Get Historical RTM Settlement Point Prices(SPPs)
             for each of the Hubs and Load Zones
@@ -574,84 +533,6 @@ class Ercot(ISOBase):
             )
         return Ercot._finalize_spp_df(df, settlement_point_field, locations)
 
-    @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
-    def get_as_prices(
-        self,
-        date,
-        end=None,
-        verbose=False,
-    ):
-        """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
-
-        Arguments:
-            date (datetime.date, str): date of delivery for AS services
-
-            end (datetime.date, str, optional): if declared, function will return
-                data as a range, from "date" to "end"
-
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        Returns:
-
-            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
-                "Regulation Up", "Regulation Down", "Responsive Reserves".
-
-        Source:
-            https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
-        """
-
-        # use to check if we need to pull daily files
-        if (
-            date.date()
-            >= (
-                pd.Timestamp.now(tz=self.default_timezone)
-                - pd.DateOffset(days=self.AS_PRICES_HISTORICAL_MAX_DAYS)
-            ).date()
-        ):
-
-            return self._get_as_prices_recent(date, end=end)
-        elif not end:
-            end = date
-
-        doc_info = self._get_document(
-            report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
-            constructed_name_contains=f"{date.year}.zip",
-            verbose=verbose,
-        )
-        doc = self.read_doc(doc_info, verbose=verbose)
-
-        doc = Ercot._finalize_as_price_df(doc)
-
-        max_date = doc.Time.max().date()
-
-        df_list = [doc]
-
-        # if last df date is less than our specified end
-        # date, pull the remaining days. Will only be applicable
-        # if end date is within today - 3days
-        if max_date < end.date():
-            df_list.append(
-                self._get_as_prices_recent(
-                    start=max_date,
-                    end=end,
-                ),
-            )
-
-        # join, sort, filter and reset data index
-        data = pd.concat(df_list).sort_values(by="Interval Start")
-
-        data = (
-            data.loc[
-                (data.Time.dt.date >= date.date()) & (data.Time.dt.date <= end.date())
-            ]
-            .drop_duplicates(subset=["Interval Start"])
-            .reset_index(drop=True)
-        )
-
-        print(data)
-
-        return data
-
     def _get_spp_dam(
         self,
         date,
@@ -723,57 +604,6 @@ class Ercot(ISOBase):
         df = df.reset_index(drop=True)
         return df
 
-    @staticmethod
-    def _finalize_as_price_df(doc, pivot=False):
-        doc["Market"] = "DAM"
-
-        # recent daily files need to be pivoted
-        if pivot:
-            doc = doc.pivot_table(
-                index=["Time", "Interval Start", "Interval End", "Market"],
-                columns="AncillaryType",
-                values="MCPC",
-            ).reset_index()
-
-            doc.columns.name = None
-
-        # some columns from workbook contain trailing/leading whitespace
-        doc.columns = [x.strip() for x in doc.columns]
-
-        # NSPIN  REGDN  REGUP  RRS
-        rename = {
-            "NSPIN": "Non-Spinning Reserves",
-            "REGDN": "Regulation Down",
-            "REGUP": "Regulation Up",
-            "RRS": "Responsive Reserves",
-        }
-
-        col_order = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "Market",
-            "Non-Spinning Reserves",
-            "Regulation Down",
-            "Regulation Up",
-            "Responsive Reserves",
-        ]
-
-        doc.rename(columns=rename, inplace=True)
-
-        return doc[col_order]
-
-    @staticmethod
-    def _parse_delivery_date_hour_interval(df, timezone):
-        return pd.to_datetime(
-            df["DeliveryDate"]
-            + "T"
-            + (df["DeliveryHour"].astype(int) - 1).astype(str).str.zfill(2)
-            + ":"
-            + ((df["DeliveryInterval"].astype(int) - 1) * 15).astype(str).str.zfill(2),
-            format="%m/%d/%YT%H:%M",
-        ).dt.tz_localize(timezone, ambiguous="infer")
-
     def _get_spp_rtm15(
         self,
         date,
@@ -820,6 +650,164 @@ class Ercot(ISOBase):
         df = self._filter_by_settlement_point_type(df, location_type)
 
         return df
+
+    @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
+    def get_as_prices(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
+
+        Arguments:
+            date (datetime.date, str): date of delivery for AS services
+
+            end (datetime.date, str, optional): if declared, function will return
+                data as a range, from "date" to "end"
+
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+
+            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
+                "Regulation Up", "Regulation Down", "Responsive Reserves".
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
+        """
+
+        # use to check if we need to pull daily files
+        if (
+            date.date()
+            >= (
+                pd.Timestamp.now(tz=self.default_timezone)
+                - pd.DateOffset(days=self.AS_PRICES_HISTORICAL_MAX_DAYS)
+            ).date()
+        ):
+
+            return self._get_as_prices_recent(date, end=end)
+        elif not end:
+            end = date
+
+        doc_info = self._get_document(
+            report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+            constructed_name_contains=f"{date.year}.zip",
+            verbose=verbose,
+        )
+        doc = self.read_doc(doc_info, verbose=verbose)
+
+        doc = self._finalize_as_price_df(doc)
+
+        max_date = doc.Time.max().date()
+
+        df_list = [doc]
+
+        # if last df date is less than our specified end
+        # date, pull the remaining days. Will only be applicable
+        # if end date is within today - 3days
+        if max_date < end.date():
+            df_list.append(
+                self._get_as_prices_recent(
+                    start=max_date,
+                    end=end,
+                ),
+            )
+
+        # join, sort, filter and reset data index
+        data = pd.concat(df_list).sort_values(by="Interval Start")
+
+        data = (
+            data.loc[
+                (data.Time.dt.date >= date.date()) & (data.Time.dt.date <= end.date())
+            ]
+            .drop_duplicates(subset=["Interval Start"])
+            .reset_index(drop=True)
+        )
+
+        print(data)
+
+        return data
+
+    @support_date_range("1D")
+    def _get_as_prices_recent(self, date, verbose=False):
+        """Get ancillary service clearing prices in hourly intervals in Day
+            Ahead Market. This function is can return the last 31 days
+            of ancillary pricing.
+
+        Arguments:
+            date (datetime.date, str): date of delivery for AS services
+
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+
+            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
+                "Regulation Up", "Regulation Down", "Responsive Reserves".
+
+        """
+        # subtract one day since it's the day ahead market happens on the day
+        # before for the delivery day
+
+        date = date - pd.DateOffset(days=1)
+
+        doc_info = self._get_document(
+            report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+            date=date,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        msg = f"Downloading {doc_info.url}"
+        log(msg, verbose)
+
+        doc = self.read_doc(doc_info, verbose=verbose)
+
+        data = self._finalize_as_price_df(
+            doc,
+            pivot=True,
+        )
+
+        return data
+
+    def _finalize_as_price_df(self, doc, pivot=False):
+        doc["Market"] = "DAM"
+
+        # recent daily files need to be pivoted
+        if pivot:
+            doc = doc.pivot_table(
+                index=["Time", "Interval Start", "Interval End", "Market"],
+                columns="AncillaryType",
+                values="MCPC",
+            ).reset_index()
+
+            doc.columns.name = None
+
+        # some columns from workbook contain trailing/leading whitespace
+        doc.columns = [x.strip() for x in doc.columns]
+
+        # NSPIN  REGDN  REGUP  RRS
+        rename = {
+            "NSPIN": "Non-Spinning Reserves",
+            "REGDN": "Regulation Down",
+            "REGUP": "Regulation Up",
+            "RRS": "Responsive Reserves",
+        }
+
+        col_order = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Up",
+            "Responsive Reserves",
+        ]
+
+        doc.rename(columns=rename, inplace=True)
+
+        return doc[col_order]
 
     def _get_document(
         self,
