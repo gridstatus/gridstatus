@@ -87,7 +87,6 @@ class BaseTestISO:
         assert isinstance(df.Time.iloc[0], pd.Timestamp)
         assert df.index.name is None
         assert df.index.tolist() == [0]
-        assert df.columns.name is None
         self._check_fuel_mix(df)
 
     def test_get_fuel_mix_today(self):
@@ -136,6 +135,7 @@ class BaseTestISO:
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
         data = self.iso.get_load(date=start.date(), end=end.date())
+        self._check_load(data)
         # make sure right number of days are returned
         assert data["Time"].dt.day.nunique() == num_days
 
@@ -222,7 +222,7 @@ class BaseTestISO:
 
     def _check_time_columns(self, df):
         assert isinstance(df, pd.DataFrame)
-        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso"]:
+        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso", "miso"]:
             time_cols = ["Time", "Interval Start", "Interval End"]
         else:
             time_cols = ["Time"]
@@ -235,6 +235,7 @@ class BaseTestISO:
 
     def _check_fuel_mix(self, df):
         assert isinstance(df, pd.DataFrame)
+        assert df.columns.name is None
         self._check_time_columns(df)
 
     def _check_load(self, df):
@@ -248,7 +249,7 @@ class BaseTestISO:
 
         # allow both formats for now
         # remove this when all ISOs return start/end
-        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso"]:
+        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso", "miso"]:
             assert set(df.columns) == set(
                 [
                     "Time",
@@ -276,7 +277,7 @@ class BaseTestISO:
         # maybe with the exception of "LMP" breakdown
         self._check_time_columns(df)
 
-        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp"]:
+        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso", "miso"]:
             assert set(
                 [
                     "Time",
@@ -310,6 +311,6 @@ class BaseTestISO:
         assert df.shape[0] >= 0
 
     def _check_storage(self, df):
-        assert set(["Time", "Supply"]).issubset(
+        assert set(["Time", "Interval Start", "Interval End", "Supply"]).issubset(
             df.columns,
         )
