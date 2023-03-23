@@ -138,6 +138,10 @@ class ISONE(ISOBase):
 
         mix_df = mix_df.fillna(0)
 
+        import pdb
+
+        pdb.set_trace()
+
         return mix_df
 
     @support_date_range(frequency="1D")
@@ -157,9 +161,15 @@ class ISONE(ISOBase):
             ambiguous="infer",
         )
 
+        # todo what is the difference between Native Load and Asset Related Load?
         df = data[["Date/Time", "Native Load"]].rename(
             columns={"Date/Time": "Time", "Native Load": "Load"},
         )
+
+        df["Interval Start"] = df["Time"]
+        df["Interval End"] = df["Time"] + pd.Timedelta(minutes=5)
+
+        df = df[["Time", "Interval Start", "Interval End", "Load"]]
 
         return df
 
@@ -208,6 +218,19 @@ class ISONE(ISOBase):
             },
         )
 
+        df["Interval Start"] = df["Time"]
+        df["Interval End"] = df["Time"] + pd.Timedelta(hours=1)
+
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ]
+        ]
+
         return df
 
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
@@ -219,10 +242,15 @@ class ISONE(ISOBase):
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
+            import pdb
+
+            pdb.set_trace()
         elif market == Markets.REAL_TIME_HOURLY:
             url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
+            import pdb
 
+            pdb.set_trace()
             # todo does this handle single digital hours?
             data["Local Time"] = (
                 data["Local Date"]
@@ -325,6 +353,9 @@ class ISONE(ISOBase):
                     data_current["Local Time"] > data["Local Time"].max()
                 ]
                 data = pd.concat([data, data_current])
+                import pdb
+
+                pdb.set_trace()
 
         elif market == Markets.REAL_TIME_HOURLY:
             if date.date() < now.date():
@@ -333,22 +364,6 @@ class ISONE(ISOBase):
                     url,
                     skiprows=[0, 1, 2, 3, 5],
                     verbose=verbose,
-                )
-                # todo document hour starting vs ending
-                # for DST end transitions they use 02X to represent repeated 1am hour
-                data["Hour Ending"] = (
-                    data["Hour Ending"]
-                    .replace(
-                        "02X",
-                        "02",
-                    )
-                    .astype(int)
-                )
-                data["Local Time"] = (
-                    data["Date"]
-                    + " "
-                    + (data["Hour Ending"] - 1).astype(str).str.zfill(2)
-                    + ":00"
                 )
             else:
                 raise RuntimeError(
@@ -362,24 +377,7 @@ class ISONE(ISOBase):
                 skiprows=[0, 1, 2, 3, 5],
                 verbose=verbose,
             )
-            # todo document hour starting vs ending
 
-            # for DST end transitions they use 02X to represent repeated 1am hour
-            data["Hour Ending"] = (
-                data["Hour Ending"]
-                .replace(
-                    "02X",
-                    "02",
-                )
-                .astype(int)
-            )
-
-            data["Local Time"] = (
-                data["Date"]
-                + " "
-                + (data["Hour Ending"] - 1).astype(str).str.zfill(2)
-                + ":00"
-            )
         else:
             raise RuntimeError("LMP Market is not supported")
 
@@ -419,15 +417,51 @@ class ISONE(ISOBase):
         data.rename(columns=rename, inplace=True)
 
         data["Market"] = market.value
+
+        def hour_offset(h):
+            if h == 24:
+                return pd.DateOffset(days=1)
+            return pd.DateOffset(hours=h)
+
+        if "Hour Ending" in data.columns:
+            # for DST end transitions isone uses 02X to represent repeated 1am hour
+            data["Hour Ending"] = (
+                data["Hour Ending"]
+                .replace(
+                    "02X",
+                    "02",
+                )
+                .astype(int)
+            )
+
+            data["Interval End"] = pd.to_datetime(data["Date"]) + data[
+                "Hour Ending"
+            ].apply(hour_offset)
+
+        elif "Local Time" in data.columns:
+            import pdb
+
+            pdb.set_trace()
+
         # Location seems to be more unique than Location ID refer to #171
         location_groupby = "Location" if "Location" in data.columns else "Location Id"
         # groupby location so that hours are increasing monotonically and can infer dst
-        data["Time"] = data.groupby(location_groupby)["Time"].transform(
+        data["Interval End"] = data.groupby(location_groupby)["Interval End"].transform(
             lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
                 timezone,
                 ambiguous="infer",
             ),
         )
+
+        interval = pd.Timedelta(hours=1)
+        if market == Markets.REAL_TIME_5_MIN:
+            import pdb
+
+            pdb.set_trace()
+            interval = pd.Timedelta(minutes=5)
+
+        data["Interval Start"] = data["Interval End"] - interval
+        data["Time"] = data["Interval Start"]
 
         # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:
@@ -453,6 +487,8 @@ class ISONE(ISOBase):
         data = data[
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Market",
                 "Location",
                 "Location Id",
