@@ -222,7 +222,7 @@ class BaseTestISO:
 
     def _check_time_columns(self, df):
         assert isinstance(df, pd.DataFrame)
-        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp"]:
+        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso"]:
             time_cols = ["Time", "Interval Start", "Interval End"]
         else:
             time_cols = ["Time"]
@@ -248,7 +248,7 @@ class BaseTestISO:
 
         # allow both formats for now
         # remove this when all ISOs return start/end
-        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp"]:
+        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso"]:
             assert set(df.columns) == set(
                 [
                     "Time",
