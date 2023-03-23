@@ -38,22 +38,39 @@ class TestCAISO(BaseTestISO):
 
     """get_curtailment"""
 
+    def _check_curtailment(self, df):
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Curtailment Type",
+            "Curtailment Reason",
+            "Fuel Type",
+            "Curtailment (MWh)",
+            "Curtailment (MW)",
+        ]
+        self._check_time_columns(df)
+
     def test_get_curtailment(self):
         date = "Oct 15, 2022"
         df = self.iso.get_curtailment(date)
-        assert df.shape == (31, 6)
+        assert df.shape == (31, 8)
+        self._check_curtailment(df)
 
     def test_get_curtailment_2_pages(self):
         # test that the function can handle 3 pages of data
         date = "March 15, 2022"
         df = self.iso.get_curtailment(date)
-        assert df.shape == (55, 6)
+        assert df.shape == (55, 8)
+        self._check_curtailment(df)
 
     def test_get_curtailment_3_pages(self):
         # test that the function can handle 3 pages of data
         date = "March 16, 2022"
         df = self.iso.get_curtailment(date)
-        assert df.shape == (76, 6)
+        assert df.shape == (76, 8)
+        self._check_curtailment(df)
 
     """get_gas_prices"""
 

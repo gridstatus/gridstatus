@@ -663,6 +663,9 @@ class CAISO(ISOBase):
             lambda x, date=date: date + pd.Timedelta(hours=x),
         )
 
+        df["Interval Start"] = df["Time"]
+        df["Interval End"] = df["Time"] + pd.Timedelta(hours=1)
+
         df = df.drop(columns=["Date", "Hour"])
 
         df["Fuel Type"] = df["Fuel Type"].map(
@@ -675,6 +678,8 @@ class CAISO(ISOBase):
         df = df[
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Curtailment Type",
                 "Curtailment Reason",
                 "Fuel Type",
