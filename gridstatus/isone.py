@@ -239,25 +239,32 @@ class ISONE(ISOBase):
         """  # noqa
         if locations is None:
             locations = "ALL"
+
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
-            import pdb
+            data.rename(
+                columns={
+                    "Local Time": "Interval Start",
+                },
+                inplace=True,
+            )
 
-            pdb.set_trace()
         elif market == Markets.REAL_TIME_HOURLY:
             url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
-            import pdb
 
-            pdb.set_trace()
-            # todo does this handle single digital hours?
-            data["Local Time"] = (
-                data["Local Date"]
-                + " "
-                + data["Local Time"].astype(str).str.zfill(2)
-                + ":00"
+            # reformat this data so it looks like other endpoints
+            # this way it works with process_lmp below
+            data.rename(
+                columns={
+                    "Local Date": "Date",
+                    "Local Time": "Hour Ending",
+                },
+                inplace=True,
             )
+
+            # data["Hour Ending"] = data["Hour Ending"].astype(str).str.zfill(2)
 
         else:
             raise RuntimeError("LMP Market is not supported")
@@ -317,7 +324,8 @@ class ISONE(ISOBase):
 
             dfs = []
             for interval in intervals:
-                print("Loading interval {}".format(interval))
+                msg = "Loading interval {}".format(interval)
+                log(msg, verbose=verbose)
                 u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"  # noqa
                 dfs.append(
                     pd.read_csv(
@@ -341,7 +349,8 @@ class ISONE(ISOBase):
             # add current interval
             if now.date() == date.date():
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
-                print("Loading current interval")
+                msg = "Loading current interval"
+                log(msg, verbose=verbose)
                 # this request is very very slow for some reason.
                 # I suspect b/c the server is making the response dynamically
                 data_current = _make_request(
@@ -353,9 +362,13 @@ class ISONE(ISOBase):
                     data_current["Local Time"] > data["Local Time"].max()
                 ]
                 data = pd.concat([data, data_current])
-                import pdb
 
-                pdb.set_trace()
+            data.rename(
+                columns={
+                    "Local Time": "Interval Start",
+                },
+                inplace=True,
+            )
 
         elif market == Markets.REAL_TIME_HOURLY:
             if date.date() < now.date():
@@ -366,6 +379,8 @@ class ISONE(ISOBase):
                     verbose=verbose,
                 )
             else:
+                # iso only publishes rolling 3 hours of data for current
+                # day real time hourly. idk why
                 raise RuntimeError(
                     "Today not supported for hourly lmp. Try latest",
                 )
@@ -417,56 +432,47 @@ class ISONE(ISOBase):
         data.rename(columns=rename, inplace=True)
 
         data["Market"] = market.value
-
-        def hour_offset(h):
-            if h == 24:
-                return pd.DateOffset(days=1)
-            return pd.DateOffset(hours=h)
+        interval = pd.Timedelta(hours=1)
+        if market == Markets.REAL_TIME_5_MIN:
+            interval = pd.Timedelta(minutes=5)
 
         if "Hour Ending" in data.columns:
             # for DST end transitions isone uses 02X to represent repeated 1am hour
-            data["Hour Ending"] = (
+            data["Hour Start"] = (
                 data["Hour Ending"]
                 .replace(
                     "02X",
                     "02",
                 )
                 .astype(int)
+                - 1
             )
 
-            data["Interval End"] = pd.to_datetime(data["Date"]) + data[
-                "Hour Ending"
-            ].apply(hour_offset)
+            data["Interval Start"] = pd.to_datetime(data["Date"]) + data[
+                "Hour Start"
+            ].astype("timedelta64[h]")
 
-        elif "Local Time" in data.columns:
-            import pdb
-
-            pdb.set_trace()
+        def handle_date_time(s):
+            return pd.to_datetime(s).dt.tz_localize(
+                timezone,
+                ambiguous="infer",
+            )
 
         # Location seems to be more unique than Location ID refer to #171
         location_groupby = "Location" if "Location" in data.columns else "Location Id"
         # groupby location so that hours are increasing monotonically and can infer dst
-        data["Interval End"] = data.groupby(location_groupby)["Interval End"].transform(
-            lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
-                timezone,
-                ambiguous="infer",
-            ),
-        )
+        data["Interval Start"] = data.groupby(location_groupby)[
+            "Interval Start"
+        ].transform(handle_date_time)
 
-        interval = pd.Timedelta(hours=1)
-        if market == Markets.REAL_TIME_5_MIN:
-            import pdb
-
-            pdb.set_trace()
-            interval = pd.Timedelta(minutes=5)
-
-        data["Interval Start"] = data["Interval End"] - interval
+        data["Interval End"] = data["Interval Start"] + interval
         data["Time"] = data["Interval Start"]
 
         # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:
             day_ahead = self.get_lmp(
-                date="today",
+                # query for same day in case it matters
+                date=data["Interval Start"].min().date(),
                 market=Markets.DAY_AHEAD_HOURLY,
                 locations=locations,
                 include_id=True,

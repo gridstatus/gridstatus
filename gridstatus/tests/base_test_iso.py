@@ -107,7 +107,7 @@ class BaseTestISO:
 
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_historical(self, market=None):
-        date_str = "20220722"
+        date_str = "2022-07-22"
         if market is not None:
             hist = self.iso.get_lmp(date_str, market=market)
             assert isinstance(hist, pd.DataFrame)
