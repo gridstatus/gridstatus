@@ -270,6 +270,8 @@ class ISONE(ISOBase):
             ]
         ]
 
+        return df
+
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
