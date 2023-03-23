@@ -108,10 +108,11 @@ class PJM(ISOBase):
             start=date,
             end=end,
             params=data,
+            interval_duration_min=60,
         )
 
         mix_df = mix_df.pivot_table(
-            index="Time",
+            index=["Time", "Interval Start", "Interval End"],
             columns="fuel_type",
             values="mw",
             aggfunc="first",
@@ -156,6 +157,7 @@ class PJM(ISOBase):
             end=end,
             params=data,
             verbose=verbose,
+            interval_duration_min="infer",
         )
 
         # pivot on area
@@ -316,14 +318,17 @@ class PJM(ISOBase):
         if market == Markets.REAL_TIME_5_MIN:
             market_endpoint = "rt_fivemin_hrl_lmps"
             market_type = "rt"
+            interval_duration_min = 5
         elif market == Markets.REAL_TIME_HOURLY:
             # todo implemlement location type filter
             market_endpoint = "rt_hrl_lmps"
             market_type = "rt"
+            interval_duration_min = 60
         elif market == Markets.DAY_AHEAD_HOURLY:
             # todo implemlement location type filter
             market_endpoint = "da_hrl_lmps"
             market_type = "da"
+            interval_duration_min = 60
         else:
             raise ValueError(
                 (
@@ -376,6 +381,7 @@ class PJM(ISOBase):
                 end=end,
                 params=params,
                 verbose=verbose,
+                interval_duration_min=interval_duration_min,
             )
         except RuntimeError as e:
             if "No data found" not in str(e):
@@ -393,6 +399,7 @@ class PJM(ISOBase):
                 end=end,
                 params=params,
                 verbose=verbose,
+                interval_duration_min=interval_duration_min,
             )
 
             data["system_energy_price_rt"] = (
@@ -449,6 +456,7 @@ class PJM(ISOBase):
         end=None,
         start_row=1,
         row_count=100000,
+        interval_duration_min=None,
         verbose=False,
     ):
         default_params = {
@@ -507,7 +515,7 @@ class PJM(ISOBase):
             df = pd.concat(to_add)
 
         if "datetime_beginning_utc" in df.columns:
-            df["Time"] = (
+            df["Interval Start"] = (
                 pd.to_datetime(df["datetime_beginning_utc"])
                 .dt.tz_localize(
                     "UTC",
@@ -521,11 +529,34 @@ class PJM(ISOBase):
             # PJM API is inclusive of end,
             # so we need to drop where end timestamp is included
             df = df[
-                df["Time"].dt.strftime(
+                df["Interval Start"].dt.strftime(
                     "%Y-%m-%d %H:%M",
                 )
                 != end.strftime("%Y-%m-%d %H:%M")
             ]
+
+            if "datetime_ending_utc" in df.columns:
+                df["Interval End"] = (
+                    pd.to_datetime(df["datetime_ending_utc"])
+                    .dt.tz_localize(
+                        "UTC",
+                    )
+                    .dt.tz_convert(self.default_timezone)
+                )
+
+                # drop datetime_ending_utc
+                df = df.drop(columns=["datetime_ending_utc"])
+            elif interval_duration_min:
+                if interval_duration_min == "infer":
+                    import pdb
+
+                    pdb.set_trace()
+                else:
+                    df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+                        minutes=interval_duration_min,
+                    )
+
+        df["Time"] = df["Interval Start"]
 
         return df
 
