@@ -107,7 +107,7 @@ class BaseTestISO:
 
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_historical(self, market=None):
-        date_str = "20220722"
+        date_str = "2022-07-22"
         if market is not None:
             hist = self.iso.get_lmp(date_str, market=market)
             assert isinstance(hist, pd.DataFrame)
@@ -222,7 +222,7 @@ class BaseTestISO:
 
     def _check_time_columns(self, df):
         assert isinstance(df, pd.DataFrame)
-        if self.iso.iso_id in ["caiso", "ercot"]:
+        if self.iso.iso_id in ["caiso", "ercot", "isone"]:
             time_cols = ["Time", "Interval Start", "Interval End"]
         else:
             time_cols = ["Time"]
@@ -248,7 +248,7 @@ class BaseTestISO:
 
         # allow both formats for now
         # remove this when all ISOs return start/end
-        if self.iso.iso_id in ["caiso", "ercot"]:
+        if self.iso.iso_id in ["caiso", "ercot", "isone"]:
             assert set(df.columns) == set(
                 [
                     "Time",

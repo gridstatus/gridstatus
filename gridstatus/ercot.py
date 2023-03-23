@@ -264,10 +264,8 @@ class Ercot(ISOBase):
 
         data["Interval End"] = (
             date
-            + data["hourEnding"].apply(
-                hour_offset,
-            )
-            + data["interval"].apply(interval_offset)
+            + data["hourEnding"].astype("timedelta64[h]")
+            + data["interval"].astype("timedelta64[m]")
         )
 
         data["Interval End"] = data["Interval End"].dt.tz_localize(
@@ -896,7 +894,7 @@ class Ercot(ISOBase):
     def _handle_html_data(self, df, columns):
         df["Interval End"] = pd.to_datetime(df["Oper Day"]) + (
             df["Hour Ending"] / 100
-        ).apply(hour_offset)
+        ).astype("timedelta64[h]")
         df["Interval End"] = df["Interval End"].dt.tz_localize(
             self.default_timezone,
         )
@@ -998,9 +996,7 @@ class Ercot(ISOBase):
             interval_length = pd.Timedelta(minutes=15)
             doc["Interval End"] = (
                 pd.to_datetime(doc["DeliveryDate"])
-                + doc["HourEnding"].apply(
-                    hour_offset,
-                )
+                + doc["HourEnding"].astype("timedelta64[h]")
                 + (doc["DeliveryInterval"] * interval_length)
             )
 
@@ -1008,7 +1004,7 @@ class Ercot(ISOBase):
             interval_length = pd.Timedelta(hours=1)
             doc["Interval End"] = pd.to_datetime(doc["DeliveryDate"]) + (
                 doc["HourEnding"].str.split(":").str[0].astype(int)
-            ).apply(hour_offset)
+            ).astype("timedelta64[h]")
 
             # if there is a DST skip, add an hour to the previous row
             # for example, data has 2022-03-13 02:00:00,
@@ -1050,18 +1046,6 @@ class Ercot(ISOBase):
             doc.drop(columns=["DeliveryInterval"], inplace=True)
 
         return doc
-
-
-def hour_offset(h):
-    if h == 24:
-        return pd.DateOffset(days=1)
-    return pd.DateOffset(hours=h)
-
-
-def interval_offset(m):
-    if m == 60:
-        return pd.DateOffset(hours=1)
-    return pd.DateOffset(minutes=m)
 
 
 if __name__ == "__main__":
