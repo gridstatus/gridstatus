@@ -108,7 +108,7 @@ class TestSPP(BaseTestISO):
             market=market,
             location_type=location_type,
         )
-        BaseTestISO._check_lmp_columns(df, market=market)
+        self._check_lmp_columns(df, market=market)
         location_types = df["Location Type"].unique()
         assert len(location_types) == 1
         assert location_types[0] == location_type

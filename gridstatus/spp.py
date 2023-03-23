@@ -137,15 +137,7 @@ class SPP(ISOBase):
             inplace=True,
         )
 
-        historical_mix["Interval Start"] = historical_mix["Time"]
-        historical_mix["Interval End"] = historical_mix[
-            "Interval Start"
-        ] + pd.Timedelta(minutes=5)
-
-        historical_mix = utils.move_cols_to_front(
-            historical_mix,
-            ["Time", "Interval Start", "Interval End"],
-        )
+        historical_mix = add_interval(historical_mix, interval_min=5)
 
         return historical_mix
 
@@ -171,9 +163,13 @@ class SPP(ISOBase):
 
             df = df.reset_index(drop=True)
 
+            df = add_interval(df, interval_min=5)
+
             return df
 
         else:
+            # hourly historical zonal loads
+            # https://marketplace.spp.org/pages/hourly-load
             raise NotSupported()
 
     def get_load_forecast(self, date, forecast_type="MID_TERM", verbose=False):
@@ -189,11 +185,11 @@ class SPP(ISOBase):
         df = self._get_load_and_forecast(verbose=verbose)
 
         # gives forecast from before current day
-        # only include forecasts start at current day
+        # only include forecasts starting at current day
         last_actual = df.dropna(subset=["Actual Load"])["Time"].max()
         current_day = last_actual.replace(hour=0, minute=0)
 
-        current_day_forecast = df[df["Time"] > current_day].copy()
+        current_day_forecast = df[df["Time"] >= current_day].copy()
 
         # assume forecast is made at last actual
         current_day_forecast["Forecast Time"] = last_actual
@@ -213,6 +209,11 @@ class SPP(ISOBase):
         current_day_forecast = current_day_forecast[
             ["Forecast Time", "Time", forecast_col]
         ].rename({forecast_col: "Load Forecast"}, axis=1)
+
+        current_day_forecast = add_interval(
+            current_day_forecast,
+            interval_min=60,
+        )
 
         return current_day_forecast
 
@@ -892,7 +893,14 @@ class SPP(ISOBase):
         )
 
 
-# historical generation mix
-# https://marketplace.spp.org/pages/generation-mix-rolling-365
-# https://marketplace.spp.org/chart-api/gen-mix-365/asFile
-# 15mb file with five minute resolution
+def add_interval(df, interval_min):
+    """Adds Interval Start and Interval End columns to df"""
+    df["Interval Start"] = df["Time"]
+    df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=interval_min)
+
+    df = utils.move_cols_to_front(
+        df,
+        ["Time", "Interval Start", "Interval End"],
+    )
+
+    return df
