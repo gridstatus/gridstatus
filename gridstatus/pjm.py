@@ -153,31 +153,36 @@ class PJM(ISOBase):
         }
         load = self._get_pjm_json(
             "inst_load",
-            start=date,
+            # one minute earlier to hand off by a few seconds seconds
+            start=date - pd.Timedelta(minutes=1),
             end=end,
             params=data,
             verbose=verbose,
-            interval_duration_min="infer",
         )
 
         # pivot on area
         load = load.pivot_table(
-            index="Time",
+            index=["Time", "Interval Start"],
             columns="area",
             values="instantaneous_load",
             aggfunc="first",
         ).reset_index()
 
-        load.columns.name = None
+        # round to nearest minute
+        load["Interval Start"] = load["Interval Start"].dt.round("1min")
+        load["Time"] = load["Interval Start"]
 
-        # don't need time column
-        all_areas = load.columns.tolist()[1:]
+        load["Interval End"] = load["Interval Start"] + pd.Timedelta(minutes=5)
+
+        load.columns.name = None
 
         # set Load column name to match return column of other ISOs
         load["Load"] = load["PJM RTO"]
 
-        # return everything in correct order
-        load = load[["Time", "Load"] + all_areas]
+        load = utils.move_cols_to_front(
+            load,
+            ["Time", "Interval Start", "Interval End", "Load"],
+        )
 
         return load
 
@@ -194,8 +199,7 @@ class PJM(ISOBase):
         # todo: should we use the UTC field instead of EPT?
         params = {
             "fields": (
-                "evaluated_at_datetime_ept,forecast_area,                   "
-                " forecast_datetime_beginning_ept,forecast_load_mw"
+                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_load_mw"
             ),
             "forecast_area": "RTO_COMBINED",
         }
@@ -207,22 +211,47 @@ class PJM(ISOBase):
         )
         data = data.rename(
             columns={
-                "evaluated_at_datetime_ept": "Forecast Time",
-                "forecast_datetime_beginning_ept": "Time",
+                "evaluated_at_datetime_utc": "Forecast Time",
                 "forecast_load_mw": "Load Forecast",
+                "forecast_datetime_beginning_utc": "Interval Start",
+                "forecast_datetime_ending_utc": "Interval End",
             },
         )
 
         data.drop("forecast_area", axis=1, inplace=True)
 
-        data["Forecast Time"] = pd.to_datetime(data["Forecast Time"]).dt.tz_localize(
+        data["Forecast Time"] = pd.to_datetime(
+            data["Forecast Time"],
+            utc=True,
+        ).dt.tz_convert(
             self.default_timezone,
         )
 
-        data["Time"] = pd.to_datetime(data["Time"]).dt.tz_localize(
+        data["Interval Start"] = pd.to_datetime(
+            data["Interval Start"],
+            utc=True,
+        ).dt.tz_convert(
             self.default_timezone,
         )
 
+        data["Interval End"] = pd.to_datetime(
+            data["Interval End"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        data["Time"] = data["Interval Start"]
+
+        data = data[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ]
+        ]
         return data
 
     # todo https://dataminer2.pjm.com/feed/load_frcstd_hist/definition
@@ -425,6 +454,8 @@ class PJM(ISOBase):
         data = data[
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Market",
                 "Location",
                 "Location Name",
@@ -445,6 +476,8 @@ class PJM(ISOBase):
                 data,
                 map(int, locations),
             )
+
+        data = data.sort_values("Interval Start")
 
         return data
 
@@ -547,16 +580,12 @@ class PJM(ISOBase):
                 # drop datetime_ending_utc
                 df = df.drop(columns=["datetime_ending_utc"])
             elif interval_duration_min:
-                if interval_duration_min == "infer":
-                    import pdb
+                df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+                    minutes=interval_duration_min,
+                )
 
-                    pdb.set_trace()
-                else:
-                    df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-                        minutes=interval_duration_min,
-                    )
-
-        df["Time"] = df["Interval Start"]
+        if "Interval Start" in df.columns:
+            df["Time"] = df["Interval Start"]
 
         return df
 

@@ -220,18 +220,22 @@ class BaseTestISO:
 
     """other"""
 
+    def _check_ordered_by_time(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape[0] > 0
+        assert df["Interval Start"].is_monotonic_increasing
+
     def _check_time_columns(self, df):
         assert isinstance(df, pd.DataFrame)
-        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso", "miso"]:
-            time_cols = ["Time", "Interval Start", "Interval End"]
-        else:
-            time_cols = ["Time"]
+        time_cols = ["Time", "Interval Start", "Interval End"]
 
         assert time_cols == df.columns[: len(time_cols)].tolist()
         # check all time cols are localized timestamps
         for col in time_cols:
             assert isinstance(df.loc[0][col], pd.Timestamp)
             assert df.loc[0][col].tz is not None
+
+        self._check_ordered_by_time(df)
 
     def _check_fuel_mix(self, df):
         assert isinstance(df, pd.DataFrame)
@@ -246,23 +250,15 @@ class BaseTestISO:
         assert is_numeric_dtype(df["Load"])
 
     def _check_forecast(self, df):
-
-        # allow both formats for now
-        # remove this when all ISOs return start/end
-        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso", "miso"]:
-            assert set(df.columns) == set(
-                [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                    "Forecast Time",
-                    "Load Forecast",
-                ],
-            )
-        else:
-            assert set(df.columns) == set(
-                ["Forecast Time", "Time", "Load Forecast"],
-            )
+        assert set(df.columns) == set(
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ],
+        )
 
         assert self._check_is_datetime_type(df["Forecast Time"])
         assert self._check_is_datetime_type(df["Time"])
@@ -277,34 +273,20 @@ class BaseTestISO:
         # maybe with the exception of "LMP" breakdown
         self._check_time_columns(df)
 
-        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp", "nyiso", "miso"]:
-            assert set(
-                [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                    "Market",
-                    "Location",
-                    "Location Type",
-                    "LMP",
-                    "Energy",
-                    "Congestion",
-                    "Loss",
-                ],
-            ).issubset(df.columns)
-        else:
-            assert set(
-                [
-                    "Time",
-                    "Market",
-                    "Location",
-                    "Location Type",
-                    "LMP",
-                    "Energy",
-                    "Congestion",
-                    "Loss",
-                ],
-            ).issubset(df.columns)
+        assert set(
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ],
+        ).issubset(df.columns)
 
         assert len(df["Market"].unique()) == 1
         assert df["Market"].unique()[0] == market.value
