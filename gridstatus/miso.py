@@ -55,8 +55,14 @@ class MISO(ISOBase):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url, verbose=verbose)
 
-        time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
-            "EST",
+        time = (
+            pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"])
+            .tz_localize(
+                "EST",
+            )
+            .tz_convert(
+                self.default_timezone,
+            )
         )
 
         mix = {}
@@ -67,8 +73,9 @@ class MISO(ISOBase):
             mix[fuel["CATEGORY"]] = amount
 
         df = pd.DataFrame(mix, index=[time])
-        df.index.name = "Time"
+        df.index.name = "Interval Start"
         df = df.reset_index()
+        df = add_interval_end(df, 5)
         return df
 
     def get_load(self, date, verbose=False):
@@ -82,7 +89,7 @@ class MISO(ISOBase):
 
             df = pd.DataFrame([x["Load"] for x in r["LoadInfo"]["FiveMinTotalLoad"]])
 
-            df["Time"] = df["Time"].apply(
+            df["Interval Start"] = df["Time"].apply(
                 lambda x, date=date: date
                 + pd.Timedelta(
                     hours=int(
@@ -91,11 +98,18 @@ class MISO(ISOBase):
                     minutes=int(x.split(":")[1]),
                 ),
             )
-            df["Time"] = df["Time"].dt.tz_localize("EST")
+            df["Interval Start"] = (
+                df["Interval Start"]
+                .dt.tz_localize("EST")
+                .dt.tz_convert(
+                    self.default_timezone,
+                )
+            )
             df = df.rename(columns={"Value": "Load"})
             df["Load"] = pd.to_numeric(df["Load"])
-
+            df = add_interval_end(df, 5)
             return df
+
         else:
             raise NotSupported
 
@@ -105,19 +119,32 @@ class MISO(ISOBase):
 
         r = self._get_load_and_forecast_data(verbose=verbose)
 
-        date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0]).tz_localize(
-            tz="EST",
+        date = (
+            pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
+            .tz_localize(
+                tz="EST",
+            )
+            .tz_convert(
+                self.default_timezone,
+            )
         )
 
         df = pd.DataFrame(
             [x["Forecast"] for x in r["LoadInfo"]["MediumTermLoadForecast"]],
         )
 
-        df["Time"] = date + pd.to_timedelta(df["HourEnding"].astype(int) - 1, "h")
+        df["Interval Start"] = date + pd.to_timedelta(
+            df["HourEnding"].astype(int) - 1,
+            "h",
+        )
 
         df["Forecast Time"] = date
 
-        df = df[["Forecast Time", "Time", "LoadForecast"]].rename(
+        df = add_interval_end(df, 60)
+
+        df = df[
+            ["Time", "Interval Start", "Interval End", "Forecast Time", "LoadForecast"]
+        ].rename(
             columns={"LoadForecast": "Load Forecast"},
         )
 
@@ -149,7 +176,7 @@ class MISO(ISOBase):
         time = r["LMPData"]["RefId"]
         time_str = time[:11] + " " + time[-9:-4]
         time_zone = time[-3:]
-        time = (
+        interval_start = (
             pd.to_datetime(time_str)
             .tz_localize(
                 time_zone,
@@ -159,11 +186,13 @@ class MISO(ISOBase):
 
         if market == Markets.REAL_TIME_5_MIN:
             data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
+            interval_duration = 5
         elif market == Markets.DAY_AHEAD_HOURLY:
             data = pd.DataFrame(
                 r["LMPData"]["DayAheadExPostLMP"]["PricingNode"],
             )
-            time = time.ceil("H")
+            interval_start = interval_start.floor("H")
+            interval_duration = 60
 
         rename = {
             "name": "Location",
@@ -180,7 +209,8 @@ class MISO(ISOBase):
         )
 
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
-        data["Time"] = time
+        data["Interval Start"] = interval_start
+        data = add_interval_end(data, interval_duration)
         data["Market"] = market.value
         data["Location Type"] = "Pricing Node"
         data.loc[
@@ -192,6 +222,8 @@ class MISO(ISOBase):
         data = data[
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Market",
                 "Location",
                 "Location Type",
@@ -287,6 +319,25 @@ class MISO(ISOBase):
         )
 
         return queue
+
+
+def add_interval_end(df, duration_min):
+    """Add an interval end column to a dataframe
+
+    Args:
+        df (pandas.DataFrame): Dataframe with a time column
+        duration_min (int): Interval duration in minutes
+
+    Returns:
+        pandas.DataFrame: Dataframe with an interval end column
+    """
+    df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=duration_min)
+    df["Time"] = df["Interval Start"]
+    df = utils.move_cols_to_front(
+        df,
+        ["Time", "Interval Start", "Interval End"],
+    )
+    return df
 
 
 """
