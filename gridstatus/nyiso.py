@@ -81,31 +81,11 @@ class NYISO(ISOBase):
         # note: this is simlar datastructure to pjm
 
         if date == "latest":
-            url = "https://www.nyiso.com/o/oasis-rest/oasis/currentfuel/line-current"
-            data = self._get_json(url, verbose=verbose)
-
-            if data["status"] != "success":
-                raise RuntimeError(
-                    (
-                        "Failed to get latest fuel mix. Check if                       "
-                        "  NYISO's API is down."
-                    ),
-                )
-
-            mix_df = pd.DataFrame(data["data"])
-            time_str = mix_df["timeStamp"].max()
-            time = pd.Timestamp(time_str)
-            mix_df = (
-                mix_df[mix_df["timeStamp"] == time_str]
-                .set_index("fuelCategory")[["genMWh"]]
-                .T.reset_index(drop=True)
+            return (
+                self.get_fuel_mix(date="today", verbose=verbose)
+                .tail(1)
+                .reset_index(drop=True)
             )
-            mix_df.insert(0, "Time", time)
-            mix_df["Time"] = mix_df["Time"].dt.tz_convert(
-                self.default_timezone,
-            )
-            mix_df.columns.name = None
-            return mix_df.tail(1)
 
         mix_df = self._download_nyiso_archive(
             date=date,
@@ -115,7 +95,7 @@ class NYISO(ISOBase):
         )
 
         mix_df = mix_df.pivot_table(
-            index="Time",
+            index=["Time", "Interval Start", "Interval End"],
             columns="Fuel Category",
             values="Gen MW",
             aggfunc="first",
@@ -142,7 +122,11 @@ class NYISO(ISOBase):
         data = data.dropna(subset=["Load"])
 
         # TODO load by zone
-        load = data.groupby("Time")["Load"].sum().reset_index()
+        load = (
+            data.groupby(["Time", "Interval Start", "Interval End"])["Load"]
+            .sum()
+            .reset_index()
+        )
 
         return load
 
@@ -159,7 +143,9 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        data = data[["File Date", "Time", "NYISO"]].rename(
+        data = data[
+            ["Time", "Interval Start", "Interval End", "File Date", "NYISO"]
+        ].rename(
             columns={
                 "File Date": "Forecast Time",
                 "NYISO": "Load Forecast",
@@ -236,6 +222,8 @@ class NYISO(ISOBase):
         df = df[
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Market",
                 "Location",
                 "Location Type",
@@ -304,7 +292,6 @@ class NYISO(ISOBase):
             and "SGIA Tender Date" not in completed.columns
         ):
             active = active.drop(columns=["SGIA Tender Date"])
-        # import pdb; pdb.set_trace()
         completed.columns = active.columns
 
         # the spreadsheet doesnt have a date, so make it null
@@ -643,7 +630,7 @@ class NYISO(ISOBase):
             log(msg, verbose)
 
             df = pd.read_csv(csv_url)
-            df = _handle_time(df)
+            df = _handle_time(df, dataset_name)
             df["File Date"] = date.normalize()
         else:
 
@@ -673,7 +660,7 @@ class NYISO(ISOBase):
                 df = pd.read_csv(z.open(csv_filename))
                 df["File Date"] = d.normalize()
 
-                df = _handle_time(df)
+                df = _handle_time(df, dataset_name)
                 all_dfs.append(df)
 
             df = pd.concat(all_dfs)
@@ -741,7 +728,27 @@ class NYISO(ISOBase):
         return df.dropna(how="any", axis="columns")
 
 
-def _handle_time(df):
+dataset_interval_map = {
+    # (time_type, interval_duration_minutes)
+    # load
+    "pal": ("start", 5),
+    # fuel mix
+    "rtfuelmix": ("end", 5),
+    # load forecast
+    "isolf": ("start", 60),
+    # dam lmp
+    "damlbmp": ("start", 60),
+    # rt lmp
+    "realtime": ("end", 5),
+    # real time events
+    "RealTimeEvents": ("instantaneous", None),
+}
+
+
+def _handle_time(df, dataset_name):
+
+    time_type, interval_duration_minutes = dataset_interval_map[dataset_name]
+
     if "Time Stamp" in df.columns:
         time_stamp_col = "Time Stamp"
     elif "Timestamp" in df.columns:
@@ -773,6 +780,20 @@ def _handle_time(df):
         )
 
     df = df.rename(columns={time_stamp_col: "Time"})
+
+    if time_type != "instantaneous":
+        interval_duration = pd.Timedelta(minutes=interval_duration_minutes)
+        if time_type == "start":
+            df["Interval Start"] = df["Time"]
+            df["Interval End"] = df["Time"] + interval_duration
+        elif time_type == "end":
+            df["Interval End"] = df["Time"]
+            df["Interval Start"] = df["Time"] - interval_duration
+
+        utils.move_cols_to_front(
+            df,
+            ["Time", "Interval Start", "Interval End"],
+        )
 
     return df
 

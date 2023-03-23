@@ -95,18 +95,7 @@ class ISONE(ISOBase):
     #         mix_df["BeginDate"].max(),
     #         tz=self.default_timezone,
     #     )
-    # this return different date then other end point
-    # lets just use the other one for now
-    # def _get_latest_fuel_mix(self):
-    #     data = _make_wsclient_request(
-    #         url="https://www.iso-ne.com/ws/wsclient",
-    #         data={"_nstmp_requestType": "fuelmix"},
-    #     )
-    #     mix_df = pd.DataFrame(data[0]["data"]["GenFuelMixes"]["GenFuelMix"])
-    #     time = pd.Timestamp(
-    #         mix_df["BeginDate"].max(),
-    #         tz=self.default_timezone,
-    #     )
+
 
     #     # todo has marginal flag
     #     mix_df = mix_df.set_index("FuelCategory")[
@@ -114,12 +103,7 @@ class ISONE(ISOBase):
     #     mix_df.insert(0, "Time", time)
     #     mix_df.columns.name = None
     #     return mix_df
-    #     # todo has marginal flag
-    #     mix_df = mix_df.set_index("FuelCategory")[
-    #         ["GenMw"]].T.reset_index(drop=True)
-    #     mix_df.insert(0, "Time", time)
-    #     mix_df.columns.name = None
-    #     return mix_df
+
 
     @support_date_range(frequency="1D")
     def get_fuel_mix(self, date, end=None, verbose=False):
@@ -133,11 +117,7 @@ class ISONE(ISOBase):
                 .tail(1)
                 .reset_index(drop=True)
             )
-            return (
-                self.get_fuel_mix("today", verbose=verbose)
-                .tail(1)
-                .reset_index(drop=True)
-            )
+
 
         url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + date.strftime(
             "%Y%m%d",
