@@ -424,12 +424,6 @@ class SPP(ISOBase):
             fs_name=FS_RTBM_LMP_BY_LOCATION,
             verbose=verbose,
         )
-        df["Location"] = df["Settlement Location"]
-        df["Time"] = SPP._parse_gmt_interval_end(
-            df,
-            pd.Timedelta(minutes=5),
-            self.default_timezone,
-        )
         return df
 
     def _get_dam_lmp(
@@ -445,12 +439,6 @@ class SPP(ISOBase):
             self._fs_get_dam_lmp_by_location_paths(date, verbose=verbose),
             fs_name=FS_DAM_LMP_BY_LOCATION,
             verbose=verbose,
-        )
-        df["Location"] = df["Settlement Location"]
-        df["Time"] = SPP._parse_gmt_interval_end(
-            df,
-            pd.Timedelta(minutes=5),
-            self.default_timezone,
         )
         return df
 
@@ -472,6 +460,20 @@ class SPP(ISOBase):
             location_type (str): Location type
             verbose (bool, optional): Verbose output
         """
+        df["Interval End"] = pd.to_datetime(
+            df["GMTIntervalEnd"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+
+        if market == Markets.REAL_TIME_5_MIN:
+            interval_duration = pd.Timedelta(minutes=5)
+        elif market == Markets.DAY_AHEAD_HOURLY:
+            interval_duration = pd.Timedelta(hours=1)
+
+        df["Interval Start"] = df["Interval End"] - interval_duration
+        df["Time"] = df["Interval Start"]
+
+        df["Location"] = df["Settlement Location"]
 
         df["Market"] = market.value
 
@@ -523,6 +525,8 @@ class SPP(ISOBase):
         df = df[
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Market",
                 "Location",
                 "Location Type",
@@ -544,14 +548,6 @@ class SPP(ISOBase):
             if item in values_list:
                 return key
         return default_value
-
-    @staticmethod
-    def _parse_gmt_interval_end(df, interval_duration: pd.Timedelta, timezone):
-        return df["GMTIntervalEnd"].apply(
-            lambda x: (
-                pd.Timestamp(x, unit="ms", tz="UTC") - interval_duration
-            ).tz_convert(timezone),
-        )
 
     @staticmethod
     def _parse_day_ahead_hour_end(df, timezone):
@@ -597,7 +593,7 @@ class SPP(ISOBase):
         """
         if date == "latest":
             paths = ["/RTBM-LMP-SL-latestInterval.csv"]
-        elif utils.is_today(date, self.default_timezone):
+        else:
             files_df = self._file_browser_list(
                 name=FS_RTBM_LMP_BY_LOCATION,
                 fs_name=FS_RTBM_LMP_BY_LOCATION,
@@ -634,14 +630,9 @@ class SPP(ISOBase):
             raise ValueError(
                 "DAM is released daily, so use date='today' instead",
             )
-        elif not utils.is_today(date, self.default_timezone):
-            raise NotSupported(
-                "Historical DAM data is not supported currently",
-            )
 
-        date = pd.Timestamp.now(
-            tz=self.default_timezone,
-        ).normalize()
+        date = date.normalize()
+
         # list files for this month
         files_df = self._file_browser_list(
             name=FS_DAM_LMP_BY_LOCATION,
