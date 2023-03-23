@@ -116,6 +116,8 @@ class TestPJM(BaseTestISO):
 
         assert df.columns.tolist() == [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Load",
             "AE",
             "AEP",
