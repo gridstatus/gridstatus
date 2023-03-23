@@ -167,19 +167,10 @@ class ISONE(ISOBase):
         mix_df["Time"] = mix_df["Interval Start"]
 
         # move time columns front
-        mix_df = mix_df[
-            ["Time", "Interval Start", "Interval End"]
-            + [
-                c
-                for c in mix_df.columns
-                if c
-                not in [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                ]
-            ]
-        ]
+        mix_df = utils.move_cols_to_front(
+            mix_df,
+            ["Time", "Interval Start", "Interval End"],
+        )
 
         return mix_df
 

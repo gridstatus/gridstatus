@@ -94,7 +94,28 @@ class SPP(ISOBase):
         return self._get_status_from_html(html_text)
 
     def get_fuel_mix(self, date, verbose=False):
-        if date != "latest":
+        """Get fuel mix
+
+        Args:
+            date: supports today and latest
+
+        Note:
+            if today, returns last 2 hours of data. maybe include previous day
+
+        Returns:
+            pd.DataFrame: fuel mix
+
+        """
+        if date == "latest":
+            return (
+                self.get_fuel_mix("today", verbose=verbose)
+                .tail(1)
+                .reset_index(drop=True)
+            )
+
+        if not utils.is_today(date, self.default_timezone):
+            # https://marketplace.spp.org/pages/generation-mix-historical
+            # many years of historical 5 minute data
             raise NotSupported
 
         url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"
@@ -116,7 +137,17 @@ class SPP(ISOBase):
             inplace=True,
         )
 
-        return historical_mix.tail(1).reset_index(drop=True)
+        historical_mix["Interval Start"] = historical_mix["Time"]
+        historical_mix["Interval End"] = historical_mix[
+            "Interval Start"
+        ] + pd.Timedelta(minutes=5)
+
+        historical_mix = utils.move_cols_to_front(
+            historical_mix,
+            ["Time", "Interval Start", "Interval End"],
+        )
+
+        return historical_mix
 
     def get_load(self, date, verbose=False):
         """Returns load for last 24hrs in 5 minute intervals"""

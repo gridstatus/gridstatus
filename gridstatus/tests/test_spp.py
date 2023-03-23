@@ -27,10 +27,6 @@ class TestSPP(BaseTestISO):
     def test_get_fuel_mix_historical_with_date_range(self):
         pass
 
-    def test_get_fuel_mix_today(self):
-        with pytest.raises(NotSupported):
-            super().test_get_fuel_mix_today()
-
     def test_get_fuel_mix_central_time(self):
         fm = self.iso.get_fuel_mix(date="latest")
         assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
