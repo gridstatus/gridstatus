@@ -4,6 +4,8 @@ on: # Run on all pushes and pull requests
     branches:
       - main
   pull_request:
+    branches:
+      - main
 jobs:
   build:
     runs-on: ubuntu-latest
