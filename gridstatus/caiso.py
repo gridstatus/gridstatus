@@ -336,7 +336,16 @@ class CAISO(ISOBase):
                 "Hybrid batteries": "Hybrid Batteries",
             },
         )
-        df = df[["Time", "Supply", "Stand-alone Batteries", "Hybrid Batteries"]]
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Supply",
+                "Stand-alone Batteries",
+                "Hybrid Batteries",
+            ]
+        ]
         return df
 
     @support_date_range(frequency="31D")
