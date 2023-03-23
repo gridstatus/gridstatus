@@ -275,18 +275,36 @@ class BaseTestISO:
         # todo in future all ISO should return same columns
         # maybe with the exception of "LMP" breakdown
         self._check_time_columns(df)
-        assert set(
-            [
-                "Time",
-                "Market",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ],
-        ).issubset(df.columns)
+
+        if self.iso.iso_id in ["caiso", "ercot", "isone", "spp"]:
+            assert set(
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Market",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                    "Energy",
+                    "Congestion",
+                    "Loss",
+                ],
+            ).issubset(df.columns)
+        else:
+            assert set(
+                [
+                    "Time",
+                    "Market",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                    "Energy",
+                    "Congestion",
+                    "Loss",
+                ],
+            ).issubset(df.columns)
+
         assert len(df["Market"].unique()) == 1
         assert df["Market"].unique()[0] == market.value
         assert df.shape[0] >= 0
