@@ -785,10 +785,11 @@ def _handle_time(df, dataset_name):
         interval_duration = pd.Timedelta(minutes=interval_duration_minutes)
         if time_type == "start":
             df["Interval Start"] = df["Time"]
+            df["Interval End"] = df["Time"] + interval_duration
         elif time_type == "end":
+            df["Interval End"] = df["Time"]
             df["Interval Start"] = df["Time"] - interval_duration
 
-        df["Interval End"] = df["Interval Start"] + interval_duration
         utils.move_cols_to_front(
             df,
             ["Time", "Interval Start", "Interval End"],
