@@ -83,22 +83,25 @@ class ISONE(ISOBase):
             notes=[note],
         )
 
-    def _get_latest_fuel_mix(self):
-        data = _make_wsclient_request(
-            url="https://www.iso-ne.com/ws/wsclient",
-            data={"_nstmp_requestType": "fuelmix"},
-        )
-        mix_df = pd.DataFrame(data[0]["data"]["GenFuelMixes"]["GenFuelMix"])
-        time = pd.Timestamp(
-            mix_df["BeginDate"].max(),
-            tz=self.default_timezone,
-        )
+    # this return different date then other end point
+    # lets just use the other one for now
+    # def _get_latest_fuel_mix(self):
+    #     data = _make_wsclient_request(
+    #         url="https://www.iso-ne.com/ws/wsclient",
+    #         data={"_nstmp_requestType": "fuelmix"},
+    #     )
+    #     mix_df = pd.DataFrame(data[0]["data"]["GenFuelMixes"]["GenFuelMix"])
+    #     time = pd.Timestamp(
+    #         mix_df["BeginDate"].max(),
+    #         tz=self.default_timezone,
+    #     )
 
-        # todo has marginal flag
-        mix_df = mix_df.set_index("FuelCategory")[["GenMw"]].T.reset_index(drop=True)
-        mix_df.insert(0, "Time", time)
-        mix_df.columns.name = None
-        return mix_df
+    #     # todo has marginal flag
+    #     mix_df = mix_df.set_index("FuelCategory")[
+    #         ["GenMw"]].T.reset_index(drop=True)
+    #     mix_df.insert(0, "Time", time)
+    #     mix_df.columns.name = None
+    #     return mix_df
 
     @support_date_range(frequency="1D")
     def get_fuel_mix(self, date, end=None, verbose=False):
@@ -107,9 +110,11 @@ class ISONE(ISOBase):
         Provided at frequent, but irregular intervals by ISONE
         """
         if date == "latest":
-            return self._get_latest_fuel_mix()
-
-        # todo should getting day today use the latest endpoint?
+            return (
+                self.get_fuel_mix("today", verbose=verbose)
+                .tail(1)
+                .reset_index(drop=True)
+            )
 
         url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + date.strftime(
             "%Y%m%d",
@@ -133,14 +138,48 @@ class ISONE(ISOBase):
             values="Gen Mw",
             aggfunc="first",
         ).reset_index()
+        mix_df.columns.name = None
 
-        mix_df = mix_df.rename(columns={"Date": "Time"})
+        # assume interval end. unclear based on data
+        mix_df = mix_df.rename(columns={"Date": "Interval End"})
 
         mix_df = mix_df.fillna(0)
 
-        import pdb
+        mix_df["Interval Start"] = (
+            mix_df["Interval End"] - mix_df["Interval End"].diff()
+        )
 
-        pdb.set_trace()
+        # add midnight to first row of Interval Start
+        mix_df.loc[0, "Interval Start"] = mix_df["Interval Start"].min().normalize()
+
+        # if historical data, add row at end to go to midnight of next day
+        # todo manually verified works, but add test for this
+        if not utils.is_today(date, self.default_timezone):
+            mix_df = mix_df.append(
+                {
+                    "Interval Start": mix_df["Interval End"].max(),
+                    "Interval End": mix_df["Interval End"].max().normalize()
+                    + pd.Timedelta(days=1),
+                },
+                ignore_index=True,
+            ).ffill()
+
+        mix_df["Time"] = mix_df["Interval Start"]
+
+        # move time columns front
+        mix_df = mix_df[
+            ["Time", "Interval Start", "Interval End"]
+            + [
+                c
+                for c in mix_df.columns
+                if c
+                not in [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                ]
+            ]
+        ]
 
         return mix_df
 
@@ -230,8 +269,6 @@ class ISONE(ISOBase):
                 "Load Forecast",
             ]
         ]
-
-        return df
 
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
         """
