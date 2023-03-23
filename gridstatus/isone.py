@@ -95,7 +95,25 @@ class ISONE(ISOBase):
     #         mix_df["BeginDate"].max(),
     #         tz=self.default_timezone,
     #     )
+    # this return different date then other end point
+    # lets just use the other one for now
+    # def _get_latest_fuel_mix(self):
+    #     data = _make_wsclient_request(
+    #         url="https://www.iso-ne.com/ws/wsclient",
+    #         data={"_nstmp_requestType": "fuelmix"},
+    #     )
+    #     mix_df = pd.DataFrame(data[0]["data"]["GenFuelMixes"]["GenFuelMix"])
+    #     time = pd.Timestamp(
+    #         mix_df["BeginDate"].max(),
+    #         tz=self.default_timezone,
+    #     )
 
+    #     # todo has marginal flag
+    #     mix_df = mix_df.set_index("FuelCategory")[
+    #         ["GenMw"]].T.reset_index(drop=True)
+    #     mix_df.insert(0, "Time", time)
+    #     mix_df.columns.name = None
+    #     return mix_df
     #     # todo has marginal flag
     #     mix_df = mix_df.set_index("FuelCategory")[
     #         ["GenMw"]].T.reset_index(drop=True)
@@ -110,6 +128,11 @@ class ISONE(ISOBase):
         Provided at frequent, but irregular intervals by ISONE
         """
         if date == "latest":
+            return (
+                self.get_fuel_mix("today", verbose=verbose)
+                .tail(1)
+                .reset_index(drop=True)
+            )
             return (
                 self.get_fuel_mix("today", verbose=verbose)
                 .tail(1)
@@ -167,19 +190,10 @@ class ISONE(ISOBase):
         mix_df["Time"] = mix_df["Interval Start"]
 
         # move time columns front
-        mix_df = mix_df[
-            ["Time", "Interval Start", "Interval End"]
-            + [
-                c
-                for c in mix_df.columns
-                if c
-                not in [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                ]
-            ]
-        ]
+        mix_df = utils.move_cols_to_front(
+            mix_df,
+            ["Time", "Interval Start", "Interval End"],
+        )
 
         return mix_df
 

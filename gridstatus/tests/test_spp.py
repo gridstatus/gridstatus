@@ -5,9 +5,9 @@ import sys
 import pandas as pd
 import pytest
 
-import gridstatus
 from gridstatus import SPP, Markets, NotSupported
 from gridstatus.tests.base_test_iso import BaseTestISO
+from gridstatus.tests.decorators import with_markets
 
 
 class TestSPP(BaseTestISO):
@@ -27,15 +27,31 @@ class TestSPP(BaseTestISO):
     def test_get_fuel_mix_historical_with_date_range(self):
         pass
 
-    def test_get_fuel_mix_today(self):
-        with pytest.raises(NotSupported):
-            super().test_get_fuel_mix_today()
-
     def test_get_fuel_mix_central_time(self):
         fm = self.iso.get_fuel_mix(date="latest")
         assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
 
     """get_lmp"""
+
+    @with_markets(
+        Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_5_MIN,
+    )
+    def test_get_lmp_historical(self, market):
+        super().test_get_lmp_historical(market=market)
+
+    @with_markets(
+        Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_5_MIN,
+    )
+    def test_get_lmp_today(self, market):
+        super().test_get_lmp_today(market=market)
+
+    @with_markets(
+        Markets.REAL_TIME_5_MIN,
+    )
+    def test_get_lmp_latest(self, market):
+        super().test_get_lmp_latest(market=market)
 
     @pytest.mark.parametrize(
         "market,location_type",
@@ -50,47 +66,20 @@ class TestSPP(BaseTestISO):
             market=market,
             location_type=location_type,
         )
-        cols = [
-            "Time",
-            "Market",
-            "Location",
-            "Location Type",
-            "LMP",
-            "Energy",
-            "Congestion",
-            "Loss",
-        ]
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
-        markets = df["Market"].unique()
-        assert len(markets) == 1
-        assert markets[0] == market.value
+        self._check_lmp_columns(df, market)
 
         location_types = df["Location Type"].unique()
         assert len(location_types) == 1
         assert location_types[0] == location_type
 
     def test_get_lmp_latest_settlement_type_returns_three_location_types(self):
+        market = Markets.REAL_TIME_5_MIN
         df = self.iso.get_lmp(
             date="latest",
-            market=Markets.REAL_TIME_5_MIN,
+            market=market,
             location_type="SETTLEMENT_LOCATION",
         )
-        cols = [
-            "Time",
-            "Market",
-            "Location",
-            "Location Type",
-            "LMP",
-            "Energy",
-            "Congestion",
-            "Loss",
-        ]
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
-        markets = df["Market"].unique()
-        assert len(markets) == 1
-        assert markets[0] == Markets.REAL_TIME_5_MIN.value
+        self._check_lmp_columns(df, market)
 
         assert set(df["Location Type"]) == {
             "Interface",
@@ -112,7 +101,7 @@ class TestSPP(BaseTestISO):
             market=market,
             location_type=location_type,
         )
-        BaseTestISO._check_lmp_columns(df, market=market)
+        self._check_lmp_columns(df, market=market)
         location_types = df["Location Type"].unique()
         assert len(location_types) == 1
         assert location_types[0] == location_type
@@ -259,87 +248,6 @@ class TestSPP(BaseTestISO):
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
-
-    """other"""
-
-    def test__parse_gmt_interval_end(self):
-        df = pd.DataFrame(
-            [
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-12-26 18:45:00-0600",
-                        tz="US/Central",
-                    ),
-                    "GMTIntervalEnd": 1672102200000,
-                },
-            ],
-        )
-
-        df["ActualTime"] = gridstatus.SPP._parse_gmt_interval_end(
-            df,
-            interval_duration=pd.Timedelta(minutes=5),
-            timezone="US/Central",
-        )
-        assert df["ActualTime"].tolist() == df["ExpectedTime"].tolist()
-
-    def test__parse_gmt_interval_end_daylight_savings_time(self):
-        df = pd.DataFrame(
-            [
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-03-15 13:00:00-0500",
-                        tz="US/Central",
-                    ),
-                    # 2022-03-15 13:05:00 CDT
-                    "GMTIntervalEnd": 1647367500000,
-                },
-            ],
-        )
-
-        df["ActualTime"] = gridstatus.SPP._parse_gmt_interval_end(
-            df,
-            interval_duration=pd.Timedelta(minutes=5),
-            timezone="US/Central",
-        )
-        assert df["ActualTime"].tolist() == df["ExpectedTime"].tolist()
-
-    def test__parse_day_ahead_hour_end(self):
-        df = pd.DataFrame(
-            [
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-12-26 08:00:00-0600",
-                        tz="US/Central",
-                    ),
-                    "DA_HOUREND": "12/26/2022 9:00:00 AM",
-                },
-            ],
-        )
-
-        df["ActualTime"] = gridstatus.SPP._parse_day_ahead_hour_end(
-            df,
-            timezone="US/Central",
-        )
-        assert df["ActualTime"].tolist() == df["ExpectedTime"].tolist()
-
-    def test__parse_day_ahead_hour_end_daylight_savings_time(self):
-        df = pd.DataFrame(
-            [
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-03-15 13:00:00-0500",
-                        tz="US/Central",
-                    ),
-                    "DA_HOUREND": "03/15/2022 2:00:00 PM",
-                },
-            ],
-        )
-
-        df["ActualTime"] = gridstatus.SPP._parse_day_ahead_hour_end(
-            df,
-            timezone="US/Central",
-        )
-        assert df["ActualTime"].tolist() == df["ExpectedTime"].tolist()
 
     @staticmethod
     def _assert_get_status_timestamp(expected, expected_tz, *actuals, year_hint=None):
