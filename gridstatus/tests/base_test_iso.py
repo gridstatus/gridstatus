@@ -222,7 +222,7 @@ class BaseTestISO:
 
     def _check_time_columns(self, df):
         assert isinstance(df, pd.DataFrame)
-        if self.iso.iso_id in ["caiso"]:
+        if self.iso.iso_id in ["caiso", "ercot"]:
             time_cols = ["Time", "Interval Start", "Interval End"]
         else:
             time_cols = ["Time"]
@@ -239,6 +239,7 @@ class BaseTestISO:
 
     def _check_load(self, df):
         assert isinstance(df, pd.DataFrame)
+        assert df.shape[0] >= 0
         self._check_time_columns(df)
         assert "Load" in df.columns
         assert is_numeric_dtype(df["Load"])
@@ -247,7 +248,7 @@ class BaseTestISO:
 
         # allow both formats for now
         # remove this when all ISOs return start/end
-        if self.iso.iso_id in ["caiso"]:
+        if self.iso.iso_id in ["caiso", "ercot"]:
             assert set(df.columns) == set(
                 [
                     "Time",
