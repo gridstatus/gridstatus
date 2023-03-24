@@ -155,14 +155,15 @@ class ISONE(ISOBase):
         # if historical data, add row at end to go to midnight of next day
         # todo manually verified works, but add test for this
         if not utils.is_today(date, self.default_timezone):
-            mix_df = mix_df.append(
+            new_row = pd.DataFrame(
                 {
-                    "Interval Start": mix_df["Interval End"].max(),
-                    "Interval End": mix_df["Interval End"].max().normalize()
-                    + pd.Timedelta(days=1),
+                    "Interval Start": [mix_df["Interval End"].max()],
+                    "Interval End": [
+                        mix_df["Interval End"].max().normalize() + pd.Timedelta(days=1),
+                    ],
                 },
-                ignore_index=True,
-            ).ffill()
+            )
+            mix_df = pd.concat([mix_df, new_row], ignore_index=True).ffill()
 
         mix_df["Time"] = mix_df["Interval Start"]
 
