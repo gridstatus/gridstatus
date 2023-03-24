@@ -184,3 +184,9 @@ class TestCAISO(BaseTestISO):
         assert df.columns.tolist() == columns
         assert df["Market"].unique()[0] == market
         assert df.shape[0] > 0
+
+    """other"""
+
+    def test_get_pnodes(self):
+        df = self.iso.get_pnodes()
+        assert df.shape[0] > 0
