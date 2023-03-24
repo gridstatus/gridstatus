@@ -288,7 +288,7 @@ class Ercot(ISOBase):
         ]
 
         # keep today's data only
-        data = data[data["Time"].dt.date == date]
+        data = data[data["Time"].dt.date == pd.Timestamp(date)]
         data = data[data["forecast"] == 0]  # only keep non forecast rows
 
         return data.reset_index(drop=True)
