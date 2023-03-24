@@ -2,6 +2,8 @@
 
 ## v0.20.0 - TBD
 
+    - Add `Interval Start` and `Interval End` time stamps to every applicable time series to avoid ambiguity. The `Time` column will be dropped in favor of just these two columns in next release
+
     ### Breaking Changes
 
     - Removed `FuelMix` class. `iso.get_fuel_mix(date="latest")` now returns a DataFrame with a single row to make API consistent with other ways of calling the method.
