@@ -135,7 +135,7 @@ class CAISO(ISOBase):
     def _get_historical_load(self, date, verbose=False):
         df = _get_historical("demand", date, verbose=verbose)
 
-        df = df[["Time", "Current demand"]]
+        df = df[["Time", "Interval Start", "Interval End", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
         df = df.dropna(subset=["Load"])
         return df
@@ -161,13 +161,8 @@ class CAISO(ISOBase):
             + f"&startdatetime={start}&enddatetime={end}"
         )
 
-        df = _get_oasis(
-            url,
-            usecols=["INTERVALSTARTTIME_GMT", "MW", "TAC_AREA_NAME"],
-            verbose=verbose,
-            sleep=sleep,
-        ).rename(
-            columns={"INTERVALSTARTTIME_GMT": "Time", "MW": "Load Forecast"},
+        df = _get_oasis(url, verbose=verbose, sleep=sleep).rename(
+            columns={"MW": "Load Forecast"},
         )
 
         # returns many areas, we only want one overall iso
@@ -175,18 +170,24 @@ class CAISO(ISOBase):
 
         df = df.sort_values("Time")
 
+        # todo - what is the actual time of the forecast?
         df["Forecast Time"] = df["Time"].iloc[0]
 
-        df = df[["Forecast Time", "Time", "Load Forecast"]]
+        df = df[
+            [
+                "Forecast Time",
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Load Forecast",
+            ]
+        ]
+
         return df
 
     def get_pnodes(self):
         url = "http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=ATL_PNODE_MAP&version=1&startdatetime=20220801T07:00-0000&enddatetime=20220802T07:00-0000&pnode_id=ALL"  # noqa
-        df = pd.read_csv(
-            url,
-            compression="zip",
-            usecols=["APNODE_ID", "PNODE_ID"],
-        ).rename(
+        df = pd.read_csv(url, compression="zip").rename(
             columns={
                 "APNODE_ID": "Aggregate PNode ID",
                 "PNODE_ID": "PNode ID",
@@ -263,18 +264,12 @@ class CAISO(ISOBase):
 
         df = _get_oasis(
             url,
-            usecols=[
-                "INTERVALSTARTTIME_GMT",
-                "NODE",
-                "LMP_TYPE",
-                PRICE_COL,
-            ],
             verbose=verbose,
             sleep=sleep,
         )
 
         df = df.pivot_table(
-            index=["INTERVALSTARTTIME_GMT", "NODE"],
+            index=["Time", "Interval Start", "Interval End", "NODE"],
             columns="LMP_TYPE",
             values=PRICE_COL,
             aggfunc="first",
@@ -282,7 +277,6 @@ class CAISO(ISOBase):
 
         df = df.reset_index().rename(
             columns={
-                "INTERVALSTARTTIME_GMT": "Time",
                 "NODE": "Location",
                 "LMP": "LMP",
                 "MCE": "Energy",
@@ -302,6 +296,8 @@ class CAISO(ISOBase):
         df = df[
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Market",
                 "Location",
                 "Location Type",
@@ -317,7 +313,7 @@ class CAISO(ISOBase):
         # clean up pivot name in header
         data.columns.name = None
 
-        return df
+        return data
 
     @support_date_range(frequency="1D")
     def get_storage(self, date, verbose=False):
@@ -340,7 +336,16 @@ class CAISO(ISOBase):
                 "Hybrid batteries": "Hybrid Batteries",
             },
         )
-        df = df[["Time", "Supply", "Stand-alone Batteries", "Hybrid Batteries"]]
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Supply",
+                "Stand-alone Batteries",
+                "Hybrid Batteries",
+            ]
+        ]
         return df
 
     @support_date_range(frequency="31D")
@@ -375,18 +380,8 @@ class CAISO(ISOBase):
 
         url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_FUEL&version=1&FUEL_REGION_ID={fuel_region_id}&startdatetime={start}&enddatetime={end}"  # noqa
 
-        df = _get_oasis(
-            url,
-            usecols=[
-                "INTERVALSTARTTIME_GMT",
-                "FUEL_REGION_ID",
-                "PRC",
-            ],
-            verbose=verbose,
-            sleep=sleep,
-        ).rename(
+        df = _get_oasis(url, verbose=verbose, sleep=sleep).rename(
             columns={
-                "INTERVALSTARTTIME_GMT": "Time",
                 "FUEL_REGION_ID": "Fuel Region Id",
                 "PRC": "Price",
             },
@@ -398,6 +393,16 @@ class CAISO(ISOBase):
             )
             .reset_index(drop=True)
         )
+
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Fuel Region Id",
+                "Price",
+            ]
+        ]
         return df
 
     @support_date_range(frequency="31D")
@@ -421,20 +426,20 @@ class CAISO(ISOBase):
 
         url = f"http://oasis.caiso.com/oasisapi/SingleZip?resultformat=6&queryname=PRC_GHG_ALLOWANCE&version=1&startdatetime={start}&enddatetime={end}"  # noqa
 
-        df = _get_oasis(
-            url,
-            usecols=[
-                "INTERVALSTARTTIME_GMT",
-                "GHG_PRC_IDX",
-            ],
-            verbose=verbose,
-            sleep=sleep,
-        ).rename(
+        df = _get_oasis(url, verbose=verbose, sleep=sleep).rename(
             columns={
-                "INTERVALSTARTTIME_GMT": "Time",
                 "GHG_PRC_IDX": "GHG Allowance Price",
             },
         )
+
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "GHG Allowance Price",
+            ]
+        ]
 
         return df
 
@@ -658,6 +663,9 @@ class CAISO(ISOBase):
             lambda x, date=date: date + pd.Timedelta(hours=x),
         )
 
+        df["Interval Start"] = df["Time"]
+        df["Interval End"] = df["Time"] + pd.Timedelta(hours=1)
+
         df = df.drop(columns=["Date", "Hour"])
 
         df["Fuel Type"] = df["Fuel Type"].map(
@@ -670,6 +678,8 @@ class CAISO(ISOBase):
         df = df[
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Curtailment Type",
                 "Curtailment Reason",
                 "Fuel Type",
@@ -702,7 +712,6 @@ class CAISO(ISOBase):
 
         df = _get_oasis(url=url, verbose=verbose, sleep=sleep).rename(
             columns={
-                "INTERVALSTARTTIME_GMT": "Time",
                 "ANC_REGION": "Region",
                 "MARKET_RUN_ID": "Market",
             },
@@ -719,7 +728,13 @@ class CAISO(ISOBase):
         df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
 
         df = df.pivot_table(
-            index=["Time", "Region", "Market"],
+            index=[
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Market",
+            ],
             columns="ANC_TYPE",
             values="MW",
         ).reset_index()
@@ -760,7 +775,6 @@ class CAISO(ISOBase):
 
         df = _get_oasis(url=url, verbose=verbose, sleep=sleep).rename(
             columns={
-                "INTERVALSTARTTIME_GMT": "Time",
                 "ANC_REGION": "Region",
                 "MARKET_RUN_ID": "Market",
             },
@@ -787,7 +801,13 @@ class CAISO(ISOBase):
         df["column"] = df["ANC_TYPE"] + " " + df["RESULT_TYPE"]
 
         df = df.pivot_table(
-            index=["Time", "Region", "Market"],
+            index=[
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Market",
+            ],
             columns="column",
             values="MW",
         ).reset_index()
@@ -838,10 +858,16 @@ def _get_historical(file, date, verbose=False):
     if df.iloc[-1]["Time"].hour == 0:
         df = df.iloc[:-1]
 
+    # insert interval start/end columns
+    df.insert(1, "Interval Start", df["Time"])
+
+    # be careful if this is ever not 5 minutes
+    df.insert(2, "Interval End", df["Time"] + pd.Timedelta(minutes=5))
+
     return df
 
 
-def _get_oasis(url, usecols=None, verbose=False, sleep=4):
+def _get_oasis(url, verbose=False, sleep=4):
 
     msg = f"Fetching URL: {url}"
     log(msg, verbose)
@@ -862,7 +888,6 @@ def _get_oasis(url, usecols=None, verbose=False, sleep=4):
 
     df = pd.read_csv(
         z.open(z.namelist()[0]),
-        usecols=usecols,
     )
 
     if "INTERVALSTARTTIME_GMT" in df.columns:
@@ -870,6 +895,21 @@ def _get_oasis(url, usecols=None, verbose=False, sleep=4):
             df["INTERVALSTARTTIME_GMT"],
             utc=True,
         ).dt.tz_convert(CAISO.default_timezone)
+
+        df["INTERVALENDTIME_GMT"] = pd.to_datetime(
+            df["INTERVALENDTIME_GMT"],
+            utc=True,
+        ).dt.tz_convert(CAISO.default_timezone)
+
+        df.rename(
+            columns={
+                "INTERVALSTARTTIME_GMT": "Interval Start",
+                "INTERVALENDTIME_GMT": "Interval End",
+            },
+            inplace=True,
+        )
+
+        df.insert(0, "Time", df["Interval Start"])
 
     # avoid rate limiting
     time.sleep(5)

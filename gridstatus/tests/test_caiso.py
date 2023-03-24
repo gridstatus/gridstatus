@@ -18,6 +18,8 @@ class TestCAISO(BaseTestISO):
 
         assert df.columns.tolist() == [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Region",
             "Market",
             "Non-Spinning Reserves",
@@ -36,22 +38,39 @@ class TestCAISO(BaseTestISO):
 
     """get_curtailment"""
 
+    def _check_curtailment(self, df):
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Curtailment Type",
+            "Curtailment Reason",
+            "Fuel Type",
+            "Curtailment (MWh)",
+            "Curtailment (MW)",
+        ]
+        self._check_time_columns(df)
+
     def test_get_curtailment(self):
         date = "Oct 15, 2022"
         df = self.iso.get_curtailment(date)
-        assert df.shape == (31, 6)
+        assert df.shape == (31, 8)
+        self._check_curtailment(df)
 
     def test_get_curtailment_2_pages(self):
         # test that the function can handle 3 pages of data
         date = "March 15, 2022"
         df = self.iso.get_curtailment(date)
-        assert df.shape == (55, 6)
+        assert df.shape == (55, 8)
+        self._check_curtailment(df)
 
     def test_get_curtailment_3_pages(self):
         # test that the function can handle 3 pages of data
         date = "March 16, 2022"
         df = self.iso.get_curtailment(date)
-        assert df.shape == (76, 6)
+        assert df.shape == (76, 8)
+        self._check_curtailment(df)
 
     """get_gas_prices"""
 
@@ -91,7 +110,12 @@ class TestCAISO(BaseTestISO):
         df = self.iso.get_ghg_allowance(date)
 
         assert len(df) == 1
-        assert set(df.columns) == {"Time", "GHG Allowance Price"}
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "GHG Allowance Price",
+        ]
 
     """get_lmp"""
 
@@ -128,6 +152,8 @@ class TestCAISO(BaseTestISO):
     def _check_as_data(df, market):
         columns = [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Region",
             "Market",
             "Non-Spinning Reserves Procured (MW)",
@@ -157,4 +183,10 @@ class TestCAISO(BaseTestISO):
         ]
         assert df.columns.tolist() == columns
         assert df["Market"].unique()[0] == market
+        assert df.shape[0] > 0
+
+    """other"""
+
+    def test_get_pnodes(self):
+        df = self.iso.get_pnodes()
         assert df.shape[0] > 0

@@ -1,6 +1,5 @@
 import pytest
 
-import gridstatus
 from gridstatus import ISONE
 from gridstatus.base import Markets
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -34,7 +33,7 @@ class TestISONE(BaseTestISO):
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
-        # Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
     )
     def test_get_lmp_historical(self, market):
@@ -55,11 +54,18 @@ class TestISONE(BaseTestISO):
         super().test_get_lmp_today(market=market)
 
     @pytest.mark.parametrize("date", DST_BOUNDARIES)
-    @pytest.mark.parametrize("market", gridstatus.ISONE().markets)
-    def test_get_lmp(self, date, market):
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_5_MIN,
+            Markets.REAL_TIME_HOURLY,
+            Markets.DAY_AHEAD_HOURLY,
+        ],
+    )
+    def test_get_lmp_dst_boundaries(self, date, market):
         self.iso.get_lmp(
             date=date,
-            market=Markets.DAY_AHEAD_HOURLY,
+            market=market,
             verbose=VERBOSE,
         )
 

@@ -83,22 +83,25 @@ class ISONE(ISOBase):
             notes=[note],
         )
 
-    def _get_latest_fuel_mix(self):
-        data = _make_wsclient_request(
-            url="https://www.iso-ne.com/ws/wsclient",
-            data={"_nstmp_requestType": "fuelmix"},
-        )
-        mix_df = pd.DataFrame(data[0]["data"]["GenFuelMixes"]["GenFuelMix"])
-        time = pd.Timestamp(
-            mix_df["BeginDate"].max(),
-            tz=self.default_timezone,
-        )
+    # this return different date then other end point
+    # lets just use the other one for now
+    # def _get_latest_fuel_mix(self):
+    #     data = _make_wsclient_request(
+    #         url="https://www.iso-ne.com/ws/wsclient",
+    #         data={"_nstmp_requestType": "fuelmix"},
+    #     )
+    #     mix_df = pd.DataFrame(data[0]["data"]["GenFuelMixes"]["GenFuelMix"])
+    #     time = pd.Timestamp(
+    #         mix_df["BeginDate"].max(),
+    #         tz=self.default_timezone,
+    #     )
 
-        # todo has marginal flag
-        mix_df = mix_df.set_index("FuelCategory")[["GenMw"]].T.reset_index(drop=True)
-        mix_df.insert(0, "Time", time)
-        mix_df.columns.name = None
-        return mix_df
+    #     # todo has marginal flag
+    #     mix_df = mix_df.set_index("FuelCategory")[
+    #         ["GenMw"]].T.reset_index(drop=True)
+    #     mix_df.insert(0, "Time", time)
+    #     mix_df.columns.name = None
+    #     return mix_df
 
     @support_date_range(frequency="1D")
     def get_fuel_mix(self, date, end=None, verbose=False):
@@ -107,9 +110,11 @@ class ISONE(ISOBase):
         Provided at frequent, but irregular intervals by ISONE
         """
         if date == "latest":
-            return self._get_latest_fuel_mix()
-
-        # todo should getting day today use the latest endpoint?
+            return (
+                self.get_fuel_mix("today", verbose=verbose)
+                .tail(1)
+                .reset_index(drop=True)
+            )
 
         url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + date.strftime(
             "%Y%m%d",
@@ -133,10 +138,40 @@ class ISONE(ISOBase):
             values="Gen Mw",
             aggfunc="first",
         ).reset_index()
+        mix_df.columns.name = None
 
-        mix_df = mix_df.rename(columns={"Date": "Time"})
+        # assume interval end. unclear based on data
+        mix_df = mix_df.rename(columns={"Date": "Interval End"})
 
         mix_df = mix_df.fillna(0)
+
+        mix_df["Interval Start"] = (
+            mix_df["Interval End"] - mix_df["Interval End"].diff()
+        )
+
+        # add midnight to first row of Interval Start
+        mix_df.loc[0, "Interval Start"] = mix_df["Interval Start"].min().normalize()
+
+        # if historical data, add row at end to go to midnight of next day
+        # todo manually verified works, but add test for this
+        if not utils.is_today(date, self.default_timezone):
+            new_row = pd.DataFrame(
+                {
+                    "Interval Start": [mix_df["Interval End"].max()],
+                    "Interval End": [
+                        mix_df["Interval End"].max().normalize() + pd.Timedelta(days=1),
+                    ],
+                },
+            )
+            mix_df = pd.concat([mix_df, new_row], ignore_index=True).ffill()
+
+        mix_df["Time"] = mix_df["Interval Start"]
+
+        # move time columns front
+        mix_df = utils.move_cols_to_front(
+            mix_df,
+            ["Time", "Interval Start", "Interval End"],
+        )
 
         return mix_df
 
@@ -157,9 +192,15 @@ class ISONE(ISOBase):
             ambiguous="infer",
         )
 
+        # todo what is the difference between Native Load and Asset Related Load?
         df = data[["Date/Time", "Native Load"]].rename(
             columns={"Date/Time": "Time", "Native Load": "Load"},
         )
+
+        df["Interval Start"] = df["Time"]
+        df["Interval End"] = df["Time"] + pd.Timedelta(minutes=5)
+
+        df = df[["Time", "Interval Start", "Interval End", "Load"]]
 
         return df
 
@@ -208,6 +249,19 @@ class ISONE(ISOBase):
             },
         )
 
+        df["Interval Start"] = df["Time"]
+        df["Interval End"] = df["Time"] + pd.Timedelta(hours=1)
+
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ]
+        ]
+
         return df
 
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
@@ -216,20 +270,32 @@ class ISONE(ISOBase):
         """  # noqa
         if locations is None:
             locations = "ALL"
+
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
+            data.rename(
+                columns={
+                    "Local Time": "Interval Start",
+                },
+                inplace=True,
+            )
+
         elif market == Markets.REAL_TIME_HOURLY:
             url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"  # noqa
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
 
-            # todo does this handle single digital hours?
-            data["Local Time"] = (
-                data["Local Date"]
-                + " "
-                + data["Local Time"].astype(str).str.zfill(2)
-                + ":00"
+            # reformat this data so it looks like other endpoints
+            # this way it works with process_lmp below
+            data.rename(
+                columns={
+                    "Local Date": "Date",
+                    "Local Time": "Hour Ending",
+                },
+                inplace=True,
             )
+
+            # data["Hour Ending"] = data["Hour Ending"].astype(str).str.zfill(2)
 
         else:
             raise RuntimeError("LMP Market is not supported")
@@ -289,7 +355,8 @@ class ISONE(ISOBase):
 
             dfs = []
             for interval in intervals:
-                print("Loading interval {}".format(interval))
+                msg = "Loading interval {}".format(interval)
+                log(msg, verbose=verbose)
                 u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"  # noqa
                 dfs.append(
                     pd.read_csv(
@@ -313,7 +380,8 @@ class ISONE(ISOBase):
             # add current interval
             if now.date() == date.date():
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
-                print("Loading current interval")
+                msg = "Loading current interval"
+                log(msg, verbose=verbose)
                 # this request is very very slow for some reason.
                 # I suspect b/c the server is making the response dynamically
                 data_current = _make_request(
@@ -326,6 +394,13 @@ class ISONE(ISOBase):
                 ]
                 data = pd.concat([data, data_current])
 
+            data.rename(
+                columns={
+                    "Local Time": "Interval Start",
+                },
+                inplace=True,
+            )
+
         elif market == Markets.REAL_TIME_HOURLY:
             if date.date() < now.date():
                 url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
@@ -334,23 +409,9 @@ class ISONE(ISOBase):
                     skiprows=[0, 1, 2, 3, 5],
                     verbose=verbose,
                 )
-                # todo document hour starting vs ending
-                # for DST end transitions they use 02X to represent repeated 1am hour
-                data["Hour Ending"] = (
-                    data["Hour Ending"]
-                    .replace(
-                        "02X",
-                        "02",
-                    )
-                    .astype(int)
-                )
-                data["Local Time"] = (
-                    data["Date"]
-                    + " "
-                    + (data["Hour Ending"] - 1).astype(str).str.zfill(2)
-                    + ":00"
-                )
             else:
+                # iso only publishes rolling 3 hours of data for current
+                # day real time hourly. idk why
                 raise RuntimeError(
                     "Today not supported for hourly lmp. Try latest",
                 )
@@ -362,24 +423,7 @@ class ISONE(ISOBase):
                 skiprows=[0, 1, 2, 3, 5],
                 verbose=verbose,
             )
-            # todo document hour starting vs ending
 
-            # for DST end transitions they use 02X to represent repeated 1am hour
-            data["Hour Ending"] = (
-                data["Hour Ending"]
-                .replace(
-                    "02X",
-                    "02",
-                )
-                .astype(int)
-            )
-
-            data["Local Time"] = (
-                data["Date"]
-                + " "
-                + (data["Hour Ending"] - 1).astype(str).str.zfill(2)
-                + ":00"
-            )
         else:
             raise RuntimeError("LMP Market is not supported")
 
@@ -419,20 +463,47 @@ class ISONE(ISOBase):
         data.rename(columns=rename, inplace=True)
 
         data["Market"] = market.value
+        interval = pd.Timedelta(hours=1)
+        if market == Markets.REAL_TIME_5_MIN:
+            interval = pd.Timedelta(minutes=5)
+
+        if "Hour Ending" in data.columns:
+            # for DST end transitions isone uses 02X to represent repeated 1am hour
+            data["Hour Start"] = (
+                data["Hour Ending"]
+                .replace(
+                    "02X",
+                    "02",
+                )
+                .astype(int)
+                - 1
+            )
+
+            data["Interval Start"] = pd.to_datetime(data["Date"]) + data[
+                "Hour Start"
+            ].astype("timedelta64[h]")
+
+        def handle_date_time(s):
+            return pd.to_datetime(s).dt.tz_localize(
+                timezone,
+                ambiguous="infer",
+            )
+
         # Location seems to be more unique than Location ID refer to #171
         location_groupby = "Location" if "Location" in data.columns else "Location Id"
         # groupby location so that hours are increasing monotonically and can infer dst
-        data["Time"] = data.groupby(location_groupby)["Time"].transform(
-            lambda x, timezone=timezone: pd.to_datetime(x).dt.tz_localize(
-                timezone,
-                ambiguous="infer",
-            ),
-        )
+        data["Interval Start"] = data.groupby(location_groupby)[
+            "Interval Start"
+        ].transform(handle_date_time)
+
+        data["Interval End"] = data["Interval Start"] + interval
+        data["Time"] = data["Interval Start"]
 
         # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:
             day_ahead = self.get_lmp(
-                date="today",
+                # query for same day in case it matters
+                date=data["Interval Start"].min().date(),
                 market=Markets.DAY_AHEAD_HOURLY,
                 locations=locations,
                 include_id=True,
@@ -453,6 +524,8 @@ class ISONE(ISOBase):
         data = data[
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Market",
                 "Location",
                 "Location Id",

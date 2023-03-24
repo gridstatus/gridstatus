@@ -271,3 +271,11 @@ def get_interconnection_queues():
 
     all_queues = pd.concat(all_queues).reset_index(drop=True)
     return all_queues
+
+
+def move_cols_to_front(df, cols_to_move):
+    """Move columns to front of DataFrame"""
+    cols = list(df.columns)
+    for c in cols_to_move:
+        cols.remove(c)
+    return df[cols_to_move + cols]

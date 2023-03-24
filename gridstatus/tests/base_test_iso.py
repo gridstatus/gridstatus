@@ -19,13 +19,20 @@ class BaseTestISO:
         end = pd.Timestamp.now(tz=self.iso.default_timezone)
         start = end - pd.Timedelta(days=num_days)
 
-        self.iso.get_fuel_mix(date=start.date(), end=end.date())
-        self.iso.get_fuel_mix(
+        df = self.iso.get_fuel_mix(date=start.date(), end=end.date())
+        self._check_fuel_mix(df)
+
+        df = self.iso.get_fuel_mix(
             start=start.date(),
             end=end.date(),
         )
-        self.iso.get_fuel_mix(date=start.date())
-        self.iso.get_fuel_mix(start=start.date())
+        self._check_fuel_mix(df)
+
+        df = self.iso.get_fuel_mix(date=start.date())
+        self._check_fuel_mix(df)
+
+        df = self.iso.get_fuel_mix(start=start.date())
+        self._check_fuel_mix(df)
 
         with pytest.raises(ValueError):
             self.iso.get_fuel_mix(start=start.date(), date=start.date())
@@ -37,6 +44,7 @@ class BaseTestISO:
         assert isinstance(df, pd.DataFrame)
         assert df.loc[0]["Time"].strftime("%m/%d/%Y") == date_str
         assert df.loc[0]["Time"].tz is not None
+        self._check_fuel_mix(df)
 
         # timestamp object works
         date_obj = pd.to_datetime("2019/11/19")
@@ -46,6 +54,7 @@ class BaseTestISO:
             "%Y%m%d",
         ) == date_obj.strftime("%Y%m%d")
         assert df.loc[0]["Time"].tz is not None
+        self._check_fuel_mix(df)
 
         # datetime object works
         date_obj = pd.to_datetime("2021/05/09").date()
@@ -55,6 +64,7 @@ class BaseTestISO:
             "%Y%m%d",
         ) == date_obj.strftime("%Y%m%d")
         assert df.loc[0]["Time"].tz is not None
+        self._check_fuel_mix(df)
 
     def test_get_fuel_mix_historical_with_date_range(self):
         # range not inclusive, add one to include today
@@ -64,22 +74,24 @@ class BaseTestISO:
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
-        data = self.iso.get_fuel_mix(date=start.date(), end=end.date())
+        df = self.iso.get_fuel_mix(date=start.date(), end=end.date())
+        self._check_fuel_mix(df)
+
         # make sure right number of days are returned
-        assert data["Time"].dt.day.nunique() == num_days
+        assert df["Time"].dt.day.nunique() == num_days
 
     def test_get_fuel_mix_latest(self):
-        mix = self.iso.get_fuel_mix("latest")
-        assert isinstance(mix, pd.DataFrame)
-        assert len(mix) == 1
-        assert isinstance(mix.Time.iloc[0], pd.Timestamp)
-        assert mix.index.name is None
-        assert mix.index.tolist() == [0]
-        assert mix.columns.name is None
+        df = self.iso.get_fuel_mix("latest")
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 1
+        assert isinstance(df.Time.iloc[0], pd.Timestamp)
+        assert df.index.name is None
+        assert df.index.tolist() == [0]
+        self._check_fuel_mix(df)
 
     def test_get_fuel_mix_today(self):
         df = self.iso.get_fuel_mix("today")
-        assert isinstance(df, pd.DataFrame)
+        self._check_fuel_mix(df)
 
     """get_interconnection_queue"""
 
@@ -94,7 +106,7 @@ class BaseTestISO:
 
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_historical(self, market=None):
-        date_str = "20220722"
+        date_str = "2022-07-22"
         if market is not None:
             hist = self.iso.get_lmp(date_str, market=market)
             assert isinstance(hist, pd.DataFrame)
@@ -123,6 +135,7 @@ class BaseTestISO:
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
         data = self.iso.get_load(date=start.date(), end=end.date())
+        self._check_load(data)
         # make sure right number of days are returned
         assert data["Time"].dt.day.nunique() == num_days
 
@@ -207,16 +220,44 @@ class BaseTestISO:
 
     """other"""
 
+    def _check_ordered_by_time(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape[0] > 0
+        assert df["Interval Start"].is_monotonic_increasing
+
+    def _check_time_columns(self, df):
+        assert isinstance(df, pd.DataFrame)
+        time_cols = ["Time", "Interval Start", "Interval End"]
+
+        assert time_cols == df.columns[: len(time_cols)].tolist()
+        # check all time cols are localized timestamps
+        for col in time_cols:
+            assert isinstance(df.loc[0][col], pd.Timestamp)
+            assert df.loc[0][col].tz is not None
+
+        self._check_ordered_by_time(df)
+
+    def _check_fuel_mix(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.name is None
+        self._check_time_columns(df)
+
     def _check_load(self, df):
         assert isinstance(df, pd.DataFrame)
-        assert set(["Time", "Load"]).issubset(df.columns.tolist())
+        assert df.shape[0] >= 0
+        self._check_time_columns(df)
+        assert "Load" in df.columns
         assert is_numeric_dtype(df["Load"])
-        assert isinstance(df.loc[0]["Time"], pd.Timestamp)
-        assert df.loc[0]["Time"].tz is not None
 
     def _check_forecast(self, df):
         assert set(df.columns) == set(
-            ["Forecast Time", "Time", "Load Forecast"],
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ],
         )
 
         assert self._check_is_datetime_type(df["Forecast Time"])
@@ -227,13 +268,16 @@ class BaseTestISO:
             series,
         ) | pd.core.dtypes.common.is_timedelta64_ns_dtype(series)
 
-    @staticmethod
-    def _check_lmp_columns(df, market):
+    def _check_lmp_columns(self, df, market):
         # todo in future all ISO should return same columns
         # maybe with the exception of "LMP" breakdown
+        self._check_time_columns(df)
+
         assert set(
             [
                 "Time",
+                "Interval Start",
+                "Interval End",
                 "Market",
                 "Location",
                 "Location Type",
@@ -243,11 +287,12 @@ class BaseTestISO:
                 "Loss",
             ],
         ).issubset(df.columns)
+
         assert len(df["Market"].unique()) == 1
         assert df["Market"].unique()[0] == market.value
         assert df.shape[0] >= 0
 
     def _check_storage(self, df):
-        assert set(["Time", "Supply"]).issubset(
+        assert set(["Time", "Interval Start", "Interval End", "Supply"]).issubset(
             df.columns,
         )

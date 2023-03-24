@@ -12,6 +12,8 @@ class TestErcot(BaseTestISO):
     def test_get_as_prices(self):
         as_cols = [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Market",
             "Non-Spinning Reserves",
             "Regulation Down",
@@ -66,6 +68,8 @@ class TestErcot(BaseTestISO):
         # today
         cols = [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Coal and Lignite",
             "Hydro",
             "Nuclear",
@@ -76,11 +80,13 @@ class TestErcot(BaseTestISO):
             "Other",
         ]
         df = self.iso.get_fuel_mix("today")
+        self._check_fuel_mix(df)
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
         # latest
         df = self.iso.get_fuel_mix("latest")
+        self._check_fuel_mix(df)
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
@@ -103,15 +109,10 @@ class TestErcot(BaseTestISO):
         pass
 
     def test_get_load_3_days_ago(self):
-        cols = [
-            "Time",
-            "Load",
-        ]
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         three_days_ago = today - pd.Timedelta(days=3)
         df = self.iso.get_load(three_days_ago)
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        self._check_load(df)
         assert df["Time"].unique()[0].date() == three_days_ago
 
     """get_load_forecast"""
@@ -210,91 +211,6 @@ class TestErcot(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
-    """other"""
-
-    def test__parse_delivery_date_hour_ending(self):
-        df = pd.DataFrame(
-            [
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-01-01 00:00:00-06:00",
-                        tz="US/Central",
-                    ),
-                    "DeliveryDate": "01/01/2022",
-                    "HourEnding": "01:00",
-                },
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-01-01 23:00:00-06:00",
-                        tz="US/Central",
-                    ),
-                    "DeliveryDate": "01/01/2022",
-                    "HourEnding": "24:00",
-                },
-            ],
-        )
-        df["ActualTime"] = gridstatus.Ercot._parse_delivery_date_hour_ending(
-            df,
-            "US/Central",
-        )
-        assert df["ActualTime"].tolist() == df["ExpectedTime"].tolist()
-
-    def test__parse_delivery_date_hour_interval(self):
-        df = pd.DataFrame(
-            [
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-01-01 00:00:00-06:00",
-                        tz="US/Central",
-                    ),
-                    "DeliveryDate": "01/01/2022",
-                    "DeliveryHour": "1",
-                    "DeliveryInterval": "1",
-                },
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-01-02 23:45:00-06:00",
-                        tz="US/Central",
-                    ),
-                    "DeliveryDate": "01/02/2022",
-                    "DeliveryHour": "24",
-                    "DeliveryInterval": "4",
-                },
-            ],
-        )
-        df["ActualTime"] = gridstatus.Ercot._parse_delivery_date_hour_interval(
-            df,
-            "US/Central",
-        )
-        assert df["ActualTime"].tolist() == df["ExpectedTime"].tolist()
-
-    def test__parse_oper_day_hour_ending(self):
-        df = pd.DataFrame(
-            [
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-01-01 00:00:00-06:00",
-                        tz="US/Central",
-                    ),
-                    "Oper Day": "01/01/2022",
-                    "Hour Ending": "100",
-                },
-                {
-                    "ExpectedTime": pd.Timestamp(
-                        "2022-01-01 23:00:00-06:00",
-                        tz="US/Central",
-                    ),
-                    "Oper Day": "01/01/2022",
-                    "Hour Ending": "2400",
-                },
-            ],
-        )
-        df["ActualTime"] = gridstatus.Ercot._parse_oper_day_hour_ending(
-            df,
-            "US/Central",
-        )
-        assert df["ActualTime"].tolist() == df["ExpectedTime"].tolist()
-
     @staticmethod
     def _check_ercot_spp(df, market, location_type):
         """Common checks for SPP data:
@@ -303,10 +219,12 @@ class TestErcot(BaseTestISO):
         - One Location Type
         """
         cols = [
-            "Location",
             "Time",
-            "Market",
+            "Interval Start",
+            "Interval End",
+            "Location",
             "Location Type",
+            "Market",
             "SPP",
         ]
         assert df.shape[0] >= 0

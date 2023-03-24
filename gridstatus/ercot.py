@@ -170,17 +170,25 @@ class Ercot(ISOBase):
                 )
                 .T
             )
-            mix.index.name = "Time"
+            mix.index.name = "Interval End"
             mix = mix.reset_index()
 
-            mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_localize(
+            mix["Interval End"] = pd.to_datetime(mix["Interval End"]).dt.tz_localize(
                 self.default_timezone,
                 ambiguous="infer",
             )
 
+            # most timestamps are a few seconds off round 5 minute ticks
+            # round to nearest minute
+            mix["Interval End"] = mix["Interval End"].round("min")
+            mix["Interval Start"] = mix["Interval End"] - pd.Timedelta(minutes=5)
+            mix["Time"] = mix["Interval Start"]
+
             mix = mix[
                 [
                     "Time",
+                    "Interval Start",
+                    "Interval End",
                     "Coal and Lignite",
                     "Hydro",
                     "Nuclear",
@@ -207,29 +215,18 @@ class Ercot(ISOBase):
         elif utils.is_today(date, tz=self.default_timezone):
             df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
             df = df.rename(columns={"demand": "Load"})
-            return df[["Time", "Load"]]
+            return df[["Time", "Interval Start", "Interval End", "Load"]]
 
         elif utils.is_within_last_days(
             date,
             self.LOAD_HISTORICAL_MAX_DAYS,
             tz=self.default_timezone,
         ):
-            return self._get_load_html(date, verbose)
+            df = self._get_load_html(date, verbose)
+            return df[["Time", "Interval Start", "Interval End", "Load"]]
 
         else:
             raise NotSupported()
-
-    def _get_load_json(self, when):
-        """Returns load for currentDay or previousDay"""
-        # todo:
-        # even more historical data. up to month back i think: https://www.ercot.com/mp/data-products/data-product-details?id=NP6-346-CD
-        # hourly load archives: https://www.ercot.com/gridinfo/load/load_hist
-        url = self.BASE + "/loadForecastVsActual.json"
-        r = self._get_json(url)
-        df = pd.DataFrame(r[when]["data"])
-        df = df.dropna(subset=["systemLoad"])
-        df = self._handle_json_data(df, {"systemLoad": "Load"})
-        return df
 
     def _get_load_html(self, when, verbose=False):
         """Returns load for currentDay or previousDay"""
@@ -263,20 +260,45 @@ class Ercot(ISOBase):
 
         date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
 
-        # ignore last row since that corresponds to midnight following day
-        data = pd.DataFrame(r["data"][:-1])
+        data = pd.DataFrame(r["data"])
 
-        data["Time"] = pd.to_datetime(
-            date.strftime("%Y-%m-%d")
-            + " "
-            + data["hourEnding"].astype(str).str.zfill(2)
-            + ":"
-            + data["interval"].astype(str).str.zfill(2),
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+        data["Interval End"] = (
+            date
+            + data["hourEnding"].astype("timedelta64[h]")
+            + data["interval"].astype("timedelta64[m]")
+        )
 
+        data["Interval End"] = data["Interval End"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous="infer",
+        )
+
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+        data["Time"] = data["Interval Start"]
+
+        data = data[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "demand",
+                "forecast",
+                "capacity",
+            ]
+        ]
+
+        # keep today's data only
+        data = data[
+            data["Interval Start"].dt.normalize()
+            == pd.Timestamp(
+                date,
+            )
+            .tz_localize(self.default_timezone)
+            .normalize()
+        ]
         data = data[data["forecast"] == 0]  # only keep non forecast rows
 
-        return data
+        return data.reset_index(drop=True)
 
     def get_load_forecast(self, date, verbose=False):
         """Returns load forecast
@@ -295,65 +317,23 @@ class Ercot(ISOBase):
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
-        doc = pd.read_csv(doc_info.url, compression="zip")
 
-        doc["Time"] = pd.to_datetime(
-            doc["DeliveryDate"]
-            + " "
-            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+        doc = self.read_doc(doc_info, verbose=verbose)
 
         doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
         doc["Forecast Time"] = doc_info.publish_date
 
-        doc = doc[["Forecast Time", "Time", "Load Forecast"]]
+        doc = doc[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ]
+        ]
 
         return doc
-
-    @support_date_range("1D")
-    def _get_as_prices_recent(self, date, verbose=False):
-        """Get ancillary service clearing prices in hourly intervals in Day
-            Ahead Market. This function is can return the last 31 days
-            of ancillary pricing.
-
-        Arguments:
-            date (datetime.date, str): date of delivery for AS services
-
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        Returns:
-
-            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
-                "Regulation Up", "Regulation Down", "Responsive Reserves".
-
-        """
-        # subtract one day since it's the day ahead market happens on the day
-        # before for the delivery day
-
-        date = date - pd.DateOffset(days=1)
-
-        doc_info = self._get_document(
-            report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
-            date=date,
-            constructed_name_contains="csv.zip",
-            verbose=verbose,
-        )
-
-        msg = f"Downloading {doc_info.url}"
-        log(msg, verbose)
-
-        doc = pd.read_csv(doc_info.url, compression="zip")
-
-        data = Ercot._finalize_as_price_df(
-            doc,
-            "DSTFlag",
-            pivot=True,
-        )
-
-        return data
 
     def get_rtm_spp(self, year):
         """Get Historical RTM Settlement Point Prices(SPPs)
@@ -558,6 +538,124 @@ class Ercot(ISOBase):
             )
         return Ercot._finalize_spp_df(df, settlement_point_field, locations)
 
+    def _get_spp_dam(
+        self,
+        date,
+        location_type: str = None,
+        verbose=False,
+    ):
+        """Get day-ahead hourly Market SPP data for ERCOT"""
+        if date == "latest":
+            raise ValueError(
+                "DAM is released daily, so use date='today' instead",
+            )
+
+        publish_date = utils._handle_date(date, self.default_timezone)
+        # adjust for DAM since it's published a day ahead
+        publish_date = publish_date.normalize() - pd.DateOffset(days=1)
+        doc_info = self._get_document(
+            report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
+            date=publish_date,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        msg = f"Fetching {doc_info.url}"
+        log(msg, verbose)
+
+        df = self.read_doc(doc_info, verbose=verbose)
+
+        # fetch mapping
+        df["Market"] = Markets.DAY_AHEAD_HOURLY.value
+        df["Location Type"] = self._get_location_type_name(location_type)
+
+        mapping_df = self._get_settlement_point_mapping(verbose=verbose)
+        df = self._filter_by_location_type(df, mapping_df, location_type)
+
+        return df
+
+    @staticmethod
+    def _finalize_spp_df(df, settlement_point_field, locations):
+        """
+        Finalizes DataFrame by:
+        - filtering by locations list
+        - renaming and ordering columns
+        - and resetting the index
+
+        Arguments:
+            df (pandas.DataFrame): DataFrame with SPP data
+            settlement_point_field (str): Field name of
+                settlement point to rename to "Location"
+        """
+        df = df.rename(
+            columns={
+                "SettlementPointPrice": "SPP",
+                settlement_point_field: "Location",
+            },
+        )
+        df = utils.filter_lmp_locations(df, locations)
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "Market",
+                "SPP",
+            ]
+        ]
+        df = df.sort_values(by="Interval Start")
+        df = df.reset_index(drop=True)
+        return df
+
+    def _get_spp_rtm15(
+        self,
+        date,
+        location_type: str = None,
+        verbose=False,
+    ):
+        """Get Real-time 15-minute Market SPP data for ERCOT
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
+        """
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        if date == "latest":
+            publish_date = today
+        else:
+            publish_date = utils._handle_date(date, self.default_timezone)
+        # returns list of Document(url=,publish_date=)
+        docs = self._get_documents(
+            report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
+            date=publish_date,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+        if date == "latest":
+            # just pluck out the latest document based on publish_date
+            docs = [max(docs, key=lambda x: x.publish_date)]
+        if len(docs) == 0:
+            raise ValueError(f"Could not fetch SPP data for {date}")
+
+        all_dfs = []
+        for doc_info in docs:
+            doc_url = doc_info.url
+
+            msg = f"Fetching {doc_url}"
+            log(msg, verbose)
+            df = self.read_doc(doc_info, verbose=verbose)
+            all_dfs.append(df)
+        df = pd.concat(all_dfs).reset_index(drop=True)
+        df.drop
+
+        df["Market"] = Markets.REAL_TIME_15_MIN.value
+        df["Location Type"] = self._get_location_type_name(location_type)
+        # Additional filter as the document may contain the last 15 minutes of yesterday
+        df = df[df["Interval Start"].dt.date == publish_date.date()]
+        df = self._filter_by_settlement_point_type(df, location_type)
+
+        return df
+
     @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
     def get_as_prices(
         self,
@@ -602,14 +700,9 @@ class Ercot(ISOBase):
             constructed_name_contains=f"{date.year}.zip",
             verbose=verbose,
         )
+        doc = self.read_doc(doc_info, verbose=verbose)
 
-        x = utils.get_zip_file(doc_info.url)
-        doc = pd.read_csv(x)
-
-        doc = Ercot._finalize_as_price_df(
-            doc,
-            "Repeated Hour Flag",
-        )
+        doc = self._finalize_as_price_df(doc)
 
         max_date = doc.Time.max().date()
 
@@ -627,117 +720,68 @@ class Ercot(ISOBase):
             )
 
         # join, sort, filter and reset data index
-        data = pd.concat(df_list).sort_values(by="Time")
+        data = pd.concat(df_list).sort_values(by="Interval Start")
 
         data = (
             data.loc[
                 (data.Time.dt.date >= date.date()) & (data.Time.dt.date <= end.date())
             ]
-            .drop_duplicates(subset=["Time"])
+            .drop_duplicates(subset=["Interval Start"])
             .reset_index(drop=True)
         )
 
+        print(data)
+
         return data
 
-    def _get_spp_dam(
-        self,
-        date,
-        location_type: str = None,
-        verbose=False,
-    ):
-        """Get day-ahead hourly Market SPP data for ERCOT"""
-        if date == "latest":
-            raise ValueError(
-                "DAM is released daily, so use date='today' instead",
-            )
+    @support_date_range("1D")
+    def _get_as_prices_recent(self, date, verbose=False):
+        """Get ancillary service clearing prices in hourly intervals in Day
+            Ahead Market. This function is can return the last 31 days
+            of ancillary pricing.
 
-        publish_date = utils._handle_date(date, self.default_timezone)
-        # adjust for DAM since it's published a day ahead
-        publish_date = publish_date.normalize() - pd.DateOffset(days=1)
+        Arguments:
+            date (datetime.date, str): date of delivery for AS services
+
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+
+            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
+                "Regulation Up", "Regulation Down", "Responsive Reserves".
+
+        """
+        # subtract one day since it's the day ahead market happens on the day
+        # before for the delivery day
+
+        date = date - pd.DateOffset(days=1)
+
         doc_info = self._get_document(
-            report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
-            date=publish_date,
+            report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+            date=date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
 
-        msg = f"Fetching {doc_info.url}"
+        msg = f"Downloading {doc_info.url}"
         log(msg, verbose)
 
-        df = pd.read_csv(doc_info.url, compression="zip")
+        doc = self.read_doc(doc_info, verbose=verbose)
 
-        # fetch mapping
-        df["Market"] = Markets.DAY_AHEAD_HOURLY.value
-        df["Location Type"] = self._get_location_type_name(location_type)
-
-        mapping_df = self._get_settlement_point_mapping(verbose=verbose)
-        df = self._filter_by_location_type(df, mapping_df, location_type)
-
-        df["Time"] = Ercot._parse_delivery_date_hour_ending(
-            df,
-            self.default_timezone,
-        )
-        return df
-
-    @staticmethod
-    def _finalize_spp_df(df, settlement_point_field, locations):
-        """
-        Finalizes DataFrame by:
-        - filtering by locations list
-        - renaming and ordering columns
-        - and resetting the index
-
-        Arguments:
-            df (pandas.DataFrame): DataFrame with SPP data
-            settlement_point_field (str): Field name of
-                settlement point to rename to "Location"
-        """
-        df = df.rename(
-            columns={
-                "SettlementPointPrice": "SPP",
-                settlement_point_field: "Location",
-            },
-        )
-        df = utils.filter_lmp_locations(df, locations)
-        df = df[
-            [
-                "Location",
-                "Time",
-                "Market",
-                "Location Type",
-                "SPP",
-            ]
-        ]
-        df = df.reset_index(drop=True)
-        return df
-
-    @staticmethod
-    def _finalize_as_price_df(doc, ambiguous_column, pivot=False):
-        # files sometimes have different naming conventions
-        # a more elegant solution would be nice
-        doc.rename(
-            columns={
-                "Delivery Date": "DeliveryDate",
-                "Hour Ending": "HourEnding",
-            },
-            inplace=True,
+        data = self._finalize_as_price_df(
+            doc,
+            pivot=True,
         )
 
-        doc["Time"] = pd.to_datetime(
-            doc["DeliveryDate"]
-            + " "
-            + (doc["HourEnding"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(Ercot.default_timezone, ambiguous=doc[ambiguous_column] == "Y")
+        return data
 
+    def _finalize_as_price_df(self, doc, pivot=False):
         doc["Market"] = "DAM"
 
         # recent daily files need to be pivoted
         if pivot:
             doc = doc.pivot_table(
-                index=["Time", "Market"],
+                index=["Time", "Interval Start", "Interval End", "Market"],
                 columns="AncillaryType",
                 values="MCPC",
             ).reset_index()
@@ -757,6 +801,8 @@ class Ercot(ISOBase):
 
         col_order = [
             "Time",
+            "Interval Start",
+            "Interval End",
             "Market",
             "Non-Spinning Reserves",
             "Regulation Down",
@@ -767,89 +813,6 @@ class Ercot(ISOBase):
         doc.rename(columns=rename, inplace=True)
 
         return doc[col_order]
-
-    @staticmethod
-    def _parse_delivery_date_hour_ending(df, timezone):
-        return pd.to_datetime(
-            df["DeliveryDate"]
-            + " "
-            + (df["HourEnding"].str.split(":").str[0].astype(int) - 1)
-            .astype(str)
-            .str.zfill(2)
-            + ":00",
-        ).dt.tz_localize(timezone, ambiguous="infer")
-
-    @staticmethod
-    def _parse_delivery_date_hour_interval(df, timezone):
-        return pd.to_datetime(
-            df["DeliveryDate"]
-            + "T"
-            + (df["DeliveryHour"].astype(int) - 1).astype(str).str.zfill(2)
-            + ":"
-            + ((df["DeliveryInterval"].astype(int) - 1) * 15).astype(str).str.zfill(2),
-            format="%m/%d/%YT%H:%M",
-        ).dt.tz_localize(timezone, ambiguous="infer")
-
-    @staticmethod
-    def _parse_oper_day_hour_ending(df, timezone):
-        return pd.to_datetime(
-            df["Oper Day"] + "T"
-            # Hour ending starts at 100 ("1:00") so we offset by -1 hour,
-            # and zero fill to 4 characters, so strptime can parse it correctly
-            + (df["Hour Ending"].astype(int) - 100).astype(str).str.zfill(4),
-            format="%m/%d/%YT%H%M",
-        ).dt.tz_localize(timezone, ambiguous="infer")
-
-    def _get_spp_rtm15(
-        self,
-        date,
-        location_type: str = None,
-        verbose=False,
-    ):
-        """Get Real-time 15-minute Market SPP data for ERCOT
-
-        https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
-        """
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        if date == "latest":
-            publish_date = today
-        else:
-            publish_date = utils._handle_date(date, self.default_timezone)
-        # returns list of Document(url=,publish_date=)
-        docs = self._get_documents(
-            report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
-            date=publish_date,
-            constructed_name_contains="csv.zip",
-            verbose=verbose,
-        )
-        if date == "latest":
-            # just pluck out the latest document based on publish_date
-            docs = [max(docs, key=lambda x: x.publish_date)]
-        if len(docs) == 0:
-            raise ValueError(f"Could not fetch SPP data for {date}")
-
-        all_dfs = []
-        for doc_info in docs:
-            doc_url = doc_info.url
-
-            msg = f"Fetching {doc_url}"
-            log(msg, verbose)
-
-            df = pd.read_csv(doc_url, compression="zip")
-            all_dfs.append(df)
-        df = pd.concat(all_dfs).reset_index(drop=True)
-
-        df["Market"] = Markets.REAL_TIME_15_MIN.value
-        df["Location Type"] = self._get_location_type_name(location_type)
-        df["Time"] = Ercot._parse_delivery_date_hour_interval(
-            df,
-            self.default_timezone,
-        )
-        # Additional filter as the document may contain the last 15 minutes of yesterday
-        df = df[df["Time"].dt.date == publish_date.date()]
-        df = self._filter_by_settlement_point_type(df, location_type)
-
-        return df
 
     def _get_document(
         self,
@@ -936,11 +899,20 @@ class Ercot(ISOBase):
         return df[cols_to_keep].rename(columns=columns)
 
     def _handle_html_data(self, df, columns):
-        df["Time"] = Ercot._parse_oper_day_hour_ending(
-            df,
+        df["Interval End"] = pd.to_datetime(df["Oper Day"]) + (
+            df["Hour Ending"] / 100
+        ).astype("timedelta64[h]")
+        df["Interval End"] = df["Interval End"].dt.tz_localize(
             self.default_timezone,
         )
-        cols_to_keep = ["Time"] + list(columns.keys())
+        df["Interval Start"] = df["Interval End"] - pd.DateOffset(hours=1)
+        df["Time"] = df["Interval Start"]
+
+        cols_to_keep = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+        ] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
     def _filter_by_settlement_point_type(self, df, location_type):
@@ -1005,6 +977,82 @@ class Ercot(ISOBase):
             raise ValueError(f"Invalid location_type: {location_type}")
 
         return df[df["SettlementPoint"].isin(valid_values)]
+
+    def read_doc(self, doc, verbose=False):
+        doc = pd.read_csv(doc.url, compression="zip")
+
+        # files sometimes have different naming conventions
+        # a more elegant solution would be nice
+        doc.rename(
+            columns={
+                "Delivery Date": "DeliveryDate",
+                "Hour Ending": "HourEnding",
+                "Repeated Hour Flag": "DSTFlag",
+                "DeliveryHour": "HourEnding",
+                # fix whitespace in column name
+                "DSTFlag    ": "DSTFlag",
+            },
+            inplace=True,
+        )
+
+        original_cols = doc.columns.tolist()
+
+        # i think DeliveryInterval only shows up
+        # in 15 minute data along with DeliveryHour
+        if "DeliveryInterval" in original_cols:
+            interval_length = pd.Timedelta(minutes=15)
+            doc["Interval End"] = (
+                pd.to_datetime(doc["DeliveryDate"])
+                + doc["HourEnding"].astype("timedelta64[h]")
+                + (doc["DeliveryInterval"] * interval_length)
+            )
+
+        else:
+            interval_length = pd.Timedelta(hours=1)
+            doc["Interval End"] = pd.to_datetime(doc["DeliveryDate"]) + (
+                doc["HourEnding"].str.split(":").str[0].astype(int)
+            ).astype("timedelta64[h]")
+
+            # if there is a DST skip, add an hour to the previous row
+            # for example, data has 2022-03-13 02:00:00,
+            # but that should be 2022-03-13 03:00:00
+            dst_skip_hour = doc[doc["Interval End"].diff() == pd.Timedelta(hours=2)]
+            for i in dst_skip_hour.index:
+                doc.loc[i - 1, "Interval End"] = doc.loc[
+                    i - 1,
+                    "Interval End",
+                ] + pd.DateOffset(
+                    hours=1,
+                )  # noqa
+
+        doc["Interval End"] = doc["Interval End"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous=doc["DSTFlag"] == "Y",
+        )
+
+        doc["Interval Start"] = doc["Interval End"] - interval_length
+        doc["Time"] = doc["Interval Start"]
+
+        cols_to_keep = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+        ] + original_cols
+
+        # todo try to clean up this logic
+        doc = doc[cols_to_keep]
+        doc.drop(
+            columns=[
+                "DeliveryDate",
+                "HourEnding",
+                "DSTFlag",
+            ],
+            inplace=True,
+        )
+        if "DeliveryInterval" in doc.columns:
+            doc.drop(columns=["DeliveryInterval"], inplace=True)
+
+        return doc
 
 
 if __name__ == "__main__":

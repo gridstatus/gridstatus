@@ -52,6 +52,20 @@ class TestNYISO(BaseTestISO):
     def test_get_lmp_historical(self, market):
         super().test_get_lmp_historical(market=market)
 
+    @with_markets(
+        Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_5_MIN,
+    )
+    def test_get_lmp_today(self, market):
+        super().test_get_lmp_today(market=market)
+
+    @with_markets(
+        Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_5_MIN,
+    )
+    def test_get_lmp_latest(self, market):
+        super().test_get_lmp_latest(market=market)
+
     def test_get_lmp_historical_with_range(self):
         start = "2021-12-01"
         end = "2022-2-02"
@@ -61,13 +75,6 @@ class TestNYISO(BaseTestISO):
             market=Markets.REAL_TIME_5_MIN,
         )
         assert df.shape[0] >= 0
-
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_5_MIN,
-    )
-    def test_get_lmp_latest(self, market):
-        super().test_get_lmp_latest(market=market)
 
     def test_get_lmp_location_type_parameter(self):
 
@@ -118,13 +125,6 @@ class TestNYISO(BaseTestISO):
                 market=Markets.DAY_AHEAD_HOURLY,
                 location_type="dummy",
             )
-
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_5_MIN,
-    )
-    def test_get_lmp_today(self, market):
-        super().test_get_lmp_today(market=market)
 
     """get_loads"""
 
