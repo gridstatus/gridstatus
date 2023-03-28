@@ -1,9 +1,11 @@
 import io
+import re
 from dataclasses import dataclass
 from zipfile import ZipFile
 
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -303,22 +305,28 @@ class Ercot(ISOBase):
     def get_load_forecast(self, date, verbose=False):
         """Returns load forecast
 
-        Currently only supports today's forecast
+        Currently only supports today's forecastl
         """
-        if not utils.is_today(date, self.default_timezone):
-            raise NotSupported()
+        date = utils._handle_date(date, self.default_timezone)
 
-        # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
-        # there are a few days of historical date for the forecast
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        doc_info = self._get_document(
-            report_type_id=SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID,
-            date=today,
-            constructed_name_contains="csv.zip",
-            verbose=verbose,
-        )
-
-        doc = self.read_doc(doc_info, verbose=verbose)
+        if 1955 <= date.year <= 2022:
+            doc_info = self._get_historical_document(date, verbose=verbose)
+            # if year between 2016 to 2023, then zipped xlsx
+            # if year between 2002 to 2015, then xls
+            # if year between 1998 to 2000, then zipped txt
+            # if year between 1995 to 1997, then txt
+            doc = self.read_doc(doc_info, verbose=verbose)
+        else:
+            # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
+            # there are a few days of historical date for the forecast
+            today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+            doc_info = self._get_document(
+                report_type_id=SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID,
+                date=today,
+                constructed_name_contains="csv.zip",
+                verbose=verbose,
+            )
+            doc = self.read_doc(doc_info, verbose=verbose)
 
         doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
         doc["Forecast Time"] = doc_info.publish_date
@@ -814,6 +822,26 @@ class Ercot(ISOBase):
 
         return doc[col_order]
 
+    def _get_historical_document(self, date, verbose=False):
+        r = requests.get("http://www.ercot.com/gridinfo/load/load_hist/")
+        soup = BeautifulSoup(r.content, features="lxml")
+        year_to_document = {}
+        for link in soup.findAll("a"):
+            link_path = link.get("href")
+            if any(extension in link_path for extension in (".xls", ".zip", ".txt")):
+                year = re.findall(r"\d+", link.text)[0]
+                publish_text = link.parent.parent.find("span").text
+                pattern = r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s\d{1,2},\s\d{4}\b"  # noqa: E501
+                publish_date = re.findall(pattern, publish_text)[0]
+                publish_date = pd.to_datetime(publish_date)
+                year_to_document[int(year)] = self.Document(
+                    url=link_path,
+                    publish_date=publish_date,
+                )
+
+        doc = year_to_document[date.year]
+        return doc
+
     def _get_document(
         self,
         report_type_id,
@@ -979,7 +1007,23 @@ class Ercot(ISOBase):
         return df[df["SettlementPoint"].isin(valid_values)]
 
     def read_doc(self, doc, verbose=False):
-        doc = pd.read_csv(doc.url, compression="zip")
+        filename = None
+        url = doc.url
+        if ".zip" in url:
+            r = requests.get(url, allow_redirects=True)
+            zip_stream = io.BytesIO(r.content)
+            with ZipFile(zip_stream, "r") as z:
+                filename = z.namelist()[0]
+                if filename.endswith(".xls") or filename.endswith(".xlsx"):
+                    doc = pd.read_excel(z.open(filename))
+                elif filename.endswith(".csv"):
+                    doc = pd.read_csv(z.open(filename))
+                elif filename.endswith(".txt"):
+                    doc = pd.read_table(z.open(filename))
+        elif ".xls" in url or ".xlsx" in url:
+            doc = pd.read_excel(url)
+        else:
+            raise ValueError("Unknown file type in doc.url")
 
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
@@ -987,6 +1031,7 @@ class Ercot(ISOBase):
             columns={
                 "Delivery Date": "DeliveryDate",
                 "Hour Ending": "HourEnding",
+                "Hour_End": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",
                 "DeliveryHour": "HourEnding",
                 # fix whitespace in column name
@@ -994,7 +1039,6 @@ class Ercot(ISOBase):
             },
             inplace=True,
         )
-
         original_cols = doc.columns.tolist()
 
         # i think DeliveryInterval only shows up
@@ -1006,8 +1050,7 @@ class Ercot(ISOBase):
                 + doc["HourEnding"].astype("timedelta64[h]")
                 + (doc["DeliveryInterval"] * interval_length)
             )
-
-        else:
+        elif "DeliveryDate" in original_cols:
             interval_length = pd.Timedelta(hours=1)
             doc["Interval End"] = pd.to_datetime(doc["DeliveryDate"]) + (
                 doc["HourEnding"].str.split(":").str[0].astype(int)
@@ -1024,31 +1067,57 @@ class Ercot(ISOBase):
                 ] + pd.DateOffset(
                     hours=1,
                 )  # noqa
+        else:
+            interval_length = pd.Timedelta(hours=1)
+            if "DSTFlag" not in original_cols:
+                doc["DSTFlag"] = doc["HourEnding"].apply(
+                    lambda x: "Y" if "DST" in str(x) else "N",
+                )
+                original_cols.append("DSTFlag")
+
+            if doc["HourEnding"].dtype != "datetime64[ns]":
+                doc["HourEnding"] = doc["HourEnding"].str.replace("24:00", "00:00")
+                doc["HourEnding"] = doc["HourEnding"].str.replace("DST", "")
+
+                def parse_datetime(col):
+                    return (
+                        pd.to_datetime(col.rstrip(), format="%m/%d/%Y %H:%M")
+                        if not pd.isna(col)
+                        else pd.Na
+                    )
+
+                doc["Interval End"] = doc["HourEnding"].apply(parse_datetime)
+            else:
+                doc["Interval End"] = doc["HourEnding"]
+
+            dst_skip_hour = doc[doc["Interval End"].diff() == pd.Timedelta(hours=2)]
+            for i in dst_skip_hour.index:
+                doc.loc[i - 1, "Interval End"] = doc.loc[
+                    i - 1,
+                    "Interval End",
+                ] + pd.DateOffset(
+                    hours=1,
+                )  # noqa
+            doc.rename(columns={"ERCOT": "Load Forecast"}, inplace=True)
+            original_cols.remove("ERCOT")
+            original_cols.append("Load Forecast")
 
         doc["Interval End"] = doc["Interval End"].dt.tz_localize(
             self.default_timezone,
             ambiguous=doc["DSTFlag"] == "Y",
         )
-
         doc["Interval Start"] = doc["Interval End"] - interval_length
         doc["Time"] = doc["Interval Start"]
-
         cols_to_keep = [
             "Time",
             "Interval Start",
             "Interval End",
         ] + original_cols
-
         # todo try to clean up this logic
         doc = doc[cols_to_keep]
-        doc.drop(
-            columns=[
-                "DeliveryDate",
-                "HourEnding",
-                "DSTFlag",
-            ],
-            inplace=True,
-        )
+        for col in ["DeliveryDate", "HourEnding", "DSTFlag"]:
+            if col in doc.columns:
+                doc.drop(columns=[col], inplace=True)
         if "DeliveryInterval" in doc.columns:
             doc.drop(columns=["DeliveryInterval"], inplace=True)
 

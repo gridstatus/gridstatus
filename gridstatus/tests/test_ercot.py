@@ -118,8 +118,12 @@ class TestErcot(BaseTestISO):
     """get_load_forecast"""
 
     def test_get_load_forecast_historical(self):
-        with pytest.raises(NotSupported):
-            super().test_get_load_forecast_historical()
+        # df = self.iso.get_load_forecast('today')
+        for year in reversed(range(1995, 2022)):
+            print("Year: ", year)
+            datetime = pd.Timestamp(year, 1, 1)
+            df = self.iso.get_load_forecast(datetime)
+            print(df)
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):

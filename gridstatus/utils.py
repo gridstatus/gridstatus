@@ -279,3 +279,8 @@ def move_cols_to_front(df, cols_to_move):
     for c in cols_to_move:
         cols.remove(c)
     return df[cols_to_move + cols]
+
+
+def is_between_dates(date, start_date, end_date):
+    """Returns whether date is between start_date and end_date"""
+    return start_date <= date <= end_date
