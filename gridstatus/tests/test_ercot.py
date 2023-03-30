@@ -156,6 +156,10 @@ class TestErcot(BaseTestISO):
             self.iso.get_load_forecast(pd.Timestamp(1998, 1, 1))
             self.iso.get_load_forecast(pd.Timestamp(1997, 1, 1))
 
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_load_forecast_historical_with_date_range(self):
+        pass
+
     """get_spp"""
 
     def test_get_spp_dam_latest_day_ahead_hourly_zone_should_raise_exception(self):

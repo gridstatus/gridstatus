@@ -312,11 +312,15 @@ class Ercot(ISOBase):
             date = "today"
         date = utils._handle_date(date, self.default_timezone)
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        fourteen_days = pd.Timedelta(days=14)
+        lower_bound = today - fourteen_days
+        upper_bound = today + fourteen_days
 
-        if 1955 <= date.year <= 2022 and date.year != 2001:
+        if 2002 <= date.year <= 2022:
             doc_info = self._get_historical_document(date, verbose=verbose)
             doc = self.read_doc(doc_info, verbose=verbose)
-        elif date == today:
+            doc = doc[doc["Forecast Time"] == date]
+        elif date == today or (lower_bound <= date <= upper_bound):
             # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
             # there are a few days of historical date for the forecast
             doc_info = self._get_document(
