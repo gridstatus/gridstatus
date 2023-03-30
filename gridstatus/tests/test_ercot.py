@@ -140,7 +140,11 @@ class TestErcot(BaseTestISO):
 
     def test_get_load_forecast_historical_raises(self):
         with pytest.raises(NotSupported):
-            super().test_get_load_forecast_historical(pd.Timestamp(2001, 1, 1))
+            self.iso.get_load_forecast(pd.Timestamp(2001, 1, 1))
+            self.iso.get_load_forecast(pd.Timestamp(2000, 1, 1))
+            self.iso.get_load_forecast(pd.Timestamp(1999, 1, 1))
+            self.iso.get_load_forecast(pd.Timestamp(1998, 1, 1))
+            self.iso.get_load_forecast(pd.Timestamp(1997, 1, 1))
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
