@@ -1,5 +1,6 @@
-import pandas as pd
 from datetime import datetime
+
+import pandas as pd
 import pytest
 
 import gridstatus
@@ -117,26 +118,35 @@ class TestErcot(BaseTestISO):
         assert df["Time"].unique()[0].date() == three_days_ago
 
     """get_load_forecast"""
+
     @pytest.mark.parametrize("date", [("latest"), ("today")])
     def test_get_load_forecast_historical_today(self, date):
         df = self.iso.get_load_forecast(date)
         assert df["Time"].unique()[0].date() == datetime.today().date()
-        for col in ['Time', 'Interval Start',
-                    'Interval End', 'Forecast Time']:
+        for col in [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Forecast Time",
+        ]:
             assert col in df.columns
-            assert df[col].dtype == f'datetime64[ns, {self.iso.default_timezone}]'
-        self._check_load(df, load_col='Load Forecast')
+            assert df[col].dtype == f"datetime64[ns, {self.iso.default_timezone}]"
+        self._check_load(df, load_col="Load Forecast")
 
     def test_get_load_forecast_historical_2002_to_2022(self):
         for year in reversed(range(2002, 2022)):
             print("Year: ", year)
             datetime = pd.Timestamp(year, 1, 1)
             df = self.iso.get_load_forecast(datetime)
-            for col in ['Time', 'Interval Start',
-                        'Interval End', 'Forecast Time']:
+            for col in [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+            ]:
                 assert col in df.columns
-                assert df[col].dtype == f'datetime64[ns, {self.iso.default_timezone}]'
-            self._check_load(df, load_col='Load Forecast')
+                assert df[col].dtype == f"datetime64[ns, {self.iso.default_timezone}]"
+            self._check_load(df, load_col="Load Forecast")
 
     def test_get_load_forecast_historical_raises(self):
         with pytest.raises(NotSupported):

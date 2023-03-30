@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from zipfile import ZipFile
 
 import pandas as pd
-from pandas.api.types import is_datetime64_any_dtype as is_datetime
 import requests
 from bs4 import BeautifulSoup
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -835,7 +835,7 @@ class Ercot(ISOBase):
                 pattern = r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s\d{1,2},\s\d{4}\b"  # noqa: E501
                 publish_date = re.findall(pattern, publish_text)[0]
                 publish_date = pd.to_datetime(publish_date).tz_localize(
-                    self.default_timezone
+                    self.default_timezone,
                 )
                 year_to_document[int(year)] = self.Document(
                     url=link_path,
@@ -1024,10 +1024,27 @@ class Ercot(ISOBase):
                 elif filename.endswith(".txt"):
                     doc = pd.read_table(z.open(filename), skiprows=14)
                     doc = doc.reset_index(drop=False)
-                    doc.columns = ['MONTH', 'DAY', 'HOUR', 'AENX', 'AEPX', 'CPST', 'LCRA', 'BPUB', 'REIT', 'STEC', 'TMPP', 'TNMP', 'TUET', 'TOTAL']
-                    doc['YEAR'] = 2000
-                    doc['HourEnding'] = pd.to_datetime(doc[['YEAR', 'MONTH', 'DAY', 'HOUR']])
-                    doc.drop(columns=['MONTH', 'DAY', 'HOUR', 'YEAR'], inplace=True)
+                    doc.columns = [
+                        "MONTH",
+                        "DAY",
+                        "HOUR",
+                        "AENX",
+                        "AEPX",
+                        "CPST",
+                        "LCRA",
+                        "BPUB",
+                        "REIT",
+                        "STEC",
+                        "TMPP",
+                        "TNMP",
+                        "TUET",
+                        "TOTAL",
+                    ]
+                    doc["YEAR"] = 2000
+                    doc["HourEnding"] = pd.to_datetime(
+                        doc[["YEAR", "MONTH", "DAY", "HOUR"]],
+                    )
+                    doc.drop(columns=["MONTH", "DAY", "HOUR", "YEAR"], inplace=True)
         elif ".xls" in url or ".xlsx" in url:
             doc = pd.read_excel(url)
         else:
@@ -1082,12 +1099,12 @@ class Ercot(ISOBase):
                 )
                 original_cols.append("DSTFlag")
             if not is_datetime(doc["HourEnding"].dtype):
-                next_days = doc['HourEnding'].str[-5:] == '24:00'
-                doc.loc[next_days, 'HourEnding'] = doc['HourEnding'].str[:-5] + '00:00'
+                next_days = doc["HourEnding"].str[-5:] == "24:00"
+                doc.loc[next_days, "HourEnding"] = doc["HourEnding"].str[:-5] + "00:00"
 
                 doc["HourEnding"] = doc["HourEnding"].str.replace("DST", "")
-                doc['HourEnding'] = pd.to_datetime(doc['HourEnding'])
-                doc.loc[next_days, 'HourEnding'] += pd.DateOffset(1)
+                doc["HourEnding"] = pd.to_datetime(doc["HourEnding"])
+                doc.loc[next_days, "HourEnding"] += pd.DateOffset(1)
                 doc["Interval End"] = doc["HourEnding"]
             else:
                 doc["Interval End"] = doc["HourEnding"]
