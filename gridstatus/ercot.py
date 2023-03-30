@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from zipfile import ZipFile
 
 import pandas as pd
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
 import requests
 from bs4 import BeautifulSoup
 
@@ -305,21 +306,19 @@ class Ercot(ISOBase):
     def get_load_forecast(self, date, verbose=False):
         """Returns load forecast
 
-        Currently only supports today's forecastl
+        Currently only supports today's forecast
         """
+        if date == "latest":
+            date = "today"
         date = utils._handle_date(date, self.default_timezone)
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
 
-        if 1955 <= date.year <= 2022:
+        if 1955 <= date.year <= 2022 and date.year != 2001:
             doc_info = self._get_historical_document(date, verbose=verbose)
-            # if year between 2016 to 2023, then zipped xlsx
-            # if year between 2002 to 2015, then xls
-            # if year between 1998 to 2000, then zipped txt
-            # if year between 1995 to 1997, then txt
             doc = self.read_doc(doc_info, verbose=verbose)
-        else:
+        elif date == today:
             # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
             # there are a few days of historical date for the forecast
-            today = pd.Timestamp.now(tz=self.default_timezone).normalize()
             doc_info = self._get_document(
                 report_type_id=SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID,
                 date=today,
@@ -327,6 +326,8 @@ class Ercot(ISOBase):
                 verbose=verbose,
             )
             doc = self.read_doc(doc_info, verbose=verbose)
+        else:
+            raise NotSupported()
 
         doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
         doc["Forecast Time"] = doc_info.publish_date
@@ -833,7 +834,9 @@ class Ercot(ISOBase):
                 publish_text = link.parent.parent.find("span").text
                 pattern = r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s\d{1,2},\s\d{4}\b"  # noqa: E501
                 publish_date = re.findall(pattern, publish_text)[0]
-                publish_date = pd.to_datetime(publish_date)
+                publish_date = pd.to_datetime(publish_date).tz_localize(
+                    self.default_timezone
+                )
                 year_to_document[int(year)] = self.Document(
                     url=link_path,
                     publish_date=publish_date,
@@ -1019,12 +1022,16 @@ class Ercot(ISOBase):
                 elif filename.endswith(".csv"):
                     doc = pd.read_csv(z.open(filename))
                 elif filename.endswith(".txt"):
-                    doc = pd.read_table(z.open(filename))
+                    doc = pd.read_table(z.open(filename), skiprows=14)
+                    doc = doc.reset_index(drop=False)
+                    doc.columns = ['MONTH', 'DAY', 'HOUR', 'AENX', 'AEPX', 'CPST', 'LCRA', 'BPUB', 'REIT', 'STEC', 'TMPP', 'TNMP', 'TUET', 'TOTAL']
+                    doc['YEAR'] = 2000
+                    doc['HourEnding'] = pd.to_datetime(doc[['YEAR', 'MONTH', 'DAY', 'HOUR']])
+                    doc.drop(columns=['MONTH', 'DAY', 'HOUR', 'YEAR'], inplace=True)
         elif ".xls" in url or ".xlsx" in url:
             doc = pd.read_excel(url)
         else:
-            raise ValueError("Unknown file type in doc.url")
-
+            doc = pd.read_csv(url, compression="zip")
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
         doc.rename(
@@ -1074,19 +1081,14 @@ class Ercot(ISOBase):
                     lambda x: "Y" if "DST" in str(x) else "N",
                 )
                 original_cols.append("DSTFlag")
+            if not is_datetime(doc["HourEnding"].dtype):
+                next_days = doc['HourEnding'].str[-5:] == '24:00'
+                doc.loc[next_days, 'HourEnding'] = doc['HourEnding'].str[:-5] + '00:00'
 
-            if doc["HourEnding"].dtype != "datetime64[ns]":
-                doc["HourEnding"] = doc["HourEnding"].str.replace("24:00", "00:00")
                 doc["HourEnding"] = doc["HourEnding"].str.replace("DST", "")
-
-                def parse_datetime(col):
-                    return (
-                        pd.to_datetime(col.rstrip(), format="%m/%d/%Y %H:%M")
-                        if not pd.isna(col)
-                        else pd.Na
-                    )
-
-                doc["Interval End"] = doc["HourEnding"].apply(parse_datetime)
+                doc['HourEnding'] = pd.to_datetime(doc['HourEnding'])
+                doc.loc[next_days, 'HourEnding'] += pd.DateOffset(1)
+                doc["Interval End"] = doc["HourEnding"]
             else:
                 doc["Interval End"] = doc["HourEnding"]
 
@@ -1099,8 +1101,9 @@ class Ercot(ISOBase):
                     hours=1,
                 )  # noqa
             doc.rename(columns={"ERCOT": "Load Forecast"}, inplace=True)
-            original_cols.remove("ERCOT")
-            original_cols.append("Load Forecast")
+            if "ERCOT" in original_cols:
+                original_cols.remove("ERCOT")
+                original_cols.append("Load Forecast")
 
         doc["Interval End"] = doc["Interval End"].dt.tz_localize(
             self.default_timezone,

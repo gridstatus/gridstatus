@@ -242,12 +242,12 @@ class BaseTestISO:
         assert df.columns.name is None
         self._check_time_columns(df)
 
-    def _check_load(self, df):
+    def _check_load(self, df, load_col="Load"):
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] >= 0
         self._check_time_columns(df)
-        assert "Load" in df.columns
-        assert is_numeric_dtype(df["Load"])
+        assert load_col in df.columns
+        assert is_numeric_dtype(df[load_col])
 
     def _check_forecast(self, df):
         assert set(df.columns) == set(
