@@ -246,10 +246,11 @@ def load_folder(path, time_zone=None, verbose=True):
 
     data = pd.concat(dfs).reset_index(drop=True)
 
-    if "Time" in data.columns:
-        data["Time"] = pd.to_datetime(data["Time"], utc=True)
-        if time_zone:
-            data["Time"] = data["Time"].dt.tz_convert(time_zone)
+    for time_col in ["Time", "Interval Start", "Interval End"]:
+        if time_col in data.columns:
+            data[time_col] = pd.to_datetime(data[time_col], utc=True)
+            if time_zone:
+                data[time_col] = data[time_col].dt.tz_convert(time_zone)
 
     # todo make sure dates get parsed
     # todo make sure rows are sorted by time
