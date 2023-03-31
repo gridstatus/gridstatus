@@ -119,9 +119,8 @@ class TestErcot(BaseTestISO):
 
     """get_load_forecast"""
 
-    @pytest.mark.parametrize("date", [("latest"), ("today")])
-    def test_get_load_forecast_historical_today(self, date):
-        df = self.iso.get_load_forecast(date)
+    def test_get_load_forecast_historical_today(self):
+        df = self.iso.get_load_forecast("today")
         assert df["Time"].unique()[0].date() == datetime.today().date()
         for col in [
             "Time",
@@ -133,9 +132,8 @@ class TestErcot(BaseTestISO):
             assert df[col].dtype == f"datetime64[ns, {self.iso.default_timezone}]"
         self._check_load(df, load_col="Load Forecast")
 
-    def test_get_load_forecast_historical_2002_to_2022(self):
-        for year in reversed(range(2002, 2022)):
-            print("Year: ", year)
+    def test_get_load_forecast_historical_specific_date(self):
+        for year in range(2002, 2022):
             datetime = pd.Timestamp(year, 1, 1)
             df = self.iso.get_load_forecast(datetime)
             for col in [
@@ -147,18 +145,31 @@ class TestErcot(BaseTestISO):
                 assert col in df.columns
                 assert df[col].dtype == f"datetime64[ns, {self.iso.default_timezone}]"
             self._check_load(df, load_col="Load Forecast")
+            assert df["Time"].max().date() == datetime.date()
+            assert df["Time"].min().date() == datetime.date()
+
+    def test_get_load_forecast_historical_with_date_range(self):
+        for year in range(2002, 2022):
+            start_date = pd.Timestamp(year, 12, 1)
+            end = start_date + pd.DateOffset(days=3)
+            df = self.iso.get_load_forecast(start_date, end=end)
+            for col in [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+            ]:
+                assert col in df.columns
+                assert df[col].dtype == f"datetime64[ns, {self.iso.default_timezone}]"
+            self._check_load(df, load_col="Load Forecast")
+            assert df["Time"].min().date() == start_date.date()
+            assert df["Time"].max().date() == end.date()
 
     def test_get_load_forecast_historical_raises(self):
-        with pytest.raises(NotSupported):
-            self.iso.get_load_forecast(pd.Timestamp(2001, 1, 1))
-            self.iso.get_load_forecast(pd.Timestamp(2000, 1, 1))
-            self.iso.get_load_forecast(pd.Timestamp(1999, 1, 1))
-            self.iso.get_load_forecast(pd.Timestamp(1998, 1, 1))
-            self.iso.get_load_forecast(pd.Timestamp(1997, 1, 1))
-
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_get_load_forecast_historical_with_date_range(self):
-        pass
+        for year in reversed(range(2000, 1995)):
+            datetime = pd.Timestamp(year, 1, 1)
+            with pytest.raises(NotSupported):
+                self.iso.get_load_forecast(datetime)
 
     """get_spp"""
 

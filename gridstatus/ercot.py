@@ -303,13 +303,11 @@ class Ercot(ISOBase):
 
         return data.reset_index(drop=True)
 
-    def get_load_forecast(self, date, verbose=False):
+    def get_load_forecast(self, date, end=None, verbose=False):
         """Returns load forecast
 
         Currently only supports today's forecast
         """
-        if date == "latest":
-            date = "today"
         date = utils._handle_date(date, self.default_timezone)
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         fourteen_days = pd.Timedelta(days=14)
@@ -319,7 +317,18 @@ class Ercot(ISOBase):
         if 2002 <= date.year <= 2022:
             doc_info = self._get_historical_document(date, verbose=verbose)
             doc = self.read_doc(doc_info, verbose=verbose)
-            doc = doc[doc["Forecast Time"] == date]
+            if end:
+                end = utils._handle_date(end, self.default_timezone)
+                mask = (doc["Time"].dt.date >= date.date()) & (
+                    doc["Time"].dt.date <= end.date()
+                )
+                doc = doc.loc[mask]
+            else:
+                doc = doc[doc["Time"].dt.date == date.date()]
+            if doc.empty:
+                raise ValueError(
+                    f"No load forecast data for {date} in {self.name} ({self.zone_key})",  # noqa: E501
+                )
         elif date == today or (lower_bound <= date <= upper_bound):
             # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
             # there are a few days of historical date for the forecast
@@ -1132,6 +1141,7 @@ class Ercot(ISOBase):
         )
         doc["Interval Start"] = doc["Interval End"] - interval_length
         doc["Time"] = doc["Interval Start"]
+
         cols_to_keep = [
             "Time",
             "Interval Start",

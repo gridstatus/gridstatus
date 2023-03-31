@@ -96,7 +96,7 @@ def make_availability_table():
 
 
 def _handle_date(date, tz=None):
-    if date == "today":
+    if date == ["today", "latest"]:
         date = pd.Timestamp.now(tz=tz).normalize()
 
     if not isinstance(date, pd.Timestamp):

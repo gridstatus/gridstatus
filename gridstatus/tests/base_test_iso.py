@@ -232,8 +232,8 @@ class BaseTestISO:
         assert time_cols == df.columns[: len(time_cols)].tolist()
         # check all time cols are localized timestamps
         for col in time_cols:
-            assert isinstance(df.loc[0][col], pd.Timestamp)
-            assert df.loc[0][col].tz is not None
+            assert isinstance(df.iloc[0][col], pd.Timestamp)
+            assert df.iloc[0][col].tz is not None
 
         self._check_ordered_by_time(df)
 
