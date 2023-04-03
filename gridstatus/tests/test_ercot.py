@@ -110,6 +110,11 @@ class TestErcot(BaseTestISO):
     def test_get_lmp_historical(self, markets=None):
         pass
 
+    def test_get_load_today(self):
+        df = self.iso.get_load("today")
+        self._check_load(df)
+        assert df["Time"].unique()[0].date() == datetime.today().date()
+
     def test_get_load_3_days_ago(self):
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         three_days_ago = today - pd.Timedelta(days=3)
@@ -117,59 +122,68 @@ class TestErcot(BaseTestISO):
         self._check_load(df)
         assert df["Time"].unique()[0].date() == three_days_ago
 
-    """get_load_forecast"""
+    def test_get_load_historical_with_date_range(self):
+        num_days = 7
+        end = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        )
+        start = end - pd.Timedelta(days=num_days)
+        print(start, end)
+        data = self.iso.get_load(date=start.date(), end=end.date())
+        self._check_load(data)
+        # make sure right number of days are returned
+        assert data["Time"].dt.day.nunique() == num_days
 
-    def test_get_load_forecast_historical_today(self):
-        df = self.iso.get_load_forecast("today")
-        assert df["Time"].unique()[0].date() == datetime.today().date()
-        for col in [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "Forecast Time",
-        ]:
-            assert col in df.columns
-            assert df[col].dtype == f"datetime64[ns, {self.iso.default_timezone}]"
-        self._check_load(df, load_col="Load Forecast")
-
-    def test_get_load_forecast_historical_specific_date(self):
-        for year in range(2002, 2022):
+    def test_get_load_historical_specific_date_all_years(self):
+        for year in reversed(range(2002, 2022)):
             datetime = pd.Timestamp(year, 1, 1)
-            df = self.iso.get_load_forecast(datetime)
+            df = self.iso.get_load(datetime)
             for col in [
                 "Time",
                 "Interval Start",
                 "Interval End",
-                "Forecast Time",
+                "Time",
             ]:
                 assert col in df.columns
                 assert df[col].dtype == f"datetime64[ns, {self.iso.default_timezone}]"
-            self._check_load(df, load_col="Load Forecast")
+            self._check_load(df, load_col="Load")
             assert df["Time"].max().date() == datetime.date()
             assert df["Time"].min().date() == datetime.date()
 
-    def test_get_load_forecast_historical_with_date_range(self):
+    def test_get_load_historical_with_date_range_all_years(self):
         for year in range(2002, 2022):
-            start_date = pd.Timestamp(year, 12, 1)
-            end = start_date + pd.DateOffset(days=3)
-            df = self.iso.get_load_forecast(start_date, end=end)
+            num_days = 7
+            end_dt = pd.Timestamp(year, 12, 8).tz_localize(self.iso.default_timezone)
+            start_dt = end_dt - pd.Timedelta(days=num_days)
+            df = self.iso.get_load(start_dt.date(), end=end_dt.date())
             for col in [
                 "Time",
                 "Interval Start",
                 "Interval End",
-                "Forecast Time",
+                "Time",
             ]:
                 assert col in df.columns
                 assert df[col].dtype == f"datetime64[ns, {self.iso.default_timezone}]"
-            self._check_load(df, load_col="Load Forecast")
-            assert df["Time"].min().date() == start_date.date()
-            assert df["Time"].max().date() == end.date()
+            self._check_load(df, load_col="Load")
+            assert df["Time"].min().date() == start_dt.date()
+            assert df["Time"].max().date() <= end_dt.date()
+            assert df["Time"].dt.day.nunique() == num_days + 1
 
     def test_get_load_forecast_historical_raises(self):
         for year in reversed(range(2000, 1995)):
             datetime = pd.Timestamp(year, 1, 1)
             with pytest.raises(NotSupported):
                 self.iso.get_load_forecast(datetime)
+
+    """get_load_forecast"""
+
+    def test_get_load_forecast_historical(self):
+        with pytest.raises(NotSupported):
+            super().test_get_load_forecast_historical()
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_load_forecast_historical_with_date_range(self):
+        pass
 
     """get_spp"""
 
