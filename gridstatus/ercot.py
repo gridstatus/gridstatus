@@ -215,12 +215,12 @@ class Ercot(ISOBase):
         elif utils.is_today(date, tz=self.default_timezone):
             df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
             df = df.rename(columns={"demand": "Load"})
-        elif end is None and utils.is_within_last_days(
-            date,
-            self.LOAD_HISTORICAL_MAX_DAYS,
+        elif utils.is_within_last_days(
+            date=date,
+            days=self.LOAD_HISTORICAL_MAX_DAYS,
             tz=self.default_timezone,
         ):
-            df = self._get_load_html(date, verbose)
+            df = self._get_load_html(date, end=end, verbose=verbose)
         elif 2002 <= date.year <= 2022:
             df = self._get_historical_load(date, end=end, verbose=verbose)
         else:
@@ -237,19 +237,23 @@ class Ercot(ISOBase):
             )
         return df
 
-    def _get_load_html(self, when, verbose=False):
+    def _get_load_html(self, start, end=None, verbose=False):
         """Returns load for currentDay or previousDay"""
-        url = self.ACTUAL_LOADS_URL_FORMAT.format(
-            timestamp=when.strftime("%Y%m%d"),
-        )
-
-        msg = f"Fetching {url}"
-        log(msg, verbose)
-
-        dfs = pd.read_html(url, header=0)
-        df = dfs[0]
-        df = self._handle_html_data(df, {"TOTAL": "Load"})
-        return df
+        final_dfs = []
+        if end is None:
+            end = start + pd.Timedelta(days=1)
+        for i in range((end - start).days + 1):
+            day = start + pd.Timedelta(days=i)
+            url = self.ACTUAL_LOADS_URL_FORMAT.format(
+                timestamp=day.strftime("%Y%m%d"),
+            )
+            msg = f"Fetching {url}"
+            log(msg, verbose)
+            dfs = pd.read_html(url, header=0)
+            df = dfs[0]
+            df = self._handle_html_data(df, {"TOTAL": "Load"})
+            final_dfs.append(df)
+        return pd.concat(final_dfs)
 
     def _get_todays_outlook_non_forecast(self, date, verbose=False):
         """Returns most recent data point for supply in MW

@@ -128,11 +128,10 @@ class TestErcot(BaseTestISO):
             tz=self.iso.default_timezone,
         )
         start = end - pd.Timedelta(days=num_days)
-        print(start, end)
-        data = self.iso.get_load(date=start.date(), end=end.date())
+        data = self.iso.get_load(date=start, end=end)
         self._check_load(data)
         # make sure right number of days are returned
-        assert data["Time"].dt.day.nunique() == num_days
+        assert data["Time"].dt.day.nunique() == num_days + 1
 
     def test_get_load_historical_specific_date_all_years(self):
         for year in reversed(range(2002, 2022)):
