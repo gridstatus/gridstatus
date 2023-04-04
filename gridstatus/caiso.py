@@ -109,7 +109,9 @@ class CAISO(ISOBase):
         )
 
         # when day light savings time switches, there are na rows
-        df = df.dropna()
+        # maybe better way to do this in case there are other cases
+        # where there are all na rows
+        df = df.dropna(axis=0, how="all", subset=df.columns[3:])
 
         return df
 
