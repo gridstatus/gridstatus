@@ -164,7 +164,7 @@ def make_lmp_availability_table():
     return transposed.to_markdown() + "\n"
 
 
-def filter_lmp_locations(df, locations):
+def filter_lmp_locations(df, locations, location_type):
     """
     Filters DataFrame by locations, which can be a list, "ALL" or None
 
@@ -172,10 +172,16 @@ def filter_lmp_locations(df, locations):
         df (pandas.DataFrame): DataFrame to filter
         locations: "ALL" or list of locations to filter "Location" column by
     """
-    if locations == "ALL" or locations is None:
-        return df
+    if location_type != "ALL" and location_type is not None:
+        if isinstance(location_type, str):
+            location_type = [location_type]
 
-    return df[df["Location"].isin(locations)]
+        df = df[df["Location Type"].isin(location_type)]
+
+    if locations != "ALL" and locations is not None:
+        df = df[df["Location"].isin(locations)]
+
+    return df
 
 
 def get_zip_file(url):
