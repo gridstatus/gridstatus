@@ -164,7 +164,10 @@ def make_lmp_availability_table():
     return transposed.to_markdown() + "\n"
 
 
-def filter_lmp_locations(df, locations, location_type):
+# todo require locations and location_type arguments
+
+
+def filter_lmp_locations(df, locations=None, location_type=None):
     """
     Filters DataFrame by locations, which can be a list, "ALL" or None
 
