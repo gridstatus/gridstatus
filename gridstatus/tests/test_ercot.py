@@ -132,32 +132,32 @@ class TestErcot(BaseTestISO):
             self.iso.get_spp(
                 date="latest",
                 market=Markets.DAY_AHEAD_HOURLY,
-                location_type="zone",
+                location_type="Load Zone",
             )
 
     def test_get_spp_dam_today_day_ahead_hourly_hub(self):
         df = self.iso.get_spp(
             date="today",
             market=Markets.DAY_AHEAD_HOURLY,
-            location_type="hub",
+            location_type="Trading Hub",
         )
-        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Hub")
+        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Trading Hub")
 
     def test_get_spp_dam_today_day_ahead_hourly_node(self):
         df = self.iso.get_spp(
             date="today",
             market=Markets.DAY_AHEAD_HOURLY,
-            location_type="node",
+            location_type="Resource Node",
         )
-        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Node")
+        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Resource Node")
 
     def test_get_spp_dam_today_day_ahead_hourly_zone(self):
         df = self.iso.get_spp(
             date="today",
             market=Markets.DAY_AHEAD_HOURLY,
-            location_type="zone",
+            location_type="Load Zone",
         )
-        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Zone")
+        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
     @pytest.mark.skip(reason="takes too long to run")
     def test_get_spp_rtm_historical(self):
@@ -170,9 +170,9 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_spp(
             date="today",
             market=Markets.REAL_TIME_15_MIN,
-            location_type="zone",
+            location_type="Load Zone",
         )
-        self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Zone")
+        self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
     def test_get_spp_two_days_ago_day_ahead_hourly_zone(self):
         two_days_ago = pd.Timestamp.now(
@@ -183,9 +183,9 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_spp(
             date=two_days_ago,
             market=Markets.DAY_AHEAD_HOURLY,
-            location_type="zone",
+            location_type="Load Zone",
         )
-        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Zone")
+        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
     @pytest.mark.slow
     def test_get_spp_two_days_ago_real_time_15_minutes_zone(self):
@@ -197,9 +197,9 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_spp(
             date=two_days_ago,
             market=Markets.REAL_TIME_15_MIN,
-            location_type="zone",
+            location_type="Load Zone",
         )
-        self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Zone")
+        self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
     """get_storage"""
 
