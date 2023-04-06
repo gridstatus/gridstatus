@@ -543,6 +543,11 @@ class Ercot(ISOBase):
         load_zone = mapping_df["SETTLEMENT_LOAD_ZONE"].dropna().unique()
         resource_node = mapping_df["RESOURCE_NODE"].dropna().unique()
 
+        if df[df.duplicated()].shape[0] > 0:
+            import pdb
+
+            pdb.set_trace()
+
         # Create boolean masks for each location type
         is_hub = df["Location"].isin(hubs)
         is_load_zone = df["Location"].isin(load_zone)
@@ -562,6 +567,11 @@ class Ercot(ISOBase):
             },
         )
 
+        if df[df.duplicated()].shape[0] > 0:
+            import pdb
+
+            pdb.set_trace()
+
         df = df[
             [
                 "Time",
@@ -573,6 +583,12 @@ class Ercot(ISOBase):
                 "SPP",
             ]
         ]
+
+        # todo figure out why
+        # when you get rid of SettlementPointType some
+        # rows are duplicated
+        # For example, SettlementPointType LZ and LZEW
+        df = df.drop_duplicates()
 
         df = utils.filter_lmp_locations(
             df=df,
