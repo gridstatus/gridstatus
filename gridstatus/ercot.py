@@ -588,7 +588,14 @@ class Ercot(ISOBase):
         # when you get rid of SettlementPointType some
         # rows are duplicated
         # For example, SettlementPointType LZ and LZEW
-        df = df.drop_duplicates()
+        df = df.drop_duplicates(
+            subset=[
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Location",
+            ],
+        )
 
         df = utils.filter_lmp_locations(
             df=df,
