@@ -527,33 +527,38 @@ class Ercot(ISOBase):
                 date,
                 verbose,
             )
-            settlement_point_field = "SettlementPointName"
+            df.rename(
+                columns={"SettlementPointName": "Location"},
+                inplace=True,
+            )
         elif market == Markets.DAY_AHEAD_HOURLY:
             df = self._get_spp_dam(date, verbose)
-            settlement_point_field = "SettlementPoint"
+            df.rename(
+                columns={"SettlementPoint": "Location"},
+                inplace=True,
+            )
 
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         hubs = mapping_df["HUB"].dropna().unique()
         load_zone = mapping_df["SETTLEMENT_LOAD_ZONE"].dropna().unique()
         resource_node = mapping_df["RESOURCE_NODE"].dropna().unique()
 
-        def _set_location_type(row):
-            if row[settlement_point_field] in hubs:
-                return LOCATION_TYPE_HUB
-            elif row[settlement_point_field] in load_zone:
-                return LOCATION_TYPE_ZONE
-            elif row[settlement_point_field] in resource_node:
-                return LOCATION_TYPE_RESOURCE_NODE
-            else:
-                # todo, what should we default to?
-                return LOCATION_TYPE_RESOURCE_NODE
+        # Create boolean masks for each location type
+        is_hub = df["Location"].isin(hubs)
+        is_load_zone = df["Location"].isin(load_zone)
+        is_resource_node = df["Location"].isin(resource_node)
 
-        df["Location Type"] = df.apply(_set_location_type, axis=1)
+        # Assign location types based on the boolean masks
+        df.loc[is_hub, "Location Type"] = LOCATION_TYPE_HUB
+        df.loc[is_load_zone, "Location Type"] = LOCATION_TYPE_ZONE
+        df.loc[is_resource_node, "Location Type"] = LOCATION_TYPE_RESOURCE_NODE
+
+        # If a location type is not found, default to LOCATION_TYPE_RESOURCE_NODE
+        df["Location Type"].fillna(LOCATION_TYPE_RESOURCE_NODE, inplace=True)
 
         df = df.rename(
             columns={
                 "SettlementPointPrice": "SPP",
-                settlement_point_field: "Location",
             },
         )
 
