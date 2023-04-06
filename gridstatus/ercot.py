@@ -508,7 +508,7 @@ class Ercot(ISOBase):
         end=None,
         market: str = None,
         locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_ZONE,
+        location_type: str = "ALL",
         verbose=False,
     ):
         """Get SPP data for ERCOT
