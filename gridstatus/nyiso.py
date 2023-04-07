@@ -107,7 +107,19 @@ class NYISO(ISOBase):
 
     @support_date_range(frequency="MS")
     def get_load(self, date, end=None, verbose=False):
-        """Returns load at a previous date in 5 minute intervals"""
+        """Returns load at a previous date in 5 minute intervals for
+          each zone and total load
+
+        Parameters:
+            date (str): Date to get load for. Can be "latest", "today", or
+              a date in the format YYYY-MM-DD
+            end (str): End date for date range. Optional.
+            verbose (bool): Whether to print verbose output. Optional.
+
+        Returns:
+            pandas.DataFrame: Load data for NYISO and each zone
+
+        """
         if date == "latest":
             return self._latest_from_today(self.get_load)
 
@@ -118,17 +130,21 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        # drop NA loads
-        data = data.dropna(subset=["Load"])
-
-        # TODO load by zone
-        load = (
-            data.groupby(["Time", "Interval Start", "Interval End"])["Load"]
-            .sum()
-            .reset_index()
+        # pivot table
+        df = data.pivot_table(
+            index=["Time"],
+            columns="Name",
+            values="Load",
+            aggfunc="first",
         )
 
-        return load
+        df.insert(0, "Load", df.sum(axis=1))
+
+        df.reset_index(inplace=True)
+        # drop NA loads
+        # data = data.dropna(subset=["Load"])
+
+        return df
 
     @support_date_range(frequency="MS")
     def get_load_forecast(self, date, end=None, verbose=False):
@@ -731,7 +747,7 @@ class NYISO(ISOBase):
 dataset_interval_map = {
     # (time_type, interval_duration_minutes)
     # load
-    "pal": ("start", 5),
+    "pal": ("instantaneous", None),
     # fuel mix
     "rtfuelmix": ("instantaneous", None),
     # load forecast
