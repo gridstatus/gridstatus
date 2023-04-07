@@ -148,7 +148,7 @@ class Ercot(ISOBase):
 
         Returns:
             pandas.DataFrame: A DataFrame with columns; Time and columns for each fuel \
-                type (solar and wind)
+                type
         """
 
         if date == "latest":
