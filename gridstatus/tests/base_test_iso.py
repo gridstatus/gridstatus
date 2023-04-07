@@ -234,6 +234,8 @@ class BaseTestISO:
         elif instant_or_interval == "instant":
             time_cols = ["Time"]
             ordered_by_col = "Time"
+            assert "Interval Start" not in df.columns
+            assert "Interval End" not in df.columns
         else:
             raise ValueError(
                 "instant_or_interval must be 'interval' or 'instant'",
