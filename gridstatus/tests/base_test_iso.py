@@ -220,14 +220,24 @@ class BaseTestISO:
 
     """other"""
 
-    def _check_ordered_by_time(self, df):
+    def _check_ordered_by_time(self, df, col):
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] > 0
-        assert df["Interval Start"].is_monotonic_increasing
+        assert df[col].is_monotonic_increasing
 
-    def _check_time_columns(self, df):
+    def _check_time_columns(self, df, instant_or_interval="interval"):
         assert isinstance(df, pd.DataFrame)
-        time_cols = ["Time", "Interval Start", "Interval End"]
+
+        if instant_or_interval == "interval":
+            time_cols = ["Time", "Interval Start", "Interval End"]
+            ordered_by_col = "Interval Start"
+        elif instant_or_interval == "instant":
+            time_cols = ["Time"]
+            ordered_by_col = "Time"
+        else:
+            raise ValueError(
+                "instant_or_interval must be 'interval' or 'instant'",
+            )
 
         assert time_cols == df.columns[: len(time_cols)].tolist()
         # check all time cols are localized timestamps
@@ -235,12 +245,20 @@ class BaseTestISO:
             assert isinstance(df.loc[0][col], pd.Timestamp)
             assert df.loc[0][col].tz is not None
 
-        self._check_ordered_by_time(df)
+        self._check_ordered_by_time(df, ordered_by_col)
 
     def _check_fuel_mix(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.name is None
-        self._check_time_columns(df)
+
+        time_type = "interval"
+        if self.iso.iso_id in ["nyiso", "isone", "ercot"]:
+            time_type = "instant"
+        elif self.iso.iso_id in ["caiso", "spp", "miso", "pjm"]:
+            time_type = "interval"
+        else:
+            raise ValueError("Unknown ISO ID")
+        self._check_time_columns(df, instant_or_interval=time_type)
 
     def _check_load(self, df):
         assert isinstance(df, pd.DataFrame)

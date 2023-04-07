@@ -95,7 +95,7 @@ class NYISO(ISOBase):
         )
 
         mix_df = mix_df.pivot_table(
-            index=["Time", "Interval Start", "Interval End"],
+            index=["Time"],
             columns="Fuel Category",
             values="Gen MW",
             aggfunc="first",
@@ -733,7 +733,7 @@ dataset_interval_map = {
     # load
     "pal": ("start", 5),
     # fuel mix
-    "rtfuelmix": ("end", 5),
+    "rtfuelmix": ("instantaneous", None),
     # load forecast
     "isolf": ("start", 60),
     # dam lmp
@@ -785,10 +785,11 @@ def _handle_time(df, dataset_name):
         interval_duration = pd.Timedelta(minutes=interval_duration_minutes)
         if time_type == "start":
             df["Interval Start"] = df["Time"]
-            df["Interval End"] = df["Time"] + interval_duration
+            df["Interval End"] = df["Interval Start"] + interval_duration
         elif time_type == "end":
-            df["Interval End"] = df["Time"]
             df["Interval Start"] = df["Time"] - interval_duration
+            df["Interval End"] = df["Time"]
+            df["Time"] = df["Interval Start"]
 
         utils.move_cols_to_front(
             df,
