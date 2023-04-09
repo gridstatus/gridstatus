@@ -148,7 +148,7 @@ class Ercot(ISOBase):
 
         Returns:
             pandas.DataFrame: A DataFrame with columns; Time and columns for each fuel \
-                type (solar and wind)
+                type
         """
 
         if date == "latest":
@@ -170,25 +170,21 @@ class Ercot(ISOBase):
                 )
                 .T
             )
-            mix.index.name = "Interval End"
+            mix.index.name = "Time"
             mix = mix.reset_index()
 
-            mix["Interval End"] = pd.to_datetime(mix["Interval End"]).dt.tz_localize(
+            mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_localize(
                 self.default_timezone,
                 ambiguous="infer",
             )
 
             # most timestamps are a few seconds off round 5 minute ticks
             # round to nearest minute
-            mix["Interval End"] = mix["Interval End"].round("min")
-            mix["Interval Start"] = mix["Interval End"] - pd.Timedelta(minutes=5)
-            mix["Time"] = mix["Interval Start"]
+            mix["Time"] = mix["Time"].round("min")
 
             mix = mix[
                 [
                     "Time",
-                    "Interval Start",
-                    "Interval End",
                     "Coal and Lignite",
                     "Hydro",
                     "Nuclear",

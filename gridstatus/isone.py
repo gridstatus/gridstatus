@@ -140,37 +140,15 @@ class ISONE(ISOBase):
         ).reset_index()
         mix_df.columns.name = None
 
-        # assume interval end. unclear based on data
-        mix_df = mix_df.rename(columns={"Date": "Interval End"})
+        # assume instant in time, unclear if this is correct
+        mix_df = mix_df.rename(columns={"Date": "Time"})
 
         mix_df = mix_df.fillna(0)
-
-        mix_df["Interval Start"] = (
-            mix_df["Interval End"] - mix_df["Interval End"].diff()
-        )
-
-        # add midnight to first row of Interval Start
-        mix_df.loc[0, "Interval Start"] = mix_df["Interval Start"].min().normalize()
-
-        # if historical data, add row at end to go to midnight of next day
-        # todo manually verified works, but add test for this
-        if not utils.is_today(date, self.default_timezone):
-            new_row = pd.DataFrame(
-                {
-                    "Interval Start": [mix_df["Interval End"].max()],
-                    "Interval End": [
-                        mix_df["Interval End"].max().normalize() + pd.Timedelta(days=1),
-                    ],
-                },
-            )
-            mix_df = pd.concat([mix_df, new_row], ignore_index=True).ffill()
-
-        mix_df["Time"] = mix_df["Interval Start"]
 
         # move time columns front
         mix_df = utils.move_cols_to_front(
             mix_df,
-            ["Time", "Interval Start", "Interval End"],
+            ["Time"],
         )
 
         return mix_df
