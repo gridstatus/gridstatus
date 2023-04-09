@@ -43,6 +43,27 @@ class TestNYISO(BaseTestISO):
         assert set(df.columns).issuperset(set(columns))
         assert df.shape[0] >= 0
 
+    """get_load"""
+
+    def test_get_load_contains_zones(self):
+        df = self.iso.get_load("today")
+        nyiso_load_cols = [
+            "Time",
+            "Load",
+            "CAPITL",
+            "CENTRL",
+            "DUNWOD",
+            "GENESE",
+            "HUD VL",
+            "LONGIL",
+            "MHK VL",
+            "MILLWD",
+            "N.Y.C.",
+            "NORTH",
+            "WEST",
+        ]
+        assert df.columns.tolist() == nyiso_load_cols
+
     """get_lmp"""
 
     @with_markets(

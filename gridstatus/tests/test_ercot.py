@@ -68,8 +68,6 @@ class TestErcot(BaseTestISO):
         # today
         cols = [
             "Time",
-            "Interval Start",
-            "Interval End",
             "Coal and Lignite",
             "Hydro",
             "Nuclear",
