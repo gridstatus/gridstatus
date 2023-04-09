@@ -37,6 +37,10 @@ class lmp_config:
         to be used later on for validation"""
         from gridstatus.utils import _handle_date
 
+        # if date range tuple, just validate start
+        if isinstance(date, tuple):
+            date = date[0]
+
         if date == "latest":
             return _handle_date("today", tz=tz)
         elif (
