@@ -140,7 +140,7 @@ class BaseTestISO:
         # make sure right number of days are returned
         assert data["Time"].dt.day.nunique() == num_days
 
-        data_tuple = self.iso.get_load(date=[start.date(), end.date()])
+        data_tuple = self.iso.get_load(date=(start.date(), end.date()))
 
         assert data_tuple.equals(data)
 
