@@ -242,10 +242,6 @@ class ISONE(ISOBase):
             ]
         ]
 
-        import pdb
-
-        pdb.set_trace()
-
         return df
 
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
