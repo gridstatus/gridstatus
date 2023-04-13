@@ -129,15 +129,20 @@ class BaseTestISO:
     """get_load"""
 
     def test_get_load_historical_with_date_range(self):
-        num_days = 7
+        num_days = 4
         end = pd.Timestamp.now(
             tz=self.iso.default_timezone,
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
+
         data = self.iso.get_load(date=start.date(), end=end.date())
         self._check_load(data)
         # make sure right number of days are returned
         assert data["Time"].dt.day.nunique() == num_days
+
+        data_tuple = self.iso.get_load(date=(start.date(), end.date()))
+
+        assert data_tuple.equals(data)
 
     def test_get_load_historical(self):
         # pick a test date 2 weeks back

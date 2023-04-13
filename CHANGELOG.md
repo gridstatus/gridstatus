@@ -1,5 +1,15 @@
 # Changelog
 
+## vNext
+
+- Date ranges can be provided as either separate start/end arguments or a tuple to date.
+
+```python
+# both do the same thing
+iso.get_load(start="Jan 1, 2023", end="March 1, 2023")
+iso.get_load(date=("Jan 1, 2023", "March 1, 2023"))
+```
+
 ## v0.20.0 - March 24, 2023
 
 - Add `Interval Start` and `Interval End` time stamps to every applicable time series to avoid ambiguity. The `Time` column will be dropped in favor of just these two columns in next release

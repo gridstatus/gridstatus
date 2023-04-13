@@ -39,6 +39,12 @@ class support_date_range:
             if "error" in args_dict:
                 error = args_dict.pop("error")
 
+            # if date is a tuple, then change to start and end
+            if "date" in args_dict and isinstance(args_dict["date"], tuple):
+                args_dict["start"] = args_dict["date"][0]
+                args_dict["end"] = args_dict["date"][1]
+                del args_dict["date"]
+
             if "date" in args_dict and "start" in args_dict:
                 raise ValueError(
                     "Cannot supply both 'date' and 'start' to function {}".format(
