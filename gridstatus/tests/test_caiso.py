@@ -121,6 +121,12 @@ class TestCAISO(BaseTestISO):
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
+    )
+    def test_lmp_date_range(self, market):
+        super().test_lmp_date_range(market=market)
+
+    @with_markets(
+        Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_15_MIN,
         Markets.REAL_TIME_5_MIN,
     )

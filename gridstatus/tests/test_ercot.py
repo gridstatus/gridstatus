@@ -103,6 +103,10 @@ class TestErcot(BaseTestISO):
     """get_lmp"""
 
     @pytest.mark.skip(reason="Not Applicable")
+    def test_lmp_date_range(self, markets=None):
+        pass
+
+    @pytest.mark.skip(reason="Not Applicable")
     def test_get_lmp_historical(self, markets=None):
         pass
 

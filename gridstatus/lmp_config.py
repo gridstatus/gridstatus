@@ -92,11 +92,6 @@ class lmp_config:
 
         self._check_support(date, date_value, market_value, tz)
 
-        if date != "latest":
-            if "date" in arguments:
-                arguments["date"] = date_value
-            elif "start" in arguments:
-                arguments["start"] = date_value
         arguments["market"] = market_value
 
         return bound_args

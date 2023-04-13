@@ -29,6 +29,10 @@ class TestMISO(BaseTestISO):
 
     """get_lmp"""
 
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_lmp_date_range(self, markets=None):
+        pass
+
     @with_markets(
         Markets.REAL_TIME_5_MIN,
         Markets.DAY_AHEAD_HOURLY,

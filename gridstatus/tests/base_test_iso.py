@@ -105,6 +105,23 @@ class BaseTestISO:
     """get_lmp"""
 
     # @pytest.mark.parametrize in ISO
+    def test_lmp_date_range(self, market=None):
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        three_days_ago = today - pd.Timedelta(days=3)
+        df_1 = self.iso.get_lmp(
+            start=three_days_ago,
+            end=today,
+            market=market,
+        )
+        df_2 = self.iso.get_lmp(
+            date=(three_days_ago, today),
+            market=market,
+        )
+
+        self._check_lmp_columns(df_1, market)
+        assert df_1.equals(df_2)
+
+    # @pytest.mark.parametrize in ISO
     def test_get_lmp_historical(self, market=None):
         date_str = "2022-07-22"
         if market is not None:
