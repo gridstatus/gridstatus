@@ -187,7 +187,7 @@ class ISONE(ISOBase):
         """Return forecast at a previous date"""
         start_str = date.strftime("%m/%d/%Y")
         end_str = (date + pd.Timedelta(days=1)).strftime("%m/%d/%Y")
-        data = {
+        params = {
             "_nstmp_startDate": start_str,
             "_nstmp_endDate": end_str,
             "_nstmp_twodays": True,
@@ -201,13 +201,13 @@ class ISONE(ISOBase):
             "_nstmp_inclBtmPv": True,
         }
 
-        data = _make_wsclient_request(
+        raw_data = _make_wsclient_request(
             url="https://www.iso-ne.com/ws/wsclient",
-            data=data,
+            data=params,
             verbose=verbose,
         )
 
-        data = pd.DataFrame(data[0]["data"]["forecast"])
+        data = pd.DataFrame(raw_data[0]["data"]["forecast"])
 
         # must convert this way rather than use pd.to_datetime
         # to handle DST transitions
@@ -215,7 +215,9 @@ class ISONE(ISOBase):
             lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
 
-        data["CreationDate"] = data["BeginDate"].apply(
+        # for times earlier this creation date is after the forecasted interval
+        # for all historical data
+        data["CreationDate"] = data["CreationDate"].apply(
             lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
 
