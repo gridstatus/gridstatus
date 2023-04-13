@@ -190,7 +190,7 @@ class ISONE(ISOBase):
         params = {
             "_nstmp_startDate": start_str,
             "_nstmp_endDate": end_str,
-            "_nstmp_twodays": False,
+            "_nstmp_twodays": True,
             "_nstmp_twodaysCheckbox": False,
             "_nstmp_requestType": "systemload",
             "_nstmp_forecast": True,
@@ -215,7 +215,8 @@ class ISONE(ISOBase):
             lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
 
-        # sometimes this creation date is after the forecasted interval
+        # for times earlier this creation date is after the forecasted interval
+        # for all historical data
         data["CreationDate"] = data["CreationDate"].apply(
             lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
         )
@@ -240,6 +241,10 @@ class ISONE(ISOBase):
                 "Load Forecast",
             ]
         ]
+
+        import pdb
+
+        pdb.set_trace()
 
         return df
 
