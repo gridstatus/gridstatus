@@ -105,6 +105,23 @@ class BaseTestISO:
     """get_lmp"""
 
     # @pytest.mark.parametrize in ISO
+    def test_lmp_date_range(self, market=None):
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        three_days_ago = today - pd.Timedelta(days=3)
+        df_1 = self.iso.get_lmp(
+            start=three_days_ago,
+            end=today,
+            market=market,
+        )
+        df_2 = self.iso.get_lmp(
+            date=(three_days_ago, today),
+            market=market,
+        )
+
+        self._check_lmp_columns(df_1, market)
+        assert df_1.equals(df_2)
+
+    # @pytest.mark.parametrize in ISO
     def test_get_lmp_historical(self, market=None):
         date_str = "2022-07-22"
         if market is not None:
@@ -129,15 +146,20 @@ class BaseTestISO:
     """get_load"""
 
     def test_get_load_historical_with_date_range(self):
-        num_days = 7
+        num_days = 4
         end = pd.Timestamp.now(
             tz=self.iso.default_timezone,
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
+
         data = self.iso.get_load(date=start.date(), end=end.date())
         self._check_load(data)
         # make sure right number of days are returned
         assert data["Time"].dt.day.nunique() == num_days
+
+        data_tuple = self.iso.get_load(date=(start.date(), end.date()))
+
+        assert data_tuple.equals(data)
 
     def test_get_load_historical(self):
         # pick a test date 2 weeks back
@@ -220,14 +242,26 @@ class BaseTestISO:
 
     """other"""
 
-    def _check_ordered_by_time(self, df):
+    def _check_ordered_by_time(self, df, col):
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] > 0
-        assert df["Interval Start"].is_monotonic_increasing
+        assert df[col].is_monotonic_increasing
 
-    def _check_time_columns(self, df):
+    def _check_time_columns(self, df, instant_or_interval="interval"):
         assert isinstance(df, pd.DataFrame)
-        time_cols = ["Time", "Interval Start", "Interval End"]
+
+        if instant_or_interval == "interval":
+            time_cols = ["Time", "Interval Start", "Interval End"]
+            ordered_by_col = "Interval Start"
+        elif instant_or_interval == "instant":
+            time_cols = ["Time"]
+            ordered_by_col = "Time"
+            assert "Interval Start" not in df.columns
+            assert "Interval End" not in df.columns
+        else:
+            raise ValueError(
+                "instant_or_interval must be 'interval' or 'instant'",
+            )
 
         assert time_cols == df.columns[: len(time_cols)].tolist()
         # check all time cols are localized timestamps
@@ -235,19 +269,33 @@ class BaseTestISO:
             assert isinstance(df.iloc[0][col], pd.Timestamp)
             assert df.iloc[0][col].tz is not None
 
-        self._check_ordered_by_time(df)
+        self._check_ordered_by_time(df, ordered_by_col)
 
     def _check_fuel_mix(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.name is None
-        self._check_time_columns(df)
+
+        time_type = "interval"
+        if self.iso.iso_id in ["nyiso", "isone", "ercot"]:
+            time_type = "instant"
+        elif self.iso.iso_id in ["caiso", "spp", "miso", "pjm"]:
+            time_type = "interval"
+        else:
+            raise ValueError("Unknown ISO ID")
+        self._check_time_columns(df, instant_or_interval=time_type)
 
     def _check_load(self, df, load_col="Load"):
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] >= 0
-        self._check_time_columns(df)
         assert load_col in df.columns
-        assert is_numeric_dtype(df[load_col])
+
+        if self.iso.iso_id in ["nyiso"]:
+            time_type = "instant"
+        elif self.iso.iso_id in ["caiso", "isone", "spp", "miso", "pjm", "ercot"]:
+            time_type = "interval"
+        self._check_time_columns(df, instant_or_interval=time_type)
+        assert "Load" in df.columns
+        assert is_numeric_dtype(df["Load"])
 
     def _check_forecast(self, df):
         assert set(df.columns) == set(

@@ -18,9 +18,9 @@ from gridstatus.decorators import ercot_update_dates, support_date_range
 from gridstatus.lmp_config import lmp_config
 from gridstatus.logging import log
 
-LOCATION_TYPE_HUB = "HUB"
-LOCATION_TYPE_NODE = "NODE"
-LOCATION_TYPE_ZONE = "ZONE"
+LOCATION_TYPE_HUB = "Trading Hub"
+LOCATION_TYPE_RESOURCE_NODE = "Resource Node"
+LOCATION_TYPE_ZONE = "Load Zone"
 
 """
 Report Type IDs
@@ -96,8 +96,8 @@ class Ercot(ISOBase):
 
     location_types = [
         LOCATION_TYPE_HUB,
-        LOCATION_TYPE_NODE,
         LOCATION_TYPE_ZONE,
+        LOCATION_TYPE_RESOURCE_NODE,
     ]
 
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
@@ -149,7 +149,7 @@ class Ercot(ISOBase):
 
         Returns:
             pandas.DataFrame: A DataFrame with columns; Time and columns for each fuel \
-                type (solar and wind)
+                type
         """
 
         if date == "latest":
@@ -171,25 +171,21 @@ class Ercot(ISOBase):
                 )
                 .T
             )
-            mix.index.name = "Interval End"
+            mix.index.name = "Time"
             mix = mix.reset_index()
 
-            mix["Interval End"] = pd.to_datetime(mix["Interval End"]).dt.tz_localize(
+            mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_localize(
                 self.default_timezone,
                 ambiguous="infer",
             )
 
             # most timestamps are a few seconds off round 5 minute ticks
             # round to nearest minute
-            mix["Interval End"] = mix["Interval End"].round("min")
-            mix["Interval Start"] = mix["Interval End"] - pd.Timedelta(minutes=5)
-            mix["Time"] = mix["Interval Start"]
+            mix["Time"] = mix["Time"].round("min")
 
             mix = mix[
                 [
                     "Time",
-                    "Interval Start",
-                    "Interval End",
                     "Coal and Lignite",
                     "Hydro",
                     "Nuclear",
@@ -534,7 +530,7 @@ class Ercot(ISOBase):
         end=None,
         market: str = None,
         locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_ZONE,
+        location_type: str = "ALL",
         verbose=False,
     ):
         """Get SPP data for ERCOT
@@ -551,23 +547,91 @@ class Ercot(ISOBase):
         if market == Markets.REAL_TIME_15_MIN:
             df = self._get_spp_rtm15(
                 date,
-                location_type,
                 verbose,
             )
-            settlement_point_field = "SettlementPointName"
-        elif market == Markets.DAY_AHEAD_HOURLY:
-            df = self._get_spp_dam(date, location_type, verbose)
-            settlement_point_field = "SettlementPoint"
-        else:
-            raise NotSupported(
-                f"Market {market} not supported for ERCOT",
+            df.rename(
+                columns={"SettlementPointName": "Location"},
+                inplace=True,
             )
-        return Ercot._finalize_spp_df(df, settlement_point_field, locations)
+        elif market == Markets.DAY_AHEAD_HOURLY:
+            df = self._get_spp_dam(date, verbose)
+            df.rename(
+                columns={"SettlementPoint": "Location"},
+                inplace=True,
+            )
+
+        mapping_df = self._get_settlement_point_mapping(verbose=verbose)
+        hubs = mapping_df["HUB"].dropna().unique()
+        load_zone = mapping_df["SETTLEMENT_LOAD_ZONE"].dropna().unique()
+        resource_node = mapping_df["RESOURCE_NODE"].dropna().unique()
+
+        if df[df.duplicated()].shape[0] > 0:
+            import pdb
+
+            pdb.set_trace()
+
+        # Create boolean masks for each location type
+        is_hub = df["Location"].isin(hubs)
+        is_load_zone = df["Location"].isin(load_zone)
+        is_resource_node = df["Location"].isin(resource_node)
+
+        # Assign location types based on the boolean masks
+        df.loc[is_hub, "Location Type"] = LOCATION_TYPE_HUB
+        df.loc[is_load_zone, "Location Type"] = LOCATION_TYPE_ZONE
+        df.loc[is_resource_node, "Location Type"] = LOCATION_TYPE_RESOURCE_NODE
+
+        # If a location type is not found, default to LOCATION_TYPE_RESOURCE_NODE
+        df["Location Type"].fillna(LOCATION_TYPE_RESOURCE_NODE, inplace=True)
+
+        df = df.rename(
+            columns={
+                "SettlementPointPrice": "SPP",
+            },
+        )
+
+        if df[df.duplicated()].shape[0] > 0:
+            import pdb
+
+            pdb.set_trace()
+
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "Market",
+                "SPP",
+            ]
+        ]
+
+        # todo figure out why
+        # when you get rid of SettlementPointType some
+        # rows are duplicated
+        # For example, SettlementPointType LZ and LZEW
+        df = df.drop_duplicates(
+            subset=[
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Location",
+            ],
+        )
+
+        df = utils.filter_lmp_locations(
+            df=df,
+            locations=locations,
+            location_type=location_type,
+        )
+
+        df = df.sort_values(by="Interval Start")
+        df = df.reset_index(drop=True)
+        return df
 
     def _get_spp_dam(
         self,
         date,
-        location_type: str = None,
         verbose=False,
     ):
         """Get day-ahead hourly Market SPP data for ERCOT"""
@@ -593,52 +657,12 @@ class Ercot(ISOBase):
 
         # fetch mapping
         df["Market"] = Markets.DAY_AHEAD_HOURLY.value
-        df["Location Type"] = self._get_location_type_name(location_type)
 
-        mapping_df = self._get_settlement_point_mapping(verbose=verbose)
-        df = self._filter_by_location_type(df, mapping_df, location_type)
-
-        return df
-
-    @staticmethod
-    def _finalize_spp_df(df, settlement_point_field, locations):
-        """
-        Finalizes DataFrame by:
-        - filtering by locations list
-        - renaming and ordering columns
-        - and resetting the index
-
-        Arguments:
-            df (pandas.DataFrame): DataFrame with SPP data
-            settlement_point_field (str): Field name of
-                settlement point to rename to "Location"
-        """
-        df = df.rename(
-            columns={
-                "SettlementPointPrice": "SPP",
-                settlement_point_field: "Location",
-            },
-        )
-        df = utils.filter_lmp_locations(df, locations)
-        df = df[
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "Market",
-                "SPP",
-            ]
-        ]
-        df = df.sort_values(by="Interval Start")
-        df = df.reset_index(drop=True)
         return df
 
     def _get_spp_rtm15(
         self,
         date,
-        location_type: str = None,
         verbose=False,
     ):
         """Get Real-time 15-minute Market SPP data for ERCOT
@@ -675,11 +699,8 @@ class Ercot(ISOBase):
         df.drop
 
         df["Market"] = Markets.REAL_TIME_15_MIN.value
-        df["Location Type"] = self._get_location_type_name(location_type)
         # Additional filter as the document may contain the last 15 minutes of yesterday
         df = df[df["Interval Start"].dt.date == publish_date.date()]
-        df = self._filter_by_settlement_point_type(df, location_type)
-
         return df
 
     @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
@@ -1055,34 +1076,6 @@ class Ercot(ISOBase):
         ] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
-    def _filter_by_settlement_point_type(self, df, location_type):
-        """Filter by settlement point type"""
-        norm_location_type = location_type.upper()
-        if norm_location_type == LOCATION_TYPE_NODE:
-            df = df[
-                df["SettlementPointType"].isin(
-                    RESOURCE_NODE_SETTLEMENT_TYPES,
-                )
-            ]
-        elif norm_location_type == LOCATION_TYPE_ZONE:
-            df = df[df["SettlementPointType"].isin(LOAD_ZONE_SETTLEMENT_TYPES)]
-        elif norm_location_type == LOCATION_TYPE_HUB:
-            df = df[df["SettlementPointType"].isin(HUB_SETTLEMENT_TYPES)]
-        else:
-            raise ValueError(f"Invalid location_type: {location_type}")
-        return df
-
-    def _get_location_type_name(self, location_type):
-        norm_location_type = location_type.upper()
-        if norm_location_type == LOCATION_TYPE_NODE:
-            return "Node"
-        elif norm_location_type == LOCATION_TYPE_ZONE:
-            return "Zone"
-        elif norm_location_type == LOCATION_TYPE_HUB:
-            return "Hub"
-        else:
-            raise ValueError(f"Invalid location_type: {location_type}")
-
     def _get_settlement_point_mapping(self, verbose=False):
         """Get DataFrame whose columns can help us filter out values"""
 
@@ -1103,20 +1096,6 @@ class Ercot(ISOBase):
         ][0]
         df = pd.read_csv(z.open(settlement_points_file))
         return df
-
-    def _filter_by_location_type(self, df, mapping_df, location_type):
-        """Filter by location type"""
-        norm_location_type = location_type.upper()
-        if norm_location_type == LOCATION_TYPE_NODE:
-            valid_values = mapping_df["RESOURCE_NODE"].unique()
-        elif norm_location_type == LOCATION_TYPE_ZONE:
-            valid_values = mapping_df["SETTLEMENT_LOAD_ZONE"].unique()
-        elif norm_location_type == LOCATION_TYPE_HUB:
-            valid_values = mapping_df["HUB"].unique()
-        else:
-            raise ValueError(f"Invalid location_type: {location_type}")
-
-        return df[df["SettlementPoint"].isin(valid_values)]
 
     def read_doc(self, doc, verbose=False):
         filename = None

@@ -164,7 +164,10 @@ def make_lmp_availability_table():
     return transposed.to_markdown() + "\n"
 
 
-def filter_lmp_locations(df, locations):
+# todo require locations and location_type arguments
+
+
+def filter_lmp_locations(df, locations=None, location_type=None):
     """
     Filters DataFrame by locations, which can be a list, "ALL" or None
 
@@ -172,10 +175,16 @@ def filter_lmp_locations(df, locations):
         df (pandas.DataFrame): DataFrame to filter
         locations: "ALL" or list of locations to filter "Location" column by
     """
-    if locations == "ALL" or locations is None:
-        return df
+    if location_type != "ALL" and location_type is not None:
+        if isinstance(location_type, str):
+            location_type = [location_type]
 
-    return df[df["Location"].isin(locations)]
+        df = df[df["Location Type"].isin(location_type)]
+
+    if locations != "ALL" and locations is not None:
+        df = df[df["Location"].isin(locations)]
+
+    return df
 
 
 def get_zip_file(url):
@@ -246,10 +255,11 @@ def load_folder(path, time_zone=None, verbose=True):
 
     data = pd.concat(dfs).reset_index(drop=True)
 
-    if "Time" in data.columns:
-        data["Time"] = pd.to_datetime(data["Time"], utc=True)
-        if time_zone:
-            data["Time"] = data["Time"].dt.tz_convert(time_zone)
+    for time_col in ["Time", "Interval Start", "Interval End"]:
+        if time_col in data.columns:
+            data[time_col] = pd.to_datetime(data[time_col], utc=True)
+            if time_zone:
+                data[time_col] = data[time_col].dt.tz_convert(time_zone)
 
     # todo make sure dates get parsed
     # todo make sure rows are sorted by time
