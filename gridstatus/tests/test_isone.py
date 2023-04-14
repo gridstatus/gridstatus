@@ -42,6 +42,22 @@ class TestISONE(BaseTestISO):
         ]
         self._check_time_columns(df, "interval")
 
+    def test_get_btm_solar_range(self):
+        df = self.iso.get_btm_solar(
+            date=("April 12, 2023", "April 14, 2023"),
+            verbose=VERBOSE,
+        )
+
+        assert df.shape[0] == df.drop_duplicates().shape[0]
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "BTM Solar",
+        ]
+        self._check_time_columns(df, "interval")
+
     """get_lmp"""
 
     @with_markets(
