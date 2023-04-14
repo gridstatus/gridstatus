@@ -1191,7 +1191,7 @@ class Ercot(ISOBase):
                 doc.loc[next_days, "HourEnding"] = doc["HourEnding"].str[:-5] + "00:00"
 
                 doc["HourEnding"] = doc["HourEnding"].str.replace("DST", "")
-                doc["HourEnding"] = pd.to_datetime(doc["HourEnding"])
+                doc["HourEnding"] = pd.to_datetime(doc["HourEnding"], format="mixed")
                 doc.loc[next_days, "HourEnding"] += pd.DateOffset(1)
                 doc["Interval End"] = doc["HourEnding"]
             else:
