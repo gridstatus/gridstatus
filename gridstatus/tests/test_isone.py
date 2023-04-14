@@ -29,6 +29,19 @@ class TestISONE(BaseTestISO):
     def test_get_fuel_mix(self, date):
         self.iso.get_fuel_mix(date=date, verbose=VERBOSE)
 
+    """get_btm_solar"""
+
+    def test_get_btm_solar(self):
+        df = self.iso.get_btm_solar(date="today", verbose=VERBOSE)
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "BTM Solar",
+        ]
+        self._check_time_columns(df, "interval")
+
     """get_lmp"""
 
     @with_markets(
