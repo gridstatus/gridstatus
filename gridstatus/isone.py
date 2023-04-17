@@ -183,50 +183,31 @@ class ISONE(ISOBase):
         return df
 
     @support_date_range(frequency="1D")
-    def get_load_forecast(self, date, end=None, verbose=False):
-        """Return forecast at a previous date"""
-        start_str = date.strftime("%m/%d/%Y")
-        end_str = (date + pd.Timedelta(days=1)).strftime("%m/%d/%Y")
-        params = {
-            "_nstmp_startDate": start_str,
-            "_nstmp_endDate": end_str,
-            "_nstmp_twodays": True,
-            "_nstmp_twodaysCheckbox": False,
-            "_nstmp_requestType": "systemload",
-            "_nstmp_forecast": True,
-            "_nstmp_actual": False,
-            "_nstmp_cleared": False,
-            "_nstmp_priorDay": False,
-            "_nstmp_inclPumpLoad": True,
-            "_nstmp_inclBtmPv": True,
-        }
-
-        raw_data = _make_wsclient_request(
-            url="https://www.iso-ne.com/ws/wsclient",
-            data=params,
+    def get_btm_solar(self, date, end=None, verbose=False):
+        """Return BTM solar at a previous date in 5 minute intervals"""
+        df = self._get_system_load(
+            date,
+            end=date,
+            series="actual",
             verbose=verbose,
         )
 
-        data = pd.DataFrame(raw_data[0]["data"]["forecast"])
+        df["BTM Solar"] = df["NativeLoadBtmPv"] - df["Load"]
 
-        # must convert this way rather than use pd.to_datetime
-        # to handle DST transitions
-        data["BeginDate"] = data["BeginDate"].apply(
-            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
-        )
+        df["Interval Start"] = df["Time"]
+        df["Interval End"] = df["Time"] + pd.Timedelta(minutes=5)
 
-        # for times earlier this creation date is after the forecasted interval
-        # for all historical data
-        data["CreationDate"] = data["CreationDate"].apply(
-            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
-        )
+        return df[["Time", "Interval Start", "Interval End", "BTM Solar"]]
 
-        df = data[["CreationDate", "BeginDate", "Mw"]].rename(
-            columns={
-                "CreationDate": "Forecast Time",
-                "BeginDate": "Time",
-                "Mw": "Load Forecast",
-            },
+    @support_date_range(frequency="1D")
+    def get_load_forecast(self, date, end=None, verbose=False):
+        """Return forecast at a previous date"""
+
+        df = self._get_system_load(
+            date,
+            end=date + pd.Timedelta(days=1),
+            series="forecast",
+            verbose=verbose,
         )
 
         df["Interval Start"] = df["Time"]
@@ -616,6 +597,60 @@ class ISONE(ISOBase):
         ).reset_index(drop=True)
 
         return queue
+
+    def _get_system_load(self, date, end, series, verbose=False):
+        start_str = date.strftime("%m/%d/%Y")
+        end_str = end.strftime("%m/%d/%Y")
+        params = {
+            "_nstmp_startDate": start_str,
+            "_nstmp_endDate": end_str,
+            "_nstmp_twodays": True,
+            "_nstmp_twodaysCheckbox": False,
+            "_nstmp_requestType": "systemload",
+            "_nstmp_forecast": True,
+            "_nstmp_actual": True,
+            "_nstmp_cleared": True,
+            "_nstmp_priorDay": False,
+            "_nstmp_inclPumpLoad": True,
+            "_nstmp_inclBtmPv": True,
+        }
+
+        raw_data = _make_wsclient_request(
+            url="https://www.iso-ne.com/ws/wsclient",
+            data=params,
+            verbose=verbose,
+        )
+
+        data = pd.DataFrame(raw_data[0]["data"][series])
+
+        # must convert this way rather than use pd.to_datetime
+        # to handle DST transitions
+        data["BeginDate"] = data["BeginDate"].apply(
+            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
+        )
+
+        # for times earlier this creation date is after the forecasted interval
+        # for all historical data
+        if "CreationDate" in data.columns:
+            data["CreationDate"] = data["CreationDate"].apply(
+                lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
+            )
+        if series == "actual":
+            mw_rename = "Load"
+        elif series == "forecast":
+            mw_rename = "Load Forecast"
+        else:
+            raise ValueError(f"Unrecognized series: {series}")
+
+        data = data.rename(
+            columns={
+                "BeginDate": "Time",
+                "Mw": mw_rename,
+                "CreationDate": "Forecast Time",
+            },
+        )
+
+        return data
 
 
 def _make_request(url, skiprows, verbose):
