@@ -10,6 +10,7 @@ iso.get_load(start="Jan 1, 2023", end="March 1, 2023")
 iso.get_load(date=("Jan 1, 2023", "March 1, 2023"))
 ```
 
+- Update SPP fuel mix source. Add helper function to parse historical fuel mix data back to 2011.
 - Add ISONE BTM solar
 
 ```

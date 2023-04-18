@@ -118,26 +118,14 @@ class SPP(ISOBase):
             # many years of historical 5 minute data
             raise NotSupported
 
-        url = "https://marketplace.spp.org/chart-api/gen-mix/asChart"
-        r = self._get_json(url, verbose=verbose)["response"]
+        url = "https://marketplace.spp.org/file-browser-api/download/generation-mix-historical?path=%2FGenMix2Hour.csv"  # noqa
+        df_raw = pd.read_csv(url)
+        historical_mix = process_gen_mix(df_raw)
 
-        data = {"Timestamp": r["labels"]}
-        data.update((d["label"], d["data"]) for d in r["datasets"])
-
-        historical_mix = pd.DataFrame(data)
-
-        historical_mix["Timestamp"] = pd.to_datetime(
-            historical_mix["Timestamp"],
-        ).dt.tz_convert(
-            self.default_timezone,
+        historical_mix = historical_mix.drop(
+            columns=["Short Term Load Forecast", "Average Actual Load"],
+            errors="ignore",
         )
-
-        historical_mix.rename(
-            columns={"Timestamp": "Time"},
-            inplace=True,
-        )
-
-        historical_mix = add_interval(historical_mix, interval_min=5)
 
         return historical_mix
 
@@ -882,6 +870,60 @@ class SPP(ISOBase):
             status,
             notes,
         )
+
+
+def process_gen_mix(df):
+    """Parse SPP generation mix data from
+    https://marketplace.spp.org/pages/generation-mix-historical
+    """
+    new_df = df.copy()
+
+    # remove whitespace from column names
+    new_df.columns = new_df.columns.str.strip()
+
+    # rename columns to standardize
+    new_df = new_df.rename(
+        columns={
+            "GMTTime": "Time",
+            "GMT MKT Interval": "Time",
+            "Gas Self": "Natural Gas Self",
+            # rename below is based on documenation
+            "Load": "Short Term Load Forecast",
+        },
+    )
+
+    # parse time
+    new_df["Time"] = pd.to_datetime(new_df["Time"], utc=True).dt.tz_convert(
+        SPP.default_timezone,
+    )
+
+    # combine market and self columns
+    columns_to_combine = [
+        "Coal",
+        "Diesel Fuel Oil",
+        "Hydro",
+        "Natural Gas",
+        "Nuclear",
+        "Solar",
+        "Waste Disposal Services",
+        "Wind",
+        "Waste Heat",
+        "Other",
+    ]
+
+    for col in columns_to_combine:
+        market_col = f"{col} Market"
+        self_col = f"{col} Self"
+
+        if market_col not in new_df.columns or self_col not in new_df.columns:
+            continue
+
+        new_df[col] = new_df[market_col] + new_df[self_col]
+        new_df = new_df.drop([market_col, self_col], axis=1)
+
+    new_df = add_interval(new_df, 5)
+
+    return new_df
 
 
 def add_interval(df, interval_min):
