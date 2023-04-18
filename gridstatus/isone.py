@@ -13,8 +13,8 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
+from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logging import log
 
 
 class ISONE(ISOBase):

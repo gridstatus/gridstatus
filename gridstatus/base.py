@@ -2,7 +2,7 @@ from enum import Enum
 
 import requests
 
-from gridstatus.logging import log
+from gridstatus.gs_logging import log
 
 # TODO: this is needed to make SPP request work. restrict only to SPP
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = "ALL:@SECLEVEL=1"

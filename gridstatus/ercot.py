@@ -14,8 +14,8 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import ercot_update_dates, support_date_range
+from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logging import log
 
 LOCATION_TYPE_HUB = "Trading Hub"
 LOCATION_TYPE_RESOURCE_NODE = "Resource Node"
