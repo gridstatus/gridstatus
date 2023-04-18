@@ -13,8 +13,8 @@ from gridstatus.decorators import (
     pjm_update_dates,
     support_date_range,
 )
+from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logging import log
 
 
 class PJM(ISOBase):

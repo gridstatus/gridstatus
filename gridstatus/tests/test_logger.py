@@ -1,6 +1,6 @@
 import pytest
 
-from gridstatus.logging import log
+from gridstatus.gs_logging import log
 
 
 @pytest.fixture

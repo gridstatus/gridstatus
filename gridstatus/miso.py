@@ -5,8 +5,8 @@ import requests
 
 from gridstatus import utils
 from gridstatus.base import ISOBase, Markets, NotSupported
+from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
-from gridstatus.logging import log
 
 
 class MISO(ISOBase):
@@ -143,7 +143,13 @@ class MISO(ISOBase):
         df = add_interval_end(df, 60)
 
         df = df[
-            ["Time", "Interval Start", "Interval End", "Forecast Time", "LoadForecast"]
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "LoadForecast",
+            ]
         ].rename(
             columns={"LoadForecast": "Load Forecast"},
         )
