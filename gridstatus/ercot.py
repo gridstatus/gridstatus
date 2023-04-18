@@ -141,8 +141,8 @@ class Ercot(ISOBase):
         """Get fuel mix 5 minute intervals
 
         Arguments:
-            date (datetime.date, str): "latest", "today".
-                historical data currently not supported
+            date (datetime.date, str): "latest", "today",
+                and yesterday's date are supported.
 
             verbose(bool): print verbose output. Defaults to False.
 
@@ -151,55 +151,63 @@ class Ercot(ISOBase):
                 type
         """
 
-        if date == "latest":
-            df = self.get_fuel_mix("today")
-            return df.tail(1).reset_index(drop=True)
+        if date != "latest":
+            date_parsed = utils._handle_date(date, tz=self.default_timezone)
+            check_yesterday = date_parsed + pd.DateOffset(days=1)
+            if not (
+                utils.is_today(date, tz=self.default_timezone)
+                or utils.is_today(check_yesterday, tz=self.default_timezone)
+            ):
+                raise NotSupported()
 
-        # todo: can also support yesterday
-        elif utils.is_today(date, tz=self.default_timezone):
-            date = utils._handle_date(date, tz=self.default_timezone)
-            url = self.BASE + "/fuel-mix.json"
-            r = self._get_json(url, verbose=verbose)
+        url = self.BASE + "/fuel-mix.json"
+        data = self._get_json(url, verbose=verbose)
 
-            today_str = date.strftime("%Y-%m-%d")
-            mix = (
-                pd.DataFrame(r["data"][today_str])
+        dfs = []
+        for day in data["data"].keys():
+            df = (
+                pd.DataFrame(data["data"][day])
                 .applymap(
                     lambda x: x["gen"],
                     na_action="ignore",
                 )
                 .T
             )
-            mix.index.name = "Time"
-            mix = mix.reset_index()
+            dfs.append(df)
 
-            mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_localize(
-                self.default_timezone,
-                ambiguous="infer",
-            )
+        mix = pd.concat(dfs)
+        mix.index.name = "Time"
+        mix = mix.reset_index()
 
-            # most timestamps are a few seconds off round 5 minute ticks
-            # round to nearest minute
-            mix["Time"] = mix["Time"].round("min")
+        mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous="infer",
+        )
 
-            mix = mix[
-                [
-                    "Time",
-                    "Coal and Lignite",
-                    "Hydro",
-                    "Nuclear",
-                    "Power Storage",
-                    "Solar",
-                    "Wind",
-                    "Natural Gas",
-                    "Other",
-                ]
+        # most timestamps are a few seconds off round 5 minute ticks
+        # round to nearest minute
+        mix["Time"] = mix["Time"].round("min")
+
+        mix = mix[
+            [
+                "Time",
+                "Coal and Lignite",
+                "Hydro",
+                "Nuclear",
+                "Power Storage",
+                "Solar",
+                "Wind",
+                "Natural Gas",
+                "Other",
             ]
+        ]
 
+        if date == "latest":
             return mix
 
-        else:
-            raise NotSupported()
+        # return where date_parsed matches mix["Time"]
+
+        return mix[mix["Time"].dt.date == date_parsed.date()].reset_index(drop=True)
 
     @support_date_range("1D")
     def get_load(self, date, verbose=False):
