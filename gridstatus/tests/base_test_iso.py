@@ -83,10 +83,8 @@ class BaseTestISO:
     def test_get_fuel_mix_latest(self):
         df = self.iso.get_fuel_mix("latest")
         assert isinstance(df, pd.DataFrame)
-        assert len(df) == 1
         assert isinstance(df.Time.iloc[0], pd.Timestamp)
         assert df.index.name is None
-        assert df.index.tolist() == [0]
         self._check_fuel_mix(df)
 
     def test_get_fuel_mix_today(self):

@@ -32,6 +32,8 @@ iso.get_load(date=("Jan 1, 2023", "March 1, 2023"))
 [169 rows x 4 columns]
 ```
 
+- ercot.get_fuel_mix("latest") now returns last two days of data.
+
 ## v0.20.0 - March 24, 2023
 
 - Add `Interval Start` and `Interval End` time stamps to every applicable time series to avoid ambiguity. The `Time` column will be dropped in favor of just these two columns in next release

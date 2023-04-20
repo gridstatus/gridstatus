@@ -85,6 +85,8 @@ class TestErcot(BaseTestISO):
         # latest
         df = self.iso.get_fuel_mix("latest")
         self._check_fuel_mix(df)
+        # returns two days of data
+        assert df["Time"].dt.date.nunique() == 2
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
