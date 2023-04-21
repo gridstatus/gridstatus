@@ -109,12 +109,17 @@ class support_date_range:
             # use .date() to remove timezone info, which doesnt matter
             # if just a date
 
+            # if frequency is callable, then use it to get the frequency
+            if callable(self.frequency):
+                self.frequency = self.frequency(args_dict)
+
             # Note: this may create a split that will end up
             # being unnecessary after running update dates below.
             # that is because after adding new dates, it's possible that two
             # ranges could be added.
             # Unnecessary optimization right now to include
             # logic to handle this
+
             dates = pd.date_range(
                 args_dict["date"].date(),
                 args_dict["end"].date(),
