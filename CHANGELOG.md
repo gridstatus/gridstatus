@@ -2,6 +2,7 @@
 
 ## vNext
 
+- Add support for querying larger set of CAISO Oasis Datasets with `caiso.get_oasis_dateset`
 - Date ranges can be provided as either separate start/end arguments or a tuple to date.
 
 ```python
@@ -32,7 +33,7 @@ iso.get_load(date=("Jan 1, 2023", "March 1, 2023"))
 [169 rows x 4 columns]
 ```
 
-- ercot.get_fuel_mix("latest") now returns last two days of data.
+- `ercot.get_fuel_mix("latest")` now returns last two days of data.
 
 ## v0.20.0 - March 24, 2023
 

@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from gridstatus import CAISO, Markets
@@ -153,6 +154,49 @@ class TestCAISO(BaseTestISO):
     )
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
+
+    def test_get_lmp_with_locations_range(self):
+        end = pd.Timestamp("today").normalize()
+        start = end - pd.Timedelta(days=3)
+        locations = self.iso.trading_hub_locations
+        df = self.iso.get_lmp(
+            start=start,
+            end=end,
+            locations=locations,
+            market="DAY_AHEAD_HOURLY",
+        )
+        # assert all days are present
+        assert df["Location"].nunique() == len(locations)
+
+    def test_get_lmp_all_locations(self):
+        df = self.iso.get_lmp(
+            date="today",
+            locations="ALL",
+            market="DAY_AHEAD_HOURLY",
+        )
+        # assert approx 16000 locations
+        assert df["Location"].nunique() > 16000
+
+    def test_get_lmp_all_ap_nodes_locations(self):
+        df = self.iso.get_lmp(
+            date="today",
+            locations="ALL_AP_NODES",
+            market="DAY_AHEAD_HOURLY",
+        )
+        # assert approx 2300 locations
+        assert df["Location"].nunique() > 2300
+
+    def test_get_lmp_with_all_locations_range(self):
+        end = pd.Timestamp("today").normalize()
+        start = end - pd.Timedelta(days=3)
+        df = self.iso.get_lmp(
+            start=start,
+            end=end,
+            locations="ALL_AP_NODES",
+            market="DAY_AHEAD_HOURLY",
+        )
+        # assert all days are present
+        assert df["Time"].dt.date.nunique() == 3
 
     @staticmethod
     def _check_as_data(df, market):
