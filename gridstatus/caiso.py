@@ -24,9 +24,9 @@ def determine_frequency(args):
     """if querying all must use 1d frequency"""
     locations = args.get("locations", "")
     if isinstance(locations, str) and locations.lower() in ["all", "all_ap_nodes"]:
-        return "1d"
+        return "1D"
     else:
-        return "31d"
+        return "31D"
 
 
 class CAISO(ISOBase):
@@ -293,7 +293,6 @@ class CAISO(ISOBase):
             params = {
                 "grp_type": "ALL_APNODES",
             }
-
         df = self.get_oasis_dataset(
             dataset=dataset,
             start=date,
