@@ -49,8 +49,7 @@ def load_over_time(df, iso=None):
     # previous implementation would hard code the columns, this approach will be more dynamic
     numeric_columns = df.select_dtypes(include=['number']).columns
     fig = None
-
-    if len(numeric_columns) > 0:
+    if len(numeric_columns) > 0 and "Time" in df.columns:
         # found numeric columns, continue..
         y = "Load"
         if len(df.columns) > 3:
@@ -75,9 +74,10 @@ def load_over_time(df, iso=None):
             ),
         )
         fig.update_yaxes(title_text="MW")
+
         return fig
+
     else:
         # no numeric columns, so cannot plot the figure
-        print(
-            "No numeric columns found in dataframe. Cannot make chart without numeric data.")
+        print("You either do not have any numeric columns or are missing the 'Time' columns in your dataframe.")
         return fig
