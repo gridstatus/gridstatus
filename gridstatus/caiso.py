@@ -883,22 +883,21 @@ class CAISO(ISOBase):
         # filter out null values
         config_flat = {k: v for k, v in config_flat.items() if v is not None}
 
-        start, end = _caiso_handle_start_end(date, end)
-        config_flat["startdatetime"] = start
-        config_flat["enddatetime"] = end
-
-        base_url = f"http://oasis.caiso.com/oasisapi/{config_flat.pop('path')}?"
-
-        url = base_url + "&".join(
-            [f"{k}={v}" for k, v in config_flat.items()],
-        )
-
         df = _get_oasis(
-            url=url,
+            config=config_flat,
+            start=date,
+            end=end,
             raw_data=raw_data,
             verbose=verbose,
             sleep=sleep,
         )
+
+        if df is None:
+            if end:
+                print(f"No data for {date} to {end}")
+            else:
+                print(f"No data for {date}")
+            return pd.DataFrame()
 
         return df
 
@@ -925,8 +924,6 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of ancillary services data
         """
         assert market in ["DAM", "RTM"], "market must be DAM or RTM"
-
-        start, end = _caiso_handle_start_end(date, end)
 
         df = self.get_oasis_dataset(
             dataset="as_results",
@@ -1071,7 +1068,18 @@ def _get_historical(file, date, verbose=False):
     return df
 
 
-def _get_oasis(url, raw_data=False, verbose=False, sleep=5):
+def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
+
+    start, end = _caiso_handle_start_end(start, end)
+    config = copy.deepcopy(config)
+    config["startdatetime"] = start
+    config["enddatetime"] = end
+
+    base_url = f"http://oasis.caiso.com/oasisapi/{config.pop('path')}?"
+
+    url = base_url + "&".join(
+        [f"{k}={v}" for k, v in config.items()],
+    )
 
     msg = f"Fetching URL: {url}"
     log(msg, verbose)
@@ -1088,31 +1096,69 @@ def _get_oasis(url, raw_data=False, verbose=False, sleep=5):
         print(f"Retrying {retry_num}...")
         time.sleep(sleep)
 
+    # if Content-Disposition header is present, use that filename
+    if ".xml.zip;" in r.headers["Content-Disposition"]:
+        # avoid rate limiting
+        time.sleep(sleep)
+        return None
+
     z = ZipFile(io.BytesIO(r.content))
 
     # parse and concat all files
     dfs = []
     for f in z.namelist():
         df = pd.read_csv(z.open(f))
+
+        string_df = df.to_csv(index=False)
+        if "<?xml version" in string_df:
+            print(url)
+
         dfs.append(df)
 
     df = pd.concat(dfs)
 
-    if not raw_data and "INTERVALSTARTTIME_GMT" in df.columns:
-        df["INTERVALSTARTTIME_GMT"] = pd.to_datetime(
-            df["INTERVALSTARTTIME_GMT"],
-            utc=True,
-        ).dt.tz_convert(CAISO.default_timezone)
+    # handle different column names
+    # across different datasets
+    start_cols = ["INTERVALSTARTTIME_GMT", "START_DATE_GMT"]
+    end_cols = ["INTERVALENDTIME_GMT", "END_DATE_GMT"]
+    start_col = None
+    end_col = None
+    for col in start_cols:
+        if col in df.columns:
+            start_col = col
+            break
+    for col in end_cols:
+        if col in df.columns:
+            end_col = col
+            break
 
-        df["INTERVALENDTIME_GMT"] = pd.to_datetime(
-            df["INTERVALENDTIME_GMT"],
+    if start_col in df.columns:
+        df[start_col] = pd.to_datetime(
+            df[start_col],
             utc=True,
-        ).dt.tz_convert(CAISO.default_timezone)
+        )
+
+        df = df.sort_values(by=start_col)
+
+    if end_col in df.columns:
+        df[end_col] = pd.to_datetime(
+            df[end_col],
+            utc=True,
+        )
+
+    if not raw_data and start_col in df.columns:
+        df[start_col] = df[start_col].dt.tz_convert(
+            CAISO.default_timezone,
+        )
+
+        df[end_col] = df[end_col].dt.tz_convert(
+            CAISO.default_timezone,
+        )
 
         df.rename(
             columns={
-                "INTERVALSTARTTIME_GMT": "Interval Start",
-                "INTERVALENDTIME_GMT": "Interval End",
+                start_col: "Interval Start",
+                end_col: "Interval End",
             },
             inplace=True,
         )
@@ -1323,6 +1369,18 @@ oasis_dataset_config = {
                 "AS_SP26",
                 "AS_SP26_EXP",
             ],
+        },
+    },
+    "excess_btm_production": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_EBTMP_PERF_DATA",
+            "version": 11,
+        },
+        "params": {},
+        "meta": {
+            "publish_delay": "3 months",
         },
     },
 }
