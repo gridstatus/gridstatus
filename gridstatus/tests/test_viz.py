@@ -27,8 +27,10 @@ def test_dam_heat_map():
     fig = gridstatus.viz.dam_heat_map(df)
     assert isinstance(fig, plotly.graph_objs._figure.Figure)
 
+# uncomment to skipped test, should be fixed now with new changes to load_over_time function
+# @pytest.mark.skip(reason="Failed. TODO Fix")
 
-@pytest.mark.skip(reason="Failed. TODO Fix")
+
 def test_load_over_time():
 
     iso = gridstatus.CAISO()
