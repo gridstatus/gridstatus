@@ -47,7 +47,7 @@ def load_over_time(df, iso=None):
     # find all columns with numeric data types (int, float etc.)
     # need this to avoid trying to plot chart with mixed data types or without any numeric data types
     # previous implementation would hard code the columns, this approach will be more dynamic
-    numeric_columns = df.select_dtypes(include=['number']).columns
+    numeric_columns = df.select_dtypes(include=["number"]).columns
     fig = None
     if len(numeric_columns) > 0 and "Time" in df.columns:
         # found numeric columns, continue..
@@ -79,5 +79,5 @@ def load_over_time(df, iso=None):
 
     else:
         # no numeric columns, so cannot plot the figure
-        print("You either do not have any numeric columns or are missing the 'Time' columns in your dataframe.")
+        print("Need numeric columns and a 'Time' column.")
         return fig

@@ -1,6 +1,6 @@
-import plotly
-import pytest
 import pandas as pd
+import plotly
+
 import gridstatus
 
 
@@ -43,23 +43,8 @@ def test_load_over_time():
     fig = gridstatus.viz.load_over_time(df, iso="CAISO")
     assert isinstance(fig, plotly.graph_objs._figure.Figure)
 
-# unit test 1 - valid df with numeric columns
 
-
-def test_load_over_time_validdataframe():
-    """
-    Test for creation a line graph with a valid dataframe input containing numeric columns.
-    """
-    data = {
-        "Time": pd.date_range(start="2021-01-01", periods=5, freq="D"),
-        "Load": [100, 200, 150, 250, 300]
-    }
-    df = pd.DataFrame(data)
-    fig = gridstatus.viz.load_over_time(df)
-    assert isinstance(
-        fig, plotly.graph_objs._figure.Figure), "Output is not a Plotly Figure instance"
-
-# unit test 2 - test with an empty df
+# unit test 1 - test with an empty df
 
 
 def test_load_over_time_emptydataframe():
@@ -70,12 +55,12 @@ def test_load_over_time_emptydataframe():
     fig = gridstatus.viz.load_over_time(df)
     assert fig is None, "Output should be None when an empty dataframe is provided"
 
-# unit test 3 - test df with only nonnumeric columns
+# unit test 2 - test df with only nonnumeric columns
 
 
 def test_load_over_time_zeronumericcolumns():
     """
-    Test func returns None when there are no numeric columns in the dataframe.
+    Test returns None if no numeric columns in df.
     """
     data = {
         "Time": pd.date_range(start="2021-01-01", periods=5, freq="D"),
@@ -85,12 +70,12 @@ def test_load_over_time_zeronumericcolumns():
     fig = gridstatus.viz.load_over_time(df)
     assert fig is None, "Output should be None when no numeric columns are present"
 
-# unit test 4: test df with only one numeric column
+# unit test 3: test df with only one numeric column
 
 
 def test_load_over_time_onenumericcolumns():
     """
-    Test creation of a line fig with one numeric columns in the df.
+    Test line fig for df with one numeric column.
     """
     data = {
         "Time": pd.date_range(start="2021-01-01", periods=5, freq="D"),
@@ -101,12 +86,12 @@ def test_load_over_time_onenumericcolumns():
     assert isinstance(
         fig, plotly.graph_objs._figure.Figure), "Output is not a Plotly Figure instance"
 
-# unit test 5:test df with two numeric columns
+# unit test 4:test df with two numeric columns
 
 
 def test_load_over_time_twonumericcolumns():
     """
-    Test func creates a line fig with two numeric columns in the dataframe.
+    Test line fig for df with two numeric columns.
     """
     data = {
         "Time": pd.date_range(start="2021-01-01", periods=5, freq="D"),
@@ -118,12 +103,12 @@ def test_load_over_time_twonumericcolumns():
     assert isinstance(
         fig, plotly.graph_objs._figure.Figure), "Output is not a Plotly Figure instance"
 
-# unit test 6: test df with three numeric columns
+# unit test 5: test df with three numeric columns
 
 
 def test_load_over_time_threenumericcolumns():
     """
-    Test func creates a line fig with three numeric columns in the dataframe.
+    Test line fig for df with three numeric columns.
     """
     data = {
         "Time": pd.date_range(start="2021-01-01", periods=5, freq="D"),
@@ -136,12 +121,12 @@ def test_load_over_time_threenumericcolumns():
     assert isinstance(
         fig, plotly.graph_objs._figure.Figure), "Output is not a Plotly Figure instance"
 
-# unit test 7: test case when iso string is provided
+# unit test 6: test case when iso string is provided
 
 
 def test_load_over_time_withiso():
     """
-    Test func creates a line fig with the correct title when an iso is provided.
+    Test line fig with correct title if iso provided.
     """
     data = {
         "Time": pd.date_range(start="2021-01-01", periods=5, freq="D"),
@@ -150,4 +135,5 @@ def test_load_over_time_withiso():
     df = pd.DataFrame(data)
     iso = "TEST_ISO"
     fig = gridstatus.viz.load_over_time(df, iso=iso)
-    assert fig.layout.title.text == f"Load Over Time - {iso}", "Title is incorrect when ISO is provided"
+    test_title = f"Load Over Time - {iso}", "Title not correct when ISO provided"
+    assert fig.layout.title.text == test_title
