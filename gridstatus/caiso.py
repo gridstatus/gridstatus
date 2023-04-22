@@ -1096,8 +1096,8 @@ def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
         print(f"Retrying {retry_num}...")
         time.sleep(sleep)
 
-    # if Content-Disposition header is present, use that filename
-    if ".xml.zip;" in r.headers["Content-Disposition"]:
+    # this is when no data is available
+    if ".xml.zip;" in r.headers["Content-Disposition"] or b".xml" in r.content:
         # avoid rate limiting
         time.sleep(sleep)
         return None
@@ -1108,11 +1108,6 @@ def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
     dfs = []
     for f in z.namelist():
         df = pd.read_csv(z.open(f))
-
-        string_df = df.to_csv(index=False)
-        if "<?xml version" in string_df:
-            print(url)
-
         dfs.append(df)
 
     df = pd.concat(dfs)
