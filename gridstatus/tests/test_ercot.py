@@ -145,6 +145,9 @@ class TestErcot(BaseTestISO):
             market=Markets.DAY_AHEAD_HOURLY,
             location_type="Trading Hub",
         )
+        # minimum interval start is beginning of day
+        assert df["Interval Start"].min().hour == 0
+        assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Trading Hub")
 
     def test_get_spp_dam_today_day_ahead_hourly_node(self):
@@ -153,6 +156,9 @@ class TestErcot(BaseTestISO):
             market=Markets.DAY_AHEAD_HOURLY,
             location_type="Resource Node",
         )
+        # minimum interval start is beginning of day
+        assert df["Interval Start"].min().hour == 0
+        assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Resource Node")
 
     def test_get_spp_dam_today_day_ahead_hourly_zone(self):
@@ -161,6 +167,12 @@ class TestErcot(BaseTestISO):
             market=Markets.DAY_AHEAD_HOURLY,
             location_type="Load Zone",
         )
+        # minimum interval start is beginning of day
+        assert df["Interval Start"].min().hour == 0
+        assert df["Interval Start"].min().minute == 0
+        import pdb
+
+        pdb.set_trace()
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
     @pytest.mark.skip(reason="takes too long to run")
@@ -176,6 +188,9 @@ class TestErcot(BaseTestISO):
             market=Markets.REAL_TIME_15_MIN,
             location_type="Load Zone",
         )
+        # minimum interval start is beginning of day
+        assert df["Interval Start"].min().hour == 0
+        assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
     def test_get_spp_two_days_ago_day_ahead_hourly_zone(self):
@@ -189,6 +204,9 @@ class TestErcot(BaseTestISO):
             market=Markets.DAY_AHEAD_HOURLY,
             location_type="Load Zone",
         )
+        # minimum interval start is beginning of day
+        assert df["Interval Start"].min().hour == 0
+        assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
     @pytest.mark.slow
@@ -203,6 +221,9 @@ class TestErcot(BaseTestISO):
             market=Markets.REAL_TIME_15_MIN,
             location_type="Load Zone",
         )
+        # minimum interval start is beginning of day
+        assert df["Interval Start"].min().hour == 0
+        assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
     """get_storage"""
