@@ -534,10 +534,6 @@ class Ercot(ISOBase):
                 date,
                 verbose,
             )
-            df.rename(
-                columns={},
-                inplace=True,
-            )
         elif market == Markets.DAY_AHEAD_HOURLY:
             df = self._get_spp_dam(date, verbose)
 
@@ -1065,7 +1061,7 @@ class Ercot(ISOBase):
             inplace=True,
         )
         if "DeliveryInterval" in doc.columns:
-            doc.drop(columns=["DeliveryInterval"], inplace=True)
+            doc = doc.drop(columns=["DeliveryInterval"])
 
         return doc
 
