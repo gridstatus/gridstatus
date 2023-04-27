@@ -1136,14 +1136,14 @@ def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
     start_cols = [
         "INTERVALSTARTTIME_GMT",
         "INTERVAL_START_GMT",
-        "START_DATE_GMT",
         "STARTTIME_GMT",
+        "START_DATE_GMT",
     ]
     end_cols = [
         "INTERVALENDTIME_GMT",
         "INTERVAL_END_GMT",
-        "END_DATE_GMT",
         "ENDTIME_GMT",
+        "END_DATE_GMT",
     ]
     start_col = None
     end_col = None
