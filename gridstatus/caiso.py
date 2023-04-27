@@ -1408,6 +1408,7 @@ oasis_dataset_config = {
         },
         "meta": {
             "publish_delay": "90 days",
+            "max_query_frequency": "1d",
         },
     },
 }
