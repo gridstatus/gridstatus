@@ -237,6 +237,14 @@ class TestCAISO(BaseTestISO):
 
     """other"""
 
+    def test_oasis_no_data(self):
+        df = self.iso.get_oasis_dataset(
+            dataset="as_clearing_prices",
+            date=pd.Timestamp.now() + pd.Timedelta(days=7),
+        )
+
+        assert df.empty
+
     def test_get_pnodes(self):
         df = self.iso.get_pnodes()
         assert df.shape[0] > 0
