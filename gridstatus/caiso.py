@@ -20,13 +20,24 @@ _BASE = "https://www.caiso.com/outlook/SP"
 _HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
 
 
-def determine_frequency(args):
+def determine_lmp_frequency(args):
     """if querying all must use 1d frequency"""
     locations = args.get("locations", "")
     if isinstance(locations, str) and locations.lower() in ["all", "all_ap_nodes"]:
         return "1D"
     else:
         return "31D"
+
+
+def determine_oasis_frequency(args):
+    dataset_config = copy.deepcopy(oasis_dataset_config[args["dataset"]])
+    # get meta if it exists. and then max_query_frequency if it exists
+    meta = dataset_config.get("meta", {})
+    max_query_frequency = meta.get("max_query_frequency", None)
+    if max_query_frequency is not None:
+        return max_query_frequency
+
+    return "31D"
 
 
 class CAISO(ISOBase):
@@ -227,7 +238,7 @@ class CAISO(ISOBase):
             Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
         },
     )
-    @support_date_range(frequency=determine_frequency)
+    @support_date_range(frequency=determine_lmp_frequency)
     def get_lmp(
         self,
         date,
@@ -815,7 +826,7 @@ class CAISO(ISOBase):
 
         return df
 
-    @support_date_range(frequency="31D")
+    @support_date_range(frequency=determine_oasis_frequency)
     def get_oasis_dataset(
         self,
         dataset,
@@ -1112,34 +1123,39 @@ def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
 
     df = pd.concat(dfs)
 
+    # if col ends in _GMT, then try to parse as UTC
+    for col in df.columns:
+        if col.endswith("_GMT"):
+            df[col] = pd.to_datetime(
+                df[col],
+                utc=True,
+            )
+
     # handle different column names
     # across different datasets
-    start_cols = ["INTERVALSTARTTIME_GMT", "START_DATE_GMT"]
-    end_cols = ["INTERVALENDTIME_GMT", "END_DATE_GMT"]
+    start_cols = [
+        "INTERVALSTARTTIME_GMT",
+        "INTERVAL_START_GMT",
+        "STARTTIME_GMT",
+        "START_DATE_GMT",
+    ]
+    end_cols = [
+        "INTERVALENDTIME_GMT",
+        "INTERVAL_END_GMT",
+        "ENDTIME_GMT",
+        "END_DATE_GMT",
+    ]
     start_col = None
     end_col = None
     for col in start_cols:
         if col in df.columns:
             start_col = col
+            df = df.sort_values(by=start_col)
             break
     for col in end_cols:
         if col in df.columns:
             end_col = col
             break
-
-    if start_col in df.columns:
-        df[start_col] = pd.to_datetime(
-            df[start_col],
-            utc=True,
-        )
-
-        df = df.sort_values(by=start_col)
-
-    if end_col in df.columns:
-        df[end_col] = pd.to_datetime(
-            df[end_col],
-            utc=True,
-        )
 
     if not raw_data and start_col in df.columns:
         df[start_col] = df[start_col].dt.tz_convert(
@@ -1210,6 +1226,9 @@ oasis_dataset_config = {
                 "RUC_ENE_SCH_BY_TIE_GRP",
                 "RTPD_ENE_SCH_BY_TIE_GRP",
             ],
+        },
+        "meta": {
+            "max_query_frequency": "1d",
         },
     },
     "as_requirements": {
@@ -1376,6 +1395,20 @@ oasis_dataset_config = {
         "params": {},
         "meta": {
             "publish_delay": "3 months",
+        },
+    },
+    "public_bids": {
+        "query": {
+            "path": "GroupZip",
+            "resultformat": 6,
+            "version": 3,
+        },
+        "params": {
+            "groupid": ["PUB_DAM_GRP", "PUB_RTM_GRP"],
+        },
+        "meta": {
+            "publish_delay": "90 days",
+            "max_query_frequency": "1d",
         },
     },
 }
