@@ -40,6 +40,10 @@ GIS_REPORT_RTID = 15933
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
 HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13061
 
+# Historical DAM Load Zone and Hub Prices
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-180-ER
+HISTORICAL_DAM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13060
+
 # Settlement Points List and Electrical Buses Mapping
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-160-SG
 SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID = 10008
@@ -345,6 +349,7 @@ class Ercot(ISOBase):
 
         Arguments:
             year(int): year to get data for
+                Starting 2011, returns data for the entire year
 
         Source:
             https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
@@ -358,9 +363,49 @@ class Ercot(ISOBase):
         x = utils.get_zip_file(doc_info.url, verbose=verbose)
         all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
-        df["Delivery Interval"] = df["Delivery Interval"].astype(int)
+
+        # fix parsing error where no data is present
+        # should only be 1 row per year
+        count = df[["Delivery Hour", "Delivery Interval"]].isnull().all(axis=1).sum()
+        if count == 1:
+            df = df.dropna(
+                subset=["Delivery Hour", "Delivery Interval"],
+                how="all",
+            )
+        elif count > 1:
+            raise ValueError(
+                "Parsing error, more than expected null rows found",
+            )
+
+        df["Delivery Interval"] = df["Delivery Interval"].astype("Int64")
         df = self.parse_doc(df, verbose=verbose)
         df["Market"] = Markets.REAL_TIME_15_MIN.value
+        return self._finalize_spp_df(df, verbose=verbose)
+
+    def get_dam_spp(self, year, verbose=False):
+        """Get Historical DAM Settlement Point Prices(SPPs)
+        for each of the Hubs and Load Zones
+
+        Arguments:
+            year(int): year to get data for.
+                Starting 2011, returns data for the entire year
+
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP4-180-ER
+        """
+        doc_info = self._get_document(
+            report_type_id=HISTORICAL_DAM_LOAD_ZONE_AND_HUB_PRICES_RTID,
+            constructed_name_contains=f"{year}.zip",
+            verbose=verbose,
+        )
+
+        x = utils.get_zip_file(doc_info.url, verbose=verbose)
+        all_sheets = pd.read_excel(x, sheet_name=None)
+        df = pd.concat(all_sheets.values())
+        # filter where DSTFlag == 10
+        df = self.parse_doc(df, verbose=verbose)
+        df["Market"] = Markets.DAY_AHEAD_HOURLY.value
         return self._finalize_spp_df(df, verbose=verbose)
 
     def get_interconnection_queue(self, verbose=False):
@@ -548,6 +593,7 @@ class Ercot(ISOBase):
         df = df.rename(
             columns={
                 "SettlementPoint": "Location",
+                "Settlement Point": "Location",
                 "SettlementPointName": "Location",
                 "Settlement Point Name": "Location",
             },
@@ -992,15 +1038,15 @@ class Ercot(ISOBase):
             inplace=True,
         )
 
-        doc
-
         original_cols = doc.columns.tolist()
 
         # i think DeliveryInterval only shows up
         # in 15 minute data along with DeliveryHour
         if "DeliveryInterval" in original_cols:
             interval_length = pd.Timedelta(minutes=15)
+
             doc["HourBeginning"] = doc["HourEnding"] - 1
+
             doc["Interval Start"] = (
                 pd.to_datetime(doc["DeliveryDate"])
                 + doc["HourBeginning"].astype("timedelta64[h]")
@@ -1022,19 +1068,6 @@ class Ercot(ISOBase):
                 "HourBeginning"
             ].astype("timedelta64[h]")
 
-            # # if there is a DST skip, add an hour to the previous row
-            # # for example, data has 2022-03-13 02:00:00,
-            # # but that should be 2022-03-13 03:00:00
-            # dst_skip_hour = doc[doc["Interval End"].diff()
-            #                     == pd.Timedelta(hours=2)]
-            # for i in dst_skip_hour.index:
-            #     doc.loc[i - 1, "Interval End"] = doc.loc[
-            #         i - 1,
-            #         "Interval End",
-            #     ] + pd.DateOffset(
-            #         hours=1,
-            #     )  # noqa
-
         doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
             self.default_timezone,
             ambiguous=doc["DSTFlag"] == "Y",
@@ -1052,13 +1085,12 @@ class Ercot(ISOBase):
 
         # todo try to clean up this logic
         doc = doc[cols_to_keep]
-        doc.drop(
+        doc = doc.drop(
             columns=[
                 "DeliveryDate",
                 "HourEnding",
                 "DSTFlag",
             ],
-            inplace=True,
         )
         if "DeliveryInterval" in doc.columns:
             doc = doc.drop(columns=["DeliveryInterval"])
@@ -1068,4 +1100,5 @@ class Ercot(ISOBase):
 
 if __name__ == "__main__":
     iso = Ercot()
-    iso.get_fuel_mix("latest")
+
+    df = iso.get_rtm_spp(2011)

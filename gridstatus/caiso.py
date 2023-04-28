@@ -833,7 +833,8 @@ class CAISO(ISOBase):
         end=None,
         verbose=False,
     ):
-        """Return curtailed non-operational generator report for a given date
+        """Return curtailed non-operational generator report for a given date.
+            Earliest available date is June 17, 2021.
 
 
         Arguments:
