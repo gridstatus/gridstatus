@@ -236,9 +236,9 @@ class TestCAISO(BaseTestISO):
         assert df.shape[0] > 0
 
     def test_get_curtailed_non_operational_generator_report(self):
-        yesterday = pd.Timestamp("today") - pd.Timedelta(days=1)
+        two_days_ago = pd.Timestamp("today") - pd.Timedelta(days=2)
         df = self.iso.get_curtailed_non_operational_generator_report(
-            date=yesterday.normalize(),
+            date=two_days_ago.normalize(),
         )
         assert df.shape[0] > 0
 
