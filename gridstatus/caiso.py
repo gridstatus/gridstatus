@@ -815,6 +815,80 @@ class CAISO(ISOBase):
 
         return df
 
+    @support_date_range(frequency="1D")
+    def get_curtailed_non_operational_generator_report(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Return curtailed non-operational generator report for a given date
+
+
+        Arguments:
+            date (datetime.date, str): date to return data
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of curtailed non-operational generator report
+
+            column glossary:
+            http://www.caiso.com/market/Pages/OutageManagement/Curtailed-OperationalGeneratorReportGlossary.aspx
+
+            if requesting multiple days, may want to run
+            following to remove redundant intervals:
+            ```df.drop_duplicates(
+                subset=["OUTAGE MRID", "CURTAILMENT START DATE TIME"], keep="last")```
+
+
+        """
+
+        # date must on or be after june 17, 2021
+        if date.date() < pd.Timestamp("2021-06-17").date():
+            raise ValueError(
+                "Date must be on or after June 17, 2021",
+            )
+
+        url = (
+            "http://www.caiso.com/Documents/Curtailed-non-operational-generator-prior-trade-date-report-"
+            + date.strftime("%Y%m%d")
+            + ".xlsx"
+        )
+
+        log(f"Fetching {url}", verbose=verbose)
+        df = pd.read_excel(url, usecols="B:M")
+
+        # the outage mrid row is not the first row and it changes
+        # so find it and make it the column names, then drop the rows
+        outage_mrid_row = df[df["Unnamed: 1"] == "OUTAGE MRID"].index[0]
+        df.columns = df.iloc[outage_mrid_row].values
+        df = df.drop(df.index[: outage_mrid_row + 1])
+
+        # drop columns where the name is nan
+        # artifact of the excel file
+        df = df.dropna(axis=1, how="all")
+
+        df["CURTAILMENT START DATE TIME"] = pd.to_datetime(
+            df["CURTAILMENT START DATE TIME"],
+        ).dt.tz_localize(self.default_timezone, ambiguous=True)
+        df["CURTAILMENT END DATE TIME"] = pd.to_datetime(
+            df["CURTAILMENT END DATE TIME"],
+        ).dt.tz_localize(self.default_timezone, ambiguous=True)
+
+        # only some dates have this
+        if "OUTAGE STATUS" in df.columns:
+            df = df.drop(columns=["OUTAGE STATUS"])
+
+        df["SOURCE"] = url
+
+        df.drop_duplicates(
+            subset=["OUTAGE MRID", "CURTAILMENT START DATE TIME"],
+            keep="last",
+        )
+        return df
+
     @support_date_range(frequency="31D")
     def get_oasis_dataset(
         self,
@@ -1396,5 +1470,43 @@ if __name__ == "__main__":
     #     )
 
     #     df.to_csv(f"oasis_export/{k}.csv", index=False)
+    dates = [
+        "2021-11-07",
+        "2021-11-08",
+        "2021-11-09",
+        "2021-11-10",
+        "2021-11-11",
+        "2021-11-12",
+        "2021-11-13",
+        "2021-11-14",
+        "2021-11-15",
+        "2021-11-16",
+        "2021-11-17",
+        "2021-11-18",
+        "2021-11-19",
+        "2021-11-20",
+        "2021-11-21",
+        "2021-11-22",
+        "2021-11-23",
+        "2021-11-24",
+        "2021-11-25",
+        "2021-11-26",
+        "2021-11-27",
+        "2021-11-28",
+        "2021-11-29",
+        "2021-11-30",
+        "2021-12-01",
+        "2022-11-06",
+        "2022-11-07",
+        "2022-11-11",
+    ]
+    for d in dates:
+        df = iso.get_curtailed_non_operational_generator_report(
+            date=d,
+            verbose=True,
+        )
 
-    print(iso.list_oasis_datasets())
+    df.to_csv("curtailed_non_operational_generator_report.csv", index=False)
+
+    # count unique value in other columns after grouping by pnode_id
+    # drop duplicates "OUTAGE MRID", CURTAILMENT START DATE TIME, keep last

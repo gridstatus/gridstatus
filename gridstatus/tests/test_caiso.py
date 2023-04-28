@@ -235,6 +235,21 @@ class TestCAISO(BaseTestISO):
         assert df["Market"].unique()[0] == market
         assert df.shape[0] > 0
 
+    def test_get_curtailed_non_operational_generator_report(self):
+        yesterday = pd.Timestamp("today") - pd.Timedelta(days=1)
+        df = self.iso.get_curtailed_non_operational_generator_report(
+            date=yesterday.normalize(),
+        )
+        assert df.shape[0] > 0
+
+        # errors for a date before 2021-06-17
+        with pytest.raises(ValueError):
+            self.iso.get_curtailed_non_operational_generator_report(
+                date="2021-06-16",
+            )
+
+        assert df.shape[0] > 0
+
     """other"""
 
     def test_oasis_no_data(self):
