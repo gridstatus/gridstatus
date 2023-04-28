@@ -4,6 +4,7 @@
 
 - Add support for querying larger set of CAISO Oasis Datasets with `caiso.get_oasis_dateset`
 - Date ranges can be provided as either separate start/end arguments or a tuple to date.
+- add `CAISO.get_curtailed_non_operational_generator_report` to parse this [daily report](http://www.caiso.com/market/Pages/OutageManagement/CurtailedandNonOperationalGenerators.aspx)
 
 ```python
 # both do the same thing
