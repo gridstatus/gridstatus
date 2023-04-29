@@ -170,9 +170,6 @@ class TestErcot(BaseTestISO):
         # minimum interval start is beginning of day
         assert df["Interval Start"].min().hour == 0
         assert df["Interval Start"].min().minute == 0
-        import pdb
-
-        pdb.set_trace()
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
     @pytest.mark.skip(reason="takes too long to run")
