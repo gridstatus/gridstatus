@@ -40,6 +40,10 @@ GIS_REPORT_RTID = 15933
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
 HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13061
 
+# Historical DAM Load Zone and Hub Prices
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-180-ER
+HISTORICAL_DAM_LOAD_ZONE_AND_HUB_PRICES_RTID = 13060
+
 # Settlement Points List and Electrical Buses Mapping
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-160-SG
 SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID = 10008
@@ -339,12 +343,13 @@ class Ercot(ISOBase):
 
         return doc
 
-    def get_rtm_spp(self, year):
+    def get_rtm_spp(self, year, verbose=False):
         """Get Historical RTM Settlement Point Prices(SPPs)
             for each of the Hubs and Load Zones
 
         Arguments:
             year(int): year to get data for
+                Starting 2011, returns data for the entire year
 
         Source:
             https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
@@ -352,13 +357,56 @@ class Ercot(ISOBase):
         doc_info = self._get_document(
             report_type_id=HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID,
             constructed_name_contains=f"{year}.zip",
-            verbose=True,
+            verbose=verbose,
         )
 
-        x = utils.get_zip_file(doc_info.url)
+        x = utils.get_zip_file(doc_info.url, verbose=verbose)
         all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
-        return df
+
+        # fix parsing error where no data is present
+        # should only be 1 row per year
+        count = df[["Delivery Hour", "Delivery Interval"]].isnull().all(axis=1).sum()
+        if count == 1:
+            df = df.dropna(
+                subset=["Delivery Hour", "Delivery Interval"],
+                how="all",
+            )
+        elif count > 1:
+            raise ValueError(
+                "Parsing error, more than expected null rows found",
+            )
+
+        df["Delivery Interval"] = df["Delivery Interval"].astype("Int64")
+        df = self.parse_doc(df, verbose=verbose)
+        df["Market"] = Markets.REAL_TIME_15_MIN.value
+        return self._finalize_spp_df(df, verbose=verbose)
+
+    def get_dam_spp(self, year, verbose=False):
+        """Get Historical DAM Settlement Point Prices(SPPs)
+        for each of the Hubs and Load Zones
+
+        Arguments:
+            year(int): year to get data for.
+                Starting 2011, returns data for the entire year
+
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP4-180-ER
+        """
+        doc_info = self._get_document(
+            report_type_id=HISTORICAL_DAM_LOAD_ZONE_AND_HUB_PRICES_RTID,
+            constructed_name_contains=f"{year}.zip",
+            verbose=verbose,
+        )
+
+        x = utils.get_zip_file(doc_info.url, verbose=verbose)
+        all_sheets = pd.read_excel(x, sheet_name=None)
+        df = pd.concat(all_sheets.values())
+        # filter where DSTFlag == 10
+        df = self.parse_doc(df, verbose=verbose)
+        df["Market"] = Markets.DAY_AHEAD_HOURLY.value
+        return self._finalize_spp_df(df, verbose=verbose)
 
     def get_interconnection_queue(self, verbose=False):
         """
@@ -531,20 +579,27 @@ class Ercot(ISOBase):
                 date,
                 verbose,
             )
-            df.rename(
-                columns={"SettlementPointName": "Location"},
-                inplace=True,
-            )
         elif market == Markets.DAY_AHEAD_HOURLY:
             df = self._get_spp_dam(date, verbose)
-            df.rename(
-                columns={"SettlementPoint": "Location"},
-                inplace=True,
-            )
+
+        return self._finalize_spp_df(
+            df,
+            locations=locations,
+            location_type=location_type,
+            verbose=verbose,
+        )
+
+    def _finalize_spp_df(self, df, locations=None, location_type=None, verbose=False):
+        df = df.rename(
+            columns={
+                "SettlementPoint": "Location",
+                "Settlement Point": "Location",
+                "SettlementPointName": "Location",
+                "Settlement Point Name": "Location",
+            },
+        )
 
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
-        hubs = mapping_df["HUB"].dropna().unique()
-        load_zone = mapping_df["SETTLEMENT_LOAD_ZONE"].dropna().unique()
         resource_node = mapping_df["RESOURCE_NODE"].dropna().unique()
 
         if df[df.duplicated()].shape[0] > 0:
@@ -553,8 +608,8 @@ class Ercot(ISOBase):
             pdb.set_trace()
 
         # Create boolean masks for each location type
-        is_hub = df["Location"].isin(hubs)
-        is_load_zone = df["Location"].isin(load_zone)
+        is_hub = df["Location"].str.startswith("HB_")
+        is_load_zone = df["Location"].str.startswith("LZ_")
         is_resource_node = df["Location"].isin(resource_node)
 
         # Assign location types based on the boolean masks
@@ -568,13 +623,9 @@ class Ercot(ISOBase):
         df = df.rename(
             columns={
                 "SettlementPointPrice": "SPP",
+                "Settlement Point Price": "SPP",
             },
         )
-
-        if df[df.duplicated()].shape[0] > 0:
-            import pdb
-
-            pdb.set_trace()
 
         df = df[
             [
@@ -609,6 +660,7 @@ class Ercot(ISOBase):
 
         df = df.sort_values(by="Interval Start")
         df = df.reset_index(drop=True)
+
         return df
 
     def _get_spp_dam(
@@ -967,7 +1019,9 @@ class Ercot(ISOBase):
 
     def read_doc(self, doc, verbose=False):
         doc = pd.read_csv(doc.url, compression="zip")
+        return self.parse_doc(doc, verbose=verbose)
 
+    def parse_doc(self, doc, verbose=False):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
         doc.rename(
@@ -976,6 +1030,8 @@ class Ercot(ISOBase):
                 "Hour Ending": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",
                 "DeliveryHour": "HourEnding",
+                "Delivery Hour": "HourEnding",
+                "Delivery Interval": "DeliveryInterval",
                 # fix whitespace in column name
                 "DSTFlag    ": "DSTFlag",
             },
@@ -988,36 +1044,37 @@ class Ercot(ISOBase):
         # in 15 minute data along with DeliveryHour
         if "DeliveryInterval" in original_cols:
             interval_length = pd.Timedelta(minutes=15)
-            doc["Interval End"] = (
+
+            doc["HourBeginning"] = doc["HourEnding"] - 1
+
+            doc["Interval Start"] = (
                 pd.to_datetime(doc["DeliveryDate"])
-                + doc["HourEnding"].astype("timedelta64[h]")
-                + (doc["DeliveryInterval"] * interval_length)
+                + doc["HourBeginning"].astype("timedelta64[h]")
+                + ((doc["DeliveryInterval"] - 1) * interval_length)
             )
 
         else:
             interval_length = pd.Timedelta(hours=1)
-            doc["Interval End"] = pd.to_datetime(doc["DeliveryDate"]) + (
-                doc["HourEnding"].str.split(":").str[0].astype(int)
-            ).astype("timedelta64[h]")
+            doc["HourBeginning"] = (
+                doc["HourEnding"]
+                .str.split(
+                    ":",
+                )
+                .str[0]
+                .astype(int)
+                - 1
+            )
+            doc["Interval Start"] = pd.to_datetime(doc["DeliveryDate"]) + doc[
+                "HourBeginning"
+            ].astype("timedelta64[h]")
 
-            # if there is a DST skip, add an hour to the previous row
-            # for example, data has 2022-03-13 02:00:00,
-            # but that should be 2022-03-13 03:00:00
-            dst_skip_hour = doc[doc["Interval End"].diff() == pd.Timedelta(hours=2)]
-            for i in dst_skip_hour.index:
-                doc.loc[i - 1, "Interval End"] = doc.loc[
-                    i - 1,
-                    "Interval End",
-                ] + pd.DateOffset(
-                    hours=1,
-                )  # noqa
-
-        doc["Interval End"] = doc["Interval End"].dt.tz_localize(
+        doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
             self.default_timezone,
             ambiguous=doc["DSTFlag"] == "Y",
         )
 
-        doc["Interval Start"] = doc["Interval End"] - interval_length
+        doc["Interval End"] = doc["Interval Start"] + interval_length
+
         doc["Time"] = doc["Interval Start"]
 
         cols_to_keep = [
@@ -1028,20 +1085,20 @@ class Ercot(ISOBase):
 
         # todo try to clean up this logic
         doc = doc[cols_to_keep]
-        doc.drop(
+        doc = doc.drop(
             columns=[
                 "DeliveryDate",
                 "HourEnding",
                 "DSTFlag",
             ],
-            inplace=True,
         )
         if "DeliveryInterval" in doc.columns:
-            doc.drop(columns=["DeliveryInterval"], inplace=True)
+            doc = doc.drop(columns=["DeliveryInterval"])
 
         return doc
 
 
 if __name__ == "__main__":
     iso = Ercot()
-    iso.get_fuel_mix("latest")
+
+    df = iso.get_rtm_spp(2011)

@@ -11,6 +11,7 @@ import gridstatus
 from gridstatus.base import Markets, NotSupported, _interconnection_columns
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
+from gridstatus.gs_logging import log
 from gridstatus.isone import ISONE
 from gridstatus.lmp_config import lmp_config
 from gridstatus.miso import MISO
@@ -187,9 +188,10 @@ def filter_lmp_locations(df, locations=None, location_type=None):
     return df
 
 
-def get_zip_file(url):
+def get_zip_file(url, verbose=False):
     # todo add retry logic
     # todo does this need to be a with statement?
+    log(f"Downloading {url}", verbose=verbose)
     r = requests.get(url)
     z = ZipFile(io.BytesIO(r.content))
     return z.open(z.namelist()[0])

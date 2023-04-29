@@ -833,7 +833,8 @@ class CAISO(ISOBase):
         end=None,
         verbose=False,
     ):
-        """Return curtailed non-operational generator report for a given date
+        """Return curtailed non-operational generator report for a given date.
+            Earliest available date is June 17, 2021.
 
 
         Arguments:
@@ -849,7 +850,7 @@ class CAISO(ISOBase):
             http://www.caiso.com/market/Pages/OutageManagement/Curtailed-OperationalGeneratorReportGlossary.aspx
 
             if requesting multiple days, may want to run
-            following to remove redundant intervals:
+            following to remove outages that get reported across multiple days:
             ```df.drop_duplicates(
                 subset=["OUTAGE MRID", "CURTAILMENT START DATE TIME"], keep="last")```
 
@@ -881,6 +882,16 @@ class CAISO(ISOBase):
         # artifact of the excel file
         df = df.dropna(axis=1, how="all")
 
+        # due to loading all rows upfront, they come in as strings
+        df["OUTAGE MRID"] = df["OUTAGE MRID"].astype("Int64")
+
+        numeric_cols = [
+            "CURTAILMENT MW",
+            "RESOURCE PMAX MW",
+            "NET QUALIFYING CAPACITY MW",
+        ]
+        df[numeric_cols] = df[numeric_cols].astype("Float64")
+
         df["CURTAILMENT START DATE TIME"] = pd.to_datetime(
             df["CURTAILMENT START DATE TIME"],
         ).dt.tz_localize(self.default_timezone, ambiguous=True)
@@ -898,6 +909,7 @@ class CAISO(ISOBase):
             subset=["OUTAGE MRID", "CURTAILMENT START DATE TIME"],
             keep="last",
         )
+
         return df
 
     @support_date_range(frequency=determine_oasis_frequency)
