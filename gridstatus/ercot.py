@@ -602,10 +602,9 @@ class Ercot(ISOBase):
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         resource_node = mapping_df["RESOURCE_NODE"].dropna().unique()
 
-        if df[df.duplicated()].shape[0] > 0:
-            import pdb
-
-            pdb.set_trace()
+        # if df[df.duplicated()].shape[0] > 0:
+        #     import pdb
+        #     pdb.set_trace()
 
         # Create boolean masks for each location type
         is_hub = df["Location"].str.startswith("HB_")
