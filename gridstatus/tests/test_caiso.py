@@ -198,6 +198,29 @@ class TestCAISO(BaseTestISO):
         # assert all days are present
         assert df["Time"].dt.date.nunique() == 3
 
+    def test_get_lmp_all_locations_real_time_2_hour(self):
+        # test two hours
+        start = pd.Timestamp("2021-04-01T03:00").tz_localize("UTC")
+        end = start + pd.Timedelta(hours=2)
+        df = self.iso.get_lmp(
+            start=start,
+            end=end,
+            locations="ALL",
+            market="REAL_TIME_15_MIN",
+        )
+        # assert approx 12000 locations
+        assert df["Location"].nunique() > 12000
+        assert df["Interval Start"].dt.hour.nunique() == 2
+
+    def test_warning_no_end_date(self):
+        start = pd.Timestamp("2021-04-01T03:00").tz_localize("UTC")
+        with pytest.warns(UserWarning):
+            self.iso.get_lmp(
+                start=start,
+                locations="ALL",
+                market="REAL_TIME_15_MIN",
+            )
+
     @staticmethod
     def _check_as_data(df, market):
         columns = [

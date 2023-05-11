@@ -1,6 +1,7 @@
 import copy
 import io
 import time
+import warnings
 from contextlib import redirect_stderr
 from zipfile import ZipFile
 
@@ -23,8 +24,17 @@ _HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
 def determine_lmp_frequency(args):
     """if querying all must use 1d frequency"""
     locations = args.get("locations", "")
+    market = args.get("market", "")
+    # due to limitations of OASIS api
     if isinstance(locations, str) and locations.lower() in ["all", "all_ap_nodes"]:
-        return "1D"
+        if market == Markets.REAL_TIME_5_MIN:
+            return "1H"
+        elif market == Markets.REAL_TIME_15_MIN:
+            return "1H"
+        elif market == Markets.DAY_AHEAD_HOURLY:
+            return "1D"
+        else:
+            raise NotSupported(f"Market {market} not supported")
     else:
         return "31D"
 
@@ -304,6 +314,17 @@ class CAISO(ISOBase):
             params = {
                 "grp_type": "ALL_APNODES",
             }
+
+        if (
+            end is None
+            and market in [Markets.REAL_TIME_15_MIN, Markets.REAL_TIME_5_MIN]
+            and not isinstance(locations, list)
+            and locations.lower() in ["all", "all_ap_nodes"]
+        ):
+            warnings.warn(
+                "Only 1 hour of data will be returned for real time markets if end is not specified and all nodes are requested",  # noqa
+            )
+
         df = self.get_oasis_dataset(
             dataset=dataset,
             start=date,
@@ -1166,7 +1187,6 @@ def _get_historical(file, date, verbose=False):
 
 
 def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
-
     start, end = _caiso_handle_start_end(start, end)
     config = copy.deepcopy(config)
     config["startdatetime"] = start

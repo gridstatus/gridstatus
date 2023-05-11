@@ -6,7 +6,6 @@ from gridstatus.base import GridStatus, _interconnection_columns
 
 
 class BaseTestISO:
-
     iso = None
 
     def test_init(self):
@@ -194,8 +193,8 @@ class BaseTestISO:
     def test_get_load_today(self):
         df = self.iso.get_load("today")
         self._check_load(df)
-        today = pd.Timestamp.now(tz=self.iso.default_timezone)
-        assert (df["Time"].dt.date == today.date()).all()
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        assert (df["Time"].dt.date == today).all()
         return df
 
     """get_load_forecast"""

@@ -103,8 +103,12 @@ def _handle_date(date, tz=None):
     if not isinstance(date, pd.Timestamp):
         date = pd.to_datetime(date)
 
-    if tz and date.tzinfo is None:
-        date = date.tz_localize(tz)
+    if tz:
+        if date.tzinfo is None:
+            date = date.tz_localize(tz)
+        else:
+            # todo see if this triggers in tests
+            date = date.tz_convert(tz)
 
     return date
 
