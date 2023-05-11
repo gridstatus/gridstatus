@@ -66,14 +66,6 @@ class support_date_range:
             if args_dict["date"] == "latest":
                 return f(*args, **kwargs)
 
-            if (
-                isinstance(args_dict["date"], str)
-                and args_dict["date"].lower() == "today"
-            ):
-                args_dict["date"] = pd.Timestamp.now(
-                    tz=args_dict["self"].default_timezone,
-                ).date()
-
             args_dict["date"] = gridstatus.utils._handle_date(
                 args_dict["date"],
                 args_dict["self"].default_timezone,
@@ -110,8 +102,9 @@ class support_date_range:
             # if just a date
 
             # if frequency is callable, then use it to get the frequency
-            if callable(self.frequency):
-                self.frequency = self.frequency(args_dict)
+            frequency = self.frequency
+            if callable(frequency):
+                frequency = self.frequency(args_dict)
 
             # Note: this may create a split that will end up
             # being unnecessary after running update dates below.
@@ -121,9 +114,9 @@ class support_date_range:
             # logic to handle this
 
             dates = pd.date_range(
-                args_dict["date"].date(),
-                args_dict["end"].date(),
-                freq=self.frequency,
+                args_dict["date"],
+                args_dict["end"],
+                freq=frequency,
                 inclusive="neither",
             )
             dates = [args_dict["date"]] + dates.tolist() + [args_dict["end"]]

@@ -14,6 +14,7 @@ iso.get_load(date=("Jan 1, 2023", "March 1, 2023"))
 
 - Update SPP fuel mix source. Add helper function to parse historical fuel mix data back to 2011.
 - Add ISONE BTM solar
+- Support hourly start/end time for CAISO LMPs
 
 ```
 >>> iso = gridstatus.ISONE()
