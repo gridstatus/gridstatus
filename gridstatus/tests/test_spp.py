@@ -117,7 +117,7 @@ class TestSPP(BaseTestISO):
         [
             ("latest", Markets.REAL_TIME_15_MIN, "Interface"),
             (
-                pd.Timestamp.now() - pd.Timedelta(days=2),
+                pd.Timestamp.now().normalize() - pd.Timedelta(days=2),
                 Markets.REAL_TIME_15_MIN,
                 "Interface",
             ),

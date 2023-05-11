@@ -357,7 +357,7 @@ class TestPJM(BaseTestISO):
 
         # all standard
         # move a few days back to avoid late published data
-        end = pd.Timestamp.now() - pd.DateOffset(days=4)
+        end = pd.Timestamp.now().normalize() - pd.DateOffset(days=4)
         start = end - pd.DateOffset(days=1)
 
         hist = self.iso.get_lmp(
