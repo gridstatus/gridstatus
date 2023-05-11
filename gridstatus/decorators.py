@@ -102,8 +102,9 @@ class support_date_range:
             # if just a date
 
             # if frequency is callable, then use it to get the frequency
-            if callable(self.frequency):
-                self.frequency = self.frequency(args_dict)
+            frequency = self.frequency
+            if callable(frequency):
+                frequency = self.frequency(args_dict)
 
             # Note: this may create a split that will end up
             # being unnecessary after running update dates below.
@@ -115,7 +116,7 @@ class support_date_range:
             dates = pd.date_range(
                 args_dict["date"],
                 args_dict["end"],
-                freq=self.frequency,
+                freq=frequency,
                 inclusive="neither",
             )
             dates = [args_dict["date"]] + dates.tolist() + [args_dict["end"]]

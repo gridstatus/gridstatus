@@ -155,7 +155,7 @@ class TestCAISO(BaseTestISO):
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
 
-    def test_get_lmp_with_locations_range(self):
+    def test_get_lmp_with_locations_range_dam(self):
         end = pd.Timestamp("today").normalize()
         start = end - pd.Timedelta(days=3)
         locations = self.iso.trading_hub_locations
@@ -168,18 +168,24 @@ class TestCAISO(BaseTestISO):
         # assert all days are present
         assert df["Location"].nunique() == len(locations)
 
-    def test_get_lmp_all_locations(self):
-        df = self.iso.get_lmp(
-            date="today",
-            locations="ALL",
-            market="DAY_AHEAD_HOURLY",
-        )
-        # assert approx 16000 locations
-        assert df["Location"].nunique() > 16000
+    # all nodes having problems
+    # also not working on oasis web portal
+    # as of may 11, 2023
+    # def test_get_lmp_all_locations_dam(self):
+    #     yesterday = pd.Timestamp("today").normalize() - pd.Timedelta(days=1)
+    #     df = self.iso.get_lmp(
+    #         date=yesterday,
+    #         locations="ALL",
+    #         market="DAY_AHEAD_HOURLY",
+    #         verbose=True,
+    #     )
+    #     # assert approx 16000 locations
+    #     assert df["Location"].nunique() > 16000
 
     def test_get_lmp_all_ap_nodes_locations(self):
+        yesterday = pd.Timestamp("today").normalize() - pd.Timedelta(days=1)
         df = self.iso.get_lmp(
-            date="today",
+            date=yesterday,
             locations="ALL_AP_NODES",
             market="DAY_AHEAD_HOURLY",
         )
@@ -187,7 +193,9 @@ class TestCAISO(BaseTestISO):
         assert df["Location"].nunique() > 2300
 
     def test_get_lmp_with_all_locations_range(self):
-        end = pd.Timestamp("today").normalize()
+        end = pd.Timestamp("today").tz_localize(
+            self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=2)
         start = end - pd.Timedelta(days=3)
         df = self.iso.get_lmp(
             start=start,
@@ -200,16 +208,19 @@ class TestCAISO(BaseTestISO):
 
     def test_get_lmp_all_locations_real_time_2_hour(self):
         # test two hours
-        start = pd.Timestamp("2021-04-01T03:00").tz_localize("UTC")
+        start = pd.Timestamp("now").tz_localize("UTC").normalize() - pd.Timedelta(
+            days=1,
+        )
         end = start + pd.Timedelta(hours=2)
         df = self.iso.get_lmp(
             start=start,
             end=end,
-            locations="ALL",
+            locations="ALL_AP_NODES",
             market="REAL_TIME_15_MIN",
+            verbose=True,
         )
-        # assert approx 12000 locations
-        assert df["Location"].nunique() > 12000
+        # assert approx 2300 locations
+        assert df["Location"].nunique() > 2300
         assert df["Interval Start"].dt.hour.nunique() == 2
 
     def test_warning_no_end_date(self):
@@ -217,7 +228,7 @@ class TestCAISO(BaseTestISO):
         with pytest.warns(UserWarning):
             self.iso.get_lmp(
                 start=start,
-                locations="ALL",
+                locations="ALL_AP_NODES",
                 market="REAL_TIME_15_MIN",
             )
 
