@@ -1,7 +1,6 @@
 import pandas as pd
 import pytest
 
-import gridstatus
 from gridstatus import CAISO, Markets
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
@@ -39,31 +38,6 @@ class TestCAISO(BaseTestISO):
             self._check_as_data(df, market)
 
     """get_fuel_mix"""
-
-    def test_range_two_days_with_day_start_endpoint(self):
-        yesterday = gridstatus.utils._handle_date(
-            "today",
-            self.iso.default_timezone,
-        ) - pd.Timedelta(days=1)
-        yesterday = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
-        start = yesterday - pd.Timedelta(minutes=10)
-        df = self.iso.get_fuel_mix(start=start, end=yesterday)
-        assert df["Time"].dt.date.unique().tolist() == [
-            start.date(),
-            yesterday.date(),
-        ]
-        self._check_fuel_mix(df)
-
-    def test_start_end_same_day(self):
-        yesterday = gridstatus.utils._handle_date(
-            "today",
-            self.iso.default_timezone,
-        ) - pd.Timedelta(days=1)
-        start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
-        end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
-        df = self.iso.get_fuel_mix(start=start, end=end)
-        assert df["Time"].dt.date.unique().tolist() == [yesterday.date()]
-        self._check_fuel_mix(df)
 
     """get_curtailment"""
 

@@ -660,10 +660,10 @@ class NYISO(ISOBase):
                 date_range = [date]
             else:
                 date_range = pd.date_range(
-                    date,
-                    end,
+                    date.date(),
+                    end.date(),
                     freq="1D",
-                    inclusive="left",
+                    inclusive="both",
                 )
 
             for d in date_range:

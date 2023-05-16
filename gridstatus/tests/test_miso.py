@@ -23,6 +23,14 @@ class TestMISO(BaseTestISO):
     def test_get_fuel_mix_historical_with_date_range(self):
         pass
 
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_range_two_days_with_day_start_endpoint(self):
+        pass
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_start_end_same_day(self):
+        pass
+
     def test_get_fuel_mix_today(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
