@@ -32,7 +32,7 @@ class NYISO(ISOBase):
     status_homepage = "https://www.nyiso.com/system-conditions"
     interconnection_homepage = "https://www.nyiso.com/interconnections"
 
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_status(self, date, end=None, verbose=False):
         if date == "latest":
             latest = self._latest_from_today(self.get_status)
@@ -76,7 +76,7 @@ class NYISO(ISOBase):
         status_df = status_df[["Time", "Status", "Notes"]]
         return status_df
 
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_fuel_mix(self, date, end=None, verbose=False):
         # note: this is simlar datastructure to pjm
 
@@ -105,7 +105,7 @@ class NYISO(ISOBase):
 
         return mix_df
 
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_load(self, date, end=None, verbose=False):
         """Returns load at a previous date in 5 minute intervals for
           each zone and total load
@@ -146,7 +146,7 @@ class NYISO(ISOBase):
 
         return df
 
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_load_forecast(self, date, end=None, verbose=False):
         """Get load forecast for a date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
@@ -177,7 +177,7 @@ class NYISO(ISOBase):
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
         },
     )
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_lmp(
         self,
         date,
@@ -649,7 +649,6 @@ class NYISO(ISOBase):
             df = _handle_time(df, dataset_name)
             df["File Date"] = date.normalize()
         else:
-
             msg = f"Requesting {zip_url}"
             log(msg, verbose)
 
@@ -762,7 +761,6 @@ dataset_interval_map = {
 
 
 def _handle_time(df, dataset_name):
-
     time_type, interval_duration_minutes = dataset_interval_map[dataset_name]
 
     if "Time Stamp" in df.columns:

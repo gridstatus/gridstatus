@@ -1,5 +1,7 @@
+import pandas as pd
 import pytest
 
+import gridstatus
 from gridstatus import NYISO, Markets
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
@@ -11,7 +13,6 @@ class TestNYISO(BaseTestISO):
     """"get_capacity_prices"""
 
     def test_get_capacity_prices(self):
-
         # test 2022, 2023, and today
         df = self.iso.get_capacity_prices(date="Dec 1, 2022", verbose=True)
         assert not df.empty, "DataFrame came back empty"
@@ -27,6 +28,17 @@ class TestNYISO(BaseTestISO):
     def test_get_fuel_mix_date_range(self):
         df = self.iso.get_fuel_mix(start="Aug 1, 2022", end="Oct 22, 2022")
         assert df.shape[0] >= 0
+
+    def test_range_two_days_across_month(self):
+        today = gridstatus.utils._handle_date("today", self.iso.default_timezone)
+        first_day_of_month = today.replace(day=1, hour=5, minute=0, second=0)
+        last_day_of_prev_month = first_day_of_month - pd.Timedelta(days=1)
+        df = self.iso.get_fuel_mix(start=last_day_of_prev_month, end=first_day_of_month)
+
+        assert df["Time"].max() >= first_day_of_month
+        assert df["Time"].min() <= last_day_of_prev_month
+        assert df["Time"].dt.date.nunique() == 3  # 2 days + 1 day for midnight
+        self._check_fuel_mix(df)
 
     """get_generators"""
 
@@ -104,7 +116,6 @@ class TestNYISO(BaseTestISO):
         assert df.shape[0] >= 0
 
     def test_get_lmp_location_type_parameter(self):
-
         date = "2022-06-09"
 
         df_zone = self.iso.get_lmp(

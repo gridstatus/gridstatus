@@ -213,8 +213,9 @@ class Ercot(ISOBase):
 
         return mix[mix["Time"].dt.date == date_parsed.date()].reset_index(drop=True)
 
-    @support_date_range("1D")
-    def get_load(self, date, verbose=False):
+    @support_date_range("DAY_START")
+    def get_load(self, date, end=None, verbose=False):
+        """Get load for a date"""
         if date == "latest":
             today_load = self.get_load("today", verbose=verbose)
             latest = today_load.iloc[-1]
@@ -553,7 +554,7 @@ class Ercot(ISOBase):
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
         },
     )
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_spp(
         self,
         date,
@@ -770,7 +771,6 @@ class Ercot(ISOBase):
                 - pd.DateOffset(days=self.AS_PRICES_HISTORICAL_MAX_DAYS)
             ).date()
         ):
-
             return self._get_as_prices_recent(date, end=end)
         elif not end:
             end = date
@@ -814,7 +814,7 @@ class Ercot(ISOBase):
 
         return data
 
-    @support_date_range("1D")
+    @support_date_range("DAY_START")
     def _get_as_prices_recent(self, date, verbose=False):
         """Get ancillary service clearing prices in hourly intervals in Day
             Ahead Market. This function is can return the last 31 days
