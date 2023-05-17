@@ -73,7 +73,3 @@ def test_other_dataset():
 
     assert df.columns.tolist() == cols
     assert df.shape[0] > 0
-
-    import pdb
-
-    pdb.set_trace()
