@@ -37,6 +37,8 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_as_procurement(date, market=market)
             self._check_as_data(df, market)
 
+    """get_fuel_mix"""
+
     """get_curtailment"""
 
     def _check_curtailment(self, df):

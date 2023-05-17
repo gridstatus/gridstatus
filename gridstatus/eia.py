@@ -143,34 +143,47 @@ class EIA:
             raw_df = pd.concat([raw_df, *page_dfs], ignore_index=True)
 
         df = raw_df.copy()
-        df["Interval End"] = pd.to_datetime(df["period"], utc=True)
-        df["Interval Start"] = df["Interval End"] - pd.Timedelta("1h")
-        df = df.rename(
-            {
-                "value": "MW",
-                "fromba": "From BA",
-                "toba": "To BA",
-                "fromba-name": "From BA Name",
-                "toba-name": "To BA Name",
-            },
-            axis=1,
-        )
-        df = df[
-            [
-                "Interval Start",
-                "Interval End",
-                "From BA",
-                "From BA Name",
-                "To BA",
-                "To BA Name",
-                "MW",
-            ]
-        ]
 
-        df = df.sort_values(["Interval Start", "From BA"])
+        if dataset in DATASET_HANDLERS:
+            df = DATASET_HANDLERS[dataset](df)
 
         return df
 
+
+def _handle_rto_interchange(df):
+    """electricity/rto/interchange-data"""
+    df["Interval End"] = pd.to_datetime(df["period"], utc=True)
+    df["Interval Start"] = df["Interval End"] - pd.Timedelta("1h")
+    df = df.rename(
+        {
+            "value": "MW",
+            "fromba": "From BA",
+            "toba": "To BA",
+            "fromba-name": "From BA Name",
+            "toba-name": "To BA Name",
+        },
+        axis=1,
+    )
+    df = df[
+        [
+            "Interval Start",
+            "Interval End",
+            "From BA",
+            "From BA Name",
+            "To BA",
+            "To BA Name",
+            "MW",
+        ]
+    ]
+
+    df = df.sort_values(["Interval Start", "From BA"])
+
+    return df
+
+
+DATASET_HANDLERS = {
+    "electricity/rto/interchange-data": _handle_rto_interchange,
+}
 
 # docs
 # https://www.eia.gov/opendata/documentation.php

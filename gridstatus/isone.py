@@ -103,7 +103,7 @@ class ISONE(ISOBase):
     #     mix_df.columns.name = None
     #     return mix_df
 
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_fuel_mix(self, date, end=None, verbose=False):
         """Return fuel mix at a previous date
 
@@ -153,8 +153,8 @@ class ISONE(ISOBase):
 
         return mix_df
 
-    @support_date_range(frequency="1D")
-    def get_load(self, date, verbose=False):
+    @support_date_range(frequency="DAY_START")
+    def get_load(self, date, end=None, verbose=False):
         """Return load at a previous date in 5 minute intervals"""
         # todo document the earliest supported date
         # supports a start and end date
@@ -182,7 +182,7 @@ class ISONE(ISOBase):
 
         return df
 
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_btm_solar(self, date, end=None, verbose=False):
         """Return BTM solar at a previous date in 5 minute intervals"""
         df = self._get_system_load(
@@ -199,7 +199,7 @@ class ISONE(ISOBase):
 
         return df[["Time", "Interval Start", "Interval End", "BTM Solar"]]
 
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_load_forecast(self, date, end=None, verbose=False):
         """Return forecast at a previous date"""
 
@@ -276,7 +276,7 @@ class ISONE(ISOBase):
             Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
         },
     )
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_lmp(
         self,
         date,

@@ -101,7 +101,7 @@ class CAISO(ISOBase):
         else:
             raise NotSupported()
 
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_fuel_mix(self, date, start=None, end=None, verbose=False):
         """Get fuel mix in 5 minute intervals for a provided day
 
@@ -150,7 +150,7 @@ class CAISO(ISOBase):
 
         return df
 
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_load(self, date, end=None, verbose=False):
         """Return load at a previous date in 5 minute intervals"""
 
@@ -396,7 +396,7 @@ class CAISO(ISOBase):
 
         return data
 
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_storage(self, date, verbose=False):
         """Return storage charging or discharging for today in 5 minute intervals
 
@@ -636,7 +636,7 @@ class CAISO(ISOBase):
 
         return queue
 
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_curtailment(self, date, verbose=False):
         """Return curtailment data for a given date
 
@@ -780,7 +780,7 @@ class CAISO(ISOBase):
 
         return df
 
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_as_prices(self, date, end=None, market="DAM", sleep=4, verbose=False):
         """Return AS prices for a given date for each region
 
@@ -847,7 +847,7 @@ class CAISO(ISOBase):
 
         return df
 
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_curtailed_non_operational_generator_report(
         self,
         date,

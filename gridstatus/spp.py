@@ -327,7 +327,7 @@ class SPP(ISOBase):
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
         },
     )
-    @support_date_range(frequency="1D")
+    @support_date_range(frequency="DAY_START")
     def get_lmp(
         self,
         date,
