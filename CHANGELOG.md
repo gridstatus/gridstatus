@@ -37,6 +37,7 @@ iso.get_load(date=("Jan 1, 2023", "March 1, 2023"))
 ```
 
 - `ercot.get_fuel_mix("latest")` now returns last two days of data.
+- add 'spp.get_ver_curtailments' to return curtailment data for SPP
 
 ## v0.20.0 - March 24, 2023
 

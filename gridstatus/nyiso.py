@@ -1,8 +1,4 @@
-import io
-from zipfile import ZipFile
-
 import pandas as pd
-import requests
 
 import gridstatus
 from gridstatus import utils
@@ -665,10 +661,7 @@ class NYISO(ISOBase):
             df["File Date"] = date.normalize()
         else:
             zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"  # noqa: E501
-            msg = f"Requesting {zip_url}"
-            log(msg, verbose)
-            r = requests.get(zip_url)
-            z = ZipFile(io.BytesIO(r.content))
+            z = utils.get_zip_folder(zip_url, verbose=verbose)
 
             all_dfs = []
             if end is None:

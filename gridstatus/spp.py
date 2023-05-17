@@ -205,6 +205,89 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
+    def _process_ver_curtailments(self, df):
+        df = df.rename(
+            columns={
+                "GMTIntervalEnding": "Interval End",
+                "WindRedispatchCurtailments": "Wind Redispatch Curtailments",
+                "WindManualCurtailments": "Wind Manual Curtailments",
+                "WindCurtailedForEnergy": "Wind Curtailed For Energy",
+                "SolarRedispatchCurtailments": "Solar Redispatch Curtailments",
+                "SolarManualCurtailments": "Solar Manual Curtailments",
+                "SolarCurtailedForEnergy": "Solar Curtailed For Energy",
+            },
+        )
+
+        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+
+        df["Time"] = df["Interval Start"]
+
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Wind Redispatch Curtailments",
+            "Wind Manual Curtailments",
+            "Wind Curtailed For Energy",
+            "Solar Redispatch Curtailments",
+            "Solar Manual Curtailments",
+            "Solar Curtailed For Energy",
+        ]
+
+        # historical data doesnt have all columns
+        for c in cols:
+            if c not in df.columns:
+                df[c] = pd.NA
+
+        df = df[cols]
+
+        return df
+
+    @support_date_range("DAY_START")
+    def get_ver_curtailments(self, date, end=None, verbose=True):
+        """Get VER Curtailments
+
+        Supports recent data. For historical annual data use get_ver_curtailments_annual
+
+        Args:
+            date: start date
+            end: end date
+
+
+        """
+        url = f"https://marketplace.spp.org/file-browser-api/download/ver-curtailments?path=%2F2023%2F05%2FVER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_ver_curtailments(df)
+
+    def get_ver_curtailments_annual(self, year, verbose=True):
+        url = f"https://marketplace.spp.org/file-browser-api/download/ver-curtailments?path=%2F{year}%2F{year}.zip"  # noqa
+        z = utils.get_zip_folder(url, verbose=verbose)
+
+        # iterate through all files in zip
+        # find the one that end with .csv
+        # read that csv
+        all_dfs = []
+        for f in z.filelist:
+            if f.filename.endswith(".csv"):
+                df = pd.read_csv(z.open(f.filename))
+                all_dfs.append(df)
+
+        df = pd.concat(all_dfs)
+
+        df = self._process_ver_curtailments(df)
+
+        df = df.sort_values("Time")
+
+        return df
+
     def _get_load_and_forecast(self, verbose=False):
         url = "https://marketplace.spp.org/chart-api/load-forecast/asChart"
 

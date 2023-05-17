@@ -310,3 +310,38 @@ class TestSPP(BaseTestISO):
         except Exception as e:
             raise Exception(f"Error parsing {filename}: {e}")
         return status
+
+    """ get_ver_curtailment """
+
+    def _check_ver_curtailments(self, df):
+        assert isinstance(df, pd.DataFrame)
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Wind Redispatch Curtailments",
+            "Wind Manual Curtailments",
+            "Wind Curtailed For Energy",
+            "Solar Redispatch Curtailments",
+            "Solar Manual Curtailments",
+            "Solar Curtailed For Energy",
+        ]
+
+    def test_get_ver_curtailments_historical(self):
+        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
+        start = two_days_ago - pd.Timedelta(days=2)
+        df = self.iso.get_ver_curtailments(start=start, end=two_days_ago)
+
+        assert df["Interval Start"].min().date() == start.date()
+        assert df["Interval Start"].max().date() == two_days_ago.date()
+        self._check_ver_curtailments(df)
+
+    def test_get_get_ver_curtailments_annual(self):
+        year = 2020
+        df = self.iso.get_ver_curtailments_annual(year=year)
+
+        assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
+        assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
+
+        self._check_ver_curtailments(df)

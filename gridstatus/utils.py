@@ -201,6 +201,14 @@ def get_zip_file(url, verbose=False):
     return z.open(z.namelist()[0])
 
 
+def get_zip_folder(zip_url, verbose=False):
+    msg = f"Requesting {zip_url}"
+    log(msg, verbose)
+    r = requests.get(zip_url)
+    z = ZipFile(io.BytesIO(r.content))
+    return z
+
+
 def is_today(date, tz):
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
 
