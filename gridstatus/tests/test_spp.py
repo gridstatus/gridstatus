@@ -27,6 +27,14 @@ class TestSPP(BaseTestISO):
     def test_get_fuel_mix_historical_with_date_range(self):
         pass
 
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_range_two_days_with_day_start_endpoint(self):
+        pass
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_start_end_same_day(self):
+        pass
+
     def test_get_fuel_mix_central_time(self):
         fm = self.iso.get_fuel_mix(date="latest")
         assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone

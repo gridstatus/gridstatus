@@ -76,27 +76,27 @@ class support_date_range:
                 df = f(**args_dict)
                 _handle_save_to(df, save_to, args_dict, f)
                 return df
-            else:
-                if (
-                    isinstance(args_dict["end"], str)
-                    and args_dict["end"].lower() == "today"
-                ):
-                    # add one day since end is exclusive
-                    args_dict["end"] = pd.Timestamp.now(
-                        tz=args_dict["self"].default_timezone,
-                    ).date() + pd.DateOffset(days=1)
 
-                args_dict["end"] = gridstatus.utils._handle_date(
-                    args_dict["end"],
-                    args_dict["self"].default_timezone,
-                )
+            if (
+                isinstance(args_dict["end"], str)
+                and args_dict["end"].lower() == "today"
+            ):
+                # add one day since end is exclusive
+                args_dict["end"] = pd.Timestamp.now(
+                    tz=args_dict["self"].default_timezone,
+                ).date() + pd.DateOffset(days=1)
 
-                assert (
-                    args_dict["end"] > args_dict["date"]
-                ), "End date {} must be after start date {}".format(
-                    args_dict["end"],
-                    args_dict["date"],
-                )
+            args_dict["end"] = gridstatus.utils._handle_date(
+                args_dict["end"],
+                args_dict["self"].default_timezone,
+            )
+
+            assert (
+                args_dict["end"] > args_dict["date"]
+            ), "End date {} must be after start date {}".format(
+                args_dict["end"],
+                args_dict["date"],
+            )
 
             # use .date() to remove timezone info, which doesnt matter
             # if just a date
@@ -113,13 +113,37 @@ class support_date_range:
             # Unnecessary optimization right now to include
             # logic to handle this
 
+            # if certain frequency, we need to handle first interval
+            # specially so pd.date_range works
+            prepend = []
+            if frequency == "DAY_START":
+                frequency = "1D"
+                next_day_start = args_dict["date"].ceil("1D")
+                if (
+                    next_day_start < args_dict["end"]
+                    and next_day_start != args_dict["date"]
+                ):
+                    prepend = [args_dict["date"]]
+                    args_dict["date"] = args_dict["date"].ceil("1D")
+            elif frequency == "MONTH_START":
+                frequency = "1M"
+                next_month_start = (
+                    args_dict["date"] + pd.offsets.MonthBegin(1)
+                ).normalize()
+                if (
+                    next_month_start < args_dict["end"]
+                    and next_month_start != args_dict["date"]
+                ):
+                    prepend = [args_dict["date"]]
+                    args_dict["date"] = next_month_start
+
             dates = pd.date_range(
                 args_dict["date"],
                 args_dict["end"],
                 freq=frequency,
                 inclusive="neither",
             )
-            dates = [args_dict["date"]] + dates.tolist() + [args_dict["end"]]
+            dates = prepend + [args_dict["date"]] + dates.tolist() + [args_dict["end"]]
 
             dates = [
                 gridstatus.utils._handle_date(
@@ -128,7 +152,6 @@ class support_date_range:
                 )
                 for d in dates
             ]
-
             # sometime api have restrictions/optimizations based on date ranges
             # update_dates allows for the caller to insert this logic
             if self.update_dates is not None:
@@ -159,7 +182,7 @@ class support_date_range:
                     args_dict["date"] = start_date
 
                     # no need for end if we are querying for just 1 day
-                    if self.frequency != "1D":
+                    if frequency != "1D":
                         args_dict["end"] = end_date
 
                     try:

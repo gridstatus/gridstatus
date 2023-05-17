@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
+import gridstatus
 from gridstatus.base import GridStatus, _interconnection_columns
 
 
@@ -78,6 +79,35 @@ class BaseTestISO:
 
         # make sure right number of days are returned
         assert df["Time"].dt.day.nunique() == num_days
+
+    def test_range_two_days_with_day_start_endpoint(self):
+        yesterday = gridstatus.utils._handle_date(
+            "today",
+            self.iso.default_timezone,
+        ) - pd.Timedelta(days=1)
+        yesterday = yesterday.replace(hour=1, minute=0, second=0, microsecond=0)
+        start = yesterday - pd.Timedelta(hours=3)
+
+        # add one minute since pjm is exclusive of end date
+        # and does not include the whole day like other isos
+        df = self.iso.get_fuel_mix(start=start, end=yesterday + pd.Timedelta(minutes=1))
+
+        assert df["Time"].max() >= yesterday.replace(hour=0, minute=0, second=0)
+        assert df["Time"].min() <= start
+
+        self._check_fuel_mix(df)
+
+    def test_start_end_same_day(self):
+        yesterday = gridstatus.utils._handle_date(
+            "today",
+            self.iso.default_timezone,
+        ) - pd.Timedelta(days=1)
+        start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
+        end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
+        df = self.iso.get_fuel_mix(start=start, end=end)
+        # ignore last row, since it is sometime midnight of next day
+        assert df["Time"].iloc[:-1].dt.date.unique().tolist() == [yesterday.date()]
+        self._check_fuel_mix(df)
 
     def test_get_fuel_mix_latest(self):
         df = self.iso.get_fuel_mix("latest")

@@ -32,7 +32,7 @@ class NYISO(ISOBase):
     status_homepage = "https://www.nyiso.com/system-conditions"
     interconnection_homepage = "https://www.nyiso.com/interconnections"
 
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_status(self, date, end=None, verbose=False):
         if date == "latest":
             latest = self._latest_from_today(self.get_status)
@@ -76,7 +76,7 @@ class NYISO(ISOBase):
         status_df = status_df[["Time", "Status", "Notes"]]
         return status_df
 
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_fuel_mix(self, date, end=None, verbose=False):
         # note: this is simlar datastructure to pjm
 
@@ -105,7 +105,7 @@ class NYISO(ISOBase):
 
         return mix_df
 
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_load(self, date, end=None, verbose=False):
         """Returns load at a previous date in 5 minute intervals for
           each zone and total load
@@ -146,7 +146,7 @@ class NYISO(ISOBase):
 
         return df
 
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_load_forecast(self, date, end=None, verbose=False):
         """Get load forecast for a date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
@@ -177,7 +177,7 @@ class NYISO(ISOBase):
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
         },
     )
-    @support_date_range(frequency="MS")
+    @support_date_range(frequency="MONTH_START")
     def get_lmp(
         self,
         date,
@@ -625,6 +625,23 @@ class NYISO(ISOBase):
         filename=None,
         verbose=False,
     ):
+        """Download a dataset from NYISO's archive
+
+        Arguments:
+            date (str or datetime): the date to download.
+                if end is provided, this is the start date
+            end (str or datetime):
+                the end date to download. if provided, date is the start date
+            dataset_name (str):
+                the name of the dataset to download
+            filename (str): the name of the file to download.
+                if not provided, dataset_name is used
+            verbose (bool): print out requested url
+
+        Returns:
+            pandas.DataFrame: the downloaded data
+
+        """
         if filename is None:
             filename = dataset_name
 
@@ -632,16 +649,14 @@ class NYISO(ISOBase):
         month = date.strftime("%Y%m01")
         day = date.strftime("%Y%m%d")
 
-        csv_filename = f"{day}{filename}.csv"
-        csv_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{csv_filename}"
-        zip_url = (
-            f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"
-        )
-
         # the last 7 days of file are hosted directly as csv
+        # todo this can probably be optimized to down single csv if
+        # a range and all files are in the last 7 days
         if end is None and date > pd.Timestamp.now(
             tz=self.default_timezone,
         ).normalize() - pd.DateOffset(days=7):
+            csv_filename = f"{day}{filename}.csv"
+            csv_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{csv_filename}"
             msg = f"Requesting {csv_url}"
             log(msg, verbose)
 
@@ -649,10 +664,9 @@ class NYISO(ISOBase):
             df = _handle_time(df, dataset_name)
             df["File Date"] = date.normalize()
         else:
-
+            zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"  # noqa: E501
             msg = f"Requesting {zip_url}"
             log(msg, verbose)
-
             r = requests.get(zip_url)
             z = ZipFile(io.BytesIO(r.content))
 
@@ -661,10 +675,10 @@ class NYISO(ISOBase):
                 date_range = [date]
             else:
                 date_range = pd.date_range(
-                    date,
-                    end,
+                    date.date(),
+                    end.date(),
                     freq="1D",
-                    inclusive="left",
+                    inclusive="both",
                 )
 
             for d in date_range:
@@ -673,6 +687,10 @@ class NYISO(ISOBase):
                 day = d.strftime("%Y%m%d")
 
                 csv_filename = f"{day}{filename}.csv"
+                if csv_filename not in z.namelist():
+                    msg = f"{csv_filename} not found in {zip_url}"
+                    log(msg, verbose)
+                    continue
                 df = pd.read_csv(z.open(csv_filename))
                 df["File Date"] = d.normalize()
 
@@ -762,7 +780,6 @@ dataset_interval_map = {
 
 
 def _handle_time(df, dataset_name):
-
     time_type, interval_duration_minutes = dataset_interval_map[dataset_name]
 
     if "Time Stamp" in df.columns:
