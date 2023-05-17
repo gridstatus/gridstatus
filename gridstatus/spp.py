@@ -248,7 +248,7 @@ class SPP(ISOBase):
         return df
 
     @support_date_range("DAY_START")
-    def get_ver_curtailments(self, date, end=None, verbose=True):
+    def get_ver_curtailments(self, date, end=None, verbose=False):
         """Get VER Curtailments
 
         Supports recent data. For historical annual data use get_ver_curtailments_annual
@@ -259,7 +259,7 @@ class SPP(ISOBase):
 
 
         """
-        url = f"https://marketplace.spp.org/file-browser-api/download/ver-curtailments?path=%2F2023%2F05%2FVER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
+        url = f"https://marketplace.spp.org/file-browser-api/download/ver-curtailments?path=%2F{date.strftime('%Y')}%2F{date.strftime('%m')}%2FVER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
 
         msg = f"Downloading {url}"
         log(msg, verbose)
@@ -268,6 +268,16 @@ class SPP(ISOBase):
         return self._process_ver_curtailments(df)
 
     def get_ver_curtailments_annual(self, year, verbose=True):
+        """Get VER Curtailments for a year. Starting 2014.
+        Recent data use get_ver_curtailments
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: VER Curtailments
+        """
         url = f"https://marketplace.spp.org/file-browser-api/download/ver-curtailments?path=%2F{year}%2F{year}.zip"  # noqa
         z = utils.get_zip_folder(url, verbose=verbose)
 
@@ -283,6 +293,8 @@ class SPP(ISOBase):
         df = pd.concat(all_dfs)
 
         df = self._process_ver_curtailments(df)
+
+        df = df[~df["Interval Start"].isnull()]
 
         df = df.sort_values("Time")
 
