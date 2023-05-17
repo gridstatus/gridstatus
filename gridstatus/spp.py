@@ -294,6 +294,8 @@ class SPP(ISOBase):
 
         df = self._process_ver_curtailments(df)
 
+        df = df[~df["Interval Start"].isnull()]
+
         df = df.sort_values("Time")
 
         return df
