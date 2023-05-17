@@ -87,7 +87,7 @@ class BaseTestISO:
         ) - pd.Timedelta(days=1)
         yesterday = yesterday.replace(hour=1, minute=0, second=0, microsecond=0)
         start = yesterday - pd.Timedelta(hours=3)
-        
+
         # add one minute since pjm is exclusive of end date
         # and does not include the whole day like other isos
         df = self.iso.get_fuel_mix(start=start, end=yesterday + pd.Timedelta(minutes=1))
