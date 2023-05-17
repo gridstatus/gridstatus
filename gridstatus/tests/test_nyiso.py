@@ -79,11 +79,7 @@ class TestNYISO(BaseTestISO):
         assert df.columns.tolist() == nyiso_load_cols
 
     def test_get_load_month_range(self):
-        # 2023-04-01 -end_date 2023-05-16
         df = self.iso.get_load(start="2023-04-01", end="2023-05-16")
-        import pdb
-
-        pdb.set_trace()
         assert df.shape[0] >= 0
 
     """get_lmp"""
