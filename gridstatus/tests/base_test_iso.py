@@ -85,8 +85,8 @@ class BaseTestISO:
             "today",
             self.iso.default_timezone,
         ) - pd.Timedelta(days=1)
-        yesterday = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
-        start = yesterday - pd.Timedelta(minutes=10)
+        yesterday = yesterday.replace(hour=2, minute=0, second=0, microsecond=0)
+        start = yesterday - pd.Timedelta(hours=3)
         df = self.iso.get_fuel_mix(start=start, end=yesterday)
 
         assert df["Time"].max() >= yesterday
@@ -102,7 +102,9 @@ class BaseTestISO:
         start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
         end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
         df = self.iso.get_fuel_mix(start=start, end=end)
-        assert df["Time"].dt.date.unique().tolist() == [yesterday.date()]
+
+        # ignore last row, since it is sometime midnight of next day
+        assert df["Time"].iloc[:-1].dt.date.unique().tolist() == [yesterday.date()]
         self._check_fuel_mix(df)
 
     def test_get_fuel_mix_latest(self):
