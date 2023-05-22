@@ -1,6 +1,6 @@
 # Changelog
 
-## vNext
+## v0.21.0 - May 22,2023
 
 - Add support for querying larger set of CAISO Oasis Datasets with `caiso.get_oasis_dateset`
 - Date ranges can be provided as either separate start/end arguments or a tuple to date.
