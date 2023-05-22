@@ -180,6 +180,21 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
+    def test_get_spp_real_time_yesterday(self):
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        yesterday = today - pd.Timedelta(days=1)
+
+        df = self.iso.get_spp(
+            date=yesterday,
+            market=Markets.REAL_TIME_15_MIN,
+            location_type="Trading Hub",
+            verbose=True,
+        )
+
+        # assert Interval End max is today
+        assert df["Interval End"].max().date() == today
+        assert df["Interval Start"].min().date() == yesterday
+
     @pytest.mark.skip(reason="takes too long to run")
     def test_get_spp_rtm_historical(self):
         rtm = gridstatus.Ercot().get_rtm_spp(2020)

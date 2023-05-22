@@ -4,6 +4,7 @@ from zipfile import ZipFile
 
 import pandas as pd
 import requests
+import tqdm
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -112,6 +113,8 @@ class Ercot(ISOBase):
     class Document:
         url: str
         publish_date: pd.Timestamp
+        constructed_name: str
+        friendly_name: str
 
     def get_status(self, date, verbose=False):
         """Returns status of grid"""
@@ -703,18 +706,32 @@ class Ercot(ISOBase):
 
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        query_date = date
         if date == "latest":
-            publish_date = today
-        else:
-            publish_date = utils._handle_date(date, self.default_timezone)
+            query_date = utils._handle_date("today", self.default_timezone)
         # returns list of Document(url=,publish_date=)
-        docs = self._get_documents(
+
+        query_date_str = f"SPPHLZNP6905_{query_date.strftime('%Y%m%d')}"
+        all_docs = self._get_documents(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
-            date=publish_date,
-            constructed_name_contains="csv.zip",
+            extension="csv",
             verbose=verbose,
         )
+
+        # look at file name to determine the
+        # date/interval the file represents
+        docs = []
+        for doc in all_docs:
+            if query_date_str + "_0000" in doc.constructed_name:
+                continue
+
+            if (
+                query_date_str in doc.constructed_name
+                or f"SPPHLZNP6905_{(query_date + pd.Timedelta(days=1)).strftime('%Y%m%d')}_0000"  # noqa: E501
+                in doc.constructed_name
+            ):
+                docs.append(doc)
+
         if date == "latest":
             # just pluck out the latest document based on publish_date
             docs = [max(docs, key=lambda x: x.publish_date)]
@@ -722,19 +739,16 @@ class Ercot(ISOBase):
             raise ValueError(f"Could not fetch SPP data for {date}")
 
         all_dfs = []
-        for doc_info in docs:
+        for doc_info in tqdm.tqdm(docs, disable=not verbose):
             doc_url = doc_info.url
-
             msg = f"Fetching {doc_url}"
             log(msg, verbose)
             df = self.read_doc(doc_info, verbose=verbose)
             all_dfs.append(df)
+
         df = pd.concat(all_dfs).reset_index(drop=True)
-        df.drop
 
         df["Market"] = Markets.REAL_TIME_15_MIN.value
-        # Additional filter as the document may contain the last 15 minutes of yesterday
-        df = df[df["Interval Start"].dt.date == publish_date.date()]
         return df
 
     @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
@@ -926,6 +940,7 @@ class Ercot(ISOBase):
         report_type_id,
         date=None,
         constructed_name_contains=None,
+        extension=None,
         verbose=False,
     ) -> list:
         """Searches by Report Type ID, filtering for date and/or constructed name
@@ -950,6 +965,9 @@ class Ercot(ISOBase):
             if date:
                 match = match and publish_date.date() == date.date()
 
+            if extension:
+                match = match and doc["Document"]["FriendlyName"].endswith(extension)
+
             if constructed_name_contains:
                 match = (
                     match
@@ -963,6 +981,8 @@ class Ercot(ISOBase):
                     self.Document(
                         url=url,
                         publish_date=publish_date,
+                        constructed_name=doc["Document"]["ConstructedName"],
+                        friendly_name=doc["Document"]["FriendlyName"],
                     ),
                 )
 
@@ -1056,6 +1076,7 @@ class Ercot(ISOBase):
             interval_length = pd.Timedelta(hours=1)
             doc["HourBeginning"] = (
                 doc["HourEnding"]
+                .astype(str)
                 .str.split(
                     ":",
                 )
