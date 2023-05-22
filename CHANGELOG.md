@@ -2,9 +2,8 @@
 
 ## v0.21.0 - May 22,2023
 
-- Add support for querying larger set of CAISO Oasis Datasets with `caiso.get_oasis_dateset`
+- Add initial support for EIA V2 API
 - Date ranges can be provided as either separate start/end arguments or a tuple to date.
-- add `CAISO.get_curtailed_non_operational_generator_report` to parse this [daily report](http://www.caiso.com/market/Pages/OutageManagement/CurtailedandNonOperationalGenerators.aspx)
 
 ```python
 # both do the same thing
@@ -12,10 +11,21 @@ iso.get_load(start="Jan 1, 2023", end="March 1, 2023")
 iso.get_load(date=("Jan 1, 2023", "March 1, 2023"))
 ```
 
-- Update SPP fuel mix source. Add helper function to parse historical fuel mix data back to 2011.
-- Add ISONE BTM solar
+### CAISO
+
+- Add support for querying larger set of CAISO Oasis Datasets with `caiso.get_oasis_dateset`
+- add `CAISO.get_curtailed_non_operational_generator_report` to parse this [daily report](http://www.caiso.com/market/Pages/OutageManagement/CurtailedandNonOperationalGenerators.aspx)
 - Support hourly start/end time for CAISO LMPs
-- Add initial support for EIA V2 API
+
+### SPP
+
+- Update SPP fuel mix source. Add helper function to parse historical fuel mix data back to 2011.
+- Add `SPP.get_ver_curtailments` to return curtailment data for SPP
+- Support self scheduled vs market breakdown in `SPP.get_fuel_mix` using `detailed=True` parameter
+
+### ISONE
+
+- Add ISONE BTM solar
 
 ```
 >>> iso = gridstatus.ISONE()
@@ -36,9 +46,9 @@ iso.get_load(date=("Jan 1, 2023", "March 1, 2023"))
 [169 rows x 4 columns]
 ```
 
+### ERCOT
+
 - `Ercot.get_fuel_mix("latest")` now returns last two days of data.
-- add `SPP.get_ver_curtailments` to return curtailment data for SPP
-- support self scheduled vs market breakdown in `SPP.get_fuel_mix` using `detailed=True` parameter
 
 ## v0.20.0 - March 24, 2023
 
