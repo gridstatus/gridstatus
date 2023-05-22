@@ -93,11 +93,12 @@ class SPP(ISOBase):
         html_text = requests.get(url).content.decode("UTF-8")
         return self._get_status_from_html(html_text)
 
-    def get_fuel_mix(self, date, verbose=False):
+    def get_fuel_mix(self, date, detailed=False, verbose=False):
         """Get fuel mix
 
         Args:
             date: supports today and latest
+            detailed: if True, breaks out self scheduled and market scheduled
 
         Note:
             if today, returns last 2 hours of data. maybe include previous day
@@ -107,11 +108,11 @@ class SPP(ISOBase):
 
         """
         if date == "latest":
-            return (
-                self.get_fuel_mix("today", verbose=verbose)
-                .tail(1)
-                .reset_index(drop=True)
-            )
+            return self.get_fuel_mix(
+                "today",
+                detailed=detailed,
+                verbose=verbose,
+            ).reset_index(drop=True)
 
         if not utils.is_today(date, self.default_timezone):
             # https://marketplace.spp.org/pages/generation-mix-historical
@@ -120,7 +121,7 @@ class SPP(ISOBase):
 
         url = "https://marketplace.spp.org/file-browser-api/download/generation-mix-historical?path=%2FGenMix2Hour.csv"  # noqa
         df_raw = pd.read_csv(url)
-        historical_mix = process_gen_mix(df_raw)
+        historical_mix = process_gen_mix(df_raw, detailed=detailed)
 
         historical_mix = historical_mix.drop(
             columns=["Short Term Load Forecast", "Average Actual Load"],
@@ -967,9 +968,16 @@ class SPP(ISOBase):
         )
 
 
-def process_gen_mix(df):
+def process_gen_mix(df, detailed=False):
     """Parse SPP generation mix data from
     https://marketplace.spp.org/pages/generation-mix-historical
+
+    Args:
+        df (pd.DataFrame): raw data
+        detailed (bool): whether to combine market and self columns
+
+    Returns:
+        pd.DataFrame: processed data
     """
     new_df = df.copy()
 
@@ -1006,15 +1014,16 @@ def process_gen_mix(df):
         "Other",
     ]
 
-    for col in columns_to_combine:
-        market_col = f"{col} Market"
-        self_col = f"{col} Self"
+    if not detailed:
+        for col in columns_to_combine:
+            market_col = f"{col} Market"
+            self_col = f"{col} Self"
 
-        if market_col not in new_df.columns or self_col not in new_df.columns:
-            continue
+            if market_col not in new_df.columns or self_col not in new_df.columns:
+                continue
 
-        new_df[col] = new_df[market_col] + new_df[self_col]
-        new_df = new_df.drop([market_col, self_col], axis=1)
+            new_df[col] = new_df[market_col] + new_df[self_col]
+            new_df = new_df.drop([market_col, self_col], axis=1)
 
     new_df = add_interval(new_df, 5)
 

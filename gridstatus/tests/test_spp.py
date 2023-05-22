@@ -39,6 +39,37 @@ class TestSPP(BaseTestISO):
         fm = self.iso.get_fuel_mix(date="latest")
         assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
 
+    def test_get_fuel_mix_self_market(self):
+        fm = self.iso.get_fuel_mix(date="latest", detailed=True)
+
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Coal Market",
+            "Coal Self",
+            "Diesel Fuel Oil Market",
+            "Diesel Fuel Oil Self",
+            "Hydro Market",
+            "Hydro Self",
+            "Natural Gas Market",
+            "Natural Gas Self",
+            "Nuclear Market",
+            "Nuclear Self",
+            "Solar Market",
+            "Solar Self",
+            "Waste Disposal Services Market",
+            "Waste Disposal Services Self",
+            "Wind Market",
+            "Wind Self",
+            "Waste Heat Market",
+            "Waste Heat Self",
+            "Other Market",
+            "Other Self",
+        ]
+
+        assert fm.columns.tolist() == cols
+
     """get_lmp"""
 
     @with_markets(
