@@ -150,10 +150,55 @@ class EIA:
         return df
 
 
+def _handle_time(df, frequency="1h"):
+    df.insert(0, "Interval End", pd.to_datetime(df["period"], utc=True))
+    df.insert(0, "Interval Start", df["Interval End"] - pd.Timedelta(frequency))
+    df = df.drop("period", axis=1)
+    return df
+
+
+def _handle_region_data(df):
+    df = _handle_time(df, frequency="1h")
+
+    df = df.rename(
+        {
+            "value": "MW",
+            "respondent": "Respondent",
+            "respondent-name": "Respondent Name",
+            "type": "Type",
+        },
+        axis=1,
+    )
+
+    # ['TI', 'NG', 'DF', 'D']
+    df["Type"] = df["Type"].map(
+        {
+            "D": "Load",
+            "TI": "Total Interchange",
+            "NG": "Net Generation",
+            "DF": "Load Forecast",
+        },
+    )
+
+    df["MW"] = df["MW"].astype("Int64")
+
+    # pivot on type
+    df = df.pivot_table(
+        index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
+        columns="Type",
+        values="MW",
+    ).reset_index()
+
+    # fix after pivot
+    for col in ["Load", "Net Generation", "Load Forecast", "Total Interchange"]:
+        df[col] = df[col].astype("Int64")
+
+    return df
+
+
 def _handle_rto_interchange(df):
     """electricity/rto/interchange-data"""
-    df["Interval End"] = pd.to_datetime(df["period"], utc=True)
-    df["Interval Start"] = df["Interval End"] - pd.Timedelta("1h")
+    df = _handle_time(df, frequency="1h")
     df = df.rename(
         {
             "value": "MW",
@@ -183,6 +228,7 @@ def _handle_rto_interchange(df):
 
 DATASET_HANDLERS = {
     "electricity/rto/interchange-data": _handle_rto_interchange,
+    "electricity/rto/region-data": _handle_region_data,
 }
 
 # docs
