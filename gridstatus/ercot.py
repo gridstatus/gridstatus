@@ -574,9 +574,9 @@ class Ercot(ISOBase):
             - ``DAY_AHEAD_HOURLY``
 
         Supported Location Types:
-            - ``zone``
-            - ``hub``
-            - ``node``
+            - ``Load Zone``
+            - ``Trading Hub``
+            - ``Resource Node``
         """
         if market == Markets.REAL_TIME_15_MIN:
             df = self._get_spp_rtm15(
