@@ -1,5 +1,9 @@
 # Changelog
 
+## vNext
+
+- Add EIA 930 Region Data
+
 ## v0.21.0 - May 22,2023
 
 - Add initial support for EIA V2 API

@@ -20,6 +20,24 @@ def _check_interchange(df):
     assert df.columns.tolist() == columns
 
 
+def _check_region_data(df):
+    columns = [
+        "Interval Start",
+        "Interval End",
+        "Respondent",
+        "Respondent Name",
+        "Load",
+        "Load Forecast",
+        "Net Generation",
+        "Total Interchange",
+    ]
+
+    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
+    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
+    assert df.shape[0] > 0
+    assert df.columns.tolist() == columns
+
+
 def test_rto_interchange():
     eia = gridstatus.EIA()
 
@@ -37,6 +55,22 @@ def test_rto_interchange():
     assert df["Interval End"].max().date() == pd.Timestamp(end).date()
 
     _check_interchange(df)
+
+
+def test_rto_region_data():
+    eia = gridstatus.EIA()
+    start = "2020-01-01"
+    end = "2020-01-04"
+    df = eia.get_dataset(
+        dataset="electricity/rto/region-data",
+        start=start,
+        end=end,
+        verbose=True,
+    )
+
+    assert df["Interval End"].min().date() == pd.Timestamp(start).date()
+    assert df["Interval End"].max().date() == pd.Timestamp(end).date()
+    _check_region_data(df)
 
 
 def test_list_routes():
