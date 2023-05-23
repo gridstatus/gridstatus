@@ -189,6 +189,8 @@ def _handle_region_data(df):
         values="MW",
     ).reset_index()
 
+    df.columns.name = None
+
     # fix after pivot
     for col in ["Load", "Net Generation", "Load Forecast", "Total Interchange"]:
         df[col] = df[col].astype("Int64")
