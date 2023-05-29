@@ -215,7 +215,18 @@ class support_date_range:
                 print("Errors that occurred while getting data:")
                 pprint.pprint(errors)
 
-            df = pd.concat(all_df).reset_index(drop=True)
+            # if first item is a dict, then we neeed to concat by key
+            if all_df and isinstance(all_df[0], dict):
+                df = {}
+                for d in all_df:
+                    for k, v in d.items():
+                        if k not in df:
+                            df[k] = []
+                        df[k].append(v)
+                for k, v in df.items():
+                    df[k] = pd.concat(v).reset_index(drop=True)
+            else:
+                df = pd.concat(all_df).reset_index(drop=True)
 
             return df
 
