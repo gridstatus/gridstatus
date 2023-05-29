@@ -3,6 +3,7 @@
 ## vNext
 
 - Add EIA 930 Region Data
+- Add Hourly Weather and Forecast Zone Loads ERCOT
 
 
 ### Breaking Changes
