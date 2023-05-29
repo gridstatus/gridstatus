@@ -140,7 +140,7 @@ class PJM(ISOBase):
         """
 
         if date == "latest":
-            return self._latest_from_today(self.get_load, verbose=verbose)
+            return self.get_load("today", verbose=verbose)
 
         # more hourly historical load here: https://dataminer2.pjm.com/feed/hrl_load_metered/definition
 

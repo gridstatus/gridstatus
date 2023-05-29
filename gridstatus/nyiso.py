@@ -117,7 +117,7 @@ class NYISO(ISOBase):
 
         """
         if date == "latest":
-            return self._latest_from_today(self.get_load)
+            return self.get_load(date="today", verbose=verbose)
 
         data = self._download_nyiso_archive(
             date=date,

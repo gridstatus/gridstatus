@@ -4,6 +4,11 @@
 
 - Add EIA 930 Region Data
 
+
+### Breaking Changes
+
+- `iso.get_load("latest")` now returns a dataframe in the same format as `iso.get_load("today")` with as much data that can be fetched in one request to underlying endpoint
+
 ## v0.21.0 - May 22,2023
 
 - Add initial support for EIA V2 API

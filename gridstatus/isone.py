@@ -159,7 +159,7 @@ class ISONE(ISOBase):
         # todo document the earliest supported date
         # supports a start and end date
         if date == "latest":
-            return self._latest_from_today(self.get_load)
+            return self.get_load("today", verbose=verbose)
 
         date_str = date.strftime("%Y%m%d")
         url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"  # noqa

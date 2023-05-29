@@ -220,9 +220,7 @@ class Ercot(ISOBase):
     def get_load(self, date, end=None, verbose=False):
         """Get load for a date"""
         if date == "latest":
-            today_load = self.get_load("today", verbose=verbose)
-            latest = today_load.iloc[-1]
-            return {"load": latest["Load"], "time": latest["Time"]}
+            return self.get_load("today", verbose=verbose)
 
         elif utils.is_today(date, tz=self.default_timezone):
             df = self._get_todays_outlook_non_forecast(date, verbose=verbose)

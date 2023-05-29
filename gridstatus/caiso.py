@@ -155,17 +155,7 @@ class CAISO(ISOBase):
         """Return load at a previous date in 5 minute intervals"""
 
         if date == "latest":
-            # todo call today
-            load_url = _BASE + "/demand.csv"
-            df = pd.read_csv(load_url)
-
-            # get last non null row
-            data = df[~df["Current demand"].isnull()].iloc[-1]
-
-            return {
-                "time": _make_timestamp(data["Time"], self._current_day()),
-                "load": data["Current demand"],
-            }
+            return self.get_load("today", verbose=verbose)
 
         return self._get_historical_load(date, verbose=verbose)
 

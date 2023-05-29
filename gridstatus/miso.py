@@ -80,7 +80,7 @@ class MISO(ISOBase):
 
     def get_load(self, date, verbose=False):
         if date == "latest":
-            return self._latest_from_today(self.get_load, verbose=verbose)
+            return self.get_load(date="today", verbose=verbose)
 
         elif utils.is_today(date, tz=self.default_timezone):
             r = self._get_load_and_forecast_data(verbose=verbose)
