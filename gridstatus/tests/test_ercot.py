@@ -127,6 +127,55 @@ class TestErcot(BaseTestISO):
         self._check_load(df)
         assert df["Time"].unique()[0].date() == three_days_ago
 
+    def test_get_load_by_weather_zone(self):
+        df = self.iso.get_load_by_weather_zone("today")
+        self._check_time_columns(df, instant_or_interval="interval")
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "COAST",
+            "EAST",
+            "FAR_WEST",
+            "NORTH",
+            "NORTH_C",
+            "SOUTHERN",
+            "SOUTH_C",
+            "WEST",
+            "TOTAL",
+        ]
+        assert df.columns.tolist() == cols
+
+        # test 5 days ago
+        five_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(days=5)
+        df = self.iso.get_load_by_weather_zone(five_days_ago)
+        self._check_time_columns(df, instant_or_interval="interval")
+        assert df["Time"].unique()[0].date() == five_days_ago
+
+    def test_get_load_by_forecast_zone_today(self):
+        df = self.iso.get_load_by_forecast_zone("today")
+        self._check_time_columns(df, instant_or_interval="interval")
+        columns = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "NORTH",
+            "SOUTH",
+            "WEST",
+            "HOUSTON",
+            "TOTAL",
+        ]
+        assert df.columns.tolist() == columns
+
+        five_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(days=5)
+        df = self.iso.get_load_by_forecast_zone(five_days_ago)
+        self._check_time_columns(df, instant_or_interval="interval")
+        assert df["Time"].unique()[0].date() == five_days_ago
+
     """get_load_forecast"""
 
     def test_get_load_forecast_historical(self):
