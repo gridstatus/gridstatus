@@ -647,7 +647,8 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of curtailment data
         """
 
-        # http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport02dec_2020.pdf
+        # round to beginning of day
+        date = date.normalize()
 
         date_strs = [
             date.strftime("%b%d_%Y"),
