@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from gridstatus import ISONE
@@ -125,3 +126,33 @@ class TestISONE(BaseTestISO):
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
+
+    """get_pnode_table"""
+
+    def test_get_pnode_table(self):
+        df = self.iso.get_pnode_table("today")
+
+        cols = [
+            "Publish Date",
+            "Substation Long Name",
+            "Substation Name",
+            "Unit Name",
+            "Unit Short Name",
+            "Node Name",
+            "Node/Unit ID",
+            "Zone ID",
+            "Reserve ID",
+            "RSP Area",
+            "Dispatch Zone",
+            "DRRAZ ID",
+            "Latitude",
+            "Longitude",
+        ]
+        assert df.columns.tolist() == cols
+        assert df.shape[0] > 0
+
+        # test historical
+        historical_date = "March 1, 2023"
+        df = self.iso.get_pnode_table(historical_date)
+        assert df.columns.tolist() == cols
+        df.loc[0, "Publish Date"] == pd.Timestamp("2023-02-23")

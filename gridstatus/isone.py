@@ -24,6 +24,7 @@ class ISONE(ISOBase):
     iso_id = "isone"
     default_timezone = "US/Eastern"
 
+    isone_url = "https://www.iso-ne.com/"
     status_homepage = "https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status"  # noqa
     interconnection_homepage = "https://irtt.iso-ne.com/reports/external"
 
@@ -503,6 +504,48 @@ class ISONE(ISOBase):
 
         data = utils.filter_lmp_locations(data, locations)
         return data
+
+    @support_date_range(frequency="DAY_START")
+    def get_pnode_table(self, date, verbose=True):
+        document_list_url = "https://www.iso-ne.com/api/1/services/documents.json?type=doc&type=ceii&fq=-searchable%3Ano+AND+crafterSite%3Aisone+AND+publish_date_dt%3A[*%20TO%20*]+AND+-publishingVersion_i%3A[0%20TO%20*]&source=docLibraryWidget&q=-searchable%3Ano+AND+(document_type_value%3A%22Settlements%20PNODE%20Models%22)++AND+(file_type%3A%22DOC%22+OR+file_type%3A%22DOCX%22+OR+file_type%3A%22doc%22+OR+file_type%3A%22docx%22+OR+file_type%3A%22PPT%22+OR+file_type%3A%22PPTX%22+OR+file_type%3A%22ppt%22+OR+file_type%3A%22pptx%22+OR+file_type%3A%22PDF%22+OR+file_type%3A%22pdf%22+OR+file_type%3A%22XLS%22+OR+file_type%3A%22XLSX%22+OR+file_type%3A%22CSV%22+OR+file_type%3A%22xls%22+OR+file_type%3A%22xlsx%22+OR+file_type%3A%22csv%22+OR+file_type%3A%22ZIP%22+OR+file_type%3A%22zip%22+OR+file_type%3A%22ZIPX%22+OR+file_type%3A%22zipx%22+OR+file_type%3A%22DTD%22+OR+file_type%3A%22dtd%22+OR+file_type%3A%22AVI%22+OR+file_type%3A%22avi%22)+&start=0&rows=40&sort=publish_date_dt%20desc&facet=true&facet.limit=1500&facet.field=key_issue_value&facet.field=open_projects_value&facet.field=closed_projects_value&facet.field=document_committee_value&facet.field=events_key&facet.field=document_type_value&facet.field=file_type&f.file_type.facet.sort=index&f.document_type_value.facet.sort=index&f.key_issue_value.facet.sort=index&f.document_committee_value.facet.sort=index&f.open_projects_value.facet.sort=index&f.closed_projects_value.facet.sort=index&"  # noqa
+
+        msg = f"Requesting data from {document_list_url}"
+        log(msg, verbose)
+
+        doc_list = requests.get(document_list_url).json()
+
+        df = None
+        for doc in doc_list["response"]["documents"]:
+            doc_date = pd.Timestamp(doc["internal_name"].split(" ")[0])
+            if doc_date.date() <= date.date():
+                doc_url = self.isone_url + doc["path"]
+                df = pd.read_excel(doc_url, skiprows=1, sheet_name="New England")
+                break
+
+        if df is None:
+            raise ValueError(f"No pnode table published before or on {date}")
+
+        id_cols = [
+            "Node/Unit ID",
+            "Zone ID",
+            "Reserve ID",
+            "DRRAZ ID",
+        ]
+
+        category_cols = [
+            "RSP Area",
+            "Dispatch Zone",
+        ]
+
+        for col in id_cols:
+            df[col] = df[col].astype("Int64")
+
+        for col in category_cols:
+            df[col] = df[col].astype("category")
+
+        df.insert(0, "Publish Date", doc_date)
+
+        return df
 
     def get_interconnection_queue(self, verbose=False):
         """Get the interconnection queue. Contains active and withdrawm applications.
