@@ -1012,7 +1012,7 @@ class Ercot(ISOBase):
         ]
 
         if "ECRS" not in doc.columns:
-            doc["ECRS"] = 0.0
+            doc["ECRS"] = None
 
         doc.rename(columns=rename, inplace=True)
 
