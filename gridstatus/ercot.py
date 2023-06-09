@@ -874,7 +874,8 @@ class Ercot(ISOBase):
         Returns:
 
             pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
-                "Regulation Up", "Regulation Down", "Responsive Reserves".
+                "Regulation Up", "Regulation Down", "Responsive Reserves", \
+                "ERCOT Contingency Reserve Service"
 
         Source:
             https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
@@ -934,7 +935,7 @@ class Ercot(ISOBase):
     @support_date_range("DAY_START")
     def _get_as_prices_recent(self, date, verbose=False):
         """Get ancillary service clearing prices in hourly intervals in Day
-            Ahead Market. This function is can return the last 31 days
+            Ahead Market. This function can return the last 31 days
             of ancillary pricing.
 
         Arguments:
@@ -945,7 +946,8 @@ class Ercot(ISOBase):
         Returns:
 
             pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
-                "Regulation Up", "Regulation Down", "Responsive Reserves".
+                "Regulation Up", "Regulation Down", "Responsive Reserves", \
+                "ERCOT Contingency Reserve Service"
 
         """
         # subtract one day since it's the day ahead market happens on the day
@@ -988,12 +990,13 @@ class Ercot(ISOBase):
         # some columns from workbook contain trailing/leading whitespace
         doc.columns = [x.strip() for x in doc.columns]
 
-        # NSPIN  REGDN  REGUP  RRS
+        # NSPIN  REGDN  REGUP  RRS  ECRS
         rename = {
             "NSPIN": "Non-Spinning Reserves",
             "REGDN": "Regulation Down",
             "REGUP": "Regulation Up",
             "RRS": "Responsive Reserves",
+            "ECRS": "ERCOT Contingency Reserve Service",
         }
 
         col_order = [
@@ -1005,7 +1008,11 @@ class Ercot(ISOBase):
             "Regulation Down",
             "Regulation Up",
             "Responsive Reserves",
+            "ERCOT Contingency Reserve Service",
         ]
+
+        if "ECRS" not in doc.columns:
+            doc["ECRS"] = 0.0
 
         doc.rename(columns=rename, inplace=True)
 

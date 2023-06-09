@@ -19,6 +19,7 @@ class TestErcot(BaseTestISO):
             "Regulation Down",
             "Regulation Up",
             "Responsive Reserves",
+            "ERCOT Contingency Reserve Service",
         ]
 
         # today
