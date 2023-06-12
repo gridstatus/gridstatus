@@ -143,6 +143,45 @@ class NYISO(ISOBase):
         return df
 
     @support_date_range(frequency="MONTH_START")
+    def get_btm_solar(self, date, end=None, verbose=False):
+        """Returns estimated BTM solar generation at a previous date in hourly.
+
+        Parameters:
+            date (str, pd.Timestamp, datetime.datetime): Date to get load for.
+              Can be "latest", "today", or a date
+            end (str, pd.Timestamp, datetime.datetime): End date for date range.
+                Optional.
+            verbose (bool): Whether to print verbose output. Optional.
+
+        Returns:
+            pandas.DataFrame: BTM solar data for each zone. Total in column "BTM Solar"
+
+        """
+        if date == "latest":
+            return self.get_load(date="today", verbose=verbose)
+
+        data = self._download_nyiso_archive(
+            date=date,
+            end=end,
+            dataset_name="btmactualforecast",
+            filename="BTMEstimatedActual",
+            verbose=verbose,
+        )
+
+        df = data.pivot_table(
+            index=["Time", "Interval Start", "Interval End"],
+            columns="Zone Name",
+            values="MW Value",
+            aggfunc="first",
+        )
+
+        df.insert(0, "BTM Solar", df.sum(axis=1))
+
+        df = df.reset_index()
+
+        return df
+
+    @support_date_range(frequency="MONTH_START")
     def get_load_forecast(self, date, end=None, verbose=False):
         """Get load forecast for a date in 1 hour intervals"""
         date = utils._handle_date(date, self.default_timezone)
@@ -769,6 +808,8 @@ dataset_interval_map = {
     "realtime": ("end", 5),
     # real time events
     "RealTimeEvents": ("instantaneous", None),
+    # btm solar
+    "btmactualforecast": ("start", 60),
 }
 
 
