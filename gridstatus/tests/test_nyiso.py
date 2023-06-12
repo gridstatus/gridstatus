@@ -262,7 +262,7 @@ class TestNYISO(BaseTestISO):
             "Time",
             "Interval Start",
             "Interval End",
-            "BTM Solar",
+            "SYSTEM",
             "CAPITL",
             "CENTRL",
             "DUNWOD",
@@ -273,7 +273,6 @@ class TestNYISO(BaseTestISO):
             "MILLWD",
             "N.Y.C.",
             "NORTH",
-            "SYSTEM",
             "WEST",
         ]
 

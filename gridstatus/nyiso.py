@@ -145,7 +145,7 @@ class NYISO(ISOBase):
     @support_date_range(frequency="MONTH_START")
     def get_btm_solar(self, date, end=None, verbose=False):
         """Returns estimated BTM solar generation at a previous date in hourly
-            intervals for each zone and total load.
+            intervals for system and each zone
 
         Parameters:
             date (str, pd.Timestamp, datetime.datetime): Date to get load for.
@@ -155,7 +155,7 @@ class NYISO(ISOBase):
             verbose (bool): Whether to print verbose output. Optional.
 
         Returns:
-            pandas.DataFrame: BTM solar data for each zone. Total in column "BTM Solar"
+            pandas.DataFrame: BTM solar data for NYISO system and each zone
 
         """
         if date == "latest":
@@ -176,7 +176,8 @@ class NYISO(ISOBase):
             aggfunc="first",
         )
 
-        df.insert(0, "BTM Solar", df.sum(axis=1))
+        # move system to first column
+        df.insert(0, "SYSTEM", df.pop("SYSTEM"))
 
         df = df.reset_index()
 
