@@ -145,7 +145,9 @@ class NYISO(ISOBase):
     @support_date_range(frequency="MONTH_START")
     def get_btm_solar(self, date, end=None, verbose=False):
         """Returns estimated BTM solar generation at a previous date in hourly
-            intervals for system and each zone
+            intervals for system and each zone.
+
+            Available ~8 hours after the end of the operating day.
 
         Parameters:
             date (str, pd.Timestamp, datetime.datetime): Date to get load for.
