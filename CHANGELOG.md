@@ -6,6 +6,7 @@
 - Add Hourly Weather and Forecast Zone Loads ERCOT
 - Add NYISO BTM Solar
 - Add new ERCOT AS ECRS product
+- Update to new SPP URLs
 
 ### `ERCOT.get_load_by_weather_zone`
 
