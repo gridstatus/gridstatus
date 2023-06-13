@@ -249,6 +249,47 @@ class TestNYISO(BaseTestISO):
         df = self.iso.get_load(date=date)
         assert df.shape[0] >= 281
 
+    # test btm solar
+    def test_get_btm_solar(self):
+        # published ~8 hours after finish of previous day
+        two_days_ago = pd.Timestamp.now(tz="US/Eastern").date() - pd.Timedelta(days=2)
+        df = self.iso.get_btm_solar(
+            date=two_days_ago,
+            verbose=True,
+        )
+
+        columns = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "SYSTEM",
+            "CAPITL",
+            "CENTRL",
+            "DUNWOD",
+            "GENESE",
+            "HUD VL",
+            "LONGIL",
+            "MHK VL",
+            "MILLWD",
+            "N.Y.C.",
+            "NORTH",
+            "WEST",
+        ]
+
+        assert df.columns.tolist() == columns
+        assert df.shape[0] >= 0
+
+        # test range last month
+        start = "2023-04-30"
+        end = "2023-05-02"
+        df = self.iso.get_btm_solar(
+            start=start,
+            end=end,
+            verbose=True,
+        )
+
+        assert df["Time"].dt.date.nunique() == 3
+
     @staticmethod
     def _check_status(df):
         assert set(df.columns) == set(
