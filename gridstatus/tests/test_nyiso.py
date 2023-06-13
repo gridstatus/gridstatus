@@ -279,6 +279,17 @@ class TestNYISO(BaseTestISO):
         assert df.columns.tolist() == columns
         assert df.shape[0] >= 0
 
+        # test range last month
+        start = "2023-04-30"
+        end = "2023-05-02"
+        df = self.iso.get_btm_solar(
+            start=start,
+            end=end,
+            verbose=True,
+        )
+
+        assert df["Time"].dt.date.nunique() == 3
+
     @staticmethod
     def _check_status(df):
         assert set(df.columns) == set(

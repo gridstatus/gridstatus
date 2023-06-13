@@ -117,6 +117,8 @@ class support_date_range:
             # specially so pd.date_range works
             prepend = []
             if frequency == "DAY_START":
+                # todo can't find an offset that goes
+                # to the start of the day
                 frequency = "1D"
                 next_day_start = args_dict["date"].ceil("1D")
                 if (
@@ -126,16 +128,7 @@ class support_date_range:
                     prepend = [args_dict["date"]]
                     args_dict["date"] = args_dict["date"].ceil("1D")
             elif frequency == "MONTH_START":
-                frequency = "1M"
-                next_month_start = (
-                    args_dict["date"] + pd.offsets.MonthBegin(1)
-                ).normalize()
-                if (
-                    next_month_start < args_dict["end"]
-                    and next_month_start != args_dict["date"]
-                ):
-                    prepend = [args_dict["date"]]
-                    args_dict["date"] = next_month_start
+                frequency = pd.offsets.MonthBegin(1)
 
             dates = pd.date_range(
                 args_dict["date"],
@@ -152,6 +145,7 @@ class support_date_range:
                 )
                 for d in dates
             ]
+
             # sometime api have restrictions/optimizations based on date ranges
             # update_dates allows for the caller to insert this logic
             if self.update_dates is not None:

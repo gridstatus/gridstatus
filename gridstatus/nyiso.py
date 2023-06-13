@@ -714,8 +714,15 @@ class NYISO(ISOBase):
                     date.date(),
                     end.date(),
                     freq="1D",
-                    inclusive="both",
-                )
+                    inclusive="left",
+                ).tolist()
+
+                # if end month is not same as start month, don't add to list
+                # this handles case where end is the first of the next month
+                # this pops up from the support_date_range decorator
+                # and that date will be handled in the next month's zip file
+                if end.month == date.month:
+                    date_range += [end]
 
             for d in date_range:
                 d = gridstatus.utils._handle_date(d)
