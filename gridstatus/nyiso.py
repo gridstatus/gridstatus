@@ -684,7 +684,7 @@ class NYISO(ISOBase):
         if filename is None:
             filename = dataset_name
 
-        date = gridstatus.utils._handle_date(date)
+        date = gridstatus.utils._handle_date(date, self.default_timezone)
         month = date.strftime("%Y%m01")
         day = date.strftime("%Y%m%d")
 
@@ -725,7 +725,7 @@ class NYISO(ISOBase):
                     date_range += [end]
 
             for d in date_range:
-                d = gridstatus.utils._handle_date(d)
+                d = gridstatus.utils._handle_date(d, tz=self.default_timezone)
                 month = d.strftime("%Y%m01")
                 day = d.strftime("%Y%m%d")
 

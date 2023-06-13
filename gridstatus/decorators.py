@@ -117,8 +117,6 @@ class support_date_range:
             # specially so pd.date_range works
             prepend = []
             if frequency == "DAY_START":
-                # todo can't find an offset that goes
-                # to the start of the day
                 frequency = "1D"
                 next_day_start = args_dict["date"].ceil("1D")
                 if (
@@ -129,6 +127,14 @@ class support_date_range:
                     args_dict["date"] = args_dict["date"].ceil("1D")
             elif frequency == "MONTH_START":
                 frequency = pd.offsets.MonthBegin(1)
+                next_month_start = (args_dict["date"] + frequency).normalize()
+
+                if (
+                    next_month_start < args_dict["end"]
+                    and next_month_start != args_dict["date"]
+                ):
+                    prepend = [args_dict["date"]]
+                    args_dict["date"] = next_month_start
 
             dates = pd.date_range(
                 args_dict["date"],
