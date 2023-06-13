@@ -183,6 +183,8 @@ class NYISO(ISOBase):
 
         df = df.reset_index()
 
+        df.columns.name = None
+
         return df
 
     @support_date_range(frequency="MONTH_START")
@@ -208,6 +210,8 @@ class NYISO(ISOBase):
         df.insert(0, "SYSTEM", df.pop("SYSTEM"))
 
         df = df.reset_index()
+
+        df.columns.name = None
 
         return df
 
