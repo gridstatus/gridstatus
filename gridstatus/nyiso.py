@@ -183,6 +183,36 @@ class NYISO(ISOBase):
 
         df = df.reset_index()
 
+        df.columns.name = None
+
+        return df
+
+    @support_date_range(frequency="MONTH_START")
+    def get_btm_solar_forecast(self, date, end=None, verbose=False):
+        if date == "latest":
+            return self.get_load(date="today", verbose=verbose)
+
+        data = self._download_nyiso_archive(
+            date=date,
+            end=end,
+            dataset_name="btmdaforecast",
+            verbose=verbose,
+        )
+
+        df = data.pivot_table(
+            index=["Time", "Interval Start", "Interval End"],
+            columns="Zone Name",
+            values="MW Value",
+            aggfunc="first",
+        )
+
+        # move system to first column
+        df.insert(0, "SYSTEM", df.pop("SYSTEM"))
+
+        df = df.reset_index()
+
+        df.columns.name = None
+
         return df
 
     @support_date_range(frequency="MONTH_START")
@@ -821,6 +851,8 @@ dataset_interval_map = {
     "RealTimeEvents": ("instantaneous", None),
     # btm solar
     "btmactualforecast": ("start", 60),
+    # btm solar forecast
+    "btmdaforecast": ("start", 60),
 }
 
 

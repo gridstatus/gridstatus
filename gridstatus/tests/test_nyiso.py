@@ -290,6 +290,47 @@ class TestNYISO(BaseTestISO):
 
         assert df["Time"].dt.date.nunique() == 3
 
+    def test_get_btm_solar_forecast(self):
+        df = self.iso.get_btm_solar_forecast(
+            date="today",
+            verbose=True,
+        )
+
+        columns = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "SYSTEM",
+            "CAPITL",
+            "CENTRL",
+            "DUNWOD",
+            "GENESE",
+            "HUD VL",
+            "LONGIL",
+            "MHK VL",
+            "MILLWD",
+            "N.Y.C.",
+            "NORTH",
+            "WEST",
+        ]
+
+        assert df.columns.tolist() == columns
+        assert df.shape[0] >= 0
+        import pdb
+
+        pdb.set_trace()
+
+        # test range last month
+        start = "2023-04-30"
+        end = "2023-05-02"
+        df = self.iso.get_btm_solar_forecast(
+            start=start,
+            end=end,
+            verbose=True,
+        )
+
+        assert df["Time"].dt.date.nunique() == 3
+
     @staticmethod
     def _check_status(df):
         assert set(df.columns) == set(
