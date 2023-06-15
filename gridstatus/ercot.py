@@ -5,6 +5,7 @@ from zipfile import ZipFile
 import pandas as pd
 import requests
 import tqdm
+from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -1017,6 +1018,61 @@ class Ercot(ISOBase):
         doc.rename(columns=rename, inplace=True)
 
         return doc[col_order]
+
+    def get_as_monitor(self, date="latest", verbose=False):
+        """Get Ancillary Service Capacity Monitor.
+
+        Parses table from
+        https://www.ercot.com/content/cdr/html/as_capacity_monitor.html
+
+        Arguments:
+            date (str): only supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with ancillary service capacity monitor data
+        """
+
+        url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"
+
+        log(f"Downloading {url}", verbose)
+
+        html = requests.get(url).content
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        table = soup.find("table", attrs={"class": "tableStyle"})
+
+        data = {}
+        header = None
+        for row in table.find_all("tr"):
+            cells = row.find_all("td")
+            if cells[0].get("class") == ["headerValueClass"]:
+                header = cells[0].text.strip()  # new header for new dataframe
+            else:
+                category = cells[0].text.strip()
+                value = cells[1].text.strip()
+                header_prepend = header
+                if " (MW)" in header:
+                    header_prepend = header_prepend.replace(" (MW)", "")
+                    category = f"{category} (MW)"
+
+                data[f"{header_prepend} - {category}"] = value
+
+        df = pd.DataFrame([data])
+
+        time_div = soup.find("div", attrs={"class": "schedTime rightAlign"})
+        time_text = time_div.text.split(": ")[
+            1
+        ]  # Split the string on ': ' to get just the time part
+
+        df.insert(
+            0,
+            "Time",
+            pd.to_datetime(time_text).tz_localize(self.default_timezone),
+        )
+
+        return df
 
     def _get_document(
         self,
