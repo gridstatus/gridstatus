@@ -1057,7 +1057,7 @@ class Ercot(ISOBase):
                     header_prepend = header_prepend.replace(" (MW)", "")
                     category = f"{category} (MW)"
 
-                data[f"{header_prepend} - {category}"] = value
+                data[f"{header_prepend} - {category}"] = int(value.replace(",", ""))
 
         df = pd.DataFrame([data])
 

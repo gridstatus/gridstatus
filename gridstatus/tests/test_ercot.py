@@ -68,6 +68,8 @@ class TestErcot(BaseTestISO):
 
         # asset length is 1, 49 columns
         assert df.shape == (1, 49)
+        # assert every colunn but the first is int dtype
+        assert df.iloc[:, 1:].dtypes.unique() == "int64"
         assert df.columns[0] == "Time"
 
     """get_fuel_mix"""
