@@ -810,35 +810,18 @@ class Ercot(ISOBase):
 
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
-        query_date = date
-        if date == "latest":
-            query_date = utils._handle_date("today", self.default_timezone)
         # returns list of Document(url=,publish_date=)
 
-        query_date_str = f"SPPHLZNP6905_{query_date.strftime('%Y%m%d')}"
         all_docs = self._get_documents(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
             extension="csv",
             verbose=verbose,
         )
 
-        # look at file name to determine the
-        # date/interval the file represents
-        docs = []
-        for doc in all_docs:
-            if query_date_str + "_0000" in doc.constructed_name:
-                continue
-
-            if (
-                query_date_str in doc.constructed_name
-                or f"SPPHLZNP6905_{(query_date + pd.Timedelta(days=1)).strftime('%Y%m%d')}_0000"  # noqa: E501
-                in doc.constructed_name
-            ):
-                docs.append(doc)
-
-        if date == "latest":
-            # just pluck out the latest document based on publish_date
-            docs = [max(docs, key=lambda x: x.publish_date)]
+        docs = self._filter_spp_rtm_files(
+            all_docs=all_docs,
+            date=date,
+        )
         if len(docs) == 0:
             raise ValueError(f"Could not fetch SPP data for {date}")
 
@@ -854,6 +837,30 @@ class Ercot(ISOBase):
 
         df["Market"] = Markets.REAL_TIME_15_MIN.value
         return df
+
+    def _filter_spp_rtm_files(self, all_docs, date):
+        if date == "latest":
+            # just pluck out the latest document based on publish_date
+            return [max(all_docs, key=lambda x: x.publish_date)]
+        query_date_str = date.strftime("%Y%m%d")
+        docs = []
+        for doc in all_docs:
+            # make sure to handle retry files
+            # e.g SPPHLZNP6905_retry_20230608_1545_csv
+            if "SPPHLZNP6905_" not in doc.constructed_name:
+                continue
+
+            if query_date_str + "_0000" in doc.constructed_name:
+                continue
+
+            if (
+                query_date_str in doc.constructed_name
+                or f"{(date + pd.Timedelta(days=1)).strftime('%Y%m%d')}_0000"  # noqa: E501
+                in doc.constructed_name
+            ):
+                docs.append(doc)
+
+        return docs
 
     @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
     def get_as_prices(
