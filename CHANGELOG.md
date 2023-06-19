@@ -6,7 +6,8 @@
 - Add Hourly Weather and Forecast Zone Loads ERCOT
 - Add NYISO BTM Solar Estimated Actuals and Forecast
 - Add new ERCOT AS ECRS product
-- Add ERCOT AS Monitor
+- Add `Ercot.get_as_monitor()`
+- Add `Ercot.get_real_time_system_conditions()`
 - Update to new SPP URLs
 
 ### `ERCOT.get_load_by_weather_zone`

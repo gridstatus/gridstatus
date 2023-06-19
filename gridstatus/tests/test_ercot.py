@@ -63,13 +63,18 @@ class TestErcot(BaseTestISO):
         assert max(df.Time).date() == end
         assert min(df.Time).date() == date
 
-    def test_as_monitor(self):
+    def test_get_as_monitor(self):
         df = self.iso.get_as_monitor()
 
         # asset length is 1, 49 columns
         assert df.shape == (1, 49)
         # assert every colunn but the first is int dtype
         assert df.iloc[:, 1:].dtypes.unique() == "int64"
+        assert df.columns[0] == "Time"
+
+    def test_get_real_time_system_conditions(self):
+        df = self.iso.get_real_time_system_conditions()
+        assert df.shape == (1, 15)
         assert df.columns[0] == "Time"
 
     """get_fuel_mix"""
