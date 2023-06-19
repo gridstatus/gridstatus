@@ -1065,7 +1065,7 @@ class Ercot(ISOBase):
             constructed_name_contains="60_Day_SCED_Disclosure.zip",
             verbose=verbose,
         )
-        z = utils.get_zip_folder(doc_info.url)
+        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
         # todo there are other files in the zip folder
         date_str = report_date.strftime("%d-%b-%y").upper()
@@ -1117,7 +1117,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        z = utils.get_zip_folder(doc_info.url)
+        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
         date_str = report_date.strftime("%d-%b-%y").upper()
 

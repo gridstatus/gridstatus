@@ -1,5 +1,3 @@
-import os
-
 import pandas as pd
 import pytest
 
@@ -321,10 +319,10 @@ class TestErcot(BaseTestISO):
             days=65,
         )
 
-        df_dict = self.iso.get_60_day_sced_disclosure(date=days_ago_65)
+        df_dict = self.iso.get_60_day_sced_disclosure(date=days_ago_65, process=True)
 
-        load_resource = df_dict["load_resource"]
-        gen_resource = df_dict["gen_resource"]
+        load_resource = df_dict["sced_load_resource"]
+        gen_resource = df_dict["sced_gen_resource"]
 
         assert load_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
 
@@ -372,63 +370,9 @@ class TestErcot(BaseTestISO):
             days=65,
         )
 
-        df_dict = self.iso.get_60_day_dam_disclosure(date=days_ago_65)
+        df_dict = self.iso.get_60_day_dam_disclosure(date=days_ago_65, process=True)
 
         assert df_dict is not None
-
-    def test_process_sced(self):
-        days_ago_65 = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).date() - pd.Timedelta(
-            days=65,
-        )
-
-        df_dict = self.iso.get_60_day_sced_disclosure(date=days_ago_65)
-
-        folder_name = f"disclosure_60d_{days_ago_65.strftime('%Y%m%d')}"
-
-        os.makedirs(folder_name, exist_ok=True)
-
-        sced_gen = self.iso._process_sced_gen(
-            df_dict["gen_resource"],
-        )
-        sced_gen.to_csv(
-            f"{folder_name}/sced_gen.csv",
-            index=False,
-        )
-
-        sced_load = self.iso._process_sced_load(
-            df_dict["load_resource"],
-        )
-        sced_load.to_csv(
-            f"{folder_name}/sced_load.csv",
-            index=False,
-        )
-
-        # todo TPO
-        # "Bid_Type",
-        # Proxy Extension?
-
-    def test_process_dam_disclosure(self):
-        days_ago_65 = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).date() - pd.Timedelta(
-            days=65,
-        )
-
-        folder_name = f"disclosure_60d_{days_ago_65.strftime('%Y%m%d')}"
-
-        os.makedirs(folder_name, exist_ok=True)
-
-        df_dict = self.iso.get_60_day_dam_disclosure(date=days_ago_65)
-
-        gen_dam_df = self.iso._process_dam_gen_disclosure(
-            df_dict["gen_resource"],
-        )
-
-        gen_dam_df.to_csv(f"{folder_name}/dam_gen.csv", index=False)
-
-        df_dict["load_resource"].to_csv(f"{folder_name}/dam_load.csv", index=False)
 
     def test_get_sara(self):
         df = self.iso.get_sara()
