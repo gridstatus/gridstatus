@@ -5,6 +5,7 @@ from zipfile import ZipFile
 import pandas as pd
 import requests
 import tqdm
+from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -63,6 +64,14 @@ SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID = 12301
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
 SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID = 12311
 
+# Actual System Load by Weather Zone
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-345-CD
+ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE = 13101
+
+# Actual System Load by Forecast Zone
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-346-CD
+ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE = 14836
+
 # Historical DAM Clearing Prices for Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
 HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 13091
@@ -120,7 +129,8 @@ class Ercot(ISOBase):
     ]
 
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
-    ACTUAL_LOADS_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"  # noqa
+    ACTUAL_LOADS_FORECAST_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"  # noqa
+    ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_weather_zones.html"  # noqa
     LOAD_HISTORICAL_MAX_DAYS = 14
     AS_PRICES_HISTORICAL_MAX_DAYS = 30
 
@@ -233,11 +243,16 @@ class Ercot(ISOBase):
 
     @support_date_range("DAY_START")
     def get_load(self, date, end=None, verbose=False):
-        """Get load for a date"""
+        """Get load for a date
+
+        Arguments:
+            date (datetime.date, str): "latest", "today", or a date string
+                are supported.
+
+
+        """
         if date == "latest":
-            today_load = self.get_load("today", verbose=verbose)
-            latest = today_load.iloc[-1]
-            return {"load": latest["Load"], "time": latest["Time"]}
+            return self.get_load("today", verbose=verbose)
 
         elif utils.is_today(date, tz=self.default_timezone):
             df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
@@ -249,24 +264,113 @@ class Ercot(ISOBase):
             self.LOAD_HISTORICAL_MAX_DAYS,
             tz=self.default_timezone,
         ):
-            df = self._get_load_html(date, verbose)
+            df = self._get_forecast_zone_load_html(date, verbose).rename(
+                columns={"TOTAL": "Load"},
+            )
             return df[["Time", "Interval Start", "Interval End", "Load"]]
 
         else:
             raise NotSupported()
 
-    def _get_load_html(self, when, verbose=False):
+    @support_date_range("DAY_START")
+    def get_load_by_weather_zone(self, date, verbose=False):
+        """Get hourly load for ERCOT weather zones
+
+        Arguments:
+            date (datetime.date, str):  "today", or a date string
+                are supported.
+            verbose(bool): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame
+
+        """
+        if utils.is_today(date, tz=self.default_timezone):
+            df = self._get_weather_zone_load_html(date, verbose=verbose)
+        else:
+            doc_info = self._get_document(
+                report_type_id=ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE,
+                date=date + pd.DateOffset(days=1),  # published day after
+                constructed_name_contains="csv.zip",
+                verbose=verbose,
+            )
+
+            df = self.read_doc(doc_info, verbose=verbose)
+        return df
+
+    @support_date_range("DAY_START")
+    def get_load_by_forecast_zone(self, date, verbose=False):
+        """Get hourly load for ERCOT forecast zones
+
+        Arguments:
+            date (datetime.date, str):  "today", or a date string
+                are supported.
+
+            verbose(bool): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame
+        """
+        if utils.is_today(date, tz=self.default_timezone):
+            df = self._get_forecast_zone_load_html(date, verbose=verbose)
+        else:
+            doc_info = self._get_document(
+                report_type_id=ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE,
+                date=date + pd.DateOffset(days=1),  # published day after
+                constructed_name_contains="csv.zip",
+                verbose=verbose,
+            )
+
+            df = self.read_doc(doc_info, verbose=verbose)
+        return df
+
+    def _get_forecast_zone_load_html(self, when, verbose=False):
         """Returns load for currentDay or previousDay"""
-        url = self.ACTUAL_LOADS_URL_FORMAT.format(
+        url = self.ACTUAL_LOADS_FORECAST_ZONES_URL_FORMAT.format(
             timestamp=when.strftime("%Y%m%d"),
         )
+        df = self._read_html_display(url=url, verbose=verbose)
+        return df
 
+    def _get_weather_zone_load_html(self, when, verbose=False):
+        """Returns load for currentDay or previousDay"""
+        url = self.ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT.format(
+            timestamp=when.strftime("%Y%m%d"),
+        )
+        df = self._read_html_display(
+            url=url,
+            verbose=verbose,
+        )
+        return df
+
+    def _read_html_display(self, url, verbose=False):
         msg = f"Fetching {url}"
         log(msg, verbose)
 
         dfs = pd.read_html(url, header=0)
         df = dfs[0]
-        df = self._handle_html_data(df, {"TOTAL": "Load"})
+
+        df["Interval End"] = pd.to_datetime(df["Oper Day"]) + (
+            df["Hour Ending"] / 100
+        ).astype("timedelta64[h]")
+        df["Interval End"] = df["Interval End"].dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval Start"] = df["Interval End"] - pd.DateOffset(hours=1)
+        df["Time"] = df["Interval Start"]
+
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+            ],
+        )
+
+        to_drop = ["Oper Day", "Hour Ending"]
+        df = df.drop(to_drop, axis=1)
+
         return df
 
     def _get_todays_outlook_non_forecast(self, date, verbose=False):
@@ -722,35 +826,18 @@ class Ercot(ISOBase):
 
         https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
         """
-        query_date = date
-        if date == "latest":
-            query_date = utils._handle_date("today", self.default_timezone)
         # returns list of Document(url=,publish_date=)
 
-        query_date_str = f"SPPHLZNP6905_{query_date.strftime('%Y%m%d')}"
         all_docs = self._get_documents(
             report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
             extension="csv",
             verbose=verbose,
         )
 
-        # look at file name to determine the
-        # date/interval the file represents
-        docs = []
-        for doc in all_docs:
-            if query_date_str + "_0000" in doc.constructed_name:
-                continue
-
-            if (
-                query_date_str in doc.constructed_name
-                or f"SPPHLZNP6905_{(query_date + pd.Timedelta(days=1)).strftime('%Y%m%d')}_0000"  # noqa: E501
-                in doc.constructed_name
-            ):
-                docs.append(doc)
-
-        if date == "latest":
-            # just pluck out the latest document based on publish_date
-            docs = [max(docs, key=lambda x: x.publish_date)]
+        docs = self._filter_spp_rtm_files(
+            all_docs=all_docs,
+            date=date,
+        )
         if len(docs) == 0:
             raise ValueError(f"Could not fetch SPP data for {date}")
 
@@ -766,6 +853,30 @@ class Ercot(ISOBase):
 
         df["Market"] = Markets.REAL_TIME_15_MIN.value
         return df
+
+    def _filter_spp_rtm_files(self, all_docs, date):
+        if date == "latest":
+            # just pluck out the latest document based on publish_date
+            return [max(all_docs, key=lambda x: x.publish_date)]
+        query_date_str = date.strftime("%Y%m%d")
+        docs = []
+        for doc in all_docs:
+            # make sure to handle retry files
+            # e.g SPPHLZNP6905_retry_20230608_1545_csv
+            if "SPPHLZNP6905_" not in doc.constructed_name:
+                continue
+
+            if query_date_str + "_0000" in doc.constructed_name:
+                continue
+
+            if (
+                query_date_str in doc.constructed_name
+                or f"{(date + pd.Timedelta(days=1)).strftime('%Y%m%d')}_0000"  # noqa: E501
+                in doc.constructed_name
+            ):
+                docs.append(doc)
+
+        return docs
 
     @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
     def get_as_prices(
@@ -787,7 +898,8 @@ class Ercot(ISOBase):
         Returns:
 
             pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
-                "Regulation Up", "Regulation Down", "Responsive Reserves".
+                "Regulation Up", "Regulation Down", "Responsive Reserves", \
+                "ERCOT Contingency Reserve Service"
 
         Source:
             https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
@@ -845,7 +957,7 @@ class Ercot(ISOBase):
     @support_date_range("DAY_START")
     def _get_as_prices_recent(self, date, verbose=False):
         """Get ancillary service clearing prices in hourly intervals in Day
-            Ahead Market. This function is can return the last 31 days
+            Ahead Market. This function can return the last 31 days
             of ancillary pricing.
 
         Arguments:
@@ -856,7 +968,8 @@ class Ercot(ISOBase):
         Returns:
 
             pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
-                "Regulation Up", "Regulation Down", "Responsive Reserves".
+                "Regulation Up", "Regulation Down", "Responsive Reserves", \
+                "ERCOT Contingency Reserve Service"
 
         """
         # subtract one day since it's the day ahead market happens on the day
@@ -1091,12 +1204,13 @@ class Ercot(ISOBase):
         # some columns from workbook contain trailing/leading whitespace
         doc.columns = [x.strip() for x in doc.columns]
 
-        # NSPIN  REGDN  REGUP  RRS
+        # NSPIN  REGDN  REGUP  RRS  ECRS
         rename = {
             "NSPIN": "Non-Spinning Reserves",
             "REGDN": "Regulation Down",
             "REGUP": "Regulation Up",
             "RRS": "Responsive Reserves",
+            "ECRS": "ERCOT Contingency Reserve Service",
         }
 
         col_order = [
@@ -1108,11 +1222,111 @@ class Ercot(ISOBase):
             "Regulation Down",
             "Regulation Up",
             "Responsive Reserves",
+            "ERCOT Contingency Reserve Service",
         ]
+
+        if "ECRS" not in doc.columns:
+            doc["ECRS"] = None
 
         doc.rename(columns=rename, inplace=True)
 
         return doc[col_order]
+
+    def get_as_monitor(self, date="latest", verbose=False):
+        """Get Ancillary Service Capacity Monitor.
+
+        Parses table from
+        https://www.ercot.com/content/cdr/html/as_capacity_monitor.html
+
+        Arguments:
+            date (str): only supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with ancillary service capacity monitor data
+        """
+
+        url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"
+
+        df = self._download_html_table(url, verbose=verbose)
+
+        return df
+
+    def get_real_time_system_conditions(self, date="latest", verbose=False):
+        """Get Real-Time System Conditions.
+
+        Parses table from
+        https://www.ercot.com/content/cdr/html/real_time_system_conditions.html
+
+        Arguments:
+            date (str): only supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with real-time system conditions
+        """
+
+        url = "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html"
+        df = self._download_html_table(url, verbose=verbose)
+        df = df.rename(
+            columns={
+                "Frequency - Current Frequency": "Current Frequency",
+                "Real-Time Data - Actual System Demand": "Actual System Demand",
+                "Real-Time Data - Average Net Load": "Average Net Load",
+                "Real-Time Data - Total System Capacity (not including Ancillary Services)": "Total System Capacity excluding Ancillary Services",  # noqa: E501
+                "Real-Time Data - Total Wind Output": "Total Wind Output",
+                "Real-Time Data - Total PVGR Output": "Total PVGR Output",
+                "Real-Time Data - Current System Inertia": "Current System Inertia",
+            },
+        )
+
+        return df
+
+    def _download_html_table(self, url, verbose=False):
+        log(f"Downloading {url}", verbose)
+
+        html = requests.get(url).content
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        table = soup.find("table", attrs={"class": "tableStyle"})
+
+        data = {}
+        header = None
+        for row in table.find_all("tr"):
+            cells = row.find_all("td")
+            if cells[0].get("class") == ["headerValueClass"]:
+                header = cells[0].text.strip()  # new header for new dataframe
+            else:
+                category = cells[0].text.strip()
+                value = cells[1].text.strip()
+                header_prepend = header
+                if " (MW)" in header:
+                    header_prepend = header_prepend.replace(" (MW)", "")
+                    category = f"{category} (MW)"
+
+                parsed_value = value.replace(",", "")
+                try:
+                    parsed_value = int(parsed_value)
+                except ValueError:
+                    parsed_value = float(parsed_value)
+
+                data[f"{header_prepend} - {category}"] = parsed_value
+
+        df = pd.DataFrame([data])
+
+        time_div = soup.find("div", attrs={"class": "schedTime rightAlign"})
+        time_text = time_div.text.split(": ")[
+            1
+        ]  # Split the string on ': ' to get just the time part
+
+        df.insert(
+            0,
+            "Time",
+            pd.to_datetime(time_text).tz_localize(self.default_timezone),
+        )
+
+        return df
 
     def _get_document(
         self,
@@ -1204,23 +1418,6 @@ class Ercot(ISOBase):
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
-    def _handle_html_data(self, df, columns):
-        df["Interval End"] = pd.to_datetime(df["Oper Day"]) + (
-            df["Hour Ending"] / 100
-        ).astype("timedelta64[h]")
-        df["Interval End"] = df["Interval End"].dt.tz_localize(
-            self.default_timezone,
-        )
-        df["Interval Start"] = df["Interval End"] - pd.DateOffset(hours=1)
-        df["Time"] = df["Interval Start"]
-
-        cols_to_keep = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-        ] + list(columns.keys())
-        return df[cols_to_keep].rename(columns=columns)
-
     def _get_settlement_point_mapping(self, verbose=False):
         """Get DataFrame whose columns can help us filter out values"""
 
@@ -1252,6 +1449,7 @@ class Ercot(ISOBase):
         doc.rename(
             columns={
                 "Delivery Date": "DeliveryDate",
+                "OperDay": "DeliveryDate",
                 "Hour Ending": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",
                 "DeliveryHour": "HourEnding",

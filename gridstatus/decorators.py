@@ -126,10 +126,9 @@ class support_date_range:
                     prepend = [args_dict["date"]]
                     args_dict["date"] = args_dict["date"].ceil("1D")
             elif frequency == "MONTH_START":
-                frequency = "1M"
-                next_month_start = (
-                    args_dict["date"] + pd.offsets.MonthBegin(1)
-                ).normalize()
+                frequency = pd.offsets.MonthBegin(1)
+                next_month_start = (args_dict["date"] + frequency).normalize()
+
                 if (
                     next_month_start < args_dict["end"]
                     and next_month_start != args_dict["date"]
@@ -152,6 +151,7 @@ class support_date_range:
                 )
                 for d in dates
             ]
+
             # sometime api have restrictions/optimizations based on date ranges
             # update_dates allows for the caller to insert this logic
             if self.update_dates is not None:

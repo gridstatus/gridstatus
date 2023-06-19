@@ -21,8 +21,9 @@ from gridstatus.lmp_config import lmp_config
 
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
-MARKETPLACE_BASE_URL = "https://marketplace.spp.org"
-FILE_BROWSER_API_URL = "https://marketplace.spp.org/file-browser-api/"
+MARKETPLACE_BASE_URL = "https://portal.spp.org"
+FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
+FILE_BROWSER_DOWNLOAD_URL = "https://portal.spp.org/file-browser-api/download"
 
 LOCATION_TYPE_HUB = "HUB"
 LOCATION_TYPE_INTERFACE = "INTERFACE"
@@ -119,7 +120,7 @@ class SPP(ISOBase):
             # many years of historical 5 minute data
             raise NotSupported
 
-        url = "https://marketplace.spp.org/file-browser-api/download/generation-mix-historical?path=%2FGenMix2Hour.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=%2FGenMix2Hour.csv"  # noqa
         df_raw = pd.read_csv(url)
         historical_mix = process_gen_mix(df_raw, detailed=detailed)
 
@@ -132,28 +133,29 @@ class SPP(ISOBase):
 
     def get_load(self, date, verbose=False):
         """Returns load for last 24hrs in 5 minute intervals"""
+        original_date = date
 
         if date == "latest":
-            return self._latest_from_today(self.get_load)
+            date = "today"
 
-        elif utils.is_today(date, tz=self.default_timezone):
-            date = utils._handle_date(date, self.default_timezone)
+        date = utils._handle_date(date, self.default_timezone)
 
-            df = self._get_load_and_forecast(verbose=verbose)
+        df = self._get_load_and_forecast(verbose=verbose)
 
-            df = df.dropna(subset=["Actual Load"])
+        df = df.dropna(subset=["Actual Load"])
 
-            df = df.rename(columns={"Actual Load": "Load"})
+        df = df.rename(columns={"Actual Load": "Load"})
 
-            df = df[["Time", "Load"]]
+        df = df[["Time", "Load"]]
+        df = df.reset_index(drop=True)
+        df = add_interval(df, interval_min=5)
 
+        if original_date == "latest":
+            return df
+
+        elif utils.is_today(original_date, tz=self.default_timezone):
             # returns two days, so make sure to only return current day's load
-            df = df[df["Time"].dt.date == date.date()]
-
-            df = df.reset_index(drop=True)
-
-            df = add_interval(df, interval_min=5)
-
+            df = df[df["Time"].dt.date == date.date()].reset_index(drop=True)
             return df
 
         else:
@@ -260,7 +262,7 @@ class SPP(ISOBase):
 
 
         """
-        url = f"https://marketplace.spp.org/file-browser-api/download/ver-curtailments?path=%2F{date.strftime('%Y')}%2F{date.strftime('%m')}%2FVER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=%2F{date.strftime('%Y')}%2F{date.strftime('%m')}%2FVER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
 
         msg = f"Downloading {url}"
         log(msg, verbose)
@@ -279,7 +281,7 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: VER Curtailments
         """
-        url = f"https://marketplace.spp.org/file-browser-api/download/ver-curtailments?path=%2F{year}%2F{year}.zip"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=%2F{year}%2F{year}.zip"  # noqa
         z = utils.get_zip_folder(url, verbose=verbose)
 
         # iterate through all files in zip
@@ -302,7 +304,7 @@ class SPP(ISOBase):
         return df
 
     def _get_load_and_forecast(self, verbose=False):
-        url = "https://marketplace.spp.org/chart-api/load-forecast/asChart"
+        url = f"{MARKETPLACE_BASE_URL}/chart-api/load-forecast/asChart"
 
         msg = f"Getting load and forecast from {url}"
         log(msg, verbose)
@@ -329,7 +331,7 @@ class SPP(ISOBase):
         # todo where does date got in argument order
         # def get_historical_lmp(self, date, market: str, nodes: list):
         # 5 minute interal data
-        # https://marketplace.spp.org/file-browser-api/download/rtbm-lmp-by-location?path=/2022/08/By_Interval/08/RTBM-LMP-SL-202208082125.csv
+        # {FILE_BROWSER_API_URL}/rtbm-lmp-by-location?path=/2022/08/By_Interval/08/RTBM-LMP-SL-202208082125.csv
 
         # hub and interface prices
         # https://marketplace.spp.org/pages/hub-and-interface-prices
@@ -787,7 +789,7 @@ class SPP(ISOBase):
 
     def _file_browser_download_url(self, fs_name, params=None):
         qs = "?" + urlencode(params) if params else ""
-        return f"{FILE_BROWSER_API_URL}download/{fs_name}{qs}"
+        return f"{FILE_BROWSER_DOWNLOAD_URL}/{fs_name}{qs}"
 
     @staticmethod
     def _clean_status_text(text):

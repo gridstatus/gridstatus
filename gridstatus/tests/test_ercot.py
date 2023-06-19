@@ -21,6 +21,7 @@ class TestErcot(BaseTestISO):
             "Regulation Down",
             "Regulation Up",
             "Responsive Reserves",
+            "ERCOT Contingency Reserve Service",
         ]
 
         # today
@@ -63,6 +64,20 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == as_cols
         assert max(df.Time).date() == end
         assert min(df.Time).date() == date
+
+    def test_get_as_monitor(self):
+        df = self.iso.get_as_monitor()
+
+        # asset length is 1, 49 columns
+        assert df.shape == (1, 49)
+        # assert every colunn but the first is int dtype
+        assert df.iloc[:, 1:].dtypes.unique() == "int64"
+        assert df.columns[0] == "Time"
+
+    def test_get_real_time_system_conditions(self):
+        df = self.iso.get_real_time_system_conditions()
+        assert df.shape == (1, 15)
+        assert df.columns[0] == "Time"
 
     """get_fuel_mix"""
 
@@ -128,6 +143,55 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_load(three_days_ago)
         self._check_load(df)
         assert df["Time"].unique()[0].date() == three_days_ago
+
+    def test_get_load_by_weather_zone(self):
+        df = self.iso.get_load_by_weather_zone("today")
+        self._check_time_columns(df, instant_or_interval="interval")
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "COAST",
+            "EAST",
+            "FAR_WEST",
+            "NORTH",
+            "NORTH_C",
+            "SOUTHERN",
+            "SOUTH_C",
+            "WEST",
+            "TOTAL",
+        ]
+        assert df.columns.tolist() == cols
+
+        # test 5 days ago
+        five_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(days=5)
+        df = self.iso.get_load_by_weather_zone(five_days_ago)
+        self._check_time_columns(df, instant_or_interval="interval")
+        assert df["Time"].unique()[0].date() == five_days_ago
+
+    def test_get_load_by_forecast_zone_today(self):
+        df = self.iso.get_load_by_forecast_zone("today")
+        self._check_time_columns(df, instant_or_interval="interval")
+        columns = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "NORTH",
+            "SOUTH",
+            "WEST",
+            "HOUSTON",
+            "TOTAL",
+        ]
+        assert df.columns.tolist() == columns
+
+        five_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(days=5)
+        df = self.iso.get_load_by_forecast_zone(five_days_ago)
+        self._check_time_columns(df, instant_or_interval="interval")
+        assert df["Time"].unique()[0].date() == five_days_ago
 
     """get_load_forecast"""
 
@@ -378,6 +442,48 @@ class TestErcot(BaseTestISO):
         folder_name = f"disclosure_60d_{days_ago_65.strftime('%Y%m%d')}"
 
         df.to_csv(f"{folder_name}/sara_units.csv", index=False)
+
+    def test_spp_real_time_parse_retry_file_name(self):
+        docs = [
+            self.iso.Document(
+                url="",
+                publish_date=pd.Timestamp.now(),
+                constructed_name="cdr.00012301.0000000000000000.20230608.001705730.SPPHLZNP6905_retry_20230608_1545_csv",
+                friendly_name="",
+            ),
+            self.iso.Document(
+                url="",
+                publish_date=pd.Timestamp.now(),
+                constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_1545_csv",
+                friendly_name="",
+            ),
+            self.iso.Document(
+                url="",
+                publish_date=pd.Timestamp.now(),
+                constructed_name="cdr.00012301.0000000000000000.2023202306110610.001705730.SPPHLZNP6905_20230611_0000_csv",
+                friendly_name="",
+            ),
+            self.iso.Document(
+                url="",
+                publish_date=pd.Timestamp.now() + pd.Timedelta(days=1),
+                constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_0000_csv",
+                friendly_name="",
+            ),
+        ]
+
+        # handle retry file
+        result_1 = self.iso._filter_spp_rtm_files(docs, pd.Timestamp("2023-06-08"))
+        assert len(result_1) == 1
+
+        # ignores interval end file from previous day
+        # and gets interval end from next
+        result_2 = self.iso._filter_spp_rtm_files(docs, pd.Timestamp("2023-06-10"))
+        assert len(result_2) == 2
+
+        # latest returns with great publish_date
+        latest = self.iso._filter_spp_rtm_files(docs, "latest")
+        assert len(latest) == 1
+        assert latest[0] == docs[-1]
 
     """get_storage"""
 
