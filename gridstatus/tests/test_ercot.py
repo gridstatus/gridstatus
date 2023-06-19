@@ -305,6 +305,48 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
+    def test_spp_real_time_parse_retry_file_name(self):
+        docs = [
+            self.iso.Document(
+                url="",
+                publish_date=pd.Timestamp.now(),
+                constructed_name="cdr.00012301.0000000000000000.20230608.001705730.SPPHLZNP6905_retry_20230608_1545_csv",
+                friendly_name="",
+            ),
+            self.iso.Document(
+                url="",
+                publish_date=pd.Timestamp.now(),
+                constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_1545_csv",
+                friendly_name="",
+            ),
+            self.iso.Document(
+                url="",
+                publish_date=pd.Timestamp.now(),
+                constructed_name="cdr.00012301.0000000000000000.2023202306110610.001705730.SPPHLZNP6905_20230611_0000_csv",
+                friendly_name="",
+            ),
+            self.iso.Document(
+                url="",
+                publish_date=pd.Timestamp.now() + pd.Timedelta(days=1),
+                constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_0000_csv",
+                friendly_name="",
+            ),
+        ]
+
+        # handle retry file
+        result_1 = self.iso._filter_spp_rtm_files(docs, pd.Timestamp("2023-06-08"))
+        assert len(result_1) == 1
+
+        # ignores interval end file from previous day
+        # and gets interval end from next
+        result_2 = self.iso._filter_spp_rtm_files(docs, pd.Timestamp("2023-06-10"))
+        assert len(result_2) == 2
+
+        # latest returns with great publish_date
+        latest = self.iso._filter_spp_rtm_files(docs, "latest")
+        assert len(latest) == 1
+        assert latest[0] == docs[-1]
+
     """get_storage"""
 
     def test_get_storage_historical(self):
