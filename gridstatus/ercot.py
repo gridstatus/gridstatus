@@ -1067,7 +1067,7 @@ class Ercot(ISOBase):
                 "Frequency - Current Frequency": "Current Frequency",
                 "Real-Time Data - Actual System Demand": "Actual System Demand",
                 "Real-Time Data - Average Net Load": "Average Net Load",
-                "Real-Time Data - Total System Capacity (not including Ancillary Services)": "Total System Capacity (excluding Ancillary Services)",  # noqa: E501
+                "Real-Time Data - Total System Capacity (not including Ancillary Services)": "Total System Capacity excluding Ancillary Services",  # noqa: E501
                 "Real-Time Data - Total Wind Output": "Total Wind Output",
                 "Real-Time Data - Total PVGR Output": "Total PVGR Output",
                 "Real-Time Data - Current System Inertia": "Current System Inertia",
