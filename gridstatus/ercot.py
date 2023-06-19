@@ -1042,6 +1042,41 @@ class Ercot(ISOBase):
 
         url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"
 
+        df = self._download_html_table(url, verbose=verbose)
+
+        return df
+
+    def get_real_time_system_conditions(self, date="latest", verbose=False):
+        """Get Real-Time System Conditions.
+
+        Parses table from
+        https://www.ercot.com/content/cdr/html/real_time_system_conditions.html
+
+        Arguments:
+            date (str): only supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with real-time system conditions
+        """
+
+        url = "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html"
+        df = self._download_html_table(url, verbose=verbose)
+        df = df.rename(
+            columns={
+                "Frequency - Current Frequency": "Current Frequency",
+                "Real-Time Data - Actual System Demand": "Actual System Demand",
+                "Real-Time Data - Average Net Load": "Average Net Load",
+                "Real-Time Data - Total System Capacity (not including Ancillary Services)": "Total System Capacity excluding Ancillary Services",  # noqa: E501
+                "Real-Time Data - Total Wind Output": "Total Wind Output",
+                "Real-Time Data - Total PVGR Output": "Total PVGR Output",
+                "Real-Time Data - Current System Inertia": "Current System Inertia",
+            },
+        )
+
+        return df
+
+    def _download_html_table(self, url, verbose=False):
         log(f"Downloading {url}", verbose)
 
         html = requests.get(url).content
@@ -1064,7 +1099,13 @@ class Ercot(ISOBase):
                     header_prepend = header_prepend.replace(" (MW)", "")
                     category = f"{category} (MW)"
 
-                data[f"{header_prepend} - {category}"] = int(value.replace(",", ""))
+                parsed_value = value.replace(",", "")
+                try:
+                    parsed_value = int(parsed_value)
+                except ValueError:
+                    parsed_value = float(parsed_value)
+
+                data[f"{header_prepend} - {category}"] = parsed_value
 
         df = pd.DataFrame([data])
 
