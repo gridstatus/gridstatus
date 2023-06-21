@@ -377,9 +377,18 @@ class TestErcot(BaseTestISO):
             "Nature Of Work",
         ]
 
+        time_cols = [
+            "Report Time",
+            "Actual Outage Start",
+            "Planned End Date",
+            "Actual End Date",
+        ]
+
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
         assert df["Report Time"].dt.date.unique() == [five_days_ago.date()]
+        for col in time_cols:
+            assert df[col].dt.tz is not None
 
         start = five_days_ago - pd.DateOffset(1)
         df_2_days = self.iso.get_unplanned_resource_outages(

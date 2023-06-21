@@ -1125,11 +1125,6 @@ class Ercot(ISOBase):
             pd.to_datetime(time_text).tz_localize(self.default_timezone),
         )
 
-        time_cols = ["Actual Outage Start", "Planned End Date", "Actual End Date"]
-        for col in time_cols:
-            if col in df.columns:
-                df[col] = pd.to_datetime(df[col]).dt.tz_localize(self.default_timezone)
-
         return df
 
     @support_date_range("DAY_START")
@@ -1177,6 +1172,10 @@ class Ercot(ISOBase):
         )
 
         df.insert(0, "Report Time", as_of)
+
+        time_cols = ["Actual Outage Start", "Planned End Date", "Actual End Date"]
+        for col in time_cols:
+            df[col] = pd.to_datetime(df[col]).dt.tz_localize(self.default_timezone)
 
         return df
 
