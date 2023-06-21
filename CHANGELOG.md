@@ -8,7 +8,7 @@
 - Add new ERCOT AS ECRS product
 - Add `Ercot.get_as_monitor()`
 - Add `Ercot.get_real_time_system_conditions()`
-- Add `Ercot.get_unplanned_outages()`
+- Add `Ercot.get_unplanned_resource_outages()`
 - Update to new SPP URLs
 
 ### `ERCOT.get_load_by_weather_zone`

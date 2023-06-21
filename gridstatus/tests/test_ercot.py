@@ -352,15 +352,15 @@ class TestErcot(BaseTestISO):
         assert len(latest) == 1
         assert latest[0] == docs[-1]
 
-    """get_unplanned_outages"""
+    """get_unplanned_resource_outages"""
 
-    def test_get_unplanned_outages(self):
+    def test_get_unplanned_resource_outages(self):
         five_days_ago = pd.Timestamp.now(
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(
             days=5,
         )
-        df = self.iso.get_unplanned_outages(date=five_days_ago)
+        df = self.iso.get_unplanned_resource_outages(date=five_days_ago)
 
         cols = [
             "Report Time",
@@ -382,7 +382,7 @@ class TestErcot(BaseTestISO):
         assert df["Report Time"].dt.date.unique() == [five_days_ago.date()]
 
         start = five_days_ago - pd.DateOffset(1)
-        df_2_days = self.iso.get_unplanned_outages(
+        df_2_days = self.iso.get_unplanned_resource_outages(
             start=start,
             end=five_days_ago + pd.DateOffset(1),
         )

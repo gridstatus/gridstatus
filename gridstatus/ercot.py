@@ -1128,7 +1128,7 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range("DAY_START")
-    def get_unplanned_outages(self, date, verbose=False):
+    def get_unplanned_resource_outages(self, date, verbose=False):
         """Get Unplanned Resource Outages.
 
         Data published at ~5am central on the 3rd day after the day of interest.
@@ -1149,11 +1149,11 @@ class Ercot(ISOBase):
 
         xls = utils.get_zip_file(doc.url, verbose=verbose)
 
-        df = self._handle_unplanned_outages_file(xls)
+        df = self._handle_unplanned_resource_outages_file(xls)
 
         return df
 
-    def _handle_unplanned_outages_file(self, xls):
+    def _handle_unplanned_resource_outages_file(self, xls):
         as_of = pd.to_datetime(
             pd.read_excel(
                 xls,
