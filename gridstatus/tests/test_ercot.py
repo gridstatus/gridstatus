@@ -352,6 +352,56 @@ class TestErcot(BaseTestISO):
         assert len(latest) == 1
         assert latest[0] == docs[-1]
 
+    """get_unplanned_resource_outages"""
+
+    def test_get_unplanned_resource_outages(self):
+        five_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=5,
+        )
+        df = self.iso.get_unplanned_resource_outages(date=five_days_ago)
+
+        cols = [
+            "Report Time",
+            "Resource Name",
+            "Resource Unit Code",
+            "Fuel Type",
+            "Outage Type",
+            "Available MW Maximum",
+            "Available MW During Outage",
+            "Effective MW Reduction Due to Outage",
+            "Actual Outage Start",
+            "Planned End Date",
+            "Actual End Date",
+            "Nature Of Work",
+        ]
+
+        time_cols = [
+            "Report Time",
+            "Actual Outage Start",
+            "Planned End Date",
+            "Actual End Date",
+        ]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+        assert df["Report Time"].dt.date.unique() == [five_days_ago.date()]
+        for col in time_cols:
+            assert df[col].dt.tz is not None
+
+        start = five_days_ago - pd.DateOffset(1)
+        df_2_days = self.iso.get_unplanned_resource_outages(
+            start=start,
+            end=five_days_ago + pd.DateOffset(1),
+        )
+
+        assert df_2_days.shape[0] >= 0
+        assert df_2_days.columns.tolist() == cols
+        assert df_2_days["Report Time"].dt.date.nunique() == 2
+        assert df_2_days["Report Time"].min().date() == start.date()
+        assert df_2_days["Report Time"].max().date() == five_days_ago.date()
+
     """get_storage"""
 
     def test_get_storage_historical(self):

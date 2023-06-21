@@ -70,6 +70,11 @@ ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE = 14836
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
 HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 13091
 
+# Unplanned Resource Outages Report
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP1-346-ER
+UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID = 22912
+
+
 """
 Settlement	Point Type	Description
 ==========	==========	===========
@@ -1119,6 +1124,58 @@ class Ercot(ISOBase):
             "Time",
             pd.to_datetime(time_text).tz_localize(self.default_timezone),
         )
+
+        return df
+
+    @support_date_range("DAY_START")
+    def get_unplanned_resource_outages(self, date, verbose=False):
+        """Get Unplanned Resource Outages.
+
+        Data published at ~5am central on the 3rd day after the day of interest.
+
+        Arguments:
+            date (str, datetime): date to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with unplanned resource outages
+
+        """
+        doc = self._get_document(
+            report_type_id=UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID,
+            date=date.normalize() + pd.DateOffset(days=3),
+            verbose=verbose,
+        )
+
+        xls = utils.get_zip_file(doc.url, verbose=verbose)
+
+        df = self._handle_unplanned_resource_outages_file(xls)
+
+        return df
+
+    def _handle_unplanned_resource_outages_file(self, xls):
+        as_of = pd.to_datetime(
+            pd.read_excel(
+                xls,
+                sheet_name="Unplanned Resource Outages",
+                skiprows=2,
+                nrows=1,
+            )
+            .values[0][0]
+            .split(": ")[1],
+        ).tz_localize(self.default_timezone)
+        df = pd.read_excel(
+            xls,
+            sheet_name="Unplanned Resource Outages",
+            skiprows=4,
+            skipfooter=1,
+        )
+
+        df.insert(0, "Report Time", as_of)
+
+        time_cols = ["Actual Outage Start", "Planned End Date", "Actual End Date"]
+        for col in time_cols:
+            df[col] = pd.to_datetime(df[col]).dt.tz_localize(self.default_timezone)
 
         return df
 
