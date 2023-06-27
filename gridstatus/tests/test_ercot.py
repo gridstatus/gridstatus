@@ -402,6 +402,47 @@ class TestErcot(BaseTestISO):
         assert df_2_days["Report Time"].min().date() == start.date()
         assert df_2_days["Report Time"].max().date() == five_days_ago.date()
 
+    """test get_highest_price_as_offer_selected"""
+
+    def test_get_highest_price_as_offer_selected(self):
+        four_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=4,
+        )
+
+        five_days_ago = four_days_ago - pd.Timedelta(
+            days=1,
+        )
+
+        df = self.iso.get_highest_price_as_offer_selected(
+            start=five_days_ago,
+            end=four_days_ago
+            + pd.Timedelta(
+                days=1,
+            ),
+        )
+
+        assert (
+            df["Interval Start"].dt.date.unique()
+            == [five_days_ago.date(), four_days_ago.date()]
+        ).all()
+
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "QSE",
+            "DME",
+            "Resource Name with Highest-Priced Offer Selected in DAM and SASMs",
+            "AS Type",
+            "Offered Quantity",
+            "Offered Price",
+        ]
+
+        assert df.columns.tolist() == cols
+
     """get_storage"""
 
     def test_get_storage_historical(self):

@@ -74,6 +74,10 @@ HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 13091
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP1-346-ER
 UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID = 22912
 
+# 3-Day Highest Price AS Offer Selected
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-915-EX
+THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
+
 
 """
 Settlement	Point Type	Description
@@ -1179,6 +1183,40 @@ class Ercot(ISOBase):
 
         return df
 
+    # 3-Day Highest Price AS Offer Selected
+    @support_date_range("DAY_START")
+    def get_highest_price_as_offer_selected(self, date, verbose=False):
+        """Get the offer price and the name of the Entity submitting
+        the offer for the highest-priced Ancillary Service (AS) Offer.
+
+        Published with 3 delays
+
+        Arguments:
+            date (str, datetime): date to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self._handle_three_day_highest_price_as_offer_selected_file(doc, verbose)
+
+        return df
+
+    def _handle_three_day_highest_price_as_offer_selected_file(self, doc, verbose):
+        df = self.read_doc(doc, verbose=verbose)
+
+        df = df.drop(columns=["Block Indicator"])
+
+        return df
+
     def _get_document(
         self,
         report_type_id,
@@ -1343,9 +1381,13 @@ class Ercot(ISOBase):
                 "HourBeginning"
             ].astype("timedelta64[h]")
 
+        ambiguous = "infer"
+        if "DSTFlag" in doc.columns:
+            ambiguous = doc["DSTFlag"] == "Y"
+
         doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
             self.default_timezone,
-            ambiguous=doc["DSTFlag"] == "Y",
+            ambiguous=ambiguous,
         )
 
         doc["Interval End"] = doc["Interval Start"] + interval_length
@@ -1364,11 +1406,14 @@ class Ercot(ISOBase):
             columns=[
                 "DeliveryDate",
                 "HourEnding",
-                "DSTFlag",
             ],
         )
-        if "DeliveryInterval" in doc.columns:
-            doc = doc.drop(columns=["DeliveryInterval"])
+
+        optional_drop = ["DSSTFlag", "DeliveryInterval"]
+
+        for col in optional_drop:
+            if col in doc.columns:
+                doc = doc.drop(columns=[col])
 
         return doc
 

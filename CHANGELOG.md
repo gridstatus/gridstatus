@@ -2,14 +2,26 @@
 
 ## vNext
 
+### EIA
+
 - Add EIA 930 Region Data
-- Add Hourly Weather and Forecast Zone Loads ERCOT
+
+### NYISO
+
 - Add NYISO BTM Solar Estimated Actuals and Forecast
+
+### SPP
+
+- Update to new SPP URLs
+
+### Ercot
+
+- Add Hourly Weather and Forecast Zone Loads ERCOT
 - Add new ERCOT AS ECRS product
 - Add `Ercot.get_as_monitor()`
 - Add `Ercot.get_real_time_system_conditions()`
 - Add `Ercot.get_unplanned_resource_outages()`
-- Update to new SPP URLs
+- Add `Ercot.get_highest_price_as_offer_selected()`
 
 ### `ERCOT.get_load_by_weather_zone`
 
