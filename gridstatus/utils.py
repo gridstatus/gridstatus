@@ -193,18 +193,14 @@ def filter_lmp_locations(df, locations=None, location_type=None):
 
 
 def get_zip_file(url, verbose=False):
-    # todo add retry logic
-    # todo does this need to be a with statement?
-    log(f"Downloading {url}", verbose=verbose)
-    r = requests.get(url)
-    z = ZipFile(io.BytesIO(r.content))
+    z = get_zip_folder(url, verbose=verbose)
     return z.open(z.namelist()[0])
 
 
-def get_zip_folder(zip_url, verbose=False):
-    msg = f"Requesting {zip_url}"
+def get_zip_folder(url, verbose=False):
+    msg = f"Requesting {url}"
     log(msg, verbose)
-    r = requests.get(zip_url)
+    r = requests.get(url)
     z = ZipFile(io.BytesIO(r.content))
     return z
 

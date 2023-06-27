@@ -437,8 +437,69 @@ class TestErcot(BaseTestISO):
             "DME",
             "Resource Name with Highest-Priced Offer Selected in DAM and SASMs",
             "AS Type",
+            "Block Indicator",
             "Offered Quantity",
             "Offered Price",
+        ]
+
+        assert df.columns.tolist() == cols
+
+    """test get_as_reports"""
+
+    def test_get_as_reports(self):
+        four_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=4,
+        )
+
+        five_days_ago = four_days_ago - pd.Timedelta(
+            days=1,
+        )
+
+        df = self.iso.get_as_reports(
+            start=five_days_ago,
+            end=four_days_ago
+            + pd.Timedelta(
+                days=1,
+            ),
+        )
+
+        assert (
+            df["Interval Start"].dt.date.unique()
+            == [five_days_ago.date(), four_days_ago.date()]
+        ).all()
+
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Total Cleared AS - RRSPFR",
+            "Total Cleared AS - RRSUFR",
+            "Total Cleared AS - RRSFFR",
+            "Total Cleared AS - ECRSM",
+            "Total Cleared AS - ECRSS",
+            "Total Cleared AS - RegUp",
+            "Total Cleared AS - RegDown",
+            "Total Cleared AS - NonSpin",
+            "Total Self-Arranged AS - RRSPFR",
+            "Total Self-Arranged AS - RRSUFR",
+            "Total Self-Arranged AS - RRSFFR",
+            "Total Self-Arranged AS - ECRSM",
+            "Total Self-Arranged AS - ECRSS",
+            "Total Self-Arranged AS - RegUp",
+            "Total Self-Arranged AS - RegDown",
+            "Total Self-Arranged AS - NonSpin",
+            "Total Self-Arranged AS - NSPNM",
+            "Bid Curve - RRSPFR",
+            "Bid Curve - RRSUFR",
+            "Bid Curve - RRSFFR",
+            "Bid Curve - ECRSM",
+            "Bid Curve - ECRSS",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
         ]
 
         assert df.columns.tolist() == cols

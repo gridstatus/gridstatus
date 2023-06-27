@@ -22,6 +22,7 @@
 - Add `Ercot.get_real_time_system_conditions()`
 - Add `Ercot.get_unplanned_resource_outages()`
 - Add `Ercot.get_highest_price_as_offer_selected()`
+- Add `Ercot.get_as_reports()`
 
 ### `ERCOT.get_load_by_weather_zone`
 

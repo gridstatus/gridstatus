@@ -78,6 +78,9 @@ UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID = 22912
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-915-EX
 THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
 
+# 2-Day Ancillary Services Reports
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-911-ER
+TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
 
 """
 Settlement	Point Type	Description
@@ -1183,6 +1186,110 @@ class Ercot(ISOBase):
 
         return df
 
+    @support_date_range("DAY_START")
+    def get_as_reports(self, date, verbose=False):
+        """Get Ancillary Services Reports.
+
+        Published with a 2 day delay around 3am central
+        """
+        report_date = date.normalize() + pd.DateOffset(days=2)
+
+        doc = self._get_document(
+            report_type_id=TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        return self._handle_as_reports_file(doc.url, verbose=verbose)
+
+    def _handle_as_reports_file(self, file_path, verbose):
+        z = utils.get_zip_folder(file_path, verbose=verbose)
+
+        # extract the date from the file name
+        date_str = z.namelist()[0][-13:-4]
+
+        self_arranged_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+            "NSPNM",
+        ]
+        cleared_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+        ]
+        offers_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "ONNS",
+            "OFFNS",
+        ]
+
+        all_dfs = []
+        for as_name in cleared_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            cleared = f"2d_Cleared_DAM_AS_{suffix}"
+            df_cleared = pd.read_csv(z.open(cleared))
+            all_dfs.append(df_cleared)
+
+        for as_name in self_arranged_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            self_arranged = f"2d_Self_Arranged_AS_{suffix}"
+            df_self_arranged = pd.read_csv(z.open(self_arranged))
+            all_dfs.append(df_self_arranged)
+
+        def _make_bid_curve(df):
+            return [
+                tuple(x)
+                for x in df[["MW Offered", f"{as_name} Offer Price"]].values.tolist()
+            ]
+
+        for as_name in offers_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            offers = f"2d_Agg_AS_Offers_{suffix}"
+            df_offers = pd.read_csv(z.open(offers))
+            name = f"Bid Curve - {as_name}"
+            if df_offers.empty:
+                # use last df to get the index
+                # and set values to None
+                df_offers_hourly = all_dfs[0].rename(
+                    columns={
+                        all_dfs[0].columns[-1]: name,
+                    },
+                )
+                df_offers_hourly[name] = None
+
+            else:
+                df_offers_hourly = (
+                    df_offers.groupby(["Delivery Date", "Hour Ending"])
+                    .apply(_make_bid_curve)
+                    .reset_index(name=name)
+                )
+            all_dfs.append(df_offers_hourly)
+
+        df = pd.concat(
+            [df.set_index(["Delivery Date", "Hour Ending"]) for df in all_dfs],
+            axis=1,
+        ).reset_index()
+
+        return self.parse_doc(df, verbose=verbose)
+
     # 3-Day Highest Price AS Offer Selected
     @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(self, date, verbose=False):
@@ -1196,7 +1303,7 @@ class Ercot(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame
+            pandas.DataFrame: A DataFrameq
         """
         report_date = date.normalize() + pd.DateOffset(days=3)
 
@@ -1212,8 +1319,6 @@ class Ercot(ISOBase):
 
     def _handle_three_day_highest_price_as_offer_selected_file(self, doc, verbose):
         df = self.read_doc(doc, verbose=verbose)
-
-        df = df.drop(columns=["Block Indicator"])
 
         return df
 
