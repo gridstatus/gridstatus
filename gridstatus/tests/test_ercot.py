@@ -435,11 +435,12 @@ class TestErcot(BaseTestISO):
             "Market",
             "QSE",
             "DME",
-            "Resource Name with Highest-Priced Offer Selected in DAM and SASMs",
+            "Resource Name",
             "AS Type",
             "Block Indicator",
-            "Offered Quantity",
             "Offered Price",
+            "Total Offered Quantity",
+            "Offered Quantities",
         ]
 
         assert df.columns.tolist() == cols

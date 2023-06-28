@@ -1331,6 +1331,39 @@ class Ercot(ISOBase):
     def _handle_three_day_highest_price_as_offer_selected_file(self, doc, verbose):
         df = self.read_doc(doc, verbose=verbose)
 
+        df = df.rename(
+            columns={
+                "Resource Name with Highest-Priced Offer Selected in DAM and SASMs": "Resource Name",  # noqa: E501
+            },
+        )
+
+        def _handle_offers(df):
+            return pd.Series(
+                {
+                    "Offered Price": df["Offered Price"].iloc[0],
+                    "Total Offered Quantity": df["Offered Quantity"].sum(),
+                    "Offered Quantities": df["Offered Quantity"].tolist(),
+                },
+            )
+
+        df = (
+            df.groupby(
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Market",
+                    "QSE",
+                    "DME",
+                    "Resource Name",
+                    "AS Type",
+                    "Block Indicator",
+                ],
+            )
+            .apply(_handle_offers)
+            .reset_index()
+        )
+
         return df
 
     def _get_document(
