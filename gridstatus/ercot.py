@@ -74,6 +74,13 @@ HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 13091
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP1-346-ER
 UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID = 22912
 
+# 3-Day Highest Price AS Offer Selected
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-915-EX
+THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
+
+# 2-Day Ancillary Services Reports
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-911-ER
+TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
 
 """
 Settlement	Point Type	Description
@@ -1179,6 +1186,186 @@ class Ercot(ISOBase):
 
         return df
 
+    @support_date_range("DAY_START")
+    def get_as_reports(self, date, verbose=False):
+        """Get Ancillary Services Reports.
+
+        Published with a 2 day delay around 3am central
+        """
+        report_date = date.normalize() + pd.DateOffset(days=2)
+
+        doc = self._get_document(
+            report_type_id=TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        return self._handle_as_reports_file(doc.url, verbose=verbose)
+
+    def _handle_as_reports_file(self, file_path, verbose):
+        z = utils.get_zip_folder(file_path, verbose=verbose)
+
+        # extract the date from the file name
+        date_str = z.namelist()[0][-13:-4]
+
+        self_arranged_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+            "NSPNM",
+        ]
+        cleared_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+        ]
+        offers_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "ONNS",
+            "OFFNS",
+        ]
+
+        all_dfs = []
+        for as_name in cleared_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            cleared = f"2d_Cleared_DAM_AS_{suffix}"
+
+            if as_name in ["ECRSM", "ECRSS"] and cleared not in z.namelist():
+                continue
+
+            df_cleared = pd.read_csv(z.open(cleared))
+            all_dfs.append(df_cleared)
+
+        for as_name in self_arranged_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            self_arranged = f"2d_Self_Arranged_AS_{suffix}"
+
+            if as_name in ["ECRSM", "ECRSS"] and self_arranged not in z.namelist():
+                continue
+
+            df_self_arranged = pd.read_csv(z.open(self_arranged))
+            all_dfs.append(df_self_arranged)
+
+        def _make_bid_curve(df):
+            return [
+                tuple(x)
+                for x in df[["MW Offered", f"{as_name} Offer Price"]].values.tolist()
+            ]
+
+        for as_name in offers_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            offers = f"2d_Agg_AS_Offers_{suffix}"
+
+            if as_name in ["ECRSM", "ECRSS"] and offers not in z.namelist():
+                continue
+
+            df_offers = pd.read_csv(z.open(offers))
+            name = f"Bid Curve - {as_name}"
+            if df_offers.empty:
+                # use last df to get the index
+                # and set values to None
+                df_offers_hourly = all_dfs[0].rename(
+                    columns={
+                        all_dfs[0].columns[-1]: name,
+                    },
+                )
+                df_offers_hourly[name] = None
+
+            else:
+                df_offers_hourly = (
+                    df_offers.groupby(["Delivery Date", "Hour Ending"])
+                    .apply(_make_bid_curve)
+                    .reset_index(name=name)
+                )
+            all_dfs.append(df_offers_hourly)
+
+        df = pd.concat(
+            [df.set_index(["Delivery Date", "Hour Ending"]) for df in all_dfs],
+            axis=1,
+        ).reset_index()
+
+        return self.parse_doc(df, verbose=verbose)
+
+    @support_date_range("DAY_START")
+    def get_highest_price_as_offer_selected(self, date, verbose=False):
+        """Get the offer price and the name of the Entity submitting
+        the offer for the highest-priced Ancillary Service (AS) Offer.
+
+        Published with 3 day delay
+
+        Arguments:
+            date (str, datetime): date to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrameq
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self._handle_three_day_highest_price_as_offer_selected_file(doc, verbose)
+
+        return df
+
+    def _handle_three_day_highest_price_as_offer_selected_file(self, doc, verbose):
+        df = self.read_doc(doc, verbose=verbose)
+
+        df = df.rename(
+            columns={
+                "Resource Name with Highest-Priced Offer Selected in DAM and SASMs": "Resource Name",  # noqa: E501
+            },
+        )
+
+        def _handle_offers(df):
+            return pd.Series(
+                {
+                    "Offered Price": df["Offered Price"].iloc[0],
+                    "Total Offered Quantity": df["Offered Quantity"].sum(),
+                    "Offered Quantities": df["Offered Quantity"].tolist(),
+                },
+            )
+
+        df = (
+            df.groupby(
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Market",
+                    "QSE",
+                    "DME",
+                    "Resource Name",
+                    "AS Type",
+                    "Block Indicator",
+                ],
+            )
+            .apply(_handle_offers)
+            .reset_index()
+        )
+
+        return df
+
     def _get_document(
         self,
         report_type_id,
@@ -1291,6 +1478,7 @@ class Ercot(ISOBase):
         return df
 
     def read_doc(self, doc, verbose=False):
+        log(f"Reading {doc.url}", verbose)
         doc = pd.read_csv(doc.url, compression="zip")
         return self.parse_doc(doc, verbose=verbose)
 
@@ -1343,9 +1531,13 @@ class Ercot(ISOBase):
                 "HourBeginning"
             ].astype("timedelta64[h]")
 
+        ambiguous = "infer"
+        if "DSTFlag" in doc.columns:
+            ambiguous = doc["DSTFlag"] == "Y"
+
         doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
             self.default_timezone,
-            ambiguous=doc["DSTFlag"] == "Y",
+            ambiguous=ambiguous,
         )
 
         doc["Interval End"] = doc["Interval Start"] + interval_length
@@ -1364,11 +1556,14 @@ class Ercot(ISOBase):
             columns=[
                 "DeliveryDate",
                 "HourEnding",
-                "DSTFlag",
             ],
         )
-        if "DeliveryInterval" in doc.columns:
-            doc = doc.drop(columns=["DeliveryInterval"])
+
+        optional_drop = ["DSSTFlag", "DeliveryInterval"]
+
+        for col in optional_drop:
+            if col in doc.columns:
+                doc = doc.drop(columns=[col])
 
         return doc
 
