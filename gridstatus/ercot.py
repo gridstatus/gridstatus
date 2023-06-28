@@ -1245,12 +1245,20 @@ class Ercot(ISOBase):
         for as_name in cleared_products:
             suffix = f"{as_name}-{date_str}.csv"
             cleared = f"2d_Cleared_DAM_AS_{suffix}"
+
+            if as_name in ["ECRSM", "ECRSS"] and cleared not in z.namelist():
+                continue
+
             df_cleared = pd.read_csv(z.open(cleared))
             all_dfs.append(df_cleared)
 
         for as_name in self_arranged_products:
             suffix = f"{as_name}-{date_str}.csv"
             self_arranged = f"2d_Self_Arranged_AS_{suffix}"
+
+            if as_name in ["ECRSM", "ECRSS"] and self_arranged not in z.namelist():
+                continue
+
             df_self_arranged = pd.read_csv(z.open(self_arranged))
             all_dfs.append(df_self_arranged)
 
@@ -1263,6 +1271,10 @@ class Ercot(ISOBase):
         for as_name in offers_products:
             suffix = f"{as_name}-{date_str}.csv"
             offers = f"2d_Agg_AS_Offers_{suffix}"
+
+            if as_name in ["ECRSM", "ECRSS"] and offers not in z.namelist():
+                continue
+
             df_offers = pd.read_csv(z.open(offers))
             name = f"Bid Curve - {as_name}"
             if df_offers.empty:
@@ -1295,7 +1307,7 @@ class Ercot(ISOBase):
         """Get the offer price and the name of the Entity submitting
         the offer for the highest-priced Ancillary Service (AS) Offer.
 
-        Published with 3 delays
+        Published with 3 day delay
 
         Arguments:
             date (str, datetime): date to get data for
@@ -1433,6 +1445,7 @@ class Ercot(ISOBase):
         return df
 
     def read_doc(self, doc, verbose=False):
+        log(f"Reading {doc.url}", verbose)
         doc = pd.read_csv(doc.url, compression="zip")
         return self.parse_doc(doc, verbose=verbose)
 
