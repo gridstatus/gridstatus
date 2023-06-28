@@ -1290,7 +1290,6 @@ class Ercot(ISOBase):
 
         return self.parse_doc(df, verbose=verbose)
 
-    # 3-Day Highest Price AS Offer Selected
     @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(self, date, verbose=False):
         """Get the offer price and the name of the Entity submitting
