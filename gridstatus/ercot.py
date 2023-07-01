@@ -82,6 +82,10 @@ THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-911-ER
 TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
 
+# Hourly Resource Outage Capacity
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-233-CD
+HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID = 13103
+
 """
 Settlement	Point Type	Description
 ==========	==========	===========
@@ -1134,6 +1138,83 @@ class Ercot(ISOBase):
 
         return df
 
+    @support_date_range("1H")
+    def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
+        """Hourly Resource Outage Capacity report sourced
+        from the Outage Scheduler (OS).
+
+        Returns outage data for for next 7 days.
+
+        Total Resource MW doesnt includ IRR, New Equipment outages,
+        retirement of old equipment, seasonal
+        mothballed (during the outaged season),
+        and mothballed.
+
+        As such, it is a proxy for thermal outages.
+
+        Arguments:
+            date (str): time to download. Returns last hourly report
+                before this time. Supports "latest"
+            end (str, optional): end time to download. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly resource outage capacity data
+
+
+        """
+        all_docs = self._get_documents(
+            report_type_id=HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        if date == "latest":
+            doc = max(all_docs, key=lambda x: x.publish_date)
+
+        else:
+            hour = date.floor("1H")
+            for doc in all_docs:
+                if hour == doc.publish_date.floor("1H"):
+                    break
+
+        df = self._handle_hourly_resource_outage_capacity(doc, verbose=verbose)
+
+        return df
+
+    def _handle_hourly_resource_outage_capacity(self, doc, verbose=False):
+        df = self.read_doc(doc, verbose=verbose)
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
+
+        outage_types = ["Total Resource", "Total IRR", "Total New Equip Resource"]
+
+        for t in outage_types:
+            t_no_space = t.replace(" ", "")
+            df = df.rename(
+                columns={
+                    f"{t_no_space}MWZoneSouth": f"{t} MW Zone South",
+                    f"{t_no_space}MWZoneNorth": f"{t} MW Zone North",
+                    f"{t_no_space}MWZoneWest": f"{t} MW Zone West",
+                    f"{t_no_space}MWZoneHouston": f"{t} MW Zone Houston",
+                },
+            )
+
+            df.insert(
+                df.columns.tolist().index(f"{t} MW Zone Houston") + 1,
+                f"{t} MW",
+                (
+                    df[f"{t} MW Zone South"]
+                    + df[f"{t} MW Zone North"]
+                    + df[f"{t} MW Zone West"]
+                    + df[f"{t} MW Zone Houston"]
+                ),
+            )
+        return df
+
     @support_date_range("DAY_START")
     def get_unplanned_resource_outages(self, date, verbose=False):
         """Get Unplanned Resource Outages.
@@ -1380,6 +1461,13 @@ class Ercot(ISOBase):
         Returns:
             Latest Document by publish_date
         """
+
+        # no need to pass this on
+        # since this only returns the latest
+        # document anyways
+        if date == "latest":
+            date = None
+
         documents = self._get_documents(
             report_type_id=report_type_id,
             date=date,
@@ -1491,6 +1579,7 @@ class Ercot(ISOBase):
                 "OperDay": "DeliveryDate",
                 "Hour Ending": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",
+                "Date": "DeliveryDate",
                 "DeliveryHour": "HourEnding",
                 "Delivery Hour": "HourEnding",
                 "Delivery Interval": "DeliveryInterval",

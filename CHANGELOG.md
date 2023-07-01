@@ -82,6 +82,7 @@ Zone Name                      Time            Interval Start              Inter
 - Add `Ercot.get_unplanned_resource_outages()`
 - Add `Ercot.get_highest_price_as_offer_selected()`
 - Add `Ercot.get_as_reports()`
+- Add `Ercot.get_hourly_resource_outage_capacity()`
 
 #### `ERCOT.get_load_by_weather_zone`
 

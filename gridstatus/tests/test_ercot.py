@@ -505,6 +505,64 @@ class TestErcot(BaseTestISO):
 
         assert df.columns.tolist() == cols
 
+    def test_get_hourly_resource_outage_capacity(self):
+        cols = [
+            "Publish Time",
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Total Resource MW Zone South",
+            "Total Resource MW Zone North",
+            "Total Resource MW Zone West",
+            "Total Resource MW Zone Houston",
+            "Total Resource MW",
+            "Total IRR MW Zone South",
+            "Total IRR MW Zone North",
+            "Total IRR MW Zone West",
+            "Total IRR MW Zone Houston",
+            "Total IRR MW",
+            "Total New Equip Resource MW Zone South",
+            "Total New Equip Resource MW Zone North",
+            "Total New Equip Resource MW Zone West",
+            "Total New Equip Resource MW Zone Houston",
+            "Total New Equip Resource MW",
+        ]
+
+        # test specific hour
+        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_hourly_resource_outage_capacity(date)
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+        # test latest and confirm published in last 2 hours
+        df = self.iso.get_hourly_resource_outage_capacity("latest")
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+        assert df["Publish Time"].min() >= pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) - pd.Timedelta(hours=2)
+
+        # test date range
+        end = date.floor("H")
+        start = end - pd.Timedelta(
+            hours=3,
+        )
+        df = self.iso.get_hourly_resource_outage_capacity(
+            start=start,
+            end=end,
+            verbose=True,
+        )
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+        assert df["Publish Time"].nunique() == 3
+
+        return df
+
     """get_storage"""
 
     def test_get_storage_historical(self):
