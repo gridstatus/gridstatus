@@ -316,9 +316,6 @@ class TestNYISO(BaseTestISO):
 
         assert df.columns.tolist() == columns
         assert df.shape[0] >= 0
-        import pdb
-
-        pdb.set_trace()
 
         # test range last month
         start = "2023-04-30"

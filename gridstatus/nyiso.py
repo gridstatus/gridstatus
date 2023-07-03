@@ -718,6 +718,11 @@ class NYISO(ISOBase):
         month = date.strftime("%Y%m01")
         day = date.strftime("%Y%m%d")
 
+        # if same day, we can just download the single file
+        if end is not None and date.normalize() == end.normalize():
+            end = None
+            date = date.normalize()
+
         # the last 7 days of file are hosted directly as csv
         # todo this can probably be optimized to down single csv if
         # a range and all files are in the last 7 days
