@@ -1,6 +1,6 @@
 # Changelog
 
-## vNext
+## v0.22.0 - July 3rd, 2023
 
 ### EIA
 
