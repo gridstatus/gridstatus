@@ -1,5 +1,11 @@
 # Changelog
 
+## vNext
+
+### EIA
+
+- Add `EIA.get_grid_monitor` dataset with hourly BA and Region emission data
+
 ## v0.22.0 - July 3rd, 2023
 
 ### EIA
