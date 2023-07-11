@@ -1150,6 +1150,23 @@ class Ercot(ISOBase):
 
     @support_date_range("1H")
     def get_hourly_wind_report(self, date, end=None, verbose=False):
+        """Get Hourly Wind Report.
+
+        This report is posted every hour and includes System-wide and Regional
+        actual hourly averaged wind power production, STWPF, WGRPP and COP
+        HSLs for On-Line WGRs for a rolling historical 48-hour period as
+        well as the System-wide and Regional STWPF, WGRPP and
+        COP HSLs for On-Line WGRs for the rolling future
+        168-hour period. Our forecasts attempt to predict HSL,
+        which is uncurtailed power generation potential.
+
+        Arguments:
+            date (str): date to get report for. Supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly wind report data
+        """
         all_docs = self._get_documents(
             report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,
             extension="csv",
@@ -1171,6 +1188,22 @@ class Ercot(ISOBase):
 
     @support_date_range("1H")
     def get_hourly_solar_report(self, date, end=None, verbose=False):
+        """Get Hourly Solar Report.
+
+        Posted every hour and includes System-wide and geographic regional
+        hourly averaged solar power production, STPPF, PVGRPP, and COP HSL
+        for On-Line PVGRs for a rolling historical 48-hour period as well
+        as the system-wide and regional STPPF, PVGRPP, and COP HSL for
+        On-Line PVGRs for the rolling future 168-hour period.
+
+        Arguments:
+            date (str): date to get report for. Supports "latest" or a date string
+            end (str, optional): end date for date range. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly solar report data
+        """
         all_docs = self._get_documents(
             report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
             extension="csv",
