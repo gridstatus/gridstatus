@@ -86,6 +86,16 @@ TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-233-CD
 HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID = 13103
 
+# Wind Power Production - Hourly Averaged Actual and Forecasted Values
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-732-CD
+WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID = 13028
+
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-745-CD
+SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID = (  # noqa
+    21809  # noqa
+)
+
 """
 Settlement	Point Type	Description
 ==========	==========	===========
@@ -1139,6 +1149,59 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range("1H")
+    def get_hourly_wind_report(self, date, end=None, verbose=False):
+        all_docs = self._get_documents(
+            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        if date == "latest":
+            doc = max(all_docs, key=lambda x: x.publish_date)
+
+        else:
+            hour = date.floor("1H")
+            for doc in all_docs:
+                if hour == doc.publish_date.floor("1H"):
+                    break
+
+        df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
+
+        return df
+
+    @support_date_range("1H")
+    def get_hourly_solar_report(self, date, end=None, verbose=False):
+        all_docs = self._get_documents(
+            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        if date == "latest":
+            doc = max(all_docs, key=lambda x: x.publish_date)
+
+        else:
+            hour = date.floor("1H")
+            for doc in all_docs:
+                if hour == doc.publish_date.floor("1H"):
+                    break
+
+        df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
+
+        return df
+
+    def _handle_hourly_wind_or_solar_report(self, doc, verbose=False):
+        df = self.read_doc(doc, verbose=verbose)
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
+        # replace _ in column names with spaces
+        df.columns = df.columns.str.replace("_", " ")
+        return df
+
+    @support_date_range("1H")
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
         """Hourly Resource Outage Capacity report sourced
         from the Outage Scheduler (OS).
@@ -1576,8 +1639,10 @@ class Ercot(ISOBase):
         doc.rename(
             columns={
                 "Delivery Date": "DeliveryDate",
+                "DELIVERY_DATE": "DeliveryDate",
                 "OperDay": "DeliveryDate",
                 "Hour Ending": "HourEnding",
+                "HOUR_ENDING": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",
                 "Date": "DeliveryDate",
                 "DeliveryHour": "HourEnding",
@@ -1648,7 +1713,7 @@ class Ercot(ISOBase):
             ],
         )
 
-        optional_drop = ["DSSTFlag", "DeliveryInterval"]
+        optional_drop = ["DSTFlag", "DeliveryInterval"]
 
         for col in optional_drop:
             if col in doc.columns:

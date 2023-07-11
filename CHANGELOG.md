@@ -1,5 +1,12 @@
 # Changelog
 
+## vNext
+
+### ERCOT
+
+- Add ERCOT hourly wind forecast report
+- Add ERCOT hourly solar forecast report
+
 ## v0.22.0 - July 3rd, 2023
 
 ### EIA
