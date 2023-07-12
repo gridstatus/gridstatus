@@ -1167,20 +1167,12 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with hourly wind report data
         """
-        all_docs = self._get_documents(
+        doc = self._get_document(
             report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,
+            published_before=None if date == "latest" else date,
             extension="csv",
             verbose=verbose,
         )
-
-        if date == "latest":
-            doc = max(all_docs, key=lambda x: x.publish_date)
-
-        else:
-            hour = date.floor("1H")
-            for doc in all_docs:
-                if hour == doc.publish_date.floor("1H"):
-                    break
 
         df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
 
@@ -1204,20 +1196,12 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with hourly solar report data
         """
-        all_docs = self._get_documents(
+        doc = self._get_document(
             report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
+            published_before=None if date == "latest" else date,
             extension="csv",
             verbose=verbose,
         )
-
-        if date == "latest":
-            doc = max(all_docs, key=lambda x: x.publish_date)
-
-        else:
-            hour = date.floor("1H")
-            for doc in all_docs:
-                if hour == doc.publish_date.floor("1H"):
-                    break
 
         df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
 
@@ -1259,20 +1243,12 @@ class Ercot(ISOBase):
 
 
         """
-        all_docs = self._get_documents(
+        doc = self._get_document(
             report_type_id=HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID,
             extension="csv",
+            published_before=None if date == "latest" else date,
             verbose=verbose,
         )
-
-        if date == "latest":
-            doc = max(all_docs, key=lambda x: x.publish_date)
-
-        else:
-            hour = date.floor("1H")
-            for doc in all_docs:
-                if hour == doc.publish_date.floor("1H"):
-                    break
 
         df = self._handle_hourly_resource_outage_capacity(doc, verbose=verbose)
 
@@ -1547,7 +1523,9 @@ class Ercot(ISOBase):
         self,
         report_type_id,
         date=None,
+        published_before=None,
         constructed_name_contains=None,
+        extension=None,
         verbose=False,
     ) -> Document:
         """Searches by Report Type ID, filtering for date and/or constructed name
@@ -1567,7 +1545,9 @@ class Ercot(ISOBase):
         documents = self._get_documents(
             report_type_id=report_type_id,
             date=date,
+            published_before=published_before,
             constructed_name_contains=constructed_name_contains,
+            extension=extension,
             verbose=verbose,
         )
         if len(documents) == 0:
@@ -1581,6 +1561,7 @@ class Ercot(ISOBase):
         self,
         report_type_id,
         date=None,
+        published_before=None,
         constructed_name_contains=None,
         extension=None,
         verbose=False,
@@ -1603,6 +1584,9 @@ class Ercot(ISOBase):
             publish_date = pd.Timestamp(doc["Document"]["PublishDate"]).tz_convert(
                 self.default_timezone,
             )
+
+            if published_before:
+                match = match and publish_date <= published_before
 
             if date:
                 match = match and publish_date.date() == date.date()
