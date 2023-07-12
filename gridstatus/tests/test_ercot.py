@@ -563,6 +563,85 @@ class TestErcot(BaseTestISO):
 
         return df
 
+    def test_get_hourly_wind_report(self):
+        # test specific hour
+        cols = [
+            "Publish Time",
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "ACTUAL SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STWPF SYSTEM WIDE",
+            "WGRPP SYSTEM WIDE",
+            "ACTUAL LZ SOUTH HOUSTON",
+            "COP HSL LZ SOUTH HOUSTON",
+            "STWPF LZ SOUTH HOUSTON",
+            "WGRPP LZ SOUTH HOUSTON",
+            "ACTUAL LZ WEST",
+            "COP HSL LZ WEST",
+            "STWPF LZ WEST",
+            "WGRPP LZ WEST",
+            "ACTUAL LZ NORTH",
+            "COP HSL LZ NORTH",
+            "STWPF LZ NORTH",
+            "WGRPP LZ NORTH",
+        ]
+        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_hourly_wind_report(date)
+        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].min() < date
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    def test_get_hourly_solar_report(self):
+        # test specific hour
+        cols = [
+            "Publish Time",
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "GEN SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STPPF SYSTEM WIDE",
+            "PVGRPP SYSTEM WIDE",
+            "GEN CenterWest",
+            "COP HSL CenterWest",
+            "STPPF CenterWest",
+            "PVGRPP CenterWest",
+            "GEN NorthWest",
+            "COP HSL NorthWest",
+            "STPPF NorthWest",
+            "PVGRPP NorthWest",
+            "GEN FarWest",
+            "COP HSL FarWest",
+            "STPPF FarWest",
+            "PVGRPP FarWest",
+            "GEN FarEast",
+            "COP HSL FarEast",
+            "STPPF FarEast",
+            "PVGRPP FarEast",
+            "GEN SouthEast",
+            "COP HSL SouthEast",
+            "STPPF SouthEast",
+            "PVGRPP SouthEast",
+            "GEN CenterEast",
+            "COP HSL CenterEast",
+            "STPPF CenterEast",
+            "PVGRPP CenterEast",
+        ]
+        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_hourly_solar_report(date, verbose=True)
+
+        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].min() < date
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
     """get_storage"""
 
     def test_get_storage_historical(self):
