@@ -1718,7 +1718,7 @@ class Ercot(ISOBase):
             # this handles how ercot does labels the instant
             # of the DST transition differently than
             # pandas does
-            doc["Interval Start"] = doc["Inte rval Start"] + pd.Timedelta(hours=1)
+            doc["Interval Start"] = doc["Interval Start"] + pd.Timedelta(hours=1)
             doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
                 self.default_timezone,
                 ambiguous=ambiguous,
