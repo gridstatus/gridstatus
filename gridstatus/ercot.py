@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 import tqdm
 from bs4 import BeautifulSoup
+from pytz.exceptions import NonExistentTimeError
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -84,6 +85,31 @@ SIXTY_DAY_DAM_DISCLOSURE_REPORTS_RTID = 13051
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-965-ER
 SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID = 13052
 
+# Unplanned Resource Outages Report
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP1-346-ER
+UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID = 22912
+
+# 3-Day Highest Price AS Offer Selected
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-915-EX
+THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
+
+# 2-Day Ancillary Services Reports
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-911-ER
+TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
+
+# Hourly Resource Outage Capacity
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-233-CD
+HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID = 13103
+
+# Wind Power Production - Hourly Averaged Actual and Forecasted Values
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-732-CD
+WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID = 13028
+
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-745-CD
+SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID = (  # noqa
+    21809  # noqa
+)
 
 """
 Settlement	Point Type	Description
@@ -103,6 +129,14 @@ Source: https://www.ercot.com/files/docs/2009/10/26/07_tests_for_rsnable_lmps_ov
 RESOURCE_NODE_SETTLEMENT_TYPES = ["RN", "PCCRN", "LCCRN", "PUN"]
 LOAD_ZONE_SETTLEMENT_TYPES = ["LZ", "LZ_DC"]
 HUB_SETTLEMENT_TYPES = ["HU", "SH", "AH"]
+
+
+@dataclass
+class Document:
+    url: str
+    publish_date: pd.Timestamp
+    constructed_name: str
+    friendly_name: str
 
 
 class Ercot(ISOBase):
@@ -133,13 +167,6 @@ class Ercot(ISOBase):
     ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_weather_zones.html"  # noqa
     LOAD_HISTORICAL_MAX_DAYS = 14
     AS_PRICES_HISTORICAL_MAX_DAYS = 30
-
-    @dataclass
-    class Document:
-        url: str
-        publish_date: pd.Timestamp
-        constructed_name: str
-        friendly_name: str
 
     def get_status(self, date, verbose=False):
         """Returns status of grid"""
@@ -1328,11 +1355,385 @@ class Ercot(ISOBase):
 
         return df
 
+    @support_date_range("HOUR_START")
+    def get_hourly_wind_report(self, date, end=None, verbose=False):
+        """Get Hourly Wind Report.
+
+        This report is posted every hour and includes System-wide and Regional
+        actual hourly averaged wind power production, STWPF, WGRPP and COP
+        HSLs for On-Line WGRs for a rolling historical 48-hour period as
+        well as the System-wide and Regional STWPF, WGRPP and
+        COP HSLs for On-Line WGRs for the rolling future
+        168-hour period. Our forecasts attempt to predict HSL,
+        which is uncurtailed power generation potential.
+
+        Arguments:
+            date (str): date to get report for. Supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly wind report data
+        """
+        doc = self._get_document(
+            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,
+            published_before=None if date == "latest" else date,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
+
+        return df
+
+    @support_date_range("HOUR_START")
+    def get_hourly_solar_report(self, date, end=None, verbose=False):
+        """Get Hourly Solar Report.
+
+        Posted every hour and includes System-wide and geographic regional
+        hourly averaged solar power production, STPPF, PVGRPP, and COP HSL
+        for On-Line PVGRs for a rolling historical 48-hour period as well
+        as the system-wide and regional STPPF, PVGRPP, and COP HSL for
+        On-Line PVGRs for the rolling future 168-hour period.
+
+        Arguments:
+            date (str): date to get report for. Supports "latest" or a date string
+            end (str, optional): end date for date range. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly solar report data
+        """
+
+        doc = self._get_document(
+            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
+            published_before=None if date == "latest" else date,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
+
+        return df
+
+    def _handle_hourly_wind_or_solar_report(self, doc, verbose=False):
+        df = self.read_doc(doc, verbose=verbose)
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
+        # replace _ in column names with spaces
+        df.columns = df.columns.str.replace("_", " ")
+        return df
+
+    @support_date_range("HOUR_START")
+    def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
+        """Hourly Resource Outage Capacity report sourced
+        from the Outage Scheduler (OS).
+
+        Returns outage data for for next 7 days.
+
+        Total Resource MW doesnt includ IRR, New Equipment outages,
+        retirement of old equipment, seasonal
+        mothballed (during the outaged season),
+        and mothballed.
+
+        As such, it is a proxy for thermal outages.
+
+        Arguments:
+            date (str): time to download. Returns last hourly report
+                before this time. Supports "latest"
+            end (str, optional): end time to download. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly resource outage capacity data
+
+
+        """
+        doc = self._get_document(
+            report_type_id=HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID,
+            extension="csv",
+            published_before=None if date == "latest" else date,
+            verbose=verbose,
+        )
+
+        df = self._handle_hourly_resource_outage_capacity(doc, verbose=verbose)
+
+        return df
+
+    def _handle_hourly_resource_outage_capacity(self, doc, verbose=False):
+        df = self.read_doc(doc, verbose=verbose)
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
+
+        outage_types = ["Total Resource", "Total IRR", "Total New Equip Resource"]
+
+        for t in outage_types:
+            t_no_space = t.replace(" ", "")
+            df = df.rename(
+                columns={
+                    f"{t_no_space}MWZoneSouth": f"{t} MW Zone South",
+                    f"{t_no_space}MWZoneNorth": f"{t} MW Zone North",
+                    f"{t_no_space}MWZoneWest": f"{t} MW Zone West",
+                    f"{t_no_space}MWZoneHouston": f"{t} MW Zone Houston",
+                },
+            )
+
+            df.insert(
+                df.columns.tolist().index(f"{t} MW Zone Houston") + 1,
+                f"{t} MW",
+                (
+                    df[f"{t} MW Zone South"]
+                    + df[f"{t} MW Zone North"]
+                    + df[f"{t} MW Zone West"]
+                    + df[f"{t} MW Zone Houston"]
+                ),
+            )
+        return df
+
+    @support_date_range("DAY_START")
+    def get_unplanned_resource_outages(self, date, verbose=False):
+        """Get Unplanned Resource Outages.
+
+        Data published at ~5am central on the 3rd day after the day of interest.
+
+        Arguments:
+            date (str, datetime): date to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with unplanned resource outages
+
+        """
+        doc = self._get_document(
+            report_type_id=UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID,
+            date=date.normalize() + pd.DateOffset(days=3),
+            verbose=verbose,
+        )
+
+        xls = utils.get_zip_file(doc.url, verbose=verbose)
+
+        df = self._handle_unplanned_resource_outages_file(xls)
+
+        return df
+
+    def _handle_unplanned_resource_outages_file(self, xls):
+        as_of = pd.to_datetime(
+            pd.read_excel(
+                xls,
+                sheet_name="Unplanned Resource Outages",
+                skiprows=2,
+                nrows=1,
+            )
+            .values[0][0]
+            .split(": ")[1],
+        ).tz_localize(self.default_timezone)
+        df = pd.read_excel(
+            xls,
+            sheet_name="Unplanned Resource Outages",
+            skiprows=4,
+            skipfooter=1,
+        )
+
+        df.insert(0, "Report Time", as_of)
+
+        time_cols = ["Actual Outage Start", "Planned End Date", "Actual End Date"]
+        for col in time_cols:
+            df[col] = pd.to_datetime(df[col]).dt.tz_localize(self.default_timezone)
+
+        return df
+
+    @support_date_range("DAY_START")
+    def get_as_reports(self, date, verbose=False):
+        """Get Ancillary Services Reports.
+
+        Published with a 2 day delay around 3am central
+        """
+        report_date = date.normalize() + pd.DateOffset(days=2)
+
+        doc = self._get_document(
+            report_type_id=TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        return self._handle_as_reports_file(doc.url, verbose=verbose)
+
+    def _handle_as_reports_file(self, file_path, verbose):
+        z = utils.get_zip_folder(file_path, verbose=verbose)
+
+        # extract the date from the file name
+        date_str = z.namelist()[0][-13:-4]
+
+        self_arranged_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+            "NSPNM",
+        ]
+        cleared_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+        ]
+        offers_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "ONNS",
+            "OFFNS",
+        ]
+
+        all_dfs = []
+        for as_name in cleared_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            cleared = f"2d_Cleared_DAM_AS_{suffix}"
+
+            if as_name in ["ECRSM", "ECRSS"] and cleared not in z.namelist():
+                continue
+
+            df_cleared = pd.read_csv(z.open(cleared))
+            all_dfs.append(df_cleared)
+
+        for as_name in self_arranged_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            self_arranged = f"2d_Self_Arranged_AS_{suffix}"
+
+            if as_name in ["ECRSM", "ECRSS"] and self_arranged not in z.namelist():
+                continue
+
+            df_self_arranged = pd.read_csv(z.open(self_arranged))
+            all_dfs.append(df_self_arranged)
+
+        def _make_bid_curve(df):
+            return [
+                tuple(x)
+                for x in df[["MW Offered", f"{as_name} Offer Price"]].values.tolist()
+            ]
+
+        for as_name in offers_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            offers = f"2d_Agg_AS_Offers_{suffix}"
+
+            if as_name in ["ECRSM", "ECRSS"] and offers not in z.namelist():
+                continue
+
+            df_offers = pd.read_csv(z.open(offers))
+            name = f"Bid Curve - {as_name}"
+            if df_offers.empty:
+                # use last df to get the index
+                # and set values to None
+                df_offers_hourly = all_dfs[0].rename(
+                    columns={
+                        all_dfs[0].columns[-1]: name,
+                    },
+                )
+                df_offers_hourly[name] = None
+
+            else:
+                df_offers_hourly = (
+                    df_offers.groupby(["Delivery Date", "Hour Ending"])
+                    .apply(_make_bid_curve)
+                    .reset_index(name=name)
+                )
+            all_dfs.append(df_offers_hourly)
+
+        df = pd.concat(
+            [df.set_index(["Delivery Date", "Hour Ending"]) for df in all_dfs],
+            axis=1,
+        ).reset_index()
+
+        return self.parse_doc(df, verbose=verbose)
+
+    @support_date_range("DAY_START")
+    def get_highest_price_as_offer_selected(self, date, verbose=False):
+        """Get the offer price and the name of the Entity submitting
+        the offer for the highest-priced Ancillary Service (AS) Offer.
+
+        Published with 3 day delay
+
+        Arguments:
+            date (str, datetime): date to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrameq
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self._handle_three_day_highest_price_as_offer_selected_file(doc, verbose)
+
+        return df
+
+    def _handle_three_day_highest_price_as_offer_selected_file(self, doc, verbose):
+        df = self.read_doc(doc, verbose=verbose)
+
+        df = df.rename(
+            columns={
+                "Resource Name with Highest-Priced Offer Selected in DAM and SASMs": "Resource Name",  # noqa: E501
+            },
+        )
+
+        def _handle_offers(df):
+            return pd.Series(
+                {
+                    "Offered Price": df["Offered Price"].iloc[0],
+                    "Total Offered Quantity": df["Offered Quantity"].sum(),
+                    "Offered Quantities": df["Offered Quantity"].tolist(),
+                },
+            )
+
+        df = (
+            df.groupby(
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Market",
+                    "QSE",
+                    "DME",
+                    "Resource Name",
+                    "AS Type",
+                    "Block Indicator",
+                ],
+            )
+            .apply(_handle_offers)
+            .reset_index()
+        )
+
+        return df
+
     def _get_document(
         self,
         report_type_id,
         date=None,
+        published_before=None,
         constructed_name_contains=None,
+        extension=None,
         verbose=False,
     ) -> Document:
         """Searches by Report Type ID, filtering for date and/or constructed name
@@ -1342,10 +1743,19 @@ class Ercot(ISOBase):
         Returns:
             Latest Document by publish_date
         """
+
+        # no need to pass this on
+        # since this only returns the latest
+        # document anyways
+        if date == "latest":
+            date = None
+
         documents = self._get_documents(
             report_type_id=report_type_id,
             date=date,
+            published_before=published_before,
             constructed_name_contains=constructed_name_contains,
+            extension=extension,
             verbose=verbose,
         )
         if len(documents) == 0:
@@ -1359,6 +1769,7 @@ class Ercot(ISOBase):
         self,
         report_type_id,
         date=None,
+        published_before=None,
         constructed_name_contains=None,
         extension=None,
         verbose=False,
@@ -1382,6 +1793,9 @@ class Ercot(ISOBase):
                 self.default_timezone,
             )
 
+            if published_before:
+                match = match and publish_date <= published_before
+
             if date:
                 match = match and publish_date.date() == date.date()
 
@@ -1398,7 +1812,7 @@ class Ercot(ISOBase):
                 doc_id = doc["Document"]["DocID"]
                 url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"  # noqa
                 matches.append(
-                    self.Document(
+                    Document(
                         url=url,
                         publish_date=publish_date,
                         constructed_name=doc["Document"]["ConstructedName"],
@@ -1440,6 +1854,7 @@ class Ercot(ISOBase):
         return df
 
     def read_doc(self, doc, verbose=False):
+        log(f"Reading {doc.url}", verbose)
         doc = pd.read_csv(doc.url, compression="zip")
         return self.parse_doc(doc, verbose=verbose)
 
@@ -1449,9 +1864,12 @@ class Ercot(ISOBase):
         doc.rename(
             columns={
                 "Delivery Date": "DeliveryDate",
+                "DELIVERY_DATE": "DeliveryDate",
                 "OperDay": "DeliveryDate",
                 "Hour Ending": "HourEnding",
+                "HOUR_ENDING": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",
+                "Date": "DeliveryDate",
                 "DeliveryHour": "HourEnding",
                 "Delivery Hour": "HourEnding",
                 "Delivery Interval": "DeliveryInterval",
@@ -1492,14 +1910,29 @@ class Ercot(ISOBase):
                 "HourBeginning"
             ].astype("timedelta64[h]")
 
-        doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
-            self.default_timezone,
-            ambiguous=doc["DSTFlag"] == "Y",
-        )
+        ambiguous = "infer"
+        if "DSTFlag" in doc.columns:
+            ambiguous = doc["DSTFlag"] == "Y"
+
+        try:
+            doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=ambiguous,
+            )
+        except NonExistentTimeError:
+            # this handles how ercot does labels the instant
+            # of the DST transition differently than
+            # pandas does
+            doc["Interval Start"] = doc["Interval Start"] + pd.Timedelta(hours=1)
+            doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=ambiguous,
+            ) - pd.Timedelta(hours=1)
 
         doc["Interval End"] = doc["Interval Start"] + interval_length
 
         doc["Time"] = doc["Interval Start"]
+        doc = doc.sort_values("Time", ascending=True)
 
         cols_to_keep = [
             "Time",
@@ -1513,11 +1946,14 @@ class Ercot(ISOBase):
             columns=[
                 "DeliveryDate",
                 "HourEnding",
-                "DSTFlag",
             ],
         )
-        if "DeliveryInterval" in doc.columns:
-            doc = doc.drop(columns=["DeliveryInterval"])
+
+        optional_drop = ["DSTFlag", "DeliveryInterval"]
+
+        for col in optional_drop:
+            if col in doc.columns:
+                doc = doc.drop(columns=[col])
 
         return doc
 

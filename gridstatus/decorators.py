@@ -135,6 +135,16 @@ class support_date_range:
                 ):
                     prepend = [args_dict["date"]]
                     args_dict["date"] = next_month_start
+            elif frequency == "HOUR_START":
+                frequency = "1H"
+                next_hour_start = args_dict["date"].ceil("1H")
+
+                if (
+                    next_hour_start < args_dict["end"]
+                    and next_hour_start != args_dict["date"]
+                ):
+                    prepend = [args_dict["date"]]
+                    args_dict["date"] = next_hour_start
 
             dates = pd.date_range(
                 args_dict["date"],

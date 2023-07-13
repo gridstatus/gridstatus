@@ -3,6 +3,7 @@ import pytest
 
 import gridstatus
 from gridstatus import Ercot, Markets, NotSupported
+from gridstatus.ercot import Document
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -389,25 +390,25 @@ class TestErcot(BaseTestISO):
 
     def test_spp_real_time_parse_retry_file_name(self):
         docs = [
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now(),
                 constructed_name="cdr.00012301.0000000000000000.20230608.001705730.SPPHLZNP6905_retry_20230608_1545_csv",
                 friendly_name="",
             ),
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now(),
                 constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_1545_csv",
                 friendly_name="",
             ),
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now(),
                 constructed_name="cdr.00012301.0000000000000000.2023202306110610.001705730.SPPHLZNP6905_20230611_0000_csv",
                 friendly_name="",
             ),
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now() + pd.Timedelta(days=1),
                 constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_0000_csv",
@@ -428,6 +429,296 @@ class TestErcot(BaseTestISO):
         latest = self.iso._filter_spp_rtm_files(docs, "latest")
         assert len(latest) == 1
         assert latest[0] == docs[-1]
+
+    """get_unplanned_resource_outages"""
+
+    def test_get_unplanned_resource_outages(self):
+        five_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=5,
+        )
+        df = self.iso.get_unplanned_resource_outages(date=five_days_ago)
+
+        cols = [
+            "Report Time",
+            "Resource Name",
+            "Resource Unit Code",
+            "Fuel Type",
+            "Outage Type",
+            "Available MW Maximum",
+            "Available MW During Outage",
+            "Effective MW Reduction Due to Outage",
+            "Actual Outage Start",
+            "Planned End Date",
+            "Actual End Date",
+            "Nature Of Work",
+        ]
+
+        time_cols = [
+            "Report Time",
+            "Actual Outage Start",
+            "Planned End Date",
+            "Actual End Date",
+        ]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+        assert df["Report Time"].dt.date.unique() == [five_days_ago.date()]
+        for col in time_cols:
+            assert df[col].dt.tz is not None
+
+        start = five_days_ago - pd.DateOffset(1)
+        df_2_days = self.iso.get_unplanned_resource_outages(
+            start=start,
+            end=five_days_ago + pd.DateOffset(1),
+        )
+
+        assert df_2_days.shape[0] >= 0
+        assert df_2_days.columns.tolist() == cols
+        assert df_2_days["Report Time"].dt.date.nunique() == 2
+        assert df_2_days["Report Time"].min().date() == start.date()
+        assert df_2_days["Report Time"].max().date() == five_days_ago.date()
+
+    """test get_highest_price_as_offer_selected"""
+
+    def test_get_highest_price_as_offer_selected(self):
+        four_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=4,
+        )
+
+        five_days_ago = four_days_ago - pd.Timedelta(
+            days=1,
+        )
+
+        df = self.iso.get_highest_price_as_offer_selected(
+            start=five_days_ago,
+            end=four_days_ago
+            + pd.Timedelta(
+                days=1,
+            ),
+        )
+
+        assert (
+            df["Interval Start"].dt.date.unique()
+            == [five_days_ago.date(), four_days_ago.date()]
+        ).all()
+
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "QSE",
+            "DME",
+            "Resource Name",
+            "AS Type",
+            "Block Indicator",
+            "Offered Price",
+            "Total Offered Quantity",
+            "Offered Quantities",
+        ]
+
+        assert df.columns.tolist() == cols
+
+    """test get_as_reports"""
+
+    def test_get_as_reports(self):
+        four_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=4,
+        )
+
+        five_days_ago = four_days_ago - pd.Timedelta(
+            days=1,
+        )
+
+        df = self.iso.get_as_reports(
+            start=five_days_ago,
+            end=four_days_ago
+            + pd.Timedelta(
+                days=1,
+            ),
+        )
+
+        assert (
+            df["Interval Start"].dt.date.unique()
+            == [five_days_ago.date(), four_days_ago.date()]
+        ).all()
+
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Total Cleared AS - RRSPFR",
+            "Total Cleared AS - RRSUFR",
+            "Total Cleared AS - RRSFFR",
+            "Total Cleared AS - ECRSM",
+            "Total Cleared AS - ECRSS",
+            "Total Cleared AS - RegUp",
+            "Total Cleared AS - RegDown",
+            "Total Cleared AS - NonSpin",
+            "Total Self-Arranged AS - RRSPFR",
+            "Total Self-Arranged AS - RRSUFR",
+            "Total Self-Arranged AS - RRSFFR",
+            "Total Self-Arranged AS - ECRSM",
+            "Total Self-Arranged AS - ECRSS",
+            "Total Self-Arranged AS - RegUp",
+            "Total Self-Arranged AS - RegDown",
+            "Total Self-Arranged AS - NonSpin",
+            "Total Self-Arranged AS - NSPNM",
+            "Bid Curve - RRSPFR",
+            "Bid Curve - RRSUFR",
+            "Bid Curve - RRSFFR",
+            "Bid Curve - ECRSM",
+            "Bid Curve - ECRSS",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
+        ]
+
+        assert df.columns.tolist() == cols
+
+    def test_get_hourly_resource_outage_capacity(self):
+        cols = [
+            "Publish Time",
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Total Resource MW Zone South",
+            "Total Resource MW Zone North",
+            "Total Resource MW Zone West",
+            "Total Resource MW Zone Houston",
+            "Total Resource MW",
+            "Total IRR MW Zone South",
+            "Total IRR MW Zone North",
+            "Total IRR MW Zone West",
+            "Total IRR MW Zone Houston",
+            "Total IRR MW",
+            "Total New Equip Resource MW Zone South",
+            "Total New Equip Resource MW Zone North",
+            "Total New Equip Resource MW Zone West",
+            "Total New Equip Resource MW Zone Houston",
+            "Total New Equip Resource MW",
+        ]
+
+        # test specific hour
+        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_hourly_resource_outage_capacity(date)
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+        # test latest and confirm published in last 2 hours
+        df = self.iso.get_hourly_resource_outage_capacity("latest")
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+        assert df["Publish Time"].min() >= pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) - pd.Timedelta(hours=2)
+
+        # test date range
+        end = date.floor("H")
+        start = end - pd.Timedelta(
+            hours=3,
+        )
+        df = self.iso.get_hourly_resource_outage_capacity(
+            start=start,
+            end=end,
+            verbose=True,
+        )
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+        assert df["Publish Time"].nunique() == 3
+
+        return df
+
+    def test_get_hourly_wind_report(self):
+        # test specific hour
+        cols = [
+            "Publish Time",
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "ACTUAL SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STWPF SYSTEM WIDE",
+            "WGRPP SYSTEM WIDE",
+            "ACTUAL LZ SOUTH HOUSTON",
+            "COP HSL LZ SOUTH HOUSTON",
+            "STWPF LZ SOUTH HOUSTON",
+            "WGRPP LZ SOUTH HOUSTON",
+            "ACTUAL LZ WEST",
+            "COP HSL LZ WEST",
+            "STWPF LZ WEST",
+            "WGRPP LZ WEST",
+            "ACTUAL LZ NORTH",
+            "COP HSL LZ NORTH",
+            "STWPF LZ NORTH",
+            "WGRPP LZ NORTH",
+        ]
+        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_hourly_wind_report(date)
+        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].min() < date
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    def test_get_hourly_solar_report(self):
+        # test specific hour
+        cols = [
+            "Publish Time",
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "GEN SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STPPF SYSTEM WIDE",
+            "PVGRPP SYSTEM WIDE",
+            "GEN CenterWest",
+            "COP HSL CenterWest",
+            "STPPF CenterWest",
+            "PVGRPP CenterWest",
+            "GEN NorthWest",
+            "COP HSL NorthWest",
+            "STPPF NorthWest",
+            "PVGRPP NorthWest",
+            "GEN FarWest",
+            "COP HSL FarWest",
+            "STPPF FarWest",
+            "PVGRPP FarWest",
+            "GEN FarEast",
+            "COP HSL FarEast",
+            "STPPF FarEast",
+            "PVGRPP FarEast",
+            "GEN SouthEast",
+            "COP HSL SouthEast",
+            "STPPF SouthEast",
+            "PVGRPP SouthEast",
+            "GEN CenterEast",
+            "COP HSL CenterEast",
+            "STPPF CenterEast",
+            "PVGRPP CenterEast",
+        ]
+        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_hourly_solar_report(date, verbose=True)
+
+        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].min() < date
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
 
     """get_storage"""
 
