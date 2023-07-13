@@ -3,6 +3,7 @@ import pytest
 
 import gridstatus
 from gridstatus import Ercot, Markets, NotSupported
+from gridstatus.ercot import Document
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -312,25 +313,25 @@ class TestErcot(BaseTestISO):
 
     def test_spp_real_time_parse_retry_file_name(self):
         docs = [
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now(),
                 constructed_name="cdr.00012301.0000000000000000.20230608.001705730.SPPHLZNP6905_retry_20230608_1545_csv",
                 friendly_name="",
             ),
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now(),
                 constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_1545_csv",
                 friendly_name="",
             ),
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now(),
                 constructed_name="cdr.00012301.0000000000000000.2023202306110610.001705730.SPPHLZNP6905_20230611_0000_csv",
                 friendly_name="",
             ),
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now() + pd.Timedelta(days=1),
                 constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_0000_csv",

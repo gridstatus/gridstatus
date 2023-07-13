@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 import tqdm
 from bs4 import BeautifulSoup
+from pytz.exceptions import NonExistentTimeError
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -116,6 +117,14 @@ LOAD_ZONE_SETTLEMENT_TYPES = ["LZ", "LZ_DC"]
 HUB_SETTLEMENT_TYPES = ["HU", "SH", "AH"]
 
 
+@dataclass
+class Document:
+    url: str
+    publish_date: pd.Timestamp
+    constructed_name: str
+    friendly_name: str
+
+
 class Ercot(ISOBase):
     """Electric Reliability Council of Texas (ERCOT)"""
 
@@ -144,13 +153,6 @@ class Ercot(ISOBase):
     ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_weather_zones.html"  # noqa
     LOAD_HISTORICAL_MAX_DAYS = 14
     AS_PRICES_HISTORICAL_MAX_DAYS = 30
-
-    @dataclass
-    class Document:
-        url: str
-        publish_date: pd.Timestamp
-        constructed_name: str
-        friendly_name: str
 
     def get_status(self, date, verbose=False):
         """Returns status of grid"""
@@ -1148,7 +1150,7 @@ class Ercot(ISOBase):
 
         return df
 
-    @support_date_range("1H")
+    @support_date_range("HOUR_START")
     def get_hourly_wind_report(self, date, end=None, verbose=False):
         """Get Hourly Wind Report.
 
@@ -1178,7 +1180,7 @@ class Ercot(ISOBase):
 
         return df
 
-    @support_date_range("1H")
+    @support_date_range("HOUR_START")
     def get_hourly_solar_report(self, date, end=None, verbose=False):
         """Get Hourly Solar Report.
 
@@ -1196,6 +1198,7 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with hourly solar report data
         """
+
         doc = self._get_document(
             report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
             published_before=None if date == "latest" else date,
@@ -1218,7 +1221,7 @@ class Ercot(ISOBase):
         df.columns = df.columns.str.replace("_", " ")
         return df
 
-    @support_date_range("1H")
+    @support_date_range("HOUR_START")
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
         """Hourly Resource Outage Capacity report sourced
         from the Outage Scheduler (OS).
@@ -1604,7 +1607,7 @@ class Ercot(ISOBase):
                 doc_id = doc["Document"]["DocID"]
                 url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"  # noqa
                 matches.append(
-                    self.Document(
+                    Document(
                         url=url,
                         publish_date=publish_date,
                         constructed_name=doc["Document"]["ConstructedName"],
@@ -1706,14 +1709,25 @@ class Ercot(ISOBase):
         if "DSTFlag" in doc.columns:
             ambiguous = doc["DSTFlag"] == "Y"
 
-        doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
-            self.default_timezone,
-            ambiguous=ambiguous,
-        )
+        try:
+            doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=ambiguous,
+            )
+        except NonExistentTimeError:
+            # this handles how ercot does labels the instant
+            # of the DST transition differently than
+            # pandas does
+            doc["Interval Start"] = doc["Interval Start"] + pd.Timedelta(hours=1)
+            doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=ambiguous,
+            ) - pd.Timedelta(hours=1)
 
         doc["Interval End"] = doc["Interval Start"] + interval_length
 
         doc["Time"] = doc["Interval Start"]
+        doc = doc.sort_values("Time", ascending=True)
 
         cols_to_keep = [
             "Time",
