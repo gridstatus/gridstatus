@@ -1076,12 +1076,12 @@ class Ercot(ISOBase):
             end (datetime.date, str, optional): if declared, function will return
                 data as a range, from "date" to "end"
             process (bool, optional): if True, will process the data into
-                standardize format. if False, will return raw data
+                standardized format. if False, will return raw data
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            dict: dictionary with keys "load_resource" and "gen_resource" mapping to
-                pandas.DataFrame objects
+            dict: dictionary with keys "sced_load_resource", "sced_gen_resource", and
+                "sced_smne", mapping to pandas.DataFrame objects
         """
 
         report_date = date + pd.DateOffset(days=60)
@@ -1094,41 +1094,81 @@ class Ercot(ISOBase):
         )
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
+        data = self._handle_60_day_sced_disclosure(z, process=process, verbose=verbose)
+
+        return data
+
+    def _handle_60_day_sced_disclosure(self, z, process=False, verbose=False):
         # todo there are other files in the zip folder
-        date_str = report_date.strftime("%d-%b-%y").upper()
-        load_resource_file = f"60d_Load_Resource_Data_in_SCED-{date_str}.csv"
-        gen_resource_file = f"60d_SCED_Gen_Resource_Data-{date_str}.csv"
+        load_resource_file = None
+        gen_resource_file = None
+        smne_file = None
+        for file in z.namelist():
+            if "60d_Load_Resource_Data_in_SCED" in file:
+                load_resource_file = file
+            elif "60d_SCED_Gen_Resource_Data" in file:
+                gen_resource_file = file
+            elif "60d_SCED_SMNE_GEN_RES" in file:
+                smne_file = file
+
+        assert load_resource_file, "Could not find load resource file"
+        assert gen_resource_file, "Could not find gen resource file"
+        assert smne_file, "Could not find smne file"
 
         load_resource = pd.read_csv(z.open(load_resource_file))
         gen_resource = pd.read_csv(z.open(gen_resource_file))
+        smne = pd.read_csv(z.open(smne_file))
 
-        def handle_time(df):
-            df["SCED Time Stamp"] = pd.to_datetime(
-                df["SCED Time Stamp"],
-            ).dt.tz_localize(
-                self.default_timezone,
-                ambiguous=df["Repeated Hour Flag"] == "Y",
+        def handle_time(df, time_col, is_interval_end=False):
+            df[time_col] = pd.to_datetime(
+                df[time_col],
             )
 
-            df.insert(0, "Interval Start", df["SCED Time Stamp"].dt.round("15min"))
+            if "Repeated Hour Flag" in df.columns:
+                df[time_col] = df[time_col].dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                )
+            else:
+                df[time_col] = df[time_col].dt.tz_localize(self.default_timezone)
+
+            interval_start = df[time_col].dt.round("15min")
+
+            interval_length = pd.Timedelta(minutes=15)
+            if is_interval_end:
+                interval_end = interval_start
+                interval_start = interval_start - interval_length
+            else:
+                interval_end = interval_start + interval_length
+
+            df.insert(0, "Interval Start", interval_start)
             df.insert(
                 1,
                 "Interval End",
-                df["Interval Start"] + pd.Timedelta(minutes=15),
+                interval_end,
             )
 
             return df
 
-        load_resource = handle_time(load_resource)
-        gen_resource = handle_time(gen_resource)
+        load_resource = handle_time(load_resource, time_col="SCED Time Stamp")
+        gen_resource = handle_time(gen_resource, time_col="SCED Time Stamp")
+        # no repeated hour flag like other ERCOT data
+        # likely will error on DST change
+        smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
 
         if process:
             load_resource = process_sced_load(load_resource)
             gen_resource = process_sced_gen(gen_resource)
+            smne = smne.rename(
+                columns={
+                    "Resource Code": "Resource Name",
+                },
+            )
 
         return {
             "sced_load_resource": load_resource,
             "sced_gen_resource": gen_resource,
+            "sced_smne": smne,
         }
 
     @support_date_range("DAY_START")

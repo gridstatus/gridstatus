@@ -324,10 +324,11 @@ class TestErcot(BaseTestISO):
 
         load_resource = df_dict["sced_load_resource"]
         gen_resource = df_dict["sced_gen_resource"]
+        smne = df_dict["sced_smne"]
 
         assert load_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
-
         assert gen_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
+        assert smne["Interval Time"].dt.date.unique()[0] == days_ago_65
 
     def test_get_60_day_sced_disclosure_range(self):
         days_ago_65 = pd.Timestamp.now(
@@ -349,8 +350,9 @@ class TestErcot(BaseTestISO):
             verbose=True,
         )
 
-        load_resource = df_dict["load_resource"]
-        gen_resource = df_dict["gen_resource"]
+        load_resource = df_dict["sced_load_resource"]
+        gen_resource = df_dict["sced_gen_resource"]
+        smne = df_dict["sced_smne"]
 
         assert load_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
             days_ago_66,
@@ -358,6 +360,11 @@ class TestErcot(BaseTestISO):
         ]
 
         assert gen_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
+            days_ago_66,
+            days_ago_65,
+        ]
+
+        assert smne["Interval Time"].dt.date.unique().tolist() == [
             days_ago_66,
             days_ago_65,
         ]
