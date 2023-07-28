@@ -445,15 +445,6 @@ class Ercot(ISOBase):
             ]
         ]
 
-        # keep today's data only
-        data = data[
-            data["Interval Start"].dt.normalize()
-            == pd.Timestamp(
-                date,
-            )
-            .tz_localize(self.default_timezone)
-            .normalize()
-        ]
         data = data[data["forecast"] == 0]  # only keep non forecast rows
 
         return data.reset_index(drop=True)
