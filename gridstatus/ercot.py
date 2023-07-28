@@ -1104,11 +1104,12 @@ class Ercot(ISOBase):
         gen_resource_file = None
         smne_file = None
         for file in z.namelist():
-            if "60d_Load_Resource_Data_in_SCED" in file:
+            cleaned_file = file.replace(" ", "_")
+            if "60d_Load_Resource_Data_in_SCED" in cleaned_file:
                 load_resource_file = file
-            elif "60d_SCED_Gen_Resource_Data" in file:
+            elif "60d_SCED_Gen_Resource_Data" in cleaned_file:
                 gen_resource_file = file
-            elif "60d_SCED_SMNE_GEN_RES" in file:
+            elif "60d_SCED_SMNE_GEN_RES" in cleaned_file:
                 smne_file = file
 
         assert load_resource_file, "Could not find load resource file"
@@ -1120,19 +1121,40 @@ class Ercot(ISOBase):
         smne = pd.read_csv(z.open(smne_file))
 
         def handle_time(df, time_col, is_interval_end=False):
-            df[time_col] = pd.to_datetime(
-                df[time_col],
-            )
+            df[time_col] = pd.to_datetime(df[time_col])
 
             if "Repeated Hour Flag" in df.columns:
                 df[time_col] = df[time_col].dt.tz_localize(
                     self.default_timezone,
                     ambiguous=df["Repeated Hour Flag"] == "Y",
                 )
-            else:
-                df[time_col] = df[time_col].dt.tz_localize(self.default_timezone)
+                interval_start = df[time_col].dt.round(
+                    "15min",
+                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                )
 
-            interval_start = df[time_col].dt.round("15min")
+            else:
+                # for SMNE data
+                df[time_col] = (
+                    df.sort_values("Interval Number", ascending=True)
+                    .groupby("Resource Code")[time_col]
+                    .transform(
+                        lambda x: x.dt.tz_localize(
+                            self.default_timezone,
+                            ambiguous="infer",
+                        ),
+                    )
+                )
+
+                # convert to utc
+                # bc round doesn't work with dst changes
+                # without Repeated Hour Flag
+                interval_start = (
+                    df[time_col]
+                    .dt.tz_convert("utc")
+                    .dt.round("15min")
+                    .dt.tz_convert(self.default_timezone)
+                )
 
             interval_length = pd.Timedelta(minutes=15)
             if is_interval_end:
@@ -1157,6 +1179,7 @@ class Ercot(ISOBase):
         smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
 
         if process:
+            log("Processing 60 day SCED disclosure data", verbose=verbose)
             load_resource = process_sced_load(load_resource)
             gen_resource = process_sced_gen(gen_resource)
             smne = smne.rename(

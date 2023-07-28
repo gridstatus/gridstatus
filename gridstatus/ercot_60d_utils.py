@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 
@@ -119,6 +120,9 @@ def extract_curve(df, curve_name):
     mw_cols = [x for x in df.columns if x.startswith(curve_name + "-MW")]
     price_cols = [x for x in df.columns if x.startswith(curve_name + "-Price")]
 
+    if len(mw_cols) == 0 or len(price_cols) == 0:
+        return np.nan
+
     def combine_mw_price(row):
         return [
             (mw, price)
@@ -232,14 +236,13 @@ def process_sced_gen(df):
     df[sced1_offer_col] = extract_curve(df, "SCED1 Curve")
     df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO")
 
-    df = df[
-        time_cols
-        + resource_cols
-        + telemetry_cols
-        + as_cols
-        + [sced1_offer_col]
-        + tpo_cols
-    ]
+    all_cols = resource_cols + telemetry_cols + as_cols + [sced1_offer_col] + tpo_cols
+
+    for col in all_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df = df[time_cols + all_cols]
 
     # standardized to same naming as load
     # clean up column names
@@ -291,7 +294,12 @@ def process_sced_load(df):
 
     df[bid_curve_col] = extract_curve(df, "SCED Bid to Buy Curve")
 
-    df = df[time_cols + resource_cols + telemetry_cols + as_cols + [bid_curve_col]]
+    all_cols = resource_cols + telemetry_cols + as_cols + [bid_curve_col]
+    for col in all_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df = df[time_cols + all_cols]
 
     return df
 
