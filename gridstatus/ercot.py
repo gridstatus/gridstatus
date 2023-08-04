@@ -19,7 +19,9 @@ from gridstatus.base import (
 from gridstatus.decorators import ercot_update_dates, support_date_range
 from gridstatus.ercot_60d_utils import (
     make_storage_resources,
-    process_dam_gen_disclosure,
+    process_dam_gen,
+    process_dam_load,
+    process_dam_load_as_offers,
     process_sced_gen,
     process_sced_load,
 )
@@ -1200,16 +1202,29 @@ class Ercot(ISOBase):
 
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
-        date_str = report_date.strftime("%d-%b-%y").upper()
+        data = self._handle_60_day_dam_disclosure(z, process=process, verbose=verbose)
 
-        files = {
-            "dam_gen_resource": f"60d_DAM_Gen_Resource_Data-{date_str}.csv",
-            "dam_gen_resource_as_offers": f"60d_DAM_Generation_Resource_ASOffers-{date_str}.csv",  # noqa: E501
-            "dam_load_resource": f"60d_DAM_Load_Resource_Data-{date_str}.csv",
-            "dam_load_resource_as_offers": f"60d_DAM_Load_Resource_ASOffers-{date_str}.csv",  # noqa: E501
-            "dam_energy_bids": f"60d_DAM_EnergyBids-{date_str}.csv",
-            "dam_energy_bid_awards": f"60d_DAM_EnergyBidAwards-{date_str}.csv",  # noqa: E501
+        return data
+
+    def _handle_60_day_dam_disclosure(self, z, process=False, verbose=False):
+        files_prefix = {
+            "dam_gen_resource": "60d_DAM_Gen_Resource_Data-",
+            "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",  # noqa: E501
+            "dam_load_resource": "60d_DAM_Load_Resource_Data-",
+            "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",  # noqa: E501
+            "dam_energy_bids": "60d_DAM_EnergyBids-",
+            "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",  # noqa: E501
         }
+
+        files = {}
+
+        # find files in zip folder
+        for key, file in files_prefix.items():
+            for f in z.namelist():
+                if file in f:
+                    files[key] = f
+
+        assert len(files) == len(files_prefix), "Missing files"
 
         data = {}
 
@@ -1221,8 +1236,16 @@ class Ercot(ISOBase):
             data[key] = self.parse_doc(doc)
 
         if process:
-            data["dam_gen_resource"] = process_dam_gen_disclosure(
+            data["dam_gen_resource"] = process_dam_gen(
                 data["dam_gen_resource"],
+            )
+
+            data["dam_load_resource"] = process_dam_load(
+                data["dam_load_resource"],
+            )
+
+            data["dam_load_resource_as_offers"] = process_dam_load_as_offers(
+                data["dam_load_resource_as_offers"],
             )
 
         return data

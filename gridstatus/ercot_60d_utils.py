@@ -135,7 +135,7 @@ def extract_curve(df, curve_name):
     return df.apply(combine_mw_price, axis=1)
 
 
-def process_dam_gen_disclosure(df):
+def process_dam_gen(df):
     time_cols = [
         "Interval Start",
         "Interval End",
@@ -181,14 +181,79 @@ def process_dam_gen_disclosure(df):
 
     df[curve] = extract_curve(df, "QSE submitted Curve")
 
-    df = df[
-        time_cols
-        + resource_cols
-        + telemetry_cols
-        + energy_award_cols
-        + as_cols
-        + [curve]
+    all_cols = resource_cols + telemetry_cols + energy_award_cols + as_cols + [curve]
+
+    for col in all_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df = df[time_cols + all_cols]
+
+    return df
+
+
+def process_dam_load(df):
+    time_cols = [
+        "Time",
+        "Interval Start",
+        "Interval End",
     ]
+
+    resource_cols = ["Load Resource Name"]
+
+    telemetry_cols = [
+        "Max Power Consumption for Load Resource",
+        "Low Power Consumption for Load Resource",
+    ]
+
+    as_cols = [
+        "RegUp Awarded",
+        "RegUp MCPC",
+        "RegDown Awarded",
+        "RegDown MCPC",
+        "RRSPFR Awarded",
+        "RRSFFR Awarded",
+        "RRSUFR Awarded",
+        "RRS MCPC",
+        "NonSpin Awarded",
+        "NonSpin MCPC",
+    ]
+
+    all_cols = resource_cols + telemetry_cols + as_cols
+
+    for col in all_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df = df[time_cols + all_cols]
+
+    # rename for consistency
+    # with gen columns
+    df = df.rename(
+        columns={
+            "Load Resource Name": "Resource Name",
+        },
+    )
+
+    return df
+
+
+def process_dam_load_as_offers(df):
+    if "QSE" not in df.columns:
+        # after Interval End
+        index = df.columns.tolist().index("Interval End") + 1
+        df.insert(index, "QSE", np.nan)
+
+    if "DME" not in df.columns:
+        # after QSE
+        index = df.columns.tolist().index("QSE") + 1
+        df.insert(index, "DME", np.nan)
+
+    df = df.rename(
+        columns={
+            "Load Resource Name": "Resource Name",
+        },
+    )
 
     return df
 
