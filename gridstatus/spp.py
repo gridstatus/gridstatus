@@ -1,6 +1,4 @@
-import io
 import re
-from urllib.parse import urlencode
 
 import pandas as pd
 import requests
@@ -163,6 +161,7 @@ class SPP(ISOBase):
         else:
             # hourly historical zonal loads
             # https://marketplace.spp.org/pages/hourly-load
+            # five minute actual load available here: https://portal.spp.org/pages/stlf-vs-actual#
             raise NotSupported()
 
     def get_load_forecast(self, date, forecast_type="MID_TERM", verbose=False):
@@ -457,6 +456,8 @@ class SPP(ISOBase):
                 verbose,
             )
         elif market == Markets.DAY_AHEAD_HOURLY:
+            if date == "latest":
+                raise ValueError("Latest not supported for Day Ahead Hourly")
             df = self._get_dam_lmp(
                 date,
                 verbose,
@@ -491,11 +492,24 @@ class SPP(ISOBase):
         end=None,
         verbose=False,
     ):
-        df = self._fetch_and_concat_csvs(
-            self._fs_get_rtbm_lmp_by_location_paths(date, verbose=verbose),
-            fs_name=FS_RTBM_LMP_BY_LOCATION,
-            verbose=verbose,
-        )
+        if date == "latest":
+            urls = [
+                FILE_BROWSER_DOWNLOAD_URL
+                + "/"
+                + FS_RTBM_LMP_BY_LOCATION
+                + "?path=%2FRTBM-LMP-SL-latestInterval.csv",
+            ]
+        else:
+            urls = self._file_browser_list(
+                fs_name=FS_RTBM_LMP_BY_LOCATION,
+                type="folder",
+                path=date.strftime("/%Y/%m/By_Interval/%d"),
+            )["url"].tolist()
+
+        msg = f"Found {len(urls)} files for {date}"
+        log(msg, verbose)
+
+        df = self._fetch_and_concat_csvs(urls, verbose=verbose)
         return df
 
     def _get_dam_lmp(
@@ -503,8 +517,7 @@ class SPP(ISOBase):
         date,
         verbose=False,
     ):
-        dataset = "da-lmp-by-location"
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{dataset}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-LMP-SL-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{FS_DAM_LMP_BY_LOCATION}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-LMP-SL-{date.strftime('%Y%m%d')}0100.csv"  # noqa
         log(f"Downloading {url}", verbose=verbose)
         df = pd.read_csv(url)
         return df
@@ -595,37 +608,12 @@ class SPP(ISOBase):
             raise ValueError(f"Invalid location_type: {location_type}")
         return df["SETTLEMENT_LOCATION"].unique().tolist()
 
-    def _fs_get_rtbm_lmp_by_location_paths(self, date, verbose=False):
-        """
-        Lists files for Real-Time Balancing Market (RTBM),
-        Locational Marginal Price (LMP) by Settlement Location (SL)
-        """
-        if date == "latest":
-            paths = ["/RTBM-LMP-SL-latestInterval.csv"]
-        else:
-            files_df = self._file_browser_list(
-                name=FS_RTBM_LMP_BY_LOCATION,
-                fs_name=FS_RTBM_LMP_BY_LOCATION,
-                type="folder",
-                path=date.strftime("/%Y/%m/By_Interval/%d"),
-            )
-            paths = files_df["path"].tolist()
-        msg = f"Found {len(paths)} files for {date}"
-        log(msg, verbose)
-        return paths
-
-    def _fetch_and_concat_csvs(self, paths: list, fs_name: str, verbose: bool = False):
+    def _fetch_and_concat_csvs(self, urls: list, verbose: bool = False):
         all_dfs = []
-        for path in tqdm.tqdm(paths):
-            url = self._file_browser_download_url(
-                fs_name,
-                params={"path": path},
-            )
+        for url in tqdm.tqdm(urls):
             msg = f"Fetching {url}"
             log(msg, verbose)
-
-            csv = requests.get(url)
-            df = pd.read_csv(io.StringIO(csv.content.decode("UTF-8")))
+            df = pd.read_csv(url)
             all_dfs.append(df)
         return pd.concat(all_dfs)
 
@@ -649,13 +637,13 @@ class SPP(ISOBase):
             },
         }
 
-    def _file_browser_list(self, name: str, fs_name: str, type: str, path: str):
+    def _file_browser_list(self, fs_name: str, type: str, path: str):
         """Lists folders in a browser
 
         Returns: pd.DataFrame of files, or empty pd.DataFrame on error"""
         session = self._get_marketplace_session()
         json_payload = {
-            "name": name,
+            "name": fs_name,
             "fsName": fs_name,
             "type": type,
             "path": path,
@@ -668,13 +656,12 @@ class SPP(ISOBase):
         )
         if list_results.status_code == 200:
             df = pd.DataFrame(list_results.json())
+            df["url"] = (
+                FILE_BROWSER_DOWNLOAD_URL + "/" + fs_name + "?path=" + df["path"]
+            )
             return df
         else:
             return pd.DataFrame()
-
-    def _file_browser_download_url(self, fs_name, params=None):
-        qs = "?" + urlencode(params) if params else ""
-        return f"{FILE_BROWSER_DOWNLOAD_URL}/{fs_name}{qs}"
 
     @staticmethod
     def _clean_status_text(text):
