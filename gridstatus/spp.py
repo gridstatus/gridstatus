@@ -429,7 +429,7 @@ class SPP(ISOBase):
         date,
         end=None,
         market: str = None,
-        location_type: str = LOCATION_TYPE_HUB,
+        location_type: str = LOCATION_TYPE_ALL,
         verbose=False,
     ):
         """Get LMP data
@@ -439,9 +439,9 @@ class SPP(ISOBase):
             - ``DAY_AHEAD_HOURLY``
 
         Supported Location Types:
-            - ``hub``
-            - ``interface``
-            - ``settlement_location``
+            - ``Hub``
+            - ``Interface``
+            - ``ALL``
         """
         if market not in self.markets:
             raise NotSupported(f"Market {market} not supported")
