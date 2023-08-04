@@ -18,7 +18,6 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import ercot_update_dates, support_date_range
 from gridstatus.ercot_60d_utils import (
-    make_storage_resources,
     process_dam_gen,
     process_dam_load,
     process_dam_load_as_offers,
@@ -1016,50 +1015,6 @@ class Ercot(ISOBase):
 
         return data
 
-    def get_60_day_disclosures(
-        self,
-        date=None,
-        start=None,
-        end=None,
-        process=False,
-        verbose=False,
-    ):
-        """Get 60 day disclosure data for dam and sced"""
-
-        if start:
-            date = start
-
-        assert date, "Must provide a date or start date"
-
-        dam = self.get_60_day_dam_disclosure(
-            date=date,
-            end=end,
-            process=process,
-            verbose=verbose,
-        )
-
-        data = self.get_60_day_sced_disclosure(
-            date=date,
-            end=end,
-            process=process,
-            verbose=verbose,
-        )
-
-        data.update(dam)
-
-        data["sara"] = self.get_sara(verbose=verbose)
-
-        if not process:
-            return data
-
-        data["settlement_point_mapping"] = data["dam_gen_resource"][
-            ["Resource Name", "Settlement Point Name"]
-        ].drop_duplicates()
-
-        data["storage_resources"] = make_storage_resources(data)
-
-        return data
-
     @support_date_range("DAY_START")
     def get_60_day_sced_disclosure(self, date, end=None, process=False, verbose=False):
         """Get 60 day SCED Disclosure data
@@ -1255,8 +1210,14 @@ class Ercot(ISOBase):
         url="https://www.ercot.com/files/docs/2023/05/05/SARA_Summer2023_Revised.xlsx",
         verbose=False,
     ):
-        """Get SARA data from url.
+        """Parse SARA data from url.
+
         Seasonal Assessment of Resource Adequacy for the ERCOT Region (SARA)
+
+        Arguments:
+            url (str, optional): url to download SARA data from. Defaults to
+                Summer 2023 SARA data.
+
         """
 
         # only reading SummerCapacities right now
