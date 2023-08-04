@@ -122,7 +122,7 @@ class SPP(ISOBase):
             # many years of historical 5 minute data
             raise NotSupported
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=%2FGenMix2Hour.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/GenMix2Hour.csv"  # noqa
         df_raw = pd.read_csv(url)
         historical_mix = process_gen_mix(df_raw, detailed=detailed)
 
@@ -264,7 +264,7 @@ class SPP(ISOBase):
 
 
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=%2F{date.strftime('%Y')}%2F{date.strftime('%m')}%2FVER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
 
         msg = f"Downloading {url}"
         log(msg, verbose)
@@ -283,7 +283,7 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: VER Curtailments
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=%2F{year}%2F{year}.zip"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
         z = utils.get_zip_folder(url, verbose=verbose)
 
         # iterate through all files in zip
@@ -334,9 +334,6 @@ class SPP(ISOBase):
         # def get_historical_lmp(self, date, market: str, nodes: list):
         # 5 minute interal data
         # {FILE_BROWSER_API_URL}/rtbm-lmp-by-location?path=/2022/08/By_Interval/08/RTBM-LMP-SL-202208082125.csv
-
-        # hub and interface prices
-        # https://marketplace.spp.org/pages/hub-and-interface-prices
 
         # historical generation mix
         # https://marketplace.spp.org/pages/generation-mix-rolling-365
