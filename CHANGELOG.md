@@ -6,6 +6,8 @@
 
 - Add ERCOT hourly wind forecast report
 - Add ERCOT hourly solar forecast report
+- Add `Ercot.get_60_day_sced_disclosure`
+- Add `Ercot.get_60_day_dam_disclosure`
 
 ## v0.22.0 - July 3rd, 2023
 
