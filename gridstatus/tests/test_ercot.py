@@ -311,6 +311,94 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
+    """get_60_day_sced_disclosure"""
+
+    def test_get_60_day_sced_disclosure_historical(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        df_dict = self.iso.get_60_day_sced_disclosure(date=days_ago_65, process=True)
+
+        load_resource = df_dict["sced_load_resource"]
+        gen_resource = df_dict["sced_gen_resource"]
+        smne = df_dict["sced_smne"]
+
+        assert load_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
+        assert gen_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
+        assert smne["Interval Time"].dt.date.unique()[0] == days_ago_65
+
+    def test_get_60_day_sced_disclosure_range(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        days_ago_66 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=66,
+        )
+
+        df_dict = self.iso.get_60_day_sced_disclosure(
+            start=days_ago_66,
+            end=days_ago_65
+            + pd.Timedelta(days=1),  # add one day to end date since exclusive
+            verbose=True,
+        )
+
+        load_resource = df_dict["sced_load_resource"]
+        gen_resource = df_dict["sced_gen_resource"]
+        smne = df_dict["sced_smne"]
+
+        assert load_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
+            days_ago_66,
+            days_ago_65,
+        ]
+
+        assert gen_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
+            days_ago_66,
+            days_ago_65,
+        ]
+
+        assert smne["Interval Time"].dt.date.unique().tolist() == [
+            days_ago_66,
+            days_ago_65,
+        ]
+
+    """get_60_day_dam_disclosure"""
+
+    def test_get_60_day_dam_disclosure_historical(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        df_dict = self.iso.get_60_day_dam_disclosure(date=days_ago_65, process=True)
+
+        assert df_dict is not None
+
+    def test_get_sara(self):
+        columns = [
+            "Unit Name",
+            "Generation Interconnection Project Code",
+            "Unit Code",
+            "County",
+            "Fuel",
+            "Zone",
+            "In Service Year",
+            "Installed Capacity Rating",
+            "Summer Capacity (MW)",
+            "New Planned Project Additions to Report",
+        ]
+        df = self.iso.get_sara(verbose=True)
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
+
     def test_spp_real_time_parse_retry_file_name(self):
         docs = [
             Document(

@@ -17,6 +17,13 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import ercot_update_dates, support_date_range
+from gridstatus.ercot_60d_utils import (
+    process_dam_gen,
+    process_dam_load,
+    process_dam_load_as_offers,
+    process_sced_gen,
+    process_sced_load,
+)
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
@@ -70,6 +77,14 @@ ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE = 14836
 # Historical DAM Clearing Prices for Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
 HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 13091
+
+# 60-Day DAM Disclosure Reports
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-966-ER
+SIXTY_DAY_DAM_DISCLOSURE_REPORTS_RTID = 13051
+
+# 60-Day SCED Disclosure Reports
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-965-ER
+SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID = 13052
 
 # Unplanned Resource Outages Report
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP1-346-ER
@@ -431,15 +446,6 @@ class Ercot(ISOBase):
             ]
         ]
 
-        # keep today's data only
-        data = data[
-            data["Interval Start"].dt.normalize()
-            == pd.Timestamp(
-                date,
-            )
-            .tz_localize(self.default_timezone)
-            .normalize()
-        ]
         data = data[data["forecast"] == 0]  # only keep non forecast rows
 
         return data.reset_index(drop=True)
@@ -825,6 +831,7 @@ class Ercot(ISOBase):
         df = self.read_doc(doc_info, verbose=verbose)
 
         # fetch mapping
+        # todo move to finalize?
         df["Market"] = Markets.DAY_AHEAD_HOURLY.value
 
         return df
@@ -964,8 +971,6 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-        print(data)
-
         return data
 
     @support_date_range("DAY_START")
@@ -1009,6 +1014,244 @@ class Ercot(ISOBase):
         )
 
         return data
+
+    @support_date_range("DAY_START")
+    def get_60_day_sced_disclosure(self, date, end=None, process=False, verbose=False):
+        """Get 60 day SCED Disclosure data
+
+        Arguments:
+            date (datetime.date, str): date to return
+            end (datetime.date, str, optional): if declared, function will return
+                data as a range, from "date" to "end"
+            process (bool, optional): if True, will process the data into
+                standardized format. if False, will return raw data
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            dict: dictionary with keys "sced_load_resource", "sced_gen_resource", and
+                "sced_smne", mapping to pandas.DataFrame objects
+        """
+
+        report_date = date + pd.DateOffset(days=60)
+
+        doc_info = self._get_document(
+            report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+            date=report_date,
+            constructed_name_contains="60_Day_SCED_Disclosure.zip",
+            verbose=verbose,
+        )
+        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
+
+        data = self._handle_60_day_sced_disclosure(z, process=process, verbose=verbose)
+
+        return data
+
+    def _handle_60_day_sced_disclosure(self, z, process=False, verbose=False):
+        # todo there are other files in the zip folder
+        load_resource_file = None
+        gen_resource_file = None
+        smne_file = None
+        for file in z.namelist():
+            cleaned_file = file.replace(" ", "_")
+            if "60d_Load_Resource_Data_in_SCED" in cleaned_file:
+                load_resource_file = file
+            elif "60d_SCED_Gen_Resource_Data" in cleaned_file:
+                gen_resource_file = file
+            elif "60d_SCED_SMNE_GEN_RES" in cleaned_file:
+                smne_file = file
+
+        assert load_resource_file, "Could not find load resource file"
+        assert gen_resource_file, "Could not find gen resource file"
+        assert smne_file, "Could not find smne file"
+
+        load_resource = pd.read_csv(z.open(load_resource_file))
+        gen_resource = pd.read_csv(z.open(gen_resource_file))
+        smne = pd.read_csv(z.open(smne_file))
+
+        def handle_time(df, time_col, is_interval_end=False):
+            df[time_col] = pd.to_datetime(df[time_col])
+
+            if "Repeated Hour Flag" in df.columns:
+                df[time_col] = df[time_col].dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                )
+                interval_start = df[time_col].dt.round(
+                    "15min",
+                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                )
+
+            else:
+                # for SMNE data
+                df[time_col] = (
+                    df.sort_values("Interval Number", ascending=True)
+                    .groupby("Resource Code")[time_col]
+                    .transform(
+                        lambda x: x.dt.tz_localize(
+                            self.default_timezone,
+                            ambiguous="infer",
+                        ),
+                    )
+                )
+
+                # convert to utc
+                # bc round doesn't work with dst changes
+                # without Repeated Hour Flag
+                interval_start = (
+                    df[time_col]
+                    .dt.tz_convert("utc")
+                    .dt.round("15min")
+                    .dt.tz_convert(self.default_timezone)
+                )
+
+            interval_length = pd.Timedelta(minutes=15)
+            if is_interval_end:
+                interval_end = interval_start
+                interval_start = interval_start - interval_length
+            else:
+                interval_end = interval_start + interval_length
+
+            df.insert(0, "Interval Start", interval_start)
+            df.insert(
+                1,
+                "Interval End",
+                interval_end,
+            )
+
+            return df
+
+        load_resource = handle_time(load_resource, time_col="SCED Time Stamp")
+        gen_resource = handle_time(gen_resource, time_col="SCED Time Stamp")
+        # no repeated hour flag like other ERCOT data
+        # likely will error on DST change
+        smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
+
+        if process:
+            log("Processing 60 day SCED disclosure data", verbose=verbose)
+            load_resource = process_sced_load(load_resource)
+            gen_resource = process_sced_gen(gen_resource)
+            smne = smne.rename(
+                columns={
+                    "Resource Code": "Resource Name",
+                },
+            )
+
+        return {
+            "sced_load_resource": load_resource,
+            "sced_gen_resource": gen_resource,
+            "sced_smne": smne,
+        }
+
+    @support_date_range("DAY_START")
+    def get_60_day_dam_disclosure(self, date, end=None, process=False, verbose=False):
+        """Get 60 day DAM Disclosure data"""
+
+        report_date = date + pd.DateOffset(days=60)
+
+        doc_info = self._get_document(
+            report_type_id=SIXTY_DAY_DAM_DISCLOSURE_REPORTS_RTID,
+            date=report_date,
+            constructed_name_contains="60_Day_DAM_Disclosure.zip",
+            verbose=verbose,
+        )
+
+        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
+
+        data = self._handle_60_day_dam_disclosure(z, process=process, verbose=verbose)
+
+        return data
+
+    def _handle_60_day_dam_disclosure(self, z, process=False, verbose=False):
+        files_prefix = {
+            "dam_gen_resource": "60d_DAM_Gen_Resource_Data-",
+            "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",  # noqa: E501
+            "dam_load_resource": "60d_DAM_Load_Resource_Data-",
+            "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",  # noqa: E501
+            "dam_energy_bids": "60d_DAM_EnergyBids-",
+            "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",  # noqa: E501
+        }
+
+        files = {}
+
+        # find files in zip folder
+        for key, file in files_prefix.items():
+            for f in z.namelist():
+                if file in f:
+                    files[key] = f
+
+        assert len(files) == len(files_prefix), "Missing files"
+
+        data = {}
+
+        for key, file in files.items():
+            doc = pd.read_csv(z.open(file))
+            # weird that these files dont have this column like all other eroct files
+            # add so we can parse
+            doc["DSTFlag"] = "N"
+            data[key] = self.parse_doc(doc)
+
+        if process:
+            data["dam_gen_resource"] = process_dam_gen(
+                data["dam_gen_resource"],
+            )
+
+            data["dam_load_resource"] = process_dam_load(
+                data["dam_load_resource"],
+            )
+
+            data["dam_load_resource_as_offers"] = process_dam_load_as_offers(
+                data["dam_load_resource_as_offers"],
+            )
+
+        return data
+
+    def get_sara(
+        self,
+        url="https://www.ercot.com/files/docs/2023/05/05/SARA_Summer2023_Revised.xlsx",
+        verbose=False,
+    ):
+        """Parse SARA data from url.
+
+        Seasonal Assessment of Resource Adequacy for the ERCOT Region (SARA)
+
+        Arguments:
+            url (str, optional): url to download SARA data from. Defaults to
+                Summer 2023 SARA data.
+
+        """
+
+        # only reading SummerCapacities right now
+        # todo parse more sheets
+        log("Getting SARA data from {}".format(url), verbose=verbose)
+        df = pd.read_excel(url, sheet_name="SummerCapacities", header=1)
+
+        # drop cols Unnamed: 0
+        df = df.drop("Unnamed: 0", axis=1)
+
+        df = df.rename(
+            columns={
+                "UNIT NAME": "Unit Name",
+                "GENERATION INTERCONNECTION PROJECT CODE": "Generation Interconnection Project Code",  # noqa: E501
+                "UNIT CODE": "Unit Code",
+                "COUNTY": "County",
+                "FUEL": "Fuel",
+                "ZONE": "Zone",
+                "IN SERVICE YEAR": "In Service Year",
+                "INSTALLED CAPACITY RATING": "Installed Capacity Rating",
+                "SUMMER\nCAPACITY\n(MW)": "Summer Capacity (MW)",
+                "NEW PLANNED PROJECT ADDITIONS TO REPORT": "New Planned Project Additions to Report",  # noqa: E501
+            },
+        )
+        # every unit should have this defined
+        df = df.dropna(subset=["Fuel"])
+
+        df["In Service Year"] = df["In Service Year"].astype("Int64")
+
+        category_cols = ["County", "Fuel", "Zone"]
+        for col in category_cols:
+            df[col] = df[col].astype("category")
+
+        return df
 
     def _finalize_as_price_df(self, doc, pivot=False):
         doc["Market"] = "DAM"
