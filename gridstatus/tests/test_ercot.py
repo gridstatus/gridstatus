@@ -383,17 +383,21 @@ class TestErcot(BaseTestISO):
         assert df_dict is not None
 
     def test_get_sara(self):
-        df = self.iso.get_sara()
-
-        days_ago_65 = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).date() - pd.Timedelta(
-            days=65,
-        )
-
-        folder_name = f"disclosure_60d_{days_ago_65.strftime('%Y%m%d')}"
-
-        df.to_csv(f"{folder_name}/sara_units.csv", index=False)
+        columns = [
+            "Unit Name",
+            "Generation Interconnection Project Code",
+            "Unit Code",
+            "County",
+            "Fuel",
+            "Zone",
+            "In Service Year",
+            "Installed Capacity Rating",
+            "Summer Capacity (MW)",
+            "New Planned Project Additions to Report",
+        ]
+        df = self.iso.get_sara(verbose=True)
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
 
     def test_spp_real_time_parse_retry_file_name(self):
         docs = [

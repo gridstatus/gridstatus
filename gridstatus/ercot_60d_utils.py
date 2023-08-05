@@ -3,6 +3,7 @@ import pandas as pd
 
 
 def match_gen_load_names(list1, list2):
+    """Match generator and load names"""
     list1.sort()
     list2.sort()
     prefix_dict = {}

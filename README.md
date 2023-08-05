@@ -17,9 +17,12 @@
 
 `gridstatus` is a Python library that provides a uniform API for accessing electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States. It currently supports data from CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
 
-## GridStatus.io
+## GridStatus.io and Hosted API
+To preview some of the data this library provide access to, visit [GridStatus.io](https://www.gridstatus.io/).
 
-To preview some the data this library provide access to, visit [GridStatus.io](https://www.gridstatus.io/).
+If you are trying to use our hosted API, you might want to check out the gridstatusio library [here](https://github.com/gridstatus/gridstatusio). 
+
+To learn more about our hosted API visit: https://www.gridstatus.io/api.
 
 ## Community
 
