@@ -260,6 +260,38 @@ class TestErcot(BaseTestISO):
         assert df["Interval End"].max().date() == today
         assert df["Interval Start"].min().date() == yesterday
 
+    def test_get_spp_real_time_handles_all_location_types(self):
+        df = self.iso.get_spp(
+            date="latest",
+            market=Markets.REAL_TIME_15_MIN,
+            verbose=True,
+        )
+
+        assert set(df["Location Type"].unique()) == {
+            "Resource Node",
+            "Load Zone DC Tie",
+            "Load Zone DC Tie Energy Weighted",
+            "Trading Hub",
+            "Load Zone Energy Weighted",
+            "Load Zone",
+        }
+
+    def test_get_spp_day_ahead_handles_all_location_types(self):
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        yesterday = today - pd.Timedelta(days=1)
+        df = self.iso.get_spp(
+            date=yesterday,
+            market=Markets.DAY_AHEAD_HOURLY,
+            verbose=True,
+        )
+
+        assert set(df["Location Type"].unique()) == {
+            "Resource Node",
+            "Load Zone DC Tie",
+            "Trading Hub",
+            "Load Zone",
+        }
+
     @pytest.mark.skip(reason="takes too long to run")
     def test_get_spp_rtm_historical(self):
         rtm = gridstatus.Ercot().get_rtm_spp(2020)
