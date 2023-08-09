@@ -63,8 +63,8 @@ def test_rto_region_data():
     end = "2020-01-04"
     df = eia.get_dataset(
         dataset="electricity/rto/region-data",
-        start=start,
-        end=end,
+        start="2020-01-01",
+        end="2020-01-04",
         verbose=True,
     )
 
