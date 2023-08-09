@@ -30,6 +30,9 @@ from gridstatus.lmp_config import lmp_config
 LOCATION_TYPE_HUB = "Trading Hub"
 LOCATION_TYPE_RESOURCE_NODE = "Resource Node"
 LOCATION_TYPE_ZONE = "Load Zone"
+LOCATION_TYPE_ZONE_EW = "Load Zone Energy Weighted"
+LOCATION_TYPE_ZONE_DC = "Load Zone DC Tie"
+LOCATION_TYPE_ZONE_DC_EW = "Load Zone DC Tie Energy Weighted"
 
 """
 Report Type IDs
@@ -751,15 +754,40 @@ class Ercot(ISOBase):
         # Create boolean masks for each location type
         is_hub = df["Location"].str.startswith("HB_")
         is_load_zone = df["Location"].str.startswith("LZ_")
+        is_load_zone_dc_tie = df["Location"].str.startswith("DC_")
         is_resource_node = df["Location"].isin(resource_node)
 
         # Assign location types based on the boolean masks
         df.loc[is_hub, "Location Type"] = LOCATION_TYPE_HUB
         df.loc[is_load_zone, "Location Type"] = LOCATION_TYPE_ZONE
+        df.loc[is_load_zone_dc_tie, "Location Type"] = LOCATION_TYPE_ZONE_DC
         df.loc[is_resource_node, "Location Type"] = LOCATION_TYPE_RESOURCE_NODE
-
         # If a location type is not found, default to LOCATION_TYPE_RESOURCE_NODE
         df["Location Type"].fillna(LOCATION_TYPE_RESOURCE_NODE, inplace=True)
+
+        # energy weighted only exists in real time data
+        # since depends on energy usage
+        if "SettlementPointType" in df.columns:
+            is_load_zone_energy_weighted = df["SettlementPointType"] == "LZEW"
+            is_load_zone_dc_tie_energy_weighted = df["SettlementPointType"] == "LZ_DCEW"
+
+            df.loc[
+                is_load_zone_energy_weighted,
+                "Location Type",
+            ] = LOCATION_TYPE_ZONE_EW
+            df.loc[
+                is_load_zone_dc_tie_energy_weighted,
+                "Location Type",
+            ] = LOCATION_TYPE_ZONE_DC_EW
+
+            # append "_EW" to the end of the location name if it is energy weighted
+            df.loc[is_load_zone_energy_weighted, "Location"] = (
+                df.loc[is_load_zone_energy_weighted, "Location"] + "_EW"
+            )
+
+            df.loc[is_load_zone_dc_tie_energy_weighted, "Location"] = (
+                df.loc[is_load_zone_dc_tie_energy_weighted, "Location"] + "_EW"
+            )
 
         df = df.rename(
             columns={
@@ -779,19 +807,6 @@ class Ercot(ISOBase):
                 "SPP",
             ]
         ]
-
-        # todo figure out why
-        # when you get rid of SettlementPointType some
-        # rows are duplicated
-        # For example, SettlementPointType LZ and LZEW
-        df = df.drop_duplicates(
-            subset=[
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Location",
-            ],
-        )
 
         df = utils.filter_lmp_locations(
             df=df,

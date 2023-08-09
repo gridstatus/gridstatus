@@ -4,6 +4,7 @@
 
 ### ERCOT
 
+- Handle Energy Weighted Load Zone prices in real time SPPs
 - Add ERCOT hourly wind forecast report
 - Add ERCOT hourly solar forecast report
 - Add `Ercot.get_60_day_sced_disclosure`
