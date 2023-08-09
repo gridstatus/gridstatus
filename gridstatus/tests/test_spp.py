@@ -122,7 +122,7 @@ class TestSPP(BaseTestISO):
         df = self.iso.get_lmp(
             date="latest",
             market=market,
-            location_type="SETTLEMENT_LOCATION",
+            verbose=True,
         )
         self._check_lmp_columns(df, market)
 
