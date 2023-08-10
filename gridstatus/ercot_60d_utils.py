@@ -174,6 +174,8 @@ def process_dam_gen(df):
         "RRSFFR Awarded",
         "RRSUFR Awarded",
         "RRS MCPC",
+        "ECRSSD Awarded",
+        "ECRS MCPC",
         "NonSpin Awarded",
         "NonSpin MCPC",
     ]
@@ -216,6 +218,9 @@ def process_dam_load(df):
         "RRSFFR Awarded",
         "RRSUFR Awarded",
         "RRS MCPC",
+        "ECRSSD Awarded",
+        "ECRSMD Awarded",
+        "ECRS MCPC",
         "NonSpin Awarded",
         "NonSpin MCPC",
     ]
@@ -287,6 +292,7 @@ def process_sced_gen(df):
         "Ancillary Service RRS",
         "Ancillary Service RRSFFR",
         "Ancillary Service NSRS",
+        "Ancillary Service ECRS",
     ]
 
     tpo_cols = [
@@ -319,6 +325,7 @@ def process_sced_gen(df):
             "Ancillary Service NSRS": "AS Responsibility for NonSpin",
             "Ancillary Service REGUP": "AS Responsibility for RegUp",
             "Ancillary Service REGDN": "AS Responsibility for RegDown",
+            "Ancillary Service ECRS": "AS Responsibility for ECRS",
             # remove space
             "Telemetered Net Output ": "Telemetered Net Output",
         },
@@ -354,6 +361,7 @@ def process_sced_load(df):
         "AS Responsibility for NonSpin",
         "AS Responsibility for RegUp",
         "AS Responsibility for RegDown",
+        "AS Responsibility for ECRS",
     ]
 
     bid_curve_col = "SCED Bid to Buy Curve"
