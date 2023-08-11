@@ -4,6 +4,7 @@
 
 ### ERCOT
 
+- Support ECRS in ERCOT 60 Day DAM and SCED Reports
 - Handle Energy Weighted Load Zone prices in real time SPPs
 - Add ERCOT hourly wind forecast report
 - Add ERCOT hourly solar forecast report
