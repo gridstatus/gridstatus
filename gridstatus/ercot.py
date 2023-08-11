@@ -1486,9 +1486,9 @@ class Ercot(ISOBase):
 
         Returns outage data for for next 7 days.
 
-        Total Resource MW doesnt includ IRR, New Equipment outages,
+        Total Resource MW doesn't include IRR, New Equipment outages,
         retirement of old equipment, seasonal
-        mothballed (during the outaged season),
+        mothballed (during the outage season),
         and mothballed.
 
         As such, it is a proxy for thermal outages.
