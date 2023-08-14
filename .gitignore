@@ -59,6 +59,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+gridstatus/tests/gridstatus_tester.py
 
 # Translations
 *.mo
