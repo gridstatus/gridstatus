@@ -4,7 +4,6 @@ from pandas.core.dtypes.common import is_numeric_dtype
 
 import gridstatus
 from gridstatus.base import GridStatus, _interconnection_columns
-from gridstatus.ercot import ERCOTSevenDayLoadForecastReport
 
 
 class BaseTestISO:
@@ -231,11 +230,7 @@ class BaseTestISO:
 
     def test_get_load_forecast_historical(self):
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
-        test_fcast_type = ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE
-        forecast = self.iso.get_load_forecast(
-            date=test_date,
-            forecast_type=test_fcast_type,
-        )
+        forecast = self.iso.get_load_forecast(date=test_date)
         self._check_forecast(forecast)
 
     def test_get_load_forecast_historical_with_date_range(self):

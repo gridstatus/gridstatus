@@ -481,7 +481,7 @@ class Ercot(ISOBase):
     def get_load_forecast(
         self,
         date,
-        forecast_type: ERCOTSevenDayLoadForecastReport,
+        forecast_type=ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
         verbose=False,
     ):
         """Returns load forecast of specified regions.
