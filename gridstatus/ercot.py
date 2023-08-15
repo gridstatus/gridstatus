@@ -1,7 +1,7 @@
 import io
 from dataclasses import dataclass
-from zipfile import ZipFile
 from enum import Enum
+from zipfile import ZipFile
 
 import pandas as pd
 import requests
@@ -67,27 +67,31 @@ SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID = 10008
 SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID = 12301
 
 
-class SevenDayLoadForecast(Enum):
+class ERCOTSevenDayLoadForecastReport(Enum):
     """
-    Enum class for the Medium Term (Seven Day) Load Forecasts. 
+    Enum class for the Medium Term (Seven Day) Load Forecasts.
     The values are the report IDs.
     """
+
+    # Seven-Day Load Forecast by Forecast Zone
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
     BY_FORECAST_ZONE = 12311
+
+    # Seven-Day Load Forecast by Weather Zone
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-561-CD
     BY_WEATHER_ZONE = 12312
+
+    # Seven-Day Load Forecast by Model and Weather Zone
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-565-CD
     BY_MODEL_AND_WEATHER_ZONE = 14837
+
+    # Seven-Day Load Forecast by Model and Study Area
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-566-CD
     BY_MODEL_AND_STUDY_AREA = 15953
 
-# Seven-Day Load Forecast by Forecast Zone
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
-SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID = 12311
+    # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
+    # there are a few days of historical data for the forecast
 
-# Seven-Day Load Forecast by Weather Zone
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-561-CD
-SEVEN_DAY_LOAD_FORECAST_BY_WEATHER_ZONE_RTID = 12312
-
-# Seven-Day Load Forecast by Model and Weather Zone
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-565-CD
-SEVEN_DAY_LOAD_FORECAST_BY_MODEL_AND_WEATHER_ZONE_RTID = 14837
 
 # Actual System Load by Weather Zone
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-345-CD
@@ -473,54 +477,47 @@ class Ercot(ISOBase):
 
         return data.reset_index(drop=True)
 
-    def get_load_forecast(self, date, forecast_type: SevenDayLoadForecast, verbose=False):
-        """Returns load forecast.
+    @support_date_range("HOUR_START")
+    def get_load_forecast(
+        self,
+        date,
+        forecast_type: ERCOTSevenDayLoadForecastReport,
+        verbose=False,
+    ):
+        """Returns load forecast of specified regions.
 
-        Currently only supports today's forecast, at the system-level.
+        Only allows datetimes from today's date.
+
+        Returns hourly report published immediately before the datetime.
 
         Arguments:
-            date (str): time to download. Returns last hourly report
-                before this time. Supports "latest".
-            forecast_type (SevenDayLoadForecast): The load forecast type to return.
-                Enum of possible values. 
-            verbose (bool, optional): print verbose output. Defaults to False. 
+            date (str): datetime to download.
+                Returns report published most recently before datetime.
+            forecast_type (ERCOTSevenDayLoadForecastReport): The load forecast type.
+                Enum of possible values.
+            verbose (bool, optional): print verbose output. Defaults to False.
         """
+        if date == "latest":
+            pass
+        else:
+            if not utils.is_today(date, self.default_timezone):
+                raise NotSupported()
 
-
-        if not utils.is_today(date, self.default_timezone):
-            raise NotSupported()
-
-        # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
-        # there are a few days of historical date for the forecast
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        
         doc = self._get_document(
             report_type_id=forecast_type.value,
-            date=today,
+            published_before=None if date == "latest" else date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
 
-        df = self._handle_load_forecast(doc, forecast_type=forecast_type, verbose=verbose)
+        df = self._handle_load_forecast(
+            doc,
+            forecast_type=forecast_type,
+            verbose=verbose,
+        )
 
-        return df 
-        doc = self.read_doc(doc_info, verbose=verbose)
+        return df
 
-        doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
-        doc["Forecast Time"] = doc_info.publish_date
-
-        doc = doc[
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Forecast Time",
-                "Load Forecast",
-            ]
-        ]
-
-        return doc
-    
     def _handle_load_forecast(self, doc, forecast_type, verbose=False):
         """
         Function to handle the different types of load forecast parsing.
@@ -528,23 +525,25 @@ class Ercot(ISOBase):
         """
         df = self.read_doc(doc, verbose=verbose)
 
-        print(df.head())
-        match forecast_type:
-            case SevenDayLoadForecast.BY_FORECAST_ZONE:
-                df['Load Forecast'] = df['SystemTotal'].copy()
-            case SevenDayLoadForecast.BY_WEATHER_ZONE:
-                df['Load Forecast'] = df['SystemTotal'].copy()
-            case SevenDayLoadForecast.BY_MODEL_AND_WEATHER_ZONE:
-                df['Load Forecast'] = df['SystemTotal'].copy()     
-            case SevenDayLoadForecast.BY_MODEL_AND_STUDY_AREA:
-                pass
-        
-        df['Forecast Time'] = doc.publish_date
-        df.drop('Time', axis=1, inplace=True)
-        forecast_time = df.pop('Forecast Time')
-        df.insert(loc=2, column='Forecast Time', value=forecast_time)
+        if forecast_type in [
+            ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
+            ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE,
+            ERCOTSevenDayLoadForecastReport.BY_MODEL_AND_WEATHER_ZONE,
+        ]:
+            df["Load Forecast"] = df["SystemTotal"].copy()
+        df["Forecast Time"] = doc.publish_date
 
-        #print(df.head())
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+            ],
+        )
+        # forecast_time = df.pop('Forecast Time')
+        # df.insert(loc=2, column='Forecast Time', value=forecast_time)
 
         return df
 
