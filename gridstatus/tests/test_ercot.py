@@ -202,6 +202,18 @@ class TestErcot(BaseTestISO):
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
+    def _check_forecast(self, df):
+        """Method override of BaseTestISO._check_forecast()
+        to handle enums."""
+        assert set(df.columns[:4]) == set(
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+            ],
+        )
+
     """get_spp"""
 
     def test_get_spp_dam_latest_day_ahead_hourly_zone_should_raise_exception(self):
