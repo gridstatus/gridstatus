@@ -5,6 +5,7 @@ import requests
 
 from gridstatus import utils
 from gridstatus.base import ISOBase, Markets, NotSupported
+from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
@@ -163,45 +164,94 @@ class MISO(ISOBase):
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_5_MIN: ["latest"],
-            Markets.DAY_AHEAD_HOURLY: ["latest"],
+            Markets.REAL_TIME_5_MIN: ["latest", "today"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
         },
     )
-    def get_lmp(self, date, market: str, locations: list = None, verbose=False):
-        """
-        Supported Markets:
-            - ``REAL_TIME_5_MIN`` - (FiveMinLMP)
-            - ``DAY_AHEAD_HOURLY`` - (DayAheadExPostLMP)
-        """
-        if locations is None:
-            locations = "ALL"
-
-        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getLMPConsolidatedTable&returnType=json"  # noqa
-        r = self._get_json(url, verbose=verbose)
-
-        time = r["LMPData"]["RefId"]
-        time_str = time[:11] + " " + time[-9:-4]
-        time_zone = time[-3:]
-        interval_start = (
-            pd.to_datetime(time_str)
-            .tz_localize(
-                time_zone,
-            )
-            .tz_convert(self.default_timezone)
-        )
+    @support_date_range(frequency="DAY_START")
+    def get_lmp(self, date, market: str, locations: list = "ALL", verbose=False):
+        # """
+        # Supported Markets:
+        #     - ``REAL_TIME_5_MIN`` - (FiveMinLMP)
+        #     - ``DAY_AHEAD_HOURLY`` - (DayAheadExPostLMP)
+        # """
 
         if market == Markets.REAL_TIME_5_MIN:
-            data = pd.DataFrame(r["LMPData"]["FiveMinLMP"]["PricingNode"])
-            interval_duration = 5
-        elif market == Markets.DAY_AHEAD_HOURLY:
-            data = pd.DataFrame(
-                r["LMPData"]["DayAheadExPostLMP"]["PricingNode"],
+            latest_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=currentinterval&returnType=csv"  # noqa
+            today_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=rollingmarketday&returnType=csv"  # noqa
+
+            if date == "latest":
+                url = latest_url
+            elif utils.is_today(date, tz=self.default_timezone):
+                url = today_url
+
+            data = pd.read_csv(url)
+
+            data["Interval Start"] = (
+                pd.to_datetime(data["INTERVAL"])
+                .dt.tz_localize("EST")
+                .dt.tz_convert(
+                    self.default_timezone,
+                )
             )
-            interval_start = interval_start.floor("H")
+
+            # use dam to get location types
+            today = utils._handle_date("today", self.default_timezone)
+            url = f"https://docs.misoenergy.org/marketreports/{today.strftime('%Y%m%d')}_da_expost_lmp.csv"  # noqa
+            today_dam_data = pd.read_csv(url, skiprows=4)
+            node_to_type = today_dam_data[["Node", "Type"]].drop_duplicates()
+            data = data.merge(
+                node_to_type,
+                left_on="CPNODE",
+                right_on="Node",
+                how="left",
+            )
+
+            interval_duration = 5
+
+        elif market == Markets.DAY_AHEAD_HOURLY:
+            url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_da_expost_lmp.csv"  # noqa
+            raw_data = pd.read_csv(url, skiprows=4)
+            data_melted = raw_data.melt(
+                id_vars=["Node", "Type", "Value"],
+                value_vars=[col for col in raw_data.columns if col.startswith("HE")],
+                var_name="HE",
+                value_name="value",
+            )
+
+            data = data_melted.pivot_table(
+                index=["Node", "Type", "HE"],
+                columns="Value",
+                values="value",
+                aggfunc="first",
+            ).reset_index()
+
+            # values are HE 1, HE 2, etc
+            # get number from string
+            # add it to the date
+            # remove tz from date
+            data["Interval Start"] = (
+                data["HE"]
+                .apply(
+                    lambda x: date.replace(tzinfo=None, hour=int(x.split(" ")[1]) - 1),
+                )
+                .dt.tz_localize("EST")
+                .dt.tz_convert(
+                    self.default_timezone,
+                )
+            )
+
+            data = data.sort_values(
+                ["Interval Start", "Node"],
+            )
+
             interval_duration = 60
 
+        data = add_interval_end(data, interval_duration)
+
         rename = {
-            "name": "Location",
+            "Node": "Location",
+            "Type": "Location Type",
             "LMP": "LMP",
             "MLC": "Loss",
             "MCC": "Congestion",
@@ -215,16 +265,9 @@ class MISO(ISOBase):
         )
 
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
-        data["Interval Start"] = interval_start
-        data = add_interval_end(data, interval_duration)
+
         data["Market"] = market.value
-        data["Location Type"] = "Pricing Node"
-        data.loc[
-            data["Location"].str.endswith(
-                ".HUB",
-            ),
-            "Location Type",
-        ] = "Hub"
+
         data = data[
             [
                 "Time",
