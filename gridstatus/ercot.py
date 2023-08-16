@@ -1,5 +1,6 @@
 import io
 from dataclasses import dataclass
+from enum import Enum
 from zipfile import ZipFile
 
 import pandas as pd
@@ -65,9 +66,32 @@ SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID = 10008
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
 SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID = 12301
 
-# Seven-Day Load Forecast by Forecast Zone
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
-SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID = 12311
+
+class ERCOTSevenDayLoadForecastReport(Enum):
+    """
+    Enum class for the Medium Term (Seven Day) Load Forecasts.
+    The values are the report IDs.
+    """
+
+    # Seven-Day Load Forecast by Forecast Zone
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
+    BY_FORECAST_ZONE = 12311
+
+    # Seven-Day Load Forecast by Weather Zone
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-561-CD
+    BY_WEATHER_ZONE = 12312
+
+    # Seven-Day Load Forecast by Model and Weather Zone
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-565-CD
+    BY_MODEL_AND_WEATHER_ZONE = 14837
+
+    # Seven-Day Load Forecast by Model and Study Area
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-566-CD
+    BY_MODEL_AND_STUDY_AREA = 15953
+
+    # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
+    # there are a few days of historical data for the forecast
+
 
 # Actual System Load by Weather Zone
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-345-CD
@@ -453,40 +477,73 @@ class Ercot(ISOBase):
 
         return data.reset_index(drop=True)
 
-    def get_load_forecast(self, date, verbose=False):
-        """Returns load forecast
+    @support_date_range("HOUR_START")
+    def get_load_forecast(
+        self,
+        date,
+        forecast_type=ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
+        verbose=False,
+    ):
+        """Returns load forecast of specified regions.
 
-        Currently only supports today's forecast
+        Only allows datetimes from today's date.
+
+        Returns hourly report published immediately before the datetime.
+
+        Arguments:
+            date (str): datetime to download.
+                Returns report published most recently before datetime.
+            forecast_type (ERCOTSevenDayLoadForecastReport): The load forecast type.
+                Enum of possible values.
+            verbose (bool, optional): print verbose output. Defaults to False.
         """
-        if not utils.is_today(date, self.default_timezone):
-            raise NotSupported()
+        if date == "latest":
+            pass
+        else:
+            if not utils.is_today(date, self.default_timezone):
+                raise NotSupported()
 
-        # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
-        # there are a few days of historical date for the forecast
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        doc_info = self._get_document(
-            report_type_id=SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID,
-            date=today,
+        doc = self._get_document(
+            report_type_id=forecast_type.value,
+            published_before=None if date == "latest" else date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
 
-        doc = self.read_doc(doc_info, verbose=verbose)
+        df = self._handle_load_forecast(
+            doc,
+            forecast_type=forecast_type,
+            verbose=verbose,
+        )
 
-        doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
-        doc["Forecast Time"] = doc_info.publish_date
+        return df
 
-        doc = doc[
+    def _handle_load_forecast(self, doc, forecast_type, verbose=False):
+        """
+        Function to handle the different types of load forecast parsing.
+
+        """
+        df = self.read_doc(doc, verbose=verbose)
+
+        if forecast_type in [
+            ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
+            ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE,
+            ERCOTSevenDayLoadForecastReport.BY_MODEL_AND_WEATHER_ZONE,
+        ]:
+            df["Load Forecast"] = df["SystemTotal"].copy()
+        df["Forecast Time"] = doc.publish_date
+
+        df = utils.move_cols_to_front(
+            df,
             [
                 "Time",
                 "Interval Start",
                 "Interval End",
                 "Forecast Time",
-                "Load Forecast",
-            ]
-        ]
+            ],
+        )
 
-        return doc
+        return df
 
     def get_rtm_spp(self, year, verbose=False):
         """Get Historical RTM Settlement Point Prices(SPPs)
