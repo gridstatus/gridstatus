@@ -542,8 +542,6 @@ class Ercot(ISOBase):
                 "Forecast Time",
             ],
         )
-        # forecast_time = df.pop('Forecast Time')
-        # df.insert(loc=2, column='Forecast Time', value=forecast_time)
 
         return df
 
