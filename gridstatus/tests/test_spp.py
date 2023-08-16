@@ -11,7 +11,9 @@ from gridstatus.tests.decorators import with_markets
 
 
 class TestSPP(BaseTestISO):
-    iso = SPP()
+    # dont verify to make tests pass
+    # on github actions
+    iso = SPP(verify_ssl=False)
 
     """get_fuel_mix"""
 

@@ -86,6 +86,9 @@ class SPP(ISOBase):
         LOCATION_TYPE_SETTLEMENT_LOCATION,
     ]
 
+    def __init__(self, verify_ssl=True):
+        self.verify_ssl = verify_ssl
+
     def get_status(self, date=None, verbose=False):
         if date != "latest":
             raise NotSupported()
@@ -482,7 +485,12 @@ class SPP(ISOBase):
             "returnGeometry": "false",
             "outFields": "*",
         }
-        doc = self._get_json(base_url, params=args, verbose=verbose)
+        doc = self._get_json(
+            base_url,
+            params=args,
+            verbose=verbose,
+            verify=self.verify_ssl,
+        )
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
