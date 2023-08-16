@@ -226,10 +226,6 @@ class MISO(ISOBase):
                 aggfunc="first",
             ).reset_index()
 
-            # values are HE 1, HE 2, etc
-            # get number from string
-            # add it to the date
-            # remove tz from date
             data["Interval Start"] = (
                 data["HE"]
                 .apply(
@@ -241,11 +237,11 @@ class MISO(ISOBase):
                 )
             )
 
-            data = data.sort_values(
-                ["Interval Start", "Node"],
-            )
-
             interval_duration = 60
+
+        data = data.sort_values(
+            ["Interval Start", "Node"],
+        )
 
         data = add_interval_end(data, interval_duration)
 
