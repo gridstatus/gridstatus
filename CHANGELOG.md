@@ -9,6 +9,7 @@
 - Add ERCOT hourly solar forecast report
 - Add `Ercot.get_60_day_sced_disclosure`
 - Add `Ercot.get_60_day_dam_disclosure`
+- Add support for specifying `forecast_type` to `Ercot.get_load_forecast`
 
 ## v0.22.0 - July 3rd, 2023
 
