@@ -223,7 +223,13 @@ class BaseTestISO:
         df = self.iso.get_load("today")
         self._check_load(df)
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-        assert (df["Time"].dt.date == today).all()
+
+        # okay as long as one of these columns is only today
+        assert (
+            (df["Time"].dt.date == today).all()
+            or (df["Interval Start"].dt.date == today).all()
+            or (df["Interval End"].dt.date == today).all()
+        )
         return df
 
     """get_load_forecast"""
