@@ -12,6 +12,10 @@
 - Add `Ercot.get_60_day_dam_disclosure`
 - Add support for specifying `forecast_type` to `Ercot.get_load_forecast`
 
+### MISO
+
+- Add support for historical DAM LMP
+
 ## v0.22.0 - July 3rd, 2023
 
 ### EIA
