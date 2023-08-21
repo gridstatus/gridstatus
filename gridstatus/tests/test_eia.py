@@ -107,3 +107,30 @@ def test_other_dataset():
 
     assert df.columns.tolist() == cols
     assert df.shape[0] > 0
+
+
+def test_daily_spots_and_futures():
+    eia = gridstatus.EIA(api_key="abcd")  # no need for API key to scrape.
+
+    d = eia.get_daily_spots_and_futures()
+
+    cols_petrol = [
+        "product",
+        "area",
+        "price",
+        "percent_change",
+    ]
+
+    assert d["df_petrol"].columns.tolist() == cols_petrol
+    assert d["df_petrol"].shape[0] > 0
+    cols_ng = [
+        "region",
+        "natural_gas_price",
+        "natural_gas_percent_change",
+        "electricity_price",
+        "electricity_percent_change",
+        "spark_spread",
+    ]
+
+    assert d["df_ng"].columns.tolist() == cols_ng
+    assert d["df_ng"].shape[0] > 0
