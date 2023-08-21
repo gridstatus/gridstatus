@@ -1,9 +1,11 @@
 import concurrent.futures
 import json
 import os
+from urllib.request import urlopen
 
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 import gridstatus
@@ -146,6 +148,76 @@ class EIA:
 
         if dataset in DATASET_HANDLERS:
             df = DATASET_HANDLERS[dataset](df)
+
+        return df
+
+    def get_daily_spots_and_futures(self):
+        """
+        Retrieves daily spots and futures for select energy products.
+
+        Includes Wholesale Spot and Retail Petroleum, Natural Gas.
+        Prompt-Month Futures, broken on EIA side,
+        for Crude, Gasoline, Heating Oil, Natural Gas, Coal, Ethanol.
+
+        They are published daily and not persisted, so this should be run once daily.
+
+        Returns:
+            dict: (key, value) pairs for each product."""
+
+        url = "https://www.eia.gov/todayinenergy/prices.php"
+
+        df = pd.DataFrame(columns=["product", "area", "price", "percent_change"])
+
+        with urlopen(url) as response:
+            soup = BeautifulSoup(response, "html.parser")
+
+            # for table in soup.find_all("table"):
+            # print(table.b.text)
+            # print(table.s2)
+            # print(table.d1)
+
+            wholesale_petroleum = soup.select_one(
+                "table[summary='Spot Petroleum Prices']",
+            )
+
+            rowspan_sum = 0
+            directions = ["up", "dn", "nc"]
+            for s1 in wholesale_petroleum.select("td.s1"):
+                text = s1.text
+                parent = s1.find_parent("tr").find_parent("table")
+
+                if text == "Commodity Price Index":
+                    break
+                try:
+                    rowspan = int(s1.get("rowspan"))
+                    if s1.select("a", class_="lbox"):
+                        rowspan -= 1  # down index by one (crack spread)
+                        s2 = s1.find_next_sibling("td", class_="s2").text
+                        d1 = s1.find_next_sibling("td", class_="d1").text
+                        direction = float(
+                            s1.find_next_sibling("td", class_=directions).text,
+                        )
+                        df.loc[len(df)] = (text, s2, d1, float(direction))
+                    else:
+                        for i in range(rowspan_sum, rowspan + rowspan_sum):
+                            s2_elements = parent.select("td.s2")
+                            d1_elements = parent.select("td.d1")
+                            direction_elements = parent.find_all(class_=directions)
+                            df.loc[len(df)] = (
+                                text,
+                                s2_elements[i].text,
+                                d1_elements[i].text,
+                                float(direction_elements[i].text),
+                            )
+
+                    rowspan_sum += rowspan
+                except TypeError:
+                    s2 = s1.find_next_sibling("td", class_="s2").text
+                    d1 = s1.find_next_sibling("td", class_="d1").text
+                    direction = float(
+                        s1.find_next_sibling("td", class_=directions).text,
+                    )
+                    df.loc[len(df)] = (text, s2, d1, float(direction))
 
         return df
 
