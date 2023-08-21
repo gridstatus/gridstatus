@@ -162,19 +162,24 @@ class EIA:
         They are published daily and not persisted, so this should be run once daily.
 
         Returns:
-            dict: (key, value) pairs for each product."""
+            d: dictionary of DataFrames for each table of values."""
 
         url = "https://www.eia.gov/todayinenergy/prices.php"
 
-        df = pd.DataFrame(columns=["product", "area", "price", "percent_change"])
+        df_petrol = pd.DataFrame(columns=["product", "area", "price", "percent_change"])
+        df_ng = pd.DataFrame(
+            columns=[
+                "region",
+                "natural_gas_price",
+                "natural_gas_percent_change",
+                "electricity_price",
+                "electricity_percent_change",
+                "spark_spread",
+            ],
+        )
 
         with urlopen(url) as response:
             soup = BeautifulSoup(response, "html.parser")
-
-            # for table in soup.find_all("table"):
-            # print(table.b.text)
-            # print(table.s2)
-            # print(table.d1)
 
             wholesale_petroleum = soup.select_one(
                 "table[summary='Spot Petroleum Prices']",
@@ -197,13 +202,13 @@ class EIA:
                         direction = float(
                             s1.find_next_sibling("td", class_=directions).text,
                         )
-                        df.loc[len(df)] = (text, s2, d1, float(direction))
+                        df_petrol.loc[len(df_petrol)] = (text, s2, d1, float(direction))
                     else:
                         for i in range(rowspan_sum, rowspan + rowspan_sum):
                             s2_elements = parent.select("td.s2")
                             d1_elements = parent.select("td.d1")
                             direction_elements = parent.find_all(class_=directions)
-                            df.loc[len(df)] = (
+                            df_petrol.loc[len(df_petrol)] = (
                                 text,
                                 s2_elements[i].text,
                                 d1_elements[i].text,
@@ -217,9 +222,31 @@ class EIA:
                     direction = float(
                         s1.find_next_sibling("td", class_=directions).text,
                     )
-                    df.loc[len(df)] = (text, s2, d1, float(direction))
+                    df_petrol.loc[len(df_petrol)] = (text, s2, d1, float(direction))
 
-        return df
+            natural_gas_spots = soup.select_one(
+                "table[summary='Spot Natural Gas and Electric Power Prices']",
+            )
+
+            for s1 in natural_gas_spots.select("td.s1"):
+                price_siblings = s1.find_next_siblings("td", class_="d1")
+                direction_siblings = s1.find_next_siblings("td", class_=directions)
+                print(direction_siblings)
+                df_ng.loc[len(df_ng)] = (
+                    s1.text,
+                    price_siblings[0].text,
+                    float(direction_siblings[0].text),
+                    price_siblings[1].text,
+                    float(direction_siblings[1].text),
+                    price_siblings[2].text,
+                )
+
+        d = {
+            "df_petrol": df_petrol,
+            "df_ng": df_ng,
+        }
+
+        return d
 
 
 def _handle_time(df, frequency="1h"):
