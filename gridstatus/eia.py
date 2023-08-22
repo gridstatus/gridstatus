@@ -1,6 +1,7 @@
 import concurrent.futures
 import json
 import os
+import re
 from urllib.request import urlopen
 
 import pandas as pd
@@ -9,6 +10,7 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 import gridstatus
+from gridstatus import utils
 from gridstatus.gs_logging import log
 
 
@@ -178,9 +180,19 @@ class EIA:
             ],
         )
 
+        def contains_wholesale_petroleum(text):
+            return text and "Wholesale Spot Petroleum Prices" in text
+
         with urlopen(url) as response:
             soup = BeautifulSoup(response, "html.parser")
 
+            close_date = soup.find("b", text=contains_wholesale_petroleum).text
+
+            pattern = r"\b\d{1,2}/\d{1,2}/\d{2}\b"
+            close_date = re.findall(pattern=pattern, string=close_date)[0]
+
+            print(type(close_date))
+            print(close_date)
             wholesale_petroleum = soup.select_one(
                 "table[summary='Spot Petroleum Prices']",
             )
@@ -231,7 +243,6 @@ class EIA:
             for s1 in natural_gas_spots.select("td.s1"):
                 price_siblings = s1.find_next_siblings("td", class_="d1")
                 direction_siblings = s1.find_next_siblings("td", class_=directions)
-                print(direction_siblings)
                 df_ng.loc[len(df_ng)] = (
                     s1.text,
                     price_siblings[0].text,
@@ -241,12 +252,56 @@ class EIA:
                     price_siblings[2].text,
                 )
 
+        df_ng["date"] = pd.to_datetime(close_date)
+        df_petrol["date"] = pd.to_datetime(close_date)
+
+        df_ng = utils.move_cols_to_front(df_ng, cols_to_move=["date"])
+        df_petrol = utils.move_cols_to_front(df_petrol, cols_to_move=["date"])
+
         d = {
             "df_petrol": df_petrol,
             "df_ng": df_ng,
         }
 
         return d
+
+    def get_coal_spots(self):
+        """
+        Retrieve weekly coal commodity spot prices.
+        Spot prices are proprietary of S&P Global.
+        Historicals cannot be published.
+        """
+
+        url = [
+            "https://www.eia.gov/coal/markets",
+            "https://www.eia.gov/coal/markets/#tabs-prices-2",
+        ]
+
+        url = "https://www.eia.gov/coal/markets/coal_markets_json.php"
+
+        with requests.get(url) as r:
+            json = r.json()
+
+        print(json.keys())
+        keys = json["data"][0].keys()
+
+        for key in keys:
+            print(key)
+        # with urlopen(url[0]) as response:
+
+        #     soup = BeautifulSoup(response, 'html.parser')
+
+        #     #print(soup)
+
+        #     dpst_dates = soup.find("tr", id="dpst_dates")
+
+        #     #print(dpst_dates)
+
+        #     dpst_data = soup.find("tbody", id="dpst_data")
+
+        #     print(dpst_data)
+        #     mmbtu_data = soup.find("tbody", id="mmbtu_dates")
+        #     print(mmbtu_data)
 
 
 def _handle_time(df, frequency="1h"):
