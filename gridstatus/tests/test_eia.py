@@ -134,3 +134,46 @@ def test_daily_spots_and_futures():
 
     assert d["df_ng"].columns.tolist() == cols_ng
     assert d["df_ng"].shape[0] > 0
+
+
+def test_get_coal_spots():
+    eia = gridstatus.EIA(api_key="abcd")  # no need for API key to scrape.
+
+    d = eia.get_coal_spots()
+
+    cols_spot_price = [
+        "week_ending_date",
+        "central_appalachia_price_short_ton",
+        "northern_appalachia_price_short_ton",
+        "illinois_basin_price_short_ton",
+        "powder_river_basin_price_short_ton",
+        "uinta_basin_price_short_ton",
+        "central_appalachia_price_mmbtu",
+        "northern_appalachia_price_mmbtu",
+        "illinois_basin_price_mmbtu",
+        "powder_river_basin_price_mmbtu",
+        "uinta_basin_price_mmbtu",
+    ]
+
+    cols_coal = [
+        "delivery_month",
+        "coal_min",
+        "coal_max",
+        "coal_exports",
+    ]
+
+    cols_coke = [
+        "delivery_month",
+        "coke_min",
+        "coke_max",
+        "coke_exports",
+    ]
+
+    assert d["weekly_spots"].columns.tolist() == cols_spot_price
+    assert d["weekly_spots"].shape[0] > 0
+
+    assert d["coal_exports"].columns.tolist() == cols_coal
+    assert d["coal_exports"].shape[0] > 0
+
+    assert d["coke_exports"].columns.tolist() == cols_coke
+    assert d["coke_exports"].shape[0] > 0

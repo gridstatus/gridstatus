@@ -1,4 +1,5 @@
 import concurrent.futures
+import datetime
 import json
 import os
 import re
@@ -268,40 +269,94 @@ class EIA:
     def get_coal_spots(self):
         """
         Retrieve weekly coal commodity spot prices.
-        Spot prices are proprietary of S&P Global.
-        Historicals cannot be published.
+        TODO: add functionality to grab historicals from
+        https://www.eia.gov/coal/markets/coal_markets_archive_json.php
         """
 
-        url = [
-            "https://www.eia.gov/coal/markets",
-            "https://www.eia.gov/coal/markets/#tabs-prices-2",
+        url = "https://www.eia.gov/coal/markets/coal_markets_json.php"
+
+        spot_price_keys = [
+            "week_ending_date",
+            "central_appalachia_price",
+            "northern_appalachia_price",
+            "illinois_basin_price",
+            "powder_river_basin_price",
+            "uinta_basin_price",
+        ]
+        coal_export_keys = [
+            "delivery_month",
+            "coal_min",
+            "coal_max",
+            "coal_exports",
+        ]
+        coke_export_keys = [
+            "delivery_month",
+            "coke_min",
+            "coke_max",
+            "coke_exports",
         ]
 
-        url = "https://www.eia.gov/coal/markets/coal_markets_json.php"
+        spot_prices = {key: [] for key in spot_price_keys}
+        coal_exports = {key: [] for key in coal_export_keys}
+        coke_exports = {key: [] for key in coke_export_keys}
 
         with requests.get(url) as r:
             json = r.json()
 
-        print(json.keys())
-        keys = json["data"][0].keys()
+        for key, value in json["data"][0].items():
+            if key in ["snl_dpst", "snl_mmbtu"]:
+                for item in value:
+                    spot_prices["week_ending_date"].append(item["WEEK_ENDING_DATE"])
+                    spot_prices["central_appalachia_price"].append(item["CENTRAL_APP"])
+                    spot_prices["northern_appalachia_price"].append(
+                        item["NORTHERN_APP"],
+                    )
+                    spot_prices["illinois_basin_price"].append(item["ILLIOIS_BASIN"])
+                    spot_prices["powder_river_basin_price"].append(
+                        item["POWDER_RIVER_BASIN"],
+                    )
+                    spot_prices["uinta_basin_price"].append(item["UINTA_BASIN"])
+            elif key == "coal_exports":
+                for item in value:
+                    coal_exports["delivery_month"].append(item["ID"])
+                    coal_exports["coal_min"].append(item["COAL_MIN"])
+                    coal_exports["coal_max"].append(item["COAL_MAX"])
+                    coal_exports["coal_exports"].append(item["COAL_EXPORTS"])
+            elif key == "coke_exports":
+                for item in value:
+                    coke_exports["delivery_month"].append(item["ID"])
+                    coke_exports["coke_min"].append(item["COKE_MIN"])
+                    coke_exports["coke_max"].append(item["COKE_MAX"])
+                    coke_exports["coke_exports"].append(item["COAL_COKE_EXPORTS"])
+            else:
+                pass
 
-        for key in keys:
-            print(key)
-        # with urlopen(url[0]) as response:
+        weekly_spots = pd.DataFrame(spot_prices)
+        weekly_spots = weekly_spots.loc[weekly_spots["week_ending_date"] != "change"]
+        weekly_spots["week_ending_date"] = weekly_spots["week_ending_date"].map(
+            pd.to_datetime,
+        )
+        weekly_spots = pd.merge(
+            weekly_spots.drop_duplicates("week_ending_date", keep="first"),
+            weekly_spots.drop_duplicates("week_ending_date", keep="last"),
+            on="week_ending_date",
+            suffixes=("_short_ton", "_mmbtu"),
+        )
 
-        #     soup = BeautifulSoup(response, 'html.parser')
+        coal_exports = pd.DataFrame(coal_exports)
+        coal_exports["delivery_month"] = coal_exports["delivery_month"].map(
+            lambda x: datetime.datetime.strptime(str(x), "%Y%m"),
+        )
+        coke_exports = pd.DataFrame(coke_exports)
+        coke_exports["delivery_month"] = coke_exports["delivery_month"].map(
+            lambda x: datetime.datetime.strptime(str(x), "%Y%m"),
+        )
 
-        #     #print(soup)
-
-        #     dpst_dates = soup.find("tr", id="dpst_dates")
-
-        #     #print(dpst_dates)
-
-        #     dpst_data = soup.find("tbody", id="dpst_data")
-
-        #     print(dpst_data)
-        #     mmbtu_data = soup.find("tbody", id="mmbtu_dates")
-        #     print(mmbtu_data)
+        return {
+            "weekly_spots": weekly_spots,
+            "coal_exports": coal_exports,
+            "coke_exports": coke_exports,
+        }
 
 
 def _handle_time(df, frequency="1h"):
