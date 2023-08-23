@@ -217,10 +217,12 @@ class NYISO(ISOBase):
 
     @support_date_range(frequency="MONTH_START")
     def get_load_forecast(self, date, end=None, verbose=False):
-        """Get load forecast for a date in 1 hour intervals"""
+        """Get load forecast for a date in 1 hour intervals
+
+        Now supports load forecast in all regions."""
         date = utils._handle_date(date, self.default_timezone)
 
-        # todo optimize this to accept a date range
+        # TODO optimize this to accept a date range
         data = self._download_nyiso_archive(
             date,
             end=end,
@@ -228,17 +230,30 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        data = data[
-            ["Time", "Interval Start", "Interval End", "File Date", "NYISO"]
-        ].rename(
+        # data = data[
+        #     ["Time", "Interval Start", "Interval End", "File Date", "NYISO"]
+        #  ].rename(
+        #     columns={
+        #         "File Date": "Forecast Time",
+        #         "NYISO": "Load Forecast",
+        #         "Time": "Time",
+        #     },
+        # )
+        data = data.rename(
             columns={
                 "File Date": "Forecast Time",
                 "NYISO": "Load Forecast",
-                "Time": "Time",
             },
         )
-
+        data = self._handle_load_forecast(data)
+        #
         return data
+
+    def _handle_load_forecast(self, data):
+        return utils.move_cols_to_front(
+            data,
+            cols_to_move=["Time, Interval Start", "Interval End", "Forecast Time"],
+        )
 
     @lmp_config(
         supports={
