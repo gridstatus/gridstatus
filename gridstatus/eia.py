@@ -192,8 +192,6 @@ class EIA:
             pattern = r"\b\d{1,2}/\d{1,2}/\d{2}\b"
             close_date = re.findall(pattern=pattern, string=close_date)[0]
 
-            print(type(close_date))
-            print(close_date)
             wholesale_petroleum = soup.select_one(
                 "table[summary='Spot Petroleum Prices']",
             )
@@ -215,7 +213,12 @@ class EIA:
                         direction = float(
                             s1.find_next_sibling("td", class_=directions).text,
                         )
-                        df_petrol.loc[len(df_petrol)] = (text, s2, d1, float(direction))
+                        df_petrol.loc[len(df_petrol)] = (
+                            text,
+                            s2,
+                            d1,
+                            float(direction) if direction != "NA" else "NA",
+                        )
                     else:
                         for i in range(rowspan_sum, rowspan + rowspan_sum):
                             s2_elements = parent.select("td.s2")
@@ -235,7 +238,12 @@ class EIA:
                     direction = float(
                         s1.find_next_sibling("td", class_=directions).text,
                     )
-                    df_petrol.loc[len(df_petrol)] = (text, s2, d1, float(direction))
+                    df_petrol.loc[len(df_petrol)] = (
+                        text,
+                        s2,
+                        d1,
+                        float(direction) if direction != "NA" else "NA",
+                    )
 
             natural_gas_spots = soup.select_one(
                 "table[summary='Spot Natural Gas and Electric Power Prices']",
@@ -247,9 +255,13 @@ class EIA:
                 df_ng.loc[len(df_ng)] = (
                     s1.text,
                     price_siblings[0].text,
-                    float(direction_siblings[0].text),
+                    float(direction_siblings[0].text)
+                    if direction_siblings[0].text != "NA"
+                    else "NA",
                     price_siblings[1].text,
-                    float(direction_siblings[1].text),
+                    float(direction_siblings[1].text)
+                    if direction_siblings[1].text != "NA"
+                    else "NA",
                     price_siblings[2].text,
                 )
 
