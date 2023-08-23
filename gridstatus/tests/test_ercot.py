@@ -374,6 +374,10 @@ class TestErcot(BaseTestISO):
         assert gen_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
         assert smne["Interval Time"].dt.date.unique()[0] == days_ago_65
 
+        assert load_resource.shape[1] == 22
+        assert gen_resource.shape[1] == 29
+        assert smne.shape[1] == 6
+
     def test_get_60_day_sced_disclosure_range(self):
         days_ago_65 = pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -423,8 +427,21 @@ class TestErcot(BaseTestISO):
         )
 
         df_dict = self.iso.get_60_day_dam_disclosure(date=days_ago_65, process=True)
-
         assert df_dict is not None
+
+        dam_gen_resource = df_dict["dam_gen_resource"]
+        dam_gen_resource_as_offers = df_dict["dam_gen_resource_as_offers"]
+        dam_load_resource = df_dict["dam_load_resource"]
+        dam_load_resource_as_offers = df_dict["dam_load_resource_as_offers"]
+        dam_energy_bids = df_dict["dam_energy_bids"]
+        dam_energy_bid_awards = df_dict["dam_energy_bid_awards"]
+
+        assert dam_gen_resource.shape[1] == 29
+        assert dam_gen_resource_as_offers.shape[1] == 62
+        assert dam_load_resource.shape[1] == 19
+        assert dam_load_resource_as_offers.shape[1] == 63
+        assert dam_energy_bids.shape[1] == 28
+        assert dam_energy_bid_awards.shape[1] == 8
 
     def test_get_sara(self):
         columns = [

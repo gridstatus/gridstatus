@@ -4,12 +4,17 @@
 
 ### ERCOT
 
+- Support ECRS in ERCOT 60 Day DAM and SCED Reports
 - Handle Energy Weighted Load Zone prices in real time SPPs
 - Add ERCOT hourly wind forecast report
 - Add ERCOT hourly solar forecast report
 - Add `Ercot.get_60_day_sced_disclosure`
 - Add `Ercot.get_60_day_dam_disclosure`
 - Add support for specifying `forecast_type` to `Ercot.get_load_forecast`
+
+### MISO
+
+- Add support for historical DAM LMP
 
 ## v0.22.0 - July 3rd, 2023
 
