@@ -219,7 +219,9 @@ class NYISO(ISOBase):
     def get_load_forecast(self, date, end=None, verbose=False):
         """Get load forecast for a date in 1 hour intervals
 
-        Now supports load forecast in all regions."""
+        The date specified grabs the forecast of the prompt operating day.
+        i.e. date=2023-08-22 is the forecast published on 2023-08-21
+        prior to the close of the DAM."""
         date = utils._handle_date(date, self.default_timezone)
 
         # TODO optimize this to accept a date range
