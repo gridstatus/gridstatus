@@ -115,15 +115,17 @@ def test_daily_spots_and_futures():
     d = eia.get_daily_spots_and_futures()
 
     cols_petrol = [
+        "date",
         "product",
         "area",
         "price",
         "percent_change",
     ]
 
-    assert d["df_petrol"].columns.tolist() == cols_petrol
-    assert d["df_petrol"].shape[0] > 0
+    assert d["petroleum"].columns.tolist() == cols_petrol
+    assert d["petroleum"].shape[0] > 0
     cols_ng = [
+        "date",
         "region",
         "natural_gas_price",
         "natural_gas_percent_change",
@@ -132,8 +134,8 @@ def test_daily_spots_and_futures():
         "spark_spread",
     ]
 
-    assert d["df_ng"].columns.tolist() == cols_ng
-    assert d["df_ng"].shape[0] > 0
+    assert d["natural_gas"].columns.tolist() == cols_ng
+    assert d["natural_gas"].shape[0] > 0
 
 
 def test_get_coal_spots():

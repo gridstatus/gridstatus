@@ -3,8 +3,8 @@ import datetime
 import json
 import os
 import re
-from urllib.request import urlopen
 
+import numpy as np
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -154,7 +154,7 @@ class EIA:
 
         return df
 
-    def get_daily_spots_and_futures(self):
+    def get_daily_spots_and_futures(self, verbose=False):
         """
         Retrieves daily spots and futures for select energy products.
 
@@ -184,8 +184,10 @@ class EIA:
         def contains_wholesale_petroleum(text):
             return text and "Wholesale Spot Petroleum Prices" in text
 
-        with urlopen(url) as response:
-            soup = BeautifulSoup(response, "html.parser")
+        log(f"Downloading {url}", verbose)
+        with requests.get(url) as response:
+            content = response.content
+            soup = BeautifulSoup(content, "html.parser")
 
             close_date = soup.find("b", text=contains_wholesale_petroleum).text
 
@@ -216,8 +218,8 @@ class EIA:
                         df_petrol.loc[len(df_petrol)] = (
                             text,
                             s2,
-                            d1,
-                            float(direction) if direction != "NA" else "NA",
+                            float(d1) if d1 != "NA" else np.nan,
+                            float(direction) if direction != "NA" else np.nan,
                         )
                     else:
                         for i in range(rowspan_sum, rowspan + rowspan_sum):
@@ -227,8 +229,12 @@ class EIA:
                             df_petrol.loc[len(df_petrol)] = (
                                 text,
                                 s2_elements[i].text,
-                                d1_elements[i].text,
-                                float(direction_elements[i].text),
+                                float(d1_elements[i].text)
+                                if d1_elements[i].text != "NA"
+                                else np.nan,
+                                float(direction_elements[i].text)
+                                if direction_elements[i].text != "NA"
+                                else np.nan,
                             )
 
                     rowspan_sum += rowspan
@@ -241,8 +247,8 @@ class EIA:
                     df_petrol.loc[len(df_petrol)] = (
                         text,
                         s2,
-                        d1,
-                        float(direction) if direction != "NA" else "NA",
+                        float(d1) if d1 != "NA" else np.nan,
+                        float(direction) if direction != "NA" else np.nan,
                     )
 
             natural_gas_spots = soup.select_one(
@@ -254,31 +260,37 @@ class EIA:
                 direction_siblings = s1.find_next_siblings("td", class_=directions)
                 df_ng.loc[len(df_ng)] = (
                     s1.text,
-                    price_siblings[0].text,
+                    float(price_siblings[0].text)
+                    if price_siblings[0].text != "NA"
+                    else np.nan,
                     float(direction_siblings[0].text)
                     if direction_siblings[0].text != "NA"
-                    else "NA",
-                    price_siblings[1].text,
+                    else np.nan,
+                    float(price_siblings[1].text)
+                    if price_siblings[1].text != "NA"
+                    else np.nan,
                     float(direction_siblings[1].text)
                     if direction_siblings[1].text != "NA"
-                    else "NA",
-                    price_siblings[2].text,
+                    else np.nan,
+                    float(price_siblings[2].text)
+                    if price_siblings[2].text != "NA"
+                    else np.nan,
                 )
 
-        df_ng["date"] = pd.to_datetime(close_date)
-        df_petrol["date"] = pd.to_datetime(close_date)
+        df_ng["date"] = pd.to_datetime(close_date).tz_localize("America/Chicago")
+        df_petrol["date"] = pd.to_datetime(close_date).tz_localize("America/Chicago")
 
         df_ng = utils.move_cols_to_front(df_ng, cols_to_move=["date"])
         df_petrol = utils.move_cols_to_front(df_petrol, cols_to_move=["date"])
 
         d = {
-            "df_petrol": df_petrol,
-            "df_ng": df_ng,
+            "petroleum": df_petrol,
+            "natural_gas": df_ng,
         }
 
         return d
 
-    def get_coal_spots(self):
+    def get_coal_spots(self, verbose=False):
         """
         Retrieve weekly coal commodity spot prices.
         TODO: add functionality to grab historicals from
@@ -312,6 +324,7 @@ class EIA:
         coal_exports = {key: [] for key in coal_export_keys}
         coke_exports = {key: [] for key in coke_export_keys}
 
+        log(f"Downloading {url}", verbose)
         with requests.get(url) as r:
             json = r.json()
 
