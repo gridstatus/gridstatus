@@ -277,8 +277,8 @@ class EIA:
                     else np.nan,
                 )
 
-        df_ng["date"] = pd.to_datetime(close_date).tz_localize("America/Chicago")
-        df_petrol["date"] = pd.to_datetime(close_date).tz_localize("America/Chicago")
+        df_ng["date"] = pd.to_datetime(close_date)
+        df_petrol["date"] = pd.to_datetime(close_date)
 
         df_ng = utils.move_cols_to_front(df_ng, cols_to_move=["date"])
         df_petrol = utils.move_cols_to_front(df_petrol, cols_to_move=["date"])
