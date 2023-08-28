@@ -107,3 +107,75 @@ def test_other_dataset():
 
     assert df.columns.tolist() == cols
     assert df.shape[0] > 0
+
+
+def test_daily_spots_and_futures():
+    eia = gridstatus.EIA(api_key="abcd")  # no need for API key to scrape.
+
+    d = eia.get_daily_spots_and_futures()
+
+    cols_petrol = [
+        "date",
+        "product",
+        "area",
+        "price",
+        "percent_change",
+    ]
+
+    assert d["petroleum"].columns.tolist() == cols_petrol
+    assert d["petroleum"].shape[0] > 0
+    cols_ng = [
+        "date",
+        "region",
+        "natural_gas_price",
+        "natural_gas_percent_change",
+        "electricity_price",
+        "electricity_percent_change",
+        "spark_spread",
+    ]
+
+    assert d["natural_gas"].columns.tolist() == cols_ng
+    assert d["natural_gas"].shape[0] > 0
+
+
+def test_get_coal_spots():
+    eia = gridstatus.EIA(api_key="abcd")  # no need for API key to scrape.
+
+    d = eia.get_coal_spots()
+
+    cols_spot_price = [
+        "week_ending_date",
+        "central_appalachia_price_short_ton",
+        "northern_appalachia_price_short_ton",
+        "illinois_basin_price_short_ton",
+        "powder_river_basin_price_short_ton",
+        "uinta_basin_price_short_ton",
+        "central_appalachia_price_mmbtu",
+        "northern_appalachia_price_mmbtu",
+        "illinois_basin_price_mmbtu",
+        "powder_river_basin_price_mmbtu",
+        "uinta_basin_price_mmbtu",
+    ]
+
+    cols_coal = [
+        "delivery_month",
+        "coal_min",
+        "coal_max",
+        "coal_exports",
+    ]
+
+    cols_coke = [
+        "delivery_month",
+        "coke_min",
+        "coke_max",
+        "coke_exports",
+    ]
+
+    assert d["weekly_spots"].columns.tolist() == cols_spot_price
+    assert d["weekly_spots"].shape[0] > 0
+
+    assert d["coal_exports"].columns.tolist() == cols_coal
+    assert d["coal_exports"].shape[0] > 0
+
+    assert d["coke_exports"].columns.tolist() == cols_coke
+    assert d["coke_exports"].shape[0] > 0

@@ -21,6 +21,8 @@
 ### EIA
 
 - Add EIA 930 Region Data
+- Add wholesale petroleum and naturla gas daily spot prices.
+- Add weekly spot prices and export totals for coal. 
 
 ### NYISO
 
