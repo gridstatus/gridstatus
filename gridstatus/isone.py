@@ -1,5 +1,7 @@
 import io
 import math
+import os
+import xml.etree.ElementTree as ET
 
 import pandas as pd
 import requests
@@ -52,6 +54,15 @@ class ISONE(ISOBase):
         ".I.SHOREHAM138": 4014,
         ".I.NRTHPORT138": 4017,
     }
+
+    def __init__(self, auth: tuple = None):
+        """
+        User and password for the Web Services API
+        if using.
+        Will not throw error unless invoking an
+        ISONEClient method"""
+
+        self.client = ISONEClient(auth=auth)
 
     def get_status(self, date, verbose=False):
         """Get latest status for ISO NE"""
@@ -651,6 +662,124 @@ class ISONE(ISOBase):
         )
 
         return data
+
+
+class ISONEClient:
+    def __init__(self, auth: tuple = None):
+        if auth is None:
+            user = os.environ.get("ISONE_CLIENT_USER")
+            password = os.environ.get("ISONE_CLIENT_PASSWORD")
+
+        auth = (user, password)
+
+        self.auth = auth
+        self.base_url = "https://webservices.iso-ne.com/api/v1.1"
+        self.wadl_url = "https://webservices.iso-ne.com/api/v1.1?_wadl&_type=xml"
+
+    def list_datasets(self):
+        """
+        Returns WADL resources as a list.
+        Private resources have /private."""
+
+        r = requests.get(self.wadl_url, auth=self.auth)
+
+        endpoints, _ = _extract_resources(r)
+        return endpoints
+
+    def get_supported_resources(self, dataset):
+        """
+        Get the supported resources for an endpoint"""
+
+        r = requests.get(self.wadl_url, auth=self.auth)
+
+        endpoints, supported_resources = _extract_resources(r)
+
+        for idx, endpoint in enumerate(endpoints):
+            if endpoint == dataset:
+                return supported_resources[idx]
+
+    @support_date_range("DAY_START")
+    def get_actuals_dataset(self, dataset, date, end=None, verbose=False):
+        """
+        Use the webservices API.
+        Requires credentials (account through ISOExpress)
+        Supports latest functionality, via /current path
+
+        Arguments:
+        dataset (str): the dataset to get e.g. 'outages'
+        date (datelike): the start interval to get.
+        Can also be tuple (start, end).
+        Must be of at least date resolution.
+        If end not provided, will just grab date.
+        If date==latest, then will grab /current.
+        end (datelike, optional): the end interval.
+
+        """
+
+        if self.auth[0] is None or self.auth[1] is None:
+            raise ValueError(
+                "API Auth Info not found in environment variables.",
+            )
+
+        endpoint = self._query_builder(dataset, date, end)
+        target = f"{self.base_url}{endpoint}"
+
+        # print(target)
+        r = requests.get(target, auth=self.auth)
+        # print(r.status_code)
+        # print(r.text)
+
+        inner_dict = r.json()[list(r.json().keys())[0]]
+        data = inner_dict[list(inner_dict.keys())[0]]
+        df = pd.json_normalize(data)
+        return df
+
+    def _query_builder(self, dataset, date, end=None):
+        if "/" not in dataset:
+            endpoint = "/" + dataset
+        else:
+            endpoint = "" + dataset
+
+        if date == "latest":
+            return endpoint + "/current.json"
+
+    def get_forecast_dataset(
+        self,
+        interval_start_datetime,
+        publish_datetime,
+        verbose=False,
+    ):
+        """ """
+        if self.auth[0] is None or self.auth[1] is None:
+            raise ValueError(
+                "API Auth Info not found in environment variables.",
+            )
+
+    def make_url(self, dataset):
+
+        return self.base_url + dataset
+
+
+def _extract_resources(data):
+    """
+    Extract resources from the ISONE WADL.
+    pprint to see the endpoint and supported resources.
+    e.g. /current, /{day}/day"""
+    paths = []
+    supported_resources_ls = []
+    root = ET.fromstring(data.text)
+    resources = root.findall("{http://wadl.dev.java.net/2009/02}resources")
+
+    for r in resources:
+        children = r.findall("{http://wadl.dev.java.net/2009/02}resource")
+        for child in children:
+            grandchildren = child.findall("{http://wadl.dev.java.net/2009/02}resource")
+            supported_resources = [gc.attrib["path"] for gc in grandchildren]
+            path = child.attrib["path"]
+            paths.append(path)
+            supported_resources_ls.append(supported_resources)
+
+    return paths, supported_resources_ls
 
 
 def _make_request(url, skiprows, verbose):
