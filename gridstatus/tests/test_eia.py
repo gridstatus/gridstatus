@@ -38,11 +38,41 @@ def _check_region_data(df):
     assert df.columns.tolist() == columns
 
 
+def _check_fuel_type(df):
+    columns = [
+        "Interval Start",
+        "Interval End",
+        "Respondent",
+        "Respondent Name",
+        "Coal",
+        "Hydro",
+        "Natural gas",
+        "Nuclear",
+        "Other",
+        "Petroleum",
+        "Solar",
+        "Wind",
+    ]
+
+    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
+    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
+    assert df.shape[0] > 0
+    assert df.columns.tolist() == columns
+
+
+def test_list_routes():
+    eia = gridstatus.EIA()
+
+    routes = eia.list_routes("electricity/rto/")
+
+    assert "interchange-data" in [r["id"] for r in routes["routes"]]
+
+
 def test_rto_interchange():
     eia = gridstatus.EIA()
 
     start = "2020-01-01"
-    end = "2020-01-04"
+    end = "2020-01-03"
 
     df = eia.get_dataset(
         dataset="electricity/rto/interchange-data",
@@ -73,15 +103,7 @@ def test_rto_region_data():
     _check_region_data(df)
 
 
-def test_list_routes():
-    eia = gridstatus.EIA()
-
-    routes = eia.list_routes("electricity/rto/")
-
-    assert "interchange-data" in [r["id"] for r in routes["routes"]]
-
-
-def test_other_dataset():
+def test_fuel_type():
     eia = gridstatus.EIA()
 
     start = "2020-01-01"
@@ -95,18 +117,7 @@ def test_other_dataset():
         verbose=True,
     )
 
-    cols = [
-        "period",
-        "respondent",
-        "respondent-name",
-        "fueltype",
-        "type-name",
-        "value",
-        "value-units",
-    ]
-
-    assert df.columns.tolist() == cols
-    assert df.shape[0] > 0
+    _check_fuel_type(df)
 
 
 def test_daily_spots_and_futures():
