@@ -189,7 +189,7 @@ class EIA:
             content = response.content
             soup = BeautifulSoup(content, "html.parser")
 
-            close_date = soup.find("b", text=contains_wholesale_petroleum).text
+            close_date = soup.find("b", string=contains_wholesale_petroleum).text
 
             pattern = r"\b\d{1,2}/\d{1,2}/\d{2}\b"
             close_date = re.findall(pattern=pattern, string=close_date)[0]
@@ -462,9 +462,45 @@ def _handle_rto_interchange(df):
     return df
 
 
+def _handle_fuel_type_data(df):
+    """electricity/rto/fuel-type-data"""
+    df = _handle_time(df, frequency="1h")
+
+    df = df.rename(
+        {
+            "value": "MW",
+            "respondent": "Respondent",
+            "respondent-name": "Respondent Name",
+        },
+        axis=1,
+    )
+
+    df["MW"] = df["MW"].astype("Int64")
+
+    # pivot on type
+    df = df.pivot_table(
+        index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
+        columns="type-name",
+        values="MW",
+    ).reset_index()
+
+    fuel_mix_cols = df.columns[4:]
+
+    # make int and fillna with 0
+
+    df[fuel_mix_cols] = df[fuel_mix_cols].astype("Int64").fillna(0)
+
+    df.columns.name = None
+
+    df = df.sort_values(["Interval Start", "Respondent"])
+
+    return df
+
+
 DATASET_HANDLERS = {
     "electricity/rto/interchange-data": _handle_rto_interchange,
     "electricity/rto/region-data": _handle_region_data,
+    "electricity/rto/fuel-type-data": _handle_fuel_type_data,
 }
 
 # docs
