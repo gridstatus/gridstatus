@@ -486,8 +486,8 @@ def _handle_fuel_type_data(df):
 
     fuel_mix_cols = df.columns[4:]
 
-    # make int and fillna with 0
-
+    # nans after pivot because not
+    # all respondents have all fuel types
     df[fuel_mix_cols] = df[fuel_mix_cols].astype("Int64").fillna(0)
 
     df.columns.name = None
