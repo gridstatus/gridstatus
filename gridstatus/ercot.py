@@ -139,6 +139,15 @@ SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHI
     21809  # noqa
 )
 
+# Settlement Points List and Electrical Buses Mapping
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-160-SG
+SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID = 10008
+
+# Resource Decision-Making Entity List
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-988-ER
+RESOURCE_DECISION_MAKING_ENTITY_LIST_RTID = 10036
+
+
 """
 Settlement	Point Type	Description
 ==========	==========	===========
@@ -378,6 +387,183 @@ class Ercot(ISOBase):
 
             df = self.read_doc(doc_info, verbose=verbose)
         return df
+
+    #
+    def get_settlement_points_buses_mapping(self, date, verbose=False):
+        """Get settlement points and buses mapping
+
+        Arguments:
+            date (datetime.date, str):  "today", or a date string
+                are supported.
+
+            verbose(bool): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame
+        """
+        doc = self._get_document(
+            report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
+            published_before=None if date == "latest" else date,
+            verbose=verbose,
+        )
+
+        z = utils.get_zip_folder(doc.url, verbose=verbose)
+
+        return self._handle_settlement_points_buses_mapping(
+            z,
+            publish_date=doc.publish_date,
+            verbose=verbose,
+        )
+
+    def _handle_settlement_points_buses_mapping(
+        self,
+        zip_file,
+        publish_date,
+        verbose=False,
+    ):
+        settlement_points_match = "SP_List_EB_Mapping/Settlement_Points"
+        resource_node_to_units_match = "SP_List_EB_Mapping/Resource_Node_to_Unit"
+
+        data = {}
+
+        for file in zip_file.namelist():
+            if settlement_points_match in file:
+                data["settlement_points"] = pd.read_csv(
+                    io.BytesIO(zip_file.read(file)),
+                )
+
+                # add publish time to beginning of file
+                data["settlement_points"].insert(
+                    loc=0,
+                    column="PUBLISH_TIME",
+                    value=publish_date,
+                )
+
+            elif resource_node_to_units_match in file:
+                data["resource_node_to_units"] = pd.read_csv(
+                    io.BytesIO(zip_file.read(file)),
+                )
+
+                data["resource_node_to_units"].insert(
+                    loc=0,
+                    column="RESOURCE_NAME",
+                    value=(
+                        data["resource_node_to_units"]["UNIT_SUBSTATION"]
+                        + "_"
+                        + data["resource_node_to_units"]["UNIT_NAME"]  # noqa
+                    ),
+                )
+
+                data["resource_node_to_units"].insert(
+                    loc=0,
+                    column="PUBLISH_TIME",
+                    value=publish_date,
+                )
+
+        return data
+
+    # RESOURCE_DECISION_MAKING_ENTITY_LIST_RTID
+    def get_resource_dme_list(self, date, verbose=False):
+        """Get resource decision making entity list"""
+        doc = self._get_document(
+            report_type_id=RESOURCE_DECISION_MAKING_ENTITY_LIST_RTID,
+            published_before=None if date == "latest" else date,
+            verbose=verbose,
+        )
+
+        return self._handle_resource_dme_list(doc, verbose=verbose)
+
+    def _handle_resource_dme_list(self, doc, verbose=False):
+        log(f"Fetching {doc.url}", verbose=verbose)
+        # parse DME DUNS as string
+        df = pd.read_csv(doc.url, dtype={"DME DUNS": str})
+        df.insert(
+            loc=0,
+            column="PUBLISH TIME",
+            value=doc.publish_date,
+        )
+        return df
+
+    def get_cdr(
+        self,
+        cdr_url="https://www.ercot.com/files/docs/2023/05/05/CapacityDemandandReservesReport_May2023_Revised2.xlsx",  # noqa
+        verbose=False,
+    ):
+        """get cdr data"""
+        publish_date = pd.to_datetime("2023-05-23 00:00:00-05:00")
+
+        log(f"Fetching {cdr_url}", verbose=verbose)
+
+        summer_capacities = pd.read_excel(
+            cdr_url,
+            sheet_name="SummerCapacities",
+            skiprows=1,
+        )
+
+        winter_capacities = pd.read_excel(
+            cdr_url,
+            sheet_name="WinterCapacities",
+            skiprows=1,
+        )
+
+        def _handle_capacities(df, capacity_type):
+            df = df.dropna(subset=["UNIT CODE"])
+            df.columns = df.columns.astype("str").str.replace("\n", " ")
+            df = df.drop("Unnamed: 0", axis=1)
+
+            # IN SERVICE is int or nan
+            df["IN SERVICE"] = df["IN SERVICE"].astype("Int64")
+
+            df.insert(
+                0,
+                "PUBLISH TIME",
+                publish_date,
+            )
+
+            # preprend capacity type to column names after "IN SERVICE"
+            in_service_idx = df.columns.get_loc("IN SERVICE")
+            df.columns = df.columns[: in_service_idx + 1].tolist() + [
+                capacity_type + " " + col for col in df.columns[in_service_idx + 1 :]
+            ]
+
+            return df
+
+        summer_capacities = _handle_capacities(
+            summer_capacities,
+            capacity_type="SUMMER",
+        )
+        winter_capacities = _handle_capacities(
+            winter_capacities,
+            capacity_type="WINTER",
+        )
+
+        # columns
+
+        capacities = summer_capacities.merge(
+            winter_capacities,
+            on=[
+                "PUBLISH TIME",
+                "UNIT NAME",
+                "INR",
+                "UNIT CODE",
+                "COUNTY",
+                "FUEL",
+                "ZONE",
+                "IN SERVICE",
+            ],
+        )
+
+        # rename unit name to UNIT FULL NAME
+
+        capacities = capacities.rename(
+            columns={
+                "UNIT NAME": "UNIT FULL NAME",
+            },
+        )
+
+        return {
+            "capacities": capacities,
+        }
 
     def _get_forecast_zone_load_html(self, when, verbose=False):
         """Returns load for currentDay or previousDay"""
@@ -1963,9 +2149,9 @@ class Ercot(ISOBase):
         df = pd.read_csv(z.open(settlement_points_file))
         return df
 
-    def read_doc(self, doc, verbose=False):
+    def read_doc(self, doc, compression="zip", verbose=False):
         log(f"Reading {doc.url}", verbose)
-        doc = pd.read_csv(doc.url, compression="zip")
+        doc = pd.read_csv(doc.url, compression=compression)
         return self.parse_doc(doc, verbose=verbose)
 
     def parse_doc(self, doc, verbose=False):
