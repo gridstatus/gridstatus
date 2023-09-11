@@ -802,6 +802,9 @@ class TestErcot(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
+    def test_get_settlement_points_buses_mapping(self):
+        self.iso.get_settlement_points_buses_mapping("latest")
+
     @staticmethod
     def _check_ercot_spp(df, market, location_type):
         """Common checks for SPP data:
