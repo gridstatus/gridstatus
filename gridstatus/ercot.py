@@ -1,11 +1,13 @@
 import io
 from dataclasses import dataclass
+from enum import Enum
 from zipfile import ZipFile
 
 import pandas as pd
 import requests
 import tqdm
 from bs4 import BeautifulSoup
+from pytz.exceptions import NonExistentTimeError
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -16,12 +18,22 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import ercot_update_dates, support_date_range
+from gridstatus.ercot_60d_utils import (
+    process_dam_gen,
+    process_dam_load,
+    process_dam_load_as_offers,
+    process_sced_gen,
+    process_sced_load,
+)
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
 LOCATION_TYPE_HUB = "Trading Hub"
 LOCATION_TYPE_RESOURCE_NODE = "Resource Node"
 LOCATION_TYPE_ZONE = "Load Zone"
+LOCATION_TYPE_ZONE_EW = "Load Zone Energy Weighted"
+LOCATION_TYPE_ZONE_DC = "Load Zone DC Tie"
+LOCATION_TYPE_ZONE_DC_EW = "Load Zone DC Tie Energy Weighted"
 
 """
 Report Type IDs
@@ -54,9 +66,32 @@ SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID = 10008
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
 SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID = 12301
 
-# Seven-Day Load Forecast by Forecast Zone
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
-SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID = 12311
+
+class ERCOTSevenDayLoadForecastReport(Enum):
+    """
+    Enum class for the Medium Term (Seven Day) Load Forecasts.
+    The values are the report IDs.
+    """
+
+    # Seven-Day Load Forecast by Forecast Zone
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-560-CD
+    BY_FORECAST_ZONE = 12311
+
+    # Seven-Day Load Forecast by Weather Zone
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-561-CD
+    BY_WEATHER_ZONE = 12312
+
+    # Seven-Day Load Forecast by Model and Weather Zone
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-565-CD
+    BY_MODEL_AND_WEATHER_ZONE = 14837
+
+    # Seven-Day Load Forecast by Model and Study Area
+    # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-566-CD
+    BY_MODEL_AND_STUDY_AREA = 15953
+
+    # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
+    # there are a few days of historical data for the forecast
+
 
 # Actual System Load by Weather Zone
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-345-CD
@@ -69,6 +104,14 @@ ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE = 14836
 # Historical DAM Clearing Prices for Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
 HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 13091
+
+# 60-Day DAM Disclosure Reports
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-966-ER
+SIXTY_DAY_DAM_DISCLOSURE_REPORTS_RTID = 13051
+
+# 60-Day SCED Disclosure Reports
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-965-ER
+SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID = 13052
 
 # Unplanned Resource Outages Report
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP1-346-ER
@@ -85,6 +128,16 @@ TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
 # Hourly Resource Outage Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-233-CD
 HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID = 13103
+
+# Wind Power Production - Hourly Averaged Actual and Forecasted Values
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-732-CD
+WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID = 13028
+
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-745-CD
+SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID = (  # noqa
+    21809  # noqa
+)
 
 """
 Settlement	Point Type	Description
@@ -104,6 +157,14 @@ Source: https://www.ercot.com/files/docs/2009/10/26/07_tests_for_rsnable_lmps_ov
 RESOURCE_NODE_SETTLEMENT_TYPES = ["RN", "PCCRN", "LCCRN", "PUN"]
 LOAD_ZONE_SETTLEMENT_TYPES = ["LZ", "LZ_DC"]
 HUB_SETTLEMENT_TYPES = ["HU", "SH", "AH"]
+
+
+@dataclass
+class Document:
+    url: str
+    publish_date: pd.Timestamp
+    constructed_name: str
+    friendly_name: str
 
 
 class Ercot(ISOBase):
@@ -134,13 +195,6 @@ class Ercot(ISOBase):
     ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_weather_zones.html"  # noqa
     LOAD_HISTORICAL_MAX_DAYS = 14
     AS_PRICES_HISTORICAL_MAX_DAYS = 30
-
-    @dataclass
-    class Document:
-        url: str
-        publish_date: pd.Timestamp
-        constructed_name: str
-        friendly_name: str
 
     def get_status(self, date, verbose=False):
         """Returns status of grid"""
@@ -419,53 +473,77 @@ class Ercot(ISOBase):
             ]
         ]
 
-        # keep today's data only
-        data = data[
-            data["Interval Start"].dt.normalize()
-            == pd.Timestamp(
-                date,
-            )
-            .tz_localize(self.default_timezone)
-            .normalize()
-        ]
         data = data[data["forecast"] == 0]  # only keep non forecast rows
 
         return data.reset_index(drop=True)
 
-    def get_load_forecast(self, date, verbose=False):
-        """Returns load forecast
+    @support_date_range("HOUR_START")
+    def get_load_forecast(
+        self,
+        date,
+        forecast_type=ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
+        verbose=False,
+    ):
+        """Returns load forecast of specified regions.
 
-        Currently only supports today's forecast
+        Only allows datetimes from today's date.
+
+        Returns hourly report published immediately before the datetime.
+
+        Arguments:
+            date (str): datetime to download.
+                Returns report published most recently before datetime.
+            forecast_type (ERCOTSevenDayLoadForecastReport): The load forecast type.
+                Enum of possible values.
+            verbose (bool, optional): print verbose output. Defaults to False.
         """
-        if not utils.is_today(date, self.default_timezone):
-            raise NotSupported()
+        if date == "latest":
+            pass
+        else:
+            if not utils.is_today(date, self.default_timezone):
+                raise NotSupported()
 
-        # intrahour https://www.ercot.com/mp/data-products/data-product-details?id=NP3-562-CD
-        # there are a few days of historical date for the forecast
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        doc_info = self._get_document(
-            report_type_id=SEVEN_DAY_LOAD_FORECAST_BY_FORECAST_ZONE_RTID,
-            date=today,
+        doc = self._get_document(
+            report_type_id=forecast_type.value,
+            published_before=None if date == "latest" else date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
 
-        doc = self.read_doc(doc_info, verbose=verbose)
+        df = self._handle_load_forecast(
+            doc,
+            forecast_type=forecast_type,
+            verbose=verbose,
+        )
 
-        doc = doc.rename(columns={"SystemTotal": "Load Forecast"})
-        doc["Forecast Time"] = doc_info.publish_date
+        return df
 
-        doc = doc[
+    def _handle_load_forecast(self, doc, forecast_type, verbose=False):
+        """
+        Function to handle the different types of load forecast parsing.
+
+        """
+        df = self.read_doc(doc, verbose=verbose)
+
+        if forecast_type in [
+            ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
+            ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE,
+            ERCOTSevenDayLoadForecastReport.BY_MODEL_AND_WEATHER_ZONE,
+        ]:
+            df["Load Forecast"] = df["SystemTotal"].copy()
+        df["Forecast Time"] = doc.publish_date
+
+        df = utils.move_cols_to_front(
+            df,
             [
                 "Time",
                 "Interval Start",
                 "Interval End",
                 "Forecast Time",
-                "Load Forecast",
-            ]
-        ]
+            ],
+        )
 
-        return doc
+        return df
 
     def get_rtm_spp(self, year, verbose=False):
         """Get Historical RTM Settlement Point Prices(SPPs)
@@ -733,15 +811,40 @@ class Ercot(ISOBase):
         # Create boolean masks for each location type
         is_hub = df["Location"].str.startswith("HB_")
         is_load_zone = df["Location"].str.startswith("LZ_")
+        is_load_zone_dc_tie = df["Location"].str.startswith("DC_")
         is_resource_node = df["Location"].isin(resource_node)
 
         # Assign location types based on the boolean masks
         df.loc[is_hub, "Location Type"] = LOCATION_TYPE_HUB
         df.loc[is_load_zone, "Location Type"] = LOCATION_TYPE_ZONE
+        df.loc[is_load_zone_dc_tie, "Location Type"] = LOCATION_TYPE_ZONE_DC
         df.loc[is_resource_node, "Location Type"] = LOCATION_TYPE_RESOURCE_NODE
-
         # If a location type is not found, default to LOCATION_TYPE_RESOURCE_NODE
         df["Location Type"].fillna(LOCATION_TYPE_RESOURCE_NODE, inplace=True)
+
+        # energy weighted only exists in real time data
+        # since depends on energy usage
+        if "SettlementPointType" in df.columns:
+            is_load_zone_energy_weighted = df["SettlementPointType"] == "LZEW"
+            is_load_zone_dc_tie_energy_weighted = df["SettlementPointType"] == "LZ_DCEW"
+
+            df.loc[
+                is_load_zone_energy_weighted,
+                "Location Type",
+            ] = LOCATION_TYPE_ZONE_EW
+            df.loc[
+                is_load_zone_dc_tie_energy_weighted,
+                "Location Type",
+            ] = LOCATION_TYPE_ZONE_DC_EW
+
+            # append "_EW" to the end of the location name if it is energy weighted
+            df.loc[is_load_zone_energy_weighted, "Location"] = (
+                df.loc[is_load_zone_energy_weighted, "Location"] + "_EW"
+            )
+
+            df.loc[is_load_zone_dc_tie_energy_weighted, "Location"] = (
+                df.loc[is_load_zone_dc_tie_energy_weighted, "Location"] + "_EW"
+            )
 
         df = df.rename(
             columns={
@@ -761,19 +864,6 @@ class Ercot(ISOBase):
                 "SPP",
             ]
         ]
-
-        # todo figure out why
-        # when you get rid of SettlementPointType some
-        # rows are duplicated
-        # For example, SettlementPointType LZ and LZEW
-        df = df.drop_duplicates(
-            subset=[
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Location",
-            ],
-        )
 
         df = utils.filter_lmp_locations(
             df=df,
@@ -813,6 +903,7 @@ class Ercot(ISOBase):
         df = self.read_doc(doc_info, verbose=verbose)
 
         # fetch mapping
+        # todo move to finalize?
         df["Market"] = Markets.DAY_AHEAD_HOURLY.value
 
         return df
@@ -952,8 +1043,6 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-        print(data)
-
         return data
 
     @support_date_range("DAY_START")
@@ -997,6 +1086,244 @@ class Ercot(ISOBase):
         )
 
         return data
+
+    @support_date_range("DAY_START")
+    def get_60_day_sced_disclosure(self, date, end=None, process=False, verbose=False):
+        """Get 60 day SCED Disclosure data
+
+        Arguments:
+            date (datetime.date, str): date to return
+            end (datetime.date, str, optional): if declared, function will return
+                data as a range, from "date" to "end"
+            process (bool, optional): if True, will process the data into
+                standardized format. if False, will return raw data
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            dict: dictionary with keys "sced_load_resource", "sced_gen_resource", and
+                "sced_smne", mapping to pandas.DataFrame objects
+        """
+
+        report_date = date + pd.DateOffset(days=60)
+
+        doc_info = self._get_document(
+            report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+            date=report_date,
+            constructed_name_contains="60_Day_SCED_Disclosure.zip",
+            verbose=verbose,
+        )
+        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
+
+        data = self._handle_60_day_sced_disclosure(z, process=process, verbose=verbose)
+
+        return data
+
+    def _handle_60_day_sced_disclosure(self, z, process=False, verbose=False):
+        # todo there are other files in the zip folder
+        load_resource_file = None
+        gen_resource_file = None
+        smne_file = None
+        for file in z.namelist():
+            cleaned_file = file.replace(" ", "_")
+            if "60d_Load_Resource_Data_in_SCED" in cleaned_file:
+                load_resource_file = file
+            elif "60d_SCED_Gen_Resource_Data" in cleaned_file:
+                gen_resource_file = file
+            elif "60d_SCED_SMNE_GEN_RES" in cleaned_file:
+                smne_file = file
+
+        assert load_resource_file, "Could not find load resource file"
+        assert gen_resource_file, "Could not find gen resource file"
+        assert smne_file, "Could not find smne file"
+
+        load_resource = pd.read_csv(z.open(load_resource_file))
+        gen_resource = pd.read_csv(z.open(gen_resource_file))
+        smne = pd.read_csv(z.open(smne_file))
+
+        def handle_time(df, time_col, is_interval_end=False):
+            df[time_col] = pd.to_datetime(df[time_col])
+
+            if "Repeated Hour Flag" in df.columns:
+                df[time_col] = df[time_col].dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                )
+                interval_start = df[time_col].dt.round(
+                    "15min",
+                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                )
+
+            else:
+                # for SMNE data
+                df[time_col] = (
+                    df.sort_values("Interval Number", ascending=True)
+                    .groupby("Resource Code")[time_col]
+                    .transform(
+                        lambda x: x.dt.tz_localize(
+                            self.default_timezone,
+                            ambiguous="infer",
+                        ),
+                    )
+                )
+
+                # convert to utc
+                # bc round doesn't work with dst changes
+                # without Repeated Hour Flag
+                interval_start = (
+                    df[time_col]
+                    .dt.tz_convert("utc")
+                    .dt.round("15min")
+                    .dt.tz_convert(self.default_timezone)
+                )
+
+            interval_length = pd.Timedelta(minutes=15)
+            if is_interval_end:
+                interval_end = interval_start
+                interval_start = interval_start - interval_length
+            else:
+                interval_end = interval_start + interval_length
+
+            df.insert(0, "Interval Start", interval_start)
+            df.insert(
+                1,
+                "Interval End",
+                interval_end,
+            )
+
+            return df
+
+        load_resource = handle_time(load_resource, time_col="SCED Time Stamp")
+        gen_resource = handle_time(gen_resource, time_col="SCED Time Stamp")
+        # no repeated hour flag like other ERCOT data
+        # likely will error on DST change
+        smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
+
+        if process:
+            log("Processing 60 day SCED disclosure data", verbose=verbose)
+            load_resource = process_sced_load(load_resource)
+            gen_resource = process_sced_gen(gen_resource)
+            smne = smne.rename(
+                columns={
+                    "Resource Code": "Resource Name",
+                },
+            )
+
+        return {
+            "sced_load_resource": load_resource,
+            "sced_gen_resource": gen_resource,
+            "sced_smne": smne,
+        }
+
+    @support_date_range("DAY_START")
+    def get_60_day_dam_disclosure(self, date, end=None, process=False, verbose=False):
+        """Get 60 day DAM Disclosure data"""
+
+        report_date = date + pd.DateOffset(days=60)
+
+        doc_info = self._get_document(
+            report_type_id=SIXTY_DAY_DAM_DISCLOSURE_REPORTS_RTID,
+            date=report_date,
+            constructed_name_contains="60_Day_DAM_Disclosure.zip",
+            verbose=verbose,
+        )
+
+        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
+
+        data = self._handle_60_day_dam_disclosure(z, process=process, verbose=verbose)
+
+        return data
+
+    def _handle_60_day_dam_disclosure(self, z, process=False, verbose=False):
+        files_prefix = {
+            "dam_gen_resource": "60d_DAM_Gen_Resource_Data-",
+            "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",  # noqa: E501
+            "dam_load_resource": "60d_DAM_Load_Resource_Data-",
+            "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",  # noqa: E501
+            "dam_energy_bids": "60d_DAM_EnergyBids-",
+            "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",  # noqa: E501
+        }
+
+        files = {}
+
+        # find files in zip folder
+        for key, file in files_prefix.items():
+            for f in z.namelist():
+                if file in f:
+                    files[key] = f
+
+        assert len(files) == len(files_prefix), "Missing files"
+
+        data = {}
+
+        for key, file in files.items():
+            doc = pd.read_csv(z.open(file))
+            # weird that these files dont have this column like all other eroct files
+            # add so we can parse
+            doc["DSTFlag"] = "N"
+            data[key] = self.parse_doc(doc)
+
+        if process:
+            data["dam_gen_resource"] = process_dam_gen(
+                data["dam_gen_resource"],
+            )
+
+            data["dam_load_resource"] = process_dam_load(
+                data["dam_load_resource"],
+            )
+
+            data["dam_load_resource_as_offers"] = process_dam_load_as_offers(
+                data["dam_load_resource_as_offers"],
+            )
+
+        return data
+
+    def get_sara(
+        self,
+        url="https://www.ercot.com/files/docs/2023/05/05/SARA_Summer2023_Revised.xlsx",
+        verbose=False,
+    ):
+        """Parse SARA data from url.
+
+        Seasonal Assessment of Resource Adequacy for the ERCOT Region (SARA)
+
+        Arguments:
+            url (str, optional): url to download SARA data from. Defaults to
+                Summer 2023 SARA data.
+
+        """
+
+        # only reading SummerCapacities right now
+        # todo parse more sheets
+        log("Getting SARA data from {}".format(url), verbose=verbose)
+        df = pd.read_excel(url, sheet_name="SummerCapacities", header=1)
+
+        # drop cols Unnamed: 0
+        df = df.drop("Unnamed: 0", axis=1)
+
+        df = df.rename(
+            columns={
+                "UNIT NAME": "Unit Name",
+                "GENERATION INTERCONNECTION PROJECT CODE": "Generation Interconnection Project Code",  # noqa: E501
+                "UNIT CODE": "Unit Code",
+                "COUNTY": "County",
+                "FUEL": "Fuel",
+                "ZONE": "Zone",
+                "IN SERVICE YEAR": "In Service Year",
+                "INSTALLED CAPACITY RATING": "Installed Capacity Rating",
+                "SUMMER\nCAPACITY\n(MW)": "Summer Capacity (MW)",
+                "NEW PLANNED PROJECT ADDITIONS TO REPORT": "New Planned Project Additions to Report",  # noqa: E501
+            },
+        )
+        # every unit should have this defined
+        df = df.dropna(subset=["Fuel"])
+
+        df["In Service Year"] = df["In Service Year"].astype("Int64")
+
+        category_cols = ["County", "Fuel", "Zone"]
+        for col in category_cols:
+            df[col] = df[col].astype("category")
+
+        return df
 
     def _finalize_as_price_df(self, doc, pivot=False):
         doc["Market"] = "DAM"
@@ -1138,16 +1465,87 @@ class Ercot(ISOBase):
 
         return df
 
-    @support_date_range("1H")
+    @support_date_range("HOUR_START")
+    def get_hourly_wind_report(self, date, end=None, verbose=False):
+        """Get Hourly Wind Report.
+
+        This report is posted every hour and includes System-wide and Regional
+        actual hourly averaged wind power production, STWPF, WGRPP and COP
+        HSLs for On-Line WGRs for a rolling historical 48-hour period as
+        well as the System-wide and Regional STWPF, WGRPP and
+        COP HSLs for On-Line WGRs for the rolling future
+        168-hour period. Our forecasts attempt to predict HSL,
+        which is uncurtailed power generation potential.
+
+        Arguments:
+            date (str): date to get report for. Supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly wind report data
+        """
+        doc = self._get_document(
+            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,
+            published_before=None if date == "latest" else date,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
+
+        return df
+
+    @support_date_range("HOUR_START")
+    def get_hourly_solar_report(self, date, end=None, verbose=False):
+        """Get Hourly Solar Report.
+
+        Posted every hour and includes System-wide and geographic regional
+        hourly averaged solar power production, STPPF, PVGRPP, and COP HSL
+        for On-Line PVGRs for a rolling historical 48-hour period as well
+        as the system-wide and regional STPPF, PVGRPP, and COP HSL for
+        On-Line PVGRs for the rolling future 168-hour period.
+
+        Arguments:
+            date (str): date to get report for. Supports "latest" or a date string
+            end (str, optional): end date for date range. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly solar report data
+        """
+
+        doc = self._get_document(
+            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
+            published_before=None if date == "latest" else date,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
+
+        return df
+
+    def _handle_hourly_wind_or_solar_report(self, doc, verbose=False):
+        df = self.read_doc(doc, verbose=verbose)
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
+        # replace _ in column names with spaces
+        df.columns = df.columns.str.replace("_", " ")
+        return df
+
+    @support_date_range("HOUR_START")
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
         """Hourly Resource Outage Capacity report sourced
         from the Outage Scheduler (OS).
 
         Returns outage data for for next 7 days.
 
-        Total Resource MW doesnt includ IRR, New Equipment outages,
+        Total Resource MW doesn't include IRR, New Equipment outages,
         retirement of old equipment, seasonal
-        mothballed (during the outaged season),
+        mothballed (during the outage season),
         and mothballed.
 
         As such, it is a proxy for thermal outages.
@@ -1163,20 +1561,12 @@ class Ercot(ISOBase):
 
 
         """
-        all_docs = self._get_documents(
+        doc = self._get_document(
             report_type_id=HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID,
             extension="csv",
+            published_before=None if date == "latest" else date,
             verbose=verbose,
         )
-
-        if date == "latest":
-            doc = max(all_docs, key=lambda x: x.publish_date)
-
-        else:
-            hour = date.floor("1H")
-            for doc in all_docs:
-                if hour == doc.publish_date.floor("1H"):
-                    break
 
         df = self._handle_hourly_resource_outage_capacity(doc, verbose=verbose)
 
@@ -1451,7 +1841,9 @@ class Ercot(ISOBase):
         self,
         report_type_id,
         date=None,
+        published_before=None,
         constructed_name_contains=None,
+        extension=None,
         verbose=False,
     ) -> Document:
         """Searches by Report Type ID, filtering for date and/or constructed name
@@ -1471,7 +1863,9 @@ class Ercot(ISOBase):
         documents = self._get_documents(
             report_type_id=report_type_id,
             date=date,
+            published_before=published_before,
             constructed_name_contains=constructed_name_contains,
+            extension=extension,
             verbose=verbose,
         )
         if len(documents) == 0:
@@ -1485,6 +1879,7 @@ class Ercot(ISOBase):
         self,
         report_type_id,
         date=None,
+        published_before=None,
         constructed_name_contains=None,
         extension=None,
         verbose=False,
@@ -1508,6 +1903,9 @@ class Ercot(ISOBase):
                 self.default_timezone,
             )
 
+            if published_before:
+                match = match and publish_date <= published_before
+
             if date:
                 match = match and publish_date.date() == date.date()
 
@@ -1524,7 +1922,7 @@ class Ercot(ISOBase):
                 doc_id = doc["Document"]["DocID"]
                 url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"  # noqa
                 matches.append(
-                    self.Document(
+                    Document(
                         url=url,
                         publish_date=publish_date,
                         constructed_name=doc["Document"]["ConstructedName"],
@@ -1576,8 +1974,10 @@ class Ercot(ISOBase):
         doc.rename(
             columns={
                 "Delivery Date": "DeliveryDate",
+                "DELIVERY_DATE": "DeliveryDate",
                 "OperDay": "DeliveryDate",
                 "Hour Ending": "HourEnding",
+                "HOUR_ENDING": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",
                 "Date": "DeliveryDate",
                 "DeliveryHour": "HourEnding",
@@ -1624,14 +2024,25 @@ class Ercot(ISOBase):
         if "DSTFlag" in doc.columns:
             ambiguous = doc["DSTFlag"] == "Y"
 
-        doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
-            self.default_timezone,
-            ambiguous=ambiguous,
-        )
+        try:
+            doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=ambiguous,
+            )
+        except NonExistentTimeError:
+            # this handles how ercot does labels the instant
+            # of the DST transition differently than
+            # pandas does
+            doc["Interval Start"] = doc["Interval Start"] + pd.Timedelta(hours=1)
+            doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=ambiguous,
+            ) - pd.Timedelta(hours=1)
 
         doc["Interval End"] = doc["Interval Start"] + interval_length
 
         doc["Time"] = doc["Interval Start"]
+        doc = doc.sort_values("Time", ascending=True)
 
         cols_to_keep = [
             "Time",
@@ -1648,7 +2059,7 @@ class Ercot(ISOBase):
             ],
         )
 
-        optional_drop = ["DSSTFlag", "DeliveryInterval"]
+        optional_drop = ["DSTFlag", "DeliveryInterval"]
 
         for col in optional_drop:
             if col in doc.columns:

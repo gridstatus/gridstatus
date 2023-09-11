@@ -135,6 +135,16 @@ class support_date_range:
                 ):
                     prepend = [args_dict["date"]]
                     args_dict["date"] = next_month_start
+            elif frequency == "HOUR_START":
+                frequency = "1H"
+                next_hour_start = args_dict["date"].ceil("1H")
+
+                if (
+                    next_hour_start < args_dict["end"]
+                    and next_hour_start != args_dict["date"]
+                ):
+                    prepend = [args_dict["date"]]
+                    args_dict["date"] = next_hour_start
 
             dates = pd.date_range(
                 args_dict["date"],
@@ -215,7 +225,18 @@ class support_date_range:
                 print("Errors that occurred while getting data:")
                 pprint.pprint(errors)
 
-            df = pd.concat(all_df).reset_index(drop=True)
+            # if first item is a dict, then we neeed to concat by key
+            if all_df and isinstance(all_df[0], dict):
+                df = {}
+                for d in all_df:
+                    for k, v in d.items():
+                        if k not in df:
+                            df[k] = []
+                        df[k].append(v)
+                for k, v in df.items():
+                    df[k] = pd.concat(v).reset_index(drop=True)
+            else:
+                df = pd.concat(all_df).reset_index(drop=True)
 
             return df
 

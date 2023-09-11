@@ -3,6 +3,7 @@ import pytest
 
 import gridstatus
 from gridstatus import Ercot, Markets, NotSupported
+from gridstatus.ercot import Document
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -201,6 +202,18 @@ class TestErcot(BaseTestISO):
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
+    def _check_forecast(self, df):
+        """Method override of BaseTestISO._check_forecast()
+        to handle enums."""
+        assert set(df.columns[:4]) == set(
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+            ],
+        )
+
     """get_spp"""
 
     def test_get_spp_dam_latest_day_ahead_hourly_zone_should_raise_exception(self):
@@ -259,6 +272,38 @@ class TestErcot(BaseTestISO):
         assert df["Interval End"].max().date() == today
         assert df["Interval Start"].min().date() == yesterday
 
+    def test_get_spp_real_time_handles_all_location_types(self):
+        df = self.iso.get_spp(
+            date="latest",
+            market=Markets.REAL_TIME_15_MIN,
+            verbose=True,
+        )
+
+        assert set(df["Location Type"].unique()) == {
+            "Resource Node",
+            "Load Zone DC Tie",
+            "Load Zone DC Tie Energy Weighted",
+            "Trading Hub",
+            "Load Zone Energy Weighted",
+            "Load Zone",
+        }
+
+    def test_get_spp_day_ahead_handles_all_location_types(self):
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        yesterday = today - pd.Timedelta(days=1)
+        df = self.iso.get_spp(
+            date=yesterday,
+            market=Markets.DAY_AHEAD_HOURLY,
+            verbose=True,
+        )
+
+        assert set(df["Location Type"].unique()) == {
+            "Resource Node",
+            "Load Zone DC Tie",
+            "Trading Hub",
+            "Load Zone",
+        }
+
     @pytest.mark.skip(reason="takes too long to run")
     def test_get_spp_rtm_historical(self):
         rtm = gridstatus.Ercot().get_rtm_spp(2020)
@@ -310,27 +355,132 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
+    """get_60_day_sced_disclosure"""
+
+    def test_get_60_day_sced_disclosure_historical(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        df_dict = self.iso.get_60_day_sced_disclosure(date=days_ago_65, process=True)
+
+        load_resource = df_dict["sced_load_resource"]
+        gen_resource = df_dict["sced_gen_resource"]
+        smne = df_dict["sced_smne"]
+
+        assert load_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
+        assert gen_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
+        assert smne["Interval Time"].dt.date.unique()[0] == days_ago_65
+
+        assert load_resource.shape[1] == 22
+        assert gen_resource.shape[1] == 29
+        assert smne.shape[1] == 6
+
+    def test_get_60_day_sced_disclosure_range(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        days_ago_66 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=66,
+        )
+
+        df_dict = self.iso.get_60_day_sced_disclosure(
+            start=days_ago_66,
+            end=days_ago_65
+            + pd.Timedelta(days=1),  # add one day to end date since exclusive
+            verbose=True,
+        )
+
+        load_resource = df_dict["sced_load_resource"]
+        gen_resource = df_dict["sced_gen_resource"]
+        smne = df_dict["sced_smne"]
+
+        assert load_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
+            days_ago_66,
+            days_ago_65,
+        ]
+
+        assert gen_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
+            days_ago_66,
+            days_ago_65,
+        ]
+
+        assert smne["Interval Time"].dt.date.unique().tolist() == [
+            days_ago_66,
+            days_ago_65,
+        ]
+
+    """get_60_day_dam_disclosure"""
+
+    def test_get_60_day_dam_disclosure_historical(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        df_dict = self.iso.get_60_day_dam_disclosure(date=days_ago_65, process=True)
+        assert df_dict is not None
+
+        dam_gen_resource = df_dict["dam_gen_resource"]
+        dam_gen_resource_as_offers = df_dict["dam_gen_resource_as_offers"]
+        dam_load_resource = df_dict["dam_load_resource"]
+        dam_load_resource_as_offers = df_dict["dam_load_resource_as_offers"]
+        dam_energy_bids = df_dict["dam_energy_bids"]
+        dam_energy_bid_awards = df_dict["dam_energy_bid_awards"]
+
+        assert dam_gen_resource.shape[1] == 29
+        assert dam_gen_resource_as_offers.shape[1] == 62
+        assert dam_load_resource.shape[1] == 19
+        assert dam_load_resource_as_offers.shape[1] == 63
+        assert dam_energy_bids.shape[1] == 28
+        assert dam_energy_bid_awards.shape[1] == 8
+
+    def test_get_sara(self):
+        columns = [
+            "Unit Name",
+            "Generation Interconnection Project Code",
+            "Unit Code",
+            "County",
+            "Fuel",
+            "Zone",
+            "In Service Year",
+            "Installed Capacity Rating",
+            "Summer Capacity (MW)",
+            "New Planned Project Additions to Report",
+        ]
+        df = self.iso.get_sara(verbose=True)
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
+
     def test_spp_real_time_parse_retry_file_name(self):
         docs = [
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now(),
                 constructed_name="cdr.00012301.0000000000000000.20230608.001705730.SPPHLZNP6905_retry_20230608_1545_csv",
                 friendly_name="",
             ),
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now(),
                 constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_1545_csv",
                 friendly_name="",
             ),
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now(),
                 constructed_name="cdr.00012301.0000000000000000.2023202306110610.001705730.SPPHLZNP6905_20230611_0000_csv",
                 friendly_name="",
             ),
-            self.iso.Document(
+            Document(
                 url="",
                 publish_date=pd.Timestamp.now() + pd.Timedelta(days=1),
                 constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_0000_csv",
@@ -562,6 +712,85 @@ class TestErcot(BaseTestISO):
         assert df["Publish Time"].nunique() == 3
 
         return df
+
+    def test_get_hourly_wind_report(self):
+        # test specific hour
+        cols = [
+            "Publish Time",
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "ACTUAL SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STWPF SYSTEM WIDE",
+            "WGRPP SYSTEM WIDE",
+            "ACTUAL LZ SOUTH HOUSTON",
+            "COP HSL LZ SOUTH HOUSTON",
+            "STWPF LZ SOUTH HOUSTON",
+            "WGRPP LZ SOUTH HOUSTON",
+            "ACTUAL LZ WEST",
+            "COP HSL LZ WEST",
+            "STWPF LZ WEST",
+            "WGRPP LZ WEST",
+            "ACTUAL LZ NORTH",
+            "COP HSL LZ NORTH",
+            "STWPF LZ NORTH",
+            "WGRPP LZ NORTH",
+        ]
+        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_hourly_wind_report(date)
+        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].min() < date
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    def test_get_hourly_solar_report(self):
+        # test specific hour
+        cols = [
+            "Publish Time",
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "GEN SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STPPF SYSTEM WIDE",
+            "PVGRPP SYSTEM WIDE",
+            "GEN CenterWest",
+            "COP HSL CenterWest",
+            "STPPF CenterWest",
+            "PVGRPP CenterWest",
+            "GEN NorthWest",
+            "COP HSL NorthWest",
+            "STPPF NorthWest",
+            "PVGRPP NorthWest",
+            "GEN FarWest",
+            "COP HSL FarWest",
+            "STPPF FarWest",
+            "PVGRPP FarWest",
+            "GEN FarEast",
+            "COP HSL FarEast",
+            "STPPF FarEast",
+            "PVGRPP FarEast",
+            "GEN SouthEast",
+            "COP HSL SouthEast",
+            "STPPF SouthEast",
+            "PVGRPP SouthEast",
+            "GEN CenterEast",
+            "COP HSL CenterEast",
+            "STPPF CenterEast",
+            "PVGRPP CenterEast",
+        ]
+        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_hourly_solar_report(date, verbose=True)
+
+        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].min() < date
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
 
     """get_storage"""
 

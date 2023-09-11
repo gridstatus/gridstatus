@@ -25,7 +25,7 @@ class PJM(ISOBase):
     default_timezone = "US/Eastern"
 
     interconnection_homepage = (
-        "https://www.pjm.com/planning/services-requests/interconnection-queues.aspx"
+        "https://www.pjm.com/planning/service-requests/services-request-status"
     )
 
     location_types = [
@@ -605,12 +605,12 @@ class PJM(ISOBase):
         queue["Capacity (MW)"] = queue[["MFO", "MW In Service"]].min(axis=1)
 
         rename = {
-            "Queue Number": "Queue ID",
+            "Project ID": "Queue ID",
             "Name": "Project Name",
             "County": "County",
             "State": "State",
             "Transmission Owner": "Transmission Owner",
-            "Queue Date": "Queue Date",
+            "Submitted Date": "Queue Date",
             "Withdrawal Date": "Withdrawn Date",
             "Withdrawn Remarks": "Withdrawal Comment",
             "Status": "Status",

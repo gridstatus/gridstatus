@@ -2,9 +2,26 @@
 
 ## vNext
 
+### ERCOT
+
+- Support ECRS in ERCOT 60 Day DAM and SCED Reports
+- Handle Energy Weighted Load Zone prices in real time SPPs
+- Add ERCOT hourly wind forecast report
+- Add ERCOT hourly solar forecast report
+- Add `Ercot.get_60_day_sced_disclosure`
+- Add `Ercot.get_60_day_dam_disclosure`
+- Add support for specifying `forecast_type` to `Ercot.get_load_forecast`
+
+### MISO
+
+- Add support for historical DAM LMP
+
 ### EIA
 
 - Add `EIA.get_grid_monitor` dataset with hourly BA and Region emission data
+- Add wholesale petroleum and natural gas daily spot prices.
+- Add weekly spot prices and export totals for coal.
+- Add handler for hourly fuel type data
 
 ## v0.22.0 - July 3rd, 2023
 

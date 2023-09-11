@@ -1,6 +1,4 @@
-import io
 import re
-from urllib.parse import urlencode
 
 import pandas as pd
 import requests
@@ -25,9 +23,10 @@ MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
 FILE_BROWSER_DOWNLOAD_URL = "https://portal.spp.org/file-browser-api/download"
 
-LOCATION_TYPE_HUB = "HUB"
-LOCATION_TYPE_INTERFACE = "INTERFACE"
-LOCATION_TYPE_SETTLEMENT_LOCATION = "SETTLEMENT_LOCATION"
+LOCATION_TYPE_ALL = "ALL"
+LOCATION_TYPE_HUB = "Hub"
+LOCATION_TYPE_INTERFACE = "Interface"
+LOCATION_TYPE_SETTLEMENT_LOCATION = "Settlement Location"
 
 QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"  # noqa
 QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"  # noqa
@@ -81,6 +80,7 @@ class SPP(ISOBase):
     ]
 
     location_types = [
+        LOCATION_TYPE_ALL,
         LOCATION_TYPE_HUB,
         LOCATION_TYPE_INTERFACE,
         LOCATION_TYPE_SETTLEMENT_LOCATION,
@@ -120,7 +120,7 @@ class SPP(ISOBase):
             # many years of historical 5 minute data
             raise NotSupported
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=%2FGenMix2Hour.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/GenMix2Hour.csv"  # noqa
         df_raw = pd.read_csv(url)
         historical_mix = process_gen_mix(df_raw, detailed=detailed)
 
@@ -161,6 +161,7 @@ class SPP(ISOBase):
         else:
             # hourly historical zonal loads
             # https://marketplace.spp.org/pages/hourly-load
+            # five minute actual load available here: https://portal.spp.org/pages/stlf-vs-actual#
             raise NotSupported()
 
     def get_load_forecast(self, date, forecast_type="MID_TERM", verbose=False):
@@ -262,7 +263,7 @@ class SPP(ISOBase):
 
 
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=%2F{date.strftime('%Y')}%2F{date.strftime('%m')}%2FVER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
 
         msg = f"Downloading {url}"
         log(msg, verbose)
@@ -281,7 +282,7 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: VER Curtailments
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=%2F{year}%2F{year}.zip"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
         z = utils.get_zip_folder(url, verbose=verbose)
 
         # iterate through all files in zip
@@ -332,9 +333,6 @@ class SPP(ISOBase):
         # def get_historical_lmp(self, date, market: str, nodes: list):
         # 5 minute interal data
         # {FILE_BROWSER_API_URL}/rtbm-lmp-by-location?path=/2022/08/By_Interval/08/RTBM-LMP-SL-202208082125.csv
-
-        # hub and interface prices
-        # https://marketplace.spp.org/pages/hub-and-interface-prices
 
         # historical generation mix
         # https://marketplace.spp.org/pages/generation-mix-rolling-365
@@ -431,8 +429,7 @@ class SPP(ISOBase):
         date,
         end=None,
         market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_HUB,
+        location_type: str = LOCATION_TYPE_ALL,
         verbose=False,
     ):
         """Get LMP data
@@ -442,40 +439,33 @@ class SPP(ISOBase):
             - ``DAY_AHEAD_HOURLY``
 
         Supported Location Types:
-            - ``hub``
-            - ``interface``
-            - ``settlement_location``
+            - ``Hub``
+            - ``Interface``
+            - ``ALL``
         """
         if market not in self.markets:
             raise NotSupported(f"Market {market} not supported")
-        location_type = self._normalize_location_type(location_type)
+
+        if location_type not in self.location_types:
+            raise NotSupported(f"Location type {location_type} not supported")
+
         if market == Markets.REAL_TIME_5_MIN:
             df = self._get_rtm5_lmp(
                 date,
                 end,
-                market,
-                locations,
-                location_type,
                 verbose,
             )
         elif market == Markets.DAY_AHEAD_HOURLY:
+            if date == "latest":
+                raise ValueError("Latest not supported for Day Ahead Hourly")
             df = self._get_dam_lmp(
                 date,
-                end,
-                market,
-                locations,
-                location_type,
                 verbose,
-            )
-        else:
-            raise NotSupported(
-                f"Market {market} is not supported",
             )
 
         return self._finalize_spp_df(
             df,
             market=market,
-            locations=locations,
             location_type=location_type,
             verbose=verbose,
         )
@@ -500,35 +490,39 @@ class SPP(ISOBase):
         self,
         date,
         end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        df = self._fetch_and_concat_csvs(
-            self._fs_get_rtbm_lmp_by_location_paths(date, verbose=verbose),
-            fs_name=FS_RTBM_LMP_BY_LOCATION,
-            verbose=verbose,
-        )
+        if date == "latest":
+            urls = [
+                FILE_BROWSER_DOWNLOAD_URL
+                + "/"
+                + FS_RTBM_LMP_BY_LOCATION
+                + "?path=%2FRTBM-LMP-SL-latestInterval.csv",
+            ]
+        else:
+            urls = self._file_browser_list(
+                fs_name=FS_RTBM_LMP_BY_LOCATION,
+                type="folder",
+                path=date.strftime("/%Y/%m/By_Interval/%d"),
+            )["url"].tolist()
+
+        msg = f"Found {len(urls)} files for {date}"
+        log(msg, verbose)
+
+        df = self._fetch_and_concat_csvs(urls, verbose=verbose)
         return df
 
     def _get_dam_lmp(
         self,
         date,
-        end=None,
-        market: str = None,
-        locations: list = "ALL",
-        location_type: str = LOCATION_TYPE_HUB,
         verbose=False,
     ):
-        df = self._fetch_and_concat_csvs(
-            self._fs_get_dam_lmp_by_location_paths(date, verbose=verbose),
-            fs_name=FS_DAM_LMP_BY_LOCATION,
-            verbose=verbose,
-        )
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{FS_DAM_LMP_BY_LOCATION}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-LMP-SL-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        log(f"Downloading {url}", verbose=verbose)
+        df = pd.read_csv(url)
         return df
 
-    def _finalize_spp_df(self, df, market, locations, location_type, verbose=False):
+    def _finalize_spp_df(self, df, market, location_type, verbose=False):
         """
         Finalizes DataFrame:
 
@@ -542,7 +536,6 @@ class SPP(ISOBase):
         Arguments:
             pandas.DataFrame: DataFrame with SPP data
             market (str): Market
-            locations (list): List of locations to filter by
             location_type (str): Location type
             verbose (bool, optional): Verbose output
         """
@@ -560,44 +553,19 @@ class SPP(ISOBase):
         df["Time"] = df["Interval Start"]
 
         df["Location"] = df["Settlement Location"]
+        df["PNode"] = df["Pnode"]
 
         df["Market"] = market.value
 
-        if location_type == LOCATION_TYPE_SETTLEMENT_LOCATION:
-            # annotate instead of filter
-            hubs = self._get_location_list(LOCATION_TYPE_HUB, verbose=verbose)
-            hub_name = SPP._get_location_type_name(LOCATION_TYPE_HUB)
+        df["Location Type"] = LOCATION_TYPE_SETTLEMENT_LOCATION
 
-            interfaces = self._get_location_list(
-                LOCATION_TYPE_INTERFACE,
-                verbose=verbose,
-            )
-            interface_name = SPP._get_location_type_name(
-                LOCATION_TYPE_INTERFACE,
-            )
-
-            # Determine Location Type by matching to a hub or interface.
-            # Otherwise, fall back to a settlement location
-            df["Location Type"] = df["Location"].apply(
-                lambda location: SPP._lookup_match(
-                    location,
-                    {
-                        hub_name: hubs,
-                        interface_name: interfaces,
-                    },
-                    default_value=SPP._get_location_type_name(
-                        LOCATION_TYPE_SETTLEMENT_LOCATION,
-                    ),
-                ),
-            )
-        else:
-            # filter
-            location_list = self._get_location_list(
-                location_type,
-                verbose=verbose,
-            )
-            df["Location Type"] = SPP._get_location_type_name(location_type)
-            df = df[df["Location"].isin(location_list)]
+        # Create boolean masks for each location type
+        hubs = self._get_location_list(LOCATION_TYPE_HUB, verbose=verbose)
+        interfaces = self._get_location_list(LOCATION_TYPE_INTERFACE, verbose=verbose)
+        is_hub = df["Location"].isin(hubs)
+        is_interface = df["Location"].isin(interfaces)
+        df.loc[is_hub, "Location Type"] = LOCATION_TYPE_HUB
+        df.loc[is_interface, "Location Type"] = LOCATION_TYPE_INTERFACE
 
         df = df.rename(
             columns={
@@ -607,7 +575,9 @@ class SPP(ISOBase):
                 "MEC": "Energy",
             },
         )
-        df = utils.filter_lmp_locations(df, locations)
+
+        df = utils.filter_lmp_locations(df, location_type=location_type)
+
         df = df[
             [
                 "Time",
@@ -616,6 +586,7 @@ class SPP(ISOBase):
                 "Market",
                 "Location",
                 "Location Type",
+                "PNode",
                 "LMP",
                 "Energy",
                 "Congestion",
@@ -624,41 +595,6 @@ class SPP(ISOBase):
         ]
         df = df.reset_index(drop=True)
         return df
-
-    @staticmethod
-    def _lookup_match(item, lookup, default_value):
-        """Use a dictionary to find the first key-value pair
-        where the value is a list containing the item
-        """
-        for key, values_list in lookup.items():
-            if item in values_list:
-                return key
-        return default_value
-
-    @staticmethod
-    def _parse_day_ahead_hour_end(df, timezone):
-        # 'DA_HOUREND': '12/26/2022 9:00:00 AM',
-        return df["DA_HOUREND"].apply(
-            lambda x: (pd.Timestamp(x, tz=timezone) - pd.Timedelta(hours=1)),
-        )
-
-    def _normalize_location_type(self, location_type):
-        norm_location_type = location_type.upper()
-        if norm_location_type in self.location_types:
-            return norm_location_type
-        else:
-            raise NotSupported(f"Invalid location_type {location_type}")
-
-    @staticmethod
-    def _get_location_type_name(location_type):
-        if location_type == LOCATION_TYPE_HUB:
-            return "Hub"
-        elif location_type == LOCATION_TYPE_INTERFACE:
-            return "Interface"
-        elif location_type == LOCATION_TYPE_SETTLEMENT_LOCATION:
-            return "Settlement Location"
-        else:
-            raise ValueError(f"Invalid location_type: {location_type}")
 
     def _get_location_list(self, location_type, verbose=False):
         if location_type == LOCATION_TYPE_HUB:
@@ -672,77 +608,14 @@ class SPP(ISOBase):
             raise ValueError(f"Invalid location_type: {location_type}")
         return df["SETTLEMENT_LOCATION"].unique().tolist()
 
-    def _fs_get_rtbm_lmp_by_location_paths(self, date, verbose=False):
-        """
-        Lists files for Real-Time Balancing Market (RTBM),
-        Locational Marginal Price (LMP) by Settlement Location (SL)
-        """
-        if date == "latest":
-            paths = ["/RTBM-LMP-SL-latestInterval.csv"]
-        else:
-            files_df = self._file_browser_list(
-                name=FS_RTBM_LMP_BY_LOCATION,
-                fs_name=FS_RTBM_LMP_BY_LOCATION,
-                type="folder",
-                path=date.strftime("/%Y/%m/By_Interval/%d"),
-            )
-            paths = files_df["path"].tolist()
-        msg = f"Found {len(paths)} files for {date}"
-        log(msg, verbose)
-        return paths
-
-    def _fetch_and_concat_csvs(self, paths: list, fs_name: str, verbose: bool = False):
+    def _fetch_and_concat_csvs(self, urls: list, verbose: bool = False):
         all_dfs = []
-        for path in tqdm.tqdm(paths):
-            url = self._file_browser_download_url(
-                fs_name,
-                params={"path": path},
-            )
+        for url in tqdm.tqdm(urls):
             msg = f"Fetching {url}"
             log(msg, verbose)
-
-            csv = requests.get(url)
-            df = pd.read_csv(io.StringIO(csv.content.decode("UTF-8")))
+            df = pd.read_csv(url)
             all_dfs.append(df)
         return pd.concat(all_dfs)
-
-    def _fs_get_dam_lmp_by_location_paths(self, date, verbose=False):
-        """
-        Lists files for Day-ahead Market (DAM),
-        Locational Marginal Price (LMP) by Settlement Location (SL)
-        """
-        paths = []
-        if date == "latest":
-            raise ValueError(
-                "DAM is released daily, so use date='today' instead",
-            )
-
-        date = date.normalize()
-
-        # list files for this month
-        files_df = self._file_browser_list(
-            name=FS_DAM_LMP_BY_LOCATION,
-            fs_name=FS_DAM_LMP_BY_LOCATION,
-            type="folder",
-            path=date.strftime("/%Y/%m/By_Day"),
-        )
-
-        files_df["date"] = files_df.name.apply(
-            lambda x: pd.to_datetime(
-                x.strip(".csv").split("-")[-1],
-                format="%Y%m%d%H%M",
-            )
-            .normalize()
-            .tz_localize(self.default_timezone),
-        )
-
-        matched_file = files_df[files_df["date"] == date]
-        # get latest file
-        paths = matched_file["path"].tolist()
-
-        msg = f"Found {len(paths)} files for {date}"
-        log(msg, verbose)
-        return paths
 
     def _get_marketplace_session(self) -> dict:
         """
@@ -764,13 +637,13 @@ class SPP(ISOBase):
             },
         }
 
-    def _file_browser_list(self, name: str, fs_name: str, type: str, path: str):
+    def _file_browser_list(self, fs_name: str, type: str, path: str):
         """Lists folders in a browser
 
         Returns: pd.DataFrame of files, or empty pd.DataFrame on error"""
         session = self._get_marketplace_session()
         json_payload = {
-            "name": name,
+            "name": fs_name,
             "fsName": fs_name,
             "type": type,
             "path": path,
@@ -783,13 +656,12 @@ class SPP(ISOBase):
         )
         if list_results.status_code == 200:
             df = pd.DataFrame(list_results.json())
+            df["url"] = (
+                FILE_BROWSER_DOWNLOAD_URL + "/" + fs_name + "?path=" + df["path"]
+            )
             return df
         else:
             return pd.DataFrame()
-
-    def _file_browser_download_url(self, fs_name, params=None):
-        qs = "?" + urlencode(params) if params else ""
-        return f"{FILE_BROWSER_DOWNLOAD_URL}/{fs_name}{qs}"
 
     @staticmethod
     def _clean_status_text(text):
