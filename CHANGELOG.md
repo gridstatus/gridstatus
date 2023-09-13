@@ -1,6 +1,6 @@
 # Changelog
 
-## vNext
+## v0.23.0 - Sept 12, 2023
 
 ### ERCOT
 
