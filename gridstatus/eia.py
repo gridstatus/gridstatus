@@ -622,7 +622,7 @@ class EIA:
 
         if total_pages > 1:
             pages = range(1, total_pages)
-            with concurrent.futures.ThreadPoolExecutor(
+            with concurrent.futures.concurrent.futures.ThreadPoolExecutor(
                 max_workers=n_workers,
             ) as executor:  # noqa
                 args = ((url, headers.copy(), page, page_size) for page in pages)
@@ -682,10 +682,7 @@ class EIA:
                 if GRID_MONITOR_FILES[area_id]["Type"].lower() == area_type.lower()
             ]
 
-        all_grid_monitor = {}
-
-        for region_id in tqdm(areas_to_fetch):
-            grid_monitor = GRID_MONITOR_FILES[region_id]
+        def fetch_grid_monitor(grid_monitor):
             url = grid_monitor["URL"]
             log(f"Fetching data from {url}", verbose=verbose)
             df = pd.read_excel(url)
@@ -707,11 +704,11 @@ class EIA:
             df.insert(1, "Interval End", df["Interval Start"] + pd.Timedelta("1h"))
 
             cols = [
+                "Interval Start",
+                "Interval End",
                 "Area Id",
                 "Area Name",
                 "Area Type",
-                "Interval Start",
-                "Interval End",
                 "Demand",
                 "Demand Forecast",
                 "Net Generation",
@@ -742,9 +739,25 @@ class EIA:
 
             df = df[cols]
 
-            all_grid_monitor[region_id] = df
+            return df
 
-        df = pd.concat(all_grid_monitor.values(), ignore_index=True)
+        n_workers = 4  # Set the number of workers you want
+        futures = []
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for area in areas_to_fetch:
+                future = executor.submit(fetch_grid_monitor, GRID_MONITOR_FILES[area])
+                futures.append(future)
+
+            if verbose:
+                with tqdm(total=len(areas_to_fetch), ncols=80) as progress_bar:
+                    for future in futures:
+                        future.result()  # Wait for each future to complete
+                        progress_bar.update(1)
+
+        # Combine all the dataframes (assuming you want to do this)
+        all_dfs = [future.result() for future in futures]
+        df = pd.concat(all_dfs, ignore_index=True)
 
         return df
 
