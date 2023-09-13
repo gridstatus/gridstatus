@@ -1805,6 +1805,7 @@ class Ercot(ISOBase):
                 " ",
                 expand=True,
             )
+            df.drop(["SCEDTimeStamp", "RepeatedHourFlag"], axis=1, inplace=True)
             return df
 
         df = self.read_doc(doc=doc, rename_func=rename_func)
@@ -2113,10 +2114,6 @@ class Ercot(ISOBase):
 
 
 if __name__ == "__main__":
-    # import certifi
-    # print(certifi.where())
-    # import ssl
-    # print(ssl.get_default_verify_paths())s
     iso = Ercot()
     df = iso.get_sced_system_lambda(date="latest", verbose=True)
-    print(df.head())
+    print(df.head().columns)
