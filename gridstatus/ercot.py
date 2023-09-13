@@ -38,6 +38,10 @@ LOCATION_TYPE_ZONE_DC_EW = "Load Zone DC Tie Energy Weighted"
 """
 Report Type IDs
 """
+# SCED System Lambda
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-322-CD
+SCED_SYSTEM_LAMBDA_RTID = 13114
+
 # DAM Clearing Prices for Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-188-CD
 DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 12329
@@ -1773,6 +1777,31 @@ class Ercot(ISOBase):
 
         return self.parse_doc(df, verbose=verbose)
 
+    # @support_date_range("DAY_START") ??
+    def get_sced_system_lambda(self, date, verbose=False):
+        """Get System lambda of each successful SCED
+
+        5 Minute Publish Interval
+
+        https://github.com/kmax12/gridstatus/issues/269
+
+        Arguments:
+            date (str, datetime): date to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrameq
+
+        """
+
+        doc = self._get_document(
+            report_type_id=SCED_SYSTEM_LAMBDA_RTID,
+            date=date,
+            verbose=verbose,
+        )
+        df = self.read_doc(doc=doc)
+        print(df.head())
+
     @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(self, date, verbose=False):
         """Get the offer price and the name of the Entity submitting
@@ -2069,6 +2098,11 @@ class Ercot(ISOBase):
 
 
 if __name__ == "__main__":
+    # import certifi
+    # print(certifi.where())
+    # import ssl
+    # print(ssl.get_default_verify_paths())s
     iso = Ercot()
-
     df = iso.get_rtm_spp(2011)
+    # iso.get_sced_system_lambda(date="latest", verbose=True)
+    print(df.head())
