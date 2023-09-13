@@ -1,6 +1,6 @@
 # Changelog
 
-## vNext
+## v0.23.0 - Sept 12, 2023
 
 ### ERCOT
 
@@ -16,13 +16,17 @@
 
 - Add support for historical DAM LMP
 
+### EIA
+
+- Add wholesale petroleum and natural gas daily spot prices.
+- Add weekly spot prices and export totals for coal.
+- Add handler for hourly fuel type data
+
 ## v0.22.0 - July 3rd, 2023
 
 ### EIA
 
 - Add EIA 930 Region Data
-- Add wholesale petroleum and naturla gas daily spot prices.
-- Add weekly spot prices and export totals for coal. 
 
 ### NYISO
 
