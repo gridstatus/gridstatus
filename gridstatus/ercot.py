@@ -1779,7 +1779,6 @@ class Ercot(ISOBase):
 
     # @support_date_range("DAY_START") ??
     def get_sced_system_lambda(self, date, verbose=False):
-        # ANCHOR - current work
         """Get System lambda of each successful SCED
 
         5 Minute Publish Interval
