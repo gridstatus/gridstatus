@@ -10,6 +10,19 @@ from gridstatus.tests.base_test_iso import BaseTestISO
 class TestErcot(BaseTestISO):
     iso = Ercot()
 
+    def test_get_sced_system_lambda(self):
+        df = self.iso.get_sced_system_lambda()
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "System Lambda",
+        ]
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        assert df["Time"].unique()[0].date() == today
+        assert type(df["Time"].unique()[0]) is float
+
     def test_get_as_prices(self):
         as_cols = [
             "Time",
