@@ -54,7 +54,7 @@ class EIA:
         df = pd.DataFrame(response["data"])
         return df, response["total"]
 
-    def get_dataset(self, dataset, start, end, n_workers=1, verbose=False):
+    def get_dataset(self, dataset, start, end, facets={}, n_workers=1, verbose=False):
         """Get data from a dataset
 
         Only supports "electricity/rto/interchange-data" dataset for now.
@@ -89,7 +89,7 @@ class EIA:
             "data": [
                 "value",
             ],
-            "facets": {},
+            "facets": facets,
             "offset": 0,
             "length": 5000,
         }
