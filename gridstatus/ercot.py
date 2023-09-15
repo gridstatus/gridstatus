@@ -1793,15 +1793,16 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrame
 
         """
+
+        # just so we can share parse logic
         if date == "latest":
             doc = self._get_document(
                 report_type_id=SCED_SYSTEM_LAMBDA_RTID,
                 date=date,
                 verbose=verbose,
+                extension="csv",
             )
-            df = pd.read_csv(doc.url, compression="zip")
-
-            return df
+            doc = [doc]
         else:
             doc = self._get_documents(
                 report_type_id=SCED_SYSTEM_LAMBDA_RTID,
@@ -1809,16 +1810,10 @@ class Ercot(ISOBase):
                 verbose=verbose,
                 extension="csv",
             )
-            df = pd.DataFrame()
-            for i in doc:
-                new_df = pd.read_csv(i.url, compression="zip")
-                df = pd.concat(
-                    [
-                        df,
-                        new_df,
-                    ],
-                )
-            return df
+
+        df = pd.concat([pd.read_csv(i.url, compression="zip") for i in doc])
+
+        return df
 
     @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(self, date, verbose=False):
