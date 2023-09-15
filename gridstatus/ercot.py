@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from zipfile import ZipFile
 
+import numpy as np
 import pandas as pd
 import requests
 import tqdm
@@ -1795,23 +1796,36 @@ class Ercot(ISOBase):
         """
 
         # just so we can share parse logic
+        kwargs = dict(
+            report_type_id=SCED_SYSTEM_LAMBDA_RTID,
+            date=date,
+            verbose=verbose,
+            extension="csv",
+        )
+
         if date == "latest":
-            doc = self._get_document(
-                report_type_id=SCED_SYSTEM_LAMBDA_RTID,
-                date=date,
-                verbose=verbose,
-                extension="csv",
-            )
+            doc = self._get_document(**kwargs)
             doc = [doc]
         else:
-            doc = self._get_documents(
-                report_type_id=SCED_SYSTEM_LAMBDA_RTID,
-                date=date,
-                verbose=verbose,
-                extension="csv",
-            )
+            doc = self._get_documents(**kwargs)
 
         df = pd.concat([pd.read_csv(i.url, compression="zip") for i in doc])
+
+        def handle_dst(time, dst_flag):
+            # shift an hour forward to get new timezone
+            # shift back to display correct how with new tz
+            if dst_flag == "Y":
+                nt = time + pd.Timedelta(hours=1)
+                nt.dt.tz_localize(self.default_timezone, infer=True)
+                nt = time - pd.Timedelta(hours=1)
+            else:
+                return time
+
+        # ANCHOR - handle dst
+        df["SCEDTimeStamp"] = np.vectorize(handle_dst)(
+            df["SCEDTimeStamp"],
+            df["RepeatedHourFlag"],
+        )
 
         return df
 
@@ -2117,4 +2131,5 @@ class Ercot(ISOBase):
 if __name__ == "__main__":
     iso = Ercot()
     df = iso.get_sced_system_lambda(date="09/13/2023", verbose=True)
-    print(df.head())
+    # df = iso.get_sced_system_lambda(date="latest", verbose=True)
+    print(df)
