@@ -1777,8 +1777,9 @@ class Ercot(ISOBase):
 
         return self.parse_doc(df, verbose=verbose)
 
-    # @support_date_range("DAY_START") ??
+    @support_date_range("DAY_START")
     def get_sced_system_lambda(self, date, verbose=False):
+        # ANCHOR - SCED System Lambda
         """Get System lambda of each successful SCED
 
         5 Minute Publish Interval
@@ -1793,24 +1794,32 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrame
 
         """
-
-        doc = self._get_document(
-            report_type_id=SCED_SYSTEM_LAMBDA_RTID,
-            date=date,
-            verbose=verbose,
-        )
-
-        def rename_func(df):
-            df[["DeliveryDate", "HourEnding"]] = df["SCEDTimeStamp"].str.split(
-                " ",
-                expand=True,
+        if date == "latest":
+            doc = self._get_document(
+                report_type_id=SCED_SYSTEM_LAMBDA_RTID,
+                date=date,
+                verbose=verbose,
             )
-            df.drop(["SCEDTimeStamp", "RepeatedHourFlag"], axis=1, inplace=True)
+            df = pd.read_csv(doc.url, compression="zip")
+
             return df
-
-        df = self.read_doc(doc=doc, rename_func=rename_func)
-
-        return df
+        else:
+            doc = self._get_documents(
+                report_type_id=SCED_SYSTEM_LAMBDA_RTID,
+                date=date,
+                verbose=verbose,
+                extension="csv",
+            )
+            df = pd.DataFrame()
+            for i in doc:
+                new_df = pd.read_csv(i.url, compression="zip")
+                df = pd.concat(
+                    [
+                        df,
+                        new_df,
+                    ],
+                )
+            return df
 
     @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(self, date, verbose=False):
@@ -2002,37 +2011,35 @@ class Ercot(ISOBase):
         df = pd.read_csv(z.open(settlement_points_file))
         return df
 
-    def read_doc(self, doc, verbose=False, rename_func=None):
+    def read_doc(self, doc, verbose=False):
         log(f"Reading {doc.url}", verbose)
         doc = pd.read_csv(doc.url, compression="zip")
-        return self.parse_doc(doc, verbose=verbose, rename_func=rename_func)
+        return self.parse_doc(doc, verbose=verbose)
 
-    def parse_doc(self, doc, verbose=False, rename_func=None):
+    def parse_doc(self, doc, verbose=False):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
-        if rename_func:
-            doc = rename_func(doc)
-        else:
-            doc.rename(
-                columns={
-                    "Delivery Date": "DeliveryDate",
-                    "DELIVERY_DATE": "DeliveryDate",
-                    "OperDay": "DeliveryDate",
-                    "Hour Ending": "HourEnding",
-                    "HOUR_ENDING": "HourEnding",
-                    "Repeated Hour Flag": "DSTFlag",
-                    "Date": "DeliveryDate",
-                    "DeliveryHour": "HourEnding",
-                    "Delivery Hour": "HourEnding",
-                    "Delivery Interval": "DeliveryInterval",
-                    # fix whitespace in column name
-                    "DSTFlag    ": "DSTFlag",
-                    # for SCED LAMBDA
-                    "SCEDTimeStamp": "HourEnding",
-                    "RepeatedHourFlag": "DSTFlag",
-                },
-                inplace=True,
-            )
+
+        doc.rename(
+            columns={
+                "Delivery Date": "DeliveryDate",
+                "DELIVERY_DATE": "DeliveryDate",
+                "OperDay": "DeliveryDate",
+                "Hour Ending": "HourEnding",
+                "HOUR_ENDING": "HourEnding",
+                "Repeated Hour Flag": "DSTFlag",
+                "Date": "DeliveryDate",
+                "DeliveryHour": "HourEnding",
+                "Delivery Hour": "HourEnding",
+                "Delivery Interval": "DeliveryInterval",
+                # fix whitespace in column name
+                "DSTFlag    ": "DSTFlag",
+                # for SCED LAMBDA
+                "SCEDTimeStamp": "HourEnding",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+            inplace=True,
+        )
 
         original_cols = doc.columns.tolist()
 
@@ -2115,5 +2122,5 @@ class Ercot(ISOBase):
 
 if __name__ == "__main__":
     iso = Ercot()
-    df = iso.get_sced_system_lambda(date="latest", verbose=True)
-    print(df.head().columns)
+    df = iso.get_sced_system_lambda(date="09/13/2023", verbose=True)
+    print(df.head())

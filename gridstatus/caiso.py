@@ -1515,3 +1515,4 @@ if __name__ == "__main__":
     import gridstatus
 
     iso = gridstatus.CAISO()
+    print(CAISO().list_oasis_datasets())
