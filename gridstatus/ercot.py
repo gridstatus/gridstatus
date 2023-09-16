@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from enum import Enum
 from zipfile import ZipFile
 
-import numpy as np
 import pandas as pd
 import requests
 import tqdm
@@ -1811,22 +1810,13 @@ class Ercot(ISOBase):
 
         df = pd.concat([pd.read_csv(i.url, compression="zip") for i in docs])
 
-        def handle_dst(time, dst_flag):
-            # shift an hour forward to get new timezone
-            # shift back to display correct how with new tz
-            if dst_flag == "Y":
-                nt = time + pd.Timedelta(hours=1)
-                nt.dt.tz_localize(self.default_timezone, infer=True)
-                nt = time - pd.Timedelta(hours=1)
-            else:
-                return time
-
-        # ANCHOR - handle dst
-        df["SCEDTimeStamp"] = np.vectorize(handle_dst)(
-            df["SCEDTimeStamp"],
-            df["RepeatedHourFlag"],
+        df["SCEDTimeStamp"] = pd.to_datetime(df["SCEDTimeStamp"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=df["RepeatedHourFlag"] == "Y",
         )
+
         df["System Lambda"] = df["SystemLambda"].astype("float64")
+
         df.drop("SystemLambda", axis=1, inplace=True)
         return df
 
