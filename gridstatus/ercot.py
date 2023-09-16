@@ -1805,11 +1805,11 @@ class Ercot(ISOBase):
 
         if date == "latest":
             doc = self._get_document(**kwargs)
-            doc = [doc]
+            docs = [doc]
         else:
-            doc = self._get_documents(**kwargs)
+            docs = self._get_documents(**kwargs)
 
-        df = pd.concat([pd.read_csv(i.url, compression="zip") for i in doc])
+        df = pd.concat([pd.read_csv(i.url, compression="zip") for i in docs])
 
         def handle_dst(time, dst_flag):
             # shift an hour forward to get new timezone
@@ -1826,7 +1826,8 @@ class Ercot(ISOBase):
             df["SCEDTimeStamp"],
             df["RepeatedHourFlag"],
         )
-
+        df["System Lambda"] = df["SystemLambda"].astype("float64")
+        df.drop("SystemLambda", axis=1, inplace=True)
         return df
 
     @support_date_range("DAY_START")
