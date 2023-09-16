@@ -28,6 +28,38 @@ class NYISO(ISOBase):
     status_homepage = "https://www.nyiso.com/system-conditions"
     interconnection_homepage = "https://www.nyiso.com/interconnections"
 
+    @support_date_range(frequency="DAY_START")
+    def get_rt_ancillary_services(self, date, verbose):
+        # ANCHOR - NYISO da ancillary services
+        """Get day ahead ancillary services"""
+        if date == "latest":
+            today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+            url = f"http://mis.nyiso.com/public/csv/rtasp/{today.strftime('%Y%m%d')}rtasp.csv"  # noqa
+            df = pd.read_csv(url)
+        else:
+            df = self._download_nyiso_archive(
+                date,
+                dataset_name="_download_nyiso_archive",
+            )
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_da_ancillary_services(self, date, verbose):
+        # ANCHOR - NYISO da ancillary services
+        """Get day ahead ancillary services"""
+        if date == "latest":
+            today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+            url = f"http://mis.nyiso.com/public/csv/damasp/{today.strftime('%Y%m%d')}damasp.csv"  # noqa
+            df = pd.read_csv(url)
+        else:
+            df = self._download_nyiso_archive(
+                date,
+                dataset_name="_download_nyiso_archive",
+            )
+
+        return df
+
     @support_date_range(frequency="MONTH_START")
     def get_status(self, date, end=None, verbose=False):
         if date == "latest":
@@ -914,6 +946,12 @@ def _handle_time(df, dataset_name):
     return df
 
 
+if __name__ == "__main__":
+    nyiso = NYISO()
+    df = nyiso.get_da_ancillary_services("latest", verbose=True)
+    print(df.head())
+    df = nyiso.get_rt_ancillary_services("latest", verbose=True)
+    print(df.head())
 """
 pricing data
 

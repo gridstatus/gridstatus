@@ -10,6 +10,16 @@ from gridstatus.tests.decorators import with_markets
 class TestNYISO(BaseTestISO):
     iso = NYISO()
 
+    def test_get_da_ancillary_services(self):
+        df = self.iso.get_da_ancillary_services(date="latest")
+        assert not df.empty, "DataFrame came back empty"
+        assert df.columns.tolist() == [
+            "CATS",
+            "Time",
+            "Type",
+            "Value",
+        ], "Columns are not as expected"
+
     """"get_capacity_prices"""
 
     def test_get_capacity_prices(self):
