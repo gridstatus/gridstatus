@@ -234,7 +234,3 @@ def test_eia_grid_monitor():
     df = eia.get_grid_monitor(area_id="CISO")
 
     assert df.columns.tolist() == cols
-
-    import pdb
-
-    pdb.set_trace()
