@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import re
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -13,501 +14,6 @@ from tqdm import tqdm
 import gridstatus
 from gridstatus import utils
 from gridstatus.gs_logging import log
-
-GRID_MONITOR_FILES = {
-    "CAL": {
-        "ID": "CAL",
-        "Type": "Region",
-        "Name": "California",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_CAL.xlsx",  # noqa
-    },
-    "CAR": {
-        "ID": "CAR",
-        "Type": "Region",
-        "Name": "Carolinas",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_CAR.xlsx",  # noqa
-    },
-    "CENT": {
-        "ID": "CENT",
-        "Type": "Region",
-        "Name": "Central",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_CENT.xlsx",  # noqa
-    },
-    "FLA": {
-        "ID": "FLA",
-        "Type": "Region",
-        "Name": "Florida",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_FLA.xlsx",  # noqa
-    },
-    "MIDA": {
-        "ID": "MIDA",
-        "Type": "Region",
-        "Name": "Mid-Atlantic",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_MIDA.xlsx",  # noqa
-    },
-    "MIDW": {
-        "ID": "MIDW",
-        "Type": "Region",
-        "Name": "Midwest",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_MIDW.xlsx",  # noqa
-    },
-    "NE": {
-        "ID": "NE",
-        "Type": "Region",
-        "Name": "New England",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_NE.xlsx",  # noqa
-    },
-    "NY": {
-        "ID": "NY",
-        "Type": "Region",
-        "Name": "New York",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_NY.xlsx",  # noqa
-    },
-    "NW": {
-        "ID": "NW",
-        "Type": "Region",
-        "Name": "Northwest",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_NW.xlsx",  # noqa
-    },
-    "SE": {
-        "ID": "SE",
-        "Type": "Region",
-        "Name": "Southeast",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_SE.xlsx",  # noqa
-    },
-    "SW": {
-        "ID": "SW",
-        "Type": "Region",
-        "Name": "Southwest",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_SW.xlsx",  # noqa
-    },
-    "TEN": {
-        "ID": "TEN",
-        "Type": "Region",
-        "Name": "Tennessee",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_TEN.xlsx",  # noqa
-    },
-    "TEX": {
-        "ID": "TEX",
-        "Type": "Region",
-        "Name": "Texas",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_TEX.xlsx",  # noqa
-    },
-    "US48": {
-        "ID": "US48",
-        "Type": "Region",
-        "Name": "United States Lower 48",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/Region_US48.xlsx",  # noqa
-    },
-    "YAD": {
-        "ID": "YAD",
-        "Type": "BA",
-        "Name": "Alcoa Power Generating, Inc. - Yadkin Division",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/YAD.xlsx",  # noqa
-    },
-    "AZPS": {
-        "ID": "AZPS",
-        "Type": "BA",
-        "Name": "Arizona Public Service Company",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/AZPS.xlsx",  # noqa
-    },
-    "DEAA": {
-        "ID": "DEAA",
-        "Type": "BA",
-        "Name": "Arlington Valley, LLC",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/DEAA.xlsx",  # noqa
-    },
-    "AECI": {
-        "ID": "AECI",
-        "Type": "BA",
-        "Name": "Associated Electric Cooperative, Inc.",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/AECI.xlsx",  # noqa
-    },
-    "AVRN": {
-        "ID": "AVRN",
-        "Type": "BA",
-        "Name": "Avangrid Renewables, LLC",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/AVRN.xlsx",  # noqa
-    },
-    "AVA": {
-        "ID": "AVA",
-        "Type": "BA",
-        "Name": "Avista Corporation",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/AVA.xlsx",  # noqa
-    },
-    "BANC": {
-        "ID": "BANC",
-        "Type": "BA",
-        "Name": "Balancing Authority of Northern California",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/BANC.xlsx",  # noqa
-    },
-    "BPAT": {
-        "ID": "BPAT",
-        "Type": "BA",
-        "Name": "Bonneville Power Administration",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/BPAT.xlsx",  # noqa
-    },
-    "CISO": {
-        "ID": "CISO",
-        "Type": "BA",
-        "Name": "California Independent System Operator",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/CISO.xlsx",  # noqa
-    },
-    "HST": {
-        "ID": "HST",
-        "Type": "BA",
-        "Name": "City of Homestead",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/HST.xlsx",  # noqa
-    },
-    "TPWR": {
-        "ID": "TPWR",
-        "Type": "BA",
-        "Name": "City of Tacoma, Department of Public Utilities, Light Division",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/TPWR.xlsx",  # noqa
-    },
-    "TAL": {
-        "ID": "TAL",
-        "Type": "BA",
-        "Name": "City of Tallahassee",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/TAL.xlsx",  # noqa
-    },
-    "SCEG": {
-        "ID": "SCEG",
-        "Type": "BA",
-        "Name": "Dominion Energy South Carolina, Inc.",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SCEG.xlsx",  # noqa
-    },
-    "DUK": {
-        "ID": "DUK",
-        "Type": "BA",
-        "Name": "Duke Energy Carolinas",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/DUK.xlsx",  # noqa
-    },
-    "FPC": {
-        "ID": "FPC",
-        "Type": "BA",
-        "Name": "Duke Energy Florida, Inc.",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/FPC.xlsx",  # noqa
-    },
-    "CPLE": {
-        "ID": "CPLE",
-        "Type": "BA",
-        "Name": "Duke Energy Progress East",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/CPLE.xlsx",  # noqa
-    },
-    "CPLW": {
-        "ID": "CPLW",
-        "Type": "BA",
-        "Name": "Duke Energy Progress West",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/CPLW.xlsx",  # noqa
-    },
-    "EPE": {
-        "ID": "EPE",
-        "Type": "BA",
-        "Name": "El Paso Electric Company",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/EPE.xlsx",  # noqa
-    },
-    "EEI": {
-        "ID": "EEI",
-        "Type": "BA",
-        "Name": "Electric Energy, Inc.",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/EEI.xlsx",  # noqa
-    },
-    "ERCO": {
-        "ID": "ERCO",
-        "Type": "BA",
-        "Name": "Electric Reliability Council of Texas, Inc.",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/ERCO.xlsx",  # noqa
-    },
-    "FMPP": {
-        "ID": "FMPP",
-        "Type": "BA",
-        "Name": "Florida Municipal Power Pool",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/FMPP.xlsx",  # noqa
-    },
-    "FPL": {
-        "ID": "FPL",
-        "Type": "BA",
-        "Name": "Florida Power & Light Co.",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/FPL.xlsx",  # noqa
-    },
-    "GVL": {
-        "ID": "GVL",
-        "Type": "BA",
-        "Name": "Gainesville Regional Utilities",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/GVL.xlsx",  # noqa
-    },
-    "GRMA": {
-        "ID": "GRMA",
-        "Type": "BA",
-        "Name": "Gila River Power, LLC",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/GRMA.xlsx",  # noqa
-    },
-    "GLHB": {
-        "ID": "GLHB",
-        "Type": "BA",
-        "Name": "GridLiance",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/GLHB.xlsx",  # noqa
-    },
-    "GRID": {
-        "ID": "GRID",
-        "Type": "BA",
-        "Name": "Gridforce Energy Management, LLC",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/GRID.xlsx",  # noqa
-    },
-    "GRIF": {
-        "ID": "GRIF",
-        "Type": "BA",
-        "Name": "Griffith Energy, LLC",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/GRIF.xlsx",  # noqa
-    },
-    "ISNE": {
-        "ID": "ISNE",
-        "Type": "BA",
-        "Name": "ISO New England",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/ISNE.xlsx",  # noqa
-    },
-    "IPCO": {
-        "ID": "IPCO",
-        "Type": "BA",
-        "Name": "Idaho Power Company",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/IPCO.xlsx",  # noqa
-    },
-    "IID": {
-        "ID": "IID",
-        "Type": "BA",
-        "Name": "Imperial Irrigation District",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/IID.xlsx",  # noqa
-    },
-    "JEA": {
-        "ID": "JEA",
-        "Type": "BA",
-        "Name": "JEA",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/JEA.xlsx",  # noqa
-    },
-    "LDWP": {
-        "ID": "LDWP",
-        "Type": "BA",
-        "Name": "Los Angeles Department of Water and Power",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/LDWP.xlsx",  # noqa
-    },
-    "LGEE": {
-        "ID": "LGEE",
-        "Type": "BA",
-        "Name": "Louisville Gas and Electric Company and Kentucky Utilities Company",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/LGEE.xlsx",  # noqa
-    },
-    "MISO": {
-        "ID": "MISO",
-        "Type": "BA",
-        "Name": "Midcontinent Independent System Operator, Inc.",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/MISO.xlsx",  # noqa
-    },
-    "GWA": {
-        "ID": "GWA",
-        "Type": "BA",
-        "Name": "NaturEner Power Watch, LLC",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/GWA.xlsx",  # noqa
-    },
-    "WWA": {
-        "ID": "WWA",
-        "Type": "BA",
-        "Name": "NaturEner Wind Watch, LLC",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/WWA.xlsx",  # noqa
-    },
-    "NEVP": {
-        "ID": "NEVP",
-        "Type": "BA",
-        "Name": "Nevada Power Company",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/NEVP.xlsx",  # noqa
-    },
-    "HGMA": {
-        "ID": "HGMA",
-        "Type": "BA",
-        "Name": "New Harquahala Generating Company, LLC",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/HGMA.xlsx",  # noqa
-    },
-    "NYIS": {
-        "ID": "NYIS",
-        "Type": "BA",
-        "Name": "New York Independent System Operator",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/NYIS.xlsx",  # noqa
-    },
-    "NWMT": {
-        "ID": "NWMT",
-        "Type": "BA",
-        "Name": "NorthWestern Corporation",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/NWMT.xlsx",  # noqa
-    },
-    "OVEC": {
-        "ID": "OVEC",
-        "Type": "BA",
-        "Name": "Ohio Valley Electric Corporation",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/OVEC.xlsx",  # noqa
-    },
-    "PJM": {
-        "ID": "PJM",
-        "Type": "BA",
-        "Name": "PJM Interconnection, LLC",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/PJM.xlsx",  # noqa
-    },
-    "DOPD": {
-        "ID": "DOPD",
-        "Type": "BA",
-        "Name": "PUD No. 1 of Douglas County",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/DOPD.xlsx",  # noqa
-    },
-    "PACE": {
-        "ID": "PACE",
-        "Type": "BA",
-        "Name": "PacifiCorp East",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/PACE.xlsx",  # noqa
-    },
-    "PACW": {
-        "ID": "PACW",
-        "Type": "BA",
-        "Name": "PacifiCorp West",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/PACW.xlsx",  # noqa
-    },
-    "PGE": {
-        "ID": "PGE",
-        "Type": "BA",
-        "Name": "Portland General Electric Company",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/PGE.xlsx",  # noqa
-    },
-    "AEC": {
-        "ID": "AEC",
-        "Type": "BA",
-        "Name": "PowerSouth Energy Cooperative",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/AEC.xlsx",  # noqa
-    },
-    "PSCO": {
-        "ID": "PSCO",
-        "Type": "BA",
-        "Name": "Public Service Company of Colorado",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/PSCO.xlsx",  # noqa
-    },
-    "PNM": {
-        "ID": "PNM",
-        "Type": "BA",
-        "Name": "Public Service Company of New Mexico",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/PNM.xlsx",  # noqa
-    },
-    "CHPD": {
-        "ID": "CHPD",
-        "Type": "BA",
-        "Name": "Public Utility District No. 1 of Chelan County",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/CHPD.xlsx",  # noqa
-    },
-    "GCPD": {
-        "ID": "GCPD",
-        "Type": "BA",
-        "Name": "Public Utility District No. 2 of Grant County, Washington",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/GCPD.xlsx",  # noqa
-    },
-    "PSEI": {
-        "ID": "PSEI",
-        "Type": "BA",
-        "Name": "Puget Sound Energy, Inc.",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/PSEI.xlsx",  # noqa
-    },
-    "SRP": {
-        "ID": "SRP",
-        "Type": "BA",
-        "Name": "Salt River Project Agricultural Improvement and Power District",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SRP.xlsx",  # noqa
-    },
-    "SCL": {
-        "ID": "SCL",
-        "Type": "BA",
-        "Name": "Seattle City Light",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SCL.xlsx",  # noqa
-    },
-    "SEC": {
-        "ID": "SEC",
-        "Type": "BA",
-        "Name": "Seminole Electric Cooperative",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SEC.xlsx",  # noqa
-    },
-    "SC": {
-        "ID": "SC",
-        "Type": "BA",
-        "Name": "South Carolina Public Service Authority",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SC.xlsx",  # noqa
-    },
-    "SEPA": {
-        "ID": "SEPA",
-        "Type": "BA",
-        "Name": "Southeastern Power Administration",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SEPA.xlsx",  # noqa
-    },
-    "SOCO": {
-        "ID": "SOCO",
-        "Type": "BA",
-        "Name": "Southern Company Services, Inc. - Trans",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SOCO.xlsx",  # noqa
-    },
-    "SWPP": {
-        "ID": "SWPP",
-        "Type": "BA",
-        "Name": "Southwest Power Pool",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SWPP.xlsx",  # noqa
-    },
-    "SPA": {
-        "ID": "SPA",
-        "Type": "BA",
-        "Name": "Southwestern Power Administration",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SPA.xlsx",  # noqa
-    },
-    "TEC": {
-        "ID": "TEC",
-        "Type": "BA",
-        "Name": "Tampa Electric Company",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/TEC.xlsx",  # noqa
-    },
-    "TVA": {
-        "ID": "TVA",
-        "Type": "BA",
-        "Name": "Tennessee Valley Authority",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/TVA.xlsx",  # noqa
-    },
-    "TEPC": {
-        "ID": "TEPC",
-        "Type": "BA",
-        "Name": "Tucson Electric Power",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/TEPC.xlsx",  # noqa
-    },
-    "TIDC": {
-        "ID": "TIDC",
-        "Type": "BA",
-        "Name": "Turlock Irrigation District",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/TIDC.xlsx",  # noqa
-    },
-    "NSB": {
-        "ID": "NSB",
-        "Type": "BA",
-        "Name": "Utilities Commission of New Smyrna Beach",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/NSB.xlsx",  # noqa
-    },
-    "WALC": {
-        "ID": "WALC",
-        "Type": "BA",
-        "Name": "Western Area Power Administration - Desert Southwest Region",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/WALC.xlsx",  # noqa
-    },
-    "WACM": {
-        "ID": "WACM",
-        "Type": "BA",
-        "Name": "Western Area Power Administration - Rocky Mountain Region",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/WACM.xlsx",  # noqa
-    },
-    "WAUW": {
-        "ID": "WAUW",
-        "Type": "BA",
-        "Name": "Western Area Power Administration - Upper Great Plains West",
-        "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/WAUW.xlsx",  # noqa
-    },
-}
 
 
 class EIA:
@@ -649,7 +155,13 @@ class EIA:
 
         return df
 
-    def get_grid_monitor(self, area_id=None, area_type=None, verbose=False):
+    def get_grid_monitor(
+        self,
+        area_id=None,
+        area_type=None,
+        n_workers=4,
+        verbose=False,
+    ):
         """
         Retrieves grid monitor data including generation and emissions.
 
@@ -666,11 +178,18 @@ class EIA:
                 fetches data for all areas of given type. If both are not
                 provided, fetches data for all areas. Defaults to None.
 
+            n_workers (int, optional): Number of workers to use for fetching data. Only
+                used if multiple areas are being fetched. Defaults to 4.
+
             verbose (bool, optional): If True, prints progress. Defaults to False.
 
         Returns:
             dict: Grid monitor data for specified area(s).
         """
+
+        config_path = Path(__file__).parent / "eia_data" / "grid_monitor_files.json"
+        with open(config_path, "r") as f:
+            GRID_MONITOR_FILES = json.load(f)
 
         areas_to_fetch = GRID_MONITOR_FILES.keys()
         if area_id:
@@ -735,13 +254,15 @@ class EIA:
                 "CO2 Emissions Imported",
                 "CO2 Emissions Exported",
                 "CO2 Emissions Consumed",
+                "CO2 Emissions Intensity for Generated Electricity",
+                "CO2 Emissions Intensity for Consumed Electricity",
             ]
 
             df = df[cols]
 
             return df
 
-        n_workers = 4  # Set the number of workers you want
+        # Set the number of workers you want
         futures = []
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as executor:
