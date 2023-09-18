@@ -204,7 +204,7 @@ class EIA:
         def fetch_grid_monitor(grid_monitor):
             url = grid_monitor["URL"]
             log(f"Fetching data from {url}", verbose=verbose)
-            df = pd.read_excel(url)
+            df = pd.read_excel(url, sheet_name="Published Hourly Data")
 
             rename = {
                 "NG": "Net Generation",
@@ -219,8 +219,8 @@ class EIA:
             df["Area Type"] = grid_monitor["Type"]
             df["Area Name"] = grid_monitor["Name"]
 
-            df.insert(0, "Interval Start", pd.to_datetime(df["UTC time"], utc=True))
-            df.insert(1, "Interval End", df["Interval Start"] + pd.Timedelta("1h"))
+            df.insert(0, "Interval End", pd.to_datetime(df["UTC time"], utc=True))
+            df.insert(0, "Interval Start", df["Interval End"] - pd.Timedelta("1h"))
 
             cols = [
                 "Interval Start",
