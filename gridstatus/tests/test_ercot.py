@@ -809,8 +809,8 @@ class TestErcot(BaseTestISO):
             "Price Correction Time",
             "Interval Start",
             "Interval End",
-            "Settlement Point Name",
-            "Settlement Point Type",
+            "Location",
+            "Location Type",
             "SPP Original",
             "SPP Corrected",
         ]
@@ -825,7 +825,8 @@ class TestErcot(BaseTestISO):
             "Price Correction Time",
             "Interval Start",
             "Interval End",
-            "Settlement Point Name",
+            "Location",
+            "Location Type",
             "SPP Original",
             "SPP Corrected",
         ]

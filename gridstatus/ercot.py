@@ -799,7 +799,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-    def _finalize_spp_df(self, df, locations=None, location_type=None, verbose=False):
+    def _handle_settlement_point_name_and_type(self, df, verbose=False):
         df = df.rename(
             columns={
                 "SettlementPoint": "Location",
@@ -809,6 +809,7 @@ class Ercot(ISOBase):
             },
         )
 
+        # todo is this needed if we are defaulting to resource node?
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         resource_node = mapping_df["RESOURCE_NODE"].dropna().unique()
 
@@ -853,6 +854,11 @@ class Ercot(ISOBase):
             df.loc[is_load_zone_dc_tie_energy_weighted, "Location"] = (
                 df.loc[is_load_zone_dc_tie_energy_weighted, "Location"] + "_EW"
             )
+
+        return df
+
+    def _finalize_spp_df(self, df, locations=None, location_type=None, verbose=False):
+        df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
 
         df = df.rename(
             columns={
@@ -1892,6 +1898,8 @@ class Ercot(ISOBase):
 
         df = pd.concat(dfs)
 
+        df = self._handle_settlement_point_name_and_type(df)
+
         df = df.rename(
             columns={
                 "SettlementPointName": "Settlement Point Name",
@@ -1907,10 +1915,17 @@ class Ercot(ISOBase):
             df["Price Correction Time"],
         ).dt.tz_localize(self.default_timezone)
 
-        df = utils.move_cols_to_front(df, ["Price Correction Time"])
-
-        if "Time" in df.columns:
-            df = df.drop("Time", axis=1)
+        df = df[
+            [
+                "Price Correction Time",
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "SPP Original",
+                "SPP Corrected",
+            ]
+        ]
 
         return df
 
