@@ -1886,7 +1886,7 @@ class Ercot(ISOBase):
 
     def _handle_price_corrections(self, docs, verbose=False):
         dfs = []
-        for d in docs:
+        for d in tqdm.tqdm(docs, disable=not verbose):
             df = self.read_doc(d, verbose=verbose)
             dfs.append(df)
 
