@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 import gridstatus
 
@@ -190,3 +191,46 @@ def test_get_coal_spots():
 
     assert d["coke_exports"].columns.tolist() == cols_coke
     assert d["coke_exports"].shape[0] > 0
+
+
+@pytest.mark.slow
+def test_eia_grid_monitor():
+    eia = gridstatus.EIA()
+    cols = [
+        "Interval Start",
+        "Interval End",
+        "Area Id",
+        "Area Name",
+        "Area Type",
+        "Demand",
+        "Demand Forecast",
+        "Net Generation",
+        "Total Interchange",
+        "NG: COL",
+        "NG: NG",
+        "NG: NUC",
+        "NG: OIL",
+        "NG: WAT",
+        "NG: SUN",
+        "NG: WND",
+        "NG: UNK",
+        "NG: OTH",
+        "Positive Generation",
+        "Consumed Electricity",
+        "CO2 Factor: COL",
+        "CO2 Factor: NG",
+        "CO2 Factor: OIL",
+        "CO2 Emissions: COL",
+        "CO2 Emissions: NG",
+        "CO2 Emissions: OIL",
+        "CO2 Emissions: Other",
+        "CO2 Emissions Generated",
+        "CO2 Emissions Imported",
+        "CO2 Emissions Exported",
+        "CO2 Emissions Consumed",
+        "CO2 Emissions Intensity for Generated Electricity",
+        "CO2 Emissions Intensity for Consumed Electricity",
+    ]
+    df = eia.get_grid_monitor(area_id="CISO")
+
+    assert df.columns.tolist() == cols

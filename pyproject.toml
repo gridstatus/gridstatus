@@ -84,6 +84,7 @@ namespaces = true
 "*" = [
     "LICENSE",
     "README.md",
+    "eia_data/grid_monitor_files.json"
 ]
 [tool.setuptools.exclude-package-data]
 "*" = [

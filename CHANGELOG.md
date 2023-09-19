@@ -18,6 +18,7 @@
 
 ### EIA
 
+- Add `EIA.get_grid_monitor` dataset with hourly BA and Region emission data
 - Add wholesale petroleum and natural gas daily spot prices.
 - Add weekly spot prices and export totals for coal.
 - Add handler for hourly fuel type data
