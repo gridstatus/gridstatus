@@ -66,6 +66,14 @@ SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID = 10008
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
 SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID = 12301
 
+# RTM Price Corrections
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-197-M
+RTM_PRICE_CORRECTIONS_RTID = 13045
+
+# DAM Price Corrections
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-196-M
+DAM_PRICE_CORRECTIONS_RTID = 13044
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -1834,6 +1842,78 @@ class Ercot(ISOBase):
             .apply(_handle_offers)
             .reset_index()
         )
+
+        return df
+
+    def get_dam_price_corrections(self, dam_type, verbose=False):
+        """
+        Get RTM Price Corrections
+
+        Arguments:
+            rtm_type (str): 'DAM_SPP', 'DAM_MCPC', 'DAM_EBLMP'
+
+        """
+        docs = self._get_documents(
+            report_type_id=DAM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains=dam_type,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_price_corrections(docs, verbose=verbose)
+
+        return df
+
+    def get_rtm_price_corrections(self, rtm_type, verbose=False):
+        """
+        Get RTM Price Corrections
+
+        Arguments:
+            rtm_type (str): 'RTM_SPP', 'RTM_SPLMP', 'RTM_EBLMP',
+                'RTM_ShadowPrice', 'RTM_SOGLMP', 'RTM_SOGPRICE'
+
+        """
+        docs = self._get_documents(
+            report_type_id=RTM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains=rtm_type,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_price_corrections(docs, verbose=verbose)
+
+        return df
+
+    def _handle_price_corrections(self, docs, verbose=False):
+        dfs = []
+        for d in docs:
+            df = self.read_doc(d, verbose=verbose)
+            dfs.append(df)
+
+        df = pd.concat(dfs)
+
+        # 'SettlementPointName',
+        #    'SettlementPointType', 'SPPOriginal', 'SPPCorrected',
+        #    'PriceCorrectionTime'
+        df = df.rename(
+            columns={
+                "SettlementPointName": "Settlement Point Name",
+                "SettlementPoint": "Settlement Point Name",
+                "SettlementPointType": "Settlement Point Type",
+                "SPPOriginal": "SPP Original",
+                "SPPCorrected": "SPP Corrected",
+                "PriceCorrectionTime": "Price Correction Time",
+            },
+        )
+
+        df["Price Correction Time"] = pd.to_datetime(
+            df["Price Correction Time"],
+        ).dt.tz_localize(self.default_timezone)
+
+        df = utils.move_cols_to_front(df, ["Price Correction Time"])
+
+        if "Time" in df.columns:
+            df = df.drop("Time", axis=1)
 
         return df
 
