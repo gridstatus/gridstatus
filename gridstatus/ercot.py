@@ -1892,9 +1892,6 @@ class Ercot(ISOBase):
 
         df = pd.concat(dfs)
 
-        # 'SettlementPointName',
-        #    'SettlementPointType', 'SPPOriginal', 'SPPCorrected',
-        #    'PriceCorrectionTime'
         df = df.rename(
             columns={
                 "SettlementPointName": "Settlement Point Name",
