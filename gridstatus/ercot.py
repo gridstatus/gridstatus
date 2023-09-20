@@ -1808,6 +1808,11 @@ class Ercot(ISOBase):
         else:
             docs = self._get_documents(**kwargs)
 
+        df = self._handle_sced_system_lambda(docs)
+        return df
+
+    def _handle_sced_system_lambda(self, docs):
+
         df = pd.concat([pd.read_csv(i.url, compression="zip") for i in docs])
 
         df["SCED Time Stamp"] = pd.to_datetime(df["SCEDTimeStamp"]).dt.tz_localize(
@@ -1817,7 +1822,12 @@ class Ercot(ISOBase):
 
         df["System Lambda"] = df["SystemLambda"].astype("float64")
 
-        df.drop("SystemLambda", axis=1, inplace=True)
+        df.drop(
+            ["SystemLambda", "SCEDTimeStamp", "RepeatedHourFlag"],
+            axis=1,
+            inplace=True,
+        )
+
         return df
 
     @support_date_range("DAY_START")
@@ -2118,6 +2128,8 @@ class Ercot(ISOBase):
 
 if __name__ == "__main__":
     iso = Ercot()
-    df = iso.get_sced_system_lambda(date="09/13/2023", verbose=True)
-    # df = iso.get_sced_system_lambda(date="latest", verbose=True)
+    # df = iso.get_sced_system_lambda(date="09/13/2023", verbose=True)
+    df = iso.get_sced_system_lambda(date="latest", verbose=True)
+    print(df["SCED Time Stamp"].unique()[0].date())
     print(df)
+    print(df.columns)
