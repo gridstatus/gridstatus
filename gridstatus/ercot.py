@@ -1810,9 +1810,9 @@ class Ercot(ISOBase):
 
         df = pd.concat([pd.read_csv(i.url, compression="zip") for i in docs])
 
-        df["SCEDTimeStamp"] = pd.to_datetime(df["SCEDTimeStamp"]).dt.tz_localize(
+        df["SCED Time Stamp"] = pd.to_datetime(df["SCEDTimeStamp"]).dt.tz_localize(
             self.default_timezone,
-            ambiguous=df["RepeatedHourFlag"] == "Y",
+            ambiguous=df["RepeatedHourFlag"] == "N",
         )
 
         df["System Lambda"] = df["SystemLambda"].astype("float64")

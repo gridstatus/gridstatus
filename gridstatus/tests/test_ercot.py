@@ -14,10 +14,8 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_sced_system_lambda("latest")
         assert df.shape[0] >= 0
         assert df.columns.tolist() == [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "SystemLambda",
+            "System Lambda",
+            "SCED Time Stamp",
         ]
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         assert df["Time"].unique()[0].date() == today
