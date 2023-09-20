@@ -11,15 +11,17 @@ class TestErcot(BaseTestISO):
     iso = Ercot()
 
     def test_get_sced_system_lambda(self):
-        df = self.iso.get_sced_system_lambda("latest")
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == [
-            "System Lambda",
-            "SCED Time Stamp",
-        ]
-        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-        assert df["Time"].unique()[0].date() == today
-        assert isinstance(df["SystemLambda"].unique()[0], float)
+
+        for i in ["latest", "today"]:
+            df = self.iso.get_sced_system_lambda(i)
+            assert df.shape[0] >= 0
+            assert df.columns.tolist() == [
+                "System Lambda",
+                "SCED Time Stamp",
+            ]
+            today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+            assert df["Time"].unique()[0].date() == today
+            assert isinstance(df["SystemLambda"].unique()[0], float)
 
     def test_get_as_prices(self):
         as_cols = [

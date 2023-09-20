@@ -2033,9 +2033,6 @@ class Ercot(ISOBase):
                 "Delivery Interval": "DeliveryInterval",
                 # fix whitespace in column name
                 "DSTFlag    ": "DSTFlag",
-                # for SCED LAMBDA
-                "SCEDTimeStamp": "HourEnding",
-                "RepeatedHourFlag": "DSTFlag",
             },
             inplace=True,
         )
