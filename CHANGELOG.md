@@ -4,7 +4,11 @@
 
 ### ERCOT
 
-- Add suport for RTM and DAM price correction datasets
+- Add support for RTM and DAM price correction datasets
+
+## SPP
+
+- Add support for generation capacity on outage
 
 ### EIA
 
