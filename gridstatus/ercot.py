@@ -38,6 +38,10 @@ LOCATION_TYPE_ZONE_DC_EW = "Load Zone DC Tie Energy Weighted"
 """
 Report Type IDs
 """
+# SCED System Lambda
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-322-CD
+SCED_SYSTEM_LAMBDA_RTID = 13114
+
 # DAM Clearing Prices for Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-188-CD
 DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 12329
@@ -1788,6 +1792,64 @@ class Ercot(ISOBase):
         return self.parse_doc(df, verbose=verbose)
 
     @support_date_range("DAY_START")
+    def get_sced_system_lambda(self, date, verbose=False):
+        """Get System lambda of each successful SCED
+
+        5 Minute Publish Interval
+
+        https://github.com/kmax12/gridstatus/issues/269
+
+        Arguments:
+            date (str, datetime): date to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame
+
+        """
+
+        # just so we can share parse logic
+        kwargs = dict(
+            report_type_id=SCED_SYSTEM_LAMBDA_RTID,
+            date=date,
+            verbose=verbose,
+            extension="csv",
+        )
+
+        if date == "latest":
+            doc = self._get_document(**kwargs)
+            docs = [doc]
+        else:
+            docs = self._get_documents(**kwargs)
+
+        df = self._handle_sced_system_lambda(docs, verbose=verbose)
+
+        return df
+
+    def _handle_sced_system_lambda(self, docs, verbose):
+
+        log("Reading SCED System Lambda files", verbose)
+
+        df = pd.concat(
+            [pd.read_csv(i.url, compression="zip") for i in tqdm.tqdm(docs)],
+        )
+
+        df["SCED Time Stamp"] = pd.to_datetime(df["SCEDTimeStamp"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=df["RepeatedHourFlag"] == "N",
+        )
+
+        df["System Lambda"] = df["SystemLambda"].astype("float64")
+
+        df.drop(
+            ["SystemLambda", "SCEDTimeStamp", "RepeatedHourFlag"],
+            axis=1,
+            inplace=True,
+        )
+        df.sort_values("SCED Time Stamp", inplace=True)
+        return df
+
+    @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(self, date, verbose=False):
         """Get the offer price and the name of the Entity submitting
         the offer for the highest-priced Ancillary Service (AS) Offer.
@@ -2063,6 +2125,7 @@ class Ercot(ISOBase):
     def parse_doc(self, doc, verbose=False):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
+
         doc.rename(
             columns={
                 "Delivery Date": "DeliveryDate",
@@ -2162,5 +2225,8 @@ class Ercot(ISOBase):
 
 if __name__ == "__main__":
     iso = Ercot()
-
-    df = iso.get_rtm_spp(2011)
+    # df = iso.get_sced_system_lambda(date="09/13/2023", verbose=True)
+    df = iso.get_sced_system_lambda(date="latest", verbose=True)
+    print(df["SCED Time Stamp"].unique()[0].date())
+    print(df)
+    print(df.columns)

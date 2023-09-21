@@ -3,7 +3,8 @@
 ## vNext
 
 ### ERCOT
-
+- Add suport for RTM and DAM price correction datasets
+- Add System Lambda
 - Add support for RTM and DAM price correction datasets
 
 ## SPP
@@ -25,6 +26,7 @@
 - Add `Ercot.get_60_day_sced_disclosure`
 - Add `Ercot.get_60_day_dam_disclosure`
 - Add support for specifying `forecast_type` to `Ercot.get_load_forecast`
+- Add ERCOT System Lambda
 
 ### MISO
 
