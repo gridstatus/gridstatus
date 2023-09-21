@@ -1,5 +1,15 @@
 # Changelog
 
+## vNext
+
+### ERCOT
+
+- Add suport for RTM and DAM price correction datasets
+
+### EIA
+
+- Add `EIA.get_grid_monitor` dataset with hourly BA and Region emission data
+
 ## v0.23.0 - Sept 12, 2023
 
 ### ERCOT
