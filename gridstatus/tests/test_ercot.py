@@ -802,6 +802,38 @@ class TestErcot(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
+    def test_get_rtm_price_corrections(self):
+        df = self.iso.get_rtm_price_corrections(rtm_type="RTM_SPP")
+
+        cols = [
+            "Price Correction Time",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "SPP Original",
+            "SPP Corrected",
+        ]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    def test_get_dam_price_corrections(self):
+        df = self.iso.get_dam_price_corrections(dam_type="DAM_SPP")
+
+        cols = [
+            "Price Correction Time",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "SPP Original",
+            "SPP Corrected",
+        ]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
     @staticmethod
     def _check_ercot_spp(df, market, location_type):
         """Common checks for SPP data:

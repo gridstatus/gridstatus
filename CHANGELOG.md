@@ -4,6 +4,20 @@
 
 ### ERCOT
 
+- Add support for RTM and DAM price correction datasets
+
+## SPP
+
+- Add support for generation capacity on outage
+
+### EIA
+
+- Add `EIA.get_grid_monitor` dataset with hourly BA and Region emission data
+
+## v0.23.0 - Sept 12, 2023
+
+### ERCOT
+
 - Support ECRS in ERCOT 60 Day DAM and SCED Reports
 - Handle Energy Weighted Load Zone prices in real time SPPs
 - Add ERCOT hourly wind forecast report
