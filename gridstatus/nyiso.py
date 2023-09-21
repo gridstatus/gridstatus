@@ -29,7 +29,12 @@ class NYISO(ISOBase):
     interconnection_homepage = "https://www.nyiso.com/interconnections"
 
     @support_date_range(frequency="DAY_START")
-    def get_rt_ancillary_services(self, date, verbose):
+    def get_rt_ancillary_services(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
         # ANCHOR - NYISO da ancillary services
         """Get day ahead ancillary services"""
         if date == "latest":
@@ -39,13 +44,18 @@ class NYISO(ISOBase):
         else:
             df = self._download_nyiso_archive(
                 date,
-                dataset_name="_download_nyiso_archive",
+                dataset_name="rtasp",
             )
 
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_da_ancillary_services(self, date, verbose):
+    def get_da_ancillary_services(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
         # ANCHOR - NYISO da ancillary services
         """Get day ahead ancillary services"""
         if date == "latest":
@@ -55,7 +65,7 @@ class NYISO(ISOBase):
         else:
             df = self._download_nyiso_archive(
                 date,
-                dataset_name="_download_nyiso_archive",
+                dataset_name="damasp",
             )
 
         return df
