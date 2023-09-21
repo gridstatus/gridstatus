@@ -1809,11 +1809,17 @@ class Ercot(ISOBase):
             docs = self._get_documents(**kwargs)
 
         df = self._handle_sced_system_lambda(docs)
+
         return df
 
-    def _handle_sced_system_lambda(self, docs):
+    def _handle_sced_system_lambda(self, docs, verbose):
 
-        df = pd.concat([pd.read_csv(i.url, compression="zip") for i in docs])
+        if verbose:
+            log("Reading SCED System Lambda files", verbose)
+
+        df = pd.concat(
+            [pd.read_csv(i.url, compression="zip") for i in tqdm.tqdm([docs])],
+        )
 
         df["SCED Time Stamp"] = pd.to_datetime(df["SCEDTimeStamp"]).dt.tz_localize(
             self.default_timezone,
@@ -1827,7 +1833,7 @@ class Ercot(ISOBase):
             axis=1,
             inplace=True,
         )
-
+        df.sort_values("SCED Time Stamp", inplace=True)
         return df
 
     @support_date_range("DAY_START")
