@@ -5,6 +5,7 @@
 ### ERCOT
 
 - Add suport for RTM and DAM price correction datasets
+- Add System Lambda
 
 ### EIA
 
