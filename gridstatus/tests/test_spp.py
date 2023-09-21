@@ -368,7 +368,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].max().date() == two_days_ago.date()
         self._check_ver_curtailments(df)
 
-    def test_get_get_ver_curtailments_annual(self):
+    def test_get_ver_curtailments_annual(self):
         year = 2020
         df = self.iso.get_ver_curtailments_annual(year=year)
 
@@ -379,17 +379,9 @@ class TestSPP(BaseTestISO):
 
     # get_capacity_of_generation_on_outage
 
-    def test_get_capacity_of_generation_on_outage(self):
-        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
-        start = two_days_ago - pd.Timedelta(days=2)
-        df = self.iso.get_capacity_of_generation_on_outage(
-            start=start,
-            end=two_days_ago,
-        )
-
+    def _check_capacity_of_generation_on_outage(self, df):
         columns = [
             "Publish Time",
-            "Time",
             "Interval Start",
             "Interval End",
             "Total Outaged MW",
@@ -407,6 +399,27 @@ class TestSPP(BaseTestISO):
 
         assert df.columns.tolist() == columns
 
+    def test_get_capacity_of_generation_on_outage(self):
+        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
+        start = two_days_ago - pd.Timedelta(days=2)
+        df = self.iso.get_capacity_of_generation_on_outage(
+            start=start,
+            end=two_days_ago,
+        )
+
+        self._check_capacity_of_generation_on_outage(df)
+
         # confirm three weeks of data
         assert df.shape[0] / 168 == 3
         assert df["Publish Time"].dt.date.nunique() == 3
+
+    def test_get_capacity_of_generation_on_outage_annual(self):
+        year = 2020
+        df = self.iso.get_capacity_of_generation_on_outage_annual(year=year)
+
+        assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
+
+        # 2020 was a leap year
+        assert df["Publish Time"].nunique() == 366
+
+        self._check_capacity_of_generation_on_outage(df)

@@ -288,9 +288,44 @@ class SPP(ISOBase):
 
         df = pd.read_csv(url)
 
-        return self._processs_capacity_of_generation_on_outage(df, publish_time=date)
+        return self._process_capacity_of_generation_on_outage(df, publish_time=date)
 
-    def _processs_capacity_of_generation_on_outage(self, df, publish_time):
+    def get_capacity_of_generation_on_outage_annual(self, year, verbose=True):
+        """Get VER Curtailments for a year. Starting 2014.
+        Recent data use get_capacity_of_generation_on_outage
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: VER Curtailments
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{year}/{year}.zip"  # noqa
+
+        def process_csv(df, file_name):
+            # infe date from '2020/01/Capacity-Gen-Outage-20200101.csv'
+
+            publish_time_str = file_name.split(".")[0].split("-")[-1]
+            publish_time = pd.to_datetime(publish_time_str).tz_localize(
+                self.default_timezone,
+            )
+
+            df = self._process_capacity_of_generation_on_outage(df, publish_time)
+
+            return df
+
+        df = utils.download_csvs_from_zip_url(
+            url,
+            process_csv=process_csv,
+            verbose=verbose,
+        )
+
+        df = df.sort_values("Interval Start")
+
+        return df
+
+    def _process_capacity_of_generation_on_outage(self, df, publish_time):
         # strip whitespace from column names
         df = df.rename(columns=lambda x: x.strip())
 
@@ -309,6 +344,9 @@ class SPP(ISOBase):
         publish_time = pd.to_datetime(publish_time.normalize())
 
         df.insert(0, "Publish Time", publish_time)
+
+        # drop Time column
+        df = df.drop(columns=["Time"])
 
         return df
 
@@ -344,18 +382,7 @@ class SPP(ISOBase):
             pd.DataFrame: VER Curtailments
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
-        z = utils.get_zip_folder(url, verbose=verbose)
-
-        # iterate through all files in zip
-        # find the one that end with .csv
-        # read that csv
-        all_dfs = []
-        for f in z.filelist:
-            if f.filename.endswith(".csv"):
-                df = pd.read_csv(z.open(f.filename))
-                all_dfs.append(df)
-
-        df = pd.concat(all_dfs)
+        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
 
         df = self._process_ver_curtailments(df)
 
