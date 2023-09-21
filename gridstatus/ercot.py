@@ -1828,11 +1828,10 @@ class Ercot(ISOBase):
 
     def _handle_sced_system_lambda(self, docs, verbose):
 
-        if verbose:
-            log("Reading SCED System Lambda files", verbose)
+        log("Reading SCED System Lambda files", verbose)
 
         df = pd.concat(
-            [pd.read_csv(i.url, compression="zip") for i in tqdm.tqdm([docs])],
+            [pd.read_csv(i.url, compression="zip") for i in tqdm.tqdm(docs)],
         )
 
         df["SCED Time Stamp"] = pd.to_datetime(df["SCEDTimeStamp"]).dt.tz_localize(
