@@ -44,9 +44,11 @@ class NYISO(ISOBase):
         else:
             df = self._download_nyiso_archive(
                 date,
+                end=end,
                 dataset_name="rtasp",
+                verbose=verbose,
             )
-
+        df.sort_index(["Time"], inplace=True)
         return df
 
     @support_date_range(frequency="DAY_START")
