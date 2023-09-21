@@ -209,10 +209,30 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
+    def _handle_market_end_to_interval(self, df, column, interval_duration):
+        """Converts market end time to interval end time"""
+
+        df = df.rename(
+            columns={
+                column: "Interval End",
+            },
+        )
+
+        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df["Interval Start"] = df["Interval End"] - interval_duration
+
+        df["Time"] = df["Interval Start"]
+
+        df = utils.move_cols_to_front(df, ["Time", "Interval Start", "Interval End"])
+
+        return df
+
     def _process_ver_curtailments(self, df):
         df = df.rename(
             columns={
-                "GMTIntervalEnding": "Interval End",
                 "WindRedispatchCurtailments": "Wind Redispatch Curtailments",
                 "WindManualCurtailments": "Wind Manual Curtailments",
                 "WindCurtailedForEnergy": "Wind Curtailed For Energy",
@@ -222,13 +242,11 @@ class SPP(ISOBase):
             },
         )
 
-        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
-            self.default_timezone,
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnding",
+            interval_duration=pd.Timedelta(minutes=5),
         )
-
-        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
-
-        df["Time"] = df["Interval Start"]
 
         cols = [
             "Time",
@@ -248,6 +266,49 @@ class SPP(ISOBase):
                 df[c] = pd.NA
 
         df = df[cols]
+
+        return df
+
+    @support_date_range("DAY_START")
+    def get_capacity_of_generation_on_outage(self, date, end=None, verbose=False):
+        """Get Capacity of Generation on Outage.
+
+        Published daily at 8am CT for next 7 days
+
+        Args:
+            date: start date
+            end: end date
+
+
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{date.strftime('%Y')}/{date.strftime('%m')}/Capacity-Gen-Outage-{date.strftime('%Y%m%d')}.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+
+        df = pd.read_csv(url)
+
+        return self._processs_capacity_of_generation_on_outage(df, publish_time=date)
+
+    def _processs_capacity_of_generation_on_outage(self, df, publish_time):
+        # strip whitespace from column names
+        df = df.rename(columns=lambda x: x.strip())
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="Market Hour",
+            interval_duration=pd.Timedelta(minutes=60),
+        )
+
+        df = df.rename(
+            columns={
+                "Outaged MW": "Total Outaged MW",
+            },
+        )
+
+        publish_time = pd.to_datetime(publish_time.normalize())
+
+        df.insert(0, "Publish Time", publish_time)
 
         return df
 
@@ -539,18 +600,16 @@ class SPP(ISOBase):
             location_type (str): Location type
             verbose (bool, optional): Verbose output
         """
-        df["Interval End"] = pd.to_datetime(
-            df["GMTIntervalEnd"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-
         if market == Markets.REAL_TIME_5_MIN:
             interval_duration = pd.Timedelta(minutes=5)
         elif market == Markets.DAY_AHEAD_HOURLY:
             interval_duration = pd.Timedelta(hours=1)
 
-        df["Interval Start"] = df["Interval End"] - interval_duration
-        df["Time"] = df["Interval Start"]
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=interval_duration,
+        )
 
         df["Location"] = df["Settlement Location"]
         df["PNode"] = df["Pnode"]

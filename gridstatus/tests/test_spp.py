@@ -376,3 +376,37 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
 
         self._check_ver_curtailments(df)
+
+    # get_capacity_of_generation_on_outage
+
+    def test_get_capacity_of_generation_on_outage(self):
+        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
+        start = two_days_ago - pd.Timedelta(days=2)
+        df = self.iso.get_capacity_of_generation_on_outage(
+            start=start,
+            end=two_days_ago,
+        )
+
+        columns = [
+            "Publish Time",
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Total Outaged MW",
+            "Coal MW",
+            "Diesel Fuel Oil MW",
+            "Hydro MW",
+            "Natural Gas MW",
+            "Nuclear MW",
+            "Solar MW",
+            "Waste Disposal MW",
+            "Wind MW",
+            "Waste Heat MW",
+            "Other MW",
+        ]
+
+        assert df.columns.tolist() == columns
+
+        # confirm three weeks of data
+        assert df.shape[0] / 168 == 3
+        assert df["Publish Time"].dt.date.nunique() == 3
