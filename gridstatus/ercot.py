@@ -1822,7 +1822,7 @@ class Ercot(ISOBase):
         else:
             docs = self._get_documents(**kwargs)
 
-        df = self._handle_sced_system_lambda(docs)
+        df = self._handle_sced_system_lambda(docs, verbose=verbose)
 
         return df
 
