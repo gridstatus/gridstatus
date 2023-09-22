@@ -3,6 +3,7 @@
 ## vNext
 
 ### ERCOT
+
 - Add suport for RTM and DAM price correction datasets
 - Add System Lambda
 - Add support for RTM and DAM price correction datasets
@@ -10,6 +11,7 @@
 ## SPP
 
 - Add support for generation capacity on outage
+- Add support for SPP WEIS Real Time LMP
 
 ### EIA
 
