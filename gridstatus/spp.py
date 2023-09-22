@@ -682,6 +682,67 @@ class SPP(ISOBase):
         df = df.reset_index(drop=True)
         return df
 
+    @support_date_range("DAY_START")
+    def get_lmp_real_time_weis(self, date, verbose=False):
+        """Get LMP data for real time WEIS
+
+        Args:
+            date: date to get data for
+        """
+
+        # quick implementation using daily files
+        # daily files publish with a few day delay
+        # there are interval files that provide more real time data
+        # also, there are also annual files to handle more more historical data
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/WEIS-RTBM-LMP-DAILY-SL-{date.strftime('%Y%m%d')}.csv"  # noqa
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_lmp_real_time_weis(df)
+
+    def _process_lmp_real_time_weis(self, df):
+        # strip whitespace from column names
+        df = df.rename(columns=lambda x: x.strip())
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMT Interval",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        df["Location Type"] = LOCATION_TYPE_SETTLEMENT_LOCATION
+        df["Market"] = "REAL_TIME_WEIS"
+
+        df = df.rename(
+            columns={
+                "Settlement Location Name": "Location",
+                "PNODE Name": "PNode",
+                "LMP": "LMP",  # for posterity
+                "MLC": "Loss",
+                "MCC": "Congestion",
+                "MEC": "Energy",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "PNode",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
+
+        return df
+
     def _get_location_list(self, location_type, verbose=False):
         if location_type == LOCATION_TYPE_HUB:
             df = self._get_feature_data(QUERY_RTM5_HUBS_URL, verbose=verbose)

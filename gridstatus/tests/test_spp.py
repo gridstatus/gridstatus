@@ -190,6 +190,25 @@ class TestSPP(BaseTestISO):
                 location_type=location_type,
             )
 
+    def test_get_lmp_real_time_weis(self):
+        three_weeks_ago = (pd.Timestamp.now() - pd.Timedelta(days=21)).normalize()
+        df = self.iso.get_lmp_real_time_weis(date=three_weeks_ago)
+
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "PNode",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        assert df.columns.tolist() == columns
+
     """get_load"""
 
     def test_get_load_historical(self):
