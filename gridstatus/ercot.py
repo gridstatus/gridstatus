@@ -1827,7 +1827,6 @@ class Ercot(ISOBase):
         return df
 
     def _handle_sced_system_lambda(self, docs, verbose):
-
         log("Reading SCED System Lambda files", verbose)
 
         df = pd.concat(
@@ -2119,8 +2118,8 @@ class Ercot(ISOBase):
 
     def read_doc(self, doc, verbose=False):
         log(f"Reading {doc.url}", verbose)
-        doc = pd.read_csv(doc.url, compression="zip")
-        return self.parse_doc(doc, verbose=verbose)
+        df = pd.read_csv(doc.url, compression="zip")
+        return self.parse_doc(df, verbose=verbose)
 
     def parse_doc(self, doc, verbose=False):
         # files sometimes have different naming conventions
