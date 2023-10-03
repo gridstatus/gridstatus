@@ -882,27 +882,13 @@ class CAISO(ISOBase):
         )
 
         log(f"Fetching {url}", verbose=verbose)
-        df = pd.read_excel(url, usecols="B:M")
-
-        # the outage mrid row is not the first row and it changes
-        # so find it and make it the column names, then drop the rows
-        outage_mrid_row = df[df["Unnamed: 1"] == "OUTAGE MRID"].index[0]
-        df.columns = df.iloc[outage_mrid_row].values
-        df = df.drop(df.index[: outage_mrid_row + 1])
-
+        df = pd.read_excel(url, usecols="B:M", skiprows=9)
         # drop columns where the name is nan
         # artifact of the excel file
         df = df.dropna(axis=1, how="all")
 
-        # due to loading all rows upfront, they come in as strings
-        df["OUTAGE MRID"] = df["OUTAGE MRID"].astype("Int64")
-
-        numeric_cols = [
-            "CURTAILMENT MW",
-            "RESOURCE PMAX MW",
-            "NET QUALIFYING CAPACITY MW",
-        ]
-        df[numeric_cols] = df[numeric_cols].astype("Float64")
+        publish_time = date.date()
+        df.insert(0, "Publish Time", publish_time)
 
         df["CURTAILMENT START DATE TIME"] = pd.to_datetime(
             df["CURTAILMENT START DATE TIME"],
@@ -915,12 +901,31 @@ class CAISO(ISOBase):
         if "OUTAGE STATUS" in df.columns:
             df = df.drop(columns=["OUTAGE STATUS"])
 
-        df["SOURCE"] = url
+        # df.drop_duplicates(
+        #     subset=["OUTAGE MRID", "CURTAILMENT START DATE TIME"],
+        #     keep="last",
+        # )
 
-        df.drop_duplicates(
-            subset=["OUTAGE MRID", "CURTAILMENT START DATE TIME"],
-            keep="last",
+        df = df.rename(
+            columns={
+                "OUTAGE MRID": "Outage MRID",
+                "RESOURCE NAME": "Resource Name",
+                "RESOURCE ID": "Resource ID",
+                "OUTAGE TYPE": "Outage Type",
+                "NATURE OF WORK": "Nature of Work",
+                "CURTAILMENT START DATE TIME": "Curtailment Start Time",
+                "CURTAILMENT END DATE TIME": "Curtailment End Time",
+                "CURTAILMENT MW": "Curtailment MW",
+                "RESOURCE PMAX MW": "Resource PMAX MW",
+                "NET QUALIFYING CAPACITY MW": "Net Qualifying Capacity MW",
+            },
         )
+
+        # if there are duplicates, set trce
+        if df.duplicated(subset=["Outage MRID", "Curtailment Start Time"]).any():
+            import pdb
+
+            pdb.set_trace()
 
         return df
 
