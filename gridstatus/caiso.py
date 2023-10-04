@@ -946,10 +946,9 @@ class CAISO(ISOBase):
                 )
             ]
 
-            assert (
-                df.duplicated(subset=["Outage MRID", "Curtailment Start Time"]).any()
-                is False
-            ), "There are still duplicates"
+            assert not df.duplicated(
+                subset=["Outage MRID", "Curtailment Start Time"]
+            ).any(), "There are still duplicates"
 
         return df
 
