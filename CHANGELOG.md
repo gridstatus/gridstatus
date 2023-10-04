@@ -17,6 +17,10 @@
 
 - Add `EIA.get_grid_monitor` dataset with hourly BA and Region emission data
 
+### CAISO
+
+- Improve CAISO curtailed non-operational generator report
+
 ## v0.23.0 - Sept 12, 2023
 
 ### ERCOT
