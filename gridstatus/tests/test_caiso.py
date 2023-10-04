@@ -272,11 +272,40 @@ class TestCAISO(BaseTestISO):
         assert df.shape[0] > 0
 
     def test_get_curtailed_non_operational_generator_report(self):
+        columns = [
+            "Publish Time",
+            "Outage MRID",
+            "Resource Name",
+            "Resource ID",
+            "Outage Type",
+            "Nature of Work",
+            "Curtailment Start Time",
+            "Curtailment End Time",
+            "Curtailment MW",
+            "Resource PMAX MW",
+            "Net Qualifying Capacity MW",
+        ]
+
+        start_of_data = pd.Timestamp("2021-06-17")
+        df = self.iso.get_curtailed_non_operational_generator_report(
+            date=start_of_data,
+        )
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
+
         two_days_ago = pd.Timestamp("today") - pd.Timedelta(days=2)
         df = self.iso.get_curtailed_non_operational_generator_report(
             date=two_days_ago.normalize(),
         )
         assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
+
+        date_with_duplicates = pd.Timestamp("2021-11-07")
+        df = self.iso.get_curtailed_non_operational_generator_report(
+            date=date_with_duplicates,
+        )
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
 
         # errors for a date before 2021-06-17
         with pytest.raises(ValueError):

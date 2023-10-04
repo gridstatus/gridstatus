@@ -882,12 +882,30 @@ class CAISO(ISOBase):
         )
 
         log(f"Fetching {url}", verbose=verbose)
-        df = pd.read_excel(url, usecols="B:M", skiprows=9)
+        # fetch this way to avoid having to
+        # make request twice
+        content = requests.get(url).content
+
+        # find index of OUTAGE MRID
+        test_parse = pd.read_excel(
+            content, usecols="B:M", sheet_name="PREV_DAY_OUTAGES"
+        )
+        first_col = test_parse[test_parse.columns[0]]
+        outage_mrid_index = first_col[first_col == "OUTAGE MRID"].index[0] + 1
+
+        # load again, but skip rows up to outage mrid
+        df = pd.read_excel(
+            content,
+            usecols="B:M",
+            skiprows=outage_mrid_index,
+            sheet_name="PREV_DAY_OUTAGES",
+        )
+
         # drop columns where the name is nan
         # artifact of the excel file
         df = df.dropna(axis=1, how="all")
 
-        publish_time = date.date()
+        publish_time = date.normalize() + pd.DateOffset(days=1)
         df.insert(0, "Publish Time", publish_time)
 
         df["CURTAILMENT START DATE TIME"] = pd.to_datetime(
@@ -900,11 +918,6 @@ class CAISO(ISOBase):
         # only some dates have this
         if "OUTAGE STATUS" in df.columns:
             df = df.drop(columns=["OUTAGE STATUS"])
-
-        # df.drop_duplicates(
-        #     subset=["OUTAGE MRID", "CURTAILMENT START DATE TIME"],
-        #     keep="last",
-        # )
 
         df = df.rename(
             columns={
@@ -923,9 +936,19 @@ class CAISO(ISOBase):
 
         # if there are duplicates, set trce
         if df.duplicated(subset=["Outage MRID", "Curtailment Start Time"]).any():
-            import pdb
+            # drop where start and end are the same and end time isnt null
+            # this appears to fix
+            df = df[
+                ~(
+                    (df["Curtailment Start Time"] == df["Curtailment End Time"])
+                    & (df["Curtailment End Time"].notnull())
+                )
+            ]
 
-            pdb.set_trace()
+            assert (
+                df.duplicated(subset=["Outage MRID", "Curtailment Start Time"]).any()
+                == False
+            ), "There are still duplicates"
 
         return df
 
