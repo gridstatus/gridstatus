@@ -905,6 +905,7 @@ class CAISO(ISOBase):
         # artifact of the excel file
         df = df.dropna(axis=1, how="all")
 
+        # published day after
         publish_time = date.normalize() + pd.DateOffset(days=1)
         df.insert(0, "Publish Time", publish_time)
 
@@ -947,7 +948,7 @@ class CAISO(ISOBase):
 
             assert (
                 df.duplicated(subset=["Outage MRID", "Curtailment Start Time"]).any()
-                == False
+                is False
             ), "There are still duplicates"
 
         return df
