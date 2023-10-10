@@ -941,6 +941,21 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
+        # todo maybe this logic can move to read_docs/read_doc
+        if len(docs) == 0:
+            log("No documents found", verbose)
+            return pd.DataFrame(
+                columns=[
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Location",
+                    "Location Type",
+                    "Market",
+                    "SPP",
+                ]
+            )
+
         df = self.read_docs(docs, verbose=verbose)
 
         return self._finalize_spp_df(
