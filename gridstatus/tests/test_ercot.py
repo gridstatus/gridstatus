@@ -3,7 +3,7 @@ import pytest
 
 import gridstatus
 from gridstatus import Ercot, Markets, NotSupported
-from gridstatus.ercot import Document
+from gridstatus.ercot import Document, parse_timestamp_from_friendly_name
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
@@ -12,7 +12,7 @@ class TestErcot(BaseTestISO):
 
     def test_get_sced_system_lambda(self):
         for i in ["latest", "today"]:
-            df = self.iso.get_sced_system_lambda(i)
+            df = self.iso.get_sced_system_lambda(i, verbose=True)
             assert df.shape[0] >= 0
             assert df.columns.tolist() == [
                 "SCED Timestamp",
@@ -201,14 +201,6 @@ class TestErcot(BaseTestISO):
 
     """get_spp"""
 
-    def test_get_spp_dam_latest_day_ahead_hourly_zone_should_raise_exception(self):
-        with pytest.raises(ValueError):
-            self.iso.get_spp(
-                date="latest",
-                market=Markets.DAY_AHEAD_HOURLY,
-                location_type="Load Zone",
-            )
-
     def test_get_spp_dam_today_day_ahead_hourly_hub(self):
         df = self.iso.get_spp(
             date="today",
@@ -284,7 +276,7 @@ class TestErcot(BaseTestISO):
 
         # should be 4 intervals in last hour
         assert (df.groupby("Location")["Interval Start"].count() == 4).all()
-        assert df["Interval End"].min() >= one_hour_earlier
+        assert df["Interval End"].min() > one_hour_earlier
         assert df["Interval End"].max() <= today
 
         self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
@@ -299,10 +291,6 @@ class TestErcot(BaseTestISO):
             location_type="Trading Hub",
             verbose=True,
         )
-
-        import pdb
-
-        pdb.set_trace()
 
         # assert Interval End max is today
         assert df["Interval End"].max().date() == today
@@ -497,46 +485,13 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == columns
 
     def test_spp_real_time_parse_retry_file_name(self):
-        docs = [
-            Document(
-                url="",
-                publish_date=pd.Timestamp.now(),
-                constructed_name="cdr.00012301.0000000000000000.20230608.001705730.SPPHLZNP6905_retry_20230608_1545_csv",
-                friendly_name="",
-            ),
-            Document(
-                url="",
-                publish_date=pd.Timestamp.now(),
-                constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_1545_csv",
-                friendly_name="",
-            ),
-            Document(
-                url="",
-                publish_date=pd.Timestamp.now(),
-                constructed_name="cdr.00012301.0000000000000000.2023202306110610.001705730.SPPHLZNP6905_20230611_0000_csv",
-                friendly_name="",
-            ),
-            Document(
-                url="",
-                publish_date=pd.Timestamp.now() + pd.Timedelta(days=1),
-                constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_0000_csv",
-                friendly_name="",
-            ),
-        ]
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_retry_20230608_1545_csv"
+        ) == pd.Timestamp("2023-06-08 15:45:00-0500", tz="US/Central")
 
-        # handle retry file
-        result_1 = self.iso._filter_spp_rtm_files(docs, pd.Timestamp("2023-06-08"))
-        assert len(result_1) == 1
-
-        # ignores interval end file from previous day
-        # and gets interval end from next
-        result_2 = self.iso._filter_spp_rtm_files(docs, pd.Timestamp("2023-06-10"))
-        assert len(result_2) == 2
-
-        # latest returns with great publish_date
-        latest = self.iso._filter_spp_rtm_files(docs, "latest")
-        assert len(latest) == 1
-        assert latest[0] == docs[-1]
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_20230608_1545_csv"
+        ) == pd.Timestamp("2023-06-08 15:45:00-0500", tz="US/Central")
 
     """get_unplanned_resource_outages"""
 
@@ -873,18 +828,19 @@ class TestErcot(BaseTestISO):
     def test_get_lmp_electrical_bus(self):
         cols = [
             "SCED Timestamp",
+            "Market",
             "Location",
             "Location Type",
             "LMP",
         ]
 
-        # df = self.iso.get_lmp(
-        #     date="latest",
-        #     location_type="Electrical Bus",
-        # )
+        df = self.iso.get_lmp(
+            date="latest",
+            location_type="Electrical Bus",
+        )
 
-        # assert df.shape[0] >= 0
-        # assert df.columns.tolist() == cols
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
 
         now = pd.Timestamp.now(tz=self.iso.default_timezone)
         start = now - pd.Timedelta(hours=1)
@@ -902,6 +858,8 @@ class TestErcot(BaseTestISO):
 
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
+        assert df["SCED Timestamp"].min() >= start
+        assert df["SCED Timestamp"].max() <= now
 
     def test_get_lmp_settlement_point(self):
         df = self.iso.get_lmp(
@@ -911,6 +869,7 @@ class TestErcot(BaseTestISO):
 
         cols = [
             "SCED Timestamp",
+            "Market",
             "Location",
             "Location Type",
             "LMP",
