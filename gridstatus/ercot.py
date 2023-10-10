@@ -865,8 +865,13 @@ class Ercot(ISOBase):
                 "LMP",
             ]
         ]
-
-        df = df.sort_values("SCED Timestamp").reset_index(drop=True)
+        # sort by SCED Timestamp and Location
+        df = df.sort_values(
+            [
+                "SCED Timestamp",
+                "Location",
+            ],
+        ).reset_index(drop=True)
 
         return df
 
