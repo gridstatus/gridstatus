@@ -204,8 +204,7 @@ class EIA:
         def fetch_grid_monitor(grid_monitor):
             url = grid_monitor["URL"]
             log(f"Fetching data from {url}", verbose=verbose)
-            df = pd.read_excel(url, sheet_name="Published Hourly Data",
-                               dtype_backend="pyarrow")
+            df = pd.read_excel(url, sheet_name="Published Hourly Data")
 
             rename = {
                 "NG": "Net Generation",

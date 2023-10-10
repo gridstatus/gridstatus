@@ -600,7 +600,7 @@ class PJM(ISOBase):
                 "Referer": "https://www.pjm.com/",
             },
         )
-        queue = pd.read_excel(io.BytesIO(r.content), dtype_backend="pyarrow")
+        queue = pd.read_excel(io.BytesIO(r.content))
 
         queue["Capacity (MW)"] = queue[["MFO", "MW In Service"]].min(axis=1)
 

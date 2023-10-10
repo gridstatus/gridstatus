@@ -575,7 +575,7 @@ class Ercot(ISOBase):
         )
 
         x = utils.get_zip_file(doc_info.url, verbose=verbose)
-        all_sheets = pd.read_excel(x, sheet_name=None, dtype_backend="pyarrow")
+        all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
 
         # fix parsing error where no data is present
@@ -615,7 +615,7 @@ class Ercot(ISOBase):
         )
 
         x = utils.get_zip_file(doc_info.url, verbose=verbose)
-        all_sheets = pd.read_excel(x, sheet_name=None, dtype_backend="pyarrow")
+        all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
         # filter where DSTFlag == 10
         df = self.parse_doc(df, verbose=verbose)
@@ -648,7 +648,6 @@ class Ercot(ISOBase):
             doc_info.url,
             sheet_name="Project Details - Large Gen",
             skiprows=30,
-            dtype_backend="pyarrow",
         ).iloc[4:]
 
         queue["State"] = "Texas"
@@ -1314,7 +1313,7 @@ class Ercot(ISOBase):
         # only reading SummerCapacities right now
         # todo parse more sheets
         log("Getting SARA data from {}".format(url), verbose=verbose)
-        df = pd.read_excel(url, sheet_name="SummerCapacities", header=1, dtype_backend="pyarrow")
+        df = pd.read_excel(url, sheet_name="SummerCapacities", header=1)
 
         # drop cols Unnamed: 0
         df = df.drop("Unnamed: 0", axis=1)
@@ -1657,7 +1656,6 @@ class Ercot(ISOBase):
                 sheet_name="Unplanned Resource Outages",
                 skiprows=2,
                 nrows=1,
-                dtype_backend="pyarrow",
             )
             .values[0][0]
             .split(": ")[1],
@@ -1667,7 +1665,6 @@ class Ercot(ISOBase):
             sheet_name="Unplanned Resource Outages",
             skiprows=4,
             skipfooter=1,
-            dtype_backend="pyarrow",
         )
 
         df.insert(0, "Report Time", as_of)

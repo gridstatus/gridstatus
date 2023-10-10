@@ -344,7 +344,6 @@ class NYISO(ISOBase):
         all_sheets = pd.read_excel(
             url,
             sheet_name=["Interconnection Queue", "Withdrawn"],
-            dtype_backend="pyarrow"
         )
 
         # Drop extra rows at bottom
@@ -366,8 +365,7 @@ class NYISO(ISOBase):
         withdrawn = withdrawn.rename(columns={"Utility ": "Utility"})
 
         # make completed look like the other two sheets
-        completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1],
-                                  dtype_backend="pyarrow")
+        completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1])
         completed.insert(15, "SGIA Tender Date", None)
         completed.insert(16, "CY Complete Date", None)
         completed.insert(17, "Proposed Initial-Sync Date", None)
@@ -548,7 +546,6 @@ class NYISO(ISOBase):
             ],
             skiprows=3,
             header=[0, 1, 2, 3, 4],
-            dtype_backend="pyarrow",
         )
 
         generators["Table III-2a"]["Generator Type"] = "Market Generator"
@@ -836,7 +833,7 @@ class NYISO(ISOBase):
         msg = f"Requesting {url}"
         log(msg, verbose)
 
-        df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1], dtype_backend="pyarrow")
+        df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1])
 
         df.rename(columns={"Unnamed: 0_level_0": "", "Date": ""}, inplace=True)
         df.set_index("", inplace=True)

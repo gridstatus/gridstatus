@@ -529,7 +529,7 @@ class CAISO(ISOBase):
         msg = f"Downloading interconnection queue from {url}"
         log(msg, verbose)
 
-        sheets = pd.read_excel(url, skiprows=3, sheet_name=None, dtype_backend="pyarrow")
+        sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
 
         # remove legend at the bottom
         queued_projects = sheets["Grid GenerationQueue"][:-8]
