@@ -529,7 +529,7 @@ class CAISO(ISOBase):
         msg = f"Downloading interconnection queue from {url}"
         log(msg, verbose)
 
-        sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
+        sheets = pd.read_excel(url, skiprows=3, sheet_name=None, dtype_backend="pyarrow")
 
         # remove legend at the bottom
         queued_projects = sheets["Grid GenerationQueue"][:-8]
@@ -882,7 +882,7 @@ class CAISO(ISOBase):
         )
 
         log(f"Fetching {url}", verbose=verbose)
-        df = pd.read_excel(url, usecols="B:M")
+        df = pd.read_excel(url, usecols="B:M", dtype_backend="pyarrow")
 
         # the outage mrid row is not the first row and it changes
         # so find it and make it the column names, then drop the rows
@@ -1152,7 +1152,7 @@ def _get_historical(file, date, verbose=False):
             msg = f"Fetching URL: {url}"
             log(msg, verbose)
 
-    df = pd.read_csv(url)
+    df = pd.read_csv(url, dtype_backend="pyarrow")
 
     # sometimes there are extra rows at the end, so this lets us ignore them
     df = df.dropna(subset=["Time"])
@@ -1215,7 +1215,7 @@ def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
     # parse and concat all files
     dfs = []
     for f in z.namelist():
-        df = pd.read_csv(z.open(f))
+        df = pd.read_csv(z.open(f), dtype_backend="pyarrow")
         dfs.append(df)
 
     df = pd.concat(dfs)

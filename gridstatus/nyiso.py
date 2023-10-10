@@ -344,6 +344,7 @@ class NYISO(ISOBase):
         all_sheets = pd.read_excel(
             url,
             sheet_name=["Interconnection Queue", "Withdrawn"],
+            dtype_backend="pyarrow"
         )
 
         # Drop extra rows at bottom
@@ -365,7 +366,8 @@ class NYISO(ISOBase):
         withdrawn = withdrawn.rename(columns={"Utility ": "Utility"})
 
         # make completed look like the other two sheets
-        completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1])
+        completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1],
+                                  dtype_backend="pyarrow")
         completed.insert(15, "SGIA Tender Date", None)
         completed.insert(16, "CY Complete Date", None)
         completed.insert(17, "Proposed Initial-Sync Date", None)
@@ -529,7 +531,7 @@ class NYISO(ISOBase):
         msg = f"Requesting {url}"
         log(msg, verbose)
 
-        df = pd.read_csv(url)
+        df = pd.read_csv(url, dtype_backend="pyarrow")
 
         # need to be updated once a year. approximately around end of april
         # find it here: https://www.nyiso.com/gold-book-resources
@@ -546,6 +548,7 @@ class NYISO(ISOBase):
             ],
             skiprows=3,
             header=[0, 1, 2, 3, 4],
+            dtype_backend="pyarrow",
         )
 
         generators["Table III-2a"]["Generator Type"] = "Market Generator"
@@ -662,7 +665,7 @@ class NYISO(ISOBase):
         msg = f"Requesting {url}"
         log(msg, verbose)
 
-        df = pd.read_csv(url)
+        df = pd.read_csv(url, dtype_backend="pyarrow")
 
         return df
 
@@ -734,7 +737,7 @@ class NYISO(ISOBase):
             msg = f"Requesting {csv_url}"
             log(msg, verbose)
 
-            df = pd.read_csv(csv_url)
+            df = pd.read_csv(csv_url, dtype_backend="pyarrow")
             df = _handle_time(df, dataset_name)
             df["File Date"] = date.normalize()
         else:
@@ -769,7 +772,7 @@ class NYISO(ISOBase):
                     msg = f"{csv_filename} not found in {zip_url}"
                     log(msg, verbose)
                     continue
-                df = pd.read_csv(z.open(csv_filename))
+                df = pd.read_csv(z.open(csv_filename), dtype_backend="pyarrow")
                 df["File Date"] = d.normalize()
 
                 df = _handle_time(df, dataset_name)
@@ -833,7 +836,7 @@ class NYISO(ISOBase):
         msg = f"Requesting {url}"
         log(msg, verbose)
 
-        df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1])
+        df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1], dtype_backend="pyarrow")
 
         df.rename(columns={"Unnamed: 0_level_0": "", "Date": ""}, inplace=True)
         df.set_index("", inplace=True)

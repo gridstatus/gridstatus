@@ -410,12 +410,12 @@ class Ercot(ISOBase):
         msg = f"Fetching {url}"
         log(msg, verbose)
 
-        dfs = pd.read_html(url, header=0)
+        dfs = pd.read_html(url, header=0, dtype_backend="pyarrow")
         df = dfs[0]
 
-        df["Interval End"] = pd.to_datetime(df["Oper Day"]) + (
-            df["Hour Ending"] / 100
-        ).astype("timedelta64[h]")
+        df["Interval End"] = pd.to_datetime(df["Oper Day"]) + pd.to_timedelta(
+            df["Hour Ending"] / 100, unit="h",
+        )
         df["Interval End"] = df["Interval End"].dt.tz_localize(
             self.default_timezone,
         )
@@ -458,8 +458,8 @@ class Ercot(ISOBase):
 
         data["Interval End"] = (
             date
-            + data["hourEnding"].astype("timedelta64[h]")
-            + data["interval"].astype("timedelta64[m]")
+            + pd.to_timedelta(data["hourEnding"], unit="h")
+            + pd.to_timedelta(data["interval"], unit="m")
         )
 
         data["Interval End"] = data["Interval End"].dt.tz_localize(
@@ -571,7 +571,7 @@ class Ercot(ISOBase):
         )
 
         x = utils.get_zip_file(doc_info.url, verbose=verbose)
-        all_sheets = pd.read_excel(x, sheet_name=None)
+        all_sheets = pd.read_excel(x, sheet_name=None, dtype_backend="pyarrow")
         df = pd.concat(all_sheets.values())
 
         # fix parsing error where no data is present
@@ -611,7 +611,7 @@ class Ercot(ISOBase):
         )
 
         x = utils.get_zip_file(doc_info.url, verbose=verbose)
-        all_sheets = pd.read_excel(x, sheet_name=None)
+        all_sheets = pd.read_excel(x, sheet_name=None, dtype_backend="pyarrow")
         df = pd.concat(all_sheets.values())
         # filter where DSTFlag == 10
         df = self.parse_doc(df, verbose=verbose)
@@ -644,6 +644,7 @@ class Ercot(ISOBase):
             doc_info.url,
             sheet_name="Project Details - Large Gen",
             skiprows=30,
+            dtype_backend="pyarrow",
         ).iloc[4:]
 
         queue["State"] = "Texas"
@@ -1150,9 +1151,9 @@ class Ercot(ISOBase):
         assert gen_resource_file, "Could not find gen resource file"
         assert smne_file, "Could not find smne file"
 
-        load_resource = pd.read_csv(z.open(load_resource_file))
-        gen_resource = pd.read_csv(z.open(gen_resource_file))
-        smne = pd.read_csv(z.open(smne_file))
+        load_resource = pd.read_csv(z.open(load_resource_file), dtype_backend="pyarrow")
+        gen_resource = pd.read_csv(z.open(gen_resource_file), dtype_backend="pyarrow")
+        smne = pd.read_csv(z.open(smne_file), dtype_backend="pyarrow")
 
         def handle_time(df, time_col, is_interval_end=False):
             df[time_col] = pd.to_datetime(df[time_col])
@@ -1270,7 +1271,7 @@ class Ercot(ISOBase):
         data = {}
 
         for key, file in files.items():
-            doc = pd.read_csv(z.open(file))
+            doc = pd.read_csv(z.open(file), dtype_backend="pyarrow")
             # weird that these files dont have this column like all other eroct files
             # add so we can parse
             doc["DSTFlag"] = "N"
@@ -1309,7 +1310,7 @@ class Ercot(ISOBase):
         # only reading SummerCapacities right now
         # todo parse more sheets
         log("Getting SARA data from {}".format(url), verbose=verbose)
-        df = pd.read_excel(url, sheet_name="SummerCapacities", header=1)
+        df = pd.read_excel(url, sheet_name="SummerCapacities", header=1, dtype_backend="pyarrow")
 
         # drop cols Unnamed: 0
         df = df.drop("Unnamed: 0", axis=1)
@@ -1652,6 +1653,7 @@ class Ercot(ISOBase):
                 sheet_name="Unplanned Resource Outages",
                 skiprows=2,
                 nrows=1,
+                dtype_backend="pyarrow",
             )
             .values[0][0]
             .split(": ")[1],
@@ -1661,6 +1663,7 @@ class Ercot(ISOBase):
             sheet_name="Unplanned Resource Outages",
             skiprows=4,
             skipfooter=1,
+            dtype_backend="pyarrow",
         )
 
         df.insert(0, "Report Time", as_of)
@@ -1734,7 +1737,7 @@ class Ercot(ISOBase):
             if as_name in ["ECRSM", "ECRSS"] and cleared not in z.namelist():
                 continue
 
-            df_cleared = pd.read_csv(z.open(cleared))
+            df_cleared = pd.read_csv(z.open(cleared), dtype_backend="pyarrow")
             all_dfs.append(df_cleared)
 
         for as_name in self_arranged_products:
@@ -1744,7 +1747,7 @@ class Ercot(ISOBase):
             if as_name in ["ECRSM", "ECRSS"] and self_arranged not in z.namelist():
                 continue
 
-            df_self_arranged = pd.read_csv(z.open(self_arranged))
+            df_self_arranged = pd.read_csv(z.open(self_arranged), dtype_backend="pyarrow")
             all_dfs.append(df_self_arranged)
 
         def _make_bid_curve(df):
@@ -1760,7 +1763,7 @@ class Ercot(ISOBase):
             if as_name in ["ECRSM", "ECRSS"] and offers not in z.namelist():
                 continue
 
-            df_offers = pd.read_csv(z.open(offers))
+            df_offers = pd.read_csv(z.open(offers), dtype_backend="pyarrow")
             name = f"Bid Curve - {as_name}"
             if df_offers.empty:
                 # use last df to get the index
@@ -2052,12 +2055,12 @@ class Ercot(ISOBase):
         settlement_points_file = [
             name for name in names if "Settlement_Points" in name
         ][0]
-        df = pd.read_csv(z.open(settlement_points_file))
+        df = pd.read_csv(z.open(settlement_points_file), dtype_backend="pyarrow")
         return df
 
     def read_doc(self, doc, verbose=False):
         log(f"Reading {doc.url}", verbose)
-        doc = pd.read_csv(doc.url, compression="zip")
+        doc = pd.read_csv(doc.url, compression="zip", dtype_backend="pyarrow")
         return self.parse_doc(doc, verbose=verbose)
 
     def parse_doc(self, doc, verbose=False):
@@ -2092,7 +2095,7 @@ class Ercot(ISOBase):
 
             doc["Interval Start"] = (
                 pd.to_datetime(doc["DeliveryDate"])
-                + doc["HourBeginning"].astype("timedelta64[h]")
+                + pd.to_timedelta(doc["HourBeginning"], unit="h")
                 + ((doc["DeliveryInterval"] - 1) * interval_length)
             )
 

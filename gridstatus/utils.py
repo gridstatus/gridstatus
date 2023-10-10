@@ -260,7 +260,7 @@ def load_folder(path, time_zone=None, verbose=True):
 
     dfs = []
     for f in tqdm.tqdm(all_files, disable=not verbose):
-        df = pd.read_csv(f, parse_dates=True)
+        df = pd.read_csv(f, parse_dates=True, dtype_backend="pyarrow")
         dfs.append(df)
 
     data = pd.concat(dfs).reset_index(drop=True)

@@ -325,6 +325,7 @@ class ISONE(ISOBase):
                         skiprows=[0, 1, 2, 3, 5],
                         skipfooter=1,
                         engine="python",
+                        dtype_backend="pyarrow",
                     ),
                 )
 
@@ -521,7 +522,7 @@ class ISONE(ISOBase):
         log(msg, verbose)
 
         r = requests.get("https://irtt.iso-ne.com/reports/external")
-        queue = pd.read_html(r.text, attrs={"id": "publicqueue"})[0]
+        queue = pd.read_html(r.text, attrs={"id": "publicqueue"}, dtype_backend="pyarrow")[0]
 
         # only keep generator interconnection requests
         queue["Type"] = queue["Type"].map(
@@ -688,6 +689,7 @@ def _make_request(url, skiprows, verbose):
         skiprows=skiprows,
         skipfooter=1,
         engine="python",
+        dtype_backend="pyarrow",
     ).drop_duplicates()
     return df
 
