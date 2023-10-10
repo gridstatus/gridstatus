@@ -34,7 +34,7 @@ class support_date_range:
                 save_to = args_dict.pop("save_to")
                 os.makedirs(save_to, exist_ok=True)
 
-            error = "raise"
+            error = "ignore"
             errors = []
             if "error" in args_dict:
                 error = args_dict.pop("error")
@@ -98,26 +98,22 @@ class support_date_range:
                 args_dict["date"],
             )
 
-            # use .date() to remove timezone info, which doesnt matter
-            # if just a date
-
             # if frequency is callable, then use it to get the frequency
             frequency = self.frequency
             if callable(frequency):
                 frequency = self.frequency(args_dict)
 
-            # Note: this may create a split that will end up
-            # being unnecessary after running update dates below.
-            # that is because after adding new dates, it's possible that two
-            # ranges could be added.
-            # Unnecessary optimization right now to include
-            # logic to handle this
-
-            # if certain frequency, we need to handle first interval
-            # specially so pd.date_range works
             if frequency is None:
                 dates = [args_dict["date"], args_dict["end"]]
             else:
+                # Note: this may create a split that will end up
+                # being unnecessary after running update dates below.
+                # that is because after adding new dates, it's possible that two
+                # ranges could be added.
+                # Unnecessary optimization right now to include
+                # logic to handle this
+                # if certain frequency, we need to handle first interval
+                # specially so pd.date_range works
                 prepend = []
                 if frequency == "DAY_START":
                     frequency = "1D"

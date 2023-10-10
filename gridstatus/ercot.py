@@ -206,7 +206,6 @@ def parse_timestamp_from_friendly_name(friendly_name):
         )
     except:  # noqa
         raise
-        timestamp = None
     return timestamp
 
 
@@ -815,6 +814,7 @@ class Ercot(ISOBase):
         elif location_type.lower() == "Settlement Point".lower():
             report = LMPS_BY_SETTLEMENT_POINT_RTID
 
+        # if end is None, assume requesting one day
         if end is None:
             start = None
             end = None
@@ -910,27 +910,27 @@ class Ercot(ISOBase):
         friendly_name_timestamp_after = None
 
         if market == Markets.REAL_TIME_15_MIN:
-            # no end, so assume requesting one day
-            # use the timestamp from the friendly name
             if date == "latest":
                 publish_date = "latest"
             elif end is None:
-                friendly_name_timestamp_before = date.normalize() + pd.DateOffset(
-                    days=1
-                )
+                # no end, so assume requesting one day
+                # use the timestamp from the friendly name
                 friendly_name_timestamp_after = date.normalize()
+                friendly_name_timestamp_before = (
+                    friendly_name_timestamp_after + pd.DateOffset(days=1)
+                )
 
             else:
-                friendly_name_timestamp_before = end
                 friendly_name_timestamp_after = date
+                friendly_name_timestamp_before = end
 
             report = SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID
         elif market == Markets.DAY_AHEAD_HOURLY:
-            # no end, so assume requesting one day
-            # data is publish one day prior
             if date == "latest":
                 publish_date = "latest"
             elif end is None:
+                # no end, so assume requesting one day
+                # data is publish one day prior
                 publish_date = date.normalize() - pd.DateOffset(days=1)
             else:
                 published_before = end
@@ -1039,8 +1039,7 @@ class Ercot(ISOBase):
     ):
         df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
 
-        if market is not None:
-            df["Market"] = market.value
+        df["Market"] = market.value
 
         df = df.rename(
             columns={
@@ -2060,10 +2059,6 @@ class Ercot(ISOBase):
         if date == "latest":
             date = None
 
-        # no need to pass this
-        if published_before == "latest":
-            published_before = None
-
         documents = self._get_documents(
             report_type_id=report_type_id,
             date=date,
@@ -2102,6 +2097,11 @@ class Ercot(ISOBase):
         msg = f"Fetching document {url}"
         log(msg, verbose)
 
+        # if latest, we dont need to filter
+        # so we can set to None
+        if published_before == "latest":
+            published_before = None
+
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
         matches = []
         for doc in docs:
@@ -2134,18 +2134,20 @@ class Ercot(ISOBase):
             if published_before:
                 match = match and doc_obj.publish_date <= published_before
 
-            if friendly_name_timestamp_after and friendly_name_timestamp_before:
-                match = (
-                    match
-                    and doc_obj.friendly_name_timestamp > friendly_name_timestamp_after
-                )
+            if doc_obj.friendly_name_timestamp:
+                if friendly_name_timestamp_after:
+                    match = (
+                        match
+                        and doc_obj.friendly_name_timestamp
+                        > friendly_name_timestamp_after
+                    )
 
-            if friendly_name_timestamp_before and friendly_name_timestamp_before:
-                match = (
-                    match
-                    and doc_obj.friendly_name_timestamp
-                    <= friendly_name_timestamp_before
-                )
+                if friendly_name_timestamp_before:
+                    match = (
+                        match
+                        and doc_obj.friendly_name_timestamp
+                        <= friendly_name_timestamp_before
+                    )
 
             if date and date != "latest":
                 match = match and doc_obj.publish_date.date() == date.date()
