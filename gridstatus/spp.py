@@ -209,10 +209,30 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
+    def _handle_market_end_to_interval(self, df, column, interval_duration):
+        """Converts market end time to interval end time"""
+
+        df = df.rename(
+            columns={
+                column: "Interval End",
+            },
+        )
+
+        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df["Interval Start"] = df["Interval End"] - interval_duration
+
+        df["Time"] = df["Interval Start"]
+
+        df = utils.move_cols_to_front(df, ["Time", "Interval Start", "Interval End"])
+
+        return df
+
     def _process_ver_curtailments(self, df):
         df = df.rename(
             columns={
-                "GMTIntervalEnding": "Interval End",
                 "WindRedispatchCurtailments": "Wind Redispatch Curtailments",
                 "WindManualCurtailments": "Wind Manual Curtailments",
                 "WindCurtailedForEnergy": "Wind Curtailed For Energy",
@@ -222,13 +242,11 @@ class SPP(ISOBase):
             },
         )
 
-        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
-            self.default_timezone,
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnding",
+            interval_duration=pd.Timedelta(minutes=5),
         )
-
-        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
-
-        df["Time"] = df["Interval Start"]
 
         cols = [
             "Time",
@@ -248,6 +266,87 @@ class SPP(ISOBase):
                 df[c] = pd.NA
 
         df = df[cols]
+
+        return df
+
+    @support_date_range("DAY_START")
+    def get_capacity_of_generation_on_outage(self, date, end=None, verbose=False):
+        """Get Capacity of Generation on Outage.
+
+        Published daily at 8am CT for next 7 days
+
+        Args:
+            date: start date
+            end: end date
+
+
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{date.strftime('%Y')}/{date.strftime('%m')}/Capacity-Gen-Outage-{date.strftime('%Y%m%d')}.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+
+        df = pd.read_csv(url)
+
+        return self._process_capacity_of_generation_on_outage(df, publish_time=date)
+
+    def get_capacity_of_generation_on_outage_annual(self, year, verbose=True):
+        """Get VER Curtailments for a year. Starting 2014.
+        Recent data use get_capacity_of_generation_on_outage
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: VER Curtailments
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{year}/{year}.zip"  # noqa
+
+        def process_csv(df, file_name):
+            # infe date from '2020/01/Capacity-Gen-Outage-20200101.csv'
+
+            publish_time_str = file_name.split(".")[0].split("-")[-1]
+            publish_time = pd.to_datetime(publish_time_str).tz_localize(
+                self.default_timezone,
+            )
+
+            df = self._process_capacity_of_generation_on_outage(df, publish_time)
+
+            return df
+
+        df = utils.download_csvs_from_zip_url(
+            url,
+            process_csv=process_csv,
+            verbose=verbose,
+        )
+
+        df = df.sort_values("Interval Start")
+
+        return df
+
+    def _process_capacity_of_generation_on_outage(self, df, publish_time):
+        # strip whitespace from column names
+        df = df.rename(columns=lambda x: x.strip())
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="Market Hour",
+            interval_duration=pd.Timedelta(minutes=60),
+        )
+
+        df = df.rename(
+            columns={
+                "Outaged MW": "Total Outaged MW",
+            },
+        )
+
+        publish_time = pd.to_datetime(publish_time.normalize())
+
+        df.insert(0, "Publish Time", publish_time)
+
+        # drop Time column
+        df = df.drop(columns=["Time"])
 
         return df
 
@@ -283,18 +382,7 @@ class SPP(ISOBase):
             pd.DataFrame: VER Curtailments
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
-        z = utils.get_zip_folder(url, verbose=verbose)
-
-        # iterate through all files in zip
-        # find the one that end with .csv
-        # read that csv
-        all_dfs = []
-        for f in z.filelist:
-            if f.filename.endswith(".csv"):
-                df = pd.read_csv(z.open(f.filename), dtype_backend="pyarrow")
-                all_dfs.append(df)
-
-        df = pd.concat(all_dfs)
+        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
 
         df = self._process_ver_curtailments(df)
 
@@ -539,18 +627,16 @@ class SPP(ISOBase):
             location_type (str): Location type
             verbose (bool, optional): Verbose output
         """
-        df["Interval End"] = pd.to_datetime(
-            df["GMTIntervalEnd"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-
         if market == Markets.REAL_TIME_5_MIN:
             interval_duration = pd.Timedelta(minutes=5)
         elif market == Markets.DAY_AHEAD_HOURLY:
             interval_duration = pd.Timedelta(hours=1)
 
-        df["Interval Start"] = df["Interval End"] - interval_duration
-        df["Time"] = df["Interval Start"]
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=interval_duration,
+        )
 
         df["Location"] = df["Settlement Location"]
         df["PNode"] = df["Pnode"]
@@ -594,6 +680,67 @@ class SPP(ISOBase):
             ]
         ]
         df = df.reset_index(drop=True)
+        return df
+
+    @support_date_range("DAY_START")
+    def get_lmp_real_time_weis(self, date, verbose=False):
+        """Get LMP data for real time WEIS
+
+        Args:
+            date: date to get data for
+        """
+
+        # quick implementation using daily files
+        # daily files publish with a few day delay
+        # there are interval files that provide more real time data
+        # also, there are also annual files to handle more more historical data
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/WEIS-RTBM-LMP-DAILY-SL-{date.strftime('%Y%m%d')}.csv"  # noqa
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_lmp_real_time_weis(df)
+
+    def _process_lmp_real_time_weis(self, df):
+        # strip whitespace from column names
+        df = df.rename(columns=lambda x: x.strip())
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMT Interval",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        df["Location Type"] = LOCATION_TYPE_SETTLEMENT_LOCATION
+        df["Market"] = "REAL_TIME_WEIS"
+
+        df = df.rename(
+            columns={
+                "Settlement Location Name": "Location",
+                "PNODE Name": "PNode",
+                "LMP": "LMP",  # for posterity
+                "MLC": "Loss",
+                "MCC": "Congestion",
+                "MEC": "Energy",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "PNode",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
+
         return df
 
     def _get_location_list(self, location_type, verbose=False):

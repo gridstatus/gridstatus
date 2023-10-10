@@ -5,10 +5,21 @@
 ### ERCOT
 
 - Add suport for RTM and DAM price correction datasets
+- Add System Lambda
+- Add support for RTM and DAM price correction datasets
+
+## SPP
+
+- Add support for generation capacity on outage
+- Add support for SPP WEIS Real Time LMP
 
 ### EIA
 
 - Add `EIA.get_grid_monitor` dataset with hourly BA and Region emission data
+
+### CAISO
+
+- Improve CAISO curtailed non-operational generator report
 
 ## v0.23.0 - Sept 12, 2023
 
@@ -21,6 +32,7 @@
 - Add `Ercot.get_60_day_sced_disclosure`
 - Add `Ercot.get_60_day_dam_disclosure`
 - Add support for specifying `forecast_type` to `Ercot.get_load_forecast`
+- Add ERCOT System Lambda
 
 ### MISO
 

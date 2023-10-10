@@ -128,7 +128,7 @@ class EIA:
 
         if total_pages > 1:
             pages = range(1, total_pages)
-            with concurrent.futures.concurrent.futures.ThreadPoolExecutor(
+            with concurrent.futures.ThreadPoolExecutor(
                 max_workers=n_workers,
             ) as executor:  # noqa
                 args = ((url, headers.copy(), page, page_size) for page in pages)

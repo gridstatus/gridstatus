@@ -205,6 +205,22 @@ def get_zip_folder(url, verbose=False):
     return z
 
 
+def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
+    z = get_zip_folder(url, verbose=verbose)
+
+    all_dfs = []
+    for f in z.filelist:
+        if f.filename.endswith(".csv"):
+            df = pd.read_csv(z.open(f.filename))
+            if process_csv:
+                df = process_csv(df, f.filename)
+            all_dfs.append(df)
+
+    df = pd.concat(all_dfs)
+
+    return df
+
+
 def is_today(date, tz):
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
 
