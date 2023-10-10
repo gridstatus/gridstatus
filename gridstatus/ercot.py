@@ -866,6 +866,8 @@ class Ercot(ISOBase):
             ]
         ]
 
+        df = df.sort_values("SCED Timestamp").reset_index(drop=True)
+
         return df
 
     @lmp_config(
@@ -2199,7 +2201,6 @@ class Ercot(ISOBase):
     def read_docs(self, docs, parse=True, verbose=False):
         dfs = []
         for doc in tqdm.tqdm(docs, desc="Reading files", disable=not verbose):
-            log(f"Reading {doc.url}", verbose)
             dfs.append(self.read_doc(doc, parse=parse, verbose=verbose))
         return pd.concat(dfs).reset_index(drop=True)
 
