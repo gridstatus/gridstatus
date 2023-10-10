@@ -7,6 +7,7 @@
 - Add suport for RTM and DAM price correction datasets
 - Add System Lambda
 - Add support for RTM and DAM price correction datasets
+- Add support for electrical bus and settlement point LMPS
 
 ## SPP
 

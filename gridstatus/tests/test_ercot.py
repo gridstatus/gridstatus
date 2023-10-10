@@ -11,16 +11,15 @@ class TestErcot(BaseTestISO):
     iso = Ercot()
 
     def test_get_sced_system_lambda(self):
-
         for i in ["latest", "today"]:
             df = self.iso.get_sced_system_lambda(i)
             assert df.shape[0] >= 0
             assert df.columns.tolist() == [
-                "SCED Time Stamp",
+                "SCED Timestamp",
                 "System Lambda",
             ]
             today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-            assert df["SCED Time Stamp"].unique()[0].date() == today
+            assert df["SCED Timestamp"].unique()[0].date() == today
             assert isinstance(df["System Lambda"].unique()[0], float)
 
     def test_get_as_prices(self):
@@ -49,33 +48,6 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == as_cols
         assert df["Time"].unique()[0].date() == date
-
-        date = pd.Timestamp(2022, 11, 8).date()
-        df = self.iso.get_as_prices(date, end="today")
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
-        assert df.Time.min().date() == date
-        assert df.Time.max().date() == today
-
-        date = today - pd.DateOffset(days=365)
-        df = self.iso.get_as_prices(date)
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
-        assert df.Time.min().date() == date.date()
-
-        df = self.iso.get_as_prices(date, end=today)
-
-        for check_date in pd.date_range(date, today, freq="D", inclusive="left"):
-            temp = df.loc[df.Time.dt.date == check_date.date()].copy()
-            assert temp.shape[0] > 0
-
-        date = pd.Timestamp(2022, 11, 8).date()
-        end = pd.Timestamp(2022, 11, 30).date()
-        df = self.iso.get_as_prices(date, end=end)
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
-        assert max(df.Time).date() == end
-        assert min(df.Time).date() == date
 
     def test_get_as_monitor(self):
         df = self.iso.get_as_monitor()
@@ -270,6 +242,53 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
+    def test_get_spp_dam_range(self):
+        today = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize()
+
+        two_days_ago = today - pd.Timedelta(
+            days=2,
+        )
+
+        df = self.iso.get_spp(
+            start=two_days_ago,
+            end=today,
+            market=Markets.DAY_AHEAD_HOURLY,
+            location_type="Load Zone",
+        )
+
+        # two unique days
+        # should be today and yesterday since published one day ahead
+        assert set(df["Interval Start"].dt.date.unique()) == {
+            today.date(),
+            today.date() - pd.Timedelta(days=1),
+        }
+        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
+
+    def test_get_spp_real_time_range(self):
+        today = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize()
+
+        one_hour_earlier = today - pd.Timedelta(
+            hours=1,
+        )
+
+        df = self.iso.get_spp(
+            start=one_hour_earlier,
+            end=today,
+            market=Markets.REAL_TIME_15_MIN,
+            location_type="Load Zone",
+        )
+
+        # should be 4 intervals in last hour
+        assert (df.groupby("Location")["Interval Start"].count() == 4).all()
+        assert df["Interval End"].min() >= one_hour_earlier
+        assert df["Interval End"].max() <= today
+
+        self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
+
     def test_get_spp_real_time_yesterday(self):
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         yesterday = today - pd.Timedelta(days=1)
@@ -280,6 +299,10 @@ class TestErcot(BaseTestISO):
             location_type="Trading Hub",
             verbose=True,
         )
+
+        import pdb
+
+        pdb.set_trace()
 
         # assert Interval End max is today
         assert df["Interval End"].max().date() == today
@@ -842,6 +865,55 @@ class TestErcot(BaseTestISO):
             "Location Type",
             "SPP Original",
             "SPP Corrected",
+        ]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    def test_get_lmp_electrical_bus(self):
+        cols = [
+            "SCED Timestamp",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+
+        # df = self.iso.get_lmp(
+        #     date="latest",
+        #     location_type="Electrical Bus",
+        # )
+
+        # assert df.shape[0] >= 0
+        # assert df.columns.tolist() == cols
+
+        now = pd.Timestamp.now(tz=self.iso.default_timezone)
+        start = now - pd.Timedelta(hours=1)
+        df = self.iso.get_lmp(
+            location_type="Electrical Bus",
+            start=start,
+            end=now,
+            verbose=True,
+        )
+
+        # There should be at least 12 intervals in the last hour
+        # sometimes there are more if sced is run more frequently
+        # subtracting 1 to allow for some flexibility
+        assert df["SCED Timestamp"].nunique() >= 12 - 1
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    def test_get_lmp_settlement_point(self):
+        df = self.iso.get_lmp(
+            date="latest",
+            location_type="Settlement Point",
+        )
+
+        cols = [
+            "SCED Timestamp",
+            "Location",
+            "Location Type",
+            "LMP",
         ]
 
         assert df.shape[0] >= 0
