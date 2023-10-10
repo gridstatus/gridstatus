@@ -805,7 +805,8 @@ class Ercot(ISOBase):
     ):
         """Get LMP data for ERCOT normally produced by SCED every five minutes
 
-        Can specify the location type to return "electrical bus" or "settlement point" data
+        Can specify the location type to return "electrical bus"
+        or "settlement point" data
 
         """
 
@@ -2092,7 +2093,7 @@ class Ercot(ISOBase):
                 friendly_name_timestamp = parse_timestamp_from_friendly_name(
                     doc["Document"]["FriendlyName"]
                 )
-            except:
+            except Exception:
                 friendly_name_timestamp = None
 
             doc_obj = Document(

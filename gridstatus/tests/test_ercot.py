@@ -3,7 +3,7 @@ import pytest
 
 import gridstatus
 from gridstatus import Ercot, Markets, NotSupported
-from gridstatus.ercot import Document, parse_timestamp_from_friendly_name
+from gridstatus.ercot import parse_timestamp_from_friendly_name
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
