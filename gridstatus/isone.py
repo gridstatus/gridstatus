@@ -324,7 +324,7 @@ class ISONE(ISOBase):
                         u,
                         skiprows=[0, 1, 2, 3, 5],
                         skipfooter=1,
-                        engine="python",
+                        engine="pyarrow",
                         dtype_backend="pyarrow",
                     ),
                 )
@@ -688,7 +688,7 @@ def _make_request(url, skiprows, verbose):
         io.StringIO(response.content.decode("utf8")),
         skiprows=skiprows,
         skipfooter=1,
-        engine="python",
+        engine="pyarrow",
         dtype_backend="pyarrow",
     ).drop_duplicates()
     return df

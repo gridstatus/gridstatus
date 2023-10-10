@@ -121,7 +121,7 @@ class SPP(ISOBase):
             raise NotSupported
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/GenMix2Hour.csv"  # noqa
-        df_raw = pd.read_csv(url, dtype_backend="pyarrow")
+        df_raw = pd.read_csv(url, engine="pyarrow", dtype_backend="pyarrow")
         historical_mix = process_gen_mix(df_raw, detailed=detailed)
 
         historical_mix = historical_mix.drop(
@@ -286,7 +286,7 @@ class SPP(ISOBase):
         msg = f"Downloading {url}"
         log(msg, verbose)
 
-        df = pd.read_csv(url)
+        df = pd.read_csv(url, engine="pyarrow", dtype_backend="pyarrow")
 
         return self._process_capacity_of_generation_on_outage(df, publish_time=date)
 
@@ -366,7 +366,7 @@ class SPP(ISOBase):
 
         msg = f"Downloading {url}"
         log(msg, verbose)
-        df = pd.read_csv(url, dtype_backend="pyarrow")
+        df = pd.read_csv(url, engine="pyarrow", dtype_backend="pyarrow")
 
         return self._process_ver_curtailments(df)
 
@@ -440,7 +440,7 @@ class SPP(ISOBase):
         msg = f"Getting interconnection queue from {url}"
         log(msg, verbose)
 
-        queue = pd.read_csv(url, skiprows=1, dtype_backend="pyarrow")
+        queue = pd.read_csv(url, skiprows=1, engine="pyarrow", dtype_backend="pyarrow")
 
         queue["Status (Original)"] = queue["Status"]
         completed_val = InterconnectionQueueStatus.COMPLETED.value
@@ -607,7 +607,7 @@ class SPP(ISOBase):
     ):
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/{FS_DAM_LMP_BY_LOCATION}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-LMP-SL-{date.strftime('%Y%m%d')}0100.csv"  # noqa
         log(f"Downloading {url}", verbose=verbose)
-        df = pd.read_csv(url, dtype_backend="pyarrow")
+        df = pd.read_csv(url, engine="pyarrow", dtype_backend="pyarrow")
         return df
 
     def _finalize_spp_df(self, df, market, location_type, verbose=False):
@@ -698,7 +698,7 @@ class SPP(ISOBase):
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/WEIS-RTBM-LMP-DAILY-SL-{date.strftime('%Y%m%d')}.csv"  # noqa
         msg = f"Downloading {url}"
         log(msg, verbose)
-        df = pd.read_csv(url)
+        df = pd.read_csv(url, engine="pyarrow", dtype_backend="pyarrow")
 
         return self._process_lmp_real_time_weis(df)
 
@@ -760,7 +760,7 @@ class SPP(ISOBase):
         for url in tqdm.tqdm(urls):
             msg = f"Fetching {url}"
             log(msg, verbose)
-            df = pd.read_csv(url, dtype_backend="pyarrow")
+            df = pd.read_csv(url, engine="pyarrow", dtype_backend="pyarrow")
             all_dfs.append(df)
         return pd.concat(all_dfs)
 

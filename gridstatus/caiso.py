@@ -1180,7 +1180,7 @@ def _get_historical(file, date, verbose=False):
             msg = f"Fetching URL: {url}"
             log(msg, verbose)
 
-    df = pd.read_csv(url, dtype_backend="pyarrow")
+    df = pd.read_csv(url, engine="pyarrow", dtype_backend="pyarrow")
 
     # sometimes there are extra rows at the end, so this lets us ignore them
     df = df.dropna(subset=["Time"])
@@ -1243,7 +1243,7 @@ def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
     # parse and concat all files
     dfs = []
     for f in z.namelist():
-        df = pd.read_csv(z.open(f), dtype_backend="pyarrow")
+        df = pd.read_csv(z.open(f), engine="pyarrow", dtype_backend="pyarrow")
         dfs.append(df)
 
     df = pd.concat(dfs)

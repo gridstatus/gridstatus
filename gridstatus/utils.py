@@ -211,7 +211,7 @@ def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
     all_dfs = []
     for f in z.filelist:
         if f.filename.endswith(".csv"):
-            df = pd.read_csv(z.open(f.filename))
+            df = pd.read_csv(z.open(f.filename), engine="pyarrow", dtype_backend="pyarrow")
             if process_csv:
                 df = process_csv(df, f.filename)
             all_dfs.append(df)
@@ -276,7 +276,7 @@ def load_folder(path, time_zone=None, verbose=True):
 
     dfs = []
     for f in tqdm.tqdm(all_files, disable=not verbose):
-        df = pd.read_csv(f, parse_dates=True, dtype_backend="pyarrow")
+        df = pd.read_csv(f, parse_dates=True, engine="pyarrow", dtype_backend="pyarrow")
         dfs.append(df)
 
     data = pd.concat(dfs).reset_index(drop=True)
