@@ -17,7 +17,7 @@ from gridstatus.base import (
     Markets,
     NotSupported,
 )
-from gridstatus.decorators import ercot_update_dates, support_date_range
+from gridstatus.decorators import support_date_range
 from gridstatus.ercot_60d_utils import (
     process_dam_gen,
     process_dam_load,
@@ -78,6 +78,14 @@ RTM_PRICE_CORRECTIONS_RTID = 13045
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-196-M
 DAM_PRICE_CORRECTIONS_RTID = 13044
 
+# LMPs by Electrical Bus
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-787-CD
+LMPS_BY_ELECTRICAL_BUS_RTID = 11485
+
+# LMPs by Resource Nodes, Load Zones and Trading Hubs
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-788-CD
+LMPS_BY_SETTLEMENT_POINT_RTID = 12300
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -112,10 +120,6 @@ ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE = 13101
 # Actual System Load by Forecast Zone
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-346-CD
 ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE = 14836
-
-# Historical DAM Clearing Prices for Capacity
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
-HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 13091
 
 # 60-Day DAM Disclosure Reports
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-966-ER
@@ -177,6 +181,32 @@ class Document:
     publish_date: pd.Timestamp
     constructed_name: str
     friendly_name: str
+    friendly_name_timestamp: pd.Timestamp
+
+
+def parse_timestamp_from_friendly_name(friendly_name):
+    parts = friendly_name.replace("_retry", "").split("_")
+    date_str = parts[1]
+    time_str = parts[2]
+    # Add a colon between hours, minutes, and seconds for pandas to parse
+    if len(time_str) > 4:
+        second_str = time_str[4:6]
+    else:
+        second_str = "00"
+
+    time_str_formatted = time_str[:2] + ":" + time_str[2:4] + ":" + second_str
+
+    # Combine date and time strings
+    datetime_str = date_str + " " + time_str_formatted
+    # Convert to pandas timestampp
+    try:
+        timestamp = pd.to_datetime(datetime_str, format="%Y%m%d %H:%M:%S").tz_localize(
+            Ercot.default_timezone,
+            ambiguous=False,
+        )
+    except:  # noqa
+        raise
+    return timestamp
 
 
 class Ercot(ISOBase):
@@ -206,7 +236,6 @@ class Ercot(ISOBase):
     ACTUAL_LOADS_FORECAST_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"  # noqa
     ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_weather_zones.html"  # noqa
     LOAD_HISTORICAL_MAX_DAYS = 14
-    AS_PRICES_HISTORICAL_MAX_DAYS = 30
 
     def get_status(self, date, verbose=False):
         """Returns status of grid"""
@@ -517,7 +546,7 @@ class Ercot(ISOBase):
 
         doc = self._get_document(
             report_type_id=forecast_type.value,
-            published_before=None if date == "latest" else date,
+            published_before=date,
             constructed_name_contains="csv.zip",
             verbose=verbose,
         )
@@ -593,8 +622,9 @@ class Ercot(ISOBase):
 
         df["Delivery Interval"] = df["Delivery Interval"].astype("Int64")
         df = self.parse_doc(df, verbose=verbose)
-        df["Market"] = Markets.REAL_TIME_15_MIN.value
-        return self._finalize_spp_df(df, verbose=verbose)
+        return self._finalize_spp_df(
+            df, market=Markets.REAL_TIME_15_MIN, verbose=verbose
+        )
 
     def get_dam_spp(self, year, verbose=False):
         """Get Historical DAM Settlement Point Prices(SPPs)
@@ -619,8 +649,9 @@ class Ercot(ISOBase):
         df = pd.concat(all_sheets.values())
         # filter where DSTFlag == 10
         df = self.parse_doc(df, verbose=verbose)
-        df["Market"] = Markets.DAY_AHEAD_HOURLY.value
-        return self._finalize_spp_df(df, verbose=verbose)
+        return self._finalize_spp_df(
+            df, market=Markets.DAY_AHEAD_HOURLY, verbose=verbose
+        )
 
     def get_interconnection_queue(self, verbose=False):
         """
@@ -761,13 +792,111 @@ class Ercot(ISOBase):
 
         return queue
 
+    @support_date_range(frequency=None)
+    def get_lmp(
+        self,
+        date,
+        end=None,
+        market: str = Markets.REAL_TIME_SCED,
+        locations: list = "ALL",
+        location_type: str = "ALL",
+        verbose=False,
+    ):
+        """Get LMP data for ERCOT normally produced by SCED every five minutes
+
+        Can specify the location type to return "electrical bus"
+        or "settlement point" data
+
+        """
+
+        if location_type.lower() == "Electrical Bus".lower():
+            report = LMPS_BY_ELECTRICAL_BUS_RTID
+        elif location_type.lower() == "Settlement Point".lower():
+            report = LMPS_BY_SETTLEMENT_POINT_RTID
+
+        # if end is None, assume requesting one day
+        if end is None:
+            start = None
+            end = None
+            date = date
+        else:
+            start = date
+            end = end
+            date = None
+
+        docs = self._get_documents(
+            report_type_id=report,
+            date=date,
+            friendly_name_timestamp_after=start,
+            friendly_name_timestamp_before=end,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        return self._handle_lmp(docs=docs, verbose=verbose)
+
+    def _handle_lmp(self, docs, verbose=False):
+        df = self.read_docs(
+            docs,
+            parse=False,
+            # need to return a DF that works with the
+            # logic in rest of function
+            empty_df=pd.DataFrame(
+                columns=[
+                    "SCEDTimestamp",
+                    "RepeatedHourFlag",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                ],
+            ),
+            verbose=verbose,
+        )
+
+        df = self._handle_sced_timestamp(df=df, verbose=verbose)
+
+        if "SettlementPoint" in df.columns:
+            df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
+        elif "ElectricalBus" in df.columns:
+            # do same thing as settlement point but for electrical bus
+            df = df.rename(
+                columns={
+                    "ElectricalBus": "Location",
+                },
+            )
+            df["Location Type"] = "Electrical Bus"
+            # make Location string and location typoe category
+            df["Location"] = df["Location"].astype("string")
+            df["Location Type"] = df["Location Type"].astype("category")
+
+        df["Market"] = Markets.REAL_TIME_SCED.value
+
+        df = df[
+            [
+                "SCED Timestamp",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+        ]
+        # sort by SCED Timestamp and Location
+        df = df.sort_values(
+            [
+                "SCED Timestamp",
+                "Location",
+            ],
+        ).reset_index(drop=True)
+
+        return df
+
     @lmp_config(
         supports={
             Markets.REAL_TIME_15_MIN: ["latest", "today", "historical"],
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
         },
     )
-    @support_date_range(frequency="DAY_START")
+    @support_date_range(frequency=None)
     def get_spp(
         self,
         date,
@@ -788,18 +917,73 @@ class Ercot(ISOBase):
             - ``Trading Hub``
             - ``Resource Node``
         """
+
+        publish_date = None
+        published_before = None
+        published_after = None
+        friendly_name_timestamp_before = None
+        friendly_name_timestamp_after = None
+
         if market == Markets.REAL_TIME_15_MIN:
-            df = self._get_spp_rtm15(
-                date,
-                verbose,
-            )
+            if date == "latest":
+                publish_date = "latest"
+            elif end is None:
+                # no end, so assume requesting one day
+                # use the timestamp from the friendly name
+                friendly_name_timestamp_after = date.normalize()
+                friendly_name_timestamp_before = (
+                    friendly_name_timestamp_after + pd.DateOffset(days=1)
+                )
+
+            else:
+                friendly_name_timestamp_after = date
+                friendly_name_timestamp_before = end
+
+            report = SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID
         elif market == Markets.DAY_AHEAD_HOURLY:
-            df = self._get_spp_dam(date, verbose)
+            if date == "latest":
+                publish_date = "latest"
+            elif end is None:
+                # no end, so assume requesting one day
+                # data is publish one day prior
+                publish_date = date.normalize() - pd.DateOffset(days=1)
+            else:
+                published_before = end
+                published_after = date
+            report = DAM_SETTLEMENT_POINT_PRICES_RTID
+
+        docs = self._get_documents(
+            report_type_id=report,
+            date=publish_date,
+            published_before=published_before,
+            published_after=published_after,
+            friendly_name_timestamp_before=friendly_name_timestamp_before,
+            friendly_name_timestamp_after=friendly_name_timestamp_after,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(
+            docs,
+            empty_df=pd.DataFrame(
+                columns=[
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Location",
+                    "Location Type",
+                    "Market",
+                    "SPP",
+                ]
+            ),
+            verbose=verbose,
+        )
 
         return self._finalize_spp_df(
             df,
             locations=locations,
             location_type=location_type,
+            market=market,
             verbose=verbose,
         )
 
@@ -859,10 +1043,17 @@ class Ercot(ISOBase):
                 df.loc[is_load_zone_dc_tie_energy_weighted, "Location"] + "_EW"
             )
 
+        df["Location"] = df["Location"].astype("string")
+        df["Location Type"] = df["Location Type"].astype("category")
+
         return df
 
-    def _finalize_spp_df(self, df, locations=None, location_type=None, verbose=False):
+    def _finalize_spp_df(
+        self, df, market, locations=None, location_type=None, verbose=False
+    ):
         df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
+
+        df["Market"] = market.value
 
         df = df.rename(
             columns={
@@ -894,100 +1085,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def _get_spp_dam(
-        self,
-        date,
-        verbose=False,
-    ):
-        """Get day-ahead hourly Market SPP data for ERCOT"""
-        if date == "latest":
-            raise ValueError(
-                "DAM is released daily, so use date='today' instead",
-            )
-
-        publish_date = utils._handle_date(date, self.default_timezone)
-        # adjust for DAM since it's published a day ahead
-        publish_date = publish_date.normalize() - pd.DateOffset(days=1)
-        doc_info = self._get_document(
-            report_type_id=DAM_SETTLEMENT_POINT_PRICES_RTID,
-            date=publish_date,
-            constructed_name_contains="csv.zip",
-            verbose=verbose,
-        )
-
-        msg = f"Fetching {doc_info.url}"
-        log(msg, verbose)
-
-        df = self.read_doc(doc_info, verbose=verbose)
-
-        # fetch mapping
-        # todo move to finalize?
-        df["Market"] = Markets.DAY_AHEAD_HOURLY.value
-
-        return df
-
-    def _get_spp_rtm15(
-        self,
-        date,
-        verbose=False,
-    ):
-        """Get Real-time 15-minute Market SPP data for ERCOT
-
-        https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD
-        """
-        # returns list of Document(url=,publish_date=)
-
-        all_docs = self._get_documents(
-            report_type_id=SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID,
-            extension="csv",
-            verbose=verbose,
-        )
-
-        docs = self._filter_spp_rtm_files(
-            all_docs=all_docs,
-            date=date,
-        )
-        if len(docs) == 0:
-            raise ValueError(f"Could not fetch SPP data for {date}")
-
-        all_dfs = []
-        for doc_info in tqdm.tqdm(docs, disable=not verbose):
-            doc_url = doc_info.url
-            msg = f"Fetching {doc_url}"
-            log(msg, verbose)
-            df = self.read_doc(doc_info, verbose=verbose)
-            all_dfs.append(df)
-
-        df = pd.concat(all_dfs).reset_index(drop=True)
-
-        df["Market"] = Markets.REAL_TIME_15_MIN.value
-        return df
-
-    def _filter_spp_rtm_files(self, all_docs, date):
-        if date == "latest":
-            # just pluck out the latest document based on publish_date
-            return [max(all_docs, key=lambda x: x.publish_date)]
-        query_date_str = date.strftime("%Y%m%d")
-        docs = []
-        for doc in all_docs:
-            # make sure to handle retry files
-            # e.g SPPHLZNP6905_retry_20230608_1545_csv
-            if "SPPHLZNP6905_" not in doc.constructed_name:
-                continue
-
-            if query_date_str + "_0000" in doc.constructed_name:
-                continue
-
-            if (
-                query_date_str in doc.constructed_name
-                or f"{(date + pd.Timedelta(days=1)).strftime('%Y%m%d')}_0000"  # noqa: E501
-                in doc.constructed_name
-            ):
-                docs.append(doc)
-
-        return docs
-
-    @support_date_range(frequency="1Y", update_dates=ercot_update_dates)
+    @support_date_range(frequency="DAY_START")
     def get_as_prices(
         self,
         date,
@@ -1009,78 +1107,8 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
                 "Regulation Up", "Regulation Down", "Responsive Reserves", \
                 "ERCOT Contingency Reserve Service"
-
-        Source:
-            https://www.ercot.com/mp/data-products/data-product-details?id=NP4-181-ER
         """
 
-        # use to check if we need to pull daily files
-        if (
-            date.date()
-            >= (
-                pd.Timestamp.now(tz=self.default_timezone)
-                - pd.DateOffset(days=self.AS_PRICES_HISTORICAL_MAX_DAYS)
-            ).date()
-        ):
-            return self._get_as_prices_recent(date, end=end)
-        elif not end:
-            end = date
-
-        doc_info = self._get_document(
-            report_type_id=HISTORICAL_DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
-            constructed_name_contains=f"{date.year}.zip",
-            verbose=verbose,
-        )
-        doc = self.read_doc(doc_info, verbose=verbose)
-
-        doc = self._finalize_as_price_df(doc)
-
-        max_date = doc.Time.max().date()
-
-        df_list = [doc]
-
-        # if last df date is less than our specified end
-        # date, pull the remaining days. Will only be applicable
-        # if end date is within today - 3days
-        if max_date < end.date():
-            df_list.append(
-                self._get_as_prices_recent(
-                    start=max_date,
-                    end=end,
-                ),
-            )
-
-        # join, sort, filter and reset data index
-        data = pd.concat(df_list).sort_values(by="Interval Start")
-
-        data = (
-            data.loc[
-                (data.Time.dt.date >= date.date()) & (data.Time.dt.date <= end.date())
-            ]
-            .drop_duplicates(subset=["Interval Start"])
-            .reset_index(drop=True)
-        )
-
-        return data
-
-    @support_date_range("DAY_START")
-    def _get_as_prices_recent(self, date, verbose=False):
-        """Get ancillary service clearing prices in hourly intervals in Day
-            Ahead Market. This function can return the last 31 days
-            of ancillary pricing.
-
-        Arguments:
-            date (datetime.date, str): date of delivery for AS services
-
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        Returns:
-
-            pandas.DataFrame: A DataFrame with prices for "Non-Spinning Reserves", \
-                "Regulation Up", "Regulation Down", "Responsive Reserves", \
-                "ERCOT Contingency Reserve Service"
-
-        """
         # subtract one day since it's the day ahead market happens on the day
         # before for the delivery day
 
@@ -1098,12 +1126,12 @@ class Ercot(ISOBase):
 
         doc = self.read_doc(doc_info, verbose=verbose)
 
-        data = self._finalize_as_price_df(
+        df = self._finalize_as_price_df(
             doc,
             pivot=True,
         )
 
-        return data
+        return df
 
     @support_date_range("DAY_START")
     def get_60_day_sced_disclosure(self, date, end=None, process=False, verbose=False):
@@ -1504,7 +1532,7 @@ class Ercot(ISOBase):
         """
         doc = self._get_document(
             report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,
-            published_before=None if date == "latest" else date,
+            published_before=date,
             extension="csv",
             verbose=verbose,
         )
@@ -1534,7 +1562,7 @@ class Ercot(ISOBase):
 
         doc = self._get_document(
             report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
-            published_before=None if date == "latest" else date,
+            published_before=date,
             extension="csv",
             verbose=verbose,
         )
@@ -1582,7 +1610,7 @@ class Ercot(ISOBase):
         doc = self._get_document(
             report_type_id=HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID,
             extension="csv",
-            published_before=None if date == "latest" else date,
+            published_before=date,
             verbose=verbose,
         )
 
@@ -1791,16 +1819,16 @@ class Ercot(ISOBase):
 
         return self.parse_doc(df, verbose=verbose)
 
-    @support_date_range("DAY_START")
-    def get_sced_system_lambda(self, date, verbose=False):
+    @support_date_range(frequency=None)
+    def get_sced_system_lambda(self, date, end=None, verbose=False):
         """Get System lambda of each successful SCED
 
-        5 Minute Publish Interval
-
-        https://github.com/kmax12/gridstatus/issues/269
+        Normally published every 5 minutes
 
         Arguments:
-            date (str, datetime): date to get data for
+            date (str, datetime, pd.Timestamp): date or start time to get data for
+            end (str, datetime, optional): end time to get data for. If None,
+                return 1 day of data. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
@@ -1808,44 +1836,80 @@ class Ercot(ISOBase):
 
         """
 
-        # just so we can share parse logic
-        kwargs = dict(
+        # no end, so assume requesting one day
+        # use the timestamp from the friendly name
+        if date == "latest":
+            date = date
+            friendly_name_timestamp_after = None
+            friendly_name_timestamp_before = None
+        elif end is None:
+            friendly_name_timestamp_after = date.normalize()
+            friendly_name_timestamp_before = (
+                friendly_name_timestamp_after + pd.DateOffset(days=1)
+            )
+            date = None
+        else:
+            friendly_name_timestamp_after = date
+            friendly_name_timestamp_before = end
+            date = None
+
+        docs = self._get_documents(
             report_type_id=SCED_SYSTEM_LAMBDA_RTID,
             date=date,
+            friendly_name_timestamp_after=friendly_name_timestamp_after,
+            friendly_name_timestamp_before=friendly_name_timestamp_before,
             verbose=verbose,
-            extension="csv",
+            constructed_name_contains="csv.zip",
         )
-
-        if date == "latest":
-            doc = self._get_document(**kwargs)
-            docs = [doc]
-        else:
-            docs = self._get_documents(**kwargs)
 
         df = self._handle_sced_system_lambda(docs, verbose=verbose)
 
         return df
 
-    def _handle_sced_system_lambda(self, docs, verbose):
-        log("Reading SCED System Lambda files", verbose)
-
-        df = pd.concat(
-            [pd.read_csv(i.url, compression="zip") for i in tqdm.tqdm(docs)],
+    def _handle_sced_timestamp(self, df, verbose=False):
+        df = df.rename(
+            columns={
+                "SCEDTimeStamp": "SCED Timestamp",
+                "SCEDTimestamp": "SCED Timestamp",
+            },
         )
 
-        df["SCED Time Stamp"] = pd.to_datetime(df["SCEDTimeStamp"]).dt.tz_localize(
+        df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"]).dt.tz_localize(
             self.default_timezone,
             ambiguous=df["RepeatedHourFlag"] == "N",
         )
 
-        df["System Lambda"] = df["SystemLambda"].astype("float64")
+        df = df.drop("RepeatedHourFlag", axis=1)
 
-        df.drop(
-            ["SystemLambda", "SCEDTimeStamp", "RepeatedHourFlag"],
-            axis=1,
-            inplace=True,
+        return df
+
+    def _handle_sced_system_lambda(self, docs, verbose):
+        all_dfs = []
+        for doc in tqdm.tqdm(
+            docs, desc="Reading SCED System Lambda files", disable=not verbose
+        ):
+            log(f"Reading {doc.url}", verbose)
+            df = pd.read_csv(doc.url, compression="zip")
+            all_dfs.append(df)
+
+        if len(all_dfs) == 0:
+            df = pd.DataFrame(
+                columns=["SCEDTimeStamp", "RepeatedHourFlag", "SystemLambda"]
+            )
+        else:
+            df = pd.concat(all_dfs)
+
+        df = self._handle_sced_timestamp(df, verbose=verbose)
+
+        df["SystemLambda"] = df["SystemLambda"].astype("float64")
+
+        df = df.rename(
+            columns={
+                "SystemLambda": "System Lambda",
+            },
         )
-        df.sort_values("SCED Time Stamp", inplace=True)
+
+        df.sort_values("SCED Timestamp", inplace=True)
         return df
 
     @support_date_range("DAY_START")
@@ -1952,12 +2016,7 @@ class Ercot(ISOBase):
         return df
 
     def _handle_price_corrections(self, docs, verbose=False):
-        dfs = []
-        for d in tqdm.tqdm(docs, disable=not verbose):
-            df = self.read_doc(d, verbose=verbose)
-            dfs.append(df)
-
-        df = pd.concat(dfs)
+        df = self.read_docs(docs, verbose=verbose)
 
         df = self._handle_settlement_point_name_and_type(df)
 
@@ -1994,6 +2053,7 @@ class Ercot(ISOBase):
         self,
         report_type_id,
         date=None,
+        published_after=None,
         published_before=None,
         constructed_name_contains=None,
         extension=None,
@@ -2016,6 +2076,7 @@ class Ercot(ISOBase):
         documents = self._get_documents(
             report_type_id=report_type_id,
             date=date,
+            published_after=published_after,
             published_before=published_before,
             constructed_name_contains=constructed_name_contains,
             extension=extension,
@@ -2032,7 +2093,10 @@ class Ercot(ISOBase):
         self,
         report_type_id,
         date=None,
+        published_after=None,
         published_before=None,
+        friendly_name_timestamp_after=None,
+        friendly_name_timestamp_before=None,
         constructed_name_contains=None,
         extension=None,
         verbose=False,
@@ -2047,41 +2111,72 @@ class Ercot(ISOBase):
         msg = f"Fetching document {url}"
         log(msg, verbose)
 
+        # if latest, we dont need to filter
+        # so we can set to None
+        if published_before == "latest":
+            published_before = None
+
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
         matches = []
         for doc in docs:
             match = True
 
-            publish_date = pd.Timestamp(doc["Document"]["PublishDate"]).tz_convert(
-                self.default_timezone,
+            doc_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc['Document']['DocID']}"  # noqa
+
+            # make sure to handle retry files
+            # e.g SPPHLZNP6905_retry_20230608_1545_csv
+            try:
+                friendly_name_timestamp = parse_timestamp_from_friendly_name(
+                    doc["Document"]["FriendlyName"]
+                )
+            except Exception:
+                friendly_name_timestamp = None
+
+            doc_obj = Document(
+                url=doc_url,
+                publish_date=pd.Timestamp(doc["Document"]["PublishDate"]).tz_convert(
+                    self.default_timezone,
+                ),
+                constructed_name=doc["Document"]["ConstructedName"],
+                friendly_name=doc["Document"]["FriendlyName"],
+                friendly_name_timestamp=friendly_name_timestamp,
             )
 
-            if published_before:
-                match = match and publish_date <= published_before
+            if published_after:
+                match = match and doc_obj.publish_date > published_after
 
-            if date:
-                match = match and publish_date.date() == date.date()
+            if published_before:
+                match = match and doc_obj.publish_date <= published_before
+
+            if doc_obj.friendly_name_timestamp:
+                if friendly_name_timestamp_after:
+                    match = (
+                        match
+                        and doc_obj.friendly_name_timestamp
+                        > friendly_name_timestamp_after
+                    )
+
+                if friendly_name_timestamp_before:
+                    match = (
+                        match
+                        and doc_obj.friendly_name_timestamp
+                        <= friendly_name_timestamp_before
+                    )
+
+            if date and date != "latest":
+                match = match and doc_obj.publish_date.date() == date.date()
 
             if extension:
-                match = match and doc["Document"]["FriendlyName"].endswith(extension)
+                match = match and doc_obj.friendly_name.endswith(extension)
 
             if constructed_name_contains:
-                match = (
-                    match
-                    and constructed_name_contains in doc["Document"]["ConstructedName"]
-                )
+                match = match and constructed_name_contains in doc_obj.constructed_name
 
             if match:
-                doc_id = doc["Document"]["DocID"]
-                url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}"  # noqa
-                matches.append(
-                    Document(
-                        url=url,
-                        publish_date=publish_date,
-                        constructed_name=doc["Document"]["ConstructedName"],
-                        friendly_name=doc["Document"]["FriendlyName"],
-                    ),
-                )
+                matches.append(doc_obj)
+
+        if date == "latest":
+            return [max(matches, key=lambda x: x.publish_date)]
 
         return matches
 
@@ -2100,6 +2195,7 @@ class Ercot(ISOBase):
 
         doc_info = self._get_document(
             report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
+            extension=None,
             verbose=verbose,
         )
         doc_url = doc_info.url
@@ -2116,10 +2212,21 @@ class Ercot(ISOBase):
         df = pd.read_csv(z.open(settlement_points_file))
         return df
 
-    def read_doc(self, doc, verbose=False):
+    def read_doc(self, doc, parse=True, verbose=False):
         log(f"Reading {doc.url}", verbose)
         df = pd.read_csv(doc.url, compression="zip")
-        return self.parse_doc(df, verbose=verbose)
+        if parse:
+            df = self.parse_doc(df, verbose=verbose)
+        return df
+
+    def read_docs(self, docs, parse=True, empty_df=None, verbose=False):
+        if len(docs) == 0:
+            return empty_df
+
+        dfs = []
+        for doc in tqdm.tqdm(docs, desc="Reading files", disable=not verbose):
+            dfs.append(self.read_doc(doc, parse=parse, verbose=verbose))
+        return pd.concat(dfs).reset_index(drop=True)
 
     def parse_doc(self, doc, verbose=False):
         # files sometimes have different naming conventions

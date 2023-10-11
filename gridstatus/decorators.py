@@ -16,7 +16,7 @@ def _get_args_dict(fn, args, kwargs):
 
 class support_date_range:
     def __init__(self, frequency, update_dates=None):
-        """Maximum frequency of ranges"""
+        """Maximum frequency of ranges. if None, then no new ranges are created."""
         self.frequency = frequency
         self.update_dates = update_dates
 
@@ -98,61 +98,62 @@ class support_date_range:
                 args_dict["date"],
             )
 
-            # use .date() to remove timezone info, which doesnt matter
-            # if just a date
-
             # if frequency is callable, then use it to get the frequency
             frequency = self.frequency
             if callable(frequency):
                 frequency = self.frequency(args_dict)
 
-            # Note: this may create a split that will end up
-            # being unnecessary after running update dates below.
-            # that is because after adding new dates, it's possible that two
-            # ranges could be added.
-            # Unnecessary optimization right now to include
-            # logic to handle this
+            if frequency is None:
+                dates = [args_dict["date"], args_dict["end"]]
+            else:
+                # Note: this may create a split that will end up
+                # being unnecessary after running update dates below.
+                # that is because after adding new dates, it's possible that two
+                # ranges could be added.
+                # Unnecessary optimization right now to include
+                # logic to handle this
+                # if certain frequency, we need to handle first interval
+                # specially so pd.date_range works
+                prepend = []
+                if frequency == "DAY_START":
+                    frequency = "1D"
+                    next_day_start = args_dict["date"].ceil("1D")
+                    if (
+                        next_day_start < args_dict["end"]
+                        and next_day_start != args_dict["date"]
+                    ):
+                        prepend = [args_dict["date"]]
+                        args_dict["date"] = args_dict["date"].ceil("1D")
+                elif frequency == "MONTH_START":
+                    frequency = pd.offsets.MonthBegin(1)
+                    next_month_start = (args_dict["date"] + frequency).normalize()
 
-            # if certain frequency, we need to handle first interval
-            # specially so pd.date_range works
-            prepend = []
-            if frequency == "DAY_START":
-                frequency = "1D"
-                next_day_start = args_dict["date"].ceil("1D")
-                if (
-                    next_day_start < args_dict["end"]
-                    and next_day_start != args_dict["date"]
-                ):
-                    prepend = [args_dict["date"]]
-                    args_dict["date"] = args_dict["date"].ceil("1D")
-            elif frequency == "MONTH_START":
-                frequency = pd.offsets.MonthBegin(1)
-                next_month_start = (args_dict["date"] + frequency).normalize()
+                    if (
+                        next_month_start < args_dict["end"]
+                        and next_month_start != args_dict["date"]
+                    ):
+                        prepend = [args_dict["date"]]
+                        args_dict["date"] = next_month_start
+                elif frequency == "HOUR_START":
+                    frequency = "1H"
+                    next_hour_start = args_dict["date"].ceil("1H")
 
-                if (
-                    next_month_start < args_dict["end"]
-                    and next_month_start != args_dict["date"]
-                ):
-                    prepend = [args_dict["date"]]
-                    args_dict["date"] = next_month_start
-            elif frequency == "HOUR_START":
-                frequency = "1H"
-                next_hour_start = args_dict["date"].ceil("1H")
+                    if (
+                        next_hour_start < args_dict["end"]
+                        and next_hour_start != args_dict["date"]
+                    ):
+                        prepend = [args_dict["date"]]
+                        args_dict["date"] = next_hour_start
 
-                if (
-                    next_hour_start < args_dict["end"]
-                    and next_hour_start != args_dict["date"]
-                ):
-                    prepend = [args_dict["date"]]
-                    args_dict["date"] = next_hour_start
-
-            dates = pd.date_range(
-                args_dict["date"],
-                args_dict["end"],
-                freq=frequency,
-                inclusive="neither",
-            )
-            dates = prepend + [args_dict["date"]] + dates.tolist() + [args_dict["end"]]
+                dates = pd.date_range(
+                    args_dict["date"],
+                    args_dict["end"],
+                    freq=frequency,
+                    inclusive="neither",
+                )
+                dates = (
+                    prepend + [args_dict["date"]] + dates.tolist() + [args_dict["end"]]
+                )
 
             dates = [
                 gridstatus.utils._handle_date(
@@ -367,30 +368,3 @@ def pjm_update_dates(dates, args_dict):
             )
 
     return new_dates
-
-
-def ercot_update_dates(dates, args_dict):
-    date = args_dict["date"]
-    end = args_dict["end"]
-
-    if date.year == end.year:
-        return dates
-
-    years = {x for x in range(date.year, end.year + 1)}
-
-    fixed_dates = []
-
-    for i, year in enumerate(years):
-        if i == 0:
-            fixed_dates.append(date)
-            fixed_dates.append(pd.Timestamp(year, 12, 31))
-            fixed_dates.append(None)
-        elif i == len(years) - 1:
-            fixed_dates.append(pd.Timestamp(year, 1, 1))
-            fixed_dates.append(end)
-        else:
-            fixed_dates.append(pd.Timestamp(year, 1, 1))
-            fixed_dates.append(pd.Timestamp(year, 12, 31))
-            fixed_dates.append(None)
-
-    return fixed_dates

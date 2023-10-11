@@ -22,6 +22,9 @@ class Markets(Enum):
     REAL_TIME_HOURLY = "REAL_TIME_HOURLY"
     DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
 
+    # for ercot LMPs
+    REAL_TIME_SCED = "REAL_TIME_SCED"
+
     def __contains__(cls, item):
         try:
             cls(item)
