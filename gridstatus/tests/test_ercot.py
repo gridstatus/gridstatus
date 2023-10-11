@@ -878,6 +878,12 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
+    def test_read_docs_return_empty_df(self):
+        df = self.iso.read_docs(docs=[], empty_df=pd.DataFrame(columns=["test"]))
+
+        assert df.shape[0] == 0
+        assert df.columns.tolist() == ["test"]
+
     @staticmethod
     def _check_ercot_spp(df, market, location_type):
         """Common checks for SPP data:

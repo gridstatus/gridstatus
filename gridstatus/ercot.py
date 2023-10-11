@@ -836,7 +836,21 @@ class Ercot(ISOBase):
         return self._handle_lmp(docs=docs, verbose=verbose)
 
     def _handle_lmp(self, docs, verbose=False):
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        final_cols = [
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+        df = self.read_docs(
+            docs,
+            parse=False,
+            empty_df=pd.DataFrame(
+                columns=final_cols,
+            ),
+            verbose=verbose,
+        )
 
         df = self._handle_sced_timestamp(df=df, verbose=verbose)
 
@@ -856,15 +870,7 @@ class Ercot(ISOBase):
 
         df["Market"] = Markets.REAL_TIME_SCED.value
 
-        df = df[
-            [
-                "SCED Timestamp",
-                "Market",
-                "Location",
-                "Location Type",
-                "LMP",
-            ]
-        ]
+        df = df[final_cols]
         # sort by SCED Timestamp and Location
         df = df.sort_values(
             [
@@ -948,10 +954,9 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        # todo maybe this logic can move to read_docs/read_doc
-        if len(docs) == 0:
-            log("No documents found", verbose)
-            return pd.DataFrame(
+        df = self.read_docs(
+            docs,
+            empty_df=pd.DataFrame(
                 columns=[
                     "Time",
                     "Interval Start",
@@ -961,9 +966,9 @@ class Ercot(ISOBase):
                     "Market",
                     "SPP",
                 ]
-            )
-
-        df = self.read_docs(docs, verbose=verbose)
+            ),
+            verbose=verbose,
+        )
 
         return self._finalize_spp_df(
             df,
@@ -2205,7 +2210,10 @@ class Ercot(ISOBase):
             df = self.parse_doc(df, verbose=verbose)
         return df
 
-    def read_docs(self, docs, parse=True, verbose=False):
+    def read_docs(self, docs, parse=True, empty_df=None, verbose=False):
+        if len(docs) == 0:
+            return empty_df
+
         dfs = []
         for doc in tqdm.tqdm(docs, desc="Reading files", disable=not verbose):
             dfs.append(self.read_doc(doc, parse=parse, verbose=verbose))
