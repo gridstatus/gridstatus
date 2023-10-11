@@ -836,18 +836,19 @@ class Ercot(ISOBase):
         return self._handle_lmp(docs=docs, verbose=verbose)
 
     def _handle_lmp(self, docs, verbose=False):
-        final_cols = [
-            "SCED Timestamp",
-            "Market",
-            "Location",
-            "Location Type",
-            "LMP",
-        ]
         df = self.read_docs(
             docs,
             parse=False,
+            # need to return a DF that works with the
+            # logic in rest of function
             empty_df=pd.DataFrame(
-                columns=final_cols,
+                columns=[
+                    "SCEDTimestamp",
+                    "RepeatedHourFlag",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                ],
             ),
             verbose=verbose,
         )
@@ -870,7 +871,15 @@ class Ercot(ISOBase):
 
         df["Market"] = Markets.REAL_TIME_SCED.value
 
-        df = df[final_cols]
+        df = df[
+            [
+                "SCED Timestamp",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+        ]
         # sort by SCED Timestamp and Location
         df = df.sort_values(
             [
