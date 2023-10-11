@@ -888,7 +888,9 @@ class CAISO(ISOBase):
 
         # find index of OUTAGE MRID
         test_parse = pd.read_excel(
-            content, usecols="B:M", sheet_name="PREV_DAY_OUTAGES"
+            content,
+            usecols="B:M",
+            sheet_name="PREV_DAY_OUTAGES",
         )
         first_col = test_parse[test_parse.columns[0]]
         outage_mrid_index = first_col[first_col == "OUTAGE MRID"].index[0] + 1
@@ -947,7 +949,7 @@ class CAISO(ISOBase):
             ]
 
             assert not df.duplicated(
-                subset=["Outage MRID", "Curtailment Start Time"]
+                subset=["Outage MRID", "Curtailment Start Time"],
             ).any(), "There are still duplicates"
 
         return df

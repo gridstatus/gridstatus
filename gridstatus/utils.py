@@ -211,7 +211,9 @@ def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
     all_dfs = []
     for f in z.filelist:
         if f.filename.endswith(".csv"):
-            df = pd.read_csv(z.open(f.filename), engine="pyarrow", dtype_backend="pyarrow")
+            df = pd.read_csv(
+                z.open(f.filename), engine="pyarrow", dtype_backend="pyarrow"
+            )
             if process_csv:
                 df = process_csv(df, f.filename)
             all_dfs.append(df)

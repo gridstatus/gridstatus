@@ -769,7 +769,9 @@ class NYISO(ISOBase):
                     msg = f"{csv_filename} not found in {zip_url}"
                     log(msg, verbose)
                     continue
-                df = pd.read_csv(z.open(csv_filename), engine="pyarrow", dtype_backend="pyarrow")
+                df = pd.read_csv(
+                    z.open(csv_filename), engine="pyarrow", dtype_backend="pyarrow"
+                )
                 df["File Date"] = d.normalize()
 
                 df = _handle_time(df, dataset_name)

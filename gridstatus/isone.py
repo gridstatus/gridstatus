@@ -522,7 +522,9 @@ class ISONE(ISOBase):
         log(msg, verbose)
 
         r = requests.get("https://irtt.iso-ne.com/reports/external")
-        queue = pd.read_html(r.text, attrs={"id": "publicqueue"}, dtype_backend="pyarrow")[0]
+        queue = pd.read_html(
+            r.text, attrs={"id": "publicqueue"}, dtype_backend="pyarrow"
+        )[0]
 
         # only keep generator interconnection requests
         queue["Type"] = queue["Type"].map(
