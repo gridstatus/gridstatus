@@ -149,6 +149,7 @@ class TestPJM(BaseTestISO):
             "PN",
             "PS",
             "RECO",
+            "UG",
         ]  # noqa
 
     """get_load_forecast"""
