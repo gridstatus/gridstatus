@@ -1620,7 +1620,11 @@ class Ercot(ISOBase):
         return df
 
     def _handle_hourly_resource_outage_capacity(self, doc, verbose=False):
-        df = self.read_doc(doc, verbose=verbose)
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        # there is no DST flag column
+        # and the data set ignores DST
+        # so, we will default to assuming it is DST
+        df = self.parse_doc(df, dst_ambiguous_default=True, verbose=verbose)
         df.insert(
             0,
             "Publish Time",
@@ -2229,7 +2233,7 @@ class Ercot(ISOBase):
             dfs.append(self.read_doc(doc, parse=parse, verbose=verbose))
         return pd.concat(dfs).reset_index(drop=True)
 
-    def parse_doc(self, doc, verbose=False):
+    def parse_doc(self, doc, dst_ambiguous_default="infer", verbose=False):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
 
@@ -2282,7 +2286,7 @@ class Ercot(ISOBase):
                 "HourBeginning"
             ].astype("timedelta64[h]")
 
-        ambiguous = "infer"
+        ambiguous = dst_ambiguous_default
         if "DSTFlag" in doc.columns:
             # DST Flag is Y during the repeated hour
             # So, it's N during DST And Y during Standard Time
