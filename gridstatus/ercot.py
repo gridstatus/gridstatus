@@ -1190,13 +1190,17 @@ class Ercot(ISOBase):
             df[time_col] = pd.to_datetime(df[time_col])
 
             if "Repeated Hour Flag" in df.columns:
+                # Repeated Hour Flag is Y during the repeated hour
+                # So, it's N during DST And Y during Standard Time
+                # Pandas wants True for DST and False for Standard Time
+                # during ambiguous times
                 df[time_col] = df[time_col].dt.tz_localize(
                     self.default_timezone,
-                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                    ambiguous=df["Repeated Hour Flag"] == "N",
                 )
                 interval_start = df[time_col].dt.round(
                     "15min",
-                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                    ambiguous=df["Repeated Hour Flag"] == "N",
                 )
 
             else:
@@ -2283,7 +2287,11 @@ class Ercot(ISOBase):
 
         ambiguous = "infer"
         if "DSTFlag" in doc.columns:
-            ambiguous = doc["DSTFlag"] == "Y"
+            # DST Flag is Y during the repeated hour
+            # So, it's N during DST And Y during Standard Time
+            # Pandas wants True for DST and False for Standard Time
+            # during ambiguous times
+            ambiguous = doc["DSTFlag"] == "N"
 
         try:
             doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
