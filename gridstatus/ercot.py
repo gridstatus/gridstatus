@@ -307,10 +307,7 @@ class Ercot(ISOBase):
         mix.index.name = "Time"
         mix = mix.reset_index()
 
-        mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_localize(
-            self.default_timezone,
-            ambiguous="infer",
-        )
+        mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_convert(self.default_timezone)
 
         # most timestamps are a few seconds off round 5 minute ticks
         # round to nearest minute
@@ -1190,13 +1187,17 @@ class Ercot(ISOBase):
             df[time_col] = pd.to_datetime(df[time_col])
 
             if "Repeated Hour Flag" in df.columns:
+                # Repeated Hour Flag is Y during the repeated hour
+                # So, it's N during DST And Y during Standard Time
+                # Pandas wants True for DST and False for Standard Time
+                # during ambiguous times
                 df[time_col] = df[time_col].dt.tz_localize(
                     self.default_timezone,
-                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                    ambiguous=df["Repeated Hour Flag"] == "N",
                 )
                 interval_start = df[time_col].dt.round(
                     "15min",
-                    ambiguous=df["Repeated Hour Flag"] == "Y",
+                    ambiguous=df["Repeated Hour Flag"] == "N",
                 )
 
             else:
@@ -1619,7 +1620,11 @@ class Ercot(ISOBase):
         return df
 
     def _handle_hourly_resource_outage_capacity(self, doc, verbose=False):
-        df = self.read_doc(doc, verbose=verbose)
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        # there is no DST flag column
+        # and the data set ignores DST
+        # so, we will default to assuming it is DST
+        df = self.parse_doc(df, dst_ambiguous_default=True, verbose=verbose)
         df.insert(
             0,
             "Publish Time",
@@ -2228,7 +2233,7 @@ class Ercot(ISOBase):
             dfs.append(self.read_doc(doc, parse=parse, verbose=verbose))
         return pd.concat(dfs).reset_index(drop=True)
 
-    def parse_doc(self, doc, verbose=False):
+    def parse_doc(self, doc, dst_ambiguous_default="infer", verbose=False):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
 
@@ -2281,9 +2286,13 @@ class Ercot(ISOBase):
                 "HourBeginning"
             ].astype("timedelta64[h]")
 
-        ambiguous = "infer"
+        ambiguous = dst_ambiguous_default
         if "DSTFlag" in doc.columns:
-            ambiguous = doc["DSTFlag"] == "Y"
+            # DST Flag is Y during the repeated hour
+            # So, it's N during DST And Y during Standard Time
+            # Pandas wants True for DST and False for Standard Time
+            # during ambiguous times
+            ambiguous = doc["DSTFlag"] == "N"
 
         try:
             doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
