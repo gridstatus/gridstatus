@@ -1,9 +1,7 @@
-import re
-
 import pandas as pd
 import requests
 import tqdm
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -802,57 +800,6 @@ class SPP(ISOBase):
             return pd.DataFrame()
 
     @staticmethod
-    def _clean_status_text(text):
-        text = text.lower()
-
-        # remove punctuation
-        text = re.sub(r"[,\.\(\)]", "", text)
-        # remove non-time colons
-        text = re.sub(r":$", "", text)
-        # drop time zone information
-        text = re.sub(r"central time", "", text)
-        # truncate starting with last updated
-        text = re.sub(r".*last updated", "", text)
-
-        # drop stop words
-        tokens = text.split(" ")
-        filtered_words = [
-            token for token in tokens if token.lower() not in STATUS_STOP_WORDS
-        ]
-        text = " ".join(filtered_words)
-
-        return text
-
-    @staticmethod
-    def _extract_timestamp(text, year_hint=None, tz=None):
-        if year_hint is None:
-            year_hint = pd.Timestamp.now(tz=tz).year
-        text = SPP._clean_status_text(text)
-
-        year_search = re.search(r"[0-9]{4}", text)
-        if year_search is None:
-            # append year hint
-            text = f"{text} {year_hint}"
-
-        timestamp = None
-
-        try:
-            # throw the remaining bits at pd.Timestamp
-            timestamp = pd.Timestamp(text, tz=tz)
-        except ValueError:
-            pass
-        if timestamp is pd.NaT:
-            timestamp = None
-        return timestamp
-
-    @staticmethod
-    def _extract_timestamps(texts, year_hint=None, tz=None):
-        timestamps = [
-            SPP._extract_timestamp(t, year_hint=year_hint, tz=tz) for t in texts
-        ]
-        return [t for t in timestamps if t is not None]
-
-    @staticmethod
     def _match(
         needles,
         haystacks,
@@ -868,22 +815,6 @@ class SPP(ISOBase):
                 for needle in needles
             )
         ]
-
-    @staticmethod
-    def _get_leaf_elements(elems):
-        """Returns leaf elements, i.e. elements without children"""
-        accum = []
-        for elem in elems:
-            parent = False
-            if isinstance(elem, Tag):
-                children = list(elem.children)
-                if len(children) > 0:
-                    for child in children:
-                        accum += SPP._get_leaf_elements([child])
-                        parent = True
-            if not parent:
-                accum.append(elem)
-        return accum
 
 
 def process_gen_mix(df, detailed=False):

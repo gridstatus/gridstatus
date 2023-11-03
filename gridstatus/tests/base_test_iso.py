@@ -255,12 +255,11 @@ class BaseTestISO:
     """get_status"""
 
     def test_get_status_latest(self):
-        if not isinstance(self.iso, gridstatus.spp.SPP):
-            status = self.iso.get_status("latest")
-            assert isinstance(status, GridStatus)
+        status = self.iso.get_status("latest")
+        assert isinstance(status, GridStatus)
 
-            # ensure there is a homepage if gridstatus can retrieve a status
-            assert isinstance(self.iso.status_homepage, str)
+        # ensure there is a homepage if gridstatus can retrieve a status
+        assert isinstance(self.iso.status_homepage, str)
 
     """get_storage"""
 

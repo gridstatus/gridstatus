@@ -221,6 +221,12 @@ class TestSPP(BaseTestISO):
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
+    """get_status"""
+
+    def test_get_status_latest(self):
+        with pytest.raises(NotImplementedError):
+            super().test_get_status_latest()
+
     """get_storage"""
 
     def test_get_storage_historical(self):
