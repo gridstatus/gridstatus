@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup, Tag
 
 from gridstatus import utils
 from gridstatus.base import (
-    GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
@@ -85,14 +84,6 @@ class SPP(ISOBase):
         LOCATION_TYPE_INTERFACE,
         LOCATION_TYPE_SETTLEMENT_LOCATION,
     ]
-
-    def get_status(self, date=None, verbose=False):
-        if date != "latest":
-            raise NotSupported()
-
-        url = "https://www.spp.org/markets-operations/current-grid-conditions/"
-        html_text = requests.get(url).content.decode("UTF-8")
-        return self._get_status_from_html(html_text)
 
     def get_fuel_mix(self, date, detailed=False, verbose=False):
         """Get fuel mix
@@ -893,100 +884,6 @@ class SPP(ISOBase):
             if not parent:
                 accum.append(elem)
         return accum
-
-    def _get_status_candidate_texts(self, html):
-        """Returns a list of text candidates for status and timestamp extraction"""
-        # generic pre-Soup cleanup
-        html = re.sub(r"<[/]?span>", "", html)
-        html = re.sub(r"<br/>", "", html)
-        html = re.sub(r"\xa0", "", html)
-        soup = BeautifulSoup(html, "html.parser")
-        # use <h1> as the north star
-        conditions_element = soup.find("h1")
-        # find all sibling paragraphs, and then their descendant leaves
-        sibling_paragraphs = self._get_leaf_elements(
-            conditions_element.parent.find_all("p"),
-        )
-        # just the text, please
-        return [p.text for p in sibling_paragraphs]
-
-    def _get_status_from_html(self, html_text, year_hint=None):
-        """Extracts timestamp, status, and status notes from HTML"""
-        candidate_texts = self._get_status_candidate_texts(html_text)
-        timestamp = self._get_status_timestamp(
-            candidate_texts,
-            year_hint=year_hint,
-        )
-        status, notes = self._get_status_status_and_notes(candidate_texts)
-
-        if timestamp is None:
-            raise RuntimeError("Cannot parse time of status")
-
-        return GridStatus(
-            time=timestamp,
-            status=status,
-            notes=notes,
-            reserves=None,
-            iso=self,
-        )
-
-    def _get_status_timestamp(self, candidate_texts, year_hint=None):
-        """Get timestamp from candidate texts
-
-        Returns
-            pd.Timestamp or None
-        """
-        timestamp_texts = self._match(
-            LAST_UPDATED_KEYWORDS,
-            candidate_texts,
-        )
-
-        new_list = []
-        for text in timestamp_texts:
-            """Truncate to immediately after reliability level,
-            e.g. "blah blah Normal Operations 12:00 PM Central Time"
-            -> "12:00 PM Central Time"
-            """
-            for keyword in RELIABILITY_LEVELS:
-                pos = text.lower().find(keyword.lower())
-                if pos > -1:
-                    pos += len(keyword)
-                    new_list.append(text[pos:])
-            new_list.append(text)
-        timestamp_texts = new_list
-
-        last_updated_timestamps = self._extract_timestamps(
-            timestamp_texts,
-            year_hint=year_hint,
-            tz=self.default_timezone,
-        )
-        return next(iter(last_updated_timestamps), None)
-
-    def _get_status_status_and_notes(self, candidate_texts):
-        """Extracts (status, notes,) tuple from candidates texts"""
-        status_texts = self._match(
-            RELIABILITY_LEVELS,
-            candidate_texts,
-            haystack_norm_fn=lambda x: self._clean_status_text(x),
-        )
-
-        status_text = None
-        if len(status_texts) > 0:
-            status_text = status_texts[0]
-
-        status = status_text  # default
-        notes = None
-
-        norm_status_text = self._clean_status_text(status_text)
-        for level in RELIABILITY_LEVELS:
-            if level.lower() in norm_status_text:
-                status = RELIABILITY_LEVELS_ALIASES.get(level, level)
-                notes = [status_text]
-
-        return (
-            status,
-            notes,
-        )
 
 
 def process_gen_mix(df, detailed=False):
