@@ -490,15 +490,8 @@ class Ercot(ISOBase):
 
         data = pd.DataFrame(r["data"])
 
-        data["Interval End"] = (
-            date
-            + data["hourEnding"].astype("timedelta64[h]")
-            + data["interval"].astype("timedelta64[m]")
-        )
-
-        data["Interval End"] = data["Interval End"].dt.tz_localize(
+        data["Interval End"] = pd.to_datetime(data["timestamp"]).dt.tz_convert(
             self.default_timezone,
-            ambiguous="infer",
         )
 
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
