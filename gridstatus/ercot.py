@@ -307,11 +307,15 @@ class Ercot(ISOBase):
         mix.index.name = "Time"
         mix = mix.reset_index()
 
-        mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_convert(self.default_timezone)
+        # need to use apply since there can be mixed
+        # fixed offsets during dst transition
+        mix["Time"] = mix["Time"].apply(lambda x: pd.to_datetime(x).tz_convert("UTC"))
 
         # most timestamps are a few seconds off round 5 minute ticks
-        # round to nearest minute
+        # round to nearest minute. must do in utc to avoid dst issues
         mix["Time"] = mix["Time"].round("min")
+
+        mix["Time"] = mix["Time"].dt.tz_convert(self.default_timezone)
 
         mix = mix[
             [
