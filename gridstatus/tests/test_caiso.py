@@ -39,6 +39,16 @@ class TestCAISO(BaseTestISO):
 
     """get_fuel_mix"""
 
+    def test_fuel_mix_across_dst_transition(self):
+        # these dates are across the DST transition
+        # and caused a bug in the past
+        date = (
+            pd.Timestamp("2023-11-05 09:55:00+0000", tz="UTC"),
+            pd.Timestamp("2023-11-05 20:49:26.038069+0000", tz="UTC"),
+        )
+        df = self.iso.get_fuel_mix(date=date)
+        self._check_fuel_mix(df)
+
     """get_curtailment"""
 
     def _check_curtailment(self, df):
