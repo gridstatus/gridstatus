@@ -146,7 +146,6 @@ class support_date_range:
                     frequency = pd.DateOffset(hours=1)
 
                 dates = date_range_maker(
-                    # dates = pd.date_range(
                     args_dict["date"],
                     args_dict["end"],
                     freq=frequency,
