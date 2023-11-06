@@ -4,6 +4,7 @@ from gridstatus import ISONE
 from gridstatus.base import Markets
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
+import pandas as pd
 
 # toggle for debugging
 VERBOSE = False
@@ -24,6 +25,16 @@ class TestISONE(BaseTestISO):
         # make sure no nan values are returned
         # nov 7 is a known data where nan values are returned
         assert not data.isna().any().any()
+
+    def test_fuel_mix_across_dst_transition(self):
+        # these dates are across the DST transition
+        # and caused a bug in the past
+        date = (
+            pd.Timestamp("2023-11-05 06:50:00+0000", tz="UTC"),
+            pd.Timestamp("2023-11-05 21:34:46.206808+0000", tz="UTC"),
+        )
+        df = self.iso.get_fuel_mix(date=date)
+        self._check_fuel_mix(df)
 
     @pytest.mark.parametrize("date", DST_BOUNDARIES)
     def test_get_fuel_mix(self, date):

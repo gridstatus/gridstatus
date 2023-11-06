@@ -307,11 +307,15 @@ class Ercot(ISOBase):
         mix.index.name = "Time"
         mix = mix.reset_index()
 
-        mix["Time"] = pd.to_datetime(mix["Time"]).dt.tz_convert(self.default_timezone)
+        # need to use apply since there can be mixed
+        # fixed offsets during dst transition
+        mix["Time"] = mix["Time"].apply(lambda x: pd.to_datetime(x).tz_convert("UTC"))
 
         # most timestamps are a few seconds off round 5 minute ticks
-        # round to nearest minute
+        # round to nearest minute. must do in utc to avoid dst issues
         mix["Time"] = mix["Time"].round("min")
+
+        mix["Time"] = mix["Time"].dt.tz_convert(self.default_timezone)
 
         mix = mix[
             [
@@ -443,13 +447,24 @@ class Ercot(ISOBase):
         dfs = pd.read_html(url, header=0)
         df = dfs[0]
 
-        df["Interval End"] = pd.to_datetime(df["Oper Day"]) + (
-            df["Hour Ending"] / 100
+        if df["Hour Ending"].dtype == "object":
+            df["RepeatedHourFlag"] = df["Hour Ending"].str.contains("*", regex=False)
+            df["Hour Ending"] = (
+                df["Hour Ending"].str.replace("*", "", regex=False).str.strip()
+            ).astype(int)
+        else:
+            # non dst transition day
+            # so no repeated hours
+            df["RepeatedHourFlag"] = False
+
+        df["Interval Start"] = pd.to_datetime(df["Oper Day"]) + (
+            df["Hour Ending"] / 100 - 1
         ).astype("timedelta64[h]")
-        df["Interval End"] = df["Interval End"].dt.tz_localize(
-            self.default_timezone,
+        df["Interval Start"] = df["Interval Start"].dt.tz_localize(
+            self.default_timezone, ambiguous=df["RepeatedHourFlag"] == False
         )
-        df["Interval Start"] = df["Interval End"] - pd.DateOffset(hours=1)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
         df["Time"] = df["Interval Start"]
 
         df = utils.move_cols_to_front(
@@ -461,7 +476,7 @@ class Ercot(ISOBase):
             ],
         )
 
-        to_drop = ["Oper Day", "Hour Ending"]
+        to_drop = ["Oper Day", "Hour Ending", "RepeatedHourFlag"]
         df = df.drop(to_drop, axis=1)
 
         return df
@@ -486,15 +501,8 @@ class Ercot(ISOBase):
 
         data = pd.DataFrame(r["data"])
 
-        data["Interval End"] = (
-            date
-            + data["hourEnding"].astype("timedelta64[h]")
-            + data["interval"].astype("timedelta64[m]")
-        )
-
-        data["Interval End"] = data["Interval End"].dt.tz_localize(
+        data["Interval End"] = pd.to_datetime(data["timestamp"]).dt.tz_convert(
             self.default_timezone,
-            ambiguous="infer",
         )
 
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)

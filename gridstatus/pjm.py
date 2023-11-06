@@ -169,7 +169,13 @@ class PJM(ISOBase):
         ).reset_index()
 
         # round to nearest minute
-        load["Interval Start"] = load["Interval Start"].dt.round("1min")
+        # need to round in utc time
+        load["Interval Start"] = (
+            load["Interval Start"]
+            .dt.tz_convert("UTC")
+            .dt.round("1min")
+            .dt.tz_convert(self.default_timezone)
+        )
         load["Time"] = load["Interval Start"]
 
         load["Interval End"] = load["Interval Start"] + pd.Timedelta(minutes=5)
@@ -252,6 +258,7 @@ class PJM(ISOBase):
                 "Load Forecast",
             ]
         ]
+
         return data
 
     # todo https://dataminer2.pjm.com/feed/load_frcstd_hist/definition
