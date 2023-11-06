@@ -457,13 +457,13 @@ class Ercot(ISOBase):
             # so no repeated hours
             df["RepeatedHourFlag"] = False
 
-        df["Interval End"] = pd.to_datetime(df["Oper Day"]) + (
-            df["Hour Ending"] / 100
+        df["Interval Start"] = pd.to_datetime(df["Oper Day"]) + (
+            df["Hour Ending"] / 100 - 1
         ).astype("timedelta64[h]")
-        df["Interval End"] = df["Interval End"].dt.tz_localize(
-            self.default_timezone, ambiguous=df["RepeatedHourFlag"]
+        df["Interval Start"] = df["Interval Start"].dt.tz_localize(
+            self.default_timezone, ambiguous=df["RepeatedHourFlag"] == False
         )
-        df["Interval Start"] = df["Interval End"] - pd.DateOffset(hours=1)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
         df["Time"] = df["Interval Start"]
 

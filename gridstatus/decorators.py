@@ -137,7 +137,7 @@ class support_date_range:
                 # if certain frequency, we need to handle first interval
                 # specially so pd.date_range works
                 if frequency == "DAY_START":
-                    frequency = pd.DateOffset(days=1)
+                    frequency = DayBeginOffset()
 
                 elif frequency == "MONTH_START":
                     frequency = pd.offsets.MonthBegin(1)
@@ -194,7 +194,7 @@ class support_date_range:
                     args_dict["date"] = start_date
 
                     # no need for end if we are querying for just 1 day
-                    if frequency != "1D":
+                    if frequency != "1D" and not isinstance(frequency, DayBeginOffset):
                         args_dict["end"] = end_date
 
                     try:
@@ -370,3 +370,12 @@ def pjm_update_dates(dates, args_dict):
             )
 
     return new_dates
+
+
+# custom offset that I dont believe exists in pandas
+class DayBeginOffset:
+    def __ladd__(self, other):
+        return other.normalize() + pd.DateOffset(days=1)
+
+    def __radd__(self, other):
+        return self.__ladd__(other)
