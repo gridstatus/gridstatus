@@ -447,20 +447,23 @@ class Ercot(ISOBase):
         dfs = pd.read_html(url, header=0)
         df = dfs[0]
 
-        df["Hour Ending"] = df["Hour Ending"].astype("string")
-        df["RepeatedHourFlag"] = df["Hour Ending"].str.contains("*", regex=False)
-        df["Hour Ending"] = (
-            df["Hour Ending"].str.replace("*", "", regex=False).str.strip()
+        if df["Hour Ending"].dtype == "object":
+            df["RepeatedHourFlag"] = df["Hour Ending"].str.contains("*", regex=False)
+            df["Hour Ending"] = (
+                df["Hour Ending"].str.replace("*", "", regex=False).str.strip()
+            ).astype(int)
+        else:
+            # non dst transition day
+            # so no repeated hours
+            df["RepeatedHourFlag"] = False
+
+        df["Interval End"] = pd.to_datetime(df["Oper Day"]) + (
+            df["Hour Ending"] / 100
+        ).astype("timedelta64[h]")
+        df["Interval End"] = df["Interval End"].dt.tz_localize(
+            self.default_timezone, ambiguous=df["RepeatedHourFlag"]
         )
-
-        hour_end_str = df["Oper Day"] + " " + df["Hour Ending"].str[:2] + ":00"
-
-        df["Interval Start"] = pd.to_datetime(hour_end_str) - pd.DateOffset(hours=1)
-        df["Interval Start"] = df["Interval Start"].dt.tz_localize(
-            self.default_timezone, ambiguous=df["RepeatedHourFlag"] == False
-        )
-
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df["Interval Start"] = df["Interval End"] - pd.DateOffset(hours=1)
 
         df["Time"] = df["Interval Start"]
 
