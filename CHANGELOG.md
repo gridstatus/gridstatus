@@ -1,10 +1,10 @@
 # Changelog
 
-## vNext
+## v0.24.0 - Nov 9, 2023
 
 ### ERCOT
 
-- Add suport for RTM and DAM price correction datasets
+- Add support for RTM and DAM price correction datasets
 - Add System Lambda
 - Add support for RTM and DAM price correction datasets
 - Add support for electrical bus and settlement point LMPS
@@ -21,6 +21,10 @@
 ### CAISO
 
 - Improve CAISO curtailed non-operational generator report
+
+### Bug Fixes
+
+- Assorted DST handling fixes
 
 ## v0.23.0 - Sept 12, 2023
 
