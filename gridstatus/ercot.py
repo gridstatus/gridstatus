@@ -1712,7 +1712,11 @@ class Ercot(ISOBase):
 
         time_cols = ["Actual Outage Start", "Planned End Date", "Actual End Date"]
         for col in time_cols:
-            df[col] = pd.to_datetime(df[col]).dt.tz_localize(self.default_timezone)
+            # data doesn't have DST info. So just assume it is DST
+            # when ambiguous \_(-_-)_/
+            df[col] = pd.to_datetime(df[col]).dt.tz_localize(
+                self.default_timezone, ambiguous=True
+            )
 
         return df
 
