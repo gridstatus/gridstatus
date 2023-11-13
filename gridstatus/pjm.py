@@ -6,6 +6,8 @@ import pandas as pd
 import requests
 import tqdm
 
+import os
+
 from gridstatus import utils
 from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import (
@@ -412,15 +414,24 @@ class PJM(ISOBase):
         "93353965",
     ]
 
-    def __init__(self, retries=DEFAULT_RETRIES):
-        self.retries = retries
-        super().__init__()
-
     markets = [
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
     ]
+
+    def __init__(self, api_key=None, retries=DEFAULT_RETRIES) -> None:
+        """
+        Arguments:
+            api_key (str, optional): PJM API key. Alternatively, can be set
+                in PJM_API_KEY environment variable. Register for an API key
+                at https://www.pjm.com/
+        """
+        super().__init__()
+        self._api_key = api_key or os.getenv("PJM_API_KEY")
+
+        if not self._api_key:
+            raise ValueError("api_key must be provided or set in PJM_API_KEY env var")
 
     @support_date_range(frequency="365D")
     def get_fuel_mix(self, date, end=None, verbose=False):
@@ -862,7 +873,7 @@ class PJM(ISOBase):
         params,
         end=None,
         start_row=1,
-        row_count=100000,
+        row_count=50000,
         interval_duration_min=None,
         filter_timestamp_name="datetime_beginning",
         verbose=False,
@@ -891,14 +902,12 @@ class PJM(ISOBase):
         msg = f"Retrieving data from {endpoint} with params {final_params}"
         log(msg, verbose)
 
-        api_key = self._get_key()
-
         r = self._get_json(
             "https://api.pjm.com/api/v1/" + endpoint,
             verbose=verbose,
             retries=self.retries,
             params=final_params,
-            headers={"Ocp-Apim-Subscription-Key": api_key},
+            headers={"Ocp-Apim-Subscription-Key": self.api_key},
         )
 
         if "errors" in r:
@@ -920,7 +929,7 @@ class PJM(ISOBase):
                     verbose=verbose,
                     retries=self.retries,
                     headers={
-                        "Ocp-Apim-Subscription-Key": api_key,
+                        "Ocp-Apim-Subscription-Key": self.api_key,
                     },
                 )
                 to_add.append(pd.DataFrame(r["items"]))

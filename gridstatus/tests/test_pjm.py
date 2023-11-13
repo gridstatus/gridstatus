@@ -1,3 +1,6 @@
+import os
+from unittest import mock
+
 import pandas as pd
 import pytest
 
@@ -11,6 +14,25 @@ from gridstatus.tests.decorators import with_markets
 
 class TestPJM(BaseTestISO):
     iso = PJM()
+
+    @mock.patch.dict(os.environ, {"PJM_API_KEY": "test_env"})
+    def test_api_key_from_env(self):
+        # test that api key is set from env var
+        no_api_key = PJM()
+        assert no_api_key._api_key is None
+        assert no_api_key._get_api_key() == "test_env"
+
+    def test_api_key_from_arg(self):
+        # test that api key is set from arg
+        api_key = PJM(api_key="test")
+        assert api_key._get_api_key() == "test"
+
+    @mock.patch.dict(os.environ, {"PJM_API_KEY": ""})
+    def test_api_key_raises_if_missing(self):
+        # test that no api key raises
+        iso = PJM(api_key=None)
+        with pytest.raises(ValueError):
+            iso._get_api_key()
 
     """get_fuel_mix"""
 
