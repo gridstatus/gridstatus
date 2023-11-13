@@ -1,12 +1,11 @@
 import math
+import os
 import warnings
 from typing import BinaryIO
 
 import pandas as pd
 import requests
 import tqdm
-
-import os
 
 from gridstatus import utils
 from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
