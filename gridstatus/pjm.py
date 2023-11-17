@@ -83,7 +83,7 @@ class PJM(ISOBase):
         '5021703',]
 
     
-    p_node_ids = [
+    price_node_ids = [
      '5021704',
      '5021723',
      '5021724',
