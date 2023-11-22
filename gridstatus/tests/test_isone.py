@@ -1,10 +1,10 @@
+import pandas as pd
 import pytest
 
 from gridstatus import ISONE
 from gridstatus.base import Markets
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
-import pandas as pd
 
 # toggle for debugging
 VERBOSE = False

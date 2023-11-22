@@ -461,7 +461,9 @@ class Ercot(ISOBase):
             df["Hour Ending"] / 100 - 1
         ).astype("timedelta64[h]")
         df["Interval Start"] = df["Interval Start"].dt.tz_localize(
-            self.default_timezone, ambiguous=df["RepeatedHourFlag"] == False
+            self.default_timezone,
+            ambiguous=df["RepeatedHourFlag"]
+            == False,  # noqa to prevent linting to is False
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
