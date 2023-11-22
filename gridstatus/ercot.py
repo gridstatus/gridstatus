@@ -461,7 +461,8 @@ class Ercot(ISOBase):
             df["Hour Ending"] / 100 - 1
         ).astype("timedelta64[h]")
         df["Interval Start"] = df["Interval Start"].dt.tz_localize(
-            self.default_timezone, ambiguous=df["RepeatedHourFlag"] == False
+            self.default_timezone,
+            ambiguous=df["RepeatedHourFlag"] is False,
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
@@ -628,7 +629,9 @@ class Ercot(ISOBase):
         df["Delivery Interval"] = df["Delivery Interval"].astype("Int64")
         df = self.parse_doc(df, verbose=verbose)
         return self._finalize_spp_df(
-            df, market=Markets.REAL_TIME_15_MIN, verbose=verbose
+            df,
+            market=Markets.REAL_TIME_15_MIN,
+            verbose=verbose,
         )
 
     def get_dam_spp(self, year, verbose=False):
@@ -655,7 +658,9 @@ class Ercot(ISOBase):
         # filter where DSTFlag == 10
         df = self.parse_doc(df, verbose=verbose)
         return self._finalize_spp_df(
-            df, market=Markets.DAY_AHEAD_HOURLY, verbose=verbose
+            df,
+            market=Markets.DAY_AHEAD_HOURLY,
+            verbose=verbose,
         )
 
     def get_interconnection_queue(self, verbose=False):
@@ -979,7 +984,7 @@ class Ercot(ISOBase):
                     "Location Type",
                     "Market",
                     "SPP",
-                ]
+                ],
             ),
             verbose=verbose,
         )
@@ -1054,7 +1059,12 @@ class Ercot(ISOBase):
         return df
 
     def _finalize_spp_df(
-        self, df, market, locations=None, location_type=None, verbose=False
+        self,
+        df,
+        market,
+        locations=None,
+        location_type=None,
+        verbose=False,
     ):
         df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
 
@@ -1715,7 +1725,8 @@ class Ercot(ISOBase):
             # data doesn't have DST info. So just assume it is DST
             # when ambiguous \_(-_-)_/
             df[col] = pd.to_datetime(df[col]).dt.tz_localize(
-                self.default_timezone, ambiguous=True
+                self.default_timezone,
+                ambiguous=True,
             )
 
         return df
@@ -1903,7 +1914,9 @@ class Ercot(ISOBase):
     def _handle_sced_system_lambda(self, docs, verbose):
         all_dfs = []
         for doc in tqdm.tqdm(
-            docs, desc="Reading SCED System Lambda files", disable=not verbose
+            docs,
+            desc="Reading SCED System Lambda files",
+            disable=not verbose,
         ):
             log(f"Reading {doc.url}", verbose)
             df = pd.read_csv(doc.url, compression="zip")
@@ -1911,7 +1924,7 @@ class Ercot(ISOBase):
 
         if len(all_dfs) == 0:
             df = pd.DataFrame(
-                columns=["SCEDTimeStamp", "RepeatedHourFlag", "SystemLambda"]
+                columns=["SCEDTimeStamp", "RepeatedHourFlag", "SystemLambda"],
             )
         else:
             df = pd.concat(all_dfs)
@@ -2144,7 +2157,7 @@ class Ercot(ISOBase):
             # e.g SPPHLZNP6905_retry_20230608_1545_csv
             try:
                 friendly_name_timestamp = parse_timestamp_from_friendly_name(
-                    doc["Document"]["FriendlyName"]
+                    doc["Document"]["FriendlyName"],
                 )
             except Exception:
                 friendly_name_timestamp = None

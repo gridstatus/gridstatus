@@ -13,6 +13,7 @@
 
 - Add support for generation capacity on outage
 - Add support for SPP WEIS Real Time LMP
+- Add "Status (Original)" column to interconnection queue data
 
 ### EIA
 
@@ -21,6 +22,10 @@
 ### CAISO
 
 - Improve CAISO curtailed non-operational generator report
+
+### ISONE
+
+- Parse ISONE interconnection queue project status columns
 
 ## v0.23.0 - Sept 12, 2023
 
