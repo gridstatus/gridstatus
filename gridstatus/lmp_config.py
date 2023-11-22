@@ -8,14 +8,12 @@ from gridstatus.base import ISOBase, Markets, NotSupported
 
 
 class lmp_config:
-
     configs = {}
 
     def __init__(self, supports):
         self.supports = supports
 
     def __call__(self, func):
-
         lmp_config.configs[func.__qualname__] = self.supports
 
         @functools.wraps(func)
