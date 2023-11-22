@@ -475,6 +475,7 @@ class SPP(ISOBase):
             "Cluster Group",
             "Replacement Generator Commercial Op Date",
             "Service Type",
+            "Status (Original)",
         ]
 
         missing = [
