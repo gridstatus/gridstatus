@@ -644,6 +644,8 @@ class PJM(ISOBase):
             is retrieved for Real Time 5 Minute market regardless of the
             date. This is due to PJM api limitations
 
+            *  Return `Location Id`, `Location Name`, `Location Short Name`.
+
         Arguments:
             date (datetime.date, str): date to get LMPs for
 
@@ -787,7 +789,8 @@ class PJM(ISOBase):
             if row["voltage_level"] is None or pd.isna(row["voltage_level"]):
                 return row["pnode_name"]
             else:
-                # Find the index where voltage_level starts and extract everything before it
+                # Find the index where voltage_level starts
+                # and extract everything before it
                 index = row["pnode_name"].find(row["voltage_level"])
                 # if not found, return full name
                 if index == -1:
