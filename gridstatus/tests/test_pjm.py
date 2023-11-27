@@ -346,7 +346,7 @@ class TestPJM(BaseTestISO):
         self._check_lmp_columns(hist, m)
         # 2 days worth of data for each location
         assert (
-            hist.groupby("Location")["Interval Start"].agg(
+            hist.groupby("Location Id")["Interval Start"].agg(
                 lambda x: x.dt.day.nunique(),
             )
             == 2
@@ -362,7 +362,7 @@ class TestPJM(BaseTestISO):
         assert isinstance(hist, pd.DataFrame)
         self._check_lmp_columns(hist, m)
         # 2 days worth of data for each location
-        assert (hist.groupby("Location")["Interval Start"].count() == 48).all()
+        assert (hist.groupby("Location Id")["Interval Start"].count() == 48).all()
 
         # all archive
         hist = self.iso.get_lmp(
