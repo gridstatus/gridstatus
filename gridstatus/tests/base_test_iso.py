@@ -347,24 +347,26 @@ class BaseTestISO:
             series,
         ) | pd.core.dtypes.common.is_timedelta64_ns_dtype(series)
 
+    lmp_cols = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+        "Energy",
+        "Congestion",
+        "Loss",
+    ]
+
     def _check_lmp_columns(self, df, market):
         # todo in future all ISO should return same columns
         # maybe with the exception of "LMP" breakdown
         self._check_time_columns(df)
 
         assert set(
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Market",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ],
+            self.lmp_cols,
         ).issubset(df.columns)
 
         assert len(df["Market"].unique()) == 1

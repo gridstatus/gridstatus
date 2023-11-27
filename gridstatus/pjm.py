@@ -644,6 +644,8 @@ class PJM(ISOBase):
             is retrieved for Real Time 5 Minute market regardless of the
             date. This is due to PJM api limitations
 
+            *  Return `Location Id`, `Location Name`, `Location Short Name`.
+
         Arguments:
             date (datetime.date, str): date to get LMPs for
 
@@ -771,18 +773,58 @@ class PJM(ISOBase):
                 - data["marginal_loss_price_rt"]
             )
 
+        # the pnode_name in the lmp data isn't always full name
+        # so, let drop it for now
+        # will get full name by merge with pnode data later
+        data = data.drop(columns=["pnode_name"])
+
+        p_nodes = self.get_pnode_ids()[["pnode_id", "pnode_name", "voltage_level"]]
+
+        # this is needed because rt_unverified_fivemin_lmps
+        # doesn't have short name
+        # so we need to extract it from full name
+        # other LMP datasets have but do it this way
+        # for consistent logic
+        def extract_short_name(row):
+            if row["voltage_level"] is None or pd.isna(row["voltage_level"]):
+                return row["pnode_name"]
+            else:
+                # Find the index where voltage_level starts
+                # and extract everything before it
+                index = row["pnode_name"].find(row["voltage_level"])
+                # if not found, return full name
+                if index == -1:
+                    return row["pnode_name"]
+                return row["pnode_name"][:index].strip()
+
+        p_nodes["pnode_short_name"] = p_nodes.apply(extract_short_name, axis=1)
+
+        # API cannot filter location type for rt 5 min
+        data = data.rename(columns={"type": "Location Type"})
+        if location_type and market == Markets.REAL_TIME_5_MIN:
+            data = data[data["Location Type"] == location_type]
+
+        if locations is not None and locations != "ALL":
+            # make sure Location is defined
+            data["Location"] = data["pnode_id"]
+            data = utils.filter_lmp_locations(
+                data,
+                map(int, locations),
+            )
+
+        data = data.merge(p_nodes)
+
         data = data.rename(
             columns={
-                "pnode_id": "Location",
+                "pnode_id": "Location Id",
                 "pnode_name": "Location Name",
-                "type": "Location Type",
+                "pnode_short_name": "Location Short Name",
                 f"total_lmp_{market_type}": "LMP",
                 f"system_energy_price_{market_type}": "Energy",
                 f"congestion_price_{market_type}": "Congestion",
                 f"marginal_loss_price_{market_type}": "Loss",
             },
         )
-
         data["Market"] = market.value
 
         data = data[
@@ -791,8 +833,9 @@ class PJM(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Market",
-                "Location",
+                "Location Id",
                 "Location Name",
+                "Location Short Name",
                 "Location Type",
                 "LMP",
                 "Energy",
@@ -800,16 +843,6 @@ class PJM(ISOBase):
                 "Loss",
             ]
         ]
-
-        # API cannot filter location type for rt 5 min
-        if location_type and market == Markets.REAL_TIME_5_MIN:
-            data = data[data["Location Type"] == location_type]
-
-        if locations is not None and locations != "ALL":
-            data = utils.filter_lmp_locations(
-                data,
-                map(int, locations),
-            )
 
         data = data.sort_values("Interval Start")
 

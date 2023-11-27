@@ -27,6 +27,14 @@
 
 - Parse ISONE interconnection queue project status columns
 
+### PJM
+
+- Update PJM `get_lmp` to return columns `Location Id`, `Location Name`, `Location Short Name` to avoid ambiguity.
+
+### Breaking Changes
+
+- `PJM.get_lmp` no longer return `Location`. That value is now `Location Id`.
+
 ### Bug Fixes
 
 - Assorted DST handling fixes
