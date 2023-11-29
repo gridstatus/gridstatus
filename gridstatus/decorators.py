@@ -125,6 +125,8 @@ class support_date_range:
             if callable(frequency):
                 frequency = self.frequency(args_dict)
 
+            end_date_list = [args_dict["end"]]
+
             if frequency is None:
                 dates = [args_dict["date"], args_dict["end"]]
             else:
@@ -142,12 +144,12 @@ class support_date_range:
                 elif frequency == "MONTH_START":
                     frequency = pd.offsets.MonthBegin(1)
 
-                    # Since the date_range_maker is exclusive of the end date,
-                    # in the case where the end date is the first of the month,
-                    # we need to add a minute to the end date so that the
-                    # first of the month is included in the range.
+                    # When end date is the first of the month and the frequency is month
+                    # start, we need to ensure the wrapped function is called
+                    # for the month of the end date.
+                    # We achieve this by adding the end date twice to dates.
                     if args_dict["end"].day == 1:
-                        args_dict["end"] += pd.Timedelta(minutes=1)
+                        end_date_list += [args_dict["end"]]
 
                 elif frequency == "HOUR_START":
                     frequency = pd.DateOffset(hours=1)
@@ -158,7 +160,7 @@ class support_date_range:
                     freq=frequency,
                     inclusive="neither",
                 )
-                dates = [args_dict["date"]] + dates + [args_dict["end"]]
+                dates = [args_dict["date"]] + dates + end_date_list
 
             # make sure everything is in default timezone
             # of the ISO

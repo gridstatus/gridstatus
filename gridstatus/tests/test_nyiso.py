@@ -35,9 +35,34 @@ class TestNYISO(BaseTestISO):
         last_day_of_prev_month = first_day_of_month - pd.Timedelta(days=1)
         df = self.iso.get_fuel_mix(start=last_day_of_prev_month, end=first_day_of_month)
 
-        assert df["Time"].max() >= first_day_of_month
-        assert df["Time"].min() <= last_day_of_prev_month
+        assert df["Time"].max() == (first_day_of_month + pd.Timedelta(days=1)).replace(
+            hour=0,
+            minute=0,
+            second=0,
+        )
+        assert df["Time"].min() == last_day_of_prev_month.replace(
+            hour=0,
+            minute=5,
+            second=0,
+        )
         assert df["Time"].dt.date.nunique() == 3  # 2 days + 1 day for midnight
+        self._check_fuel_mix(df)
+
+    def test_month_start_multiple_months(self):
+        start_date = "2022-01-01"
+        end_date = "2022-03-01"
+
+        df = self.iso.get_fuel_mix(start=start_date, end=end_date)
+
+        assert df["Time"].max() == pd.Timestamp(
+            end_date,
+            tz=self.iso.default_timezone,
+        ) + pd.Timedelta(days=1)
+        assert df["Time"].min() == pd.Timestamp(
+            start_date,
+            tz=self.iso.default_timezone,
+        ) + pd.Timedelta(minutes=5)
+        assert (df["Time"].dt.month.unique() == [1, 2, 3]).all()
         self._check_fuel_mix(df)
 
     """get_generators"""
