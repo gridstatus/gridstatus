@@ -142,6 +142,13 @@ class support_date_range:
                 elif frequency == "MONTH_START":
                     frequency = pd.offsets.MonthBegin(1)
 
+                    # Since the date_range_maker is exclusive of the end date,
+                    # in the case where the end date is the first of the month,
+                    # we need to add a minute to the end date so that the
+                    # first of the month is included in the range.
+                    if args_dict["end"].day == 1:
+                        args_dict["end"] += pd.Timedelta(minutes=1)
+
                 elif frequency == "HOUR_START":
                     frequency = pd.DateOffset(hours=1)
 
