@@ -125,8 +125,6 @@ class support_date_range:
             if callable(frequency):
                 frequency = self.frequency(args_dict)
 
-            end_date_list = [args_dict["end"]]
-
             if frequency is None:
                 dates = [args_dict["date"], args_dict["end"]]
             else:
@@ -153,7 +151,7 @@ class support_date_range:
                     freq=frequency,
                     inclusive="neither",
                 )
-                dates = [args_dict["date"]] + dates + end_date_list
+                dates = [args_dict["date"]] + dates + [args_dict["end"]]
 
             # make sure everything is in default timezone
             # of the ISO
