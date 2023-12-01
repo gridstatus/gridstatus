@@ -140,7 +140,7 @@ class support_date_range:
                     frequency = DayBeginOffset()
 
                 elif frequency == "MONTH_START":
-                    frequency = pd.offsets.MonthBegin(1)
+                    frequency = MonthBeginOffset()
 
                 elif frequency == "HOUR_START":
                     frequency = pd.DateOffset(hours=1)
@@ -375,6 +375,14 @@ def pjm_update_dates(dates, args_dict):
 class DayBeginOffset:
     def __ladd__(self, other):
         return other.normalize() + pd.DateOffset(days=1)
+
+    def __radd__(self, other):
+        return self.__ladd__(other)
+
+
+class MonthBeginOffset:
+    def __ladd__(self, other):
+        return other.normalize() + pd.offsets.MonthBegin(1)
 
     def __radd__(self, other):
         return self.__ladd__(other)
