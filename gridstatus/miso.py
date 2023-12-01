@@ -68,7 +68,7 @@ class MISO(ISOBase):
 
         mix = {}
         for fuel in r["Fuel"]["Type"]:
-            amount = int(fuel["ACT"])
+            amount = float(fuel["ACT"])
             if amount == -1:
                 amount = 0
             mix[fuel["CATEGORY"]] = amount
