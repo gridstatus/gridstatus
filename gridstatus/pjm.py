@@ -731,7 +731,7 @@ class PJM(ISOBase):
             if locations and locations != "ALL":
                 params["pnode_id"] = ";".join(map(str, locations))
 
-        elif locations is not None:
+        elif locations is not None and locations != "ALL":
             warnings.warn(
                 (
                     "Querying before archive date, so filtering by location will happen"
