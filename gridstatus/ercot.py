@@ -597,12 +597,6 @@ class Ercot(ISOBase):
         """
         df = self.read_doc(doc, verbose=verbose)
 
-        if forecast_type in [
-            ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
-            ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE,
-            ERCOTSevenDayLoadForecastReport.BY_MODEL_AND_WEATHER_ZONE,
-        ]:
-            df["Load Forecast"] = df["SystemTotal"].copy()
         df["Publish Time"] = doc.publish_date
 
         df = df.rename(
