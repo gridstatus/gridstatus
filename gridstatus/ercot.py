@@ -525,22 +525,32 @@ class Ercot(ISOBase):
 
         return data.reset_index(drop=True)
 
-    @support_date_range("HOUR_START")
+    @support_date_range(frequency=None)
     def get_load_forecast(
         self,
         date,
+        end=None,
         forecast_type=ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
         verbose=False,
     ):
-        """Returns load forecast of specified regions.
+        """Returns load forecast of specified forecast type.
 
-        Only allows datetimes from today's date.
 
-        Returns hourly report published immediately before the datetime.
+
+        If date range provided, returns all hourly reports published within
+
 
         Arguments:
-            date (str): datetime to download.
-                Returns report published most recently before datetime.
+            date (str, datetime): datetime to download. If `end` not provided,
+                returns last hourly report published before. if "latest",
+                returns most recent hourly report. if `end` provided,
+                returns all hourly reports published after this date
+                and before `end`.
+
+            end (str, datetime,): if provided, returns all hourly reports published
+                after `date` and before `end`
+
+
             forecast_type (ERCOTSevenDayLoadForecastReport): The load forecast type.
                 Enum of possible values.
             verbose (bool, optional): print verbose output. Defaults to False.
@@ -551,18 +561,34 @@ class Ercot(ISOBase):
             if not utils.is_today(date, self.default_timezone):
                 raise NotSupported()
 
-        doc = self._get_document(
-            report_type_id=forecast_type.value,
-            published_before=date,
-            constructed_name_contains="csv.zip",
-            verbose=verbose,
-        )
+        if end is None:
+            doc = self._get_document(
+                report_type_id=forecast_type.value,
+                published_before=date,
+                constructed_name_contains="csv.zip",
+                verbose=verbose,
+            )
+            docs = [doc]
+        else:
+            docs = self._get_documents(
+                report_type_id=forecast_type.value,
+                published_after=date,
+                published_before=end,
+                constructed_name_contains="csv.zip",
+                verbose=verbose,
+            )
 
-        df = self._handle_load_forecast(
-            doc,
-            forecast_type=forecast_type,
-            verbose=verbose,
-        )
+        all_df = []
+        for doc in docs:
+            df = self._handle_load_forecast(
+                doc,
+                forecast_type=forecast_type,
+                verbose=verbose,
+            )
+
+            all_df.append(df)
+
+        df = pd.concat(all_df)
 
         return df
 
