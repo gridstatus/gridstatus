@@ -179,6 +179,16 @@ class TestErcot(BaseTestISO):
 
     """get_load_forecast"""
 
+    def test_get_load_forecast_range(self):
+        end = pd.Timestamp.now(tz=self.iso.default_timezone)
+        start = end - pd.Timedelta(hours=3)
+        df = self.iso.get_load_forecast(start=start, end=end)
+
+        unique_load_forecast_time = df["Forecast Time"].unique()
+        # make sure each is between start and end
+        assert (unique_load_forecast_time >= start).all()
+        assert (unique_load_forecast_time <= end).all()
+
     def test_get_load_forecast_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_forecast_historical()

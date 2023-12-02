@@ -590,6 +590,8 @@ class Ercot(ISOBase):
 
         df = pd.concat(all_df)
 
+        df = df.sort_values("Forecast Time")
+
         return df
 
     def _handle_load_forecast(self, doc, forecast_type, verbose=False):
