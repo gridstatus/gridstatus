@@ -586,7 +586,7 @@ class Ercot(ISOBase):
 
         df = pd.concat(all_df)
 
-        df = df.sort_values("Forecast Time")
+        df = df.sort_values("Publish Time")
 
         return df
 
@@ -603,7 +603,24 @@ class Ercot(ISOBase):
             ERCOTSevenDayLoadForecastReport.BY_MODEL_AND_WEATHER_ZONE,
         ]:
             df["Load Forecast"] = df["SystemTotal"].copy()
-        df["Forecast Time"] = doc.publish_date
+        df["Publish Time"] = doc.publish_date
+
+        df = df.rename(
+            columns={
+                "SystemTotal": "System Total",
+            },
+        )
+
+        if forecast_type == ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE:
+            # rename with spaces
+            df = df.rename(
+                columns={
+                    "FarWest": "Far West",
+                    "North": "North",
+                    "NorthCentral": "North Central",
+                    "SouthCentral": "South Central",
+                },
+            )
 
         df = utils.move_cols_to_front(
             df,
@@ -611,7 +628,7 @@ class Ercot(ISOBase):
                 "Time",
                 "Interval Start",
                 "Interval End",
-                "Forecast Time",
+                "Publish Time",
             ],
         )
 

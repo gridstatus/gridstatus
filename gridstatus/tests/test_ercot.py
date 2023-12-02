@@ -184,7 +184,7 @@ class TestErcot(BaseTestISO):
         start = end - pd.Timedelta(hours=3)
         df = self.iso.get_load_forecast(start=start, end=end)
 
-        unique_load_forecast_time = df["Forecast Time"].unique()
+        unique_load_forecast_time = df["Publish Time"].unique()
         # make sure each is between start and end
         assert (unique_load_forecast_time >= start).all()
         assert (unique_load_forecast_time <= end).all()
@@ -196,18 +196,6 @@ class TestErcot(BaseTestISO):
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
         pass
-
-    def _check_forecast(self, df):
-        """Method override of BaseTestISO._check_forecast()
-        to handle enums."""
-        assert set(df.columns[:4]) == set(
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Forecast Time",
-            ],
-        )
 
     """get_spp"""
 
