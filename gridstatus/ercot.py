@@ -537,7 +537,9 @@ class Ercot(ISOBase):
 
 
 
-        If date range provided, returns all hourly reports published within
+        If date range provided, returns all hourly reports published within.
+
+        Note: only limited historical data is available
 
 
         Arguments:
@@ -555,12 +557,6 @@ class Ercot(ISOBase):
                 Enum of possible values.
             verbose (bool, optional): print verbose output. Defaults to False.
         """
-        if date == "latest":
-            pass
-        else:
-            if not utils.is_today(date, self.default_timezone):
-                raise NotSupported()
-
         if end is None:
             doc = self._get_document(
                 report_type_id=forecast_type.value,
