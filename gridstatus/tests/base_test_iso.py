@@ -329,12 +329,22 @@ class BaseTestISO:
         assert is_numeric_dtype(df["Load"])
 
     def _check_forecast(self, df):
+        # support both old and new format
+        # eventually all ISOs should return publish time
         assert set(df.columns) == set(
             [
                 "Time",
                 "Interval Start",
                 "Interval End",
                 "Forecast Time",
+                "Load Forecast",
+            ],
+        ) or set(df.columns) == set(
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
                 "Load Forecast",
             ],
         )
