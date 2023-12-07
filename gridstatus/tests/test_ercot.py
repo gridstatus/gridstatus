@@ -72,9 +72,6 @@ class TestErcot(BaseTestISO):
             "Total Discharging",
             "Net Output",
         ]
-        import pdb
-
-        pdb.set_trace()
 
     """get_fuel_mix"""
 
