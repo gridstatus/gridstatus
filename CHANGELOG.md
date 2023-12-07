@@ -4,6 +4,7 @@
 
 ### ERCOT
 
+- Add `ercot.get_energy_storage_resources`
 - Add support for RTM and DAM price correction datasets
 - Add System Lambda
 - Add support for RTM and DAM price correction datasets

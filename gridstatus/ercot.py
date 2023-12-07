@@ -265,6 +265,32 @@ class Ercot(ISOBase):
             notes=notes,
         )
 
+    def get_energy_storage_resources(self, verbose=False):
+        """Get energy storage resources. Always returns latest data"""
+        url = self.BASE + "/energy-storage-resources.json"
+        data = self._get_json(url, verbose=verbose)
+
+        df = pd.DataFrame(data["previousDay"]["data"] + data["currentDay"]["data"])
+
+        df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
+
+        df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df = df.rename(
+            columns={
+                "timestamp": "Time",
+                "totalCharging": "Total Charging",
+                "totalDischarging": "Total Discharging",
+                "netOutput": "Net Output",
+            }
+        )
+
+        df = df.sort_values("Time").reset_index(drop=True)
+
+        return df
+
     def get_fuel_mix(self, date, verbose=False):
         """Get fuel mix 5 minute intervals
 
