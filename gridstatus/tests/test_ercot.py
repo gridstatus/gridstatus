@@ -63,6 +63,16 @@ class TestErcot(BaseTestISO):
         assert df.shape == (1, 15)
         assert df.columns[0] == "Time"
 
+    def test_get_energy_storage_resources(self):
+        df = self.iso.get_energy_storage_resources()
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Total Charging",
+            "Total Discharging",
+            "Net Output",
+        ]
+
     """get_fuel_mix"""
 
     def test_get_fuel_mix(self):
