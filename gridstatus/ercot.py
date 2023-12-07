@@ -265,8 +265,9 @@ class Ercot(ISOBase):
             notes=notes,
         )
 
-    def get_energy_storage_resources(self, verbose=False):
-        """Get energy storage resources. Always returns latest data"""
+    def get_energy_storage_resources(self, date="latest", verbose=False):
+        """Get energy storage resources.
+        Always returns data from previous and current day"""
         url = self.BASE + "/energy-storage-resources.json"
         data = self._get_json(url, verbose=verbose)
 
