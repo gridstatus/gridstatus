@@ -39,6 +39,7 @@
 ### Bug Fixes
 
 - Assorted DST handling fixes
+- Ensure `sleep` parameter is handled correctly on all CAISO methods
 
 ## v0.23.0 - Sept 12, 2023
 

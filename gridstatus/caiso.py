@@ -455,6 +455,7 @@ class CAISO(ISOBase):
                 "fuel_region_id": fuel_region_id,
             },
             raw_data=False,
+            sleep=sleep,
         )
 
         df = df.rename(
@@ -504,6 +505,7 @@ class CAISO(ISOBase):
             start=date,
             end=end,
             raw_data=False,
+            sleep=sleep,
         )
 
         df = df.rename(
