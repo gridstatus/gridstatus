@@ -584,6 +584,7 @@ class Ercot(ISOBase):
                 Enum of possible values.
             verbose (bool, optional): print verbose output. Defaults to False.
         """
+        # todo migrate to _get_hourly_report
         if end is None:
             doc = self._get_document(
                 report_type_id=forecast_type.value,
@@ -1664,7 +1665,7 @@ class Ercot(ISOBase):
         df.columns = df.columns.str.replace("_", " ")
         return df
 
-    @support_date_range("HOUR_START")
+    @support_date_range(frequency=None)
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
         """Hourly Resource Outage Capacity report sourced
         from the Outage Scheduler (OS).
@@ -1689,14 +1690,14 @@ class Ercot(ISOBase):
 
 
         """
-        doc = self._get_document(
+
+        df = self._get_hourly_report(
+            start=date,
+            end=end,
             report_type_id=HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID,
             extension="csv",
-            published_before=date,
-            verbose=verbose,
+            handle_doc=self._handle_hourly_resource_outage_capacity,
         )
-
-        df = self._handle_hourly_resource_outage_capacity(doc, verbose=verbose)
 
         return df
 
@@ -2271,6 +2272,37 @@ class Ercot(ISOBase):
             return [max(matches, key=lambda x: x.publish_date)]
 
         return matches
+
+    def _get_hourly_report(
+        self, start, end, report_type_id, handle_doc, extension, verbose=False
+    ):
+        if end is None:
+            doc = self._get_document(
+                report_type_id=report_type_id,
+                extension=extension,
+                published_before=start,
+                verbose=verbose,
+            )
+            docs = [doc]
+        else:
+            docs = self._get_documents(
+                report_type_id=report_type_id,
+                extension=extension,
+                published_before=end,
+                published_after=start,
+                verbose=verbose,
+            )
+
+        all_df = []
+        for doc in docs:
+            df = handle_doc(doc, verbose=verbose)
+            all_df.append(df)
+
+        df = pd.concat(all_df)
+
+        df = df.sort_values("Publish Time")
+
+        return df
 
     def _handle_json_data(self, df, columns):
         df["Time"] = (
