@@ -145,6 +145,9 @@ class support_date_range:
                 elif frequency == "HOUR_START":
                     frequency = pd.DateOffset(hours=1)
 
+                elif frequency == "YEAR_START":
+                    frequency = YearBeginOffset()
+
                 dates = date_range_maker(
                     args_dict["date"],
                     args_dict["end"],
@@ -383,6 +386,14 @@ class DayBeginOffset:
 class MonthBeginOffset:
     def __ladd__(self, other):
         return other.normalize() + pd.offsets.MonthBegin(1)
+
+    def __radd__(self, other):
+        return self.__ladd__(other)
+
+
+class YearBeginOffset:
+    def __ladd__(self, other):
+        return other.normalize() + pd.offsets.YearBegin(1)
 
     def __radd__(self, other):
         return self.__ladd__(other)
