@@ -251,6 +251,10 @@ class IESO(ISOBase):
             & (pivot_df["Interval End"].dt.date <= end_date_only)
         ].reset_index(drop=True)
 
+    # TODO add fuel mix. http://reports.ieso.ca/public/GenOutputbyFuelHourly/
+    def get_fuel_mix(self, date, end=None, verbose=False):
+        pass
+
     def _today(self):
         return pd.Timestamp.now(tz=self.default_timezone).date()
 

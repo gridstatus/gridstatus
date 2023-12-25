@@ -123,6 +123,7 @@ Examples/ercot/index.md
 Examples/nyiso/index.md
 Examples/pjm/index.md
 Examples/spp/index.md
+Examples/ieso/index.md
 Examples/misc/index.md
 ```
 
