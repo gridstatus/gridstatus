@@ -10,26 +10,29 @@ from gridstatus.base import ISOBase, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 
-FORECAST_DEMAND_INDEX_URL = "http://reports.ieso.ca/public/OntarioZonalDemand/"
+# Load goes back several decades, with each year in one file.
+EARLIEST_LOAD = pd.Timestamp("2002-05-01").date()
+LOAD_INDEX_URL = "http://reports.ieso.ca/public/DemandZonal/"
 
-# Each forecast file contains data from the day in the filename and going forward
+# The yearly file is updated daily, and contains data from the start of the year
+# through the current date.
+LOAD_TEMPLATE_URL = f"{LOAD_INDEX_URL}/PUB_DemandZonal_YYYY.csv"
+
+
+LOAD_FORECAST_INDEX_URL = "http://reports.ieso.ca/public/OntarioZonalDemand/"
+
+# Each forecast file contains data from the day in the filename going forward for
 # 34 days. The most recent file does not have a date in the filename.
-FORECASTED_DEMAND_TEMPLATE_URL = (
-    f"{FORECAST_DEMAND_INDEX_URL}/PUB_OntarioZonalDemand_YYYYMMDD.xml"
+LOAD_FORECAST_TEMPLATE_URL = (
+    f"{LOAD_FORECAST_INDEX_URL}/PUB_OntarioZonalDemand_YYYYMMDD.xml"
 )
 
 # The farthest in the past that forecast files are available
-MAXIMUM_DAYS_IN_PAST_FOR_FORECAST = 90
-# THE farthest in the future that forecasts are available. Note that there are not
+MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST = 90
+# The farthest in the future that forecasts are available. Note that there are not
 # files for these future forecasts, they are in the current day's file.
-MAXIMUM_DAYS_IN_FUTURE_FOR_FORECAST = 34
+MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST = 34
 
-# Actual demand goes back several decades, with each year in one file.
-EARLIEST_ACTUAL_DEMAND = "2002-05-01"
-ACTUAL_DEMAND_INDEX_URL = "http://reports.ieso.ca/public/DemandZonal/"
-
-# Specifying the year is enough because the yearly file is updated daily.
-ACTUAL_DEMAND_TEMPLATE_URL = f"{ACTUAL_DEMAND_INDEX_URL}/PUB_DemandZonal_YYYY.csv"
 
 INTERVAL_DURATION = pd.Timedelta(hours=1)
 
@@ -68,16 +71,16 @@ class IESO(ISOBase):
 
         date_only = date.date()
 
-        if date_only < pd.to_datetime(EARLIEST_ACTUAL_DEMAND).date():
+        if date_only < pd.to_datetime(EARLIEST_LOAD).date():
             raise NotSupported(
-                f"Load is not available before {EARLIEST_ACTUAL_DEMAND}.",
+                f"Load is not available before {EARLIEST_LOAD}.",
             )
 
         if date_only > today:
             raise NotSupported("Load is not available for future dates.")
 
         year = date.year
-        url = ACTUAL_DEMAND_TEMPLATE_URL.replace("YYYY", str(year))
+        url = LOAD_TEMPLATE_URL.replace("YYYY", str(year))
 
         r = self._request(url, verbose)
 
@@ -136,24 +139,28 @@ class IESO(ISOBase):
 
         date_only = date.date()
 
-        if date_only < today - pd.Timedelta(days=MAXIMUM_DAYS_IN_PAST_FOR_FORECAST):
+        if date_only < today - pd.Timedelta(
+            days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST,
+        ):
             # Forecasts are not support for past dates
             raise NotSupported(
-                "Past dates are not support for forecasted demand more than"
-                f"{MAXIMUM_DAYS_IN_PAST_FOR_FORECAST} days in the past.",
+                "Past dates are not support for load forecasts more than"
+                f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST} days in the past.",
             )
 
-        if date_only > today + pd.Timedelta(days=MAXIMUM_DAYS_IN_FUTURE_FOR_FORECAST):
+        if date_only > today + pd.Timedelta(
+            days=MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST,
+        ):
             raise NotSupported(
-                f"Dates more than {MAXIMUM_DAYS_IN_FUTURE_FOR_FORECAST}"
-                "days in the future are not supported.",
+                f"Dates more than {MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST}"
+                "days in the future are not supported for load forecasts.",
             )
 
         # For future dates, the most recent forecast is used
         if date_only > today:
-            url = FORECASTED_DEMAND_TEMPLATE_URL.replace("_YYYYMMDD", "")
+            url = LOAD_FORECAST_TEMPLATE_URL.replace("_YYYYMMDD", "")
         else:
-            url = FORECASTED_DEMAND_TEMPLATE_URL.replace(
+            url = LOAD_FORECAST_TEMPLATE_URL.replace(
                 "YYYYMMDD",
                 date.strftime("%Y%m%d"),
             )
@@ -173,7 +180,6 @@ class IESO(ISOBase):
 
         # Extracting data for each ZonalDemands within the Document
         for zonal_demands in root.findall(".//ZonalDemands", namespaces):
-            # Extract the DeliveryDate for the ZonalDemands
             delivery_date = zonal_demands.find(".//DeliveryDate", namespaces).text
 
             for zonal_demand in zonal_demands.findall(".//ZonalDemand/*", namespaces):
@@ -193,7 +199,6 @@ class IESO(ISOBase):
                         },
                     )
 
-        # Create a DataFrame from the list of data
         df = pd.DataFrame(data)
 
         # Convert columns to appropriate data types
