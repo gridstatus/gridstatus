@@ -12,13 +12,16 @@ from gridstatus.gs_logging import log
 
 FORECAST_DEMAND_INDEX_URL = "http://reports.ieso.ca/public/OntarioZonalDemand/"
 
-# Each forecast file contains data from the day forward 34 days.
-# The most recent file does not have a date in the filename.
+# Each forecast file contains data from the day in the filename and going forward
+# 34 days. The most recent file does not have a date in the filename.
 FORECASTED_DEMAND_TEMPLATE_URL = (
     f"{FORECAST_DEMAND_INDEX_URL}/PUB_OntarioZonalDemand_YYYYMMDD.xml"
 )
 
+# The farthest in the past that forecast files are available
 MAXIMUM_DAYS_IN_PAST_FOR_FORECAST = 90
+# THE farthest in the future that forecasts are available. Note that there are not
+# files for these future forecasts, they are in the current day's file.
 MAXIMUM_DAYS_IN_FUTURE_FOR_FORECAST = 34
 
 # Actual demand goes back several decades, with each year in one file.
@@ -28,8 +31,10 @@ ACTUAL_DEMAND_INDEX_URL = "http://reports.ieso.ca/public/DemandZonal/"
 # Specifying the year is enough because the yearly file is updated daily.
 ACTUAL_DEMAND_TEMPLATE_URL = f"{ACTUAL_DEMAND_INDEX_URL}/PUB_DemandZonal_YYYY.csv"
 
+INTERVAL_DURATION = pd.Timedelta(hours=1)
 
-class Ieso(ISOBase):
+
+class IESO(ISOBase):
     """Independent Electricity System Operator (IESO)"""
 
     name = "Independent Electricity System Operator"
@@ -41,25 +46,93 @@ class Ieso(ISOBase):
     # https://www.ieso.ca/-/media/Files/IESO/Document-Library/engage/ca/ca-Introduction-to-the-Capacity-Auction.ashx
     default_timezone = "EST"
 
-    @support_date_range(frequency="DAY_START")
-    def get_hourly_forecasted_demand(self, date, end=None, verbose=False):
+    status_homepage = "https://www.ieso.ca/en/Power-Data"
+
+    @support_date_range(frequency="YEAR_START")
+    def get_load(self, date, end=None, verbose=False):
         """
-        Get load by forecast zone for a given date.
-        Supports data 90 days into the past and up to 34 days into the future.
+        Get hourly load by zone for a given date or from date to end date.
 
         Args:
-            date (datetime.date): date to get load for
+            date (datetime.date): date to get load for. If end is None, returns
+                only data for this date.
+            end (datetime.date, optional): end date. Defaults to None. If provided,
+                returns data from date to end date.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: load for given date
+            pd.DataFrame: zonal load as a wide table with columns for each zone
         """
-        today = pd.Timestamp.now(tz=self.default_timezone).date()
+        today = self._today()
+        date = self._handle_input_date(date)
 
-        if date in ["latest", "today"]:
-            date = pd.to_datetime(today)
-        else:
-            date = pd.to_datetime(date)
+        date_only = date.date()
+
+        if date_only < pd.to_datetime(EARLIEST_ACTUAL_DEMAND).date():
+            raise NotSupported(
+                f"Load is not available before {EARLIEST_ACTUAL_DEMAND}.",
+            )
+
+        if date_only > today:
+            raise NotSupported("Load is not available for future dates.")
+
+        year = date.year
+        url = ACTUAL_DEMAND_TEMPLATE_URL.replace("YYYY", str(year))
+
+        r = self._request(url, verbose)
+
+        # Create a dataframe from the CSV file, skipping lines starting with \\
+        df = pd.read_csv(io.StringIO(r.text), comment="\\")
+
+        df["Interval Start"] = (
+            pd.to_datetime(df["Date"]) + pd.to_timedelta(df["Hour"], unit="h")
+        ).dt.tz_localize(self.default_timezone)
+
+        df["Interval End"] = df["Interval Start"] + INTERVAL_DURATION
+
+        df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
+        cols_to_drop = ["Date", "Hour", "Diff"]
+        df = df.drop(cols_to_drop, axis=1)
+
+        col_mapper = {
+            col: f"{col} Load"
+            for col in df.columns
+            if col not in ["Interval Start", "Interval End"]
+        }
+
+        df = df.rename(columns=col_mapper)
+
+        # If no end is provided, return data from single date
+        if not end:
+            return df[df["Interval Start"].dt.date == date_only].reset_index(drop=True)
+
+        end_date_only = pd.to_datetime(end).date()
+
+        return df[
+            (df["Interval Start"].dt.date >= date_only)
+            & (df["Interval End"].dt.date <= end_date_only)
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_load_forecast(self, date, end=None, verbose=False):
+        """
+        Get forecasted load by forecast zone (Ontario, East, West) for a given date
+        or from date to end date.
+
+        Supports data 90 days into the past and up to 34 days into the future.
+
+        Args:
+            date (datetime.date): date to get load for. If end is None, returns
+                only data for this date.
+            end (datetime.date, optional): end date. Defaults to None. If provided,
+                returns data from date to end date.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: forecasted load as a wide table with columns for each zone
+        """
+        today = self._today()
+        date = self._handle_input_date(date)
 
         date_only = date.date()
 
@@ -85,30 +158,7 @@ class Ieso(ISOBase):
                 date.strftime("%Y%m%d"),
             )
 
-        msg = f"Fetching URL: {url}"
-        log(msg, verbose)
-
-        retry_num = 0
-        sleep = 5
-
-        while retry_num < 3:
-            r = requests.get(url)
-
-            if r.ok:
-                break
-
-            retry_num += 1
-            print(
-                f"Failed to get data from CAISO. Error: {r.reason}. "
-                f"Retrying {retry_num}...",
-            )
-            time.sleep(sleep)
-
-            # Exponential backoff
-            sleep *= 2
-
-        if not r.ok:
-            raise Exception(f"Failed to get data from IESO. Error: {r.reason}")
+        r = self._request(url, verbose)
 
         # Define the namespaces used in the XML document
         namespaces = {"": "http://www.ieso.ca/schema"}
@@ -119,23 +169,21 @@ class Ieso(ISOBase):
         # Parse the XML file
         root = ET.fromstring(r.content)
 
-        published_time = root.findall(".//CreatedAt", namespaces)[0].text
+        published_time = root.find(".//CreatedAt", namespaces).text
 
         # Extracting data for each ZonalDemands within the Document
         for zonal_demands in root.findall(".//ZonalDemands", namespaces):
             # Extract the DeliveryDate for the ZonalDemands
             delivery_date = zonal_demands.find(".//DeliveryDate", namespaces).text
-            # Loop through each ZonalDemand within ZonalDemands
+
             for zonal_demand in zonal_demands.findall(".//ZonalDemand/*", namespaces):
                 # The zone name is the tag name without the namespace
-                zone_name = zonal_demand.tag[
-                    zonal_demand.tag.rfind("}") + 1 :
-                ]  # Extract the local name of the zone
-                # Now, loop through each Demand element within the ZonalDemand
+                zone_name = zonal_demand.tag[(zonal_demand.tag.rfind("}") + 1) :]
+
                 for demand in zonal_demand.findall(".//Demand", namespaces):
                     hour = demand.find(".//DeliveryHour", namespaces).text
                     energy_mw = demand.find(".//EnergyMW", namespaces).text
-                    # Append the extracted data to the list
+
                     data.append(
                         {
                             "DeliveryDate": delivery_date,
@@ -157,7 +205,7 @@ class Ieso(ISOBase):
             df["DeliveryDate"] + pd.to_timedelta(df["DeliveryHour"], unit="h")
         ).dt.tz_localize(self.default_timezone)
 
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df["Interval End"] = df["Interval Start"] + INTERVAL_DURATION
 
         # Pivot the table to wide
         pivot_df = df.pivot_table(
@@ -184,6 +232,12 @@ class Ieso(ISOBase):
 
         pivot_df.columns.name = None
 
+        col_mapper = {
+            col: f"{col} Load Forecast" for col in ["Ontario", "East", "West"]
+        }
+
+        pivot_df = pivot_df.rename(columns=col_mapper)
+
         # If no end is provided, return data from single date
         if not end:
             return pivot_df[
@@ -197,54 +251,39 @@ class Ieso(ISOBase):
             & (pivot_df["Interval End"].dt.date <= end_date_only)
         ].reset_index(drop=True)
 
-    @support_date_range(frequency="YEAR_START")
-    def get_hourly_zonal_demand(self, date, end=None, verbose=False):
-        """
-        Get hourly zonal demand for a given date.
+    def _today(self):
+        return pd.Timestamp.now(tz=self.default_timezone).date()
 
-        Args:
-            date (datetime.date): date to get load for
-            end (datetime.date, optional): end date. Defaults to None.
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        """
-        today = pd.Timestamp.now(tz=self.default_timezone).date()
-
+    def _handle_input_date(self, date):
         if date in ["latest", "today"]:
-            date = pd.to_datetime(today)
+            return pd.to_datetime(self._today())
         else:
-            date = pd.to_datetime(date)
+            try:
+                date = pd.to_datetime(date)
 
-        date_only = date.date()
+            except ValueError:
+                raise ValueError(
+                    f"Invalid date: {date}. Must be a valid date string, a "
+                    "valid datetime, or one of'latest', 'today'.",
+                )
+            return pd.to_datetime(date)
 
-        if date_only < pd.to_datetime(EARLIEST_ACTUAL_DEMAND).date():
-            raise NotSupported(
-                f"Actual demand data is not available before {EARLIEST_ACTUAL_DEMAND}.",
-            )
-
-        if date_only > today:
-            raise NotSupported("Actual demand is not available for future dates.")
-
-        year = date.year
-        url = ACTUAL_DEMAND_TEMPLATE_URL.replace("YYYY", str(year))
-
+    def _request(self, url, verbose):
         msg = f"Fetching URL: {url}"
         log(msg, verbose)
 
+        max_retries = 3
         retry_num = 0
         sleep = 5
 
-        while retry_num < 3:
+        while retry_num < max_retries:
             r = requests.get(url)
 
             if r.ok:
                 break
 
             retry_num += 1
-            print(
-                f"Failed to get data from IESO. Error: {r.reason}."
-                f"Retrying {retry_num}...",
-            )
+            print(f"Request failed. Error: {r.reason}. Retrying {retry_num}...")
 
             time.sleep(sleep)
 
@@ -252,30 +291,8 @@ class Ieso(ISOBase):
             sleep *= 2
 
         if not r.ok:
-            raise Exception(f"Failed to get data from IESO. Error: {r.reason}")
+            raise Exception(
+                f"Failed to retrieve data from {url} in {max_retries} tries.",
+            )
 
-        # Create a dataframe from the CSV file, skipping lines starting with \\
-        df = pd.read_csv(io.StringIO(r.text), comment="\\")
-
-        df["Interval Start"] = (
-            pd.to_datetime(df["Date"]) + pd.to_timedelta(df["Hour"], unit="h")
-        ).dt.tz_localize(self.default_timezone)
-
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-
-        df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
-
-        cols_to_drop = ["Date", "Hour", "Diff"]
-
-        df = df.drop(cols_to_drop, axis=1)
-
-        # If no end is provided, return data from single date
-        if not end:
-            return df[df["Interval Start"].dt.date == date_only]
-
-        end_date_only = pd.to_datetime(end).date()
-
-        return df[
-            (df["Interval Start"].dt.date >= date_only)
-            & (df["Interval End"].dt.date <= end_date_only)
-        ]
+        return r

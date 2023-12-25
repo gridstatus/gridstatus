@@ -322,7 +322,15 @@ class BaseTestISO:
 
         if self.iso.iso_id in ["nyiso"]:
             time_type = "instant"
-        elif self.iso.iso_id in ["caiso", "isone", "spp", "miso", "pjm", "ercot"]:
+        elif self.iso.iso_id in [
+            "caiso",
+            "isone",
+            "spp",
+            "miso",
+            "pjm",
+            "ercot",
+            "ieso",
+        ]:
             time_type = "interval"
         self._check_time_columns(df, instant_or_interval=time_type)
         assert "Load" in df.columns
