@@ -531,10 +531,9 @@ class CAISO(ISOBase):
         msg = f"Downloading interconnection queue from {url}"
         log(msg, verbose)
         response = requests.get(url)
-        if response.status_code == 200:
-            return io.BytesIO(response.content)
-        else:
+        if response.status_code != 200:
             raise RuntimeError(f"GET {url} failed: {response}")
+        return io.BytesIO(response.content)
 
     def get_interconnection_queue(self, verbose=False):
         raw_data = self.get_raw_interconnection_queue(verbose)

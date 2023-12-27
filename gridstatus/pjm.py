@@ -1,6 +1,7 @@
 import io
 import math
 import warnings
+from typing import BinaryIO
 
 import pandas as pd
 import requests
@@ -956,9 +957,10 @@ class PJM(ISOBase):
 
         return df
 
-    def get_interconnection_queue(self, verbose=False):
-        r = requests.post(
-            "https://services.pjm.com/PJMPlanningApi/api/Queue/ExportToXls",
+    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+        url = "https://services.pjm.com/PJMPlanningApi/api/Queue/ExportToXls"
+        response = requests.post(
+            url,
             headers={
                 # unclear if this key changes. obtained from https://www.pjm.com/dist/interconnectionqueues.71b76ed30033b3ff06bd.js
                 "api-subscription-key": "E29477D0-70E0-4825-89B0-43F460BF9AB4",
@@ -967,7 +969,13 @@ class PJM(ISOBase):
                 "Referer": "https://www.pjm.com/",
             },
         )
-        queue = pd.read_excel(io.BytesIO(r.content))
+        if response.status_code != 200:
+            raise RuntimeError(f"GET {url} failed: {response}")
+        return io.BytesIO(response.content)
+
+    def get_interconnection_queue(self, verbose=False):
+        raw_data = self.get_raw_interconnection_queue(verbose)
+        queue = pd.read_excel(raw_data)
 
         queue["Capacity (MW)"] = queue[["MFO", "MW In Service"]].min(axis=1)
 

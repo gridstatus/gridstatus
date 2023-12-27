@@ -729,6 +729,19 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
+    def get_raw_interconnection_queue(self, verbose=False):
+        doc_info = self._get_document(
+            report_type_id=GIS_REPORT_RTID,
+            constructed_name_contains="GIS_Report",
+            verbose=verbose,
+        )
+        msg = f"Downloading interconnection queue from: {doc_info.url} "
+        log(msg, verbose)
+        response = requests.get(doc_info.url)
+        if response.status_code != 200:
+            raise RuntimeError(f"GET {doc_info.url} failed: {response}")
+        return io.BytesIO(response.content)
+
     def get_interconnection_queue(self, verbose=False):
         """
         Get interconnection queue for ERCOT
@@ -736,23 +749,14 @@ class Ercot(ISOBase):
         Monthly historical data available here:
             http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
         """  # noqa
-
-        doc_info = self._get_document(
-            report_type_id=GIS_REPORT_RTID,
-            constructed_name_contains="GIS_Report",
-            verbose=verbose,
-        )
-
+        raw_data = self.get_raw_interconnection_queue(verbose)
         # TODO other sheets for small projects, inactive, and cancelled project
         # TODO see if this data matches up with summaries in excel file
         # TODO historical data available as well
 
-        msg = f"Downloading interconnection queue from: {doc_info.url} "
-        log(msg, verbose)
-
         # skip rows and handle header
         queue = pd.read_excel(
-            doc_info.url,
+            raw_data,
             sheet_name="Project Details - Large Gen",
             skiprows=30,
         ).iloc[4:]

@@ -1,3 +1,6 @@
+import io
+from typing import BinaryIO
+
 import pandas as pd
 import requests
 import tqdm
@@ -690,6 +693,15 @@ class SPP(ISOBase):
     # https://marketplace.spp.org/chart-api/gen-mix-365/asFile
     # 15mb file with five minute resolution
 
+    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
+        msg = f"Getting interconnection queue from {url}"
+        log(msg, verbose)
+        response = requests.get(url)
+        if response.status_code != 200:
+            raise RuntimeError(f"GET {url} failed: {response}")
+        return io.BytesIO(response.content)
+
     def get_interconnection_queue(self, verbose=False):
         """Get interconnection queue
 
@@ -698,12 +710,8 @@ class SPP(ISOBase):
 
 
         """
-        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
-
-        msg = f"Getting interconnection queue from {url}"
-        log(msg, verbose)
-
-        queue = pd.read_csv(url, skiprows=1)
+        raw_data = self.get_raw_interconnection_queue(verbose)
+        queue = pd.read_csv(raw_data, skiprows=1)
 
         queue["Status (Original)"] = queue["Status"]
         completed_val = InterconnectionQueueStatus.COMPLETED.value

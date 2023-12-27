@@ -1,4 +1,8 @@
+import io
+from typing import BinaryIO
+
 import pandas as pd
+import requests
 
 import gridstatus
 from gridstatus import utils
@@ -62,8 +66,9 @@ class NYISO(ISOBase):
                 row["Notes"] = [row["Status"]]
 
                 row["Status"] = row["Status"][
-                    row["Status"].index(STATE_CHANGE)
-                    + len(STATE_CHANGE) : -len(" state.**")
+                    row["Status"].index(STATE_CHANGE) + len(STATE_CHANGE) : -len(
+                        " state.**",
+                    )
                 ].capitalize()
 
             return row
@@ -323,6 +328,16 @@ class NYISO(ISOBase):
 
         return df
 
+    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
+
+        msg = f"Downloading interconnection queue from {url}"
+        log(msg, verbose)
+        response = requests.get(url)
+        if response.status_code != 200:
+            raise RuntimeError(f"GET {url} failed: {response}")
+        return io.BytesIO(response.content)
+
     def get_interconnection_queue(self, verbose=False):
         """Return NYISO interconnection queue
 
@@ -336,13 +351,10 @@ class NYISO(ISOBase):
 
         # 3 sheets - ['Interconnection Queue', 'Withdrawn', 'In Service']
         # harded coded for now. perhaps this url can be parsed from the html here:
-        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
-
-        msg = f"Downloading interconnection queue from {url}"
-        log(msg, verbose)
+        raw_data = self.get_raw_interconnection_queue(verbose)
 
         # Create ExcelFile so we only need to download file once
-        excel_file = pd.ExcelFile(url)
+        excel_file = pd.ExcelFile(raw_data)
 
         # Drop extra rows at bottom
         active = (
