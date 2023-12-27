@@ -12,6 +12,7 @@ from gridstatus.base import Markets, NotSupported, _interconnection_columns
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
 from gridstatus.gs_logging import log
+from gridstatus.ieso import IESO
 from gridstatus.isone import ISONE
 from gridstatus.lmp_config import lmp_config
 from gridstatus.miso import MISO
@@ -22,7 +23,7 @@ from gridstatus.spp import SPP
 GREEN_CHECKMARK_HTML_ENTITY = "&#x2705;"
 
 RED_X_HTML_ENTITY = "&#10060;"
-all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
+all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE, IESO]
 
 
 def list_isos():
