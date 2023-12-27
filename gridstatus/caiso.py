@@ -533,6 +533,8 @@ class CAISO(ISOBase):
         response = requests.get(url)
         if response.status_code == 200:
             return io.BytesIO(response.content)
+        else:
+            raise RuntimeError(f"GET {url} failed: {response}")
 
     def get_interconnection_queue(self, verbose=False):
         raw_data = self.get_raw_interconnection_queue(verbose)
@@ -1243,7 +1245,11 @@ def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
         time.sleep(sleep)
 
     # this is when no data is available
-    if ".xml.zip;" in r.headers["Content-Disposition"] or b".xml" in r.content:
+    if (
+        "Content-Disposition" not in r.headers
+        or ".xml.zip;" in r.headers["Content-Disposition"]
+        or b".xml" in r.content
+    ):
         # avoid rate limiting
         time.sleep(sleep)
         return None

@@ -5,6 +5,8 @@ import gridstatus
 
 # todo implement this
 @pytest.mark.slow
-def test_get_interconnection_queue_all():
+@pytest.mark.parametrize("iso_class", gridstatus.utils.all_isos)
+def test_get_interconnection_queue_all(iso_class):
     """Get interconnection queue data for all ISOs"""
-    gridstatus.get_interconnection_queues()
+    iso = iso_class()
+    iso.get_interconnection_queue()
