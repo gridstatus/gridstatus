@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.24.0 - Nov 9, 2023
+## v0.24.0 - Dec 27, 2023
 
 ### ERCOT
 
