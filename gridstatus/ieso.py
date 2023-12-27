@@ -1,4 +1,4 @@
-import io
+import datetime
 import time
 import xml.etree.ElementTree as ET
 
@@ -34,8 +34,11 @@ MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST = 90
 MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST = 34
 
 
-MINUTES_INTERVAL_DURATION = pd.Timedelta(minutes=5)
-INTERVAL_DURATION = pd.Timedelta(hours=1)
+MINUTES_INTERVAL = 5
+HOUR_INTERVAL = 1
+
+# Default namespace used in the XML files
+NAMESPACES_FOR_XML = {"": "http://www.ieso.ca/schema"}
 
 
 class IESO(ISOBase):
@@ -53,85 +56,125 @@ class IESO(ISOBase):
     status_homepage = "https://www.ieso.ca/en/Power-Data"
 
     def get_5_min_load(self, date, end=None, verbose=False):
-        r = self._request(
-            LOAD_TEMPLATE_URL.replace("YYYYMMDDHH", date.strftime("%Y%m%d%H")), verbose
+        """
+        Get 5 minute load for a given date or from date to end date.
+
+        Args:
+            date (datetime.date | datetime.datetime | str): The date to get the load for
+                Can be a `datetime.date` or `datetime.datetime` object, or a string
+                with the values "today" or "latest". If `end` is None, returns
+                only data for this date.
+            end (datetime.date | datetime.datetime, optional): End date. Defaults None
+                If provided, returns data from `date` to `end` date. The `end` can be a
+                `datetime.date` or `datetime.datetime` object.
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
+        """
+        # Return data from the earliest interval today to the latest interval today
+        if date in ["today", "latest"]:
+            date = pd.Timestamp(self._today()).replace(hour=0, minute=0)
+            end = pd.Timestamp.now(tz=self.default_timezone)
+
+        # If given a date string or plain date set date to the earliest interval
+        # and end to the latest interval on the date
+        if isinstance(date, str) or (
+            isinstance(date, datetime.date) and not isinstance(date, datetime.datetime)
+        ):
+            date = pd.to_datetime(date).replace(hour=0, minute=0)
+            end = pd.to_datetime(date).replace(hour=23, minute=59)
+
+        if date.date() > self._today():
+            raise NotSupported(
+                "Load data is not available for future dates.",
+            )
+
+        if date.date() < self._today() - pd.Timedelta(
+            days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
+        ):
+            raise NotSupported(
+                f"Load data is not available for dates more than "
+                f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
+            )
+
+        return self._retrieve_5_minute_load(date, end, verbose)
+
+    @support_date_range(frequency="HOUR_START")
+    def _retrieve_5_minute_load(self, date, end=None, verbose=False):
+        # We have to add 1 to the hour to get the file because the filename with
+        # hour x contains data for hour x-1. For example, to get data for
+        # 9:00 - 9:55, we need to request the file for hour 10.
+        # The hour should be in the range 1-24
+        hour = date.hour + 1
+
+        url = LOAD_TEMPLATE_URL.replace(
+            "YYYYMMDDHH",
+            f"{(date).strftime('%Y%m%d')}{hour:02d}",
         )
+
+        r = self._request(url, verbose)
 
         root = ET.fromstring(r.text)
 
-        # Namespace handling
-        namespaces = {"ns": "http://www.ieso.ca/schema"}
+        # Extracting all triples of Interval, Market Total Load, and Ontario Load
+        interval_loads_and_demands = self._find_loads_at_each_interval_from_xml(root)
 
-        # Function to extract data for a specific Market Quantity considering namespace
-        def extract_data_for_market_quantity_with_ns(mq_element, market_quantity_name):
-            for mq in mq_element.findall("ns:MQ", namespaces):
-                market_quantity = mq.find("ns:MarketQuantity", namespaces).text
-                if market_quantity_name in market_quantity:
-                    return mq.find("ns:EnergyMW", namespaces).text
-            return None
-
-        # Function to find all triples of 'Interval', 'Market Total Load', and
-        # 'Ontario Demand' in the XML file
-        def find_all_intervals_loads_and_demands(root_element):
-            interval_load_demand_triples = []
-            for interval_energy in root_element.findall(
-                "ns:DocBody/ns:Energies/ns:IntervalEnergy", namespaces
-            ):
-                interval = interval_energy.find("ns:Interval", namespaces).text
-                market_total_load = extract_data_for_market_quantity_with_ns(
-                    interval_energy, "Total Energy"
-                )
-                ontario_demand = extract_data_for_market_quantity_with_ns(
-                    interval_energy, "ONTARIO DEMAND"
-                )
-
-                if market_total_load and ontario_demand:
-                    interval_load_demand_triples.append(
-                        [int(interval), float(market_total_load), float(ontario_demand)]
-                    )
-
-            return interval_load_demand_triples
-
-        # Extracting all triples of Interval, Market Total Load, and Ontario Demand
-        all_intervals_loads_and_demands = find_all_intervals_loads_and_demands(root)
-
-        # Creating a DataFrame from the triples
         df = pd.DataFrame(
-            all_intervals_loads_and_demands,
+            interval_loads_and_demands,
             columns=["Interval", "Market Total Load", "Ontario Load"],
         )
 
-        # Extracting the 'Delivery Date', 'Delivery Hour', and 'Created At' values
-        delivery_date = root.find("ns:DocBody/ns:DeliveryDate", namespaces).text
-        delivery_hour = int(root.find("ns:DocBody/ns:DeliveryHour", namespaces).text)
-        created_at = root.find("ns:DocHeader/ns:CreatedAt", namespaces).text
+        delivery_date = root.find("DocBody/DeliveryDate", NAMESPACES_FOR_XML).text
+        delivery_hour = int(root.find("DocBody/DeliveryHour", NAMESPACES_FOR_XML).text)
+        created_at = root.find("DocHeader/CreatedAt", NAMESPACES_FOR_XML).text
 
-        # Adding 'Delivery Date', 'Delivery Hour', and 'Created At' columns
-        df["Delivery Date"] = pd.Timestamp(delivery_date)
-        df["Delivery Hour"] = delivery_hour - 1
+        df["Delivery Date"] = pd.Timestamp(delivery_date, tz=self.default_timezone)
+
+        # The starting hour is 1, so we subtract 1 to get the hour in the range 0-23
+        df["Delivery Hour Start"] = delivery_hour - 1
+        # Multiply the interval minus 1 by 5 to get the minutes in the range 0-55
+        df["Interval Minute Start"] = MINUTES_INTERVAL * (df["Interval"] - 1)
         df["Published Time"] = pd.Timestamp(created_at, tz=self.default_timezone)
 
         df["Interval Start"] = (
             df["Delivery Date"]
-            + pd.to_timedelta(df["Delivery Hour"], unit="h")
-            + 5 * pd.to_timedelta(df["Interval"] - 1, unit="min")
+            + pd.to_timedelta(df["Delivery Hour Start"], unit="h")
+            + pd.to_timedelta(df["Interval Minute Start"], unit="m")
         )
 
-        df["Interval End"] = df["Interval Start"] + MINUTES_INTERVAL_DURATION
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=MINUTES_INTERVAL,
+        )
+
+        cols_to_keep_in_order = [
+            "Interval Start",
+            "Interval End",
+            "Published Time",
+            "Market Total Load",
+            "Ontario Load",
+        ]
+
+        df = utils.move_cols_to_front(df, cols_to_keep_in_order)[cols_to_keep_in_order]
+
+        if end:
+            return df[df["Interval End"] <= pd.Timestamp(end)]
 
         return df
 
-    @support_date_range(frequency="YEAR_START")
     def get_load(self, date, end=None, verbose=False):
         """
-        Get hourly load by zone for a given date or from date to end date.
+        Get hourly load for the Market and Ontario for a given date or from
+        date to end date.
 
         Args:
-            date (datetime.date): date to get load for. If end is None, returns
+            date (datetime.date | datetime.datetime | str): The date to get the load for
+                Can be a `datetime.date` or `datetime.datetime` object, or a string
+                with the values "today" or "latest". If `end` is None, returns
                 only data for this date.
-            end (datetime.date, optional): end date. Defaults to None. If provided,
-                returns data from date to end date.
-            verbose (bool, optional): print verbose output. Defaults to False.
+            end (datetime.date | datetime.datetime, optional): End date. Defaults None
+                If provided, returns data from `date` to `end` date. The `end` can be a
+                `datetime.date` or `datetime.datetime` object.
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
 
         Returns:
             pd.DataFrame: zonal load as a wide table with columns for each zone
@@ -139,65 +182,33 @@ class IESO(ISOBase):
 
         data_five_minutes = self.get_5_min_load(date, end, verbose)
 
-        data = data_five_minutes.groupby("Delivery Hour")[
-            "Market Total Load", "Ontario Load"
-        ].mean()
-
-        data["Interval Start"] = data_five_minutes["Interval Start"].min()
-        data["Interval End"] = data_five_minutes["Interval End"].max()
-
-        today = self._today()
-        earliest_date_with_load = today - pd.Timedelta(
-            days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
+        # Hourly demand is the average over the 5 minute intervals within each hour
+        df = data_five_minutes.groupby(
+            [
+                data_five_minutes["Interval Start"].dt.date,
+                data_five_minutes["Interval Start"].dt.hour,
+            ],
+        ).agg(
+            {
+                "Market Total Load": "mean",
+                "Ontario Load": "mean",
+                "Interval Start": "min",
+            },
         )
-        date = self._handle_input_date(date)
 
-        date_only = date.date()
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=HOUR_INTERVAL)
 
-        if date_only < earliest_date_with_load:
-            raise NotSupported(
-                f"Load is not available before {earliest_date_with_load}."
-            )
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Market Total Load",
+                "Ontario Load",
+            ],
+        )
 
-        if date_only > today:
-            raise NotSupported("Load is not available for future dates.")
-
-        year = date.year
-        url = LOAD_TEMPLATE_URL.replace("YYYY", str(year))
-
-        r = self._request(url, verbose)
-
-        # Create a dataframe from the CSV file, skipping lines starting with \\
-        df = pd.read_csv(io.StringIO(r.text), comment="\\")
-
-        df["Interval Start"] = (
-            pd.to_datetime(df["Date"]) + pd.to_timedelta(df["Hour"], unit="h")
-        ).dt.tz_localize(self.default_timezone)
-
-        df["Interval End"] = df["Interval Start"] + INTERVAL_DURATION
-
-        df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
-        cols_to_drop = ["Date", "Hour", "Diff"]
-        df = df.drop(cols_to_drop, axis=1)
-
-        col_mapper = {
-            col: f"{col} Load"
-            for col in df.columns
-            if col not in ["Interval Start", "Interval End"]
-        }
-
-        df = df.rename(columns=col_mapper)
-
-        # If no end is provided, return data from single date
-        if not end:
-            return df[df["Interval Start"].dt.date == date_only].reset_index(drop=True)
-
-        end_date_only = pd.to_datetime(end).date()
-
-        return df[
-            (df["Interval Start"].dt.date >= date_only)
-            & (df["Interval End"].dt.date <= end_date_only)
-        ].reset_index(drop=True)
+        return df.reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_load_forecast(self, date, end=None, verbose=False):
@@ -208,11 +219,15 @@ class IESO(ISOBase):
         Supports data 90 days into the past and up to 34 days into the future.
 
         Args:
-            date (datetime.date): date to get load for. If end is None, returns
+            date (datetime.date | datetime.datetime | str): The date to get the load for
+                Can be a `datetime.date` or `datetime.datetime` object, or a string
+                with the values "today" or "latest". If `end` is None, returns
                 only data for this date.
-            end (datetime.date, optional): end date. Defaults to None. If provided,
-                returns data from date to end date.
-            verbose (bool, optional): print verbose output. Defaults to False.
+            end (datetime.date | datetime.datetime, optional): End date. Defaults None
+                If provided, returns data from `date` to `end` date. The `end` can be a
+                `datetime.date` or `datetime.datetime` object.
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
 
         Returns:
             pd.DataFrame: forecasted load as a wide table with columns for each zone
@@ -250,8 +265,8 @@ class IESO(ISOBase):
 
         r = self._request(url, verbose)
 
-        # Define the namespaces used in the XML document
-        namespaces = {"": "http://www.ieso.ca/schema"}
+        # Define the NAMESPACES_FOR_XML used in the XML document
+        NAMESPACES_FOR_XML = {"": "http://www.ieso.ca/schema"}
 
         # Initialize a list to store the parsed data
         data = []
@@ -259,19 +274,25 @@ class IESO(ISOBase):
         # Parse the XML file
         root = ET.fromstring(r.content)
 
-        published_time = root.find(".//CreatedAt", namespaces).text
+        published_time = root.find(".//CreatedAt", NAMESPACES_FOR_XML).text
 
         # Extracting data for each ZonalDemands within the Document
-        for zonal_demands in root.findall(".//ZonalDemands", namespaces):
-            delivery_date = zonal_demands.find(".//DeliveryDate", namespaces).text
+        for zonal_demands in root.findall(".//ZonalDemands", NAMESPACES_FOR_XML):
+            delivery_date = zonal_demands.find(
+                ".//DeliveryDate",
+                NAMESPACES_FOR_XML,
+            ).text
 
-            for zonal_demand in zonal_demands.findall(".//ZonalDemand/*", namespaces):
+            for zonal_demand in zonal_demands.findall(
+                ".//ZonalDemand/*",
+                NAMESPACES_FOR_XML,
+            ):
                 # The zone name is the tag name without the namespace
                 zone_name = zonal_demand.tag[(zonal_demand.tag.rfind("}") + 1) :]
 
-                for demand in zonal_demand.findall(".//Demand", namespaces):
-                    hour = demand.find(".//DeliveryHour", namespaces).text
-                    energy_mw = demand.find(".//EnergyMW", namespaces).text
+                for demand in zonal_demand.findall(".//Demand", NAMESPACES_FOR_XML):
+                    hour = demand.find(".//DeliveryHour", NAMESPACES_FOR_XML).text
+                    energy_mw = demand.find(".//EnergyMW", NAMESPACES_FOR_XML).text
 
                     data.append(
                         {
@@ -293,7 +314,7 @@ class IESO(ISOBase):
             df["DeliveryDate"] + pd.to_timedelta(df["DeliveryHour"], unit="h")
         ).dt.tz_localize(self.default_timezone)
 
-        df["Interval End"] = df["Interval Start"] + INTERVAL_DURATION
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=HOUR_INTERVAL)
 
         # Pivot the table to wide
         pivot_df = df.pivot_table(
@@ -345,6 +366,46 @@ class IESO(ISOBase):
 
     def _today(self):
         return pd.Timestamp.now(tz=self.default_timezone).date()
+
+    # Function to extract data for a specific Market Quantity considering namespace
+    def _extract_load_in_market_quantity(
+        self,
+        market_quantity_element,
+        market_quantity_name,
+    ):
+        for mq in market_quantity_element.findall("MQ", NAMESPACES_FOR_XML):
+            market_quantity = mq.find("MarketQuantity", NAMESPACES_FOR_XML).text
+
+            if market_quantity_name in market_quantity:
+                return mq.find("EnergyMW", NAMESPACES_FOR_XML).text
+
+        return None
+
+    # Function to find all triples of 'Interval', 'Market Total Load', and
+    # 'Ontario Load' in the XML file
+    def _find_loads_at_each_interval_from_xml(self, root_element):
+        interval_load_demand_triples = []
+
+        for interval_energy in root_element.findall(
+            "DocBody/Energies/IntervalEnergy",
+            NAMESPACES_FOR_XML,
+        ):
+            interval = interval_energy.find("Interval", NAMESPACES_FOR_XML).text
+            market_total_load = self._extract_load_in_market_quantity(
+                interval_energy,
+                "Total Energy",
+            )
+            ontario_load = self._extract_load_in_market_quantity(
+                interval_energy,
+                "ONTARIO DEMAND",
+            )
+
+            if market_total_load and ontario_load:
+                interval_load_demand_triples.append(
+                    [int(interval), float(market_total_load), float(ontario_load)],
+                )
+
+        return interval_load_demand_triples
 
     def _handle_input_date(self, date):
         if date in ["latest", "today"]:
