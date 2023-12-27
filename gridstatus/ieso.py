@@ -70,23 +70,40 @@ class IESO(ISOBase):
             verbose (bool, optional): Print verbose output. Defaults to False.
 
         """
+        if isinstance(date, tuple):
+            date, end = date
+
         # Return data from the earliest interval today to the latest interval today
         if date in ["today", "latest"]:
-            date = pd.Timestamp(self._today()).replace(hour=0, minute=0)
+            date = pd.Timestamp(self._today(), tz=self.default_timezone).replace(
+                hour=0,
+                minute=0,
+            )
             end = pd.Timestamp.now(tz=self.default_timezone)
 
-        # If given a date string or plain date set date to the earliest interval
+        # If given a date string or date set date to the earliest interval
         # and end to the latest interval on the date
         if isinstance(date, str) or (
             isinstance(date, datetime.date) and not isinstance(date, datetime.datetime)
         ):
-            date = pd.to_datetime(date).replace(hour=0, minute=0)
-            end = pd.to_datetime(date).replace(hour=23, minute=59)
+            date = pd.Timestamp(date, tz=self.default_timezone).replace(
+                hour=0,
+                minute=0,
+            )
+
+            if not end:
+                end = date + pd.Timedelta(days=1)
+
+        if isinstance(end, str) or (
+            isinstance(end, datetime.date) and not isinstance(end, datetime.datetime)
+        ):
+            end = pd.Timestamp(end, tz=self.default_timezone).replace(
+                hour=0,
+                minute=0,
+            ) + pd.Timedelta(days=1)
 
         if date.date() > self._today():
-            raise NotSupported(
-                "Load data is not available for future dates.",
-            )
+            raise NotSupported("Load data is not available for future dates.")
 
         if date.date() < self._today() - pd.Timedelta(
             days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
@@ -95,6 +112,10 @@ class IESO(ISOBase):
                 f"Load data is not available for dates more than "
                 f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
             )
+
+        # Don't request data from after now because it does not exist
+        if end:
+            end = min(pd.Timestamp.now(tz=self.default_timezone), end)
 
         return self._retrieve_5_minute_load(date, end, verbose)
 
@@ -179,7 +200,8 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: zonal load as a wide table with columns for each zone
         """
-
+        if isinstance(date, tuple):
+            date, end = date
         data_five_minutes = self.get_5_min_load(date, end, verbose)
 
         # Hourly demand is the average over the 5 minute intervals within each hour

@@ -66,6 +66,23 @@ class TestIESO(BaseTestISO):
     def test_get_lmp_today(self, market=None):
         pass
 
+    """get_5_min_load"""
+
+    def test_get_5_min_load_yesterday(self):
+        date = (pd.Timestamp.now() - pd.Timedelta(days=1)).date()
+        df = self.iso.get_5_min_load(date)
+        assert df.shape[0] == 288
+
+        beginning_of_date = pd.Timestamp(date, tz=self.iso.default_timezone).replace(
+            hour=0,
+            minute=0,
+            second=0,
+        )
+        assert df["Interval Start"].min() == beginning_of_date
+
+        end_of_date = beginning_of_date + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end_of_date
+
     """get_load"""
 
     def test_get_load_historical_with_date_range(self):
@@ -171,20 +188,7 @@ class TestIESO(BaseTestISO):
         time_type = "interval"
         self._check_time_columns(df, instant_or_interval=time_type)
 
-        for col in [
-            "Ontario Demand Load",
-            "Northwest Load",
-            "Northeast Load",
-            "Ottawa Load",
-            "East Load",
-            "Toronto Load",
-            "Essa Load",
-            "Bruce Load",
-            "Southwest Load",
-            "Niagara Load",
-            "West Load",
-            "Zone Total Load",
-        ]:
+        for col in ["Market Total Load", "Ontario Load"]:
             assert col in df.columns
             assert is_numeric_dtype(df[col])
 
