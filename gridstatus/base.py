@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import BinaryIO
 
 import requests
 
@@ -93,7 +94,10 @@ class ISOBase:
     def get_storage(self, date, end=None, verbose=False):
         raise NotImplementedError()
 
-    def get_interconnection_queue(self):
+    def get_raw_interconnection_queue(self, verbose: bool = False) -> BinaryIO:
+        raise NotImplementedError()
+
+    def get_interconnection_queue(self, verbose: bool = False):
         raise NotImplementedError()
 
     def _latest_lmp_from_today(self, market, locations, **kwargs):

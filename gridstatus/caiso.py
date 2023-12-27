@@ -525,13 +525,19 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_interconnection_queue(self, verbose=False):
+    def get_raw_interconnection_queue(self, verbose):
         url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
 
         msg = f"Downloading interconnection queue from {url}"
         log(msg, verbose)
+        response = requests.get(url)
+        if response.status_code == 200:
+            return io.BytesIO(response.content)
 
-        sheets = pd.read_excel(url, skiprows=3, sheet_name=None)
+    def get_interconnection_queue(self, verbose=False):
+        raw_data = self.get_raw_interconnection_queue(verbose)
+
+        sheets = pd.read_excel(raw_data, skiprows=3, sheet_name=None)
 
         # remove legend at the bottom
         queued_projects = sheets["Grid GenerationQueue"][:-8]
@@ -890,7 +896,9 @@ class CAISO(ISOBase):
 
         # find index of OUTAGE MRID
         test_parse = pd.read_excel(
-            content, usecols="B:M", sheet_name="PREV_DAY_OUTAGES"
+            content,
+            usecols="B:M",
+            sheet_name="PREV_DAY_OUTAGES",
         )
         first_col = test_parse[test_parse.columns[0]]
         outage_mrid_index = first_col[first_col == "OUTAGE MRID"].index[0] + 1
@@ -949,7 +957,7 @@ class CAISO(ISOBase):
             ]
 
             assert not df.duplicated(
-                subset=["Outage MRID", "Curtailment Start Time"]
+                subset=["Outage MRID", "Curtailment Start Time"],
             ).any(), "There are still duplicates"
 
         return df
