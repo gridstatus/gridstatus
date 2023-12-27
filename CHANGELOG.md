@@ -1,10 +1,11 @@
 # Changelog
 
-## vNext
+## v0.24.0 - Dec 27, 2023
 
 ### ERCOT
 
-- Add suport for RTM and DAM price correction datasets
+- Add `ercot.get_energy_storage_resources`
+- Add support for RTM and DAM price correction datasets
 - Add System Lambda
 - Add support for RTM and DAM price correction datasets
 - Add support for electrical bus and settlement point LMPS
@@ -26,6 +27,19 @@
 ### ISONE
 
 - Parse ISONE interconnection queue project status columns
+
+### PJM
+
+- Update PJM `get_lmp` to return columns `Location Id`, `Location Name`, `Location Short Name` to avoid ambiguity.
+
+### Breaking Changes
+
+- `PJM.get_lmp` no longer return `Location`. That value is now `Location Id`.
+
+### Bug Fixes
+
+- Assorted DST handling fixes
+- Ensure `sleep` parameter is handled correctly on all CAISO methods
 
 ## v0.23.0 - Sept 12, 2023
 

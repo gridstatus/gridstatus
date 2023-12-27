@@ -23,17 +23,35 @@ class TestPJM(BaseTestISO):
         date = "2021-11-07"
         df = self.iso.get_fuel_mix(start=date)
 
-        assert len(df["Time"]) == 25  # 25 hours due to shift backwards in time
-        assert (df["Time"].dt.strftime("%Y-%m-%d") == date).all()
+        assert (
+            len(df["Interval Start"]) == 25
+        )  # 25 hours due to shift backwards in time
+        assert (df["Interval Start"].dt.strftime("%Y-%m-%d") == date).all()
 
     def test_get_fuel_mix_dst_shift_forward(self):
         date = "2021-03-14"
         df = self.iso.get_fuel_mix(start=date)
 
-        assert len(df["Time"]) == 23  # 23 hours due to shift forwards in time
-        assert (df["Time"].dt.strftime("%Y-%m-%d") == date).all()
+        assert len(df["Interval Start"]) == 23  # 23 hours due to shift forwards in time
+        assert (df["Interval Start"].dt.strftime("%Y-%m-%d") == date).all()
 
     """get_lmp"""
+
+    # override for base test case
+    lmp_cols = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location Id",
+        "Location Name",
+        "Location Short Name",
+        "Location Type",
+        "LMP",
+        "Energy",
+        "Congestion",
+        "Loss",
+    ]
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
@@ -121,7 +139,7 @@ class TestPJM(BaseTestISO):
         df = super().test_get_load_today()
 
         assert df.columns.tolist() == [
-            "Time",
+            "Interval Start",
             "Interval Start",
             "Interval End",
             "Load",
@@ -306,7 +324,7 @@ class TestPJM(BaseTestISO):
 
         # check that every day has 23, 24, or 25 hrs
         unique_hours_per_day = (
-            hist["Time"]
+            hist["Interval Start"]
             .drop_duplicates()
             .dt.strftime("%Y-%m-%d")
             .value_counts()
@@ -328,7 +346,7 @@ class TestPJM(BaseTestISO):
         self._check_lmp_columns(hist, m)
         # 2 days worth of data for each location
         assert (
-            hist.groupby("Location")["Time"].agg(
+            hist.groupby("Location Id")["Interval Start"].agg(
                 lambda x: x.dt.day.nunique(),
             )
             == 2
@@ -344,7 +362,7 @@ class TestPJM(BaseTestISO):
         assert isinstance(hist, pd.DataFrame)
         self._check_lmp_columns(hist, m)
         # 2 days worth of data for each location
-        assert (hist.groupby("Location")["Time"].count() == 48).all()
+        assert (hist.groupby("Location Id")["Interval Start"].count() == 48).all()
 
         # all archive
         hist = self.iso.get_lmp(

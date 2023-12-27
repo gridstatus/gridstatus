@@ -265,6 +265,33 @@ class Ercot(ISOBase):
             notes=notes,
         )
 
+    def get_energy_storage_resources(self, date="latest", verbose=False):
+        """Get energy storage resources.
+        Always returns data from previous and current day"""
+        url = self.BASE + "/energy-storage-resources.json"
+        data = self._get_json(url, verbose=verbose)
+
+        df = pd.DataFrame(data["previousDay"]["data"] + data["currentDay"]["data"])
+
+        df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
+
+        df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df = df.rename(
+            columns={
+                "timestamp": "Time",
+                "totalCharging": "Total Charging",
+                "totalDischarging": "Total Discharging",
+                "netOutput": "Net Output",
+            }
+        )
+
+        df = df.sort_values("Time").reset_index(drop=True)
+
+        return df
+
     def get_fuel_mix(self, date, verbose=False):
         """Get fuel mix 5 minute intervals
 
@@ -525,44 +552,69 @@ class Ercot(ISOBase):
 
         return data.reset_index(drop=True)
 
-    @support_date_range("HOUR_START")
+    @support_date_range(frequency=None)
     def get_load_forecast(
         self,
         date,
+        end=None,
         forecast_type=ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
         verbose=False,
     ):
-        """Returns load forecast of specified regions.
+        """Returns load forecast of specified forecast type.
 
-        Only allows datetimes from today's date.
 
-        Returns hourly report published immediately before the datetime.
+
+        If date range provided, returns all hourly reports published within.
+
+        Note: only limited historical data is available
+
 
         Arguments:
-            date (str): datetime to download.
-                Returns report published most recently before datetime.
+            date (str, datetime): datetime to download. If `end` not provided,
+                returns last hourly report published before. if "latest",
+                returns most recent hourly report. if `end` provided,
+                returns all hourly reports published after this date
+                and before `end`.
+
+            end (str, datetime,): if provided, returns all hourly reports published
+                after `date` and before `end`
+
+
             forecast_type (ERCOTSevenDayLoadForecastReport): The load forecast type.
                 Enum of possible values.
             verbose (bool, optional): print verbose output. Defaults to False.
         """
-        if date == "latest":
-            pass
+        # todo migrate to _get_hourly_report
+        if end is None:
+            doc = self._get_document(
+                report_type_id=forecast_type.value,
+                published_before=date,
+                constructed_name_contains="csv.zip",
+                verbose=verbose,
+            )
+            docs = [doc]
         else:
-            if not utils.is_today(date, self.default_timezone):
-                raise NotSupported()
+            docs = self._get_documents(
+                report_type_id=forecast_type.value,
+                published_after=date,
+                published_before=end,
+                constructed_name_contains="csv.zip",
+                verbose=verbose,
+            )
 
-        doc = self._get_document(
-            report_type_id=forecast_type.value,
-            published_before=date,
-            constructed_name_contains="csv.zip",
-            verbose=verbose,
-        )
+        all_df = []
+        for doc in docs:
+            df = self._handle_load_forecast(
+                doc,
+                forecast_type=forecast_type,
+                verbose=verbose,
+            )
 
-        df = self._handle_load_forecast(
-            doc,
-            forecast_type=forecast_type,
-            verbose=verbose,
-        )
+            all_df.append(df)
+
+        df = pd.concat(all_df)
+
+        df = df.sort_values("Publish Time")
 
         return df
 
@@ -573,13 +625,24 @@ class Ercot(ISOBase):
         """
         df = self.read_doc(doc, verbose=verbose)
 
-        if forecast_type in [
-            ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
-            ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE,
-            ERCOTSevenDayLoadForecastReport.BY_MODEL_AND_WEATHER_ZONE,
-        ]:
-            df["Load Forecast"] = df["SystemTotal"].copy()
-        df["Forecast Time"] = doc.publish_date
+        df["Publish Time"] = doc.publish_date
+
+        df = df.rename(
+            columns={
+                "SystemTotal": "System Total",
+            },
+        )
+
+        if forecast_type == ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE:
+            # rename with spaces
+            df = df.rename(
+                columns={
+                    "FarWest": "Far West",
+                    "North": "North",
+                    "NorthCentral": "North Central",
+                    "SouthCentral": "South Central",
+                },
+            )
 
         df = utils.move_cols_to_front(
             df,
@@ -587,7 +650,7 @@ class Ercot(ISOBase):
                 "Time",
                 "Interval Start",
                 "Interval End",
-                "Forecast Time",
+                "Publish Time",
             ],
         )
 
@@ -1602,7 +1665,7 @@ class Ercot(ISOBase):
         df.columns = df.columns.str.replace("_", " ")
         return df
 
-    @support_date_range("HOUR_START")
+    @support_date_range(frequency=None)
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
         """Hourly Resource Outage Capacity report sourced
         from the Outage Scheduler (OS).
@@ -1627,14 +1690,14 @@ class Ercot(ISOBase):
 
 
         """
-        doc = self._get_document(
+
+        df = self._get_hourly_report(
+            start=date,
+            end=end,
             report_type_id=HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID,
             extension="csv",
-            published_before=date,
-            verbose=verbose,
+            handle_doc=self._handle_hourly_resource_outage_capacity,
         )
-
-        df = self._handle_hourly_resource_outage_capacity(doc, verbose=verbose)
 
         return df
 
@@ -1726,8 +1789,7 @@ class Ercot(ISOBase):
             # data doesn't have DST info. So just assume it is DST
             # when ambiguous \_(-_-)_/
             df[col] = pd.to_datetime(df[col]).dt.tz_localize(
-                self.default_timezone,
-                ambiguous=True,
+                self.default_timezone, ambiguous=True
             )
 
         return df
@@ -2210,6 +2272,37 @@ class Ercot(ISOBase):
             return [max(matches, key=lambda x: x.publish_date)]
 
         return matches
+
+    def _get_hourly_report(
+        self, start, end, report_type_id, handle_doc, extension, verbose=False
+    ):
+        if end is None:
+            doc = self._get_document(
+                report_type_id=report_type_id,
+                extension=extension,
+                published_before=start,
+                verbose=verbose,
+            )
+            docs = [doc]
+        else:
+            docs = self._get_documents(
+                report_type_id=report_type_id,
+                extension=extension,
+                published_before=end,
+                published_after=start,
+                verbose=verbose,
+            )
+
+        all_df = []
+        for doc in docs:
+            df = handle_doc(doc, verbose=verbose)
+            all_df.append(df)
+
+        df = pd.concat(all_df)
+
+        df = df.sort_values("Publish Time")
+
+        return df
 
     def _handle_json_data(self, df, columns):
         df["Time"] = (

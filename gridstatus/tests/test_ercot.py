@@ -63,6 +63,16 @@ class TestErcot(BaseTestISO):
         assert df.shape == (1, 15)
         assert df.columns[0] == "Time"
 
+    def test_get_energy_storage_resources(self):
+        df = self.iso.get_energy_storage_resources()
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Total Charging",
+            "Total Discharging",
+            "Net Output",
+        ]
+
     """get_fuel_mix"""
 
     def test_get_fuel_mix(self):
@@ -179,6 +189,16 @@ class TestErcot(BaseTestISO):
 
     """get_load_forecast"""
 
+    def test_get_load_forecast_range(self):
+        end = pd.Timestamp.now(tz=self.iso.default_timezone)
+        start = end - pd.Timedelta(hours=3)
+        df = self.iso.get_load_forecast(start=start, end=end)
+
+        unique_load_forecast_time = df["Publish Time"].unique()
+        # make sure each is between start and end
+        assert (unique_load_forecast_time >= start).all()
+        assert (unique_load_forecast_time <= end).all()
+
     def test_get_load_forecast_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_forecast_historical()
@@ -186,18 +206,6 @@ class TestErcot(BaseTestISO):
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
         pass
-
-    def _check_forecast(self, df):
-        """Method override of BaseTestISO._check_forecast()
-        to handle enums."""
-        assert set(df.columns[:4]) == set(
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Forecast Time",
-            ],
-        )
 
     """get_spp"""
 
