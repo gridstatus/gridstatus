@@ -85,6 +85,21 @@ class TestIESO(BaseTestISO):
 
     """get_load"""
 
+    def test_get_hourly_load_yesterday(self):
+        date = (pd.Timestamp.now() - pd.Timedelta(days=1)).date()
+        df = self.iso.get_hourly_load(date)
+        assert df.shape[0] == 24
+
+        beginning_of_date = pd.Timestamp(date, tz=self.iso.default_timezone).replace(
+            hour=0,
+            minute=0,
+            second=0,
+        )
+        assert df["Interval Start"].min() == beginning_of_date
+
+        end_of_date = beginning_of_date + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end_of_date
+
     def test_get_load_historical_with_date_range(self):
         num_days = 4
         end = pd.Timestamp.now(
@@ -92,7 +107,7 @@ class TestIESO(BaseTestISO):
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
-        data = self.iso.get_load(date=start.date(), end=end.date())
+        data = self.iso.get_load(date=start.date(), end=end.date(), frequency="H")
         self._check_load(data)
         # make sure right number of days are returned
         assert data["Interval Start"].dt.day.nunique() == num_days
