@@ -154,7 +154,7 @@ class IESO(ISOBase):
         df["Delivery Hour Start"] = delivery_hour - 1
         # Multiply the interval minus 1 by 5 to get the minutes in the range 0-55
         df["Interval Minute Start"] = MINUTES_INTERVAL * (df["Interval"] - 1)
-        df["Published Time"] = pd.Timestamp(created_at, tz=self.default_timezone)
+        df["Publish Time"] = pd.Timestamp(created_at, tz=self.default_timezone)
 
         df["Interval Start"] = (
             df["Delivery Date"]
@@ -169,7 +169,7 @@ class IESO(ISOBase):
         cols_to_keep_in_order = [
             "Interval Start",
             "Interval End",
-            "Published Time",
+            "Publish Time",
             "Market Total Load",
             "Ontario Load",
         ]
@@ -346,7 +346,7 @@ class IESO(ISOBase):
             aggfunc="first",
         ).reset_index()
 
-        pivot_df["Published Time"] = pd.Timestamp(
+        pivot_df["Publish Time"] = pd.Timestamp(
             published_time,
             tz=self.default_timezone,
         )
@@ -356,7 +356,7 @@ class IESO(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "Published Time",
+                "Publish Time",
                 "Ontario",
             ],
         )

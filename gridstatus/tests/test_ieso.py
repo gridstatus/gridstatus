@@ -211,13 +211,13 @@ class TestIESO(BaseTestISO):
             [
                 "Interval Start",
                 "Interval End",
-                "Published Time",
+                "Publish Time",
                 "Ontario Load Forecast",
                 "East Load Forecast",
                 "West Load Forecast",
             ],
         )
 
-        assert self._check_is_datetime_type(df["Published Time"])
+        assert self._check_is_datetime_type(df["Publish Time"])
         assert self._check_is_datetime_type(df["Interval Start"])
         assert self._check_is_datetime_type(df["Interval End"])
