@@ -10,6 +10,7 @@ from gridstatus.base import ISOBase, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 
+"""LOAD CONSTANTS"""
 # Load hourly files go back 30 days
 MAXIMUM_DAYS_IN_PAST_FOR_LOAD = 30
 LOAD_INDEX_URL = "http://reports.ieso.ca/public/RealtimeConstTotals/"
@@ -19,19 +20,29 @@ LOAD_INDEX_URL = "http://reports.ieso.ca/public/RealtimeConstTotals/"
 LOAD_TEMPLATE_URL = f"{LOAD_INDEX_URL}/PUB_RealtimeConstTotals_YYYYMMDDHH.xml"
 
 
-LOAD_FORECAST_INDEX_URL = "http://reports.ieso.ca/public/OntarioZonalDemand/"
+"""LOAD FORECAST CONSTANTS"""
+# There's only one load forecast for Ontario. This data goes back 5 days in the past
+# and only covers the current date.
+LOAD_FORECAST_URL = (
+    "https://www.ieso.ca/-/media/Files/IESO/Power-Data/Ontario-Demand-multiday.ashx"
+)
+MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST = 5
+MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST = 1
+
+"""ZONAL LOAD FORECAST CONSTANTS"""
+ZONAL_LOAD_FORECAST_INDEX_URL = "http://reports.ieso.ca/public/OntarioZonalDemand/"
 
 # Each forecast file contains data from the day in the filename going forward for
 # 34 days. The most recent file does not have a date in the filename.
-LOAD_FORECAST_TEMPLATE_URL = (
-    f"{LOAD_FORECAST_INDEX_URL}/PUB_OntarioZonalDemand_YYYYMMDD.xml"
+ZONAL_LOAD_FORECAST_TEMPLATE_URL = (
+    f"{ZONAL_LOAD_FORECAST_INDEX_URL}/PUB_OntarioZonalDemand_YYYYMMDD.xml"
 )
 
 # The farthest in the past that forecast files are available
-MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST = 90
+MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST = 90
 # The farthest in the future that forecasts are available. Note that there are not
 # files for these future forecasts, they are in the current day's file.
-MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST = 34
+MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST = 34
 
 
 MINUTES_INTERVAL = 5
@@ -232,11 +243,104 @@ class IESO(ISOBase):
 
         return df.reset_index(drop=True)
 
-    @support_date_range(frequency="DAY_START")
     def get_load_forecast(self, date, end=None, verbose=False):
         """
+        Get forecasted load for Ontario. If date is "today" return forecast from today.
+        If date is "latest" return forecast from today and tomorrow. If date is a
+        string date or datetime.date returns forecast from that date.
+
+        Args:
+            date (datetime.date | datetime.datetime | str): The date to get the load for
+                Can be a `datetime.date` or `datetime.datetime` object, or a string
+                with the values "today" or "latest".
+            end (datetime.date | datetime.datetime, optional): End date. Defaults None
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: Ontario load forecast
+        """
+        if isinstance(date, tuple):
+            date, _end = date
+
+        today = self._today()
+
+        if date != "latest":
+            date = utils._handle_date(date)
+
+            if date.date() < today - pd.Timedelta(
+                days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST,
+            ):
+                raise NotSupported(
+                    "Past dates are not supported for load forecasts more than"
+                    f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
+                )
+
+            if date.date() > today + pd.Timedelta(
+                days=MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST,
+            ):
+                raise NotSupported(
+                    "Load forecasts are not available more than"
+                    f"{MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST} days in the future",
+                )
+
+        root = ET.fromstring(self._request(LOAD_FORECAST_URL, verbose).text)
+
+        # Extract values from <DataSet Series="Projected">
+        projected_values = []
+
+        # Iterate through the XML to find the DataSet with Series="Projected"
+        for dataset in root.iter("DataSet"):
+            if dataset.attrib.get("Series") == "Projected":
+                for data in dataset.iter("Data"):
+                    for value in data.iter("Value"):
+                        projected_values.append(value.text)
+
+        created_at = pd.Timestamp(
+            root.find(".//CreatedAt").text,
+            tz=self.default_timezone,
+        )
+        start_date = pd.Timestamp(
+            root.find(".//StartDate").text,
+            tz=self.default_timezone,
+        )
+        interval_starts = pd.date_range(
+            start_date,
+            periods=len(projected_values),
+            freq="H",
+            tz=self.default_timezone,
+        )
+
+        # Create a DataFrame with the projected values
+        df_projected = pd.DataFrame(projected_values, columns=["Ontario Load Forecast"])
+        df_projected["Publish Time"] = created_at
+        df_projected["Interval Start"] = interval_starts
+        df_projected["Interval End"] = df_projected["Interval Start"] + pd.Timedelta(
+            hours=HOUR_INTERVAL,
+        )
+
+        df = utils.move_cols_to_front(
+            df_projected,
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Ontario Load Forecast",
+            ],
+        )
+
+        # Latest returns both today and tomorrow
+        if date == "latest":
+            return df[df["Interval Start"].dt.date >= self._today()].reset_index(
+                drop=True,
+            )
+
+        return df[df["Interval Start"].dt.date == date.date()].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_zonal_load_forecast(self, date, end=None, verbose=False):
+        """
         Get forecasted load by forecast zone (Ontario, East, West) for a given date
-        or from date to end date.
+        or from date to end date. This method supports future dates.
 
         Supports data 90 days into the past and up to 34 days into the future.
 
@@ -260,35 +364,32 @@ class IESO(ISOBase):
         date_only = date.date()
 
         if date_only < today - pd.Timedelta(
-            days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST,
+            days=MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST,
         ):
             # Forecasts are not support for past dates
             raise NotSupported(
                 "Past dates are not support for load forecasts more than"
-                f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST} days in the past.",
+                f"{MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST} days in the past.",
             )
 
         if date_only > today + pd.Timedelta(
-            days=MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST,
+            days=MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
         ):
             raise NotSupported(
-                f"Dates more than {MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST}"
+                f"Dates more than {MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST}"
                 "days in the future are not supported for load forecasts.",
             )
 
         # For future dates, the most recent forecast is used
         if date_only > today:
-            url = LOAD_FORECAST_TEMPLATE_URL.replace("_YYYYMMDD", "")
+            url = ZONAL_LOAD_FORECAST_TEMPLATE_URL.replace("_YYYYMMDD", "")
         else:
-            url = LOAD_FORECAST_TEMPLATE_URL.replace(
+            url = ZONAL_LOAD_FORECAST_TEMPLATE_URL.replace(
                 "YYYYMMDD",
                 date.strftime("%Y%m%d"),
             )
 
         r = self._request(url, verbose)
-
-        # Define the NAMESPACES_FOR_XML used in the XML document
-        NAMESPACES_FOR_XML = {"": "http://www.ieso.ca/schema"}
 
         # Initialize a list to store the parsed data
         data = []
