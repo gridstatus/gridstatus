@@ -66,29 +66,12 @@ class TestIESO(BaseTestISO):
     def test_get_lmp_today(self, market=None):
         pass
 
-    """get_5_min_load"""
+    """get_load"""
 
-    def test_get_5_min_load_yesterday(self):
+    def test_get_load_yesterday_full_day(self):
         date = (pd.Timestamp.now() - pd.Timedelta(days=1)).date()
         df = self.iso.get_5_min_load(date)
         assert df.shape[0] == 288
-
-        beginning_of_date = pd.Timestamp(date, tz=self.iso.default_timezone).replace(
-            hour=0,
-            minute=0,
-            second=0,
-        )
-        assert df["Interval Start"].min() == beginning_of_date
-
-        end_of_date = beginning_of_date + pd.Timedelta(days=1)
-        assert df["Interval End"].max() == end_of_date
-
-    """get_load"""
-
-    def test_get_hourly_load_yesterday(self):
-        date = (pd.Timestamp.now() - pd.Timedelta(days=1)).date()
-        df = self.iso.get_hourly_load(date)
-        assert df.shape[0] == 24
 
         beginning_of_date = pd.Timestamp(date, tz=self.iso.default_timezone).replace(
             hour=0,
@@ -107,7 +90,7 @@ class TestIESO(BaseTestISO):
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
-        data = self.iso.get_load(date=start.date(), end=end.date(), frequency="H")
+        data = self.iso.get_load(date=start.date(), end=end.date())
         self._check_load(data)
         # make sure right number of days are returned
         assert data["Interval Start"].dt.day.nunique() == num_days

@@ -67,10 +67,10 @@ class IESO(ISOBase):
 
     status_homepage = "https://www.ieso.ca/en/Power-Data"
 
-    def get_load(self, date, end=None, verbose=False, frequency="5min"):
+    def get_load(self, date, end=None, verbose=False):
         """
-        Get load for the Market and Ontario for a given date or from date to end date.
-        Supports "5min" for five-minute interval data or "H" for hourly data.
+        Get 5-minute load for the Market and Ontario for a given date or from
+        date to end date.
 
         Args:
             date (datetime.date | datetime.datetime | str): The date to get the load for
@@ -86,58 +86,8 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: zonal load as a wide table with columns for each zone
         """
-        if frequency not in ["5min", "H"]:
-            raise ValueError(
-                f"Frequency must be '5min' or 'H'. Got {frequency} instead.",
-            )
-
-        data_five_minutes = self._get_5_min_load(date, end, verbose)
-
-        if frequency == "H":
-            # Take the mean of the demand for each hour, keeping only hours
-            # where we have all five minute intervals
-            df = (
-                data_five_minutes.groupby(
-                    [
-                        data_five_minutes["Interval Start"].dt.date.rename("Date"),
-                        data_five_minutes["Interval Start"].dt.hour.rename("Hour"),
-                    ],
-                )
-                .apply(
-                    lambda x: x.mean(numeric_only=True)
-                    if len(x) == MINUTES_INTERVALS_IN_AN_HOUR
-                    else None,
-                )
-                .dropna()
-                .reset_index()
-            )
-
-            # Create a new 'Interval Start' column by combining the date and hour
-            df["Interval Start"] = (
-                pd.to_datetime(df["Date"]) + pd.to_timedelta(df["Hour"], unit="h")
-            ).dt.tz_localize(self.default_timezone)
-
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-                hours=HOUR_INTERVAL,
-            )
-
-            df = df.drop(["Date", "Hour"], axis=1)
-        else:
-            df = data_five_minutes.copy()
-
-        df = utils.move_cols_to_front(
-            df,
-            ["Interval Start", "Interval End", "Market Total Load", "Ontario Load"],
-        )
-
-        return df.reset_index(drop=True)
-
-    def _get_5_min_load(self, date, end=None, verbose=False):
-        """
-        Get 5 minute load for a given date or from date to end date. This method wraps
-        _retrieve_5_minute_load and handles the date and end arguments. These can't
-        be handled perfectly by utils._handle_date since the data is hourly.
-        """
+        # We have to add special time handling here because the existing utils
+        # don't perfectly handle the 1 hour data files.
         if isinstance(date, tuple):
             date, end = date
 
@@ -167,10 +117,12 @@ class IESO(ISOBase):
                 days=1,
             )
 
-        if date > today:
+        if date.date() > today.date():
             raise NotSupported("Load data is not available for future dates.")
 
-        if date < today - pd.Timedelta(days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD):
+        if date.date() < today.date() - pd.Timedelta(
+            days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
+        ):
             raise NotSupported(
                 f"Load data is not available for dates more than "
                 f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
@@ -180,7 +132,16 @@ class IESO(ISOBase):
         if end:
             end = min(pd.Timestamp.now(tz=self.default_timezone), end)
 
-        return self._retrieve_5_minute_load(date, end, verbose)
+        df = self._retrieve_5_minute_load(date, end, verbose)
+
+        cols_to_keep = [
+            "Interval Start",
+            "Interval End",
+            "Market Total Load",
+            "Ontario Load",
+        ]
+
+        return utils.move_cols_to_front(df, cols_to_keep)[cols_to_keep]
 
     @support_date_range(frequency="HOUR_START")
     def _retrieve_5_minute_load(self, date, end=None, verbose=False):
@@ -227,15 +188,6 @@ class IESO(ISOBase):
             minutes=MINUTES_INTERVAL,
         )
 
-        cols_to_keep_in_order = [
-            "Interval Start",
-            "Interval End",
-            "Market Total Load",
-            "Ontario Load",
-        ]
-
-        df = utils.move_cols_to_front(df, cols_to_keep_in_order)[cols_to_keep_in_order]
-
         if end:
             return df[df["Interval End"] <= pd.Timestamp(end)]
 
@@ -265,17 +217,19 @@ class IESO(ISOBase):
         if date != "latest":
             date = utils._handle_date(date, tz=self.default_timezone)
 
-            if date < today - pd.Timedelta(days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST):
+            if date.date() < today.date() - pd.Timedelta(
+                days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST,
+            ):
                 raise NotSupported(
-                    "Past dates are not supported for load forecasts more than"
+                    "Past dates are not supported for load forecasts more than "
                     f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
                 )
 
-            if date > today + pd.Timedelta(
+            if date.date() > today.date() + pd.Timedelta(
                 days=MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST,
             ):
                 raise NotSupported(
-                    "Load forecasts are not available more than"
+                    "Load forecasts are not available more than "
                     f"{MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST} days in the future",
                 )
 
@@ -299,6 +253,9 @@ class IESO(ISOBase):
             root.find(".//StartDate").text,
             tz=self.default_timezone,
         )
+
+        # Create the range of interval starts based on the number of values at an
+        # hourly frequency
         interval_starts = pd.date_range(
             start_date,
             periods=len(projected_values),
@@ -358,25 +315,25 @@ class IESO(ISOBase):
         if date != "latest":
             date = utils._handle_date(date, tz=self.default_timezone)
 
-            if date < today - pd.Timedelta(
+            if date.date() < today.date() - pd.Timedelta(
                 days=MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST,
             ):
                 # Forecasts are not support for past dates
                 raise NotSupported(
-                    "Past dates are not support for load forecasts more than"
+                    "Past dates are not support for load forecasts more than "
                     f"{MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST} days in the past.",
                 )
 
-            if date > today + pd.Timedelta(
+            if date.date() > today.date() + pd.Timedelta(
                 days=MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
             ):
                 raise NotSupported(
-                    f"Dates more than {MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST}"
+                    f"Dates more than {MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST} "
                     "days in the future are not supported for load forecasts.",
                 )
 
         # For future dates, the most recent forecast is used
-        if date == "latest" or date > today:
+        if date == "latest" or date.date() > today.date():
             url = ZONAL_LOAD_FORECAST_TEMPLATE_URL.replace("_YYYYMMDD", "")
         else:
             url = ZONAL_LOAD_FORECAST_TEMPLATE_URL.replace(
@@ -468,6 +425,7 @@ class IESO(ISOBase):
 
         pivot_df = pivot_df.rename(columns=col_mapper)
 
+        # Return all the values from the start of today onwards
         if date == "latest":
             return pivot_df[pivot_df["Interval Start"] >= today].reset_index(drop=True)
 
@@ -477,6 +435,7 @@ class IESO(ISOBase):
                 pivot_df["Interval Start"].dt.date == date.date()
             ].reset_index(drop=True)
 
+        # Return data from date to end date
         end_date = utils._handle_date(end, tz=self.default_timezone)
 
         return pivot_df[
