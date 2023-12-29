@@ -68,9 +68,31 @@ class TestIESO(BaseTestISO):
 
     """get_load"""
 
+    def test_get_load_today(self):
+        df = self.iso.get_load("today")
+        self._check_load(df)
+
+        today = pd.Timestamp.now(tz=self.iso.default_timezone)
+        # First interval on the day
+        assert df["Interval Start"].min() == today.normalize()
+        assert df["Interval End"].min() == today.normalize() + pd.Timedelta(minutes=5)
+        assert df["Interval Start"].max().date() == today.date()
+
+        assert (df["Interval Start"].dt.date == today.date()).all()
+
+    def test_get_load_latest(self):
+        df = self.iso.get_load("latest")
+
+        self._check_load(df)
+        now = pd.Timestamp.now(tz=self.iso.default_timezone)
+        # First interval should be the first interval of the hour
+        assert df["Interval Start"].min() == now.floor("H")
+
+        assert df.shape[0] <= 12
+
     def test_get_load_yesterday_full_day(self):
         date = (pd.Timestamp.now() - pd.Timedelta(days=1)).date()
-        df = self.iso.get_5_min_load(date)
+        df = self.iso.get_load(date)
         assert df.shape[0] == 288
 
         beginning_of_date = pd.Timestamp(date, tz=self.iso.default_timezone).replace(
@@ -124,44 +146,25 @@ class TestIESO(BaseTestISO):
             "%Y%m%d",
         ) == test_date.strftime("%Y%m%d")
 
-    def test_get_load_latest(self):
-        df = self.iso.get_load("latest")
-        self._check_load(df)
-        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-        assert df["Interval Start"].max().date() == today
-
-    def test_get_load_today(self):
-        df = self.iso.get_load("today")
-        self._check_load(df)
-        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-
-        # okay as long as one of these columns is only today
-        assert (
-            (df["Interval Start"].dt.date == today).all()
-            or (df["Interval Start"].dt.date == today).all()
-            or (df["Interval End"].dt.date == today).all()
-        )
-        return df
-
     """get_load_forecast"""
 
     def test_get_load_forecast_historical(self):
-        test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
+        test_date = (pd.Timestamp.now() - pd.Timedelta(days=3)).date()
         forecast = self.iso.get_load_forecast(date=test_date)
-        self._check_forecast(forecast)
+        self._check_load_forecast(forecast)
 
     def test_get_load_forecast_historical_with_date_range(self):
-        end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
-        start = (end - pd.Timedelta(days=7)).date()
+        end = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
+        start = (end - pd.Timedelta(days=2)).date()
         forecast = self.iso.get_load_forecast(
             start,
             end=end,
         )
-        self._check_forecast(forecast)
+        self._check_load_forecast(forecast)
 
     def test_get_load_forecast_today(self):
         forecast = self.iso.get_load_forecast("today")
-        self._check_forecast(forecast)
+        self._check_load_forecast(forecast)
 
     """get_status"""
 
@@ -204,7 +207,7 @@ class TestIESO(BaseTestISO):
 
         self._check_ordered_by_time(df, ordered_by_col)
 
-    def _check_forecast(self, df):
+    def _check_load_forecast(self, df):
         assert set(df.columns) == set(
             [
                 "Interval Start",
@@ -218,3 +221,22 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(df["Interval Start"])
         assert self._check_is_datetime_type(df["Interval End"])
         assert df["Ontario Load Forecast"].dtype == "float64"
+
+    def _check_load_zonal_forecast(self, df):
+        assert set(df.columns) == set(
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Ontario Load Forecast",
+                "East Load Forecast",
+                "West Load Forecast",
+            ],
+        )
+
+        assert self._check_is_datetime_type(df["Publish Time"])
+        assert self._check_is_datetime_type(df["Interval Start"])
+        assert self._check_is_datetime_type(df["Interval End"])
+        assert df["Ontario Load Forecast"].dtype == "float64"
+        assert df["East Load Forecast"].dtype == "float64"
+        assert df["West Load Forecast"].dtype == "float64"

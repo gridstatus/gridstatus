@@ -93,31 +93,27 @@ class IESO(ISOBase):
 
         today = utils._handle_date("today", tz=self.default_timezone)
 
-        # Return data from the earliest interval today to the latest interval today
-        if date in ["today", "latest"]:
+        # For today, set date to the start of today and end to now
+        if date == "today":
             date = today
             end = pd.Timestamp.now(tz=self.default_timezone)
+        # Latest data returns only a single file for the current hour's data.
+        elif date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone)
+            end = None
 
-        # If given a date string or date set date to the earliest interval
-        # and end to the latest interval on the date
-        if isinstance(date, str) or isinstance(date, datetime.date):
+        # If given a date string or date set date to the earliest interval on the
+        # provided date and end to the latest interval on the date if not specified.
+        elif date != "latest" and (
+            isinstance(date, str) or isinstance(date, datetime.date)
+        ):
             date = utils._handle_date(date, tz=self.default_timezone).replace(
                 hour=0,
                 minute=0,
                 second=0,
             )
-
             if not end:
                 end = date + pd.Timedelta(days=1)
-
-        # Set end to the beginning of the next day to get the full day's worth of
-        # data on the end date.
-        if isinstance(end, str) or isinstance(end, datetime.date):
-            end = utils._handle_date(end, tz=self.default_timezone).replace(
-                hour=0,
-                minute=0,
-                second=0,
-            ) + pd.Timedelta(days=1)
 
         if date.date() > today.date():
             raise NotSupported("Load data is not available for future dates.")
@@ -130,9 +126,22 @@ class IESO(ISOBase):
                 f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
             )
 
-        # Don't request data from after now because it does not exist
+        # If end is a datetime, proceed, otherwise handle the end date
         if end:
-            end = min(pd.Timestamp.now(tz=self.default_timezone), end)
+            if not isinstance(end, datetime.datetime):
+                # Set end to the beginning of the next day to ensure we have complete
+                # data from the end date.
+                end = utils._handle_date(
+                    end,
+                    tz=self.default_timezone,
+                ).normalize() + pd.Timedelta(days=1)
+
+            end_with_timezone = (
+                end.tz_localize(self.default_timezone) if end.tzinfo is None else end
+            )
+
+            # Don't request data from after now because it does not exist
+            end = min(pd.Timestamp.now(tz=self.default_timezone), end_with_timezone)
 
         df = self._retrieve_5_minute_load(date, end, verbose)
 
@@ -143,7 +152,12 @@ class IESO(ISOBase):
             "Ontario Load",
         ]
 
-        return utils.move_cols_to_front(df, cols_to_keep)[cols_to_keep]
+        df["Market Total Load"] = df["Market Total Load"].astype(float)
+        df["Ontario Load"] = df["Ontario Load"].astype(float)
+
+        return utils.move_cols_to_front(df, cols_to_keep)[cols_to_keep].reset_index(
+            drop=True,
+        )
 
     @support_date_range(frequency="HOUR_START")
     def _retrieve_5_minute_load(self, date, end=None, verbose=False):
@@ -224,7 +238,7 @@ class IESO(ISOBase):
             ):
                 raise NotSupported(
                     "Past dates are not supported for load forecasts more than "
-                    f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
+                    f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST} days in the past.",
                 )
 
             if date.date() > today.date() + pd.Timedelta(
@@ -267,6 +281,9 @@ class IESO(ISOBase):
 
         # Create a DataFrame with the projected values
         df_projected = pd.DataFrame(projected_values, columns=["Ontario Load Forecast"])
+        df_projected["Ontario Load Forecast"] = df_projected[
+            "Ontario Load Forecast"
+        ].astype(float)
         df_projected["Publish Time"] = created_at
         df_projected["Interval Start"] = interval_starts
         df_projected["Interval End"] = df_projected["Interval Start"] + pd.Timedelta(
