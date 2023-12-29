@@ -385,7 +385,35 @@ class NYISO(ISOBase):
             and "SGIA Tender Date" not in completed.columns
         ):
             active = active.drop(columns=["SGIA Tender Date"])
-        completed.columns = active.columns
+        completed_colnames_map = {
+            ("Queue", "Pos."): "Queue Pos.",
+            ("Queue", "Owner/Developer"): "Developer Name",
+            ("Queue", "Project Name"): "Project Name",
+            ("Date", "of IR"): "Date of IR",
+            ("SP", "(MW)"): "SP (MW)",
+            ("WP", "(MW)"): "WP (MW)",
+            ("Type/", "Fuel"): "Type/ Fuel",
+            ("Location", "County"): "County",
+            ("Location", "State"): "State",
+            ("Z", "Unnamed: 9_level_1"): "Z",
+            ("Interconnection", "Point"): "Points of Interconnection",
+            ("Interconnection", "Utility "): "Utility",
+            ("Interconnection", "S"): "S",
+            ("Last Update", "Unnamed: 13_level_1"): "Last Updated Date",
+            ("Availability", "of Studies"): "Availability of Studies",
+            ("SGIA Tender Date", ""): "SGIA Tender Date",
+            ("CY Complete Date", ""): "CY Complete Date",
+            ("Proposed Initial-Sync Date", ""): "Proposed Initial-Sync Date",
+            ("Proposed", " In-Service"): "Proposed In-Service Date",
+            ("Proposed", "COD"): "Proposed COD",
+            ("Proposed", "COD.1"): "Proposed COD.1",
+            ("Proposed", "COD.2"): "Proposed COD.2",
+            ("Proposed", "COD.3"): "Proposed COD.3",
+            ("Status", ""): "Status",
+        }
+        completed.columns = completed.columns.to_flat_index().map(
+            lambda c: completed_colnames_map[c],
+        )
 
         # the spreadsheet doesnt have a date, so make it null
         completed["Proposed  In-Service"] = None
