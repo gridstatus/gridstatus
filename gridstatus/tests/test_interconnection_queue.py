@@ -9,4 +9,5 @@ import gridstatus
 def test_get_interconnection_queue_all(iso_class):
     """Get interconnection queue data for all ISOs"""
     iso = iso_class()
-    iso.get_interconnection_queue()
+    queue = iso.get_interconnection_queue()
+    assert not queue.empty

@@ -738,9 +738,7 @@ class Ercot(ISOBase):
         msg = f"Downloading interconnection queue from: {doc_info.url} "
         log(msg, verbose)
         response = requests.get(doc_info.url)
-        if response.status_code != 200:
-            raise RuntimeError(f"GET {doc_info.url} failed: {response}")
-        return io.BytesIO(response.content)
+        return utils.get_response_blob(response)
 
     def get_interconnection_queue(self, verbose=False):
         """

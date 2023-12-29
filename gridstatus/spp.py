@@ -1,4 +1,3 @@
-import io
 from typing import BinaryIO
 
 import pandas as pd
@@ -698,9 +697,7 @@ class SPP(ISOBase):
         msg = f"Getting interconnection queue from {url}"
         log(msg, verbose)
         response = requests.get(url)
-        if response.status_code != 200:
-            raise RuntimeError(f"GET {url} failed: {response}")
-        return io.BytesIO(response.content)
+        return utils.get_response_blob(response)
 
     def get_interconnection_queue(self, verbose=False):
         """Get interconnection queue
