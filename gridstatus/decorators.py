@@ -88,9 +88,17 @@ class support_date_range:
             if args_dict["date"] == "latest":
                 return f(*args, **kwargs)
 
+            default_timezone = args_dict["self"].default_timezone
+
+            # For today with hourly data, create a range that spans the day
+            if self.frequency == "HOUR_START" and args_dict.get("date") == "today":
+
+                args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
+                args_dict["end"] = pd.Timestamp.now(tz=default_timezone).ceil("D")
+
             args_dict["date"] = gridstatus.utils._handle_date(
                 args_dict["date"],
-                args_dict["self"].default_timezone,
+                default_timezone,
             )
 
             # no date range handling required
@@ -105,12 +113,12 @@ class support_date_range:
             ):
                 # add one day since end is exclusive
                 args_dict["end"] = pd.Timestamp.now(
-                    tz=args_dict["self"].default_timezone,
+                    tz=default_timezone,
                 ).date() + pd.DateOffset(days=1)
 
             args_dict["end"] = gridstatus.utils._handle_date(
                 args_dict["end"],
-                args_dict["self"].default_timezone,
+                default_timezone,
             )
 
             assert (
@@ -155,13 +163,7 @@ class support_date_range:
 
             # make sure everything is in default timezone
             # of the ISO
-            dates = [
-                gridstatus.utils._handle_date(
-                    d,
-                    args_dict["self"].default_timezone,
-                )
-                for d in dates
-            ]
+            dates = [gridstatus.utils._handle_date(d, default_timezone) for d in dates]
 
             # sometime api have restrictions/optimizations based on date ranges
             # update_dates allows for the caller to insert this logic

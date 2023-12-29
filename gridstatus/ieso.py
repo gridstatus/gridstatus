@@ -1,4 +1,3 @@
-import datetime
 import time
 import xml.etree.ElementTree as ET
 
@@ -67,6 +66,7 @@ class IESO(ISOBase):
 
     status_homepage = "https://www.ieso.ca/en/Power-Data"
 
+    @support_date_range(frequency="HOUR_START")
     def get_load(self, date, end=None, verbose=False):
         """
         Get 5-minute load for the Market and Ontario for a given date or from
@@ -86,34 +86,8 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: zonal load as a wide table with columns for each zone
         """
-        # We have to add special time handling here because the existing utils
-        # don't perfectly handle the 1 hour data files.
-        if isinstance(date, tuple):
-            date, end = date
 
         today = utils._handle_date("today", tz=self.default_timezone)
-
-        # For today, set date to the start of today and end to now
-        if date == "today":
-            date = today
-            end = pd.Timestamp.now(tz=self.default_timezone)
-        # Latest data returns only a single file for the current hour's data.
-        elif date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone)
-            end = None
-
-        # If given a date string or date set date to the earliest interval on the
-        # provided date and end to the latest interval on the date if not specified.
-        elif date != "latest" and (
-            isinstance(date, str) or isinstance(date, datetime.date)
-        ):
-            date = utils._handle_date(date, tz=self.default_timezone).replace(
-                hour=0,
-                minute=0,
-                second=0,
-            )
-            if not end:
-                end = date + pd.Timedelta(days=1)
 
         if date.date() > today.date():
             raise NotSupported("Load data is not available for future dates.")
@@ -126,22 +100,10 @@ class IESO(ISOBase):
                 f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
             )
 
-        # If end is a datetime, proceed, otherwise handle the end date
-        if end:
-            if not isinstance(end, datetime.datetime):
-                # Set end to the beginning of the next day to ensure we have complete
-                # data from the end date.
-                end = utils._handle_date(
-                    end,
-                    tz=self.default_timezone,
-                ).normalize() + pd.Timedelta(days=1)
-
-            end_with_timezone = (
-                end.tz_localize(self.default_timezone) if end.tzinfo is None else end
-            )
-
-            # Don't request data from after now because it does not exist
-            end = min(pd.Timestamp.now(tz=self.default_timezone), end_with_timezone)
+        # Return an empty dataframe when the date exceeds the current timestamp
+        # since there's no load available yet.
+        if date > pd.Timestamp.now(tz=self.default_timezone):
+            return pd.DataFrame()
 
         df = self._retrieve_5_minute_load(date, end, verbose)
 
@@ -159,7 +121,6 @@ class IESO(ISOBase):
             drop=True,
         )
 
-    @support_date_range(frequency="HOUR_START")
     def _retrieve_5_minute_load(self, date, end=None, verbose=False):
         # We have to add 1 to the hour to get the file because the filename with
         # hour x contains data for hour x-1. For example, to get data for
