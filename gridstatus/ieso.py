@@ -100,22 +100,24 @@ class IESO(ISOBase):
 
         # If given a date string or date set date to the earliest interval
         # and end to the latest interval on the date
-        if isinstance(date, str) or (
-            isinstance(date, datetime.date) and not isinstance(date, datetime.datetime)
-        ):
-            date = utils._handle_date(date, tz=self.default_timezone)
+        if isinstance(date, str) or isinstance(date, datetime.date):
+            date = utils._handle_date(date, tz=self.default_timezone).replace(
+                hour=0,
+                minute=0,
+                second=0,
+            )
 
             if not end:
                 end = date + pd.Timedelta(days=1)
 
         # Set end to the beginning of the next day to get the full day's worth of
         # data on the end date.
-        if isinstance(end, str) or (
-            isinstance(end, datetime.date) and not isinstance(end, datetime.datetime)
-        ):
-            end = utils._handle_date(end, tz=self.default_timezone) + pd.Timedelta(
-                days=1,
-            )
+        if isinstance(end, str) or isinstance(end, datetime.date):
+            end = utils._handle_date(end, tz=self.default_timezone).replace(
+                hour=0,
+                minute=0,
+                second=0,
+            ) + pd.Timedelta(days=1)
 
         if date.date() > today.date():
             raise NotSupported("Load data is not available for future dates.")
