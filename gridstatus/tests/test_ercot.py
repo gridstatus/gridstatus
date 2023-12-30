@@ -199,9 +199,32 @@ class TestErcot(BaseTestISO):
         assert (unique_load_forecast_time >= start).all()
         assert (unique_load_forecast_time <= end).all()
 
+    expected_load_forecast_columns = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "North",
+        "South",
+        "West",
+        "Houston",
+        "System Total",
+    ]
+
     def test_get_load_forecast_historical(self):
-        with pytest.raises(NotSupported):
-            super().test_get_load_forecast_historical()
+        test_date = (pd.Timestamp.now() - pd.Timedelta(days=2)).date()
+        forecast = self.iso.get_load_forecast(date=test_date)
+        self._check_forecast(
+            forecast,
+            expected_columns=self.expected_load_forecast_columns,
+        )
+
+    def test_get_load_forecast_today(self):
+        forecast = self.iso.get_load_forecast("today")
+        self._check_forecast(
+            forecast,
+            expected_columns=self.expected_load_forecast_columns,
+        )
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
@@ -494,11 +517,11 @@ class TestErcot(BaseTestISO):
 
     def test_spp_real_time_parse_retry_file_name(self):
         assert parse_timestamp_from_friendly_name(
-            "SPPHLZNP6905_retry_20230608_1545_csv"
+            "SPPHLZNP6905_retry_20230608_1545_csv",
         ) == pd.Timestamp("2023-06-08 15:45:00-0500", tz="US/Central")
 
         assert parse_timestamp_from_friendly_name(
-            "SPPHLZNP6905_20230608_1545_csv"
+            "SPPHLZNP6905_20230608_1545_csv",
         ) == pd.Timestamp("2023-06-08 15:45:00-0500", tz="US/Central")
 
     """get_unplanned_resource_outages"""
