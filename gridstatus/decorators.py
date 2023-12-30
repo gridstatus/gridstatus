@@ -1,3 +1,4 @@
+import datetime
 import functools
 import os
 import pprint
@@ -91,10 +92,23 @@ class support_date_range:
             default_timezone = args_dict["self"].default_timezone
 
             # For today with hourly data, create a range that spans the day
-            if self.frequency == "HOUR_START" and args_dict.get("date") == "today":
-
-                args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
-                args_dict["end"] = pd.Timestamp.now(tz=default_timezone).ceil("D")
+            if self.frequency == "HOUR_START":
+                date = args_dict.get("date")
+                if date == "today":
+                    args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
+                    args_dict["end"] = pd.Timestamp.now(tz=default_timezone).ceil("D")
+                # If date is a string or datetime.date, then we floor it to the
+                # beginning of the date. If the end date is not set, we set it to
+                # the start of the next day
+                elif isinstance(date, str) or isinstance(date, datetime.date):
+                    args_dict["date"] = pd.Timestamp(date, tz=default_timezone).floor(
+                        "D",
+                    )
+                    if not args_dict.get("end"):
+                        args_dict["end"] = pd.Timestamp(
+                            date,
+                            tz=default_timezone,
+                        ).normalize() + pd.Timedelta(days=1)
 
             args_dict["date"] = gridstatus.utils._handle_date(
                 args_dict["date"],

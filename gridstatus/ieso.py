@@ -86,24 +86,26 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: zonal load as a wide table with columns for each zone
         """
-
         today = utils._handle_date("today", tz=self.default_timezone)
 
-        if date.date() > today.date():
-            raise NotSupported("Load data is not available for future dates.")
+        if date != "latest":
+            if date.date() > today.date():
+                raise NotSupported("Load data is not available for future dates.")
 
-        if date.date() < today.date() - pd.Timedelta(
-            days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
-        ):
-            raise NotSupported(
-                f"Load data is not available for dates more than "
-                f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
-            )
+            if date.date() < today.date() - pd.Timedelta(
+                days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
+            ):
+                raise NotSupported(
+                    f"Load data is not available for dates more than "
+                    f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
+                )
 
-        # Return an empty dataframe when the date exceeds the current timestamp
-        # since there's no load available yet.
-        if date > pd.Timestamp.now(tz=self.default_timezone):
-            return pd.DataFrame()
+            # Return an empty dataframe when the date exceeds the current timestamp
+            # since there's no load available yet.
+            if date > pd.Timestamp.now(tz=self.default_timezone):
+                return pd.DataFrame()
+        elif date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone)
 
         df = self._retrieve_5_minute_load(date, end, verbose)
 

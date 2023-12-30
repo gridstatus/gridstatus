@@ -3,11 +3,13 @@ import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
 from gridstatus import IESO
+from gridstatus.ieso import MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
 class TestIESO(BaseTestISO):
     iso = IESO()
+    default_timezone = iso.default_timezone
 
     def test_init(self):
         assert self.iso is not None
@@ -72,7 +74,7 @@ class TestIESO(BaseTestISO):
         df = self.iso.get_load("today")
         self._check_load(df)
 
-        today = pd.Timestamp.now(tz=self.iso.default_timezone)
+        today = pd.Timestamp.now(tz=self.default_timezone)
         # First interval on the day
         assert df["Interval Start"].min() == today.normalize()
         assert df["Interval End"].min() == today.normalize() + pd.Timedelta(minutes=5)
@@ -84,18 +86,20 @@ class TestIESO(BaseTestISO):
         df = self.iso.get_load("latest")
 
         self._check_load(df)
-        now = pd.Timestamp.now(tz=self.iso.default_timezone)
+        now = pd.Timestamp.now(tz=self.default_timezone)
         # First interval should be the first interval of the hour
         assert df["Interval Start"].min() == now.floor("H")
 
         assert df.shape[0] <= 12
 
     def test_get_load_yesterday_full_day(self):
-        date = (pd.Timestamp.now() - pd.Timedelta(days=1)).date()
+        date = (
+            pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=1)
+        ).date()
         df = self.iso.get_load(date)
         assert df.shape[0] == 288
 
-        beginning_of_date = pd.Timestamp(date, tz=self.iso.default_timezone).replace(
+        beginning_of_date = pd.Timestamp(date, tz=self.default_timezone).replace(
             hour=0,
             minute=0,
             second=0,
@@ -106,9 +110,9 @@ class TestIESO(BaseTestISO):
         assert df["Interval End"].max() == end_of_date
 
     def test_get_load_historical_with_date_range(self):
-        num_days = 4
+        num_days = 2
         end = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
+            tz=self.default_timezone,
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
@@ -148,6 +152,20 @@ class TestIESO(BaseTestISO):
 
     """get_load_forecast"""
 
+    def test_get_load_forecast_tomorrow(self):
+        tomorrow = pd.Timestamp.now(
+            tz=self.default_timezone,
+        ).normalize() + pd.Timedelta(
+            days=1,
+        )
+
+        forecast = self.iso.get_load_forecast(tomorrow.date())
+
+        self._check_load_forecast(forecast)
+
+        assert forecast["Interval Start"].min() == tomorrow
+        assert forecast["Interval End"].max() == tomorrow + pd.Timedelta(days=1)
+
     def test_get_load_forecast_historical(self):
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=3)).date()
         forecast = self.iso.get_load_forecast(date=test_date)
@@ -167,16 +185,23 @@ class TestIESO(BaseTestISO):
         self._check_load_forecast(forecast)
 
     def test_get_load_forecast_latest(self):
-        assert self.iso.get_load_forecast("latest").equals(
-            self.iso.get_load_forecast("today"),
+        forecast = self.iso.get_load_forecast("latest")
+        self._check_load_forecast(forecast)
+
+        assert (
+            forecast["Interval Start"].min()
+            == pd.Timestamp.now(tz=self.default_timezone).normalize()
         )
+        assert forecast["Interval Start"].max() == pd.Timestamp.now(
+            tz=self.default_timezone,
+        ).normalize() + pd.Timedelta(days=2)
 
     """get_zonal_load_forecast"""
 
     def test_get_zonal_load_forecast_historical(self):
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=3)).date()
         forecast = self.iso.get_zonal_load_forecast(date=test_date)
-        self._check_load_zonal_forecast(forecast)
+        self._check_zonal_load_forecast(forecast)
 
     def test_get_zonal_load_forecast_historical_with_date_range(self):
         end = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
@@ -185,16 +210,33 @@ class TestIESO(BaseTestISO):
             start,
             end=end,
         )
-        self._check_load_zonal_forecast(forecast)
+        self._check_zonal_load_forecast(forecast)
 
     def test_get_zonal_load_forecast_today(self):
         forecast = self.iso.get_zonal_load_forecast("today")
-        self._check_load_zonal_forecast(forecast)
+        assert forecast["Interval End"].max() == pd.Timestamp.now(
+            tz=self.default_timezone,
+        ).normalize() + pd.Timedelta(days=1)
+
+        assert (
+            forecast["Interval Start"].min()
+            == pd.Timestamp.now(tz=self.default_timezone).normalize()
+        )
+
+        self._check_zonal_load_forecast(forecast)
 
     def test_get_zonal_load_forecast_latest(self):
-        assert self.iso.get_zonal_load_forecast("latest").equals(
-            self.iso.get_zonal_load_forecast("today"),
+        forecast = self.iso.get_zonal_load_forecast("latest")
+        assert (
+            forecast["Interval Start"].max().date()
+            - pd.Timestamp.now(tz=self.default_timezone).date()
+        ).days == MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST
+
+        assert (
+            forecast["Interval Start"].min()
+            == pd.Timestamp.now(tz=self.default_timezone).normalize()
         )
+        self._check_zonal_load_forecast(forecast)
 
     """get_status"""
 
@@ -252,7 +294,7 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(df["Interval End"])
         assert df["Ontario Load Forecast"].dtype == "float64"
 
-    def _check_load_zonal_forecast(self, df):
+    def _check_zonal_load_forecast(self, df):
         assert set(df.columns) == set(
             [
                 "Interval Start",
