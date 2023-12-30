@@ -166,6 +166,36 @@ class TestIESO(BaseTestISO):
         forecast = self.iso.get_load_forecast("today")
         self._check_load_forecast(forecast)
 
+    def test_get_load_forecast_latest(self):
+        assert self.iso.get_load_forecast("latest").equals(
+            self.iso.get_load_forecast("today"),
+        )
+
+    """get_zonal_load_forecast"""
+
+    def test_get_zonal_load_forecast_historical(self):
+        test_date = (pd.Timestamp.now() - pd.Timedelta(days=3)).date()
+        forecast = self.iso.get_zonal_load_forecast(date=test_date)
+        self._check_load_zonal_forecast(forecast)
+
+    def test_get_zonal_load_forecast_historical_with_date_range(self):
+        end = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
+        start = (end - pd.Timedelta(days=2)).date()
+        forecast = self.iso.get_zonal_load_forecast(
+            start,
+            end=end,
+        )
+        self._check_load_zonal_forecast(forecast)
+
+    def test_get_zonal_load_forecast_today(self):
+        forecast = self.iso.get_zonal_load_forecast("today")
+        self._check_load_zonal_forecast(forecast)
+
+    def test_get_zonal_load_forecast_latest(self):
+        assert self.iso.get_zonal_load_forecast("latest").equals(
+            self.iso.get_zonal_load_forecast("today"),
+        )
+
     """get_status"""
 
     def test_get_status_latest(self):
