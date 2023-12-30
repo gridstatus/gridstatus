@@ -172,45 +172,22 @@ class IESO(ISOBase):
 
         return df
 
-    def get_load_forecast(self, date, end=None, verbose=False):
+    def get_load_forecast(self, date, verbose=False):
         """
-        Get forecasted load for Ontario. If date is "today" return forecast from today.
-        If date is "latest" return forecast from today and tomorrow. If date is a
-        string date or datetime.date returns forecast from that date.
+        Get forecasted load for Ontario. Supports only "latest" and "today" because
+        there is only one load forecast.
 
         Args:
-            date (datetime.date | datetime.datetime | str): The date to get the load for
-                Can be a `datetime.date` or `datetime.datetime` object, or a string
-                with the values "today" or "latest".
-            end (datetime.date | datetime.datetime, optional): End date. Defaults None
+            date (str): Either "today" or "latest"
             verbose (bool, optional): Print verbose output. Defaults to False.
 
         Returns:
             pd.DataFrame: Ontario load forecast
         """
-        if isinstance(date, tuple):
-            date, _end = date
-
-        today = utils._handle_date("today", tz=self.default_timezone)
-
-        if date != "latest":
-            date = utils._handle_date(date, tz=self.default_timezone)
-
-            if date.date() < today.date() - pd.Timedelta(
-                days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST,
-            ):
-                raise NotSupported(
-                    "Past dates are not supported for load forecasts more than "
-                    f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST} days in the past.",
-                )
-
-            if date.date() > today.date() + pd.Timedelta(
-                days=MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST,
-            ):
-                raise NotSupported(
-                    "Load forecasts are not available more than "
-                    f"{MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST} days in the future",
-                )
+        if date not in ["today", "latest"]:
+            raise NotSupported(
+                "Only 'today' and 'latest' are supported for load forecasts.",
+            )
 
         root = ET.fromstring(self._request(LOAD_FORECAST_URL, verbose).text)
 
@@ -253,7 +230,7 @@ class IESO(ISOBase):
             hours=HOUR_INTERVAL,
         )
 
-        df = utils.move_cols_to_front(
+        return utils.move_cols_to_front(
             df_projected,
             [
                 "Interval Start",
@@ -262,12 +239,6 @@ class IESO(ISOBase):
                 "Ontario Load Forecast",
             ],
         )
-
-        # Latest returns both today and tomorrow
-        if date == "latest":
-            return df[df["Interval Start"] >= today].reset_index(drop=True)
-
-        return df[df["Interval Start"].dt.date == date.date()].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_zonal_load_forecast(self, date, end=None, verbose=False):
@@ -407,23 +378,20 @@ class IESO(ISOBase):
 
         pivot_df = pivot_df.rename(columns=col_mapper)
 
-        # Return all the values from the start of today onwards
+        # Return all the values from the latest forecast
         if date == "latest":
-            return pivot_df[pivot_df["Interval Start"] >= today].reset_index(drop=True)
+            return pivot_df
 
         # If no end is provided, return data from single date
         if not end:
-            return pivot_df[
-                pivot_df["Interval Start"].dt.date == date.date()
-            ].reset_index(drop=True)
+            return pivot_df[pivot_df["Publish Time"].dt.date == date.date()]
 
         # Return data from date to end date
         end_date = utils._handle_date(end, tz=self.default_timezone)
 
         return pivot_df[
-            (pivot_df["Interval Start"] >= date)
-            & (pivot_df["Interval End"] <= end_date)
-        ].reset_index(drop=True)
+            (pivot_df["Publish Time"] >= date) & (pivot_df["Publish Time"] <= end_date)
+        ]
 
     # TODO add fuel mix. http://reports.ieso.ca/public/GenOutputbyFuelHourly/
     def get_fuel_mix(self, date, end=None, verbose=False):
