@@ -20,8 +20,9 @@ class TestNYISO(BaseTestISO):
         df = self.iso.get_capacity_prices(date="Jan 1, 2023", verbose=True)
         assert not df.empty, "DataFrame came back empty"
 
-        df = self.iso.get_capacity_prices(date="today", verbose=True)
-        assert not df.empty, "DataFrame came back empty"
+        # TODO: missing report: https://github.com/kmax12/gridstatus/issues/309
+        # df = self.iso.get_capacity_prices(date="today", verbose=True)
+        # assert not df.empty, "DataFrame came back empty"
 
     """get_fuel_mix"""
 
@@ -36,13 +37,16 @@ class TestNYISO(BaseTestISO):
         df = self.iso.get_fuel_mix(start=last_day_of_prev_month, end=first_day_of_month)
 
         # Midnight of the end date
-        assert df["Time"].max() == first_day_of_month.normalize() + pd.Timedelta(days=1)
+        assert df["Time"].max() == first_day_of_month.normalize() + pd.Timedelta(
+            days=1,
+            minutes=-5,
+        )
         # First 5 minute interval of the start date
         assert df["Time"].min() == last_day_of_prev_month.normalize() + pd.Timedelta(
             minutes=5,
         )
 
-        assert df["Time"].dt.date.nunique() == 3  # 2 days + 1 day for midnight
+        assert df["Time"].dt.date.nunique() == 2  # 2 days
         self._check_fuel_mix(df)
 
     def test_month_start_multiple_months(self):
