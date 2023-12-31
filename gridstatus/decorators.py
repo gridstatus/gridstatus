@@ -101,13 +101,17 @@ class support_date_range:
                 # beginning of the date. If the end date is not set, we set it to
                 # the start of the next day
                 elif isinstance(date, str) or isinstance(date, datetime.date):
-                    args_dict["date"] = pd.Timestamp(date, tz=default_timezone).floor(
+
+                    args_dict["date"] = pd.Timestamp(
+                        date,
+                        tz=default_timezone if not date.tzinfo else None,
+                    ).floor(
                         "D",
                     )
                     if not args_dict.get("end"):
                         args_dict["end"] = pd.Timestamp(
                             date,
-                            tz=default_timezone,
+                            tz=default_timezone if not date.tzinfo else None,
                         ).normalize() + pd.Timedelta(days=1)
 
             args_dict["date"] = gridstatus.utils._handle_date(

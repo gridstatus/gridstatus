@@ -763,7 +763,7 @@ class TestErcot(BaseTestISO):
             days=1,
         )
         df = self.iso.get_hourly_wind_report(date)
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].nunique() == 24  # One for each hour
         assert df["Publish Time"].min() < date
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
@@ -809,7 +809,7 @@ class TestErcot(BaseTestISO):
         )
         df = self.iso.get_hourly_solar_report(date, verbose=True)
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].nunique() == 24  # One for each hour
         assert df["Publish Time"].min() < date
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
