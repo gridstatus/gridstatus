@@ -6,7 +6,7 @@ import pprint
 import pandas as pd
 import tqdm
 
-import gridstatus
+from gridstatus import utils
 from gridstatus.base import Markets
 
 
@@ -94,27 +94,22 @@ class support_date_range:
             # For today with hourly data, create a range that spans the day
             if self.frequency == "HOUR_START":
                 date = args_dict.get("date")
+
                 if date == "today":
                     args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
-                    args_dict["end"] = pd.Timestamp.now(tz=default_timezone).ceil("D")
+                    args_dict["end"] = args_dict["date"] + pd.Timedelta(days=1)
+
                 # If date is a string or datetime.date, then we floor it to the
                 # beginning of the date. If the end date is not set, we set it to
                 # the start of the next day
                 elif isinstance(date, str) or isinstance(date, datetime.date):
+                    date = utils._handle_date(date, default_timezone)
+                    args_dict["date"] = date.floor("D")
 
-                    args_dict["date"] = pd.Timestamp(
-                        date,
-                        tz=default_timezone if not date.tzinfo else None,
-                    ).floor(
-                        "D",
-                    )
                     if not args_dict.get("end"):
-                        args_dict["end"] = pd.Timestamp(
-                            date,
-                            tz=default_timezone if not date.tzinfo else None,
-                        ).normalize() + pd.Timedelta(days=1)
+                        args_dict["end"] = args_dict["date"] + pd.Timedelta(days=1)
 
-            args_dict["date"] = gridstatus.utils._handle_date(
+            args_dict["date"] = utils._handle_date(
                 args_dict["date"],
                 default_timezone,
             )
@@ -134,7 +129,7 @@ class support_date_range:
                     tz=default_timezone,
                 ).date() + pd.DateOffset(days=1)
 
-            args_dict["end"] = gridstatus.utils._handle_date(
+            args_dict["end"] = utils._handle_date(
                 args_dict["end"],
                 default_timezone,
             )
@@ -181,7 +176,7 @@ class support_date_range:
 
             # make sure everything is in default timezone
             # of the ISO
-            dates = [gridstatus.utils._handle_date(d, default_timezone) for d in dates]
+            dates = [utils._handle_date(d, default_timezone) for d in dates]
 
             # sometime api have restrictions/optimizations based on date ranges
             # update_dates allows for the caller to insert this logic
