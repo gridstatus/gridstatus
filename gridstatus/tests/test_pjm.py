@@ -139,7 +139,7 @@ class TestPJM(BaseTestISO):
         df = super().test_get_load_today()
 
         assert df.columns.tolist() == [
-            "Interval Start",
+            "Time",
             "Interval Start",
             "Interval End",
             "Load",
