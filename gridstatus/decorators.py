@@ -1,4 +1,3 @@
-import datetime
 import functools
 import os
 import pprint
@@ -99,10 +98,9 @@ class support_date_range:
                     args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
                     args_dict["end"] = args_dict["date"] + pd.Timedelta(days=1)
 
-                # If date is a string or datetime.date, then we floor it to the
-                # beginning of the date. If the end date is not set, we set it to
-                # the start of the next day
-                elif isinstance(date, str) or isinstance(date, datetime.date):
+                # Floor the date to the beginning of the date. If end date is not set,
+                # we set it to the start of the next day
+                else:
                     date = utils._handle_date(date, default_timezone)
                     args_dict["date"] = date.floor("D")
 

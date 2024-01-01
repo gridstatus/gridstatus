@@ -20,13 +20,11 @@ LOAD_TEMPLATE_URL = f"{LOAD_INDEX_URL}/PUB_RealtimeConstTotals_YYYYMMDDHH.xml"
 
 
 """LOAD FORECAST CONSTANTS"""
-# There's only one load forecast for Ontario. This data goes back 5 days in the past
-# and only covers the current date.
+# There's only one load forecast for Ontario. This data covers from 5 days ago
+# through tomorrow
 LOAD_FORECAST_URL = (
     "https://www.ieso.ca/-/media/Files/IESO/Power-Data/Ontario-Demand-multiday.ashx"
 )
-MAXIMUM_DAYS_IN_PAST_FOR_LOAD_FORECAST = 5
-MAXIMUM_DAYS_IN_FUTURE_FOR_LOAD_FORECAST = 1
 
 """ZONAL LOAD FORECAST CONSTANTS"""
 ZONAL_LOAD_FORECAST_INDEX_URL = "http://reports.ieso.ca/public/OntarioZonalDemand"
