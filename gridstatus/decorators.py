@@ -91,21 +91,9 @@ class support_date_range:
             default_timezone = args_dict["self"].default_timezone
 
             # For today with hourly data, create a range that spans the day
-            if self.frequency == "HOUR_START":
-                date = args_dict.get("date")
-
-                if date == "today":
-                    args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
-                    args_dict["end"] = args_dict["date"] + pd.Timedelta(days=1)
-
-                # Floor the date to the beginning of the date. If end date is not set,
-                # we set it to the start of the next day
-                else:
-                    date = utils._handle_date(date, default_timezone)
-                    args_dict["date"] = date.floor("D")
-
-                    if not args_dict.get("end"):
-                        args_dict["end"] = args_dict["date"] + pd.Timedelta(days=1)
+            if self.frequency == "HOUR_START" and args_dict.get("date") == "today":
+                args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
+                args_dict["end"] = args_dict["date"] + pd.Timedelta(days=1)
 
             args_dict["date"] = utils._handle_date(
                 args_dict["date"],

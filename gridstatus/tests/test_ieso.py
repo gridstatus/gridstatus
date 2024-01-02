@@ -3,6 +3,7 @@ import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
 from gridstatus import IESO
+from gridstatus.base import NotSupported
 from gridstatus.ieso import (
     MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
     MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
@@ -99,7 +100,8 @@ class TestIESO(BaseTestISO):
         date = (
             pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=1)
         ).date()
-        df = self.iso.get_load(date)
+        end = date + pd.Timedelta(days=1)
+        df = self.iso.get_load(date, end=end)
         assert df.shape[0] == 288
 
         beginning_of_date = pd.Timestamp(date, tz=self.default_timezone).replace(
@@ -154,14 +156,14 @@ class TestIESO(BaseTestISO):
         ) == test_date.strftime("%Y%m%d")
 
     def test_get_load_tomorrow_raises_error(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(NotSupported):
             self.iso.get_load(
                 pd.Timestamp.now(tz=self.default_timezone).date()
                 + pd.Timedelta(days=1),
             )
 
     def test_get_load_too_far_in_past_raises_error(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(NotSupported):
             self.iso.get_load(
                 pd.Timestamp.now(tz=self.default_timezone).date()
                 - pd.Timedelta(days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD + 1),
