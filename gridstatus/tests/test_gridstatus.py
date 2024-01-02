@@ -2,10 +2,10 @@ import pandas as pd
 import pytest
 
 import gridstatus
-from gridstatus import CAISO, ISONE, MISO, NYISO, PJM, SPP, Ercot
+from gridstatus import CAISO, IESO, ISONE, MISO, NYISO, PJM, SPP, Ercot
 from gridstatus.base import GridStatus, ISOBase
 
-all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE()]
+all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE(), IESO()]
 
 """
 Legacy gridstatus tests file
@@ -21,7 +21,7 @@ def test_make_lmp_availability_df():
 
 
 def test_list_isos():
-    assert len(gridstatus.list_isos()) == 7
+    assert len(gridstatus.list_isos()) == len(all_isos)
 
 
 def test_get_iso():

@@ -322,34 +322,42 @@ class BaseTestISO:
 
         if self.iso.iso_id in ["nyiso"]:
             time_type = "instant"
-        elif self.iso.iso_id in ["caiso", "isone", "spp", "miso", "pjm", "ercot"]:
+        elif self.iso.iso_id in [
+            "caiso",
+            "isone",
+            "spp",
+            "miso",
+            "pjm",
+            "ercot",
+            "ieso",
+        ]:
             time_type = "interval"
         self._check_time_columns(df, instant_or_interval=time_type)
         assert "Load" in df.columns
         assert is_numeric_dtype(df["Load"])
 
-    def _check_forecast(self, df):
-        # support both old and new format
-        # eventually all ISOs should return publish time
-        assert set(df.columns) == set(
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Forecast Time",
-                "Load Forecast",
-            ],
-        ) or set(df.columns) == set(
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Load Forecast",
-            ],
-        )
+    def _check_forecast(self, df, expected_columns=None):
+        if expected_columns is not None:
+            assert set(df.columns) == set(expected_columns)
+        else:
+            # support both old and new format
+            # eventually all ISOs should return publish time
+            publish_column_name = (
+                "Forecast Time" if "Forecast Time" in df.columns else "Publish Time"
+            )
+            assert set(df.columns) == set(
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    publish_column_name,
+                    "Load Forecast",
+                ],
+            )
 
-        assert self._check_is_datetime_type(df["Forecast Time"])
+        assert self._check_is_datetime_type(
+            df["Forecast Time" if "Forecast Time" in df.columns else "Publish Time"],
+        )
         assert self._check_is_datetime_type(df["Time"])
 
     def _check_is_datetime_type(self, series):
