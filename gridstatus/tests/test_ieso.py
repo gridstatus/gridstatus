@@ -18,6 +18,7 @@ class TestIESO(BaseTestISO):
     def test_init(self):
         assert self.iso is not None
 
+    # TODO fuel mix tests
     """get_fuel_mix"""
 
     @pytest.mark.skip(reason="Not Applicable")

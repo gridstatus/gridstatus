@@ -41,6 +41,12 @@ MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST = 90
 # files for these future forecasts, they are in the current day's file.
 MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST = 34
 
+"""FUEL MIX CONSTANTS"""
+FUEL_MIX_INDEX_URL = "http://reports.ieso.ca/public/GenOutputCapability/"
+
+# Updated every hour. The most recent version does not have the date in the filename.\
+FUEL_MIX_TEMPLATE_URL = f"{FUEL_MIX_INDEX_URL}/PUB_GenOutputCapability_YYYYMMDD.xml"
+
 
 MINUTES_INTERVAL = 5
 HOUR_INTERVAL = 1
@@ -390,9 +396,101 @@ class IESO(ISOBase):
             (pivot_df["Publish Time"] >= date) & (pivot_df["Publish Time"] <= end_date)
         ]
 
-    # TODO add fuel mix. http://reports.ieso.ca/public/GenOutputbyFuelHourly/
+    @support_date_range(frequency="DAY_START")
     def get_fuel_mix(self, date, end=None, verbose=False):
-        pass
+        url = FUEL_MIX_TEMPLATE_URL.replace(
+            "YYYYMMDD",
+            date.strftime("%Y%m%d"),
+        )
+
+        r = self._request(url, verbose)
+
+        root = ET.fromstring(r.content)
+
+        # Define the namespace map
+        ns = {"": "http://www.theIMO.com/schema"}
+
+        # Extracting the 'date' from the XML file
+        # (it is a separate element outside the 'Generator' elements)
+        date = root.find(".//Date", ns).text
+
+        # Re-parsing the 'Generator' elements with the correct 'date'
+        data = []
+
+        for gen in root.findall(".//Generator", ns):
+            generator_name = (
+                gen.find("GeneratorName", ns).text
+                if gen.find("GeneratorName", ns) is not None
+                else None
+            )
+            fuel_type = (
+                gen.find("FuelType", ns).text
+                if gen.find("FuelType", ns) is not None
+                else None
+            )
+
+            # Extracting 'Output' and 'Capability' data
+            for output in gen.findall("Outputs/Output", ns):
+                hour = (
+                    output.find("Hour", ns).text
+                    if output.find("Hour", ns) is not None
+                    else None
+                )
+                energy_mw = (
+                    output.find("EnergyMW", ns).text
+                    if output.find("EnergyMW", ns) is not None
+                    else None
+                )
+
+                # For SOLAR/WIND, 'Capability' data is under 'AvailCapacity' tag
+                if fuel_type in ["SOLAR", "WIND"]:
+                    capability = gen.find(
+                        f".//Capacities/AvailCapacity[Hour='{hour}']",
+                        ns,
+                    )
+                    forecast_energy_mw = (
+                        gen.find(f".//Capabilities/Capability[Hour='{hour}']", ns)
+                        .find("EnergyMW", ns)
+                        .text
+                    )
+                else:
+                    capability = gen.find(
+                        f".//Capabilities/Capability[Hour='{hour}']",
+                        ns,
+                    )
+                    forecast_energy_mw = None
+
+                capability_energy_mw = (
+                    capability.find("EnergyMW", ns).text
+                    if capability is not None
+                    else None
+                )
+
+                data.append(
+                    [
+                        date,
+                        hour,
+                        generator_name,
+                        fuel_type,
+                        energy_mw,
+                        capability_energy_mw,
+                        forecast_energy_mw,
+                    ],
+                )
+
+        columns = [
+            "Date",
+            "Hour",
+            "Generator Name",
+            "Fuel Type",
+            "Output MW",
+            "Capability MW",
+            "Forecast MW",
+        ]
+
+        # Creating the DataFrame with the correct date
+        df = pd.DataFrame(data, columns=columns)
+        df.head()
 
     # Function to extract data for a specific Market Quantity considering namespace
     def _extract_load_in_market_quantity(
