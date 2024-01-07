@@ -446,7 +446,7 @@ class IESO(ISOBase):
             data = (
                 self._retrieve_fuel_mix(date, end, verbose)
                 .groupby(["Fuel Type", "Interval Start", "Interval End"])
-                .sum()
+                .sum(numeric_only=True)
                 .reset_index()
             )
 
@@ -463,7 +463,7 @@ class IESO(ISOBase):
 
             data = pivoted.copy()
 
-        return utils.move_cols_to_front(
+        data = utils.move_cols_to_front(
             data,
             [
                 "Interval Start",
@@ -477,6 +477,15 @@ class IESO(ISOBase):
                 "Total Output",
             ],
         )
+
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone)
+
+            return data[
+                (data["Interval Start"] >= date) & (data["Interval Start"] <= end)
+            ]
+
+        return data
 
     def get_generator_output_and_capability(self, date, end=None, verbose=False):
         """
@@ -515,7 +524,7 @@ class IESO(ISOBase):
 
         data = self._retrieve_fuel_mix(date, end, verbose)
 
-        return utils.move_cols_to_front(
+        data = utils.move_cols_to_front(
             data,
             [
                 "Interval Start",
@@ -528,9 +537,22 @@ class IESO(ISOBase):
             ],
         )
 
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone)
+
+            return data[
+                (data["Interval Start"] >= date) & (data["Interval Start"] <= end)
+            ]
+
+        return data
+
     @support_date_range(frequency="DAY_START")
     def _retrieve_fuel_mix(self, date, end=None, verbose=False):
-        date = utils._handle_date(date, tz=self.default_timezone)
+        date = (
+            utils._handle_date(date, tz=self.default_timezone)
+            if date != "latest"
+            else "latest"
+        )
 
         url = FUEL_MIX_TEMPLATE_URL.replace(
             "_YYYYMMDD",
@@ -614,10 +636,15 @@ class IESO(ISOBase):
 
         # Creating the DataFrame with the correct date
         df = pd.DataFrame(data, columns=columns)
-        df["Interval Start"] = pd.to_datetime(df["Date"]) + pd.to_timedelta(
-            df["Hour"].astype(int),
-            unit="h",
-        )
+        df["Interval Start"] = (
+            pd.to_datetime(df["Date"])
+            + pd.to_timedelta(
+                # Subtract 1 from the hour because hour 1 is from 00:00 - 01:00
+                df["Hour"].astype(int) - 1,
+                unit="h",
+            )
+        ).dt.tz_localize(self.default_timezone)
+
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
         df[["Output MW", "Capability MW", "Forecast MW"]] = df[
@@ -695,10 +722,15 @@ class IESO(ISOBase):
 
         # Creating the DataFrame with the adjusted parsing logic
         df = pd.DataFrame(data, columns=columns)
-        df["Interval Start"] = pd.to_datetime(df["Date"]) + pd.to_timedelta(
-            df["Hour"].astype(int),
-            unit="h",
-        )
+        df["Interval Start"] = (
+            pd.to_datetime(df["Date"])
+            + pd.to_timedelta(
+                # Subtract 1 from the hour because hour 1 is from 00:00 - 01:00
+                df["Hour"].astype(int) - 1,
+                unit="h",
+            )
+        ).dt.tz_localize(self.default_timezone)
+
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
         return utils.move_cols_to_front(
