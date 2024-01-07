@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
-from gridstatus import IESO
+from gridstatus import IESO, utils
 from gridstatus.base import NotSupported
 from gridstatus.ieso import (
     MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
@@ -21,33 +21,52 @@ class TestIESO(BaseTestISO):
     # TODO fuel mix tests
     """get_fuel_mix"""
 
+    # start is not a valid keyword argument for get_fuel_mix for IESO
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_date_or_start(self):
         pass
 
-    @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_historical(self):
-        pass
+        super().test_get_fuel_mix_historical(time_column="Interval Start")
 
-    @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_historical_with_date_range(self):
-        pass
+        super().test_get_fuel_mix_historical_with_date_range(
+            time_column="Interval Start",
+        )
 
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_range_two_days_with_day_start_endpoint(self):
-        pass
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
+        yesterday = utils._handle_date(
+            "today",
+            self.iso.default_timezone,
+        ) - pd.Timedelta(days=1)
+        yesterday = yesterday.replace(hour=1, minute=0, second=0, microsecond=0)
+        start = yesterday - pd.Timedelta(hours=3)
 
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_start_end_same_day(self):
-        pass
+        df = self.iso.get_fuel_mix(date=start, end=yesterday + pd.Timedelta(minutes=1))
 
-    @pytest.mark.skip(reason="Not Applicable")
+        assert df["Interval Start"].max() >= yesterday.replace(
+            hour=0,
+            minute=0,
+            second=0,
+        )
+        assert df["Interval Start"].min() <= start
+
+    def test_get_fuel_mix_start_end_same_day(self):
+        yesterday = utils._handle_date(
+            "today",
+            self.iso.default_timezone,
+        ) - pd.Timedelta(days=1)
+        start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
+        end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
+        df = self.iso.get_fuel_mix(date=start, end=end)
+        # ignore last row, since it is sometime midnight of next day
+        assert df["Interval Start"].iloc[:-1].dt.date.unique().tolist() == [
+            yesterday.date(),
+        ]
+        self._check_fuel_mix(df)
+
     def test_get_fuel_mix_latest(self):
-        pass
-
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_get_fuel_mix_today(self):
-        pass
+        super().test_get_fuel_mix_latest(time_column="Interval Start")
 
     """get_interconnection_queue"""
 

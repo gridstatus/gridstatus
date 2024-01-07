@@ -483,9 +483,12 @@ class IESO(ISOBase):
 
             return data[
                 (data["Interval Start"] >= date) & (data["Interval Start"] <= end)
-            ]
+            ].reset_index(drop=True)
 
-        return data
+        elif date == "latest":
+            return data
+
+        return data[data["Interval Start"] >= date].reset_index(drop=True)
 
     def get_generator_output_and_capability(self, date, end=None, verbose=False):
         """
