@@ -49,7 +49,7 @@ FUEL_MIX_INDEX_URL = "http://reports.ieso.ca/public/GenOutputCapability/"
 FUEL_MIX_TEMPLATE_URL = f"{FUEL_MIX_INDEX_URL}/PUB_GenOutputCapability_YYYYMMDD.xml"
 
 # Number of past real time fuel mix days of data available
-REAL_TIME_DAYS_IN_PAST_FUEL_MIX = 90
+MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX = 90
 
 """HISTORICAL FUEL MIX CONSTANTS"""
 HISTORICAL_FUEL_MIX_INDEX_URL = "http://reports.ieso.ca/public/GenOutputbyFuelHourly/"
@@ -434,7 +434,7 @@ class IESO(ISOBase):
             date = utils._handle_date(date, tz=self.default_timezone)
 
             if date.date() < today.date() - pd.Timedelta(
-                days=REAL_TIME_DAYS_IN_PAST_FUEL_MIX,
+                days=MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX,
             ):
                 use_historical = True
             elif date.date() > today.date():
@@ -513,11 +513,11 @@ class IESO(ISOBase):
             date = utils._handle_date(date, tz=self.default_timezone)
 
             if date.date() < today.date() - pd.Timedelta(
-                days=REAL_TIME_DAYS_IN_PAST_FUEL_MIX,
+                days=MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX,
             ):
                 raise NotSupported(
                     f"Generator output and capability data is not available for dates "
-                    f"more than {REAL_TIME_DAYS_IN_PAST_FUEL_MIX} days in the past.",
+                    f"more than {MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX} days in the past.",
                 )
             elif date.date() > today.date():
                 raise NotSupported(
@@ -538,16 +538,19 @@ class IESO(ISOBase):
                 "Capability MW",
                 "Forecast MW",
             ],
-        )
+        ).sort_values(["Interval Start", "Fuel Type", "Generator Name"])
 
         if end:
             end = utils._handle_date(end, tz=self.default_timezone)
 
             return data[
                 (data["Interval Start"] >= date) & (data["Interval Start"] <= end)
-            ]
+            ].reset_index(drop=True)
 
-        return data
+        if date == "latest":
+            return data.reset_index(drop=True)
+
+        return data[data["Interval Start"] >= date].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def _retrieve_fuel_mix(self, date, end=None, verbose=False):
