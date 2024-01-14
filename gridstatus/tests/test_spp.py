@@ -186,8 +186,18 @@ class TestSPP(BaseTestISO):
                 location_type=location_type,
             )
 
-    def test_get_lmp_real_time_weis(self):
-        three_weeks_ago = (pd.Timestamp.now() - pd.Timedelta(days=21)).normalize()
+    def test_get_lmp_real_time_weis_1_hour_range(self):
+        yesterday = pd.Timestamp.now(tz=self.iso.default_timezone).normalize() - pd.Timedelta(days=1)
+        yesterday_1am = yesterday + pd.Timedelta(hours=1)
+
+        df = self.iso.get_lmp_real_time_weis(start=yesterday, end=yesterday_1am, verbose=True)
+
+        assert df["Interval Start"].min() == yesterday
+        assert df["Interval End"].max() == yesterday_1am
+
+
+    def test_get_lmp_real_time_weis_single_interval(self):
+        three_weeks_ago = (pd.Timestamp.now(tz= self.iso.default_timezone) - pd.Timedelta(days=21))
         df = self.iso.get_lmp_real_time_weis(date=three_weeks_ago)
 
         columns = [
@@ -203,7 +213,13 @@ class TestSPP(BaseTestISO):
             "Loss",
         ]
 
+        # assert one interval that straddles date input
+        assert df["Interval Start"].min() < three_weeks_ago
+        assert df["Interval End"].max() > three_weeks_ago
+        assert df["Interval Start"].nunique() == 1
         assert df.columns.tolist() == columns
+
+
 
     """get_load"""
 

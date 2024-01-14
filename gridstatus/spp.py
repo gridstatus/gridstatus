@@ -672,20 +672,26 @@ class SPP(ISOBase):
         df = df.reset_index(drop=True)
         return df
 
-    @support_date_range("DAY_START")
-    def get_lmp_real_time_weis(self, date, verbose=False):
+    @support_date_range("5_MIN")
+    def get_lmp_real_time_weis(self, date, end=None, verbose=False):
         """Get LMP data for real time WEIS
 
         Args:
-            date: date to get data for
+            date: date to get data for. if end is not provided, will get data for
+                5 minute interval that date is in.
+            end: end date
+            verbose: print url
         """
+        # if no end, find nearest 5 minute interval end
+        # to use
+        if end is None:
+            # round date up to nearest 5 minutes
+            end = date + pd.Timedelta(minutes=5) - pd.Timedelta(
+                minutes=date.minute % 5,
+            )
 
-        # quick implementation using daily files
-        # daily files publish with a few day delay
-        # there are interval files that provide more real time data
-        # also, there are also annual files to handle more more historical data
-
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/WEIS-RTBM-LMP-DAILY-SL-{date.strftime('%Y%m%d')}.csv"  # noqa
+        # todo before 2022 only annual files are available
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{end.strftime('%Y')}/{end.strftime('%m')}/By_Interval/{end.strftime('%d')}/WEIS-RTBM-LMP-SL-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
         msg = f"Downloading {url}"
         log(msg, verbose)
         df = pd.read_csv(url)
@@ -698,7 +704,7 @@ class SPP(ISOBase):
 
         df = self._handle_market_end_to_interval(
             df,
-            column="GMT Interval",
+            column="GMTIntervalEnd",
             interval_duration=pd.Timedelta(minutes=5),
         )
 
@@ -707,8 +713,8 @@ class SPP(ISOBase):
 
         df = df.rename(
             columns={
-                "Settlement Location Name": "Location",
-                "PNODE Name": "PNode",
+                "Settlement Location": "Location",
+                "Pnode": "PNode",
                 "LMP": "LMP",  # for posterity
                 "MLC": "Loss",
                 "MCC": "Congestion",
