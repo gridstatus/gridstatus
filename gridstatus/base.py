@@ -134,7 +134,7 @@ class GridStatus:
             s += "Status Homepage: %s \n" % self.iso.status_homepage
 
         if self.reserves is not None:
-            s += "Reserves: %.0f %s" % (self.reserves, self.unit)
+            s += "Reserves: %.0f %s \n" % (self.reserves, self.unit)
 
         if self.notes and len(self.notes):
             s += "Notes:\n"
