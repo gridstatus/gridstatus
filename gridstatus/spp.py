@@ -691,7 +691,9 @@ class SPP(ISOBase):
             )
 
         # todo before 2022 only annual files are available
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{end.strftime('%Y')}/{end.strftime('%m')}/By_Interval/{end.strftime('%d')}/WEIS-RTBM-LMP-SL-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+        # folder path is based on start date
+        # file name is based on end date
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Interval/{date.strftime('%d')}/WEIS-RTBM-LMP-SL-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
         msg = f"Downloading {url}"
         log(msg, verbose)
         df = pd.read_csv(url)
