@@ -90,8 +90,11 @@ class support_date_range:
 
             default_timezone = args_dict["self"].default_timezone
 
-            # For today with hourly data, create a range that spans the day
-            if self.frequency == "HOUR_START" and args_dict.get("date") == "today":
+            # For today with sub daily data, create a range that spans the day
+            if (
+                self.frequency in ["HOUR_START", "5_MIN"]
+                and args_dict.get("date") == "today"
+            ):  # noqa
                 args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
                 args_dict["end"] = args_dict["date"] + pd.Timedelta(days=1)
 
@@ -151,6 +154,9 @@ class support_date_range:
 
                 elif frequency == "HOUR_START":
                     frequency = pd.DateOffset(hours=1)
+
+                elif frequency == "5_MIN":
+                    frequency = FiveMinOffset()
 
                 dates = date_range_maker(
                     args_dict["date"],
@@ -384,6 +390,17 @@ class DayBeginOffset:
 class MonthBeginOffset:
     def __ladd__(self, other):
         return other.normalize() + pd.offsets.MonthBegin(1)
+
+    def __radd__(self, other):
+        return self.__ladd__(other)
+
+
+class FiveMinOffset:
+    def __ladd__(self, other):
+        # round up to next 5 min interval
+        # add 1 microsecond to ensure we make it to the
+        # next interval when already on a 5 min interval
+        return (other + pd.Timedelta(microseconds=1)).ceil("5min")
 
     def __radd__(self, other):
         return self.__ladd__(other)
