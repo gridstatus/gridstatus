@@ -10,7 +10,7 @@ from gridstatus.base import (
     Markets,
     NotSupported,
 )
-from gridstatus.decorators import support_date_range
+from gridstatus.decorators import support_date_range, FiveMinOffset
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
@@ -684,16 +684,18 @@ class SPP(ISOBase):
         """
         # if no end, find nearest 5 minute interval end
         # to use
-        if end is None:
-            # round date up to nearest 5 minutes
-            end = date + pd.Timedelta(minutes=5) - pd.Timedelta(
-                minutes=date.minute % 5,
-            )
+        if date == "latest":
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/WEIS-RTBM-LMP-SL-latestInterval.csv"  # noqa
+        else:
+            if end is None:
+                # round date up to nearest 5 minutes
+                # add 1 microsecond to ensure we make it to the next interval
+                end = date + FiveMinOffset()
 
-        # todo before 2022 only annual files are available
-        # folder path is based on start date
-        # file name is based on end date
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Interval/{date.strftime('%d')}/WEIS-RTBM-LMP-SL-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+            # todo before 2022 only annual files are available
+            # folder path is based on start date
+            # file name is based on end date
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Interval/{date.strftime('%d')}/WEIS-RTBM-LMP-SL-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
         msg = f"Downloading {url}"
         log(msg, verbose)
         df = pd.read_csv(url)

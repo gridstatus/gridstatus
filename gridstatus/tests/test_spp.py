@@ -186,30 +186,8 @@ class TestSPP(BaseTestISO):
                 location_type=location_type,
             )
 
-    def test_get_lmp_real_time_weis_1_hour_range(self):
-        yesterday = pd.Timestamp.now(tz=self.iso.default_timezone).normalize() - pd.Timedelta(days=1)
-        yesterday_1am = yesterday + pd.Timedelta(hours=1)
 
-        df = self.iso.get_lmp_real_time_weis(start=yesterday, end=yesterday_1am, verbose=True)
-
-        assert df["Interval Start"].min() == yesterday
-        assert df["Interval End"].max() == yesterday_1am
-
-    def test_get_lmp_real_time_weis_cross_day(self):
-        two_days_ago_2350 = pd.Timestamp.now(tz=self.iso.default_timezone).normalize() - pd.Timedelta(days=2) + pd.Timedelta(hours=23, minutes=50)
-        end = two_days_ago_2350 + pd.Timedelta(minutes=15)
-
-        df = self.iso.get_lmp_real_time_weis(start=pd.Timestamp('2024-01-13 00:00:00-0600', tz='US/Central'), end=end, verbose=True)
-
-        assert df["Interval Start"].min() == two_days_ago_2350
-        assert df["Interval End"].max() == end
-
-
-    def test_get_lmp_real_time_weis_single_interval(self):
-        three_weeks_ago = (pd.Timestamp.now(tz= self.iso.default_timezone) - pd.Timedelta(days=21))
-        df = self.iso.get_lmp_real_time_weis(date=three_weeks_ago)
-
-        columns = [
+    WEIS_LMP_COLUMNS = [
             "Interval Start",
             "Interval End",
             "Market",
@@ -221,12 +199,42 @@ class TestSPP(BaseTestISO):
             "Congestion",
             "Loss",
         ]
+    
+    def test_get_lmp_real_time_weis_latest(self):
+        df = self.iso.get_lmp_real_time_weis(date="latest")
+
+        assert len(df) > 0
+        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+
+    def test_get_lmp_real_time_weis_1_hour_range(self):
+        yesterday = pd.Timestamp.now(tz=self.iso.default_timezone).normalize() - pd.Timedelta(days=1)
+        yesterday_1am = yesterday + pd.Timedelta(hours=1)
+
+        df = self.iso.get_lmp_real_time_weis(start=yesterday, end=yesterday_1am)
+
+        assert df["Interval Start"].min() == yesterday
+        assert df["Interval End"].max() == yesterday_1am
+        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+
+    def test_get_lmp_real_time_weis_cross_day(self):
+        two_days_ago_2350 = pd.Timestamp.now(tz=self.iso.default_timezone).normalize() - pd.Timedelta(days=2) + pd.Timedelta(hours=23, minutes=50)
+        end = two_days_ago_2350 + pd.Timedelta(minutes=15)
+
+        df = self.iso.get_lmp_real_time_weis(start=two_days_ago_2350, end=end)
+
+        assert df["Interval Start"].min() == two_days_ago_2350
+        assert df["Interval End"].max() == end
+        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+
+    def test_get_lmp_real_time_weis_single_interval(self):
+        three_weeks_ago = (pd.Timestamp.now(tz= self.iso.default_timezone) - pd.Timedelta(days=21))
+        df = self.iso.get_lmp_real_time_weis(date=three_weeks_ago)
 
         # assert one interval that straddles date input
         assert df["Interval Start"].min() < three_weeks_ago
         assert df["Interval End"].max() > three_weeks_ago
         assert df["Interval Start"].nunique() == 1
-        assert df.columns.tolist() == columns
+        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
 
     """get_load"""

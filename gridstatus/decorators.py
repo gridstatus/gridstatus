@@ -394,8 +394,9 @@ class MonthBeginOffset:
 class FiveMinOffset:
     def __ladd__(self, other):
         # round up to next 5 min interval
-        # remove seconds and microseconds
-        return other.replace(second=0, microsecond=0) + pd.DateOffset(minutes=5) - pd.DateOffset(minutes=other.minute % 5)
+        # add 1 microsecond to ensure we make it to the 
+        # next interval when already on a 5 min interval
+        return (other + pd.Timedelta(microseconds=1)).ceil("5min")
 
     def __radd__(self, other):
         return self.__ladd__(other)
