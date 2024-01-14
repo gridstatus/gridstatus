@@ -10,7 +10,7 @@ from gridstatus.base import (
     Markets,
     NotSupported,
 )
-from gridstatus.decorators import support_date_range, FiveMinOffset
+from gridstatus.decorators import FiveMinOffset, support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
@@ -691,7 +691,7 @@ class SPP(ISOBase):
                 # round date up to nearest 5 minutes
                 # add 1 microsecond to ensure we make it to the next interval
                 end = date + FiveMinOffset()
-            
+
             # always round up to nearest 5 minutes
             # if already on 5 minute interval, this will do nothing
             end = end.ceil("5min")
