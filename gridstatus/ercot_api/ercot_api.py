@@ -77,7 +77,7 @@ def hit_ercot_api(
 
 
 def endpoint_help(endpoint: str) -> None:
-    """ Prints details about a given endpoint """
+    """Prints details about a given endpoint"""
     endpoint_contents = get_endpoints_map().get(endpoint, None)
     if endpoint_contents is None:
         print(f"{endpoint} is not a valid ERCOT API endpoint")
@@ -88,7 +88,15 @@ def endpoint_help(endpoint: str) -> None:
     print(f"Parameters:")
     for param, details in sorted(endpoint_contents["parameters"].items()):
         print(f"    {param} - {details['value_type']}")
-        
+
+
+def list_all_endpoints() -> None:
+    """Prints all available endpoints"""
+    endpoints = get_endpoints_map()
+    for endpoint, contents in sorted(endpoints.items()):
+        print(endpoint)
+        print(f"    {contents['summary']}")
+
 
 if __name__ == "__main__":
     pass
