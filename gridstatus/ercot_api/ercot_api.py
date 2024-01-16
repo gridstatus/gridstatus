@@ -1,9 +1,10 @@
+import argparse
 import requests
 from typing import Optional
 
 import pandas as pd
 
-from gridstatus.ercot_api.api_parser import get_endpoints_map
+from api_parser import get_endpoints_map
 
 
 BASE_URL = "https://api.ercot.com/api/public-reports"
@@ -76,7 +77,7 @@ def hit_ercot_api(
     )
 
 
-def endpoint_help(endpoint: str) -> None:
+def describe_one_endpoint(endpoint: str) -> None:
     """Prints details about a given endpoint"""
     endpoint_contents = get_endpoints_map().get(endpoint, None)
     if endpoint_contents is None:
@@ -99,4 +100,13 @@ def list_all_endpoints() -> None:
 
 
 if __name__ == "__main__":
-    pass
+    parser = argparse.ArgumentParser()
+    parser.add_argument("action", choices=["list", "describe"])
+    parser.add_argument("--endpoint", required=False)
+
+    args = parser.parse_args()
+    match args.action:
+        case "list":
+            list_all_endpoints()
+        case "describe":
+            describe_one_endpoint(args.endpoint)
