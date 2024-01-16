@@ -1,4 +1,5 @@
 import json
+import pathlib
 from datetime import date, datetime
 from typing import Union
 
@@ -79,7 +80,7 @@ def get_endpoints_map() -> EndpointsMap:
     """Provides access to a parsed map of all data endpoints and their parameters"""
     global _endpoints_map # enable us to edit it in here
     if _endpoints_map is None:
-        with open("./pubapi-apim-api.json") as rf:
+        with open(f"{pathlib.Path(__file__).parent}/pubapi-apim-api.json") as rf:
             apijson = json.load(rf)
         _endpoints_map = _parse_all_endpoints(apijson=apijson)
     return _endpoints_map
