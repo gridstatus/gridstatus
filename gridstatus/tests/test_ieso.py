@@ -477,7 +477,6 @@ class TestIESO(BaseTestISO):
             "Nuclear",
             "Solar",
             "Wind",
-            "Total Output",
         ]
 
     def _check_get_generator_output_and_capability(self, df):

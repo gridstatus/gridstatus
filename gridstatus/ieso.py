@@ -459,8 +459,6 @@ class IESO(ISOBase):
             pivoted.columns = [c.title() for c in pivoted.columns]
             pivoted.index.name = None
 
-            pivoted["Total Output"] = pivoted.sum(numeric_only=True, axis=1)
-
             data = pivoted.copy()
 
         data = utils.move_cols_to_front(
@@ -474,7 +472,6 @@ class IESO(ISOBase):
                 "Nuclear",
                 "Solar",
                 "Wind",
-                "Total Output",
             ],
         )
 
@@ -554,12 +551,6 @@ class IESO(ISOBase):
 
     @support_date_range(frequency="DAY_START")
     def _retrieve_fuel_mix(self, date, end=None, verbose=False):
-        date = (
-            utils._handle_date(date, tz=self.default_timezone)
-            if date != "latest"
-            else "latest"
-        )
-
         url = FUEL_MIX_TEMPLATE_URL.replace(
             "_YYYYMMDD",
             date.strftime("_%Y%m%d") if date != "latest" else "",
@@ -700,8 +691,6 @@ class IESO(ISOBase):
                     "BIOFUEL": 0,
                 }
 
-                total_daily_output = 0
-
                 # Extracting output for each fuel type
                 for fuel_total in hourly_data.findall("FuelTotal", ns):
                     fuel_type = (
@@ -717,13 +706,12 @@ class IESO(ISOBase):
 
                     if fuel_type in fuel_outputs:
                         fuel_outputs[fuel_type] = float(output)
-                        total_daily_output += float(output)
 
                 # Adding the row to the data list
-                row = [date, hour] + list(fuel_outputs.values()) + [total_daily_output]
+                row = [date, hour] + list(fuel_outputs.values())
                 data.append(row)
 
-        columns = ["Date", "Hour"] + list(fuel_outputs.keys()) + ["Total Output"]
+        columns = ["Date", "Hour"] + list(fuel_outputs.keys())
         columns = [c.title() for c in columns]
 
         # Creating the DataFrame with the adjusted parsing logic
@@ -750,7 +738,6 @@ class IESO(ISOBase):
                 "Wind",
                 "Solar",
                 "Biofuel",
-                "Total Output",
             ],
         ).drop(columns=["Date", "Hour"])
 
