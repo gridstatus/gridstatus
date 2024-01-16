@@ -3,7 +3,7 @@ from typing import Optional
 
 import pandas as pd
 
-from api_parser import get_endpoints_map
+from gridstatus.ercot_api.api_parser import get_endpoints_map
 
 
 BASE_URL = "https://api.ercot.com/api/public-reports"
@@ -40,7 +40,7 @@ def hit_ercot_api(
     # determine parameters and types for endpoint, validate and parse api_params
     parsed_api_params = []
     for arg, value in api_params.items():
-        expected_type, parser = endpoint_contents.get(arg, None)
+        parser = endpoint_contents["parameters"].get(arg, {}).get("parser")
         if parser is not None:
             parsed_api_params.append((arg, parser(value)))
 
@@ -75,6 +75,20 @@ def hit_ercot_api(
         columns=columns,
     )
 
+
+def endpoint_help(endpoint: str) -> None:
+    """ Prints details about a given endpoint """
+    endpoint_contents = get_endpoints_map().get(endpoint, None)
+    if endpoint_contents is None:
+        print(f"{endpoint} is not a valid ERCOT API endpoint")
+        return
+    
+    print(f"Endpoint: {endpoint}")
+    print(f"Summary:  {endpoint_contents['summary']}")
+    print(f"Parameters:")
+    for param, details in sorted(endpoint_contents["parameters"].items()):
+        print(f"    {param} - {details['value_type']}")
+        
 
 if __name__ == "__main__":
     pass

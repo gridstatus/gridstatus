@@ -15,33 +15,27 @@ META_ENDPOINTS = {
 UNIVERSAL_PARAM_NAMES = {"page", "size", "sort", "dir"}
 
 
-SCHEMA_TYPE_MAP = {
-    "string": str,
-    "boolean": bool,
-    "integer": int,
-    "number": float,
+DATE_FORMAT = "yyyy-MM-dd"
+MINUTE_SECOND_FORMAT = "mm:ss"
+TIMESTAMP_FORMAT = "yyyy-MM-ddTH24:mm:ss"
+
+
+"""
+_endpoints_map is lazily evaluated upon first usage
+its structure is as follows:
+{
+    endpoint_string: {
+        "summary": a summary description
+        "parameters": {
+            parameter_name: {
+                "value_type": a human-readable type like 'timestamp' or 'boolean'
+                "parser": a callable parser, used internally to ensure the correct format is passed to the API
+            }
+        }
+    }
 }
-
-
-# outer key: endpoint
-# inner key: parameters valid for that endpoint
-# inner value: expected type of parameter value and a function to parse it into expected format
-EndpointsMap = dict[str, dict[str, tuple[type, callable]]]
-
-# lazily evaluated upon first usage
-_endpoints_map: EndpointsMap = None
-
-
-
-def _select_schema_parser(format: str) -> callable:
-    if format == "yyyy-MM-ddTH24:mm:ss":
-        return _timestamp_parser
-    elif format == "yyyy-MM-dd":
-        return _date_parser
-    elif format == "true | false":
-        return lambda x: "true" if x else "false"
-    else:
-        return lambda x: x
+"""
+_endpoints_map: dict = None
 
 
 def _timestamp_parser(timestamp: Union[str, datetime]) -> str:
@@ -56,7 +50,21 @@ def _date_parser(datevalue: Union[str, datetime]) -> str:
     return datevalue.strftime("%Y-%m-%d")
 
 
-def _parse_all_endpoints(apijson: dict) -> EndpointsMap:
+def _minute_second_parser(timestamp: Union[str, datetime]) -> str:
+    if isinstance(timestamp, str):
+        # assumes string is in correct mm:ss format
+        return timestamp
+    return timestamp.strftime("%M:%S")
+
+
+def _bool_parser(boolvalue: Union[str, bool]) -> str:
+    if isinstance(boolvalue, bool):
+        return "true" if boolvalue else "false"
+    else:
+        return boolvalue.lower()
+
+
+def _parse_all_endpoints(apijson: dict) -> dict:
     return {
         endpoint_string: _parse_endpoint_contents(contents)
         for endpoint_string, contents in apijson["paths"].items()
@@ -64,19 +72,44 @@ def _parse_all_endpoints(apijson: dict) -> EndpointsMap:
     }
 
 
-def _parse_endpoint_contents(contents: dict) -> dict[str, tuple[type, callable]]:
-    """
-    pull out unique parameters and their schemas/types
-    from a single endpoint payload in the "paths" field of the json api docs
-    """
-    return {
-        p["name"]: (SCHEMA_TYPE_MAP[p["schema"]["type"]], _select_schema_parser(p["schema"]["format"]))
-        for p in contents["get"]["parameters"]
-        if p["name"] not in UNIVERSAL_PARAM_NAMES
+def _parse_endpoint_contents(contents: dict) -> dict:
+    """Unpacks useful content from the endpoint docs, including summary and parameters"""
+    results = {
+        "summary": contents["get"]["summary"],
+        "parameters": {}
     }
+    for p in contents["get"]["parameters"]:
+        if p["name"] not in UNIVERSAL_PARAM_NAMES:
+            value_type, parser_method = _parse_schema(p["schema"])
+            results["parameters"][p["name"]] = {
+                "value_type": value_type,
+                "parser_method": parser_method
+            }
+    return results
 
 
-def get_endpoints_map() -> EndpointsMap:
+def _parse_schema(schema: dict) -> tuple[str, callable]:
+    """Determines the type and selects a parser for a given parameter, using its schema dict"""
+    match (schema["type"], schema["format"]):
+        case ("string", TIMESTAMP_FORMAT):
+            return ("timestamp", _timestamp_parser)
+        case ("string", DATE_FORMAT):
+            return ("date", _date_parser)
+        case ("string", MINUTE_SECOND_FORMAT):
+            return ("minute+second mm:ss", _minute_second_parser)
+        case ("string", _):
+            return ("string", lambda x: x)
+        case ("boolean", _):
+            return ("boolean", _bool_parser)
+        case ("integer", _):
+            return ("integer", lambda i: int(i))
+        case ("number", _):
+            return ("float", lambda f: float(f))
+        case _:
+            raise TypeError(f"unexpected schema type {schema['type']} and format {schema['format']}")
+
+
+def get_endpoints_map() -> dict:
     """Provides access to a parsed map of all data endpoints and their parameters"""
     global _endpoints_map # enable us to edit it in here
     if _endpoints_map is None:
