@@ -824,6 +824,8 @@ class TestErcot(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
+    """get_price_corrections"""
+
     def test_get_rtm_price_corrections(self):
         df = self.iso.get_rtm_price_corrections(rtm_type="RTM_SPP")
 
@@ -858,6 +860,34 @@ class TestErcot(BaseTestISO):
 
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
+
+    """get_system_wide_actuals"""
+
+    def test_get_system_wide_actual_load(self):
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        df = self.iso.get_system_wide_actual_load(today)
+
+        cols = ["Time", "Interval Start", "Interval End", "Demand"]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    def test_get_system_wide_actual_load_date_range(self):
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        two_days_ago = today - pd.Timedelta(days=2)
+
+        df = self.iso.get_system_wide_actual_load(
+            start=two_days_ago,
+            end=today,
+            verbose=True,
+        )
+
+        cols = ["Time", "Interval Start", "Interval End", "Demand"]
+
+        assert df.shape[0] >= 4 * 24 * 2
+        assert df.columns.tolist() == cols
+
+    """get_lmp"""
 
     def test_get_lmp_electrical_bus(self):
         cols = [
