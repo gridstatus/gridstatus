@@ -487,10 +487,11 @@ class IESO(ISOBase):
 
         return data[data["Interval Start"] >= date].reset_index(drop=True)
 
-    def get_generator_output_and_capability(self, date, end=None, verbose=False):
+    def get_generator_report_hourly(self, date, end=None, verbose=False):
         """
-        Hourly output and capability for each generator for a given date or from
-        date to end. Variable generators (solar and wind) have a forecast.
+        Hourly output for each generator for a given date or from date to end.
+        Variable generators (solar and wind) have a forecast and available capacity.
+        Non-variable generators have a capability.
 
         Args:
             date (datetime.date | datetime.datetime | str): The date to get the load for
@@ -503,7 +504,7 @@ class IESO(ISOBase):
             verbose (bool, optional): Print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: generator output and capability
+            pd.DataFrame: generator output and capability/available capacity
         """
         if date != "latest":
             today = utils._handle_date("today", tz=self.default_timezone)
@@ -533,6 +534,7 @@ class IESO(ISOBase):
                 "Fuel Type",
                 "Output MW",
                 "Capability MW",
+                "Available Capacity MW",
                 "Forecast MW",
             ],
         ).sort_values(["Interval Start", "Fuel Type", "Generator Name"])
@@ -571,7 +573,6 @@ class IESO(ISOBase):
             generator_name = gen.find("GeneratorName", ns).text
             fuel_type = gen.find("FuelType", ns).text
 
-            # Extracting 'Output' and 'Capability' data
             for output in gen.findall("Outputs/Output", ns):
                 hour = output.find("Hour", ns).text
                 energy_mw = (
@@ -585,29 +586,42 @@ class IESO(ISOBase):
                 )
 
                 # For SOLAR/WIND, the forecast is stored under the capability and these
-                # Fuel types have a capacity. See the schema definition:
+                # Fuel types have an available capacity. See the schema definition:
                 # http://reports.ieso.ca/docrefs/schema/GenOutputCapability_r3.xsd
+                # There is no capability for these generators.
                 if fuel_type in ["SOLAR", "WIND"]:
-                    forecast_energy_mw = (
+                    forecast_mw = (
                         gen.find(f".//Capabilities/Capability[Hour='{hour}']", ns)
                         .find("EnergyMW", ns)
                         .text
                     )
 
-                    capability = gen.find(
-                        f".//Capacities/AvailCapacity[Hour='{hour}']",
-                        ns,
+                    available_capacity_mw = (
+                        gen.find(
+                            f".//Capacities/AvailCapacity[Hour='{hour}']",
+                            ns,
+                        )
+                        .find("EnergyMW", ns)
+                        .text
                     )
 
+                    capability_mw = None
+
+                # For non-SOLAR/WIND, there is no forecast or available capacity.
+                # Instead, there is a capability.
                 else:
-                    forecast_energy_mw = None
+                    forecast_mw = None
 
-                    capability = gen.find(
-                        f".//Capabilities/Capability[Hour='{hour}']",
-                        ns,
+                    capability_mw = (
+                        gen.find(
+                            f".//Capabilities/Capability[Hour='{hour}']",
+                            ns,
+                        )
+                        .find("EnergyMW", ns)
+                        .text
                     )
 
-                capability_energy_mw = capability.find("EnergyMW", ns).text
+                    available_capacity_mw = None
 
                 data.append(
                     [
@@ -616,8 +630,9 @@ class IESO(ISOBase):
                         generator_name,
                         fuel_type,
                         energy_mw,
-                        capability_energy_mw,
-                        forecast_energy_mw,
+                        capability_mw,
+                        available_capacity_mw,
+                        forecast_mw,
                     ],
                 )
 
@@ -628,6 +643,7 @@ class IESO(ISOBase):
             "Fuel Type",
             "Output MW",
             "Capability MW",
+            "Available Capacity MW",
             "Forecast MW",
         ]
 
@@ -644,9 +660,14 @@ class IESO(ISOBase):
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
-        df[["Output MW", "Capability MW", "Forecast MW"]] = df[
-            ["Output MW", "Capability MW", "Forecast MW"]
-        ].astype(float)
+        float_cols = [
+            "Output MW",
+            "Capability MW",
+            "Available Capacity MW",
+            "Forecast MW",
+        ]
+
+        df[float_cols] = df[float_cols].astype(float)
 
         return df.drop(columns=["Date", "Hour"])
 

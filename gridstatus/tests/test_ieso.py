@@ -77,40 +77,40 @@ class TestIESO(BaseTestISO):
                 + pd.Timedelta(days=1),
             )
 
-    """get_generator_output_and_capability"""
+    """get_generator_report_hourly"""
 
-    def test_get_generator_output_and_capability_historical(self):
+    def test_get_generator_report_hourly_historical(self):
         # date string works
         date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=10)
         date_str = date.strftime("%m/%d/%Y")
-        df = self.iso.get_generator_output_and_capability(date_str)
+        df = self.iso.get_generator_report_hourly(date_str)
 
         assert isinstance(df, pd.DataFrame)
         assert df.loc[0][TIME_COLUMN].strftime("%m/%d/%Y") == date_str
         assert df.loc[0][TIME_COLUMN].tz is not None
-        self._check_get_generator_output_and_capability(df)
+        self._check_get_generator_report_hourly(df)
 
         # timestamp object works
         timestamp_obj = date.date()
-        df = self.iso.get_generator_output_and_capability(timestamp_obj)
+        df = self.iso.get_generator_report_hourly(timestamp_obj)
         assert isinstance(df, pd.DataFrame)
         assert df.loc[0][TIME_COLUMN].strftime(
             "%Y%m%d",
         ) == timestamp_obj.strftime("%Y%m%d")
         assert df.loc[0][TIME_COLUMN].tz is not None
-        self._check_get_generator_output_and_capability(df)
+        self._check_get_generator_report_hourly(df)
 
         # datetime object works
         date_obj = date.date()
-        df = self.iso.get_generator_output_and_capability(date_obj)
+        df = self.iso.get_generator_report_hourly(date_obj)
         assert isinstance(df, pd.DataFrame)
         assert df.loc[0][TIME_COLUMN].strftime(
             "%Y%m%d",
         ) == date_obj.strftime("%Y%m%d")
         assert df.loc[0][TIME_COLUMN].tz is not None
-        self._check_get_generator_output_and_capability(df)
+        self._check_get_generator_report_hourly(df)
 
-    def test_get_generator_output_and_capability_historical_with_date_range(self):
+    def test_get_generator_report_hourly_historical_with_date_range(self):
         # range not inclusive, add one to include today
         num_days = 7
         end = pd.Timestamp.now(
@@ -118,16 +118,16 @@ class TestIESO(BaseTestISO):
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
-        df = self.iso.get_generator_output_and_capability(
+        df = self.iso.get_generator_report_hourly(
             date=start.date(),
             end=end.date(),
         )
-        self._check_get_generator_output_and_capability(df)
+        self._check_get_generator_report_hourly(df)
 
         # make sure right number of days are returned
         assert df[TIME_COLUMN].dt.day.nunique() == num_days
 
-    def test_get_generator_output_and_capability_range_two_days_with_end(self):
+    def test_get_generator_report_hourly_range_two_days_with_end(self):
         yesterday = utils._handle_date(
             "today",
             self.iso.default_timezone,
@@ -135,7 +135,7 @@ class TestIESO(BaseTestISO):
         yesterday = yesterday.replace(hour=1, minute=0, second=0, microsecond=0)
         start = yesterday - pd.Timedelta(hours=3)
 
-        df = self.iso.get_generator_output_and_capability(
+        df = self.iso.get_generator_report_hourly(
             date=start,
             end=yesterday + pd.Timedelta(minutes=1),
         )
@@ -147,25 +147,25 @@ class TestIESO(BaseTestISO):
         )
         assert df[TIME_COLUMN].min() <= start
 
-        self._check_get_generator_output_and_capability(df)
+        self._check_get_generator_report_hourly(df)
 
-    def test_get_generator_output_and_capability_start_end_same_day(self):
+    def test_get_generator_report_hourly_start_end_same_day(self):
         yesterday = utils._handle_date(
             "today",
             self.iso.default_timezone,
         ) - pd.Timedelta(days=1)
         start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
         end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
-        df = self.iso.get_generator_output_and_capability(date=start, end=end)
+        df = self.iso.get_generator_report_hourly(date=start, end=end)
         # ignore last row, since it is sometime midnight of next day
         assert df[TIME_COLUMN].iloc[:-1].dt.date.unique().tolist() == [
             yesterday.date(),
         ]
-        self._check_get_generator_output_and_capability(df)
+        self._check_get_generator_report_hourly(df)
 
-    def test_get_generator_output_and_capability_latest(self):
-        df = self.iso.get_generator_output_and_capability("latest")
-        self._check_get_generator_output_and_capability(df)
+    def test_get_generator_report_hourly_latest(self):
+        df = self.iso.get_generator_report_hourly("latest")
+        self._check_get_generator_report_hourly(df)
 
         assert df[TIME_COLUMN].min() == pd.Timestamp.now(
             tz=self.default_timezone,
@@ -176,20 +176,20 @@ class TestIESO(BaseTestISO):
             # Account for data not immediately available
         ).floor("H") - pd.Timedelta(hours=2)
 
-    def test_get_generator_output_and_capability_today(self):
-        df = self.iso.get_generator_output_and_capability("today")
-        assert df.equals(self.iso.get_generator_output_and_capability("latest"))
+    def test_get_generator_report_hourly_today(self):
+        df = self.iso.get_generator_report_hourly("today")
+        assert df.equals(self.iso.get_generator_report_hourly("latest"))
 
-    def test_get_generator_output_and_capability_too_far_in_past_raises_error(self):
+    def test_get_generator_report_hourly_too_far_in_past_raises_error(self):
         with pytest.raises(NotSupported):
-            self.iso.get_generator_output_and_capability(
+            self.iso.get_generator_report_hourly(
                 pd.Timestamp.now(tz=self.default_timezone).date()
                 - pd.Timedelta(days=MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX + 1),
             )
 
-    def test_get_generator_output_and_capability_in_future_raises_error(self):
+    def test_get_generator_report_hourly_in_future_raises_error(self):
         with pytest.raises(NotSupported):
-            self.iso.get_generator_output_and_capability(
+            self.iso.get_generator_report_hourly(
                 pd.Timestamp.now(tz=self.default_timezone).date()
                 + pd.Timedelta(days=1),
             )
@@ -479,14 +479,19 @@ class TestIESO(BaseTestISO):
             "Wind",
         ]
 
-    def _check_get_generator_output_and_capability(self, df):
+    def _check_get_generator_report_hourly(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] >= 0
 
         time_type = "interval"
         self._check_time_columns(df, instant_or_interval=time_type)
 
-        for col in ["Output MW", "Capability MW", "Forecast MW"]:
+        for col in [
+            "Output MW",
+            "Capability MW",
+            "Available Capacity MW",
+            "Forecast MW",
+        ]:
             assert col in df.columns
             assert is_numeric_dtype(df[col])
 
