@@ -123,7 +123,6 @@ def test_fuel_type():
     )
     assert df.isnull().sum().sum() == 0
 
-
     _check_fuel_type(df)
 
 

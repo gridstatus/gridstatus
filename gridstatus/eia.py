@@ -95,7 +95,10 @@ class EIA:
             "length": 5000,
             # pagination breaks if not sorted because
             # api doesn't return in stable order across requests
-            "sort": [{"column": col, "direction": "asc"} for col in DATASET_CONFIG[dataset]["index"]]
+            "sort": [
+                {"column": col, "direction": "asc"}
+                for col in DATASET_CONFIG[dataset]["index"]
+            ],
         }
 
         headers = {
@@ -628,10 +631,9 @@ def _handle_fuel_type_data(df):
     return df
 
 
-
 DATASET_CONFIG = {
     "electricity/rto/interchange-data": {
-        "index" : [
+        "index": [
             "period",
             "fromba",
             "toba",
@@ -639,19 +641,11 @@ DATASET_CONFIG = {
         "handler": _handle_rto_interchange,
     },
     "electricity/rto/region-data": {
-        "index" : [
-            "period",
-            "respondent",
-            "type"
-        ],
+        "index": ["period", "respondent", "type"],
         "handler": _handle_region_data,
     },
     "electricity/rto/fuel-type-data": {
-        "index" : [
-            "period",
-            "respondent",
-            "fueltype"
-        ],
+        "index": ["period", "respondent", "fueltype"],
         "handler": _handle_fuel_type_data,
     },
 }
