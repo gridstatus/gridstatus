@@ -49,4 +49,3 @@ Describe example:
          totalTo - float
          westFrom - float
          westTo - float
-ß
