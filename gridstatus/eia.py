@@ -93,6 +93,12 @@ class EIA:
             "facets": {},
             "offset": 0,
             "length": 5000,
+            # pagination breaks if not sorted because
+            # api doesn't return in stable order across requests
+            "sort": [
+                {"column": col, "direction": "asc"}
+                for col in DATASET_CONFIG[dataset]["index"]
+            ],
         }
 
         headers = {
@@ -150,8 +156,8 @@ class EIA:
 
         df = raw_df.copy()
 
-        if dataset in DATASET_HANDLERS:
-            df = DATASET_HANDLERS[dataset](df)
+        if dataset in DATASET_CONFIG:
+            df = DATASET_CONFIG[dataset]["handler"](df)
 
         return df
 
@@ -625,11 +631,21 @@ def _handle_fuel_type_data(df):
     return df
 
 
-DATASET_HANDLERS = {
-    "electricity/rto/interchange-data": _handle_rto_interchange,
-    "electricity/rto/region-data": _handle_region_data,
-    "electricity/rto/fuel-type-data": _handle_fuel_type_data,
+DATASET_CONFIG = {
+    "electricity/rto/interchange-data": {
+        "index": [
+            "period",
+            "fromba",
+            "toba",
+        ],
+        "handler": _handle_rto_interchange,
+    },
+    "electricity/rto/region-data": {
+        "index": ["period", "respondent", "type"],
+        "handler": _handle_region_data,
+    },
+    "electricity/rto/fuel-type-data": {
+        "index": ["period", "respondent", "fueltype"],
+        "handler": _handle_fuel_type_data,
+    },
 }
-
-# docs
-# https://www.eia.gov/opendata/documentation.php # noqa
