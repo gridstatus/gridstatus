@@ -6,7 +6,7 @@ from gridstatus import IESO, utils
 from gridstatus.base import NotSupported
 from gridstatus.ieso import (
     MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
-    MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX,
+    MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
     MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -184,7 +184,9 @@ class TestIESO(BaseTestISO):
         with pytest.raises(NotSupported):
             self.iso.get_generator_report_hourly(
                 pd.Timestamp.now(tz=self.default_timezone).date()
-                - pd.Timedelta(days=MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX + 1),
+                - pd.Timedelta(
+                    days=MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT + 1,
+                ),
             )
 
     def test_get_generator_report_hourly_in_future_raises_error(self):

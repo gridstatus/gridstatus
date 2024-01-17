@@ -48,8 +48,9 @@ FUEL_MIX_INDEX_URL = "http://reports.ieso.ca/public/GenOutputCapability/"
 # The most recent version does not have the date in the filename.
 FUEL_MIX_TEMPLATE_URL = f"{FUEL_MIX_INDEX_URL}/PUB_GenOutputCapability_YYYYMMDD.xml"
 
-# Number of past real time fuel mix days of data available
-MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX = 90
+# Number of past days for which the complete generator report is available.
+# Before this date, only total by fuel type is available.
+MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT = 90
 
 """HISTORICAL FUEL MIX CONSTANTS"""
 HISTORICAL_FUEL_MIX_INDEX_URL = "http://reports.ieso.ca/public/GenOutputbyFuelHourly/"
@@ -427,6 +428,11 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: fuel mix
         """
+        # Required because this method is not decorated with support_date_range
+        if isinstance(date, tuple):
+            date, end = date
+
+        # Boolean for whether to use the historical fuel mix data
         use_historical = False
 
         if date != "latest":
@@ -434,7 +440,7 @@ class IESO(ISOBase):
             date = utils._handle_date(date, tz=self.default_timezone)
 
             if date.date() < today.date() - pd.Timedelta(
-                days=MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX,
+                days=MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
             ):
                 use_historical = True
             elif date.date() > today.date():
@@ -506,16 +512,21 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: generator output and capability/available capacity
         """
+        # Required because this method is not decorated with support_date_range
+        if isinstance(date, tuple):
+            date, end = date
+
         if date != "latest":
             today = utils._handle_date("today", tz=self.default_timezone)
             date = utils._handle_date(date, tz=self.default_timezone)
 
             if date.date() < today.date() - pd.Timedelta(
-                days=MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX,
+                days=MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
             ):
                 raise NotSupported(
                     f"Generator output and capability data is not available for dates "
-                    f"more than {MAXIMUM_DAYS_IN_PAST_FOR_FUEL_MIX} days in the past.",
+                    f"more than {MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT} "
+                    "days in the past.",
                 )
             elif date.date() > today.date():
                 raise NotSupported(
