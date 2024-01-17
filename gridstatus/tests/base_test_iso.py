@@ -37,36 +37,37 @@ class BaseTestISO:
         with pytest.raises(ValueError):
             self.iso.get_fuel_mix(start=start.date(), date=start.date())
 
-    def test_get_fuel_mix_historical(self):
+    def test_get_fuel_mix_historical(self, time_column="Time"):
         # date string works
         date_str = "04/03/2022"
         df = self.iso.get_fuel_mix(date_str)
+
         assert isinstance(df, pd.DataFrame)
-        assert df.loc[0]["Time"].strftime("%m/%d/%Y") == date_str
-        assert df.loc[0]["Time"].tz is not None
+        assert df.loc[0][time_column].strftime("%m/%d/%Y") == date_str
+        assert df.loc[0][time_column].tz is not None
         self._check_fuel_mix(df)
 
         # timestamp object works
         date_obj = pd.to_datetime("2019/11/19")
         df = self.iso.get_fuel_mix(date_obj)
         assert isinstance(df, pd.DataFrame)
-        assert df.loc[0]["Time"].strftime(
+        assert df.loc[0][time_column].strftime(
             "%Y%m%d",
         ) == date_obj.strftime("%Y%m%d")
-        assert df.loc[0]["Time"].tz is not None
+        assert df.loc[0][time_column].tz is not None
         self._check_fuel_mix(df)
 
         # datetime object works
         date_obj = pd.to_datetime("2021/05/09").date()
         df = self.iso.get_fuel_mix(date_obj)
         assert isinstance(df, pd.DataFrame)
-        assert df.loc[0]["Time"].strftime(
+        assert df.loc[0][time_column].strftime(
             "%Y%m%d",
         ) == date_obj.strftime("%Y%m%d")
-        assert df.loc[0]["Time"].tz is not None
+        assert df.loc[0][time_column].tz is not None
         self._check_fuel_mix(df)
 
-    def test_get_fuel_mix_historical_with_date_range(self):
+    def test_get_fuel_mix_historical_with_date_range(self, time_column="Time"):
         # range not inclusive, add one to include today
         num_days = 7
         end = pd.Timestamp.now(
@@ -78,9 +79,9 @@ class BaseTestISO:
         self._check_fuel_mix(df)
 
         # make sure right number of days are returned
-        assert df["Time"].dt.day.nunique() == num_days
+        assert df[time_column].dt.day.nunique() == num_days
 
-    def test_range_two_days_with_day_start_endpoint(self):
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
         yesterday = gridstatus.utils._handle_date(
             "today",
             self.iso.default_timezone,
@@ -97,7 +98,7 @@ class BaseTestISO:
 
         self._check_fuel_mix(df)
 
-    def test_start_end_same_day(self):
+    def test_get_fuel_mix_start_end_same_day(self):
         yesterday = gridstatus.utils._handle_date(
             "today",
             self.iso.default_timezone,
@@ -109,10 +110,10 @@ class BaseTestISO:
         assert df["Time"].iloc[:-1].dt.date.unique().tolist() == [yesterday.date()]
         self._check_fuel_mix(df)
 
-    def test_get_fuel_mix_latest(self):
+    def test_get_fuel_mix_latest(self, time_column="Time"):
         df = self.iso.get_fuel_mix("latest")
         assert isinstance(df, pd.DataFrame)
-        assert isinstance(df.Time.iloc[0], pd.Timestamp)
+        assert isinstance(df[time_column].iloc[0], pd.Timestamp)
         assert df.index.name is None
         self._check_fuel_mix(df)
 
@@ -310,7 +311,7 @@ class BaseTestISO:
         time_type = "interval"
         if self.iso.iso_id in ["nyiso", "isone", "ercot"]:
             time_type = "instant"
-        elif self.iso.iso_id in ["caiso", "spp", "miso", "pjm"]:
+        elif self.iso.iso_id in ["caiso", "spp", "miso", "pjm", "ieso"]:
             time_type = "interval"
         else:
             raise ValueError("Unknown ISO ID")

@@ -158,6 +158,9 @@ class support_date_range:
                 elif frequency == "5_MIN":
                     frequency = FiveMinOffset()
 
+                elif frequency == "YEAR_START":
+                    frequency = YearBeginOffset()
+
                 dates = date_range_maker(
                     args_dict["date"],
                     args_dict["end"],
@@ -401,6 +404,14 @@ class FiveMinOffset:
         # add 1 microsecond to ensure we make it to the
         # next interval when already on a 5 min interval
         return (other + pd.Timedelta(microseconds=1)).ceil("5min")
+
+    def __radd__(self, other):
+        return self.__ladd__(other)
+
+
+class YearBeginOffset:
+    def __ladd__(self, other):
+        return other.normalize() + pd.offsets.YearBegin(1)
 
     def __radd__(self, other):
         return self.__ladd__(other)

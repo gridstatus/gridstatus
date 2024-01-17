@@ -41,6 +41,25 @@ MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST = 90
 # files for these future forecasts, they are in the current day's file.
 MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST = 34
 
+"""REAL TIME FUEL MIX CONSTANTS"""
+FUEL_MIX_INDEX_URL = "http://reports.ieso.ca/public/GenOutputCapability/"
+
+# Updated every hour and each file has data for one day.
+# The most recent version does not have the date in the filename.
+FUEL_MIX_TEMPLATE_URL = f"{FUEL_MIX_INDEX_URL}/PUB_GenOutputCapability_YYYYMMDD.xml"
+
+# Number of past days for which the complete generator report is available.
+# Before this date, only total by fuel type is available.
+MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT = 90
+
+"""HISTORICAL FUEL MIX CONSTANTS"""
+HISTORICAL_FUEL_MIX_INDEX_URL = "http://reports.ieso.ca/public/GenOutputbyFuelHourly/"
+
+# Updated once a day and each file contains data for an entire year.
+HISTORICAL_FUEL_MIX_TEMPLATE_URL = (
+    f"{HISTORICAL_FUEL_MIX_INDEX_URL}/PUB_GenOutputbyFuelHourly_YYYY.xml"
+)
+
 
 MINUTES_INTERVAL = 5
 HOUR_INTERVAL = 1
@@ -390,9 +409,369 @@ class IESO(ISOBase):
             (pivot_df["Publish Time"] >= date) & (pivot_df["Publish Time"] <= end_date)
         ]
 
-    # TODO add fuel mix. http://reports.ieso.ca/public/GenOutputbyFuelHourly/
     def get_fuel_mix(self, date, end=None, verbose=False):
-        pass
+        """
+        Hourly output and capability for each fuel type (summed over all generators)
+        for a given date or from date to end. Variable generators (solar and wind)
+        have a forecast.
+
+        Args:
+            date (datetime.date | datetime.datetime | str): The date to get the load for
+                Can be a `datetime.date` or `datetime.datetime` object, or a string
+                with the values "today" or "latest". If `end` is None, returns
+                only data for this date.
+            end (datetime.date | datetime.datetime, optional): End date. Defaults None
+                If provided, returns data from `date` to `end` date. The `end` can be a
+                `datetime.date` or `datetime.datetime` object.
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: fuel mix
+        """
+        # Required because this method is not decorated with support_date_range
+        if isinstance(date, tuple):
+            date, end = date
+
+        # Boolean for whether to use the historical fuel mix data
+        use_historical = False
+
+        if date != "latest":
+            today = utils._handle_date("today", tz=self.default_timezone)
+            date = utils._handle_date(date, tz=self.default_timezone)
+
+            if date.date() < today.date() - pd.Timedelta(
+                days=MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
+            ):
+                use_historical = True
+            elif date.date() > today.date():
+                raise NotSupported("Fuel mix data is not available for future dates.")
+
+        if use_historical:
+            data = self._retrieve_historical_fuel_mix(date, end, verbose)
+        else:
+            data = (
+                self._retrieve_fuel_mix(date, end, verbose)
+                .groupby(["Fuel Type", "Interval Start", "Interval End"])
+                .sum(numeric_only=True)
+                .reset_index()
+            )
+
+            pivoted = data.pivot_table(
+                index=["Interval Start", "Interval End"],
+                columns="Fuel Type",
+                values="Output MW",
+            ).reset_index()
+
+            pivoted.columns = [c.title() for c in pivoted.columns]
+            pivoted.index.name = None
+
+            data = pivoted.copy()
+
+        data = utils.move_cols_to_front(
+            data,
+            [
+                "Interval Start",
+                "Interval End",
+                "Biofuel",
+                "Gas",
+                "Hydro",
+                "Nuclear",
+                "Solar",
+                "Wind",
+            ],
+        )
+
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone)
+
+            return data[
+                (data["Interval Start"] >= date) & (data["Interval Start"] <= end)
+            ].reset_index(drop=True)
+
+        elif date == "latest":
+            return data
+
+        return data[data["Interval Start"] >= date].reset_index(drop=True)
+
+    def get_generator_report_hourly(self, date, end=None, verbose=False):
+        """
+        Hourly output for each generator for a given date or from date to end.
+        Variable generators (solar and wind) have a forecast and available capacity.
+        Non-variable generators have a capability.
+
+        Args:
+            date (datetime.date | datetime.datetime | str): The date to get the load for
+                Can be a `datetime.date` or `datetime.datetime` object, or a string
+                with the values "today" or "latest". If `end` is None, returns
+                only data for this date.
+            end (datetime.date | datetime.datetime, optional): End date. Defaults None
+                If provided, returns data from `date` to `end` date. The `end` can be a
+                `datetime.date` or `datetime.datetime` object.
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: generator output and capability/available capacity
+        """
+        # Required because this method is not decorated with support_date_range
+        if isinstance(date, tuple):
+            date, end = date
+
+        if date != "latest":
+            today = utils._handle_date("today", tz=self.default_timezone)
+            date = utils._handle_date(date, tz=self.default_timezone)
+
+            if date.date() < today.date() - pd.Timedelta(
+                days=MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
+            ):
+                raise NotSupported(
+                    f"Generator output and capability data is not available for dates "
+                    f"more than {MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT} "
+                    "days in the past.",
+                )
+            elif date.date() > today.date():
+                raise NotSupported(
+                    "Generator output and capability data is not available for future "
+                    "dates.",
+                )
+
+        data = self._retrieve_fuel_mix(date, end, verbose)
+
+        data = utils.move_cols_to_front(
+            data,
+            [
+                "Interval Start",
+                "Interval End",
+                "Generator Name",
+                "Fuel Type",
+                "Output MW",
+                "Capability MW",
+                "Available Capacity MW",
+                "Forecast MW",
+            ],
+        ).sort_values(["Interval Start", "Fuel Type", "Generator Name"])
+
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone)
+
+            return data[
+                (data["Interval Start"] >= date) & (data["Interval Start"] <= end)
+            ].reset_index(drop=True)
+
+        if date == "latest":
+            return data.reset_index(drop=True)
+
+        return data[data["Interval Start"] >= date].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def _retrieve_fuel_mix(self, date, end=None, verbose=False):
+        url = FUEL_MIX_TEMPLATE_URL.replace(
+            "_YYYYMMDD",
+            date.strftime("_%Y%m%d") if date != "latest" else "",
+        )
+
+        r = self._request(url, verbose)
+
+        root = ET.fromstring(r.content)
+
+        # Define the namespace map. This is different than all the other XML files
+        ns = {"": "http://www.theIMO.com/schema"}
+
+        date = root.find(".//Date", ns).text
+
+        data = []
+
+        for gen in root.findall(".//Generator", ns):
+            generator_name = gen.find("GeneratorName", ns).text
+            fuel_type = gen.find("FuelType", ns).text
+
+            for output in gen.findall("Outputs/Output", ns):
+                hour = output.find("Hour", ns).text
+                energy_mw = (
+                    output.find("EnergyMW", ns).text
+                    if output.find(
+                        "EnergyMW",
+                        ns,
+                    )
+                    is not None
+                    else None
+                )
+
+                # For SOLAR/WIND, the forecast is stored under the capability and these
+                # Fuel types have an available capacity. See the schema definition:
+                # http://reports.ieso.ca/docrefs/schema/GenOutputCapability_r3.xsd
+                # There is no capability for these generators.
+                if fuel_type in ["SOLAR", "WIND"]:
+                    forecast_mw = (
+                        gen.find(f".//Capabilities/Capability[Hour='{hour}']", ns)
+                        .find("EnergyMW", ns)
+                        .text
+                    )
+
+                    available_capacity_mw = (
+                        gen.find(
+                            f".//Capacities/AvailCapacity[Hour='{hour}']",
+                            ns,
+                        )
+                        .find("EnergyMW", ns)
+                        .text
+                    )
+
+                    capability_mw = None
+
+                # For non-SOLAR/WIND, there is no forecast or available capacity.
+                # Instead, there is a capability.
+                else:
+                    forecast_mw = None
+
+                    capability_mw = (
+                        gen.find(
+                            f".//Capabilities/Capability[Hour='{hour}']",
+                            ns,
+                        )
+                        .find("EnergyMW", ns)
+                        .text
+                    )
+
+                    available_capacity_mw = None
+
+                data.append(
+                    [
+                        date,
+                        hour,
+                        generator_name,
+                        fuel_type,
+                        energy_mw,
+                        capability_mw,
+                        available_capacity_mw,
+                        forecast_mw,
+                    ],
+                )
+
+        columns = [
+            "Date",
+            "Hour",
+            "Generator Name",
+            "Fuel Type",
+            "Output MW",
+            "Capability MW",
+            "Available Capacity MW",
+            "Forecast MW",
+        ]
+
+        # Creating the DataFrame with the correct date
+        df = pd.DataFrame(data, columns=columns)
+        df["Interval Start"] = (
+            pd.to_datetime(df["Date"])
+            + pd.to_timedelta(
+                # Subtract 1 from the hour because hour 1 is from 00:00 - 01:00
+                df["Hour"].astype(int) - 1,
+                unit="h",
+            )
+        ).dt.tz_localize(self.default_timezone)
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        float_cols = [
+            "Output MW",
+            "Capability MW",
+            "Available Capacity MW",
+            "Forecast MW",
+        ]
+
+        df[float_cols] = df[float_cols].astype(float)
+
+        return df.drop(columns=["Date", "Hour"])
+
+    @support_date_range(frequency="YEAR_START")
+    def _retrieve_historical_fuel_mix(self, date, end=None, verbose=False):
+        date = utils._handle_date(date, tz=self.default_timezone)
+
+        url = HISTORICAL_FUEL_MIX_TEMPLATE_URL.replace(
+            "YYYY",
+            str(date.year),
+        )
+
+        r = self._request(url, verbose)
+
+        root = ET.fromstring(r.content)
+        ns = NAMESPACES_FOR_XML
+        data = []
+
+        # Iterate through each day
+        for day_data in root.findall(".//DailyData", ns):
+            date = (
+                day_data.find("Day", ns).text
+                if day_data.find("Day", ns) is not None
+                else None
+            )
+
+            # Iterate through each hour of the day
+            for hourly_data in day_data.findall("HourlyData", ns):
+                hour = (
+                    hourly_data.find("Hour", ns).text
+                    if hourly_data.find("Hour", ns) is not None
+                    else None
+                )
+
+                # Initialize fuel type outputs
+                fuel_outputs = {
+                    "NUCLEAR": 0,
+                    "GAS": 0,
+                    "HYDRO": 0,
+                    "WIND": 0,
+                    "SOLAR": 0,
+                    "BIOFUEL": 0,
+                }
+
+                # Extracting output for each fuel type
+                for fuel_total in hourly_data.findall("FuelTotal", ns):
+                    fuel_type = (
+                        fuel_total.find("Fuel", ns).text
+                        if fuel_total.find("Fuel", ns) is not None
+                        else None
+                    )
+                    output = (
+                        fuel_total.find(".//Output", ns).text
+                        if fuel_total.find(".//Output", ns) is not None
+                        else 0
+                    )
+
+                    if fuel_type in fuel_outputs:
+                        fuel_outputs[fuel_type] = float(output)
+
+                # Adding the row to the data list
+                row = [date, hour] + list(fuel_outputs.values())
+                data.append(row)
+
+        columns = ["Date", "Hour"] + list(fuel_outputs.keys())
+        columns = [c.title() for c in columns]
+
+        # Creating the DataFrame with the adjusted parsing logic
+        df = pd.DataFrame(data, columns=columns)
+        df["Interval Start"] = (
+            pd.to_datetime(df["Date"])
+            + pd.to_timedelta(
+                # Subtract 1 from the hour because hour 1 is from 00:00 - 01:00
+                df["Hour"].astype(int) - 1,
+                unit="h",
+            )
+        ).dt.tz_localize(self.default_timezone)
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        return utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Nuclear",
+                "Gas",
+                "Hydro",
+                "Wind",
+                "Solar",
+                "Biofuel",
+            ],
+        ).drop(columns=["Date", "Hour"])
 
     # Function to extract data for a specific Market Quantity considering namespace
     def _extract_load_in_market_quantity(

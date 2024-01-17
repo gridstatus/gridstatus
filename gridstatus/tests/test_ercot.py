@@ -114,11 +114,11 @@ class TestErcot(BaseTestISO):
         pass
 
     @pytest.mark.skip(reason="Not Applicable")
-    def test_range_two_days_with_day_start_endpoint(self):
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
         pass
 
     @pytest.mark.skip(reason="Not Applicable")
-    def test_start_end_same_day(self):
+    def test_get_fuel_mix_start_end_same_day(self):
         pass
 
     """get_lmp"""
