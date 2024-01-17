@@ -2145,11 +2145,11 @@ class Ercot(ISOBase):
 
         return df
 
-    @support_date_range("HOUR_START")
+    @support_date_range(frequency=None)
     def get_system_wide_actual_load(self, date, end=None, verbose=False):
         """Get 15-minute system-wide actual load.
 
-        This report is posted every hour and includes only system-wide actual load.
+        This report is posted every hour five minutes after the hour.
 
         Args:
             date (str, datetime): date to get data for
@@ -2159,14 +2159,31 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with system actuals data
         """
-        doc = self._get_document(
-            report_type_id=SYSTEM_WIDE_ACTUALS_RTID,
-            published_before=date,
-            extension="csv",
-            verbose=verbose,
-        )
+        report_type_id = SYSTEM_WIDE_ACTUALS_RTID
 
-        return self._handle_system_wide_actual_load(doc, verbose=verbose)
+        if end is None:
+            doc = self._get_document(
+                report_type_id=report_type_id,
+                published_after=date + pd.Timedelta(hours=1),
+                published_before=date + pd.Timedelta(hours=2),
+                extension="csv",
+                verbose=verbose,
+            )
+            docs = [doc]
+        else:
+            docs = self._get_documents(
+                report_type_id=report_type_id,
+                published_after=date + pd.Timedelta(hours=1),
+                published_before=end + pd.Timedelta(hours=1),
+                extension="csv",
+                verbose=verbose,
+            )
+
+        all_df = [
+            self._handle_system_wide_actual_load(doc, verbose=verbose) for doc in docs
+        ]
+
+        return pd.concat(all_df).sort_values("Interval Start")
 
     def _handle_system_wide_actual_load(self, doc, verbose=False):
         return self.read_doc(doc, verbose=verbose)
