@@ -38,20 +38,17 @@ def hit_ercot_api(
     if endpoint_contents is None:
         raise KeyError(f"{endpoint} is not a valid ERCOT API endpoint")
     
+    # prepare url string
+    urlstring = f"{BASE_URL}{endpoint}"
+    
     # determine parameters and types for endpoint, validate and parse api_params
-    parsed_api_params = []
+    parsed_api_params = {}
     for arg, value in api_params.items():
         parser = endpoint_contents["parameters"].get(arg, {}).get("parser")
         if parser is not None:
-            parsed_api_params.append((arg, parser(value)))
-
-    # prepare url string
-    querystring = "&".join(
-        [f"{arg}={value}" for arg, value in parsed_api_params]
-    )
-    urlstring = f"{BASE_URL}{endpoint}?{querystring}"
+            parsed_api_params[arg] = parser(value)
     if page_size is not None:
-        urlstring += f"&size={page_size}"
+        parsed_api_params["size"] = page_size
 
     # make requests, paginating as needed
     current_page = 1
@@ -62,7 +59,8 @@ def hit_ercot_api(
     while current_page <= total_pages:
         if max_pages is not None and current_page > max_pages:
             break
-        response = requests.get(f"{urlstring}&page={current_page}").json()
+        parsed_api_params["page"] = current_page
+        response = requests.get(urlstring, params=parsed_api_params).json()
         data_results.extend(response["data"])
         if columns is None:
             # only on first request/iteration: populate columns and update total pages
