@@ -84,6 +84,7 @@ def test_rto_interchange():
 
     assert df["Interval End"].min().date() == pd.Timestamp(start).date()
     assert df["Interval End"].max().date() == pd.Timestamp(end).date()
+    assert df.isnull().sum().sum() == 0
 
     _check_interchange(df)
 
@@ -101,6 +102,9 @@ def test_rto_region_data():
 
     assert df["Interval End"].min().date() == pd.Timestamp(start).date()
     assert df["Interval End"].max().date() == pd.Timestamp(end).date()
+    # pick a respondent that we know has no nulls
+    # this check that pagination is working
+    assert df[df["Respondent"] == "BPAT"].isnull().sum().sum() == 0
     _check_region_data(df)
 
 
@@ -117,6 +121,8 @@ def test_fuel_type():
         end=end,
         verbose=True,
     )
+    assert df.isnull().sum().sum() == 0
+
 
     _check_fuel_type(df)
 
