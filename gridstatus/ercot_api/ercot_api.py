@@ -3,6 +3,7 @@ import requests
 from typing import Optional
 
 import pandas as pd
+from tqdm import tqdm
 
 from api_parser import get_endpoints_map
 
@@ -56,17 +57,34 @@ def hit_ercot_api(
     data_results = []
     columns = None
 
-    while current_page <= total_pages:
-        if max_pages is not None and current_page > max_pages:
-            break
-        parsed_api_params["page"] = current_page
-        response = requests.get(urlstring, params=parsed_api_params).json()
-        data_results.extend(response["data"])
-        if columns is None:
-            # only on first request/iteration: populate columns and update total pages
-            columns = [f["name"] for f in response["fields"]]
-            total_pages = response["_meta"]["query"]["totalPages"]
-        current_page += 1
+    with tqdm(
+        desc="Paginating results",
+        ncols=80,
+        total=1,
+    ) as progress_bar:
+        while current_page <= total_pages:
+            if max_pages is not None and current_page > max_pages:
+                break
+            parsed_api_params["page"] = current_page
+            response = requests.get(urlstring, params=parsed_api_params).json()
+
+            if columns is None:
+                # only on first request/iteration: populate columns and update total pages
+                columns = [f["name"] for f in response["fields"]]
+                total_pages = response["_meta"]["query"]["totalPages"]
+                # determine number-of-pages denominator for progress bar
+                if max_pages is None:
+                    denominator = total_pages
+                else:
+                    denominator = min(total_pages, max_pages)
+                    if denominator < total_pages:
+                        print(f"warning: only retrieving {max_pages} pages out of {total_pages} total")
+                progress_bar.total = denominator
+                progress_bar.refresh()
+
+            data_results.extend(response["data"])
+            progress_bar.update(1)
+            current_page += 1
 
     # prepare and return dataframe of results
     return pd.DataFrame(
