@@ -2161,6 +2161,12 @@ class Ercot(ISOBase):
         """
         report_type_id = SYSTEM_WIDE_ACTUALS_RTID
 
+        if date == "latest":
+            # Go back one hour to ensure we have data
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("H") - pd.Timedelta(
+                hours=1,
+            )
+
         if end is None:
             doc = self._get_document(
                 report_type_id=report_type_id,

@@ -863,13 +863,22 @@ class TestErcot(BaseTestISO):
 
     """get_system_wide_actuals"""
 
-    def test_get_system_wide_actual_load(self):
-        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-        df = self.iso.get_system_wide_actual_load(today)
+    def test_get_system_wide_actual_load_for_date(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_system_wide_actual_load(yesterday)
+
+        # 1 Hour of data
+        assert df.shape[0] == 4
+        assert df["Interval Start"].min() == pd.Timestamp(
+            yesterday,
+            tz=self.iso.default_timezone,
+        )
 
         cols = ["Time", "Interval Start", "Interval End", "Demand"]
-
-        assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
     def test_get_system_wide_actual_load_date_range(self):
@@ -884,7 +893,40 @@ class TestErcot(BaseTestISO):
 
         cols = ["Time", "Interval Start", "Interval End", "Demand"]
 
-        assert df.shape[0] >= 4 * 24 * 2
+        assert df["Interval Start"].min() == pd.Timestamp(
+            two_days_ago,
+            tz=self.iso.default_timezone,
+        )
+        assert df["Interval Start"].max() == pd.Timestamp(
+            today,
+            tz=self.iso.default_timezone,
+        ) - pd.Timedelta(minutes=15)
+        assert df.columns.tolist() == cols
+
+    def test_get_system_wide_actual_load_today(self):
+        df = self.iso.get_system_wide_actual_load("today")
+
+        cols = ["Time", "Interval Start", "Interval End", "Demand"]
+
+        assert df["Interval Start"].min() == pd.Timestamp(
+            pd.Timestamp.now(tz=self.iso.default_timezone).date(),
+            tz=self.iso.default_timezone,
+        )
+        # 1 Hour of data
+        assert df.shape[0] == 4
+        assert df.columns.tolist() == cols
+
+    def test_get_system_wide_actual_load_latest(self):
+        df = self.iso.get_system_wide_actual_load("latest")
+
+        cols = ["Time", "Interval Start", "Interval End", "Demand"]
+
+        assert df["Interval Start"].min() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).floor("H") - pd.Timedelta(hours=1)
+
+        # 1 Hour of data
+        assert df.shape[0] == 4
         assert df.columns.tolist() == cols
 
     """get_lmp"""
