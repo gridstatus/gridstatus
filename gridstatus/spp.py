@@ -673,8 +673,6 @@ class SPP(ISOBase):
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/RTBM-OR-latestInterval.csv"  # noqa
         else:
             if end is None:
-                # round date up to nearest 5 minutes
-                # add 1 microsecond to ensure we make it to the next interval
                 end = date + FiveMinOffset()
 
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/RTBM-OR-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
@@ -722,8 +720,6 @@ class SPP(ISOBase):
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/WEIS-RTBM-LMP-SL-latestInterval.csv"  # noqa
         else:
             if end is None:
-                # round date up to nearest 5 minutes
-                # add 1 microsecond to ensure we make it to the next interval
                 end = date + FiveMinOffset()
 
             # always round up to nearest 5 minutes
