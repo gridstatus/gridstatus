@@ -86,6 +86,10 @@ LMPS_BY_ELECTRICAL_BUS_RTID = 11485
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-788-CD
 LMPS_BY_SETTLEMENT_POINT_RTID = 12300
 
+# System-wide actuals
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-235-CD
+SYSTEM_WIDE_ACTUALS_RTID = 12340
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -285,7 +289,7 @@ class Ercot(ISOBase):
                 "totalCharging": "Total Charging",
                 "totalDischarging": "Total Discharging",
                 "netOutput": "Net Output",
-            }
+            },
         )
 
         df = df.sort_values("Time").reset_index(drop=True)
@@ -561,8 +565,6 @@ class Ercot(ISOBase):
         verbose=False,
     ):
         """Returns load forecast of specified forecast type.
-
-
 
         If date range provided, returns all hourly reports published within.
 
@@ -1644,7 +1646,7 @@ class Ercot(ISOBase):
         """
 
         doc = self._get_document(
-            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
+            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,  # noqa: E501
             published_before=date,
             extension="csv",
             verbose=verbose,
@@ -1789,7 +1791,8 @@ class Ercot(ISOBase):
             # data doesn't have DST info. So just assume it is DST
             # when ambiguous \_(-_-)_/
             df[col] = pd.to_datetime(df[col]).dt.tz_localize(
-                self.default_timezone, ambiguous=True
+                self.default_timezone,
+                ambiguous=True,
             )
 
         return df
@@ -2142,6 +2145,55 @@ class Ercot(ISOBase):
 
         return df
 
+    @support_date_range(frequency=None)
+    def get_system_wide_actual_load(self, date, end=None, verbose=False):
+        """Get 15-minute system-wide actual load.
+
+        This report is posted every hour five minutes after the hour.
+
+        Args:
+            date (str, datetime): date to get data for
+            end (str, datetime, optional): end time to get data for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with system actuals data
+        """
+        report_type_id = SYSTEM_WIDE_ACTUALS_RTID
+
+        if date == "latest":
+            # Go back one hour to ensure we have data
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("H") - pd.Timedelta(
+                hours=1,
+            )
+
+        if end is None:
+            doc = self._get_document(
+                report_type_id=report_type_id,
+                published_after=date + pd.Timedelta(hours=1),
+                published_before=date + pd.Timedelta(hours=2),
+                extension="csv",
+                verbose=verbose,
+            )
+            docs = [doc]
+        else:
+            docs = self._get_documents(
+                report_type_id=report_type_id,
+                published_after=date + pd.Timedelta(hours=1),
+                published_before=end + pd.Timedelta(hours=1),
+                extension="csv",
+                verbose=verbose,
+            )
+
+        all_df = [
+            self._handle_system_wide_actual_load(doc, verbose=verbose) for doc in docs
+        ]
+
+        return pd.concat(all_df).sort_values("Interval Start")
+
+    def _handle_system_wide_actual_load(self, doc, verbose=False):
+        return self.read_doc(doc, verbose=verbose)
+
     def _get_document(
         self,
         report_type_id,
@@ -2274,7 +2326,13 @@ class Ercot(ISOBase):
         return matches
 
     def _get_hourly_report(
-        self, start, end, report_type_id, handle_doc, extension, verbose=False
+        self,
+        start,
+        end,
+        report_type_id,
+        handle_doc,
+        extension,
+        verbose=False,
     ):
         if end is None:
             doc = self._get_document(
@@ -2376,12 +2434,14 @@ class Ercot(ISOBase):
 
         original_cols = doc.columns.tolist()
 
+        ending_time_col_name = "HourEnding"
+
         # i think DeliveryInterval only shows up
         # in 15 minute data along with DeliveryHour
         if "DeliveryInterval" in original_cols:
             interval_length = pd.Timedelta(minutes=15)
 
-            doc["HourBeginning"] = doc["HourEnding"] - 1
+            doc["HourBeginning"] = doc[ending_time_col_name] - 1
 
             doc["Interval Start"] = (
                 pd.to_datetime(doc["DeliveryDate"])
@@ -2389,10 +2449,22 @@ class Ercot(ISOBase):
                 + ((doc["DeliveryInterval"] - 1) * interval_length)
             )
 
+        # 15-minute system wide actuals
+        elif "TimeEnding" in original_cols:
+            ending_time_col_name = "TimeEnding"
+            interval_length = pd.Timedelta(minutes=15)
+
+            doc["Interval Start"] = (
+                pd.to_datetime(
+                    doc["DeliveryDate"] + " " + doc[ending_time_col_name] + ":00",
+                )
+                - interval_length
+            )
+
         else:
             interval_length = pd.Timedelta(hours=1)
             doc["HourBeginning"] = (
-                doc["HourEnding"]
+                doc[ending_time_col_name]
                 .astype(str)
                 .str.split(
                     ":",
@@ -2442,10 +2514,7 @@ class Ercot(ISOBase):
         # todo try to clean up this logic
         doc = doc[cols_to_keep]
         doc = doc.drop(
-            columns=[
-                "DeliveryDate",
-                "HourEnding",
-            ],
+            columns=["DeliveryDate", ending_time_col_name],
         )
 
         optional_drop = ["DSTFlag", "DeliveryInterval"]
