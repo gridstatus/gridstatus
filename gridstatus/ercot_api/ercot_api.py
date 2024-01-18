@@ -5,7 +5,7 @@ from typing import Optional
 import pandas as pd
 from tqdm import tqdm
 
-from api_parser import get_endpoints_map
+from gridstatus.ercot_api.api_parser import get_endpoints_map
 
 
 BASE_URL = "https://api.ercot.com/api/public-reports"
@@ -45,7 +45,7 @@ def hit_ercot_api(
     # determine parameters and types for endpoint, validate and parse api_params
     parsed_api_params = {}
     for arg, value in api_params.items():
-        parser = endpoint_contents["parameters"].get(arg, {}).get("parser")
+        parser = endpoint_contents["parameters"].get(arg, {}).get("parser_method")
         if parser is not None:
             parsed_api_params[arg] = parser(value)
     if page_size is not None:
