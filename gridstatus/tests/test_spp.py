@@ -186,6 +186,39 @@ class TestSPP(BaseTestISO):
                 location_type=location_type,
             )
 
+    OPERATING_RESERVES_COLUMNS = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Interval",
+        "Reserve Zone",
+        "Reg_Up_Cleared",
+        "Reg_Dn_Cleared",
+        "Ramp_Up_Cleared",
+        "Ramp_Dn_Cleared",
+        "Unc_Up_Cleared",
+        "STS_Unc_Up_Cleared",
+        "Spin_Cleared",
+        "Supp_Cleared",
+    ]
+
+    def test_get_operating_reserves(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=1,
+        )  # noqa
+        yesterday_1230am = yesterday + pd.Timedelta(minutes=30)
+
+        df = self.iso.get_operating_reserves(start=yesterday, end=yesterday_1230am)
+        assert len(df) > 0
+        assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
+
+    def test_get_operating_reserves_latest(self):
+        df = self.iso.get_operating_reserves(date="latest")
+        assert len(df) > 0
+        assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
+
     WEIS_LMP_COLUMNS = [
         "Interval Start",
         "Interval End",
@@ -207,11 +240,11 @@ class TestSPP(BaseTestISO):
 
     def test_get_lmp_real_time_weis_1_hour_range(self):
         yesterday = pd.Timestamp.now(
-            tz=self.iso.default_timezone
+            tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(
-            days=1
+            days=1,
         )  # noqa
-        yesterday_1am = yesterday + pd.Timedelta(hours=1)
+        yesterday_1am = yesterday + pd.Timedelta(minutes=13)
 
         df = self.iso.get_lmp_real_time_weis(start=yesterday, end=yesterday_1am)
 
@@ -235,7 +268,7 @@ class TestSPP(BaseTestISO):
 
     def test_get_lmp_real_time_weis_single_interval(self):
         three_weeks_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
-            days=21
+            days=21,
         )  # noqa
         df = self.iso.get_lmp_real_time_weis(date=three_weeks_ago)
 
