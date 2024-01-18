@@ -1,5 +1,6 @@
 import json
 import pathlib
+import types
 from datetime import date, datetime
 from typing import Union
 
@@ -15,9 +16,10 @@ META_ENDPOINTS = {
 UNIVERSAL_PARAM_NAMES = {"page", "size", "sort", "dir"}
 
 
-DATE_FORMAT = "yyyy-MM-dd"
-MINUTE_SECOND_FORMAT = "mm:ss"
-TIMESTAMP_FORMAT = "yyyy-MM-ddTH24:mm:ss"
+datetime_formats = types.SimpleNamespace()
+datetime_formats.DATE = "yyyy-MM-dd"
+datetime_formats.MINUTE_SECOND = "mm:ss"
+datetime_formats.TIMESTAMP = "yyyy-MM-ddTH24:mm:ss"
 
 
 """
@@ -90,20 +92,22 @@ def _parse_endpoint_contents(contents: dict) -> dict:
 
 def _parse_schema(schema: dict) -> tuple[str, callable]:
     """Determines the type and selects a parser for a given parameter, using its schema dict"""
-    match (schema["type"], schema["format"]):
-        case ("string", TIMESTAMP_FORMAT):
-            return ("timestamp", _timestamp_parser)
-        case ("string", DATE_FORMAT):
-            return ("date", _date_parser)
-        case ("string", MINUTE_SECOND_FORMAT):
-            return ("minute+second mm:ss", _minute_second_parser)
-        case ("string", _):
-            return ("string", lambda x: x)
-        case ("boolean", _):
+    if schema["type"] == "string":
+        match schema["format"]:
+            case datetime_formats.TIMESTAMP:
+                return ("timestamp", _timestamp_parser)
+            case datetime_formats.DATE:
+                return ("date", _date_parser)
+            case datetime_formats.MINUTE_SECOND:
+                return ("minute+second mm:ss", _minute_second_parser)
+            case _:
+                return ("string", lambda x: x)
+    match schema["type"]:
+        case "boolean":
             return ("boolean", _bool_parser)
-        case ("integer", _):
+        case "integer":
             return ("integer", lambda i: int(i))
-        case ("number", _):
+        case "number":
             return ("float", lambda f: float(f))
         case _:
             raise TypeError(f"unexpected schema type {schema['type']} and format {schema['format']}")
