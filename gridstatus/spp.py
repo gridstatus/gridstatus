@@ -690,7 +690,7 @@ class SPP(ISOBase):
         )
 
         # don't need this column
-        df = df.drop(columns=["interval"])
+        df = df.drop(columns=["Interval"])
 
         df = df.rename(
             columns={
