@@ -4,12 +4,7 @@ import tqdm
 from bs4 import BeautifulSoup
 
 from gridstatus import utils
-from gridstatus.base import (
-    InterconnectionQueueStatus,
-    ISOBase,
-    Markets,
-    NotSupported,
-)
+from gridstatus.base import InterconnectionQueueStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import FiveMinOffset, support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
@@ -670,6 +665,45 @@ class SPP(ISOBase):
             ]
         ]
         df = df.reset_index(drop=True)
+        return df
+
+    @support_date_range("5_MIN")
+    def get_operating_reserves(self, date, end=None, verbose=False):
+        if date == "latest":
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/RTBM-OR-latestInterval.csv"  # noqa
+        else:
+            if end is None:
+                # round date up to nearest 5 minutes
+                # add 1 microsecond to ensure we make it to the next interval
+                end = date + FiveMinOffset()
+
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/RTBM-OR-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+        return self._process_operating_reserves(df)
+
+    def _process_operating_reserves(self, df):
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        df = df.rename(
+            columns={
+                "RegUP_Clr": "Reg_Up_Cleared",
+                "RegDN_Clr": "Reg_Dn_Cleared",
+                "RampUP_Clr": "Ramp_Up_Cleared",
+                "RampDN_Clr": "Ramp_Dn_Cleared",
+                "UncUP_Clr": "Unc_Up_Cleared",
+                "STSUncUP_Clr": "STS_Unc_Up_Cleared",
+                "Spin_Clr": "Spin_Cleared",
+                "Supp_Clr": "Supp_Cleared",
+            },
+        )
+
         return df
 
     @support_date_range("5_MIN")

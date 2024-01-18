@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.25.0 - TBD
+
+### SPP
+
+- Add support for operating reserves
+
 ## v0.24.0 - Dec 27, 2023
 
 ### ERCOT
