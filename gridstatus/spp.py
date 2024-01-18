@@ -1,19 +1,11 @@
-import re
-
 import pandas as pd
 import requests
 import tqdm
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 from gridstatus import utils
-from gridstatus.base import (
-    GridStatus,
-    InterconnectionQueueStatus,
-    ISOBase,
-    Markets,
-    NotSupported,
-)
-from gridstatus.decorators import support_date_range
+from gridstatus.base import InterconnectionQueueStatus, ISOBase, Markets, NotSupported
+from gridstatus.decorators import FiveMinOffset, support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
@@ -85,14 +77,6 @@ class SPP(ISOBase):
         LOCATION_TYPE_INTERFACE,
         LOCATION_TYPE_SETTLEMENT_LOCATION,
     ]
-
-    def get_status(self, date=None, verbose=False):
-        if date != "latest":
-            raise NotSupported()
-
-        url = "https://www.spp.org/markets-operations/current-grid-conditions/"
-        html_text = requests.get(url).content.decode("UTF-8")
-        return self._get_status_from_html(html_text)
 
     def get_fuel_mix(self, date, detailed=False, verbose=False):
         """Get fuel mix
@@ -209,10 +193,30 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
+    def _handle_market_end_to_interval(self, df, column, interval_duration):
+        """Converts market end time to interval end time"""
+
+        df = df.rename(
+            columns={
+                column: "Interval End",
+            },
+        )
+
+        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df["Interval Start"] = df["Interval End"] - interval_duration
+
+        df["Time"] = df["Interval Start"]
+
+        df = utils.move_cols_to_front(df, ["Time", "Interval Start", "Interval End"])
+
+        return df
+
     def _process_ver_curtailments(self, df):
         df = df.rename(
             columns={
-                "GMTIntervalEnding": "Interval End",
                 "WindRedispatchCurtailments": "Wind Redispatch Curtailments",
                 "WindManualCurtailments": "Wind Manual Curtailments",
                 "WindCurtailedForEnergy": "Wind Curtailed For Energy",
@@ -222,13 +226,11 @@ class SPP(ISOBase):
             },
         )
 
-        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
-            self.default_timezone,
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnding",
+            interval_duration=pd.Timedelta(minutes=5),
         )
-
-        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
-
-        df["Time"] = df["Interval Start"]
 
         cols = [
             "Time",
@@ -248,6 +250,87 @@ class SPP(ISOBase):
                 df[c] = pd.NA
 
         df = df[cols]
+
+        return df
+
+    @support_date_range("DAY_START")
+    def get_capacity_of_generation_on_outage(self, date, end=None, verbose=False):
+        """Get Capacity of Generation on Outage.
+
+        Published daily at 8am CT for next 7 days
+
+        Args:
+            date: start date
+            end: end date
+
+
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{date.strftime('%Y')}/{date.strftime('%m')}/Capacity-Gen-Outage-{date.strftime('%Y%m%d')}.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+
+        df = pd.read_csv(url)
+
+        return self._process_capacity_of_generation_on_outage(df, publish_time=date)
+
+    def get_capacity_of_generation_on_outage_annual(self, year, verbose=True):
+        """Get VER Curtailments for a year. Starting 2014.
+        Recent data use get_capacity_of_generation_on_outage
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: VER Curtailments
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{year}/{year}.zip"  # noqa
+
+        def process_csv(df, file_name):
+            # infe date from '2020/01/Capacity-Gen-Outage-20200101.csv'
+
+            publish_time_str = file_name.split(".")[0].split("-")[-1]
+            publish_time = pd.to_datetime(publish_time_str).tz_localize(
+                self.default_timezone,
+            )
+
+            df = self._process_capacity_of_generation_on_outage(df, publish_time)
+
+            return df
+
+        df = utils.download_csvs_from_zip_url(
+            url,
+            process_csv=process_csv,
+            verbose=verbose,
+        )
+
+        df = df.sort_values("Interval Start")
+
+        return df
+
+    def _process_capacity_of_generation_on_outage(self, df, publish_time):
+        # strip whitespace from column names
+        df = df.rename(columns=lambda x: x.strip())
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="Market Hour",
+            interval_duration=pd.Timedelta(minutes=60),
+        )
+
+        df = df.rename(
+            columns={
+                "Outaged MW": "Total Outaged MW",
+            },
+        )
+
+        publish_time = pd.to_datetime(publish_time.normalize())
+
+        df.insert(0, "Publish Time", publish_time)
+
+        # drop Time column
+        df = df.drop(columns=["Time"])
 
         return df
 
@@ -283,18 +366,7 @@ class SPP(ISOBase):
             pd.DataFrame: VER Curtailments
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
-        z = utils.get_zip_folder(url, verbose=verbose)
-
-        # iterate through all files in zip
-        # find the one that end with .csv
-        # read that csv
-        all_dfs = []
-        for f in z.filelist:
-            if f.filename.endswith(".csv"):
-                df = pd.read_csv(z.open(f.filename))
-                all_dfs.append(df)
-
-        df = pd.concat(all_dfs)
+        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
 
         df = self._process_ver_curtailments(df)
 
@@ -398,6 +470,7 @@ class SPP(ISOBase):
             "Cluster Group",
             "Replacement Generator Commercial Op Date",
             "Service Type",
+            "Status (Original)",
         ]
 
         missing = [
@@ -539,18 +612,16 @@ class SPP(ISOBase):
             location_type (str): Location type
             verbose (bool, optional): Verbose output
         """
-        df["Interval End"] = pd.to_datetime(
-            df["GMTIntervalEnd"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-
         if market == Markets.REAL_TIME_5_MIN:
             interval_duration = pd.Timedelta(minutes=5)
         elif market == Markets.DAY_AHEAD_HOURLY:
             interval_duration = pd.Timedelta(hours=1)
 
-        df["Interval Start"] = df["Interval End"] - interval_duration
-        df["Time"] = df["Interval Start"]
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=interval_duration,
+        )
 
         df["Location"] = df["Settlement Location"]
         df["PNode"] = df["Pnode"]
@@ -594,6 +665,116 @@ class SPP(ISOBase):
             ]
         ]
         df = df.reset_index(drop=True)
+        return df
+
+    @support_date_range("5_MIN")
+    def get_operating_reserves(self, date, end=None, verbose=False):
+        if date == "latest":
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/RTBM-OR-latestInterval.csv"  # noqa
+        else:
+            if end is None:
+                end = date + FiveMinOffset()
+
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/RTBM-OR-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+        return self._process_operating_reserves(df)
+
+    def _process_operating_reserves(self, df):
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        df = df.rename(
+            columns={
+                "RegUP_Clr": "Reg_Up_Cleared",
+                "RegDN_Clr": "Reg_Dn_Cleared",
+                "RampUP_Clr": "Ramp_Up_Cleared",
+                "RampDN_Clr": "Ramp_Dn_Cleared",
+                "UncUP_Clr": "Unc_Up_Cleared",
+                "STSUncUP_Clr": "STS_Unc_Up_Cleared",
+                "Spin_Clr": "Spin_Cleared",
+                "Supp_Clr": "Supp_Cleared",
+            },
+        )
+
+        return df
+
+    @support_date_range("5_MIN")
+    def get_lmp_real_time_weis(self, date, end=None, verbose=False):
+        """Get LMP data for real time WEIS
+
+        Args:
+            date: date to get data for. if end is not provided, will get data for
+                5 minute interval that date is in.
+            end: end date
+            verbose: print url
+        """
+        # if no end, find nearest 5 minute interval end
+        # to use
+        if date == "latest":
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/WEIS-RTBM-LMP-SL-latestInterval.csv"  # noqa
+        else:
+            if end is None:
+                end = date + FiveMinOffset()
+
+            # always round up to nearest 5 minutes
+            # if already on 5 minute interval, this will do nothing
+            end = end.ceil("5min")
+
+            # todo before 2022 only annual files are available
+            # folder path is based on start date
+            # file name is based on end date
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Interval/{date.strftime('%d')}/WEIS-RTBM-LMP-SL-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_lmp_real_time_weis(df)
+
+    def _process_lmp_real_time_weis(self, df):
+        # strip whitespace from column names
+        df = df.rename(columns=lambda x: x.strip())
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        df["Location Type"] = LOCATION_TYPE_SETTLEMENT_LOCATION
+        df["Market"] = "REAL_TIME_WEIS"
+
+        df = df.rename(
+            columns={
+                "Settlement Location": "Location",
+                "Pnode": "PNode",
+                "LMP": "LMP",  # for posterity
+                "MLC": "Loss",
+                "MCC": "Congestion",
+                "MEC": "Energy",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "PNode",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
+
         return df
 
     def _get_location_list(self, location_type, verbose=False):
@@ -664,57 +845,6 @@ class SPP(ISOBase):
             return pd.DataFrame()
 
     @staticmethod
-    def _clean_status_text(text):
-        text = text.lower()
-
-        # remove punctuation
-        text = re.sub(r"[,\.\(\)]", "", text)
-        # remove non-time colons
-        text = re.sub(r":$", "", text)
-        # drop time zone information
-        text = re.sub(r"central time", "", text)
-        # truncate starting with last updated
-        text = re.sub(r".*last updated", "", text)
-
-        # drop stop words
-        tokens = text.split(" ")
-        filtered_words = [
-            token for token in tokens if token.lower() not in STATUS_STOP_WORDS
-        ]
-        text = " ".join(filtered_words)
-
-        return text
-
-    @staticmethod
-    def _extract_timestamp(text, year_hint=None, tz=None):
-        if year_hint is None:
-            year_hint = pd.Timestamp.now(tz=tz).year
-        text = SPP._clean_status_text(text)
-
-        year_search = re.search(r"[0-9]{4}", text)
-        if year_search is None:
-            # append year hint
-            text = f"{text} {year_hint}"
-
-        timestamp = None
-
-        try:
-            # throw the remaining bits at pd.Timestamp
-            timestamp = pd.Timestamp(text, tz=tz)
-        except ValueError:
-            pass
-        if timestamp is pd.NaT:
-            timestamp = None
-        return timestamp
-
-    @staticmethod
-    def _extract_timestamps(texts, year_hint=None, tz=None):
-        timestamps = [
-            SPP._extract_timestamp(t, year_hint=year_hint, tz=tz) for t in texts
-        ]
-        return [t for t in timestamps if t is not None]
-
-    @staticmethod
     def _match(
         needles,
         haystacks,
@@ -730,116 +860,6 @@ class SPP(ISOBase):
                 for needle in needles
             )
         ]
-
-    @staticmethod
-    def _get_leaf_elements(elems):
-        """Returns leaf elements, i.e. elements without children"""
-        accum = []
-        for elem in elems:
-            parent = False
-            if isinstance(elem, Tag):
-                children = list(elem.children)
-                if len(children) > 0:
-                    for child in children:
-                        accum += SPP._get_leaf_elements([child])
-                        parent = True
-            if not parent:
-                accum.append(elem)
-        return accum
-
-    def _get_status_candidate_texts(self, html):
-        """Returns a list of text candidates for status and timestamp extraction"""
-        # generic pre-Soup cleanup
-        html = re.sub(r"<[/]?span>", "", html)
-        html = re.sub(r"<br/>", "", html)
-        html = re.sub(r"\xa0", "", html)
-        soup = BeautifulSoup(html, "html.parser")
-        # use <h1> as the north star
-        conditions_element = soup.find("h1")
-        # find all sibling paragraphs, and then their descendant leaves
-        sibling_paragraphs = self._get_leaf_elements(
-            conditions_element.parent.find_all("p"),
-        )
-        # just the text, please
-        return [p.text for p in sibling_paragraphs]
-
-    def _get_status_from_html(self, html_text, year_hint=None):
-        """Extracts timestamp, status, and status notes from HTML"""
-        candidate_texts = self._get_status_candidate_texts(html_text)
-        timestamp = self._get_status_timestamp(
-            candidate_texts,
-            year_hint=year_hint,
-        )
-        status, notes = self._get_status_status_and_notes(candidate_texts)
-
-        if timestamp is None:
-            raise RuntimeError("Cannot parse time of status")
-
-        return GridStatus(
-            time=timestamp,
-            status=status,
-            notes=notes,
-            reserves=None,
-            iso=self,
-        )
-
-    def _get_status_timestamp(self, candidate_texts, year_hint=None):
-        """Get timestamp from candidate texts
-
-        Returns
-            pd.Timestamp or None
-        """
-        timestamp_texts = self._match(
-            LAST_UPDATED_KEYWORDS,
-            candidate_texts,
-        )
-
-        new_list = []
-        for text in timestamp_texts:
-            """Truncate to immediately after reliability level,
-            e.g. "blah blah Normal Operations 12:00 PM Central Time"
-            -> "12:00 PM Central Time"
-            """
-            for keyword in RELIABILITY_LEVELS:
-                pos = text.lower().find(keyword.lower())
-                if pos > -1:
-                    pos += len(keyword)
-                    new_list.append(text[pos:])
-            new_list.append(text)
-        timestamp_texts = new_list
-
-        last_updated_timestamps = self._extract_timestamps(
-            timestamp_texts,
-            year_hint=year_hint,
-            tz=self.default_timezone,
-        )
-        return next(iter(last_updated_timestamps), None)
-
-    def _get_status_status_and_notes(self, candidate_texts):
-        """Extracts (status, notes,) tuple from candidates texts"""
-        status_texts = self._match(
-            RELIABILITY_LEVELS,
-            candidate_texts,
-            haystack_norm_fn=lambda x: self._clean_status_text(x),
-        )
-
-        status_text = None
-        if len(status_texts) > 0:
-            status_text = status_texts[0]
-
-        status = status_text  # default
-        notes = None
-
-        norm_status_text = self._clean_status_text(status_text)
-        for level in RELIABILITY_LEVELS:
-            if level.lower() in norm_status_text:
-                status = RELIABILITY_LEVELS_ALIASES.get(level, level)
-                notes = [status_text]
-
-        return (
-            status,
-            notes,
-        )
 
 
 def process_gen_mix(df, detailed=False):

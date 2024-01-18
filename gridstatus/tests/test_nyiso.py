@@ -20,8 +20,9 @@ class TestNYISO(BaseTestISO):
         df = self.iso.get_capacity_prices(date="Jan 1, 2023", verbose=True)
         assert not df.empty, "DataFrame came back empty"
 
-        df = self.iso.get_capacity_prices(date="today", verbose=True)
-        assert not df.empty, "DataFrame came back empty"
+        # TODO: missing report: https://github.com/kmax12/gridstatus/issues/309
+        # df = self.iso.get_capacity_prices(date="today", verbose=True)
+        # assert not df.empty, "DataFrame came back empty"
 
     """get_fuel_mix"""
 
@@ -35,9 +36,34 @@ class TestNYISO(BaseTestISO):
         last_day_of_prev_month = first_day_of_month - pd.Timedelta(days=1)
         df = self.iso.get_fuel_mix(start=last_day_of_prev_month, end=first_day_of_month)
 
-        assert df["Time"].max() >= first_day_of_month
-        assert df["Time"].min() <= last_day_of_prev_month
-        assert df["Time"].dt.date.nunique() == 3  # 2 days + 1 day for midnight
+        # Midnight of the end date
+        assert df["Time"].max() == first_day_of_month.normalize() + pd.Timedelta(
+            days=1,
+            minutes=-5,
+        )
+        # First 5 minute interval of the start date
+        assert df["Time"].min() == last_day_of_prev_month.normalize() + pd.Timedelta(
+            minutes=5,
+        )
+
+        assert df["Time"].dt.date.nunique() == 2  # 2 days
+        self._check_fuel_mix(df)
+
+    def test_month_start_multiple_months(self):
+        start_date = pd.Timestamp("2022-01-01T06:00:00Z", tz=self.iso.default_timezone)
+        end_date = pd.Timestamp("2022-03-01T06:00:00Z", tz=self.iso.default_timezone)
+
+        df = self.iso.get_fuel_mix(start=start_date, end=end_date)
+
+        # Midnight of the end date
+        assert df["Time"].max() == end_date.replace(minute=0, hour=0) + pd.Timedelta(
+            days=1,
+        )
+        # First 5 minute interval of the start date
+        assert df["Time"].min() == start_date.replace(minute=5, hour=0)
+
+        assert (df["Time"].dt.month.unique() == [1, 2, 3]).all()
+
         self._check_fuel_mix(df)
 
     """get_generators"""

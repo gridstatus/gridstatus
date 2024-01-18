@@ -26,8 +26,9 @@ from gridstatus.miso import MISO
 from gridstatus.spp import SPP
 from gridstatus.pjm import PJM
 from gridstatus.eia import EIA
+from gridstatus.ieso import IESO
 
-all_isos = [NYISO, CAISO, Ercot, ISONE, MISO, SPP, PJM]
+all_isos = [NYISO, CAISO, Ercot, ISONE, MISO, SPP, PJM, IESO]
 
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "MISO",
     "SPP",
     "PJM",
+    "IESO",
     "Markets",
     "get_iso",
     "list_isos",

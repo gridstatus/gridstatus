@@ -3,6 +3,7 @@ import math
 
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import (
@@ -504,6 +505,53 @@ class ISONE(ISOBase):
         data = utils.filter_lmp_locations(data, locations)
         return data
 
+    def _extract_interconnection_queue(self) -> pd.DataFrame:
+        """Extract raw ISONE interconnection queue data.
+
+        ISONE interconnection queue data is available on a webpage
+        as an HTML table or you can download it as an excel file.
+        Obviously an excel file would be much easier to work with however,
+        the helpful generalized "Status" column (Withdrawn, Active, Commercial)
+        and the "Jurisdiction" column are only available as HTML.
+
+        Also, there is helpful detailed status information in the
+        FS, SIS, OS, FAC, IA columns that are represented as <img>
+        tags in the HTML.
+
+        This function replaces the <img> tags that convey detailed
+        status information as text and extracts the html as a dataframe.
+        You can see the image to text mapping in the upper left hand
+        corner of the ISONE Queue data page: https://irtt.iso-ne.com/reports/external.
+        """
+        r = requests.get("https://irtt.iso-ne.com/reports/external")
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        status_strings = [
+            "Under Study",
+            "Under Construction",
+            "Partially in Service",
+            "In Service",
+            "Suspended",
+            "In Progress",
+            "Document Posted",
+            "Interim Study",
+            "ISA Not Executed",
+            "Not Required",
+            "Not Started",
+            "Executed",
+        ]
+
+        for status_string in status_strings:
+            img_tags = soup.find_all("img", title=status_string)
+
+            for img_tag in img_tags:
+                new_text_tag = soup.new_tag("span")
+                new_text_tag.string = status_string
+                img_tag.replace_with(new_text_tag)
+
+        return pd.read_html(str(soup), attrs={"id": "publicqueue"})[0]
+
     def get_interconnection_queue(self, verbose=False):
         """Get the interconnection queue. Contains active and withdrawm applications.
 
@@ -520,8 +568,7 @@ class ISONE(ISOBase):
         msg = f"Loading queue {self.interconnection_homepage}"
         log(msg, verbose)
 
-        r = requests.get("https://irtt.iso-ne.com/reports/external")
-        queue = pd.read_html(r.text, attrs={"id": "publicqueue"})[0]
+        queue = self._extract_interconnection_queue()
 
         # only keep generator interconnection requests
         queue["Type"] = queue["Type"].map(
@@ -556,6 +603,14 @@ class ISONE(ISOBase):
             "Summer MW": "Summer Capacity (MW)",
             "Winter MW": "Winter Capacity (MW)",
             "TO Report": "Transmission Owner",
+            # Full status column names are from ISONE Video:
+            # https://iso-ne.my.site.com/s/article/How-do-I-read-the-public-version-of-the-ISO-Queue
+            "SIS": "System Impact Study Completed",
+            "FS": "Feasiblity Study Status",
+            "SIS.1": "System Impact Study Status",
+            "OS": "Optional Interconnection Study Status",
+            "FAC": "Facilities Study Status",
+            "IA": "Interconnection Agreement Status",
         }
 
         # todo: there are a few columns being parsed as "unamed"
@@ -569,11 +624,12 @@ class ISONE(ISOBase):
             "I39",
             "Dev",
             "Zone",
-            "FS",
-            "SIS",
-            "OS",
-            "FAC",
-            "IA",
+            "System Impact Study Completed",
+            "Feasiblity Study Status",
+            "System Impact Study Status",
+            "Optional Interconnection Study Status",
+            "Facilities Study Status",
+            "Interconnection Agreement Status",
             "Project Status",
         ]
 

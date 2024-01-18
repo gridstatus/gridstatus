@@ -3,12 +3,24 @@ import pytest
 
 import gridstatus
 from gridstatus import Ercot, Markets, NotSupported
-from gridstatus.ercot import Document
+from gridstatus.ercot import parse_timestamp_from_friendly_name
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
 class TestErcot(BaseTestISO):
     iso = Ercot()
+
+    def test_get_sced_system_lambda(self):
+        for i in ["latest", "today"]:
+            df = self.iso.get_sced_system_lambda(i, verbose=True)
+            assert df.shape[0] >= 0
+            assert df.columns.tolist() == [
+                "SCED Timestamp",
+                "System Lambda",
+            ]
+            today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+            assert df["SCED Timestamp"].unique()[0].date() == today
+            assert isinstance(df["System Lambda"].unique()[0], float)
 
     def test_get_as_prices(self):
         as_cols = [
@@ -37,33 +49,6 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == as_cols
         assert df["Time"].unique()[0].date() == date
 
-        date = pd.Timestamp(2022, 11, 8).date()
-        df = self.iso.get_as_prices(date, end="today")
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
-        assert df.Time.min().date() == date
-        assert df.Time.max().date() == today
-
-        date = today - pd.DateOffset(days=365)
-        df = self.iso.get_as_prices(date)
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
-        assert df.Time.min().date() == date.date()
-
-        df = self.iso.get_as_prices(date, end=today)
-
-        for check_date in pd.date_range(date, today, freq="D", inclusive="left"):
-            temp = df.loc[df.Time.dt.date == check_date.date()].copy()
-            assert temp.shape[0] > 0
-
-        date = pd.Timestamp(2022, 11, 8).date()
-        end = pd.Timestamp(2022, 11, 30).date()
-        df = self.iso.get_as_prices(date, end=end)
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
-        assert max(df.Time).date() == end
-        assert min(df.Time).date() == date
-
     def test_get_as_monitor(self):
         df = self.iso.get_as_monitor()
 
@@ -77,6 +62,16 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_real_time_system_conditions()
         assert df.shape == (1, 15)
         assert df.columns[0] == "Time"
+
+    def test_get_energy_storage_resources(self):
+        df = self.iso.get_energy_storage_resources()
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Total Charging",
+            "Total Discharging",
+            "Net Output",
+        ]
 
     """get_fuel_mix"""
 
@@ -119,11 +114,11 @@ class TestErcot(BaseTestISO):
         pass
 
     @pytest.mark.skip(reason="Not Applicable")
-    def test_range_two_days_with_day_start_endpoint(self):
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
         pass
 
     @pytest.mark.skip(reason="Not Applicable")
-    def test_start_end_same_day(self):
+    def test_get_fuel_mix_start_end_same_day(self):
         pass
 
     """get_lmp"""
@@ -194,35 +189,48 @@ class TestErcot(BaseTestISO):
 
     """get_load_forecast"""
 
+    def test_get_load_forecast_range(self):
+        end = pd.Timestamp.now(tz=self.iso.default_timezone)
+        start = end - pd.Timedelta(hours=3)
+        df = self.iso.get_load_forecast(start=start, end=end)
+
+        unique_load_forecast_time = df["Publish Time"].unique()
+        # make sure each is between start and end
+        assert (unique_load_forecast_time >= start).all()
+        assert (unique_load_forecast_time <= end).all()
+
+    expected_load_forecast_columns = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "North",
+        "South",
+        "West",
+        "Houston",
+        "System Total",
+    ]
+
     def test_get_load_forecast_historical(self):
-        with pytest.raises(NotSupported):
-            super().test_get_load_forecast_historical()
+        test_date = (pd.Timestamp.now() - pd.Timedelta(days=2)).date()
+        forecast = self.iso.get_load_forecast(date=test_date)
+        self._check_forecast(
+            forecast,
+            expected_columns=self.expected_load_forecast_columns,
+        )
+
+    def test_get_load_forecast_today(self):
+        forecast = self.iso.get_load_forecast("today")
+        self._check_forecast(
+            forecast,
+            expected_columns=self.expected_load_forecast_columns,
+        )
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
-    def _check_forecast(self, df):
-        """Method override of BaseTestISO._check_forecast()
-        to handle enums."""
-        assert set(df.columns[:4]) == set(
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Forecast Time",
-            ],
-        )
-
     """get_spp"""
-
-    def test_get_spp_dam_latest_day_ahead_hourly_zone_should_raise_exception(self):
-        with pytest.raises(ValueError):
-            self.iso.get_spp(
-                date="latest",
-                market=Markets.DAY_AHEAD_HOURLY,
-                location_type="Load Zone",
-            )
 
     def test_get_spp_dam_today_day_ahead_hourly_hub(self):
         df = self.iso.get_spp(
@@ -256,6 +264,53 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min().hour == 0
         assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
+
+    def test_get_spp_dam_range(self):
+        today = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize()
+
+        two_days_ago = today - pd.Timedelta(
+            days=2,
+        )
+
+        df = self.iso.get_spp(
+            start=two_days_ago,
+            end=today,
+            market=Markets.DAY_AHEAD_HOURLY,
+            location_type="Load Zone",
+        )
+
+        # two unique days
+        # should be today and yesterday since published one day ahead
+        assert set(df["Interval Start"].dt.date.unique()) == {
+            today.date(),
+            today.date() - pd.Timedelta(days=1),
+        }
+        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
+
+    def test_get_spp_real_time_range(self):
+        today = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize()
+
+        one_hour_earlier = today - pd.Timedelta(
+            hours=1,
+        )
+
+        df = self.iso.get_spp(
+            start=one_hour_earlier,
+            end=today,
+            market=Markets.REAL_TIME_15_MIN,
+            location_type="Load Zone",
+        )
+
+        # should be 4 intervals in last hour
+        assert (df.groupby("Location")["Interval Start"].count() == 4).all()
+        assert df["Interval End"].min() > one_hour_earlier
+        assert df["Interval End"].max() <= today
+
+        self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
     def test_get_spp_real_time_yesterday(self):
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
@@ -461,46 +516,13 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == columns
 
     def test_spp_real_time_parse_retry_file_name(self):
-        docs = [
-            Document(
-                url="",
-                publish_date=pd.Timestamp.now(),
-                constructed_name="cdr.00012301.0000000000000000.20230608.001705730.SPPHLZNP6905_retry_20230608_1545_csv",
-                friendly_name="",
-            ),
-            Document(
-                url="",
-                publish_date=pd.Timestamp.now(),
-                constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_1545_csv",
-                friendly_name="",
-            ),
-            Document(
-                url="",
-                publish_date=pd.Timestamp.now(),
-                constructed_name="cdr.00012301.0000000000000000.2023202306110610.001705730.SPPHLZNP6905_20230611_0000_csv",
-                friendly_name="",
-            ),
-            Document(
-                url="",
-                publish_date=pd.Timestamp.now() + pd.Timedelta(days=1),
-                constructed_name="cdr.00012301.0000000000000000.20230610.001705730.SPPHLZNP6905_20230610_0000_csv",
-                friendly_name="",
-            ),
-        ]
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_retry_20230608_1545_csv",
+        ) == pd.Timestamp("2023-06-08 15:45:00-0500", tz="US/Central")
 
-        # handle retry file
-        result_1 = self.iso._filter_spp_rtm_files(docs, pd.Timestamp("2023-06-08"))
-        assert len(result_1) == 1
-
-        # ignores interval end file from previous day
-        # and gets interval end from next
-        result_2 = self.iso._filter_spp_rtm_files(docs, pd.Timestamp("2023-06-10"))
-        assert len(result_2) == 2
-
-        # latest returns with great publish_date
-        latest = self.iso._filter_spp_rtm_files(docs, "latest")
-        assert len(latest) == 1
-        assert latest[0] == docs[-1]
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_20230608_1545_csv",
+        ) == pd.Timestamp("2023-06-08 15:45:00-0500", tz="US/Central")
 
     """get_unplanned_resource_outages"""
 
@@ -741,7 +763,7 @@ class TestErcot(BaseTestISO):
             days=1,
         )
         df = self.iso.get_hourly_wind_report(date)
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].nunique() == 1  # One for each hour
         assert df["Publish Time"].min() < date
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
@@ -787,7 +809,7 @@ class TestErcot(BaseTestISO):
         )
         df = self.iso.get_hourly_solar_report(date, verbose=True)
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].nunique() == 1  # One for each hour
         assert df["Publish Time"].min() < date
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
@@ -801,6 +823,172 @@ class TestErcot(BaseTestISO):
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
+
+    """get_price_corrections"""
+
+    def test_get_rtm_price_corrections(self):
+        df = self.iso.get_rtm_price_corrections(rtm_type="RTM_SPP")
+
+        cols = [
+            "Price Correction Time",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "SPP Original",
+            "SPP Corrected",
+        ]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    # TODO: this url has no DocumentList
+    # https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId=13044
+    @pytest.mark.skip(reason="Failing")
+    def test_get_dam_price_corrections(self):
+        df = self.iso.get_dam_price_corrections(dam_type="DAM_SPP")
+
+        cols = [
+            "Price Correction Time",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "SPP Original",
+            "SPP Corrected",
+        ]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    """get_system_wide_actuals"""
+
+    def test_get_system_wide_actual_load_for_date(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_system_wide_actual_load(yesterday)
+
+        # 1 Hour of data
+        assert df.shape[0] == 4
+        assert df["Interval Start"].min() == pd.Timestamp(
+            yesterday,
+            tz=self.iso.default_timezone,
+        )
+
+        cols = ["Time", "Interval Start", "Interval End", "Demand"]
+        assert df.columns.tolist() == cols
+
+    def test_get_system_wide_actual_load_date_range(self):
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        two_days_ago = today - pd.Timedelta(days=2)
+
+        df = self.iso.get_system_wide_actual_load(
+            start=two_days_ago,
+            end=today,
+            verbose=True,
+        )
+
+        cols = ["Time", "Interval Start", "Interval End", "Demand"]
+
+        assert df["Interval Start"].min() == pd.Timestamp(
+            two_days_ago,
+            tz=self.iso.default_timezone,
+        )
+        assert df["Interval Start"].max() == pd.Timestamp(
+            today,
+            tz=self.iso.default_timezone,
+        ) - pd.Timedelta(minutes=15)
+        assert df.columns.tolist() == cols
+
+    def test_get_system_wide_actual_load_today(self):
+        df = self.iso.get_system_wide_actual_load("today")
+
+        cols = ["Time", "Interval Start", "Interval End", "Demand"]
+
+        assert df["Interval Start"].min() == pd.Timestamp(
+            pd.Timestamp.now(tz=self.iso.default_timezone).date(),
+            tz=self.iso.default_timezone,
+        )
+        # 1 Hour of data
+        assert df.shape[0] == 4
+        assert df.columns.tolist() == cols
+
+    def test_get_system_wide_actual_load_latest(self):
+        df = self.iso.get_system_wide_actual_load("latest")
+
+        cols = ["Time", "Interval Start", "Interval End", "Demand"]
+
+        assert df["Interval Start"].min() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).floor("H") - pd.Timedelta(hours=1)
+
+        # 1 Hour of data
+        assert df.shape[0] == 4
+        assert df.columns.tolist() == cols
+
+    """get_lmp"""
+
+    def test_get_lmp_electrical_bus(self):
+        cols = [
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+
+        df = self.iso.get_lmp(
+            date="latest",
+            location_type="Electrical Bus",
+        )
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+        now = pd.Timestamp.now(tz=self.iso.default_timezone)
+        start = now - pd.Timedelta(hours=1)
+        df = self.iso.get_lmp(
+            location_type="Electrical Bus",
+            start=start,
+            end=now,
+            verbose=True,
+        )
+
+        # There should be at least 12 intervals in the last hour
+        # sometimes there are more if sced is run more frequently
+        # subtracting 1 to allow for some flexibility
+        assert df["SCED Timestamp"].nunique() >= 12 - 1
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+        assert df["SCED Timestamp"].min() >= start
+        assert df["SCED Timestamp"].max() <= now
+
+    def test_get_lmp_settlement_point(self):
+        df = self.iso.get_lmp(
+            date="latest",
+            location_type="Settlement Point",
+        )
+
+        cols = [
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+    def test_read_docs_return_empty_df(self):
+        df = self.iso.read_docs(docs=[], empty_df=pd.DataFrame(columns=["test"]))
+
+        assert df.shape[0] == 0
+        assert df.columns.tolist() == ["test"]
 
     @staticmethod
     def _check_ercot_spp(df, market, location_type):

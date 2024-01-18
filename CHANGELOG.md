@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.25.0 - TBD
+
+### SPP
+
+- Add support for operating reserves
+
+## v0.24.0 - Dec 27, 2023
+
+### ERCOT
+
+- Add `ercot.get_energy_storage_resources`
+- Add support for RTM and DAM price correction datasets
+- Add System Lambda
+- Add support for RTM and DAM price correction datasets
+- Add support for electrical bus and settlement point LMPS
+
+## SPP
+
+- Add support for generation capacity on outage
+- Add support for SPP WEIS Real Time LMP
+- Add "Status (Original)" column to interconnection queue data
+
+### EIA
+
+- Add `EIA.get_grid_monitor` dataset with hourly BA and Region emission data
+
+### CAISO
+
+- Improve CAISO curtailed non-operational generator report
+
+### ISONE
+
+- Parse ISONE interconnection queue project status columns
+
+### PJM
+
+- Update PJM `get_lmp` to return columns `Location Id`, `Location Name`, `Location Short Name` to avoid ambiguity.
+
+### Breaking Changes
+
+- `PJM.get_lmp` no longer return `Location`. That value is now `Location Id`.
+
+### Bug Fixes
+
+- Assorted DST handling fixes
+- Ensure `sleep` parameter is handled correctly on all CAISO methods
+
 ## v0.23.0 - Sept 12, 2023
 
 ### ERCOT
@@ -11,6 +58,7 @@
 - Add `Ercot.get_60_day_sced_disclosure`
 - Add `Ercot.get_60_day_dam_disclosure`
 - Add support for specifying `forecast_type` to `Ercot.get_load_forecast`
+- Add ERCOT System Lambda
 
 ### MISO
 

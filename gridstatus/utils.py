@@ -12,6 +12,7 @@ from gridstatus.base import Markets, NotSupported, _interconnection_columns
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
 from gridstatus.gs_logging import log
+from gridstatus.ieso import IESO
 from gridstatus.isone import ISONE
 from gridstatus.lmp_config import lmp_config
 from gridstatus.miso import MISO
@@ -22,7 +23,7 @@ from gridstatus.spp import SPP
 GREEN_CHECKMARK_HTML_ENTITY = "&#x2705;"
 
 RED_X_HTML_ENTITY = "&#10060;"
-all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE]
+all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE, IESO]
 
 
 def list_isos():
@@ -203,6 +204,22 @@ def get_zip_folder(url, verbose=False):
     r = requests.get(url)
     z = ZipFile(io.BytesIO(r.content))
     return z
+
+
+def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
+    z = get_zip_folder(url, verbose=verbose)
+
+    all_dfs = []
+    for f in z.filelist:
+        if f.filename.endswith(".csv"):
+            df = pd.read_csv(z.open(f.filename))
+            if process_csv:
+                df = process_csv(df, f.filename)
+            all_dfs.append(df)
+
+    df = pd.concat(all_dfs)
+
+    return df
 
 
 def is_today(date, tz):

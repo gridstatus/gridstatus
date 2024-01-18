@@ -22,6 +22,9 @@ class Markets(Enum):
     REAL_TIME_HOURLY = "REAL_TIME_HOURLY"
     DAY_AHEAD_HOURLY = "DAY_AHEAD_HOURLY"
 
+    # for ercot LMPs
+    REAL_TIME_SCED = "REAL_TIME_SCED"
+
     def __contains__(cls, item):
         try:
             cls(item)
@@ -131,7 +134,7 @@ class GridStatus:
             s += "Status Homepage: %s \n" % self.iso.status_homepage
 
         if self.reserves is not None:
-            s += "Reserves: %.0f %s" % (self.reserves, self.unit)
+            s += "Reserves: %.0f %s \n" % (self.reserves, self.unit)
 
         if self.notes and len(self.notes):
             s += "Notes:\n"

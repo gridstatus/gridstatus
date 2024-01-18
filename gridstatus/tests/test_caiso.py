@@ -39,6 +39,16 @@ class TestCAISO(BaseTestISO):
 
     """get_fuel_mix"""
 
+    def test_fuel_mix_across_dst_transition(self):
+        # these dates are across the DST transition
+        # and caused a bug in the past
+        date = (
+            pd.Timestamp("2023-11-05 09:55:00+0000", tz="UTC"),
+            pd.Timestamp("2023-11-05 20:49:26.038069+0000", tz="UTC"),
+        )
+        df = self.iso.get_fuel_mix(date=date)
+        self._check_fuel_mix(df)
+
     """get_curtailment"""
 
     def _check_curtailment(self, df):
@@ -272,11 +282,40 @@ class TestCAISO(BaseTestISO):
         assert df.shape[0] > 0
 
     def test_get_curtailed_non_operational_generator_report(self):
+        columns = [
+            "Publish Time",
+            "Outage MRID",
+            "Resource Name",
+            "Resource ID",
+            "Outage Type",
+            "Nature of Work",
+            "Curtailment Start Time",
+            "Curtailment End Time",
+            "Curtailment MW",
+            "Resource PMAX MW",
+            "Net Qualifying Capacity MW",
+        ]
+
+        start_of_data = pd.Timestamp("2021-06-17")
+        df = self.iso.get_curtailed_non_operational_generator_report(
+            date=start_of_data,
+        )
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
+
         two_days_ago = pd.Timestamp("today") - pd.Timedelta(days=2)
         df = self.iso.get_curtailed_non_operational_generator_report(
             date=two_days_ago.normalize(),
         )
         assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
+
+        date_with_duplicates = pd.Timestamp("2021-11-07")
+        df = self.iso.get_curtailed_non_operational_generator_report(
+            date=date_with_duplicates,
+        )
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
 
         # errors for a date before 2021-06-17
         with pytest.raises(ValueError):

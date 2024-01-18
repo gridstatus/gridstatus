@@ -30,7 +30,6 @@ def test_dam_heat_map():
 
 @pytest.mark.skip(reason="Failed. TODO Fix")
 def test_load_over_time():
-
     iso = gridstatus.CAISO()
 
     df = iso.get_load("today")

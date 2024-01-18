@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import re
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -92,6 +93,12 @@ class EIA:
             "facets": facets,
             "offset": 0,
             "length": 5000,
+            # pagination breaks if not sorted because
+            # api doesn't return in stable order across requests
+            "sort": [
+                {"column": col, "direction": "asc"}
+                for col in DATASET_CONFIG[dataset]["index"]
+            ],
         }
 
         headers = {
@@ -149,8 +156,135 @@ class EIA:
 
         df = raw_df.copy()
 
-        if dataset in DATASET_HANDLERS:
-            df = DATASET_HANDLERS[dataset](df)
+        if dataset in DATASET_CONFIG:
+            df = DATASET_CONFIG[dataset]["handler"](df)
+
+        return df
+
+    def get_grid_monitor(
+        self,
+        area_id=None,
+        area_type=None,
+        n_workers=4,
+        verbose=False,
+    ):
+        """
+        Retrieves grid monitor data including generation and emissions.
+
+        This function cannot filter by time and fetches all available data. It may
+        be slow if fetching data for all areas.
+
+        Args:
+            area_id (str, optional): ID of area to fetch data for. If provided,
+                fetches data for this area only, ignoring area_type. If both are
+                not provided, fetches data for all areas. Defaults to None.
+
+            area_type (str, optional): Type of areas ('Region' or 'BA') to fetch
+                data for. Used only if area_id is not provided. If provided,
+                fetches data for all areas of given type. If both are not
+                provided, fetches data for all areas. Defaults to None.
+
+            n_workers (int, optional): Number of workers to use for fetching data. Only
+                used if multiple areas are being fetched. Defaults to 4.
+
+            verbose (bool, optional): If True, prints progress. Defaults to False.
+
+        Returns:
+            dict: Grid monitor data for specified area(s).
+        """
+
+        config_path = Path(__file__).parent / "eia_data" / "grid_monitor_files.json"
+        with open(config_path, "r") as f:
+            GRID_MONITOR_FILES = json.load(f)
+
+        areas_to_fetch = GRID_MONITOR_FILES.keys()
+        if area_id:
+            areas_to_fetch = [area_id]
+        elif area_type:
+            areas_to_fetch = [
+                area_id
+                for area_id in areas_to_fetch
+                if GRID_MONITOR_FILES[area_id]["Type"].lower() == area_type.lower()
+            ]
+
+        def fetch_grid_monitor(grid_monitor):
+            url = grid_monitor["URL"]
+            log(f"Fetching data from {url}", verbose=verbose)
+            df = pd.read_excel(url, sheet_name="Published Hourly Data")
+
+            rename = {
+                "NG": "Net Generation",
+                "D": "Demand",
+                "TI": "Total Interchange",
+                "DF": "Demand Forecast",
+            }
+
+            df = df.rename(columns=rename)
+
+            df["Area Id"] = grid_monitor["ID"]
+            df["Area Type"] = grid_monitor["Type"]
+            df["Area Name"] = grid_monitor["Name"]
+
+            df.insert(0, "Interval End", pd.to_datetime(df["UTC time"], utc=True))
+            df.insert(0, "Interval Start", df["Interval End"] - pd.Timedelta("1h"))
+
+            cols = [
+                "Interval Start",
+                "Interval End",
+                "Area Id",
+                "Area Name",
+                "Area Type",
+                "Demand",
+                "Demand Forecast",
+                "Net Generation",
+                "Total Interchange",
+                "NG: COL",
+                "NG: NG",
+                "NG: NUC",
+                "NG: OIL",
+                "NG: WAT",
+                "NG: SUN",
+                "NG: WND",
+                "NG: UNK",
+                "NG: OTH",
+                "Positive Generation",
+                "Consumed Electricity",
+                "CO2 Factor: COL",
+                "CO2 Factor: NG",
+                "CO2 Factor: OIL",
+                "CO2 Emissions: COL",
+                "CO2 Emissions: NG",
+                "CO2 Emissions: OIL",
+                "CO2 Emissions: Other",
+                "CO2 Emissions Generated",
+                "CO2 Emissions Imported",
+                "CO2 Emissions Exported",
+                "CO2 Emissions Consumed",
+                "CO2 Emissions Intensity for Generated Electricity",
+                "CO2 Emissions Intensity for Consumed Electricity",
+            ]
+
+            df = df[cols]
+
+            return df
+
+        # Set the number of workers you want
+        futures = []
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for area in areas_to_fetch:
+                future = executor.submit(fetch_grid_monitor, GRID_MONITOR_FILES[area])
+                futures.append(future)
+
+            if verbose:
+                with tqdm(total=len(areas_to_fetch), ncols=80) as progress_bar:
+                    for future in futures:
+                        future.result()  # Wait for each future to complete
+                        progress_bar.update(1)
+
+        # Combine all the dataframes (assuming you want to do this)
+        all_dfs = [future.result() for future in futures]
+        df = pd.concat(all_dfs, ignore_index=True)
 
         return df
 
@@ -497,11 +631,21 @@ def _handle_fuel_type_data(df):
     return df
 
 
-DATASET_HANDLERS = {
-    "electricity/rto/interchange-data": _handle_rto_interchange,
-    "electricity/rto/region-data": _handle_region_data,
-    "electricity/rto/fuel-type-data": _handle_fuel_type_data,
+DATASET_CONFIG = {
+    "electricity/rto/interchange-data": {
+        "index": [
+            "period",
+            "fromba",
+            "toba",
+        ],
+        "handler": _handle_rto_interchange,
+    },
+    "electricity/rto/region-data": {
+        "index": ["period", "respondent", "type"],
+        "handler": _handle_region_data,
+    },
+    "electricity/rto/fuel-type-data": {
+        "index": ["period", "respondent", "fueltype"],
+        "handler": _handle_fuel_type_data,
+    },
 }
-
-# docs
-# https://www.eia.gov/opendata/documentation.php

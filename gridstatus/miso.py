@@ -68,9 +68,7 @@ class MISO(ISOBase):
 
         mix = {}
         for fuel in r["Fuel"]["Type"]:
-            amount = int(fuel["ACT"])
-            if amount == -1:
-                amount = 0
+            amount = float(fuel["ACT"])
             mix[fuel["CATEGORY"]] = amount
 
         df = pd.DataFrame(mix, index=[time])
