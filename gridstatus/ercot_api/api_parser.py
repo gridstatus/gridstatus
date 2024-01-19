@@ -16,6 +16,17 @@ META_ENDPOINTS = {
 UNIVERSAL_PARAM_NAMES = {"page", "size", "sort", "dir"}
 
 
+VALID_VALUE_TYPES = {
+    "string",
+    "timestamp",
+    "date",
+    "minute+second mm:ss",
+    "boolean",
+    "integer",
+    "float",
+}
+
+
 datetime_formats = types.SimpleNamespace()
 datetime_formats.DATE = "yyyy-MM-dd"
 datetime_formats.MINUTE_SECOND = "mm:ss"
