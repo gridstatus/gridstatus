@@ -689,6 +689,9 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(minutes=5),
         )
 
+        # don't need this column
+        df = df.drop(columns=["Interval"])
+
         df = df.rename(
             columns={
                 "RegUP_Clr": "Reg_Up_Cleared",
