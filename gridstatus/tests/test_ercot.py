@@ -938,12 +938,8 @@ class TestErcot(BaseTestISO):
         03/13/2016,01:45,25879.7454,N
         03/13/2016,03:00,25668.166,N
         """
-
-        # Use StringIO to convert the string into a file-like object
-        string_data_io = StringIO(data_string)
-
         # Read the data into a DataFrame
-        df = pd.read_csv(string_data_io)
+        df = pd.read_csv(StringIO(data_string))
 
         df = self.iso.parse_doc(df)
 
@@ -963,6 +959,42 @@ class TestErcot(BaseTestISO):
         # Note the hour jump due to DST
         assert df["Interval End"].max() == pd.Timestamp(
             "2016-03-13 03:00:00-0500",
+            tz="US/Central",
+        )
+
+    def test_parse_doc_works_on_dst_end(self):
+        data_string = """DeliveryDate,TimeEnding,Demand,DSTFlag
+        11/06/2016,01:15,28907.1315,N
+        11/06/2016,01:30,28595.5918,N
+        11/06/2016,01:45,28266.6354,N
+        11/06/2016,01:00,28057.502,N
+        11/06/2016,01:15,27707.4798,Y
+        11/06/2016,01:30,27396.1973,Y
+        11/06/2016,01:45,27157.3464,Y
+        11/06/2016,02:00,26981.778,Y
+        """
+
+        df = pd.read_csv(StringIO(data_string))
+
+        df = self.iso.parse_doc(df)
+
+        assert df["Interval Start"].min() == pd.Timestamp(
+            "2016-11-06 00:45:00-0500",
+            tz="US/Central",
+        )
+
+        assert df["Interval Start"].max() == pd.Timestamp(
+            "2016-11-06 01:45:00-0600",
+            tz="US/Central",
+        )
+
+        assert df["Interval End"].min() == pd.Timestamp(
+            "2016-11-06 01:00:00-0500",
+            tz="US/Central",
+        )
+
+        assert df["Interval End"].max() == pd.Timestamp(
+            "2016-11-06 02:00:00-0600",
             tz="US/Central",
         )
 
