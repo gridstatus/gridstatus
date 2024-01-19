@@ -708,7 +708,7 @@ class SPP(ISOBase):
         return df
 
     @support_date_range("DAY_START")
-    def get_day_ahead_marginal_clearing_prices(self, date, end=None, verbose=False):
+    def get_day_ahead_operating_reserve_prices(self, date, end=None, verbose=False):
         """Provides Marginal Clearing Price information by Reserve Zone for each
         Day-Ahead Market solution for each Operating Day.
         Posting is updated each day after the DA Market results are posted.
@@ -733,9 +733,9 @@ class SPP(ISOBase):
         log(msg, verbose)
         df = pd.read_csv(url)
 
-        return self._process_day_ahead_marginal_clearing_prices(df)
+        return self._process_day_ahead_operating_reserve_prices(df)
 
-    def _process_day_ahead_marginal_clearing_prices(self, df):
+    def _process_day_ahead_operating_reserve_prices(self, df):
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
@@ -747,15 +747,14 @@ class SPP(ISOBase):
             "RegDN": "Reg_Dn",
             "RampUP": "Ramp_Up",
             "RampDN": "Ramp_Dn",
-            "UncUP": "Unc_Up",
             "Spin": "Spin",
             "Supp": "Supp",
+            "UncUP": "Unc_Up",
         }
 
         df = df.rename(columns=column_mapping)
 
         cols_to_keep = [
-            "Time",
             "Interval Start",
             "Interval End",
             "Market",
