@@ -223,35 +223,43 @@ class TestSPP(BaseTestISO):
         "Time",
         "Interval Start",
         "Interval End",
-        "Interval",
         "Reserve Zone",
-        "Reg_Up_Cleared",
-        "Reg_Dn_Cleared",
-        "Ramp_Up_Cleared",
-        "Ramp_Dn_Cleared",
-        "Unc_Up_Cleared",
-        "Spin_Cleared",
-        "Supp_Cleared",
+        "Reg_Up",
+        "Reg_Dn",
+        "Ramp_Up",
+        "Ramp_Dn",
+        "Unc_Up",
+        "Spin",
+        "Supp",
     ]
 
     def test_get_day_ahead_marginal_clearing_prices(self):
-        yesterday = pd.Timestamp.now(
+        tomorrow = pd.Timestamp.now(
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(
+        ).normalize() + pd.Timedelta(
             days=1,
         )
-        yesterday_1230am = yesterday + pd.Timedelta(minutes=30)
+        three_days_ago = tomorrow - pd.Timedelta(days=4)
 
         df = self.iso.get_day_ahead_marginal_clearing_prices(
-            start=yesterday,
-            end=yesterday_1230am,
+            date=three_days_ago,
+            end=tomorrow,
         )
-        assert len(df) > 0
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval End"].max() == tomorrow
         assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
 
-    def test_get_day_ahead_marginal_clearing_prices_latest(self):
-        df = self.iso.get_day_ahead_marginal_clearing_prices(date="latest")
-        assert len(df) > 0
+    def test_get_day_ahead_marginal_clearing_prices_today(self):
+        df = self.iso.get_day_ahead_marginal_clearing_prices(date="today")
+
+        assert (
+            df["Interval Start"].min()
+            == pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
+        )
+        assert df["Interval End"].max() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(days=1)
         assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
 
     WEIS_LMP_COLUMNS = [

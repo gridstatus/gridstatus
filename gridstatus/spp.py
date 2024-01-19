@@ -707,9 +707,11 @@ class SPP(ISOBase):
 
         return df
 
-    @support_date_range("5_MIN")
+    @support_date_range("DAY_START")
     def get_day_ahead_marginal_clearing_prices(self, date, end=None, verbose=False):
-        """Get Day Ahead Marginal Clearing Prices. Updated every 5 minutes.
+        """Provides Marginal Clearing Price information by Reserve Zone for each
+        Day-Ahead Market solution for each Operating Day.
+        Posting is updated each day after the DA Market results are posted.
         Available at https://portal.spp.org/pages/da-mcp#
 
         Args:
@@ -721,7 +723,9 @@ class SPP(ISOBase):
             pd.DataFrame: Day Ahead Marginal Clearing Prices
         """
         if date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone)
+            raise ValueError(
+                "Latest not supported for Day Ahead Marginal Clearing Prices",
+            )
         else:
             if end is None:
                 end = date + FiveMinOffset()
@@ -732,44 +736,29 @@ class SPP(ISOBase):
         log(msg, verbose)
         df = pd.read_csv(url)
 
-        return self._process_day_ahead_marginal_clearing_prices(df)[
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Interval",
-                "Reserve Zone",
-                "Reg_Up_Cleared",
-                "Reg_Dn_Cleared",
-                "Ramp_Up_Cleared",
-                "Ramp_Dn_Cleared",
-                "Unc_Up_Cleared",
-                "Spin_Cleared",
-                "Supp_Cleared",
-            ]
-        ]
+        return self._process_day_ahead_marginal_clearing_prices(df)
 
     def _process_day_ahead_marginal_clearing_prices(self, df):
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
-            interval_duration=pd.Timedelta(minutes=5),
+            interval_duration=pd.Timedelta(hours=1),
         )
 
-        df = df.rename(
-            columns={
-                # TODO: Should cleared be in the names?
-                "RegUP": "Reg_Up_Cleared",
-                "RegDN": "Reg_Dn_Cleared",
-                "RampUP": "Ramp_Up_Cleared",
-                "RampDN": "Ramp_Dn_Cleared",
-                "UncUP": "Unc_Up_Cleared",
-                "Spin": "Spin_Cleared",
-                "Supp": "Supp_Cleared",
-            },
-        )
+        column_mapping = {
+            "RegUP": "Reg_Up",
+            "RegDN": "Reg_Dn",
+            "RampUP": "Ramp_Up",
+            "RampDN": "Ramp_Dn",
+            "UncUP": "Unc_Up",
+            "Spin": "Spin",
+            "Supp": "Supp",
+        }
 
-        return df
+        return df.rename(columns=column_mapping)[
+            ["Time", "Interval Start", "Interval End", "Reserve Zone"]
+            + list(column_mapping.values())
+        ]
 
     @support_date_range("5_MIN")
     def get_lmp_real_time_weis(self, date, end=None, verbose=False):
