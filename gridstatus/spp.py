@@ -732,7 +732,22 @@ class SPP(ISOBase):
         log(msg, verbose)
         df = pd.read_csv(url)
 
-        return self._process_day_ahead_marginal_clearing_prices(df)
+        return self._process_day_ahead_marginal_clearing_prices(df)[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Interval",
+                "Reserve Zone",
+                "Reg_Up_Cleared",
+                "Reg_Dn_Cleared",
+                "Ramp_Up_Cleared",
+                "Ramp_Dn_Cleared",
+                "Unc_Up_Cleared",
+                "Spin_Cleared",
+                "Supp_Cleared",
+            ]
+        ]
 
     def _process_day_ahead_marginal_clearing_prices(self, df):
         df = self._handle_market_end_to_interval(
