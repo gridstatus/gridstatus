@@ -219,6 +219,41 @@ class TestSPP(BaseTestISO):
         assert len(df) > 0
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
+    DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Interval",
+        "Reserve Zone",
+        "Reg_Up_Cleared",
+        "Reg_Dn_Cleared",
+        "Ramp_Up_Cleared",
+        "Ramp_Dn_Cleared",
+        "Unc_Up_Cleared",
+        "Spin_Cleared",
+        "Supp_Cleared",
+    ]
+
+    def test_get_day_ahead_marginal_clearing_prices(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=1,
+        )
+        yesterday_1230am = yesterday + pd.Timedelta(minutes=30)
+
+        df = self.iso.get_day_ahead_marginal_clearing_prices(
+            start=yesterday,
+            end=yesterday_1230am,
+        )
+        assert len(df) > 0
+        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+
+    def test_get_day_ahead_marginal_clearing_prices_latest(self):
+        df = self.iso.get_day_ahead_marginal_clearing_prices(date="latest")
+        assert len(df) > 0
+        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+
     WEIS_LMP_COLUMNS = [
         "Interval Start",
         "Interval End",

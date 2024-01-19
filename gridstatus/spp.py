@@ -708,6 +708,55 @@ class SPP(ISOBase):
         return df
 
     @support_date_range("5_MIN")
+    def get_day_ahead_marginal_clearing_prices(self, date, end=None, verbose=False):
+        """Get Day Ahead Marginal Clearing Prices. Updated every 5 minutes.
+        Available at https://portal.spp.org/pages/da-mcp#
+
+        Args:
+            date: date to get data for
+            end: end date
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: Day Ahead Marginal Clearing Prices
+        """
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone)
+        else:
+            if end is None:
+                end = date + FiveMinOffset()
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/da-mcp?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MCP-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_day_ahead_marginal_clearing_prices(df)
+
+    def _process_day_ahead_marginal_clearing_prices(self, df):
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        df = df.rename(
+            columns={
+                # TODO: Should cleared be in the names?
+                "RegUP": "Reg_Up_Cleared",
+                "RegDN": "Reg_Dn_Cleared",
+                "RampUP": "Ramp_Up_Cleared",
+                "RampDN": "Ramp_Dn_Cleared",
+                "UncUP": "Unc_Up_Cleared",
+                "Spin": "Spin_Cleared",
+                "Supp": "Supp_Cleared",
+            },
+        )
+
+        return df
+
+    @support_date_range("5_MIN")
     def get_lmp_real_time_weis(self, date, end=None, verbose=False):
         """Get LMP data for real time WEIS
 
