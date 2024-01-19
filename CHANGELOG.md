@@ -6,6 +6,10 @@
 
 - Add support for operating reserves
 
+### EIA
+
+- Add support to specify facets in get_dataset
+
 ## v0.24.0 - Dec 27, 2023
 
 ### ERCOT
