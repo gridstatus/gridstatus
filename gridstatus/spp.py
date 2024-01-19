@@ -726,9 +726,6 @@ class SPP(ISOBase):
             raise ValueError(
                 "Latest not supported for Day Ahead Marginal Clearing Prices",
             )
-        else:
-            if end is None:
-                end = date + FiveMinOffset()
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/da-mcp?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MCP-{date.strftime('%Y%m%d')}0100.csv"  # noqa
 
