@@ -1,3 +1,5 @@
+from io import StringIO
+
 import pandas as pd
 import pytest
 
@@ -928,6 +930,41 @@ class TestErcot(BaseTestISO):
         # 1 Hour of data
         assert df.shape[0] == 4
         assert df.columns.tolist() == cols
+
+    def test_parse_doc_works_on_dst_data(self):
+        data_string = """DeliveryDate,TimeEnding,Demand,DSTFlag
+        03/13/2016,01:15,26362.1563,N
+        03/13/2016,01:30,26123.679,N
+        03/13/2016,01:45,25879.7454,N
+        03/13/2016,03:00,25668.166,N
+        """
+
+        # Use StringIO to convert the string into a file-like object
+        string_data_io = StringIO(data_string)
+
+        # Read the data into a DataFrame
+        df = pd.read_csv(string_data_io)
+
+        df = self.iso.parse_doc(df)
+
+        assert df["Interval Start"].min() == pd.Timestamp(
+            "2016-03-13 01:00:00-0600",
+            tz="US/Central",
+        )
+        assert df["Interval Start"].max() == pd.Timestamp(
+            "2016-03-13 01:45:00-0600",
+            tz="US/Central",
+        )
+
+        assert df["Interval End"].min() == pd.Timestamp(
+            "2016-03-13 01:15:00-0600",
+            tz="US/Central",
+        )
+        # Note the hour jump due to DST
+        assert df["Interval End"].max() == pd.Timestamp(
+            "2016-03-13 03:00:00-0500",
+            tz="US/Central",
+        )
 
     """get_lmp"""
 

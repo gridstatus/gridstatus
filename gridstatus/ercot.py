@@ -2454,14 +2454,14 @@ class Ercot(ISOBase):
             ending_time_col_name = "TimeEnding"
             interval_length = pd.Timedelta(minutes=15)
 
-            df["Interval End"] = pd.to_datetime(
-                df["DeliveryDate"] + " " + df["TimeEnding"] + ":00",
+            doc["Interval End"] = pd.to_datetime(
+                doc["DeliveryDate"] + " " + doc["TimeEnding"] + ":00",
             )
-            df["Interval End"] = df["Interval End"].dt.tz_localize(
+            doc["Interval End"] = doc["Interval End"].dt.tz_localize(
                 "US/Central",
-                ambiguous=df["DSTFlag"] == "N",
+                ambiguous=doc["DSTFlag"] == "N",
             )
-            df["Interval Start"] = df["Interval End"] - interval_length
+            doc["Interval Start"] = doc["Interval End"] - interval_length
 
         else:
             interval_length = pd.Timedelta(hours=1)
