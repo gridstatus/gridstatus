@@ -740,7 +740,7 @@ class SPP(ISOBase):
             df,
             column="GMTIntervalEnd",
             interval_duration=pd.Timedelta(hours=1),
-        )
+        ).assign(Market="DAM")
 
         column_mapping = {
             "RegUP": "Reg_Up",
@@ -752,10 +752,20 @@ class SPP(ISOBase):
             "Supp": "Supp",
         }
 
-        return df.rename(columns=column_mapping)[
-            ["Time", "Interval Start", "Interval End", "Reserve Zone"]
-            + list(column_mapping.values())
-        ]
+        df = df.rename(columns=column_mapping)
+
+        cols_to_keep = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Reserve Zone",
+        ] + list(
+            column_mapping.values(),
+        )
+
+        # Older datasets might not have all the reserve types
+        return df[[c for c in cols_to_keep if c in df]]
 
     @support_date_range("5_MIN")
     def get_lmp_real_time_weis(self, date, end=None, verbose=False):

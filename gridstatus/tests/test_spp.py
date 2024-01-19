@@ -223,6 +223,7 @@ class TestSPP(BaseTestISO):
         "Time",
         "Interval Start",
         "Interval End",
+        "Market",
         "Reserve Zone",
         "Reg_Up",
         "Reg_Dn",
