@@ -219,6 +219,49 @@ class TestSPP(BaseTestISO):
         assert len(df) > 0
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
+    DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Reserve Zone",
+        "Reg_Up",
+        "Reg_Dn",
+        "Ramp_Up",
+        "Ramp_Dn",
+        "Spin",
+        "Supp",
+        "Unc_Up",
+    ]
+
+    def test_get_day_ahead_operating_reserve_prices(self):
+        tomorrow = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(
+            days=1,
+        )
+        three_days_ago = tomorrow - pd.Timedelta(days=4)
+
+        df = self.iso.get_day_ahead_operating_reserve_prices(
+            date=three_days_ago,
+            end=tomorrow,
+        )
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval End"].max() == tomorrow
+        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+
+    def test_get_day_ahead_operating_reserve_prices_today(self):
+        df = self.iso.get_day_ahead_operating_reserve_prices(date="today")
+
+        assert (
+            df["Interval Start"].min()
+            == pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
+        )
+        assert df["Interval End"].max() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(days=1)
+        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+
     WEIS_LMP_COLUMNS = [
         "Interval Start",
         "Interval End",
