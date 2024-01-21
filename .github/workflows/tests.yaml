@@ -11,7 +11,7 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11"]
     env:
-      EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+      EIA_API_KEY: ${{ vars.EIA_API_KEY }}
     steps:
       - uses: actions/checkout@v3
 
