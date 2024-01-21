@@ -19,6 +19,9 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Print environment variables
+        run: |
+          echo "EIA_API_KEY: $EIA_API_KEY"
       - name: Install dependencies
         run: |
           python -m pip install ".[test]"
