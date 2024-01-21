@@ -11,7 +11,9 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11"]
     env:
-      EIA_API_KEY: "test"
+      # This is not a secret because it is a free API key. At worst,
+      # we may hit the rate limit.
+      EIA_API_KEY: "9e1a7ae3ce839e9ad174eb4028b7a7b2"
     steps:
       - uses: actions/checkout@v3
 
