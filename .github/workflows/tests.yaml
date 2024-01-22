@@ -41,5 +41,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ github.workspace }}/coverage.xml
-          fail_ci_if_error: true
+          # Don't fail build if coverage can't be uploaded because the
+          # CODECOV_TOKEN is not shared with PRs from forks.
+          fail_ci_if_error: false
           verbose: true
