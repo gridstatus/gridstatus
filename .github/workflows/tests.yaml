@@ -9,9 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.10", "3.11"]
     env:
-      EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+      # This is not a secret because it is a free API key. At worst,
+      # we may hit the rate limit.
+      EIA_API_KEY: "9e1a7ae3ce839e9ad174eb4028b7a7b2"
     steps:
       - uses: actions/checkout@v3
 
@@ -19,6 +21,9 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Print environment variables
+        run: |
+          echo "EIA_API_KEY: $EIA_API_KEY"
       - name: Install dependencies
         run: |
           python -m pip install ".[test]"
