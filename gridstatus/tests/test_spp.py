@@ -190,7 +190,6 @@ class TestSPP(BaseTestISO):
         "Time",
         "Interval Start",
         "Interval End",
-        "Interval",
         "Reserve Zone",
         "Reg_Up_Cleared",
         "Reg_Dn_Cleared",
@@ -287,7 +286,7 @@ class TestSPP(BaseTestISO):
         ).normalize() - pd.Timedelta(
             days=1,
         )  # noqa
-        yesterday_1am = yesterday + pd.Timedelta(minutes=13)
+        yesterday_1am = yesterday + pd.Timedelta(minutes=15)
 
         df = self.iso.get_lmp_real_time_weis(start=yesterday, end=yesterday_1am)
 
