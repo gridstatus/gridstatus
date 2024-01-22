@@ -102,7 +102,8 @@ class ISOBase:
         )
         col_order = lmp_df.columns.tolist()
         # Assume sorted in ascending order
-        latest_df = lmp_df.groupby("Location").last().reset_index()
+        grouper_column_name = "Location" if "Location" in col_order else "Location Id"
+        latest_df = lmp_df.groupby(grouper_column_name).last().reset_index()
         latest_df = latest_df[col_order]
         return latest_df
 
