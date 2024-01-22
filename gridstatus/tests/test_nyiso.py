@@ -65,8 +65,6 @@ class TestNYISO(BaseTestISO):
 
     """get_generators"""
 
-    # todo
-    # @pytest.mark.skip(reason="Needs to be updated to 2023 data")
     def test_get_generators(self):
         df = self.iso.get_generators()
         columns = [

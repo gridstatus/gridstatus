@@ -101,8 +101,11 @@ class ISOBase:
             date="today", market=market, locations=locations, **kwargs
         )
         col_order = lmp_df.columns.tolist()
-        # Assume sorted in ascending order
+
+        # Special case to handle PJM 5 min LMPs
         grouper_column_name = "Location" if "Location" in col_order else "Location Id"
+
+        # Assume sorted in ascending order
         latest_df = lmp_df.groupby(grouper_column_name).last().reset_index()
         latest_df = latest_df[col_order]
         return latest_df
