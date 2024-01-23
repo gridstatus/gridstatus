@@ -190,7 +190,7 @@ class BaseTestISO:
         assert data_tuple.equals(data)
 
     def test_get_load_historical(self, lookback_days=14):
-        # pick a test date 2 weeks back
+        # pick a test date lookback_days ago
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=lookback_days)).date()
 
         # date string works

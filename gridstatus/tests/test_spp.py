@@ -286,12 +286,12 @@ class TestSPP(BaseTestISO):
         ).normalize() - pd.Timedelta(
             days=1,
         )  # noqa
-        yesterday_1am = yesterday + pd.Timedelta(minutes=15)
+        yesterday_00_15_am = yesterday + pd.Timedelta(minutes=15)
 
-        df = self.iso.get_lmp_real_time_weis(start=yesterday, end=yesterday_1am)
+        df = self.iso.get_lmp_real_time_weis(start=yesterday, end=yesterday_00_15_am)
 
         assert df["Interval Start"].min() == yesterday
-        assert df["Interval End"].max() == yesterday_1am
+        assert df["Interval End"].max() == yesterday_00_15_am
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
     def test_get_lmp_real_time_weis_cross_day(self):
