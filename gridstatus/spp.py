@@ -792,9 +792,17 @@ class SPP(ISOBase):
             # folder path is based on start date
             # file name is based on end date
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Interval/{date.strftime('%d')}/WEIS-RTBM-LMP-SL-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+
+        # TODO: sometimes there are missing interval files (example: https://portal.spp.org/pages/lmp-by-settlement-location-weis#%2F2024%2F01%2FBy_Interval%2F21) # noqa
+        # We can't do anything in these cases but log a message
         msg = f"Downloading {url}"
         log(msg, verbose)
-        df = pd.read_csv(url)
+
+        try:
+            df = pd.read_csv(url)
+        except ConnectionResetError as e:
+            log(f"Error downloading {url}: {e}", verbose)
+            return pd.DataFrame()
 
         return self._process_lmp_real_time_weis(df)
 
