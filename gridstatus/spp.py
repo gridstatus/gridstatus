@@ -241,9 +241,13 @@ class SPP(ISOBase):
                 verbose=verbose,
             )
 
+        df.columns = [col.strip() for col in df.columns]
+
         # Don't include the actuals to avoid confusion
         cols_to_drop = [col for col in df if "Actual" in col]
-        df = df.drop(columns=cols_to_drop)
+        df = df.drop(columns=cols_to_drop).dropna(
+            subset=["Wind Forecast MW", "Solar Forecast MW"],
+        )
 
         if end:
             return df[df["Interval Start"].between(date, end)]
@@ -272,10 +276,10 @@ class SPP(ISOBase):
             verbose=verbose,
         )
 
+        df.columns = [col.strip() for col in df.columns]
+
         # Don't include the forecast to avoid confusion
         cols_to_drop = [col for col in df if "Forecast" in col]
-
-        df.columns = [col.strip() for col in df.columns]
 
         df = df.drop(columns=cols_to_drop).dropna(
             subset=["Actual Wind MW", "Actual Solar MW"],
