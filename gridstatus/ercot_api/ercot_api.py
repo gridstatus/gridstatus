@@ -74,7 +74,7 @@ def hit_ercot_api(
             if columns is None:
                 # first request only: populate columns and update total pages
                 columns = [f["name"] for f in response["fields"]]
-                total_pages = response["_meta"]["query"]["totalPages"]
+                total_pages = response["_meta"]["totalPages"]
                 # determine number-of-pages denominator for progress bar
                 if max_pages is None:
                     denominator = total_pages
