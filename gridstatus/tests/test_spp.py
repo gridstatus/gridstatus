@@ -343,10 +343,137 @@ class TestSPP(BaseTestISO):
         pass
 
     """get_solar_and_wind_actuals"""
-    # TODO: Implement
+
+    def test_get_solar_and_wind_load_today(self):
+        df = self.iso.get_solar_and_wind_load(date="today")
+
+        self._check_solar_and_wind_load(df)
+
+        now = pd.Timestamp.now(tz=self.iso.default_timezone)
+        assert df["Interval Start"].min() == now.normalize()
+        assert df["Interval End"].max() <= now
+
+    def test_get_solar_and_wind_load_latest(self):
+        assert self.iso.get_solar_and_wind_load("latest").equals(
+            self.iso.get_solar_and_wind_load(date="today"),
+        )
+
+    def test_get_solar_and_wind_load_historical(self):
+        three_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=3,
+        )
+
+        df = self.iso.get_solar_and_wind_load(date=three_days_ago)
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval Start"].max() <= three_days_ago.replace(hour=23, minute=55)
+
+        self._check_solar_and_wind_load(df)
+
+    def test_get_solar_and_wind_load_historical_with_date_range(self):
+        three_days_ago = (
+            pd.Timestamp.now(tz=self.iso.default_timezone)
+            - pd.Timedelta(
+                days=3,
+            )
+        ).floor("5T")
+
+        two_days_ago_end = three_days_ago + pd.Timedelta(hours=4)
+
+        df = self.iso.get_solar_and_wind_load(date=three_days_ago, end=two_days_ago_end)
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval Start"].max() == two_days_ago_end
 
     """get_solar_and_wind_forecast"""
-    # TODO: Implement
+
+    def test_get_solar_and_wind_load_forecast_today(self):
+        df = self.iso.get_solar_and_wind_load_forecast(date="today")
+
+        assert df["Interval Start"].min() <= pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        )
+        assert df["Interval Start"].max() >= pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) + pd.Timedelta(days=5)
+
+        assert df["Publish Time"].nunique() == 1
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        self._check_solar_and_wind_forecast(df)
+
+    def test_get_solar_and_wind_load_forecast_latest(self):
+        df = self.iso.get_solar_and_wind_load_forecast("latest")
+
+        assert df["Interval Start"].min() >= pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        )
+        assert df["Interval Start"].max() >= pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) + pd.Timedelta(days=5)
+
+        assert df["Publish Time"].nunique() == 1
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=60)
+        ).all()
+
+        self._check_solar_and_wind_forecast(df)
+
+    def test_get_solar_and_wind_load_forecast_historical(self):
+        three_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=3,
+        )
+
+        df = self.iso.get_solar_and_wind_load_forecast(date=three_days_ago)
+
+        assert df["Interval Start"].min() == three_days_ago
+
+        # Should be 7 days of forecast
+        assert df["Interval Start"].max() >= three_days_ago + pd.Timedelta(days=7)
+
+        assert df["Publish Time"].nunique() == 1
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=60)
+        ).all()
+
+        self._check_solar_and_wind_forecast(df)
+
+    def test_get_solar_and_wind_load_forecast_historical_with_date_range(self):
+        three_days_ago = (
+            pd.Timestamp.now(tz=self.iso.default_timezone)
+            - pd.Timedelta(
+                days=3,
+            )
+        ).floor("5T")
+
+        two_days_ago_end = three_days_ago + pd.Timedelta(hours=4)
+
+        df = self.iso.get_solar_and_wind_load_forecast(
+            date=three_days_ago,
+            end=two_days_ago_end,
+        )
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval Start"].max() == two_days_ago_end
+
+        assert df["Publish Time"].nunique() == (
+            two_days_ago_end - three_days_ago
+        ) / pd.Timedelta(minutes=5)
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+        self._check_solar_and_wind_forecast(df)
 
     """get_status"""
 
@@ -445,3 +572,26 @@ class TestSPP(BaseTestISO):
         assert df["Publish Time"].nunique() == 366
 
         self._check_capacity_of_generation_on_outage(df)
+
+    def _check_solar_and_wind_load(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Actual Wind MW",
+            "Actual Solar MW",
+        ]
+
+        assert (df["Actual Wind MW"] >= 0).all()
+        assert (df["Actual Solar MW"] >= 0).all()
+
+    def _check_solar_and_wind_forecast(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Wind Forecast MW",
+            "Solar Forecast MW",
+        ]
+
+        assert (df["Wind Forecast MW"] >= 0).all()
+        assert (df["Solar Forecast MW"] >= 0).all()
