@@ -69,8 +69,7 @@ def test_hit_ercot_api():
     two_days_ago = datetime.datetime.now() - datetime.timedelta(days=2)
     actual_by_wzn_endpoint = "/np6-345-cd/act_sys_load_by_wzn"
     two_days_actual_by_wzn = hit_ercot_api(
-        actual_by_wzn_endpoint,
-        operatingDayFrom=two_days_ago
+        actual_by_wzn_endpoint, operatingDayFrom=two_days_ago
     )
     assert two_days_actual_by_wzn.shape == (48, 12)
 

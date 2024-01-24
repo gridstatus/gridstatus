@@ -4,7 +4,6 @@ import types
 from datetime import date, datetime
 from typing import Union
 
-
 META_ENDPOINTS = {
     "/",
     "/version",
@@ -88,52 +87,50 @@ def _parse_all_endpoints(apijson: dict) -> dict:
 
 def _parse_endpoint_contents(contents: dict) -> dict:
     """Unpacks parameter info and a summary from the endpoint docs"""
-    results = {
-        "summary": contents["get"]["summary"],
-        "parameters": {}
-    }
+    results = {"summary": contents["get"]["summary"], "parameters": {}}
     for p in contents["get"]["parameters"]:
         if p["name"] not in UNIVERSAL_PARAM_NAMES:
             value_type, parser_method = _parse_schema(p["schema"])
             results["parameters"][p["name"]] = {
                 "value_type": value_type,
-                "parser_method": parser_method
+                "parser_method": parser_method,
             }
     return results
 
 
 def _parse_schema(schema: dict) -> tuple[str, callable]:
     """Selects a parser method for a given parameter, using its schema dict
-    
+
     This makes life easier on the caller by ensuring that diverse but valid
         user inputs are parsed correctly into the string format expected by
         the ERCOT API, i.e. "yyyy-MM-ddTH24:mm:ss" for timestamps
     """
-    if schema["type"] == "string":
-        match schema["format"]: # TODO avoid case match because lower python version
-            case datetime_formats.TIMESTAMP:
-                return ("timestamp", _timestamp_parser)
-            case datetime_formats.DATE:
-                return ("date", _date_parser)
-            case datetime_formats.MINUTE_SECOND:
-                return ("minute+second mm:ss", _minute_second_parser)
-            case _:
-                return ("string", lambda x: x)
-    match schema["type"]:
-        case "boolean":
-            return ("boolean", _bool_parser)
-        case "integer":
-            return ("integer", lambda i: int(i))
-        case "number":
-            return ("float", lambda f: float(f))
-        case _:
-            raise TypeError(f"unexpected schema type {schema['type']} 
-                            and format {schema['format']}")
+    t = schema["type"]
+    if t == "string":
+        f = schema["format"]
+        if f == datetime_formats.TIMESTAMP:
+            return ("timestamp", _timestamp_parser)
+        elif f == datetime_formats.DATE:
+            return ("date", _date_parser)
+        elif f == datetime_formats.MINUTE_SECOND:
+            return ("minute+second mm:ss", _minute_second_parser)
+        else:
+            return ("string", lambda x: x)
+    elif t == "boolean":
+        return ("boolean", _bool_parser)
+    elif t == "integer":
+        return ("integer", lambda i: int(i))
+    elif t == "number":
+        return ("float", lambda f: float(f))
+    else:
+        raise TypeError(
+            f"unexpected schema type {schema['type']} and format {schema['format']}"
+        )
 
 
 def get_endpoints_map() -> dict:
     """Provides access to a parsed map of all data endpoints and their parameters"""
-    global _endpoints_map # enable us to edit it in here
+    global _endpoints_map  # enable us to edit it in here
     if _endpoints_map is None:
         with open(f"{pathlib.Path(__file__).parent}/pubapi-apim-api.json") as rf:
             apijson = json.load(rf)

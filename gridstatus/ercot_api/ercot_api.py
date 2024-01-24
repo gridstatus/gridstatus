@@ -1,12 +1,11 @@
 import argparse
-import requests
 from typing import Optional
 
 import pandas as pd
+import requests
 from tqdm import tqdm
 
 from gridstatus.ercot_api.api_parser import get_endpoints_map
-
 
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
@@ -36,15 +35,15 @@ def hit_ercot_api(
     Returns:
         a dataframe of results
     """
-    
+
     # validate endpoint string
     endpoint_contents = get_endpoints_map().get(endpoint, None)
     if endpoint_contents is None:
         raise KeyError(f"{endpoint} is not a valid ERCOT API endpoint")
-    
+
     # prepare url string
     urlstring = f"{BASE_URL}{endpoint}"
-    
+
     # determine parameters and types for endpoint, validate and parse api_params
     parsed_api_params = {}
     for arg, value in api_params.items():
@@ -81,8 +80,10 @@ def hit_ercot_api(
                 else:
                     denominator = min(total_pages, max_pages)
                     if denominator < total_pages:
-                        print(f"warning: only retrieving {max_pages} pages "
-                              f"out of {total_pages} total")
+                        print(
+                            f"warning: only retrieving {max_pages} pages "
+                            f"out of {total_pages} total"
+                        )
                 progress_bar.total = denominator
                 progress_bar.refresh()
 
@@ -103,10 +104,10 @@ def describe_one_endpoint(endpoint: str) -> None:
     if endpoint_contents is None:
         print(f"{endpoint} is not a valid ERCOT API endpoint")
         return
-    
+
     print(f"Endpoint: {endpoint}")
     print(f"Summary:  {endpoint_contents['summary']}")
-    print(f"Parameters:")
+    print("Parameters:")
     for param, details in sorted(endpoint_contents["parameters"].items()):
         print(f"    {param} - {details['value_type']}")
 
@@ -125,8 +126,10 @@ if __name__ == "__main__":
     parser.add_argument("--endpoint", required=False)
 
     args = parser.parse_args()
-    match args.action: # TODO avoid case match because lower python version
-        case "list":
-            list_all_endpoints()
-        case "describe":
-            describe_one_endpoint(args.endpoint)
+    if args.action == "list":  # TODO avoid case match because lower python version
+        list_all_endpoints()
+    elif args.action == "describe":
+        describe_one_endpoint(args.endpoint)
+    else:
+        print(f"{args.action} is not a valid action")
+        print("Try 'list' or 'describe'")
