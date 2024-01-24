@@ -201,106 +201,49 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
-    def get_solar_and_wind_actuals(self, date, end=None, verbose=False):
-        """Returns actual solar and wind load for past and current days"""
-        url = self._shortterm_url_from_date(date)
-        df = pd.read_csv(url)
-        df = self._process_solar_and_wind_load_or_forecast(df, url, use_shortterm=True)
-
-        # Don't include the forecast to avoid confusion
-        df = df.drop(
-            columns=[
-                col
-                for col in ["Wind Forecast MW", "Solar Forecast MW"]
-                if col in df.columns
-            ],
-        )
-
-        now = pd.Timestamp.now(tz=self.default_timezone).floor("5T")
-
-        if date > now:
-            raise ValueError("Actual load not available for future dates")
-
-        if end:
-            return df[df["Interval Start"].between(date, end)]
-
-        return df[df["Interval Start"].dt.date == date.date()]
-
     def get_solar_and_wind_forecast(self, date, end=None, verbose=False):
-        """Returns solar and wind forecast for upcoming days in hourly or 5 minute
-        intervals (depending on how far out the forecast is)
+        """Solar and wind forecast for upcoming days. In 5-minute intervals if end
+        is less than 4 hours from now. Otherwise in hourly intervals.
 
         Returns:
             pd.DataFrame: forecast for current day
         """
-        # Shortterm: System-wide wind and solar forecast data for +4 hours and /
-        # including actual wind and solar resource totals from previous intervals.
-        # OP-STRF-<YEAR><MONTH><DAY><HOUR><MINUTE>.csv
-        # https://portal.spp.org/file-browser-api/download/shortterm-resource-forecast?path=/2024/01/01/00/OP-STRF-202401012300.csv
-        """
-        Interval,GMTInterval,Wind Forecast MW,Actual Wind MW,/
-        Solar Forecast MW,Actual Solar MW
-        01/02/2024 03:00:00,01/02/2024 09:00:00,13107.420,,0.000,
-        01/02/2024 02:55:00,01/02/2024 08:55:00,13186.220,,0.000,
-        01/02/2024 02:50:00,01/02/2024 08:50:00,13265.340,,0.000,
-        01/02/2024 02:45:00,01/02/2024 08:45:00,13342.840,,0.000,
-        """
+        now = pd.Timestamp.now(tz=self.default_timezone)
 
-        # Midterm: System-wide wind and solar forecast data for +7days organized by hour. # noqa
-        # OP-MTRF->YEAR><MONTH><DAY><HOUR><MINUTE>.csv
-        # https://portal.spp.org/file-browser-api/download/midterm-resource-forecast?path=/2024/01/01/OP-MTRF-202401010000.csv
-        """
-        Interval,GMTIntervalEnd,Wind Forecast MW, Solar Forecast MW
-        01/08/2024 02:00:00,01/08/2024 08:00:00,,
-        01/08/2024 01:00:00,01/08/2024 07:00:00,22953.100,0.000
-        01/08/2024 00:00:00,01/08/2024 06:00:00,22497.010,0.000
-        01/07/2024 23:00:00,01/08/2024 05:00:00,21924.430,0.000
-        01/07/2024 22:00:00,01/08/2024 04:00:00,21335.630,0.000
-        """
+        use_shortterm = False
 
-        use_shortterm = True
-        now = pd.Timestamp.now(tz=self.default_timezone).floor("5T")
+        # Only get the shortterm forecast if end is provided and end is less
+        # than 4 hours from now
+        if end:
+            end = utils._handle_date(end, self.default_timezone)
+            use_shortterm = end < now + pd.Timedelta(hours=4)
+            # Files don't exist in the future, so we need to limit the end.
+            end = min(end, now)
 
         if date == "latest":
             date = now
 
-            # Try this time. If file not available, go back 5 minutes
-            url = self._shortterm_url_from_date(date)
+        date = utils._handle_date(date, self.default_timezone)
 
-            try:
-                df = pd.read_csv(url)
-            except ConnectionResetError:
-                url = self._shortterm_url_from_date(now - pd.Timedelta(minutes=5))
-                df = pd.read_csv(url)
+        if use_shortterm:
+            df = self._get_5_min_solar_and_wind_forecast_and_actuals(
+                date.floor("5T"),
+                end,
+                verbose=verbose,
+            )
         else:
+            if date > now + pd.Timedelta(days=7):
+                raise ValueError("Forecast only available for next 7 days")
 
-            now = pd.Timestamp.now(tz=self.default_timezone).floor("5T")
-
-            # Shortterm forecast only goes out 4 hours
-            if date < now + pd.Timedelta(hours=4):
-
-                url = self._shortterm_url_from_date(date)
-
-            # Midterm forecast goes out 7 days, but the url is for the current hour
-            else:
-                use_shortterm = False
-                if date > now + pd.Timedelta(days=7):
-                    raise ValueError("Forecast only available for next 7 days")
-
-                date = min(date, now)
-                url = self._midterm_url_from_date(date)
-
-            df = pd.read_csv(url)
-            df = self._process_solar_and_wind_load_or_forecast(df, url, use_shortterm)
+            df = self._get_hourly_solar_and_wind_forecast(
+                date.floor("H"),
+                end,
+                verbose=verbose,
+            )
 
         # Don't include the actuals to avoid confusion
-        df = df.drop(
-            columns=[
-                col
-                for col in ["Actual Wind MW", "Actual Solar MW"]
-                if col in df.columns
-            ],
-        )
+        cols_to_drop = [col for col in df if "Actual" in col]
+        df = df.drop(columns=cols_to_drop)
 
         if end:
             return df[df["Interval Start"].between(date, end)]
@@ -308,42 +251,113 @@ class SPP(ISOBase):
         # >= because this is a forecast extending into the future
         return df[df["Interval Start"] >= date]
 
-    def _shortterm_url_from_date(self, date):
-        hour = date.hour
-        # The first hour in the URL is 1 after the hour in the filename
-        return BASE_SOLAR_AND_WIND_SHORTTERM_URL + date.strftime(
-            f"/%Y/%m/%d/{hour + 1}/OP-STRF-%Y%m%d{hour}%M.csv",
+    def get_solar_and_wind_actuals(self, date, end=None, verbose=False):
+        """Returns actual solar and wind load for past and current days in
+        5 minute intervals"""
+        now = pd.Timestamp.now(tz=self.default_timezone)
+
+        if date in ["latest", "today"]:
+            date = now
+
+        date = utils._handle_date(date, self.default_timezone)
+        if end:
+            end = utils._handle_date(end, self.default_timezone)
+
+        if date > now:
+            raise ValueError("Actual load not available for future dates")
+
+        df = self._get_5_min_solar_and_wind_forecast_and_actuals(
+            date.floor("5T"),
+            end=end,
+            verbose=verbose,
         )
 
-    def _midterm_url_from_date(self, date):
-        # Explicitly set the minutes to 00.
-        return BASE_SOLAR_AND_WIND_MIDTERM_URL + date.strftime(
-            "/%Y/%m/%d/OP-MTRF-%Y%m%d%H00.csv",
+        # Don't include the forecast to avoid confusion
+        cols_to_drop = [col for col in df if "Forecast" in col]
+
+        df.columns = [col.strip() for col in df.columns]
+
+        df = df.drop(columns=cols_to_drop).dropna(
+            subset=["Actual Wind MW", "Actual Solar MW"],
         )
 
-    def _process_solar_and_wind_load_or_forecast(
+        if end:
+            return df[df["Interval Start"].between(date, end)]
+
+        return df[df["Interval Start"].dt.date == date.date()]
+
+    @support_date_range("HOUR_START")
+    def _get_hourly_solar_and_wind_forecast(self, date, end=None, verbose=False):
+        """System-wide wind and solar forecast data for +7days by hour."""
+        url = self._midterm_solar_and_wind_url_from_date(date)
+
+        df = pd.read_csv(url)
+        df = self._process_solar_and_wind_load_or_forecast(
+            df,
+            url,
+            end_time_col="GMTIntervalEnd",
+        )
+
+        return df
+
+    @support_date_range("5_MIN")
+    def _get_5_min_solar_and_wind_forecast_and_actuals(
         self,
-        df,
-        url,
-        use_shortterm,
         date,
-        end,
+        end=None,
+        verbose=False,
     ):
+        """System-wide wind and solar forecast data for +4 hours in 5-minute intervals.
+        Including actual wind and solar resource totals from previous intervals.
+        """
+        url = self._shortterm_solar_and_wind_url_from_date(date)
+
+        df = pd.read_csv(url)
+        # According to the docs, the end time col should be GMTIntervalEnd, but it's
+        # only GMTInterval in the data
+        df = self._process_solar_and_wind_load_or_forecast(
+            df,
+            url,
+            end_time_col="GMTInterval",
+        )
+
+        return df
+
+    def _process_solar_and_wind_load_or_forecast(self, df, url, end_time_col):
         df = self._handle_market_end_to_interval(
             df,
-            "GMTInterval" if use_shortterm else "GMTIntervalEnd",
+            end_time_col,
             pd.Timedelta(minutes=5),
         )
 
+        # Publish time is only an estimate (we'd have to scrape the page to get the
+        # actual publish time)
         # Generally accurate to within an hour for midterm and 5 mins for shortterm
-        # Publish time is only an estimate
         df["Publish Time"] = pd.Timestamp(url.split("-")[-1].split(".")[0])
+
         df = utils.move_cols_to_front(
             df,
             ["Interval Start", "Interval End", "Publish Time"],
         ).drop(columns=["Time", "Interval"])
 
-        return df
+        return df.sort_values("Interval Start")
+
+    def _shortterm_solar_and_wind_url_from_date(self, date):
+        hour = date.hour
+        padded_hour = str(hour).zfill(2)
+        padded_hour_plus_one = str(hour + 1).zfill(2)
+
+        # The first hour in the URL is 1 after the hour in the filename.
+        # Example 2024/01/01/02 has data for 01/01/2024 01:00:00 - 01/01/2024 01:55:00
+        return BASE_SOLAR_AND_WIND_SHORTTERM_URL + date.strftime(
+            f"/%Y/%m/%d/{padded_hour_plus_one}/OP-STRF-%Y%m%d{padded_hour}%M.csv",
+        )
+
+    def _midterm_solar_and_wind_url_from_date(self, date):
+        # Explicitly set the minutes to 00.
+        return BASE_SOLAR_AND_WIND_MIDTERM_URL + date.strftime(
+            "/%Y/%m/%d/OP-MTRF-%Y%m%d%H00.csv",
+        )
 
     def _handle_market_end_to_interval(self, df, column, interval_duration):
         """Converts market end time to interval end time"""
