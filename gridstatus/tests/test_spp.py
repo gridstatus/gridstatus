@@ -342,6 +342,12 @@ class TestSPP(BaseTestISO):
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
+    """get_solar_and_wind_actuals"""
+    # TODO: Implement
+
+    """get_solar_and_wind_forecast"""
+    # TODO: Implement
+
     """get_status"""
 
     def test_get_status_latest(self):
