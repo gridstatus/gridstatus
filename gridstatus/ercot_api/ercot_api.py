@@ -21,10 +21,13 @@ def hit_ercot_api(
 
     Arguments:
         endpoint: a string representing a specific ERCOT API endpoint.
-            examples: "/np6-345-cd/act_sys_load_by_wzn", "/np6-787-cd/lmp_electrical_bus"
+            examples:
+            - "/np6-345-cd/act_sys_load_by_wzn",
+            - "/np6-787-cd/lmp_electrical_bus"
         page_size: if provided, specifies the number of results to return per page
         max_pages: if provided, will stop paginating after reaching this number.
-            Useful in testing to avoid long-running queries, but may result in incomplete data
+            Useful in testing to avoid long-running queries, but may result in
+            incomplete data.
         api_params: any additional arguments and values to pass along to the endpoint
 
     Raises:
@@ -69,7 +72,7 @@ def hit_ercot_api(
             response = requests.get(urlstring, params=parsed_api_params).json()
 
             if columns is None:
-                # only on first request/iteration: populate columns and update total pages
+                # first request only: populate columns and update total pages
                 columns = [f["name"] for f in response["fields"]]
                 total_pages = response["_meta"]["query"]["totalPages"]
                 # determine number-of-pages denominator for progress bar
@@ -78,7 +81,8 @@ def hit_ercot_api(
                 else:
                     denominator = min(total_pages, max_pages)
                     if denominator < total_pages:
-                        print(f"warning: only retrieving {max_pages} pages out of {total_pages} total")
+                        print(f"warning: only retrieving {max_pages} pages "
+                              f"out of {total_pages} total")
                 progress_bar.total = denominator
                 progress_bar.refresh()
 
@@ -121,7 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("--endpoint", required=False)
 
     args = parser.parse_args()
-    match args.action:
+    match args.action: # TODO avoid case match because lower python version
         case "list":
             list_all_endpoints()
         case "describe":

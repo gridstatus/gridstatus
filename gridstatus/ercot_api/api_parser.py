@@ -42,7 +42,8 @@ its structure is as follows:
         "parameters": {
             parameter_name: {
                 "value_type": a human-readable type like 'timestamp' or 'boolean'
-                "parser": a callable parser, used internally to ensure the correct format is passed to the API
+                "parser": a callable parser, used internally to ensure the correct
+                    format is passed to the API
             }
         }
     }
@@ -86,7 +87,7 @@ def _parse_all_endpoints(apijson: dict) -> dict:
 
 
 def _parse_endpoint_contents(contents: dict) -> dict:
-    """Unpacks useful content from the endpoint docs, including summary and parameters"""
+    """Unpacks parameter info and a summary from the endpoint docs"""
     results = {
         "summary": contents["get"]["summary"],
         "parameters": {}
@@ -102,9 +103,14 @@ def _parse_endpoint_contents(contents: dict) -> dict:
 
 
 def _parse_schema(schema: dict) -> tuple[str, callable]:
-    """Determines the type and selects a parser for a given parameter, using its schema dict"""
+    """Selects a parser method for a given parameter, using its schema dict
+    
+    This makes life easier on the caller by ensuring that diverse but valid
+        user inputs are parsed correctly into the string format expected by
+        the ERCOT API, i.e. "yyyy-MM-ddTH24:mm:ss" for timestamps
+    """
     if schema["type"] == "string":
-        match schema["format"]:
+        match schema["format"]: # TODO avoid case match because lower python version
             case datetime_formats.TIMESTAMP:
                 return ("timestamp", _timestamp_parser)
             case datetime_formats.DATE:
@@ -121,7 +127,8 @@ def _parse_schema(schema: dict) -> tuple[str, callable]:
         case "number":
             return ("float", lambda f: float(f))
         case _:
-            raise TypeError(f"unexpected schema type {schema['type']} and format {schema['format']}")
+            raise TypeError(f"unexpected schema type {schema['type']} 
+                            and format {schema['format']}")
 
 
 def get_endpoints_map() -> dict:

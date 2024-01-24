@@ -1,7 +1,8 @@
 import datetime
+
 import pytest
 
-from gridstatus.ercot_api.api_parser import get_endpoints_map, VALID_VALUE_TYPES
+from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES, get_endpoints_map
 from gridstatus.ercot_api.ercot_api import hit_ercot_api
 
 
@@ -55,11 +56,11 @@ def test_hit_ercot_api():
     """
     First we test that entering a bad endpoint results in a keyerror
     """
-    with pytest.raises(KeyError) as bad_endpoint:
+    with pytest.raises(KeyError) as _:
         hit_ercot_api("just a real bad endpoint right here")
 
     """
-    First a happy path test, using "actual system load by weather zone" endpoint.
+    Now a happy path test, using "actual system load by weather zone" endpoint.
     Starting from two days ago should result in 48 hourly values, and there are
         12 columns in the resulting dataframe.
     We are also testing here that datetime objects are correctly parsed into
