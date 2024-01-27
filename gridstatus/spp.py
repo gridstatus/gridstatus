@@ -201,7 +201,14 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
-    def get_solar_and_wind_load_forecast(self, date, end=None, verbose=False):
+    def solar_and_wind_load_forecast_hourly(self, date, end=None, verbose=False):
+        now = pd.Timestamp.now(tz=self.default_timezone)
+
+        if end:
+            end = utils._handle_date(end, self.default_timezone)
+        date = utils._handle_date(date, self.default_timezone)
+
+    def get_solar_and_wind_load_forecast_5_min(self, date, end=None, verbose=False):
         """Solar and wind forecast for upcoming days. In 5-minute intervals if end
         is less than 4 hours from now. Otherwise in hourly intervals.
 
@@ -210,13 +217,7 @@ class SPP(ISOBase):
         """
         now = pd.Timestamp.now(tz=self.default_timezone)
 
-        use_shortterm = False
-
-        # Only get the shortterm forecast if end is provided and end is less
-        # than 4 hours from now
         if end:
-            end = utils._handle_date(end, self.default_timezone)
-            use_shortterm = end < now + pd.Timedelta(hours=4)
             # Files don't exist in the future, so we need to limit the end.
             end = min(end, now)
 
@@ -225,23 +226,11 @@ class SPP(ISOBase):
 
         date = utils._handle_date(date, self.default_timezone)
 
-        if use_shortterm:
-            df = self._get_5_min_solar_and_wind_forecast_and_actuals(
-                date.floor("5T"),
-                end,
-                verbose=verbose,
-            )
-        else:
-            if date > now + pd.Timedelta(days=7):
-                raise ValueError("Forecast only available for next 7 days")
-
-            df = self._get_hourly_solar_and_wind_forecast(
-                date.floor("H"),
-                end,
-                verbose=verbose,
-            )
-
-        df.columns = [col.strip() for col in df.columns]
+        df = self._get_5_min_solar_and_wind_forecast_and_actuals(
+            date.floor("5T"),
+            end,
+            verbose=verbose,
+        )
 
         # Don't include the actuals to avoid confusion
         cols_to_drop = [col for col in df if "Actual" in col]
@@ -342,7 +331,7 @@ class SPP(ISOBase):
 
         return df
 
-    def _process_solar_and_wind_load_or_forecast(
+    def _post_process_solar_and_wind_load_or_forecast(
         self,
         df,
         url,
@@ -364,6 +353,8 @@ class SPP(ISOBase):
             df,
             ["Interval Start", "Interval End", "Publish Time"],
         ).drop(columns=["Time", "Interval"])
+
+        df.columns = [col.strip() for col in df.columns]
 
         return df.sort_values(["Interval Start", "Publish Time"])
 
