@@ -70,9 +70,13 @@ def hit_ercot_api(
             parsed_api_params["page"] = current_page
             response = requests.get(urlstring, params=parsed_api_params).json()
 
+            # this section runs on first request/page only
             if columns is None:
-                # first request only: populate columns and update total pages
                 columns = [f["name"] for f in response["fields"]]
+                # ensure that there is data before proceeding
+                # note: this logic may be vulnerable to API changes!
+                if "data" not in response or "_meta" not in response:
+                    break
                 total_pages = response["_meta"]["totalPages"]
                 # determine number-of-pages denominator for progress bar
                 if max_pages is None:
@@ -90,6 +94,9 @@ def hit_ercot_api(
             data_results.extend(response["data"])
             progress_bar.update(1)
             current_page += 1
+
+    if not data_results:
+        print("No data results returned, try different query params")
 
     # prepare and return dataframe of results
     return pd.DataFrame(
