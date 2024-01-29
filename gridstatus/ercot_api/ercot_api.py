@@ -46,9 +46,7 @@ def hit_ercot_api(
     urlstring = f"{BASE_URL}{endpoint}"
 
     # determine parameters and types for endpoint, validate and parse api_params
-    parsed_api_params = {
-        "size": page_size
-    }
+    parsed_api_params = {"size": page_size}
     for arg, value in api_params.items():
         parser = endpoint_contents["parameters"].get(arg, {}).get("parser_method")
         if parser is not None:
