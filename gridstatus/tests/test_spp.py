@@ -9,6 +9,9 @@ from gridstatus.tests.decorators import with_markets
 class TestSPP(BaseTestISO):
     iso = SPP()
 
+    def now(self):
+        return pd.Timestamp.now(tz=self.iso.default_timezone)
+
     """get_fuel_mix"""
 
     @pytest.mark.skip(reason="Not Applicable")
@@ -344,81 +347,111 @@ class TestSPP(BaseTestISO):
 
     """get_solar_and_wind_forecast"""
 
-    @pytest.mark.parametrize(
-        "forecast_type",
-        [
-            "MID_TERM",
-            "SHORT_TERM",
-        ],
-    )
-    def test_get_solar_and_wind_forecast_today(self, forecast_type):
-        method = getattr(
-            self.iso,
-            f"get_solar_and_wind_forecast_{forecast_type.lower()}",
-        )
-        df = method(date="today")
+    def test_get_solar_and_wind_forecast_short_term_today(self):
+        df = self.iso.get_solar_and_wind_forecast_short_term(date="today")
 
-        assert df["Interval Start"].min() <= pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        )
-
-        time_in_future = (
-            pd.Timedelta(days=5)
-            if forecast_type == "MID_TERM"
-            else pd.Timedelta(hours=3)
-        )
+        now = self.iso.now()
 
         assert (
-            df["Interval Start"].max()
-            >= pd.Timestamp.now(tz=self.iso.default_timezone) + time_in_future
+            df["Publish Time"].unique() == (now - pd.Timedelta(minutes=2)).floor("5T")
+        ).all()
+
+        assert df["Interval Start"].min() <= now
+
+        time_in_future = pd.Timedelta(hours=3)
+
+        assert df["Interval Start"].max() >= now + time_in_future
+
+        self._check_solar_and_wind_forecast(df, "SHORT_TERM")
+
+    def test_get_solar_and_wind_forecast_mid_term_today(self):
+        df = self.iso.get_solar_and_wind_forecast_mid_term(date="today")
+
+        now = self.iso.now()
+
+        assert (
+            df["Publish Time"].unique() == (now - pd.Timedelta(minutes=10)).floor("H")
+        ).all()
+
+        assert df["Interval Start"].min() <= now
+
+        time_in_future = pd.Timedelta(days=5)
+
+        assert df["Interval Start"].max() >= now + time_in_future
+
+        self._check_solar_and_wind_forecast(df, "MID_TERM")
+
+    def test_get_solar_and_wind_forecast_short_term_latest(self):
+        assert self.iso.get_solar_and_wind_forecast_short_term(date="latest").equals(
+            self.iso.get_solar_and_wind_forecast_short_term(date="today"),
         )
 
-        assert df["Publish Time"].nunique() == 1
-
-        self._check_solar_and_wind_forecast(df, forecast_type)
-
-    @pytest.mark.parametrize("forecast_type", ["MID_TERM", "SHORT_TERM"])
-    def test_get_solar_and_wind_forecast_latest(self, forecast_type):
-        method = getattr(
-            self.iso,
-            f"get_solar_and_wind_forecast_{forecast_type.lower()}",
-        )
-        assert method("latest").equals(method("today"))
-
-    @pytest.mark.parametrize("forecast_type", ["MID_TERM", "SHORT_TERM"])
-    def test_get_solar_and_wind_forecast_historical(self, forecast_type):
-        method = getattr(
-            self.iso,
-            f"get_solar_and_wind_forecast_{forecast_type.lower()}",
+    def test_get_solar_and_wind_forecast_mid_term_latest(self):
+        assert self.iso.get_solar_and_wind_forecast_mid_term(date="latest").equals(
+            self.iso.get_solar_and_wind_forecast_mid_term(date="today"),
         )
 
-        three_days_ago = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(
-            days=3,
-        )
+    def test_get_solar_and_wind_forecast_short_term_historical(self):
+        now = self.iso.now()
 
-        df = method(date=three_days_ago)
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
 
-        time_in_future = (
-            pd.Timedelta(days=5)
-            if forecast_type == "MID_TERM"
-            else pd.Timedelta(hours=3)
-        )
+        df = self.iso.get_solar_and_wind_forecast_short_term(date=three_days_ago)
+
+        assert (df["Publish Time"].unique() == three_days_ago).all()
 
         # Each file contains data going back into the past
         assert df["Interval Start"].min() <= three_days_ago
+        assert df["Interval Start"].max() >= three_days_ago + pd.Timedelta(hours=3)
 
-        # Should be 7 days of forecast
-        assert df["Interval Start"].max() >= three_days_ago + time_in_future
+        self._check_solar_and_wind_forecast(df, "SHORT_TERM")
 
-        assert df["Publish Time"].nunique() == 1
+    def test_get_solar_and_wind_forecast_mid_term_historical(self):
+        now = self.iso.now()
 
-        self._check_solar_and_wind_forecast(df, forecast_type)
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
 
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_get_solar_and_wind_forecast_historical_with_date_range(self):
-        pass
+        df = self.iso.get_solar_and_wind_forecast_mid_term(date=three_days_ago)
+
+        assert (df["Publish Time"].unique() == three_days_ago).all()
+
+        # Each file contains data going back into the past
+        assert df["Interval Start"].min() <= three_days_ago
+        assert df["Interval Start"].max() >= three_days_ago + pd.Timedelta(days=6)
+
+        self._check_solar_and_wind_forecast(df, "MID_TERM")
+
+    def test_get_solar_and_wind_forecast_short_term_historical_with_date_range(self):
+        now = self.iso.now()
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+        three_days_ago_0345 = three_days_ago + pd.Timedelta(hours=3, minutes=45)
+
+        df = self.iso.get_solar_and_wind_forecast_short_term(
+            three_days_ago,
+            three_days_ago_0345,
+        )
+
+        assert df["Publish Time"].min() == three_days_ago
+        assert df["Publish Time"].max() == three_days_ago_0345 - pd.Timedelta(minutes=5)
+
+        self._check_solar_and_wind_forecast(df, "SHORT_TERM")
+
+    def test_get_solar_and_wind_forecast_mid_term_historical_with_date_range(self):
+        now = self.iso.now()
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+        three_days_ago_0345 = three_days_ago + pd.Timedelta(hours=3, minutes=45)
+
+        df = self.iso.get_solar_and_wind_forecast_mid_term(
+            three_days_ago,
+            three_days_ago_0345,
+        )
+
+        assert df["Publish Time"].min() == three_days_ago
+        assert df["Publish Time"].max() == three_days_ago_0345 - pd.Timedelta(
+            minutes=45,
+        )
+
+        self._check_solar_and_wind_forecast(df, "MID_TERM")
 
     """get_status"""
 
@@ -548,9 +581,13 @@ class TestSPP(BaseTestISO):
             expected_cols -= {"Actual Wind MW", "Actual Solar MW"}
             interval = pd.Timedelta(hours=1)
 
+        expected_cols.add("Forecast Type")
+
         assert set(df.columns.tolist()) == expected_cols
 
         assert (df["Wind Forecast MW"] >= 0).all()
         assert (df["Solar Forecast MW"] >= 0).all()
 
         assert (df["Interval End"] - df["Interval Start"] == interval).all()
+
+        assert (df["Forecast Type"] == forecast_type).all()

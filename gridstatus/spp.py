@@ -86,6 +86,10 @@ class SPP(ISOBase):
         LOCATION_TYPE_SETTLEMENT_LOCATION,
     ]
 
+    @staticmethod
+    def now():
+        return pd.Timestamp.now(tz=SPP().default_timezone)
+
     def get_fuel_mix(self, date, detailed=False, verbose=False):
         """Get fuel mix
 
@@ -201,7 +205,7 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
-    def get_solar_and_wind_forecast_short_term(self, date, verbose=False):
+    def get_solar_and_wind_forecast_short_term(self, date, end=None, verbose=False):
         """
         Returns solar and wind generation forecast for +4 hours in 5 minute intervals.
         Include actuals for past day in 5 minute intervals.
@@ -213,53 +217,42 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: forecast as dataframe.
         """
-        # The SHORT_TERM forecast is delayed up to 2 minutes.
+        # The short_term forecast is delayed up to 2 minutes.
         buffer_minutes = 2
 
-        if date in ["latest", "today"]:
-            date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
-                minutes=buffer_minutes,
-            )
-
-        return self._get_solar_and_wind_forecast_short_term(date, verbose=verbose)
-
-    def get_solar_and_wind_forecast_mid_term(self, date, verbose=False):
-        """
-        Returns solar and wind generation forecast for +7 days in hourly intervals.
-
-        Arguments:
-            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
-            verbose (bool): print info
-
-        Returns:
-            pd.DataFrame: forecast as dataframe.
-        """
-        # The MID_TERM forecast is delayed up to 10 minutes.
-        buffer_minutes = 10
+        now = self.now() - pd.Timedelta(minutes=buffer_minutes)
 
         if date in ["latest", "today"]:
-            date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
-                minutes=buffer_minutes,
-            )
+            date = now
 
-        return self._get_solar_and_wind_forecast_mid_term(date, verbose=verbose)
+        date = utils._handle_date(date, self.default_timezone)
+        date = min(now, date)
 
-    def _get_solar_and_wind_forecast_mid_term(self, date, verbose=False):
-        """System-wide wind and solar forecast data for +7days by hour."""
-        url = self._mid_term_solar_and_wind_url(date.floor("H"))
+        if end:
+            end = utils._handle_date(end, self.default_timezone)
+            # Make sure we don't request files that don't exist yet
+            end = min(now, end)
 
-        df = pd.read_csv(url)
-
-        df = self._post_process_solar_and_wind_forecast(
-            df,
-            url,
-            end_time_col="GMTIntervalEnd",
-            interval_duration=pd.Timedelta(hours=1),
+        df = self._retrieve_solar_and_wind_forecast_short_term(
+            date,
+            end,
+            verbose,
         )
+
+        df["Forecast Type"] = "SHORT_TERM"
+
+        if end:
+            return df[df["Publish Time"].between(date, end)]
 
         return df
 
-    def _get_solar_and_wind_forecast_short_term(self, date, verbose=False):
+    @support_date_range("5_MIN")
+    def _retrieve_solar_and_wind_forecast_short_term(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
         """Solar and wind forecast for +4 hours by 5 minute interval."""
         url = self._short_term_solar_and_wind_url(date.floor("5T"))
 
@@ -276,6 +269,57 @@ class SPP(ISOBase):
 
         return df
 
+    def get_solar_and_wind_forecast_mid_term(self, date, end=None, verbose=False):
+        """
+        Returns solar and wind generation forecast for +7 days in hourly intervals.
+
+        Arguments:
+            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
+            verbose (bool): print info
+
+        Returns:
+            pd.DataFrame: forecast as dataframe.
+        """
+        # The MID_TERM forecast is delayed up to 10 minutes.
+        buffer_minutes = 10
+
+        now = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        if date in ["latest", "today"]:
+            date = now
+
+        date = utils._handle_date(date, self.default_timezone)
+        date = min(now, date)
+
+        if end:
+            end = utils._handle_date(end, self.default_timezone)
+            # Make sure we don't request files that don't exist yet
+            end = min(now, end)
+
+        df = self._retrieve_solar_and_wind_forecast_mid_term(date, end, verbose)
+        df["Forecast Type"] = "MID_TERM"
+
+        if end:
+            return df[df["Publish Time"].between(date, end)]
+
+        return df
+
+    @support_date_range("HOUR_START")
+    def _retrieve_solar_and_wind_forecast_mid_term(self, date, end=None, verbose=False):
+        """System-wide wind and solar forecast data for +7days by hour."""
+        url = self._mid_term_solar_and_wind_url(date.floor("H"))
+
+        df = pd.read_csv(url)
+
+        df = self._post_process_solar_and_wind_forecast(
+            df,
+            url,
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
+        return df
+
     def _post_process_solar_and_wind_forecast(
         self,
         df,
@@ -287,7 +331,10 @@ class SPP(ISOBase):
 
         # Assume the publish time is in the name of the file. There are different
         # times on the webpage, but these could be the posting time.
-        df["Publish Time"] = pd.Timestamp(url.split("-")[-1].split(".")[0])
+        df["Publish Time"] = pd.Timestamp(
+            url.split("-")[-1].split(".")[0],
+            tz=self.default_timezone,
+        )
 
         df.columns = [col.strip() for col in df.columns]
 
