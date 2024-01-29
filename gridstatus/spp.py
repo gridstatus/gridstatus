@@ -300,7 +300,9 @@ class SPP(ISOBase):
             .sort_values(["Interval Start", "Publish Time"])
         )
 
-        return df.dropna(subset=["Wind Forecast MW", "Solar Forecast MW"])
+        return df.dropna(subset=["Wind Forecast MW", "Solar Forecast MW"]).reset_index(
+            drop=True,
+        )
 
     def _short_term_solar_and_wind_url(self, date):
         hour = date.hour
