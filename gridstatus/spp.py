@@ -15,10 +15,10 @@ MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
 FILE_BROWSER_DOWNLOAD_URL = "https://portal.spp.org/file-browser-api/download"
 
-BASE_SOLAR_AND_WIND_SHORTTERM_URL = (
+BASE_SOLAR_AND_WIND_SHORT_TERM_URL = (
     f"{FILE_BROWSER_DOWNLOAD_URL}/shortterm-resource-forecast?path="
 )
-BASE_SOLAR_AND_WIND_MIDTERM_URL = (
+BASE_SOLAR_AND_WIND_MID_TERM_URL = (
     f"{FILE_BROWSER_DOWNLOAD_URL}/midterm-resource-forecast?path="
 )
 
@@ -201,104 +201,43 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
-    def solar_and_wind_load_forecast_hourly(self, date, end=None, verbose=False):
-        now = pd.Timestamp.now(tz=self.default_timezone)
+    def get_solar_and_wind_forecast(
+        self,
+        date,
+        forecast_type="MID_TERM",
+        verbose=False,
+    ):
+        """Returns solar and wind generation forecast either for +4 hours in
+        5 minute intervals or +7 days in hourly intervals. +4 hour forecasts also
+        include actuals for past day in 5 minute intervals.
 
-        if end:
-            end = utils._handle_date(end, self.default_timezone)
-        date = utils._handle_date(date, self.default_timezone)
-
-    def get_solar_and_wind_load_forecast_5_min(self, date, end=None, verbose=False):
-        """Solar and wind forecast for upcoming days. In 5-minute intervals if end
-        is less than 4 hours from now. Otherwise in hourly intervals.
+        Arguments:
+            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
+            forecast_type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is
+                every five minutes for 4 hours.
+            verbose (bool): print info
 
         Returns:
-            pd.DataFrame: forecast for current day
+            pd.DataFrame: forecast as dataframe.
         """
-        now = pd.Timestamp.now(tz=self.default_timezone)
-
-        if end:
-            # Files don't exist in the future, so we need to limit the end.
-            end = min(end, now)
-
-        if date == "latest":
-            date = now
-
-        date = utils._handle_date(date, self.default_timezone)
-
-        df = self._get_5_min_solar_and_wind_forecast_and_actuals(
-            date.floor("5T"),
-            end,
-            verbose=verbose,
-        )
-
-        # Don't include the actuals to avoid confusion
-        cols_to_drop = [col for col in df if "Actual" in col]
-        df = df.drop(columns=cols_to_drop).dropna(
-            subset=["Wind Forecast MW", "Solar Forecast MW"],
-        )
-
-        if end:
-            return df[df["Interval Start"].between(date, end)]
-
-        # >= because this is a forecast extending into the future
-        return df[df["Interval Start"] >= date]
-
-    def get_solar_and_wind_load(self, date, end=None, verbose=False):
-        """Returns actual solar and wind load for past and current days in
-        5 minute intervals"""
-        now = pd.Timestamp.now(tz=self.default_timezone)
-        end_override = None
-
         if date in ["latest", "today"]:
-            date = now
+            date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(minutes=10)
 
-        date = utils._handle_date(date, self.default_timezone)
-
-        if end:
-            end = utils._handle_date(end, self.default_timezone)
-            # Add a "buffer" to the end date to ensure there's data
-            end_override = end + pd.Timedelta(minutes=15)
-
-        if date > now:
-            raise ValueError("Actual load not available for future dates")
-
-        # For past days, set the date to the first interval on the next day to
-        # ensure there's data for the complete day
-        if date.date() < now.date() and not end:
-            date = date.normalize() + pd.Timedelta(days=1, minutes=5)
-
-        df = self._get_5_min_solar_and_wind_forecast_and_actuals(
-            date.floor("5T"),
-            end=end or end_override,
-            verbose=verbose,
-        )
-
-        df.columns = [col.strip() for col in df.columns]
-
-        # Drop duplicated intervals, keeping the most recent Publish Time values.
-        # The actual values should be the same at each interval
-        df = df.drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
-
-        # Don't include the forecast to avoid confusion
-        cols_to_drop = [col for col in df if "Forecast" in col]
-
-        df = df.drop(columns=cols_to_drop + ["Publish Time"]).dropna(
-            subset=["Actual Wind MW", "Actual Solar MW"],
-        )
-
-        if end:
-            return df[df["Interval Start"].between(date, end)]
-
-        return df
+        if forecast_type == "MID_TERM":
+            return self._get_solar_and_wind_forecast_hourly(date, verbose=verbose)
+        elif forecast_type == "SHORT_TERM":
+            return self._get_solar_and_wind_forecast_5_min(date, verbose=verbose)
+        else:
+            raise RuntimeError("Invalid forecast type")
 
     @support_date_range("HOUR_START")
-    def _get_hourly_solar_and_wind_forecast(self, date, end=None, verbose=False):
+    def _get_solar_and_wind_forecast_hourly(self, date, verbose=False):
         """System-wide wind and solar forecast data for +7days by hour."""
-        url = self._midterm_solar_and_wind_url_from_date(date)
+        url = self._mid_term_solar_and_wind_url(date.floor("H"))
 
         df = pd.read_csv(url)
-        df = self._process_solar_and_wind_load_or_forecast(
+
+        df = self._post_process_solar_and_wind_forecast(
             df,
             url,
             end_time_col="GMTIntervalEnd",
@@ -308,21 +247,15 @@ class SPP(ISOBase):
         return df
 
     @support_date_range("5_MIN")
-    def _get_5_min_solar_and_wind_forecast_and_actuals(
-        self,
-        date,
-        end=None,
-        verbose=False,
-    ):
-        """System-wide wind and solar forecast data for +4 hours in 5-minute intervals.
-        Including actual wind and solar resource totals from previous intervals.
-        """
-        url = self._shortterm_solar_and_wind_url_from_date(date)
+    def _get_solar_and_wind_forecast_5_min(self, date, verbose=False):
+        """Solar and wind forecast for +4 hours by 5 minute interval."""
+        url = self._short_term_solar_and_wind_url(date.floor("5T"))
 
         df = pd.read_csv(url)
+
         # According to the docs, the end time col should be GMTIntervalEnd, but it's
         # only GMTInterval in the data
-        df = self._process_solar_and_wind_load_or_forecast(
+        df = self._post_process_solar_and_wind_forecast(
             df,
             url,
             end_time_col="GMTInterval",
@@ -331,47 +264,46 @@ class SPP(ISOBase):
 
         return df
 
-    def _post_process_solar_and_wind_load_or_forecast(
+    def _post_process_solar_and_wind_forecast(
         self,
         df,
         url,
         end_time_col,
         interval_duration,
     ):
-        df = self._handle_market_end_to_interval(
-            df,
-            end_time_col,
-            interval_duration,
-        )
+        df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
-        # Publish time is only an estimate (we'd have to scrape the page to get the
-        # actual publish time)
-        # Generally accurate to within an hour for midterm and 5 mins for shortterm
+        # Assume the publish time is in the name of the file. There are different
+        # times on the webpage, but these could be the posting time.
         df["Publish Time"] = pd.Timestamp(url.split("-")[-1].split(".")[0])
-
-        df = utils.move_cols_to_front(
-            df,
-            ["Interval Start", "Interval End", "Publish Time"],
-        ).drop(columns=["Time", "Interval"])
 
         df.columns = [col.strip() for col in df.columns]
 
-        return df.sort_values(["Interval Start", "Publish Time"])
+        df = (
+            utils.move_cols_to_front(
+                df,
+                ["Interval Start", "Interval End", "Publish Time"],
+            )
+            .drop(columns=["Time", "Interval"])
+            .sort_values(["Interval Start", "Publish Time"])
+        )
 
-    def _shortterm_solar_and_wind_url_from_date(self, date):
+        return df.dropna(subset=["Wind Forecast MW", "Solar Forecast MW"])
+
+    def _short_term_solar_and_wind_url(self, date):
         hour = date.hour
         padded_hour = str(hour).zfill(2)
         padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
 
         # The first hour in the URL is 1 after the hour in the filename.
         # Example 2024/01/01/02 has data for 01/01/2024 01:00:00 - 01/01/2024 01:55:00
-        return BASE_SOLAR_AND_WIND_SHORTTERM_URL + date.strftime(
+        return BASE_SOLAR_AND_WIND_SHORT_TERM_URL + date.strftime(
             f"/%Y/%m/%d/{padded_hour_plus_one}/OP-STRF-%Y%m%d{padded_hour}%M.csv",
         )
 
-    def _midterm_solar_and_wind_url_from_date(self, date):
+    def _mid_term_solar_and_wind_url(self, date):
         # Explicitly set the minutes to 00.
-        return BASE_SOLAR_AND_WIND_MIDTERM_URL + date.strftime(
+        return BASE_SOLAR_AND_WIND_MID_TERM_URL + date.strftime(
             "/%Y/%m/%d/OP-MTRF-%Y%m%d%H00.csv",
         )
 
