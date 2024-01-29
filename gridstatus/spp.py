@@ -220,8 +220,14 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: forecast as dataframe.
         """
+        # The MID_TERM forecast is delayed up to 10 minutes. The SHORT_TERM forecast
+        # is delayed up to 2 minutes.
+        buffer_minutes = 10 if forecast_type == "MID_TERM" else 2
+
         if date in ["latest", "today"]:
-            date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(minutes=10)
+            date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
+                minutes=buffer_minutes,
+            )
 
         if forecast_type == "MID_TERM":
             return self._get_solar_and_wind_forecast_hourly(date, verbose=verbose)
@@ -230,7 +236,6 @@ class SPP(ISOBase):
         else:
             raise RuntimeError("Invalid forecast type")
 
-    @support_date_range("HOUR_START")
     def _get_solar_and_wind_forecast_hourly(self, date, verbose=False):
         """System-wide wind and solar forecast data for +7days by hour."""
         url = self._mid_term_solar_and_wind_url(date.floor("H"))
@@ -246,7 +251,6 @@ class SPP(ISOBase):
 
         return df
 
-    @support_date_range("5_MIN")
     def _get_solar_and_wind_forecast_5_min(self, date, verbose=False):
         """Solar and wind forecast for +4 hours by 5 minute interval."""
         url = self._short_term_solar_and_wind_url(date.floor("5T"))
