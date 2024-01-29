@@ -352,10 +352,11 @@ class TestSPP(BaseTestISO):
         ],
     )
     def test_get_solar_and_wind_forecast_today(self, forecast_type):
-        df = self.iso.get_solar_and_wind_forecast(
-            date="today",
-            forecast_type=forecast_type,
+        method = getattr(
+            self.iso,
+            f"get_solar_and_wind_forecast_{forecast_type.lower()}",
         )
+        df = method(date="today")
 
         assert df["Interval Start"].min() <= pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -378,25 +379,26 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.parametrize("forecast_type", ["MID_TERM", "SHORT_TERM"])
     def test_get_solar_and_wind_forecast_latest(self, forecast_type):
-        assert self.iso.get_solar_and_wind_forecast(
-            "latest",
-            forecast_type=forecast_type,
-        ).equals(
-            self.iso.get_solar_and_wind_forecast("today", forecast_type=forecast_type),
+        method = getattr(
+            self.iso,
+            f"get_solar_and_wind_forecast_{forecast_type.lower()}",
         )
+        assert method("latest").equals(method("today"))
 
     @pytest.mark.parametrize("forecast_type", ["MID_TERM", "SHORT_TERM"])
     def test_get_solar_and_wind_forecast_historical(self, forecast_type):
+        method = getattr(
+            self.iso,
+            f"get_solar_and_wind_forecast_{forecast_type.lower()}",
+        )
+
         three_days_ago = pd.Timestamp.now(
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(
             days=3,
         )
 
-        df = self.iso.get_solar_and_wind_forecast(
-            date=three_days_ago,
-            forecast_type=forecast_type,
-        )
+        df = method(date=three_days_ago)
 
         time_in_future = (
             pd.Timedelta(days=5)

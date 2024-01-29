@@ -201,42 +201,50 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
-    def get_solar_and_wind_forecast(
-        self,
-        date,
-        forecast_type="MID_TERM",
-        verbose=False,
-    ):
-        """Returns solar and wind generation forecast either for +4 hours in
-        5 minute intervals or +7 days in hourly intervals. +4 hour forecasts also
-        include actuals for past day in 5 minute intervals.
+    def get_solar_and_wind_forecast_short_term(self, date, verbose=False):
+        """
+        Returns solar and wind generation forecast for +4 hours in 5 minute intervals.
+        Include actuals for past day in 5 minute intervals.
 
         Arguments:
             date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
-            forecast_type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is
-                every five minutes for 4 hours.
             verbose (bool): print info
 
         Returns:
             pd.DataFrame: forecast as dataframe.
         """
-        # The MID_TERM forecast is delayed up to 10 minutes. The SHORT_TERM forecast
-        # is delayed up to 2 minutes.
-        buffer_minutes = 10 if forecast_type == "MID_TERM" else 2
+        # The SHORT_TERM forecast is delayed up to 2 minutes.
+        buffer_minutes = 2
 
         if date in ["latest", "today"]:
             date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
                 minutes=buffer_minutes,
             )
 
-        if forecast_type == "MID_TERM":
-            return self._get_solar_and_wind_forecast_hourly(date, verbose=verbose)
-        elif forecast_type == "SHORT_TERM":
-            return self._get_solar_and_wind_forecast_5_min(date, verbose=verbose)
-        else:
-            raise RuntimeError("Invalid forecast type")
+        return self._get_solar_and_wind_forecast_short_term(date, verbose=verbose)
 
-    def _get_solar_and_wind_forecast_hourly(self, date, verbose=False):
+    def get_solar_and_wind_forecast_mid_term(self, date, verbose=False):
+        """
+        Returns solar and wind generation forecast for +7 days in hourly intervals.
+
+        Arguments:
+            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
+            verbose (bool): print info
+
+        Returns:
+            pd.DataFrame: forecast as dataframe.
+        """
+        # The MID_TERM forecast is delayed up to 10 minutes.
+        buffer_minutes = 10
+
+        if date in ["latest", "today"]:
+            date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
+                minutes=buffer_minutes,
+            )
+
+        return self._get_solar_and_wind_forecast_mid_term(date, verbose=verbose)
+
+    def _get_solar_and_wind_forecast_mid_term(self, date, verbose=False):
         """System-wide wind and solar forecast data for +7days by hour."""
         url = self._mid_term_solar_and_wind_url(date.floor("H"))
 
@@ -251,7 +259,7 @@ class SPP(ISOBase):
 
         return df
 
-    def _get_solar_and_wind_forecast_5_min(self, date, verbose=False):
+    def _get_solar_and_wind_forecast_short_term(self, date, verbose=False):
         """Solar and wind forecast for +4 hours by 5 minute interval."""
         url = self._short_term_solar_and_wind_url(date.floor("5T"))
 
