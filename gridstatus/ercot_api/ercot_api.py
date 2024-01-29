@@ -12,7 +12,7 @@ BASE_URL = "https://api.ercot.com/api/public-reports"
 
 def hit_ercot_api(
     endpoint: str,
-    page_size: Optional[int] = None,
+    page_size: int = 1000,
     max_pages: Optional[int] = None,
     **api_params,
 ) -> pd.DataFrame:
@@ -23,7 +23,8 @@ def hit_ercot_api(
             examples:
             - "/np6-345-cd/act_sys_load_by_wzn",
             - "/np6-787-cd/lmp_electrical_bus"
-        page_size: if provided, specifies the number of results to return per page
+        page_size: specifies the number of results to return per page, defaulting
+            to 1000 (the ERCOT API default).
         max_pages: if provided, will stop paginating after reaching this number.
             Useful in testing to avoid long-running queries, but may result in
             incomplete data.
@@ -45,13 +46,13 @@ def hit_ercot_api(
     urlstring = f"{BASE_URL}{endpoint}"
 
     # determine parameters and types for endpoint, validate and parse api_params
-    parsed_api_params = {}
+    parsed_api_params = {
+        "size": page_size
+    }
     for arg, value in api_params.items():
         parser = endpoint_contents["parameters"].get(arg, {}).get("parser_method")
         if parser is not None:
             parsed_api_params[arg] = parser(value)
-    if page_size is not None:
-        parsed_api_params["size"] = page_size
 
     # make requests, paginating as needed
     current_page = 1
