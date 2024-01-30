@@ -237,6 +237,10 @@ class SPP(ISOBase):
         verbose=False,
     ):
         """Solar and wind forecast for +4 hours by 5 minute interval."""
+        # Files do not exist in the future
+        if date > self.now():
+            return
+
         url = self._short_term_solar_and_wind_url(date.floor("5T"))
 
         df = pd.read_csv(url)
@@ -277,6 +281,9 @@ class SPP(ISOBase):
     @support_date_range("HOUR_START")
     def _retrieve_solar_and_wind_forecast_mid_term(self, date, end=None, verbose=False):
         """System-wide wind and solar forecast data for +7days by hour."""
+        if date > self.now():
+            return
+
         url = self._mid_term_solar_and_wind_url(date.floor("H"))
 
         df = pd.read_csv(url)

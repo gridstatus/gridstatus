@@ -352,9 +352,8 @@ class TestSPP(BaseTestISO):
 
         now = self.iso.now()
 
-        assert (
-            df["Publish Time"].unique() == (now - pd.Timedelta(minutes=2)).floor("5T")
-        ).all()
+        assert df["Publish Time"].min() == now.normalize()
+        assert df["Publish Time"].max() == (now).floor("5T")
 
         assert df["Interval Start"].min() <= now
 
@@ -364,14 +363,24 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "SHORT_TERM")
 
+    def test_get_solar_and_wind_forecast_short_term_latest(self):
+        latest = self.iso.get_solar_and_wind_forecast_short_term(date="latest")
+
+        # Single publish time
+        assert (
+            latest["Publish Time"]
+            == (self.iso.now() - pd.Timedelta(minutes=2)).floor("5T")
+        ).all()
+
+        self._check_solar_and_wind_forecast(latest, "SHORT_TERM")
+
     def test_get_solar_and_wind_forecast_mid_term_today(self):
         df = self.iso.get_solar_and_wind_forecast_mid_term(date="today")
 
         now = self.iso.now()
 
-        assert (
-            df["Publish Time"].unique() == (now - pd.Timedelta(minutes=10)).floor("H")
-        ).all()
+        assert df["Publish Time"].min() == now.normalize()
+        assert df["Publish Time"].max() == (now).floor("H")
 
         assert df["Interval Start"].min() <= now
 
@@ -381,15 +390,16 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
 
-    def test_get_solar_and_wind_forecast_short_term_latest(self):
-        assert self.iso.get_solar_and_wind_forecast_short_term(date="latest").equals(
-            self.iso.get_solar_and_wind_forecast_short_term(date="today"),
-        )
-
     def test_get_solar_and_wind_forecast_mid_term_latest(self):
-        assert self.iso.get_solar_and_wind_forecast_mid_term(date="latest").equals(
-            self.iso.get_solar_and_wind_forecast_mid_term(date="today"),
-        )
+        latest = self.iso.get_solar_and_wind_forecast_mid_term(date="latest")
+
+        # Single publish time
+        assert (
+            latest["Publish Time"]
+            == (self.iso.now() - pd.Timedelta(minutes=10)).floor("H")
+        ).all()
+
+        self._check_solar_and_wind_forecast(latest, "MID_TERM")
 
     def test_get_solar_and_wind_forecast_short_term_historical(self):
         now = self.iso.now()
