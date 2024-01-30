@@ -222,11 +222,11 @@ class SPP(ISOBase):
 
         now = self.now() - pd.Timedelta(minutes=buffer_minutes)
 
-        if date in ["latest", "today"]:
+        if date == "latest":
             date = now
 
-        date = utils._handle_date(date, self.default_timezone)
-        date = min(now, date)
+        # date = utils._handle_date(date, self.default_timezone)
+        # date = min(now, date)
 
         if end:
             end = utils._handle_date(end, self.default_timezone)
@@ -285,11 +285,11 @@ class SPP(ISOBase):
 
         now = self.now() - pd.Timedelta(minutes=buffer_minutes)
 
-        if date in ["latest", "today"]:
-            date = now
+        # if date in ["latest", "today"]:
+        #     date = now
 
-        date = utils._handle_date(date, self.default_timezone)
-        date = min(now, date)
+        # date = utils._handle_date(date, self.default_timezone)
+        # date = min(now, date)
 
         if end:
             end = utils._handle_date(end, self.default_timezone)
