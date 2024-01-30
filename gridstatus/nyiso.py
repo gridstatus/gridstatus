@@ -415,9 +415,6 @@ class NYISO(ISOBase):
             lambda c: completed_colnames_map[c],
         )
 
-        # the spreadsheet doesnt have a date, so make it null
-        completed["Proposed In-Service"] = None
-        completed["Proposed COD"] = None
         # assume it was finished when last updated
         completed["Actual Completion Date"] = completed["Last Updated Date"]
 
@@ -477,8 +474,8 @@ class NYISO(ISOBase):
             queue["Proposed COD"],
             errors="coerce",
         )
-        queue["Proposed In-Service"] = pd.to_datetime(
-            queue["Proposed In-Service"],
+        queue["Proposed In-Service Date"] = pd.to_datetime(
+            queue["Proposed In-Service Date"],
             errors="coerce",
         )
         queue["Proposed Initial-Sync Date"] = pd.to_datetime(
@@ -508,7 +505,7 @@ class NYISO(ISOBase):
         }
 
         extra_columns = [
-            "Proposed In-Service",
+            "Proposed In-Service Date",
             "Proposed Initial-Sync Date",
             "Last Updated Date",
             "Z",
