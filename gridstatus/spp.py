@@ -22,6 +22,10 @@ BASE_SOLAR_AND_WIND_MID_TERM_URL = (
     f"{FILE_BROWSER_DOWNLOAD_URL}/midterm-resource-forecast?path="
 )
 
+BASE_LOAD_FORECAST_SHORT_TERM_URL = f"{FILE_BROWSER_DOWNLOAD_URL}/stlf-vs-actual?path="
+
+BASE_LOAD_FORECAST_MID_TERM_URL = f"{FILE_BROWSER_DOWNLOAD_URL}/mtlf-vs-actual?path="
+
 
 LOCATION_TYPE_ALL = "ALL"
 LOCATION_TYPE_HUB = "Hub"
@@ -206,10 +210,126 @@ class SPP(ISOBase):
         return current_day_forecast
 
     @support_date_range("5_MIN")
+    def get_load_forecast_short_term(self, date, end=None, verbose=False):
+        """
+        5-minute load forecast data for the SPP footprint (system-wide) for +/- 10
+        minutes. Also includes actual load.
+
+        Data from https://portal.spp.org/pages/stlf-vs-actual
+
+        Arguments:
+            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
+            verbose (bool): print info
+
+        Returns:
+            pd.DataFrame: forecast as dataframe.
+        """
+        # The short_term forecast is delayed up to 2 minutes.
+        buffer_minutes = 2
+
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        # Files do not exist in the future
+        if date > self.now():
+            return
+
+        url = self._short_term_load_forecast_url(date.floor("5T"))
+
+        log(f"Downloading {url}", verbose=verbose)
+        df = pd.read_csv(url)
+
+        # According to the docs, the end time col should be GMTIntervalEnd, but it's
+        # only GMTInterval in the data
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="SHORT_TERM",
+            forecast_col="STLF",
+            end_time_col="GMTInterval",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        return df
+
+    @support_date_range("HOUR_START")
+    def get_load_forecast_mid_term(self, date, end=None, verbose=False):
+        """
+        Returns load forecast for +7 days in hourly intervals. Includes actual load
+        for the past 24 hours. Data from https://portal.spp.org/pages/mtlf-vs-actual
+
+        Arguments:
+            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
+            verbose (bool): print info
+
+        Returns:
+            pd.DataFrame: forecast as dataframe.
+        """
+        # The MID_TERM forecast is delayed up to 10 minutes.
+        buffer_minutes = 10
+
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        if date > self.now():
+            return
+
+        url = self._mid_term_load_forecast_url(date.floor("H"))
+
+        log(f"Downloading {url}", verbose=verbose)
+        df = pd.read_csv(url)
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="MID_TERM",
+            forecast_col="MTLF",
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
+        return df
+
+    def _post_process_load_forecast(
+        self,
+        df,
+        url,
+        forecast_type,
+        forecast_col,
+        end_time_col,
+        interval_duration,
+    ):
+        df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
+
+        # Assume the publish time is in the name of the file. There are different
+        # times on the webpage, but these could be the posting time.
+        df["Publish Time"] = pd.Timestamp(
+            url.split("-")[-1].split(".")[0],
+            tz=self.default_timezone,
+        )
+
+        df.columns = [col.strip() for col in df.columns]
+
+        df["Forecast Type"] = forecast_type
+
+        df = (
+            utils.move_cols_to_front(
+                df,
+                ["Interval Start", "Interval End", "Publish Time", "Forecast Type"],
+            )
+            .drop(columns=["Time", "Interval"])
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+        return df.dropna(subset=[forecast_col]).reset_index(drop=True)
+
+    @support_date_range("5_MIN")
     def get_solar_and_wind_forecast_short_term(self, date, end=None, verbose=False):
         """
         Returns solar and wind generation forecast for +4 hours in 5 minute intervals.
         Include actuals for past day in 5 minute intervals.
+
+        Data from https://portal.spp.org/pages/shortterm-resource-forecast
 
         Arguments:
             date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
@@ -249,6 +369,8 @@ class SPP(ISOBase):
     def get_solar_and_wind_forecast_mid_term(self, date, end=None, verbose=False):
         """
         Returns solar and wind generation forecast for +7 days in hourly intervals.
+
+        Data from https://portal.spp.org/pages/midterm-resource-forecast.
 
         Arguments:
             date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
@@ -330,6 +452,23 @@ class SPP(ISOBase):
         # Explicitly set the minutes to 00.
         return BASE_SOLAR_AND_WIND_MID_TERM_URL + date.strftime(
             "/%Y/%m/%d/OP-MTRF-%Y%m%d%H00.csv",
+        )
+
+    def _short_term_load_forecast_url(self, date):
+        hour = date.hour
+        padded_hour = str(hour).zfill(2)
+        padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
+
+        # The first hour in the URL is 1 after the hour in the filename.
+        # Example 2024/01/01/02 has data for 01/01/2024 01:00:00 - 01/01/2024 01:55:00
+        return BASE_LOAD_FORECAST_SHORT_TERM_URL + date.strftime(
+            f"/%Y/%m/%d/{padded_hour_plus_one}/OP-STLF-%Y%m%d{padded_hour}%M.csv",
+        )
+
+    def _mid_term_load_forecast_url(self, date):
+        # Explicitly set the minutes to 00.
+        return BASE_LOAD_FORECAST_MID_TERM_URL + date.strftime(
+            "/%Y/%m/%d/OP-MTLF-%Y%m%d%H00.csv",
         )
 
     def _handle_market_end_to_interval(self, df, column, interval_duration):
