@@ -53,7 +53,7 @@ class EIA:
         data = self.session.get(url, headers=headers)
         response = data.json()["response"]
         df = pd.DataFrame(response["data"])
-        return df, response["total"]
+        return df, int(response["total"])
 
     def get_dataset(self, dataset, start, end, n_workers=1, verbose=False):
         """Get data from a dataset
