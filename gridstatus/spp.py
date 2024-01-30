@@ -220,29 +220,12 @@ class SPP(ISOBase):
         # The short_term forecast is delayed up to 2 minutes.
         buffer_minutes = 2
 
-        now = self.now() - pd.Timedelta(minutes=buffer_minutes)
-
         if date == "latest":
-            date = now
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
 
-        # date = utils._handle_date(date, self.default_timezone)
-        # date = min(now, date)
-
-        if end:
-            end = utils._handle_date(end, self.default_timezone)
-            # Make sure we don't request files that don't exist yet
-            end = min(now, end)
-
-        df = self._retrieve_solar_and_wind_forecast_short_term(
-            date,
-            end,
-            verbose,
-        )
+        df = self._retrieve_solar_and_wind_forecast_short_term(date, end, verbose)
 
         df["Forecast Type"] = "SHORT_TERM"
-
-        if end:
-            return df[df["Publish Time"].between(date, end)]
 
         return df
 
@@ -283,24 +266,11 @@ class SPP(ISOBase):
         # The MID_TERM forecast is delayed up to 10 minutes.
         buffer_minutes = 10
 
-        now = self.now() - pd.Timedelta(minutes=buffer_minutes)
-
-        # if date in ["latest", "today"]:
-        #     date = now
-
-        # date = utils._handle_date(date, self.default_timezone)
-        # date = min(now, date)
-
-        if end:
-            end = utils._handle_date(end, self.default_timezone)
-            # Make sure we don't request files that don't exist yet
-            end = min(now, end)
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
 
         df = self._retrieve_solar_and_wind_forecast_mid_term(date, end, verbose)
         df["Forecast Type"] = "MID_TERM"
-
-        if end:
-            return df[df["Publish Time"].between(date, end)]
 
         return df
 
