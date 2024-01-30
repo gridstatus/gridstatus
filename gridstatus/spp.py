@@ -88,7 +88,7 @@ class SPP(ISOBase):
 
     @staticmethod
     def now():
-        return pd.Timestamp.now(tz=SPP().default_timezone)
+        return pd.Timestamp.now(tz=SPP.default_timezone)
 
     def get_fuel_mix(self, date, detailed=False, verbose=False):
         """Get fuel mix
@@ -205,6 +205,7 @@ class SPP(ISOBase):
 
         return current_day_forecast
 
+    @support_date_range("5_MIN")
     def get_solar_and_wind_forecast_short_term(self, date, end=None, verbose=False):
         """
         Returns solar and wind generation forecast for +4 hours in 5 minute intervals.
@@ -223,26 +224,13 @@ class SPP(ISOBase):
         if date == "latest":
             date = self.now() - pd.Timedelta(minutes=buffer_minutes)
 
-        df = self._retrieve_solar_and_wind_forecast_short_term(date, end, verbose)
-
-        df["Forecast Type"] = "SHORT_TERM"
-
-        return df
-
-    @support_date_range("5_MIN")
-    def _retrieve_solar_and_wind_forecast_short_term(
-        self,
-        date,
-        end=None,
-        verbose=False,
-    ):
-        """Solar and wind forecast for +4 hours by 5 minute interval."""
         # Files do not exist in the future
         if date > self.now():
             return
 
         url = self._short_term_solar_and_wind_url(date.floor("5T"))
 
+        log(f"Downloading {url}", verbose=verbose)
         df = pd.read_csv(url)
 
         # According to the docs, the end time col should be GMTIntervalEnd, but it's
@@ -250,12 +238,14 @@ class SPP(ISOBase):
         df = self._post_process_solar_and_wind_forecast(
             df,
             url,
+            forecast_type="SHORT_TERM",
             end_time_col="GMTInterval",
             interval_duration=pd.Timedelta(minutes=5),
         )
 
         return df
 
+    @support_date_range("HOUR_START")
     def get_solar_and_wind_forecast_mid_term(self, date, end=None, verbose=False):
         """
         Returns solar and wind generation forecast for +7 days in hourly intervals.
@@ -273,24 +263,18 @@ class SPP(ISOBase):
         if date == "latest":
             date = self.now() - pd.Timedelta(minutes=buffer_minutes)
 
-        df = self._retrieve_solar_and_wind_forecast_mid_term(date, end, verbose)
-        df["Forecast Type"] = "MID_TERM"
-
-        return df
-
-    @support_date_range("HOUR_START")
-    def _retrieve_solar_and_wind_forecast_mid_term(self, date, end=None, verbose=False):
-        """System-wide wind and solar forecast data for +7days by hour."""
         if date > self.now():
             return
 
         url = self._mid_term_solar_and_wind_url(date.floor("H"))
 
+        log(f"Downloading {url}", verbose=verbose)
         df = pd.read_csv(url)
 
         df = self._post_process_solar_and_wind_forecast(
             df,
             url,
+            forecast_type="MID_TERM",
             end_time_col="GMTIntervalEnd",
             interval_duration=pd.Timedelta(hours=1),
         )
@@ -301,6 +285,7 @@ class SPP(ISOBase):
         self,
         df,
         url,
+        forecast_type,
         end_time_col,
         interval_duration,
     ):
@@ -315,10 +300,12 @@ class SPP(ISOBase):
 
         df.columns = [col.strip() for col in df.columns]
 
+        df["Forecast Type"] = forecast_type
+
         df = (
             utils.move_cols_to_front(
                 df,
-                ["Interval Start", "Interval End", "Publish Time"],
+                ["Interval Start", "Interval End", "Publish Time", "Forecast Type"],
             )
             .drop(columns=["Time", "Interval"])
             .sort_values(["Interval Start", "Publish Time"])
