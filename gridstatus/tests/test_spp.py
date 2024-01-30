@@ -408,11 +408,32 @@ class TestSPP(BaseTestISO):
 
         df = self.iso.get_solar_and_wind_forecast_short_term(date=three_days_ago)
 
-        assert (df["Publish Time"].unique() == three_days_ago).all()
+        assert (df["Publish Time"] == three_days_ago).all()
 
         # Each file contains data going back into the past
         assert df["Interval Start"].min() <= three_days_ago
         assert df["Interval Start"].max() >= three_days_ago + pd.Timedelta(hours=3)
+
+        self._check_solar_and_wind_forecast(df, "SHORT_TERM")
+
+    def test_get_solar_and_wind_forecast_short_term_hour_24_handling(self):
+        # This test checks we can successfully retrieve the 24th hour of the day
+        # which has a 00 ((23 + 1) % 24 = 0) for the hour in the file name.
+        two_days_ago_2300 = (
+            pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
+            - pd.Timedelta(days=2)
+            + pd.Timedelta(hours=23, minutes=0)
+        )
+
+        one_day_ago_0000 = two_days_ago_2300 + pd.Timedelta(hours=1)
+
+        df = self.iso.get_solar_and_wind_forecast_short_term(
+            date=two_days_ago_2300,
+            end=one_day_ago_0000,
+        )
+
+        assert df["Publish Time"].min() == two_days_ago_2300
+        assert df["Publish Time"].max() == one_day_ago_0000 - pd.Timedelta(minutes=5)
 
         self._check_solar_and_wind_forecast(df, "SHORT_TERM")
 
