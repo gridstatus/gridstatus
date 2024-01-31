@@ -4,7 +4,14 @@
 
 ### SPP
 
+- Add `spp.get_solar_and_wind_forecast_short_term` and `spp.get_solar_and_wind_forecast_mid_term` for solar and wind forecasts
+- Add `spp.get_load_forecast_short_term` and `spp.get_load_forecast_long_term` for load forecasts
+  - This overlaps with the existing `spp.get_load_forecast` method, which we want to eventually remove in favor of these two methods.
 - Add support for operating reserves
+
+### ERCOT
+
+- Added initial support for using the ERCOT API
 
 ## v0.24.0 - Dec 27, 2023
 
