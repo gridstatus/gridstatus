@@ -115,8 +115,7 @@ interconnection_queues
 ```
 
 ```{toctree}
-:maxdepth: 1
-:caption: Examples
+:maxdepth: 2
 
 Examples/index.md
 ```

@@ -1,7 +1,7 @@
-# ISO Examples
+# Examples
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
 caiso/index.md
 ercot/index.md
@@ -11,5 +11,3 @@ spp/index.md
 ieso/index.md
 misc/index.md
 ```
-
-```{toctree}
