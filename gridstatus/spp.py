@@ -684,7 +684,8 @@ class SPP(ISOBase):
         # todo where does date got in argument order
         # def get_historical_lmp(self, date, market: str, nodes: list):
         # 5 minute interal data
-        # {FILE_BROWSER_API_URL}/rtbm-lmp-by-location?path=/2022/08/By_Interval/08/RTBM-LMP-SL-202208082125.csv
+        # {FILE_BROWSER_API_URL}/rtbm-lmp-by-location?path=/2022/08/By_Interval/08
+        # /RTBM-LMP-SL-202208082125.csv
 
         # historical generation mix
 
