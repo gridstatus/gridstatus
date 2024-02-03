@@ -341,23 +341,22 @@ class NYISO(ISOBase):
         msg = f"Downloading interconnection queue from {url}"
         log(msg, verbose)
 
-        all_sheets = pd.read_excel(
-            url,
-            sheet_name=["Interconnection Queue", "Withdrawn"],
-        )
+        # Create ExcelFile so we only need to download file once
+        excel_file = pd.ExcelFile(url)
 
         # Drop extra rows at bottom
         active = (
-            all_sheets["Interconnection Queue"]
+            pd.read_excel(excel_file, sheet_name="Interconnection Queue")
             .dropna(
                 subset=["Queue Pos.", "Project Name"],
             )
             .copy()
-        )
+            # Active projects can have multiple values for "Points of Interconnection"
+        ).rename(columns={"Points of Interconnection": "Interconnection Point"})
 
         active["Status"] = InterconnectionQueueStatus.ACTIVE.value
 
-        withdrawn = all_sheets["Withdrawn"]
+        withdrawn = pd.read_excel(excel_file, sheet_name="Withdrawn")
         withdrawn["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
         # assume it was withdrawn when last updated
         withdrawn["Withdrawn Date"] = withdrawn["Last Update"]
@@ -365,7 +364,7 @@ class NYISO(ISOBase):
         withdrawn = withdrawn.rename(columns={"Utility ": "Utility"})
 
         # make completed look like the other two sheets
-        completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1])
+        completed = pd.read_excel(excel_file, sheet_name="In Service", header=[0, 1])
         completed.insert(15, "SGIA Tender Date", None)
         completed.insert(16, "CY Complete Date", None)
         completed.insert(17, "Proposed Initial-Sync Date", None)
