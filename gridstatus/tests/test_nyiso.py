@@ -195,6 +195,14 @@ class TestNYISO(BaseTestISO):
                 location_type="dummy",
             )
 
+    """get_interconnection_queue"""
+
+    # This test is in addition to the base_test_iso test
+    def test_get_interconnection_queue_handles_new_file(self):
+        df = self.iso.get_interconnection_queue()
+        # There are a few missing values, but a small percentage
+        assert df["Interconnection Location"].isna().sum() < 0.01 * df.shape[0]
+
     """get_loads"""
 
     def test_get_loads(self):
