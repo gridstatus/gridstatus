@@ -327,6 +327,10 @@ class CAISO(ISOBase):
             verbose=verbose,
         )
 
+        if df.empty:
+            log(f"No data found for date: {date} and end: {end}", verbose=verbose)
+            return df
+
         df = df.pivot_table(
             index=["Time", "Interval Start", "Interval End", "NODE"],
             columns="LMP_TYPE",
@@ -902,6 +906,7 @@ class CAISO(ISOBase):
         # find index of OUTAGE MRID
         test_parse = pd.read_excel(
             content_io,
+            content,
             usecols="B:M",
             sheet_name="PREV_DAY_OUTAGES",
         )
@@ -1557,9 +1562,3 @@ oasis_dataset_config = {
         },
     },
 }
-
-if __name__ == "__main__":
-    import gridstatus
-
-    iso = gridstatus.CAISO()
-    print(CAISO().list_oasis_datasets())

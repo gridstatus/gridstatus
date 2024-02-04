@@ -235,6 +235,27 @@ class TestCAISO(BaseTestISO):
         assert df["Location"].nunique() > 2300
         assert df["Interval Start"].dt.hour.nunique() == 2
 
+    def test_get_lmp_too_far_in_past_returns_empty(self):
+        too_old_date = pd.Timestamp.now().date() - pd.Timedelta(days=1201)
+
+        df = self.iso.get_lmp(
+            date=too_old_date,
+            locations="ALL_AP_NODES",
+            market="REAL_TIME_15_MIN",
+        )
+
+        assert df.empty
+
+        valid_date = pd.Timestamp.now().date() - pd.Timedelta(days=1200)
+
+        df = self.iso.get_lmp(
+            date=valid_date,
+            locations="ALL_AP_NODES",
+            market="REAL_TIME_15_MIN",
+        )
+
+        assert not df.empty
+
     def test_warning_no_end_date(self):
         start = pd.Timestamp("2021-04-01T03:00").tz_localize("UTC")
         with pytest.warns(UserWarning):
