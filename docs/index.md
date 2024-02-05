@@ -115,9 +115,18 @@ interconnection_queues
 ```
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 0
+:caption: Examples
 
-Examples/index.md
+Examples/caiso/index.md
+Examples/eia/index.md
+Examples/ercot/index.md
+Examples/ercot_api/index.md
+Examples/nyiso/index.md
+Examples/pjm/index.md
+Examples/spp/index.md
+Examples/ieso/index.md
+Examples/misc/index.md
 ```
 
 
