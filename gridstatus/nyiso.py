@@ -65,7 +65,8 @@ class NYISO(ISOBase):
                 row["Notes"] = [row["Status"]]
 
                 row["Status"] = row["Status"][
-                    row["Status"].index(STATE_CHANGE) + len(STATE_CHANGE) : -len(
+                    row["Status"].index(STATE_CHANGE)
+                    + len(STATE_CHANGE) : -len(
                         " state.**",
                     )
                 ].capitalize()
