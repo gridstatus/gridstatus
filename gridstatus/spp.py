@@ -1,3 +1,5 @@
+from typing import BinaryIO
+
 import pandas as pd
 import requests
 import tqdm
@@ -682,13 +684,21 @@ class SPP(ISOBase):
         # todo where does date got in argument order
         # def get_historical_lmp(self, date, market: str, nodes: list):
         # 5 minute interal data
-        # {FILE_BROWSER_API_URL}/rtbm-lmp-by-location?path=/2022/08/By_Interval/08/RTBM-LMP-SL-202208082125.csv
+        # {FILE_BROWSER_API_URL}/rtbm-lmp-by-location?path=/2022/08/By_Interval/08
+        # /RTBM-LMP-SL-202208082125.csv
 
         # historical generation mix
 
     # https://marketplace.spp.org/pages/generation-mix-rolling-365
     # https://marketplace.spp.org/chart-api/gen-mix-365/asFile
     # 15mb file with five minute resolution
+
+    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
+        msg = f"Getting interconnection queue from {url}"
+        log(msg, verbose)
+        response = requests.get(url)
+        return utils.get_response_blob(response)
 
     def get_interconnection_queue(self, verbose=False):
         """Get interconnection queue
@@ -698,12 +708,8 @@ class SPP(ISOBase):
 
 
         """
-        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
-
-        msg = f"Getting interconnection queue from {url}"
-        log(msg, verbose)
-
-        queue = pd.read_csv(url, skiprows=1)
+        raw_data = self.get_raw_interconnection_queue(verbose)
+        queue = pd.read_csv(raw_data, skiprows=1)
 
         queue["Status (Original)"] = queue["Status"]
         completed_val = InterconnectionQueueStatus.COMPLETED.value

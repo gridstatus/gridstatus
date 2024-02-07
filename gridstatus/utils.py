@@ -206,6 +206,12 @@ def get_zip_folder(url, verbose=False):
     return z
 
 
+def get_response_blob(resp: requests.Response) -> io.BytesIO:
+    if resp.status_code != 200:
+        raise RuntimeError(f"{resp.request.method} {resp.request.url} failed: {resp}")
+    return io.BytesIO(resp.content)
+
+
 def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
     z = get_zip_folder(url, verbose=verbose)
 

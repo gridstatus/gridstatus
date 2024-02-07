@@ -1,4 +1,7 @@
+from typing import BinaryIO
+
 import pandas as pd
+import requests
 
 import gridstatus
 from gridstatus import utils
@@ -63,7 +66,9 @@ class NYISO(ISOBase):
 
                 row["Status"] = row["Status"][
                     row["Status"].index(STATE_CHANGE)
-                    + len(STATE_CHANGE) : -len(" state.**")
+                    + len(STATE_CHANGE) : -len(
+                        " state.**",
+                    )
                 ].capitalize()
 
             return row
@@ -323,6 +328,14 @@ class NYISO(ISOBase):
 
         return df
 
+    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
+
+        msg = f"Downloading interconnection queue from {url}"
+        log(msg, verbose)
+        response = requests.get(url)
+        return utils.get_response_blob(response)
+
     def get_interconnection_queue(self, verbose=False):
         """Return NYISO interconnection queue
 
@@ -336,13 +349,10 @@ class NYISO(ISOBase):
 
         # 3 sheets - ['Interconnection Queue', 'Withdrawn', 'In Service']
         # harded coded for now. perhaps this url can be parsed from the html here:
-        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
-
-        msg = f"Downloading interconnection queue from {url}"
-        log(msg, verbose)
+        raw_data = self.get_raw_interconnection_queue(verbose)
 
         # Create ExcelFile so we only need to download file once
-        excel_file = pd.ExcelFile(url)
+        excel_file = pd.ExcelFile(raw_data)
 
         # Drop extra rows at bottom
         active = (
@@ -376,11 +386,36 @@ class NYISO(ISOBase):
             and "SGIA Tender Date" not in completed.columns
         ):
             active = active.drop(columns=["SGIA Tender Date"])
-        completed.columns = active.columns
+        completed_colnames_map = {
+            ("Queue", "Pos."): "Queue Pos.",
+            ("Queue", "Owner/Developer"): "Developer Name",
+            ("Queue", "Project Name"): "Project Name",
+            ("Date", "of IR"): "Date of IR",
+            ("SP", "(MW)"): "SP (MW)",
+            ("WP", "(MW)"): "WP (MW)",
+            ("Type/", "Fuel"): "Type/ Fuel",
+            ("Location", "County"): "County",
+            ("Location", "State"): "State",
+            ("Z", "Unnamed: 9_level_1"): "Z",
+            ("Interconnection", "Point"): "Interconnection Point",
+            ("Interconnection", "Utility "): "Utility",
+            ("Interconnection", "S"): "S",
+            ("Last Update", "Unnamed: 13_level_1"): "Last Updated Date",
+            ("Availability", "of Studies"): "Availability of Studies",
+            ("SGIA Tender Date", ""): "SGIA Tender Date",
+            ("CY Complete Date", ""): "CY Complete Date",
+            ("Proposed Initial-Sync Date", ""): "Proposed Initial-Sync Date",
+            ("Proposed", " In-Service"): "Proposed In-Service Date",
+            ("Proposed", "COD"): "Proposed COD",
+            ("Proposed", "COD.1"): "Proposed COD.1",
+            ("Proposed", "COD.2"): "Proposed COD.2",
+            ("Proposed", "COD.3"): "Proposed COD.3",
+            ("Status", ""): "Status",
+        }
+        completed.columns = completed.columns.to_flat_index().map(
+            lambda c: completed_colnames_map[c],
+        )
 
-        # the spreadsheet doesnt have a date, so make it null
-        completed["Proposed  In-Service"] = None
-        completed["Proposed COD"] = None
         # assume it was finished when last updated
         completed["Actual Completion Date"] = completed["Last Updated Date"]
 
@@ -440,8 +475,8 @@ class NYISO(ISOBase):
             queue["Proposed COD"],
             errors="coerce",
         )
-        queue["Proposed  In-Service"] = pd.to_datetime(
-            queue["Proposed  In-Service"],
+        queue["Proposed In-Service Date"] = pd.to_datetime(
+            queue["Proposed In-Service Date"],
             errors="coerce",
         )
         queue["Proposed Initial-Sync Date"] = pd.to_datetime(
@@ -471,7 +506,7 @@ class NYISO(ISOBase):
         }
 
         extra_columns = [
-            "Proposed  In-Service",
+            "Proposed In-Service Date",
             "Proposed Initial-Sync Date",
             "Last Updated Date",
             "Z",

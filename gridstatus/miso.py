@@ -1,4 +1,5 @@
 import json
+from typing import BinaryIO
 
 import pandas as pd
 import requests
@@ -284,19 +285,23 @@ class MISO(ISOBase):
 
         return data
 
+    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+        url = "https://www.misoenergy.org/api/giqueue/getprojects"
+
+        msg = f"Downloading interconnection queue from {url}"
+        log(msg, verbose)
+
+        response = requests.get(url)
+        return utils.get_response_blob(response)
+
     def get_interconnection_queue(self, verbose=False):
         """Get the interconnection queue
 
         Returns:
             pandas.DataFrame: Interconnection queue
         """
-        url = "https://www.misoenergy.org/api/giqueue/getprojects"
-
-        msg = f"Downloading interconnection queue from {url}"
-        log(msg, verbose)
-
-        json_str = requests.get(url).text
-        data = json.loads(json_str)
+        raw_data = self.get_raw_interconnection_queue(verbose)
+        data = json.loads(raw_data.read().decode("utf-8"))
         # todo there are also study documents available:  https://www.misoenergy.org/planning/generator-interconnection/GI_Queue/gi-interactive-queue/
         # there is also a map that plots the locations of these projects:
         queue = pd.DataFrame(data)

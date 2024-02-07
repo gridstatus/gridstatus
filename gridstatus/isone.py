@@ -1,5 +1,6 @@
 import io
 import math
+from typing import BinaryIO
 
 import pandas as pd
 import requests
@@ -505,7 +506,7 @@ class ISONE(ISOBase):
         data = utils.filter_lmp_locations(data, locations)
         return data
 
-    def _extract_interconnection_queue(self) -> pd.DataFrame:
+    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
         """Extract raw ISONE interconnection queue data.
 
         ISONE interconnection queue data is available on a webpage
@@ -550,7 +551,7 @@ class ISONE(ISOBase):
                 new_text_tag.string = status_string
                 img_tag.replace_with(new_text_tag)
 
-        return pd.read_html(str(soup), attrs={"id": "publicqueue"})[0]
+        return io.BytesIO(str(soup).encode("utf-8"))
 
     def get_interconnection_queue(self, verbose=False):
         """Get the interconnection queue. Contains active and withdrawm applications.
@@ -568,7 +569,8 @@ class ISONE(ISOBase):
         msg = f"Loading queue {self.interconnection_homepage}"
         log(msg, verbose)
 
-        queue = self._extract_interconnection_queue()
+        raw_data = self.get_raw_interconnection_queue(verbose)
+        queue = pd.read_html(raw_data, attrs={"id": "publicqueue"})[0]
 
         # only keep generator interconnection requests
         queue["Type"] = queue["Type"].map(
