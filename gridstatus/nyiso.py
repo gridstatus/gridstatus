@@ -397,7 +397,7 @@ class NYISO(ISOBase):
             ("Location", "County"): "County",
             ("Location", "State"): "State",
             ("Z", "Unnamed: 9_level_1"): "Z",
-            ("Interconnection", "Point"): "Points of Interconnection",
+            ("Interconnection", "Point"): "Interconnection Point",
             ("Interconnection", "Utility "): "Utility",
             ("Interconnection", "S"): "S",
             ("Last Update", "Unnamed: 13_level_1"): "Last Updated Date",
