@@ -72,8 +72,8 @@ def test_list_routes():
 def test_rto_interchange():
     eia = gridstatus.EIA()
 
-    start = "2020-01-01"
-    end = "2020-01-03"
+    start = pd.Timestamp.now() - pd.Timedelta(days=7)
+    end = start + pd.Timedelta(days=3)
 
     df = eia.get_dataset(
         dataset="electricity/rto/interchange-data",
@@ -91,8 +91,9 @@ def test_rto_interchange():
 
 def test_rto_region_data():
     eia = gridstatus.EIA()
-    start = "2020-01-01"
-    end = "2020-01-04"
+    start = pd.Timestamp.now() - pd.Timedelta(days=7)
+    end = start + pd.Timedelta(days=3)
+
     df = eia.get_dataset(
         dataset="electricity/rto/region-data",
         start=start,
@@ -111,8 +112,8 @@ def test_rto_region_data():
 def test_fuel_type():
     eia = gridstatus.EIA()
 
-    start = "2020-01-01"
-    end = "2020-01-04"
+    start = pd.Timestamp.now() - pd.Timedelta(days=7)
+    end = start + pd.Timedelta(days=3)
 
     # dataset that doesnt have a handler yet
     df = eia.get_dataset(
