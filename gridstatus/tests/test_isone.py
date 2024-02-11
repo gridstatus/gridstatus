@@ -127,6 +127,34 @@ class TestISONE(BaseTestISO):
     def test_get_load_forecast(self, date):
         self.iso.get_load_forecast(date=date, verbose=VERBOSE)
 
+    """get_wind_forecast"""
+
+    def test_get_wind_forecast_today(self):
+        ...
+
+    def test_get_wind_forecast_latest(self):
+        ...
+
+    def test_get_wind_forecast_historical_date_range(self):
+        ...
+
+    def test_get_wind_forecast_historical_single_date(self):
+        ...
+
+    """get_solar_forecast"""
+
+    def test_get_solar_forecast_today(self):
+        ...
+
+    def test_get_solar_forecast_latest(self):
+        ...
+
+    def test_get_solar_forecast_historical_date_range(self):
+        ...
+
+    def test_get_solar_forecast_historical_single_date(self):
+        ...
+
     """get_storage"""
 
     def test_get_storage_historical(self):

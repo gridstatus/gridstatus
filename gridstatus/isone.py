@@ -1,5 +1,7 @@
 import io
 import math
+import re
+from io import StringIO
 from typing import BinaryIO
 
 import pandas as pd
@@ -226,6 +228,92 @@ class ISONE(ISOBase):
         ]
 
         return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_solar_forecast(self, date, end=None, verbose=False):
+        """Return solar forecast published on a specific date
+        https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/seven-day-solar-power-forecast
+        """
+        return self._get_solar_or_wind_forecast(
+            date,
+            end,
+            resource_type="Solar",
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_wind_forecast(self, date, end=None, verbose=False):
+        """Return wind forecast published on a specific date
+        https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/seven-day-wind-power-forecast
+        """
+        return self._get_solar_or_wind_forecast(
+            date,
+            end,
+            resource_type="Wind",
+            verbose=verbose,
+        )
+
+    def _get_solar_or_wind_forecast(self, date, end, resource_type, verbose=False):
+        """Return solar or wind forecast published on a specific date
+
+        Resource type can be "Solar" or "Wind"
+        """
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone)
+
+        value_name = f"{resource_type.capitalize()} Forecast"
+
+        url = (
+            f"https://www.iso-ne.com/transform/csv/wphf?start={date.strftime('%Y%m%d')}"
+        )
+
+        # We return the raw data so we can extract metadata (publish time)
+        raw_string = _make_request(url, skiprows=None, verbose=verbose, return_raw=True)
+
+        # Remove lines that don't contain data table
+        cleaned_data = "\n".join(
+            [line for line in raw_string.split("\n") if line.startswith('"D"')],
+        )
+
+        # Create a buffer and read using pandas
+        df = pd.read_csv(StringIO(cleaned_data), header=None).drop(columns=[0, 1])
+
+        df.columns = df.iloc[1]
+        df = df.drop(index=[0, 1]).reset_index(drop=True)
+
+        data = df.melt(id_vars=["Hour Ending"], var_name="Date", value_name=value_name)
+
+        data["Interval Start"] = pd.to_datetime(
+            data["Date"] + " "
+            # Subtract 1 from the hour ending to get the start of the interval
+            # Make sure to 0-pad the hour
+            + (data["Hour Ending"].astype(int) - 1).astype(str).str.zfill(2) + ":00",
+            # TODO: might need to handle DST transitions
+        ).dt.tz_localize(self.default_timezone)
+
+        data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
+
+        # Extract the datetime from the string
+        match = re.search(
+            r"Report generated (\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}) ([A-Z]{3})",
+            raw_string,
+        )
+
+        # Parse the datetime if the pattern is found
+        if match:
+            report_datetime_str = match.group(1)
+            report_datetime = pd.Timestamp(report_datetime_str, tz=match.group(2))
+        else:
+            raise ValueError("Report datetime not found")
+
+        data["Publish Time"] = report_datetime
+
+        data = utils.move_cols_to_front(
+            data,
+            ["Interval Start", "Interval End", "Publish Time", value_name],
+        ).drop(columns=["Date", "Hour Ending"])
+
+        return data.dropna(subset=[value_name])
 
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
         """
@@ -711,7 +799,7 @@ class ISONE(ISOBase):
         return data
 
 
-def _make_request(url, skiprows, verbose):
+def _make_request(url, skiprows, verbose, return_raw=False):
     attempt = 0
     while attempt < 3:
         with requests.Session() as s:
@@ -740,6 +828,9 @@ def _make_request(url, skiprows, verbose):
             f"Failed to get data from {url}. Check if ISONE is down and \
                 try again later",
         )
+
+    if return_raw:
+        return response.content.decode("utf8")
 
     df = pd.read_csv(
         io.StringIO(response.content.decode("utf8")),
