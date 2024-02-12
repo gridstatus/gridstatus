@@ -39,7 +39,7 @@ def _check_region_data(df):
     assert df.columns.tolist() == columns
 
 
-def _check_fuel_type(df):
+def _check_fuel_type(df, subset=False):
     columns = [
         "Interval Start",
         "Interval End",
@@ -58,7 +58,13 @@ def _check_fuel_type(df):
     assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
     assert df["Interval End"].dtype == "datetime64[ns, UTC]"
     assert df.shape[0] > 0
-    assert df.columns.tolist() == columns
+    if subset is False:
+        assert df.columns.tolist() == columns
+
+    # for balancing areas that don't have all forms of generation
+    else:
+        for column in df.columns.tolist():
+            assert column in columns
 
 
 def test_list_routes():
@@ -125,6 +131,29 @@ def test_fuel_type():
     assert df.isnull().sum().sum() == 0
 
     _check_fuel_type(df)
+
+
+def test_facets():
+    eia = gridstatus.EIA()
+
+    start = "2020-01-01"
+    end = "2020-01-04"
+
+    # dataset that doesnt have a handler yet
+    df = eia.get_dataset(
+        dataset="electricity/rto/fuel-type-data",
+        start=start,
+        end=end,
+        verbose=True,
+        facets={"respondent": ["PACE"]},
+    )
+    assert df.isnull().sum().sum() == 0
+    assert all(
+        respondent_name == "PacifiCorp East"
+        for respondent_name in df["Respondent Name"]
+    )
+
+    _check_fuel_type(df, subset=True)
 
 
 def test_daily_spots_and_futures():

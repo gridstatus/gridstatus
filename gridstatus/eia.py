@@ -55,7 +55,7 @@ class EIA:
         df = pd.DataFrame(response["data"])
         return df, int(response["total"])
 
-    def get_dataset(self, dataset, start, end, n_workers=1, verbose=False):
+    def get_dataset(self, dataset, start, end, facets=None, n_workers=1, verbose=False):
         """Get data from a dataset
 
         Only supports "electricity/rto/interchange-data" dataset for now.
@@ -64,6 +64,8 @@ class EIA:
             dataset (str): Dataset path
             start (str or pd.Timestamp): Start date
             end (str or pd.Timestamp): End date
+            facets (dict, optional): Facets to
+                add to the request header. Defaults to None.
             n_workers (int, optional): Number of
                 workers to use for fetching data. Defaults to 1.
             verbose (bool, optional): Whether
@@ -83,6 +85,9 @@ class EIA:
 
         url = f"{self.BASE_URL}{dataset}/data/"
 
+        if facets is None:
+            facets = {}
+
         params = {
             "start": start_str,
             "end": end_str,
@@ -90,7 +95,7 @@ class EIA:
             "data": [
                 "value",
             ],
-            "facets": {},
+            "facets": facets,
             "offset": 0,
             "length": 5000,
             # pagination breaks if not sorted because
