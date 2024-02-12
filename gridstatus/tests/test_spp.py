@@ -9,6 +9,9 @@ from gridstatus.tests.decorators import with_markets
 class TestSPP(BaseTestISO):
     iso = SPP()
 
+    def now(self):
+        return pd.Timestamp.now(tz=self.iso.default_timezone)
+
     """get_fuel_mix"""
 
     @pytest.mark.skip(reason="Not Applicable")
@@ -190,7 +193,6 @@ class TestSPP(BaseTestISO):
         "Time",
         "Interval Start",
         "Interval End",
-        "Interval",
         "Reserve Zone",
         "Reg_Up_Cleared",
         "Reg_Dn_Cleared",
@@ -219,6 +221,49 @@ class TestSPP(BaseTestISO):
         assert len(df) > 0
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
+    DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Reserve Zone",
+        "Reg_Up",
+        "Reg_Dn",
+        "Ramp_Up",
+        "Ramp_Dn",
+        "Spin",
+        "Supp",
+        "Unc_Up",
+    ]
+
+    def test_get_day_ahead_operating_reserve_prices(self):
+        tomorrow = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(
+            days=1,
+        )
+        three_days_ago = tomorrow - pd.Timedelta(days=4)
+
+        df = self.iso.get_day_ahead_operating_reserve_prices(
+            date=three_days_ago,
+            end=tomorrow,
+        )
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval End"].max() == tomorrow
+        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+
+    def test_get_day_ahead_operating_reserve_prices_today(self):
+        df = self.iso.get_day_ahead_operating_reserve_prices(date="today")
+
+        assert (
+            df["Interval Start"].min()
+            == pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
+        )
+        assert df["Interval End"].max() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(days=1)
+        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+
     WEIS_LMP_COLUMNS = [
         "Interval Start",
         "Interval End",
@@ -239,31 +284,37 @@ class TestSPP(BaseTestISO):
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
     def test_get_lmp_real_time_weis_1_hour_range(self):
-        yesterday = pd.Timestamp.now(
+        three_days_ago = pd.Timestamp.now(
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(
-            days=1,
+            days=3,
         )  # noqa
-        yesterday_1am = yesterday + pd.Timedelta(minutes=13)
+        three_days_ago_0015 = three_days_ago + pd.Timedelta(minutes=15)
 
-        df = self.iso.get_lmp_real_time_weis(start=yesterday, end=yesterday_1am)
+        df = self.iso.get_lmp_real_time_weis(
+            start=three_days_ago,
+            end=three_days_ago_0015,
+        )
 
-        assert df["Interval Start"].min() == yesterday
-        assert df["Interval End"].max() == yesterday_1am
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval End"].max() == three_days_ago_0015
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
     def test_get_lmp_real_time_weis_cross_day(self):
-        two_days_ago_2350 = (
+        two_days_ago_2345 = (
             pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
             - pd.Timedelta(days=2)
-            + pd.Timedelta(hours=23, minutes=50)
+            + pd.Timedelta(hours=23, minutes=45)
         )  # noqa
-        end = two_days_ago_2350 + pd.Timedelta(minutes=15)
+        one_day_ago_0010 = two_days_ago_2345 + pd.Timedelta(minutes=25)
 
-        df = self.iso.get_lmp_real_time_weis(start=two_days_ago_2350, end=end)
+        df = self.iso.get_lmp_real_time_weis(
+            start=two_days_ago_2345,
+            end=one_day_ago_0010,
+        )
 
-        assert df["Interval Start"].min() == two_days_ago_2350
-        assert df["Interval End"].max() == end
+        assert df["Interval Start"].min() == two_days_ago_2345
+        assert df["Interval End"].max() == one_day_ago_0010
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
     def test_get_lmp_real_time_weis_single_interval(self):
@@ -293,6 +344,285 @@ class TestSPP(BaseTestISO):
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
         pass
+
+    """get_load_forecast_short_term"""
+
+    def test_get_load_forecast_short_term_today(self):
+        df = self.iso.get_load_forecast_short_term(date="today")
+
+        now = self.iso.now()
+
+        assert df["Publish Time"].min() == now.normalize()
+        assert df["Publish Time"].max() == (now).floor("5T")
+
+        assert df["Interval Start"].min() <= now
+        assert df["Interval Start"].max() >= now.floor("H")
+
+        self._check_load_forecast(df, "SHORT_TERM")
+
+    def test_get_load_forecast_short_term_latest(self):
+        latest = self.iso.get_load_forecast_short_term(date="latest")
+
+        # Single publish time
+        assert (
+            latest["Publish Time"]
+            == (self.iso.now() - pd.Timedelta(minutes=2)).floor("5T")
+        ).all()
+
+        self._check_load_forecast(latest, "SHORT_TERM")
+
+    def test_get_load_forecast_short_term_historical(self):
+        now = self.iso.now()
+
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+
+        df = self.iso.get_load_forecast_short_term(date=three_days_ago)
+
+        assert (df["Publish Time"] == three_days_ago).all()
+
+        # Each file contains data going back into the past
+        assert df["Interval Start"].min() <= three_days_ago
+        assert df["Interval Start"].max() >= three_days_ago - pd.Timedelta(minutes=5)
+
+        self._check_load_forecast(df, "SHORT_TERM")
+
+    def test_get_load_forecast_short_term_hour_24_handling(self):
+        # This test checks we can successfully retrieve the 24th hour of the day
+        # which has a 00 ((23 + 1) % 24 = 0) for the hour in the file name.
+        two_days_ago_2300 = (
+            pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
+            - pd.Timedelta(days=2)
+            + pd.Timedelta(hours=23, minutes=0)
+        )
+
+        one_day_ago_0000 = two_days_ago_2300 + pd.Timedelta(hours=1)
+
+        df = self.iso.get_load_forecast_short_term(
+            date=two_days_ago_2300,
+            end=one_day_ago_0000,
+        )
+
+        assert df["Publish Time"].min() == two_days_ago_2300
+        assert df["Publish Time"].max() == one_day_ago_0000 - pd.Timedelta(minutes=5)
+
+        self._check_load_forecast(df, "SHORT_TERM")
+
+    def test_get_load_forecast_short_term_historical_with_date_range(self):
+        now = self.iso.now()
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+        three_days_ago_0345 = three_days_ago + pd.Timedelta(hours=3, minutes=45)
+
+        df = self.iso.get_load_forecast_short_term(
+            three_days_ago,
+            three_days_ago_0345,
+        )
+
+        assert df["Publish Time"].min() == three_days_ago
+        assert df["Publish Time"].max() == three_days_ago_0345 - pd.Timedelta(minutes=5)
+
+        self._check_load_forecast(df, "SHORT_TERM")
+
+    """get_load_forecast_mid_term"""
+
+    def test_get_load_forecast_mid_term_today(self):
+        df = self.iso.get_load_forecast_mid_term(date="today")
+
+        now = self.iso.now()
+
+        assert df["Publish Time"].min() == now.normalize()
+        assert df["Publish Time"].max() == (now).floor("H")
+
+        assert df["Interval Start"].min() <= now
+
+        time_in_future = pd.Timedelta(days=5)
+
+        assert df["Interval Start"].max() >= now + time_in_future
+
+        self._check_load_forecast(df, "MID_TERM")
+
+    def test_get_load_forecast_mid_term_latest(self):
+        latest = self.iso.get_load_forecast_mid_term(date="latest")
+
+        # Single publish time
+        assert (
+            latest["Publish Time"]
+            == (self.iso.now() - pd.Timedelta(minutes=10)).floor("H")
+        ).all()
+
+        self._check_load_forecast(latest, "MID_TERM")
+
+    def test_get_load_forecast_mid_term_historical(self):
+        now = self.iso.now()
+
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+
+        df = self.iso.get_load_forecast_mid_term(date=three_days_ago)
+
+        assert (df["Publish Time"].unique() == three_days_ago).all()
+
+        # Each file contains data going back into the past
+        assert df["Interval Start"].min() <= three_days_ago
+        assert df["Interval Start"].max() >= three_days_ago + pd.Timedelta(days=6)
+
+        self._check_load_forecast(df, "MID_TERM")
+
+    def test_get_load_forecast_mid_term_historical_with_date_range(self):
+        now = self.iso.now()
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+        three_days_ago_0345 = three_days_ago + pd.Timedelta(hours=3, minutes=45)
+
+        df = self.iso.get_load_forecast_mid_term(
+            three_days_ago,
+            three_days_ago_0345,
+        )
+
+        assert df["Publish Time"].min() == three_days_ago
+        assert df["Publish Time"].max() == three_days_ago_0345 - pd.Timedelta(
+            minutes=45,
+        )
+
+        self._check_load_forecast(df, "MID_TERM")
+
+    """get_solar_and_wind_forecast_short_term"""
+
+    def test_get_solar_and_wind_forecast_short_term_today(self):
+        df = self.iso.get_solar_and_wind_forecast_short_term(date="today")
+
+        now = self.iso.now()
+
+        assert df["Publish Time"].min() == now.normalize()
+        assert df["Publish Time"].max() == (now).floor("5T")
+
+        assert df["Interval Start"].min() <= now
+
+        time_in_future = pd.Timedelta(hours=3)
+
+        assert df["Interval Start"].max() >= now + time_in_future
+
+        self._check_solar_and_wind_forecast(df, "SHORT_TERM")
+
+    def test_get_solar_and_wind_forecast_short_term_latest(self):
+        latest = self.iso.get_solar_and_wind_forecast_short_term(date="latest")
+
+        # Single publish time
+        assert (
+            latest["Publish Time"]
+            == (self.iso.now() - pd.Timedelta(minutes=2)).floor("5T")
+        ).all()
+
+        self._check_solar_and_wind_forecast(latest, "SHORT_TERM")
+
+    def test_get_solar_and_wind_forecast_short_term_historical(self):
+        now = self.iso.now()
+
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+
+        df = self.iso.get_solar_and_wind_forecast_short_term(date=three_days_ago)
+
+        assert (df["Publish Time"] == three_days_ago).all()
+
+        # Each file contains data going back into the past
+        assert df["Interval Start"].min() <= three_days_ago
+        assert df["Interval Start"].max() >= three_days_ago + pd.Timedelta(hours=3)
+
+        self._check_solar_and_wind_forecast(df, "SHORT_TERM")
+
+    def test_get_solar_and_wind_forecast_short_term_hour_24_handling(self):
+        # This test checks we can successfully retrieve the 24th hour of the day
+        # which has a 00 ((23 + 1) % 24 = 0) for the hour in the file name.
+        two_days_ago_2300 = (
+            pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
+            - pd.Timedelta(days=2)
+            + pd.Timedelta(hours=23, minutes=0)
+        )
+
+        one_day_ago_0000 = two_days_ago_2300 + pd.Timedelta(hours=1)
+
+        df = self.iso.get_solar_and_wind_forecast_short_term(
+            date=two_days_ago_2300,
+            end=one_day_ago_0000,
+        )
+
+        assert df["Publish Time"].min() == two_days_ago_2300
+        assert df["Publish Time"].max() == one_day_ago_0000 - pd.Timedelta(minutes=5)
+
+        self._check_solar_and_wind_forecast(df, "SHORT_TERM")
+
+    def test_get_solar_and_wind_forecast_short_term_historical_with_date_range(self):
+        now = self.iso.now()
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+        three_days_ago_0345 = three_days_ago + pd.Timedelta(hours=3, minutes=45)
+
+        df = self.iso.get_solar_and_wind_forecast_short_term(
+            three_days_ago,
+            three_days_ago_0345,
+        )
+
+        assert df["Publish Time"].min() == three_days_ago
+        assert df["Publish Time"].max() == three_days_ago_0345 - pd.Timedelta(minutes=5)
+
+        self._check_solar_and_wind_forecast(df, "SHORT_TERM")
+
+    """get_solar_and_wind_forecast_mid_term"""
+
+    def test_get_solar_and_wind_forecast_mid_term_today(self):
+        df = self.iso.get_solar_and_wind_forecast_mid_term(date="today")
+
+        now = self.iso.now()
+
+        assert df["Publish Time"].min() == now.normalize()
+        assert df["Publish Time"].max() == (now).floor("H")
+
+        assert df["Interval Start"].min() <= now
+
+        time_in_future = pd.Timedelta(days=5)
+
+        assert df["Interval Start"].max() >= now + time_in_future
+
+        self._check_solar_and_wind_forecast(df, "MID_TERM")
+
+    def test_get_solar_and_wind_forecast_mid_term_latest(self):
+        latest = self.iso.get_solar_and_wind_forecast_mid_term(date="latest")
+
+        # Single publish time
+        assert (
+            latest["Publish Time"]
+            == (self.iso.now() - pd.Timedelta(minutes=10)).floor("H")
+        ).all()
+
+        self._check_solar_and_wind_forecast(latest, "MID_TERM")
+
+    def test_get_solar_and_wind_forecast_mid_term_historical(self):
+        now = self.iso.now()
+
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+
+        df = self.iso.get_solar_and_wind_forecast_mid_term(date=three_days_ago)
+
+        assert (df["Publish Time"].unique() == three_days_ago).all()
+
+        # Each file contains data going back into the past
+        assert df["Interval Start"].min() <= three_days_ago
+        assert df["Interval Start"].max() >= three_days_ago + pd.Timedelta(days=6)
+
+        self._check_solar_and_wind_forecast(df, "MID_TERM")
+
+    def test_get_solar_and_wind_forecast_mid_term_historical_with_date_range(self):
+        now = self.iso.now()
+        three_days_ago = now.normalize() - pd.Timedelta(days=3)
+        three_days_ago_0345 = three_days_ago + pd.Timedelta(hours=3, minutes=45)
+
+        df = self.iso.get_solar_and_wind_forecast_mid_term(
+            three_days_ago,
+            three_days_ago_0345,
+        )
+
+        assert df["Publish Time"].min() == three_days_ago
+        assert df["Publish Time"].max() == three_days_ago_0345 - pd.Timedelta(
+            minutes=45,
+        )
+
+        self._check_solar_and_wind_forecast(df, "MID_TERM")
 
     """get_status"""
 
@@ -391,3 +721,72 @@ class TestSPP(BaseTestISO):
         assert df["Publish Time"].nunique() == 366
 
         self._check_capacity_of_generation_on_outage(df)
+
+    def _check_solar_and_wind(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Actual Wind MW",
+            "Actual Solar MW",
+        ]
+
+        assert (df["Actual Wind MW"] >= 0).all()
+        assert (df["Actual Solar MW"] >= 0).all()
+
+    def _check_load_forecast(self, df, forecast_type):
+        forecast_col = "STLF" if forecast_type == "SHORT_TERM" else "MTLF"
+        actual_col = "Actual" if forecast_type == "SHORT_TERM" else "Averaged Actual"
+
+        expected_cols = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Forecast Type",
+            forecast_col,
+            actual_col,
+        ]
+
+        interval = (
+            pd.Timedelta(minutes=5)
+            if forecast_type == "SHORT_TERM"
+            else pd.Timedelta(hours=1)
+        )
+
+        assert df.columns.tolist() == expected_cols
+
+        assert (df[forecast_col] >= 0).all()
+
+        assert (df["Interval End"] - df["Interval Start"] == interval).all()
+
+        assert (df["Forecast Type"] == forecast_type).all()
+
+    def _check_solar_and_wind_forecast(self, df, forecast_type):
+        expected_cols = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Forecast Type",
+            "Wind Forecast MW",
+            "Actual Wind MW",
+            "Solar Forecast MW",
+            "Actual Solar MW",
+        ]
+
+        if forecast_type == "MID_TERM":
+            expected_cols.remove("Actual Wind MW")
+            expected_cols.remove("Actual Solar MW")
+
+        interval = (
+            pd.Timedelta(minutes=5)
+            if forecast_type == "SHORT_TERM"
+            else pd.Timedelta(hours=1)
+        )
+
+        assert df.columns.tolist() == expected_cols
+
+        assert (df["Wind Forecast MW"] >= 0).all()
+        assert (df["Solar Forecast MW"] >= 0).all()
+
+        assert (df["Interval End"] - df["Interval Start"] == interval).all()
+
+        assert (df["Forecast Type"] == forecast_type).all()

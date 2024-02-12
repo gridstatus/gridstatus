@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import BinaryIO
 
 import requests
 
@@ -93,7 +94,10 @@ class ISOBase:
     def get_storage(self, date, end=None, verbose=False):
         raise NotImplementedError()
 
-    def get_interconnection_queue(self):
+    def get_raw_interconnection_queue(self, verbose: bool = False) -> BinaryIO:
+        raise NotImplementedError()
+
+    def get_interconnection_queue(self, verbose: bool = False):
         raise NotImplementedError()
 
     def _latest_lmp_from_today(self, market, locations, **kwargs):
@@ -101,8 +105,12 @@ class ISOBase:
             date="today", market=market, locations=locations, **kwargs
         )
         col_order = lmp_df.columns.tolist()
+
+        # Special case to handle PJM 5 min LMPs
+        grouper_column_name = "Location" if "Location" in col_order else "Location Id"
+
         # Assume sorted in ascending order
-        latest_df = lmp_df.groupby("Location").last().reset_index()
+        latest_df = lmp_df.groupby(grouper_column_name).last().reset_index()
         latest_df = latest_df[col_order]
         return latest_df
 

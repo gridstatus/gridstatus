@@ -1,3 +1,5 @@
+from typing import BinaryIO
+
 import pandas as pd
 import requests
 import tqdm
@@ -14,6 +16,18 @@ FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
 FILE_BROWSER_DOWNLOAD_URL = "https://portal.spp.org/file-browser-api/download"
+
+BASE_SOLAR_AND_WIND_SHORT_TERM_URL = (
+    f"{FILE_BROWSER_DOWNLOAD_URL}/shortterm-resource-forecast?path="
+)
+BASE_SOLAR_AND_WIND_MID_TERM_URL = (
+    f"{FILE_BROWSER_DOWNLOAD_URL}/midterm-resource-forecast?path="
+)
+
+BASE_LOAD_FORECAST_SHORT_TERM_URL = f"{FILE_BROWSER_DOWNLOAD_URL}/stlf-vs-actual?path="
+
+BASE_LOAD_FORECAST_MID_TERM_URL = f"{FILE_BROWSER_DOWNLOAD_URL}/mtlf-vs-actual?path="
+
 
 LOCATION_TYPE_ALL = "ALL"
 LOCATION_TYPE_HUB = "Hub"
@@ -77,6 +91,10 @@ class SPP(ISOBase):
         LOCATION_TYPE_INTERFACE,
         LOCATION_TYPE_SETTLEMENT_LOCATION,
     ]
+
+    @staticmethod
+    def now():
+        return pd.Timestamp.now(tz=SPP.default_timezone)
 
     def get_fuel_mix(self, date, detailed=False, verbose=False):
         """Get fuel mix
@@ -192,6 +210,268 @@ class SPP(ISOBase):
         )
 
         return current_day_forecast
+
+    @support_date_range("5_MIN")
+    def get_load_forecast_short_term(self, date, end=None, verbose=False):
+        """
+        5-minute load forecast data for the SPP footprint (system-wide) for +/- 10
+        minutes. Also includes actual load.
+
+        Data from https://portal.spp.org/pages/stlf-vs-actual
+
+        Arguments:
+            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
+            verbose (bool): print info
+
+        Returns:
+            pd.DataFrame: forecast as dataframe.
+        """
+        # The short_term forecast is delayed up to 2 minutes.
+        buffer_minutes = 2
+
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        # Files do not exist in the future
+        if date > self.now():
+            return
+
+        url = self._short_term_load_forecast_url(date.floor("5T"))
+
+        log(f"Downloading {url}", verbose=verbose)
+        df = pd.read_csv(url)
+
+        # According to the docs, the end time col should be GMTIntervalEnd, but it's
+        # only GMTInterval in the data
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="SHORT_TERM",
+            forecast_col="STLF",
+            end_time_col="GMTInterval",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        return df
+
+    @support_date_range("HOUR_START")
+    def get_load_forecast_mid_term(self, date, end=None, verbose=False):
+        """
+        Returns load forecast for +7 days in hourly intervals. Includes actual load
+        for the past 24 hours. Data from https://portal.spp.org/pages/mtlf-vs-actual
+
+        Arguments:
+            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
+            verbose (bool): print info
+
+        Returns:
+            pd.DataFrame: forecast as dataframe.
+        """
+        # The MID_TERM forecast is delayed up to 10 minutes.
+        buffer_minutes = 10
+
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        if date > self.now():
+            return
+
+        url = self._mid_term_load_forecast_url(date.floor("H"))
+
+        log(f"Downloading {url}", verbose=verbose)
+        df = pd.read_csv(url)
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="MID_TERM",
+            forecast_col="MTLF",
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
+        return df
+
+    def _post_process_load_forecast(
+        self,
+        df,
+        url,
+        forecast_type,
+        forecast_col,
+        end_time_col,
+        interval_duration,
+    ):
+        df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
+
+        # Assume the publish time is in the name of the file. There are different
+        # times on the webpage, but these could be the posting time.
+        df["Publish Time"] = pd.Timestamp(
+            url.split("-")[-1].split(".")[0],
+            tz=self.default_timezone,
+        )
+
+        df.columns = [col.strip() for col in df.columns]
+
+        df["Forecast Type"] = forecast_type
+
+        df = (
+            utils.move_cols_to_front(
+                df,
+                ["Interval Start", "Interval End", "Publish Time", "Forecast Type"],
+            )
+            .drop(columns=["Time", "Interval"])
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+        return df.dropna(subset=[forecast_col]).reset_index(drop=True)
+
+    @support_date_range("5_MIN")
+    def get_solar_and_wind_forecast_short_term(self, date, end=None, verbose=False):
+        """
+        Returns solar and wind generation forecast for +4 hours in 5 minute intervals.
+        Include actuals for past day in 5 minute intervals.
+
+        Data from https://portal.spp.org/pages/shortterm-resource-forecast
+
+        Arguments:
+            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
+            verbose (bool): print info
+
+        Returns:
+            pd.DataFrame: forecast as dataframe.
+        """
+        # The short_term forecast is delayed up to 2 minutes.
+        buffer_minutes = 2
+
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        # Files do not exist in the future
+        if date > self.now():
+            return
+
+        url = self._short_term_solar_and_wind_url(date.floor("5T"))
+
+        log(f"Downloading {url}", verbose=verbose)
+        df = pd.read_csv(url)
+
+        # According to the docs, the end time col should be GMTIntervalEnd, but it's
+        # only GMTInterval in the data
+        df = self._post_process_solar_and_wind_forecast(
+            df,
+            url,
+            forecast_type="SHORT_TERM",
+            end_time_col="GMTInterval",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        return df
+
+    @support_date_range("HOUR_START")
+    def get_solar_and_wind_forecast_mid_term(self, date, end=None, verbose=False):
+        """
+        Returns solar and wind generation forecast for +7 days in hourly intervals.
+
+        Data from https://portal.spp.org/pages/midterm-resource-forecast.
+
+        Arguments:
+            date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
+            verbose (bool): print info
+
+        Returns:
+            pd.DataFrame: forecast as dataframe.
+        """
+        # The MID_TERM forecast is delayed up to 10 minutes.
+        buffer_minutes = 10
+
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        if date > self.now():
+            return
+
+        url = self._mid_term_solar_and_wind_url(date.floor("H"))
+
+        log(f"Downloading {url}", verbose=verbose)
+        df = pd.read_csv(url)
+
+        df = self._post_process_solar_and_wind_forecast(
+            df,
+            url,
+            forecast_type="MID_TERM",
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
+        return df
+
+    def _post_process_solar_and_wind_forecast(
+        self,
+        df,
+        url,
+        forecast_type,
+        end_time_col,
+        interval_duration,
+    ):
+        df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
+
+        # Assume the publish time is in the name of the file. There are different
+        # times on the webpage, but these could be the posting time.
+        df["Publish Time"] = pd.Timestamp(
+            url.split("-")[-1].split(".")[0],
+            tz=self.default_timezone,
+        )
+
+        df.columns = [col.strip() for col in df.columns]
+
+        df["Forecast Type"] = forecast_type
+
+        df = (
+            utils.move_cols_to_front(
+                df,
+                ["Interval Start", "Interval End", "Publish Time", "Forecast Type"],
+            )
+            .drop(columns=["Time", "Interval"])
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+        return df.dropna(subset=["Wind Forecast MW", "Solar Forecast MW"]).reset_index(
+            drop=True,
+        )
+
+    def _short_term_solar_and_wind_url(self, date):
+        hour = date.hour
+        padded_hour = str(hour).zfill(2)
+        padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
+
+        # The first hour in the URL is 1 after the hour in the filename.
+        # Example 2024/01/01/02 has data for 01/01/2024 01:00:00 - 01/01/2024 01:55:00
+        return BASE_SOLAR_AND_WIND_SHORT_TERM_URL + date.strftime(
+            f"/%Y/%m/%d/{padded_hour_plus_one}/OP-STRF-%Y%m%d{padded_hour}%M.csv",
+        )
+
+    def _mid_term_solar_and_wind_url(self, date):
+        # Explicitly set the minutes to 00.
+        return BASE_SOLAR_AND_WIND_MID_TERM_URL + date.strftime(
+            "/%Y/%m/%d/OP-MTRF-%Y%m%d%H00.csv",
+        )
+
+    def _short_term_load_forecast_url(self, date):
+        hour = date.hour
+        padded_hour = str(hour).zfill(2)
+        padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
+
+        # The first hour in the URL is 1 after the hour in the filename.
+        # Example 2024/01/01/02 has data for 01/01/2024 01:00:00 - 01/01/2024 01:55:00
+        return BASE_LOAD_FORECAST_SHORT_TERM_URL + date.strftime(
+            f"/%Y/%m/%d/{padded_hour_plus_one}/OP-STLF-%Y%m%d{padded_hour}%M.csv",
+        )
+
+    def _mid_term_load_forecast_url(self, date):
+        # Explicitly set the minutes to 00.
+        return BASE_LOAD_FORECAST_MID_TERM_URL + date.strftime(
+            "/%Y/%m/%d/OP-MTLF-%Y%m%d%H00.csv",
+        )
 
     def _handle_market_end_to_interval(self, df, column, interval_duration):
         """Converts market end time to interval end time"""
@@ -404,12 +684,21 @@ class SPP(ISOBase):
         # todo where does date got in argument order
         # def get_historical_lmp(self, date, market: str, nodes: list):
         # 5 minute interal data
-        # {FILE_BROWSER_API_URL}/rtbm-lmp-by-location?path=/2022/08/By_Interval/08/RTBM-LMP-SL-202208082125.csv
+        # {FILE_BROWSER_API_URL}/rtbm-lmp-by-location?path=/2022/08/By_Interval/08
+        # /RTBM-LMP-SL-202208082125.csv
 
         # historical generation mix
-        # https://marketplace.spp.org/pages/generation-mix-rolling-365
-        # https://marketplace.spp.org/chart-api/gen-mix-365/asFile
-        # 15mb file with five minute resolution
+
+    # https://marketplace.spp.org/pages/generation-mix-rolling-365
+    # https://marketplace.spp.org/chart-api/gen-mix-365/asFile
+    # 15mb file with five minute resolution
+
+    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
+        msg = f"Getting interconnection queue from {url}"
+        log(msg, verbose)
+        response = requests.get(url)
+        return utils.get_response_blob(response)
 
     def get_interconnection_queue(self, verbose=False):
         """Get interconnection queue
@@ -419,12 +708,8 @@ class SPP(ISOBase):
 
 
         """
-        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
-
-        msg = f"Getting interconnection queue from {url}"
-        log(msg, verbose)
-
-        queue = pd.read_csv(url, skiprows=1)
+        raw_data = self.get_raw_interconnection_queue(verbose)
+        queue = pd.read_csv(raw_data, skiprows=1)
 
         queue["Status (Original)"] = queue["Status"]
         completed_val = InterconnectionQueueStatus.COMPLETED.value
@@ -689,6 +974,9 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(minutes=5),
         )
 
+        # don't need this column
+        df = df.drop(columns=["Interval"])
+
         df = df.rename(
             columns={
                 "RegUP_Clr": "Reg_Up_Cleared",
@@ -703,6 +991,65 @@ class SPP(ISOBase):
         )
 
         return df
+
+    @support_date_range("DAY_START")
+    def get_day_ahead_operating_reserve_prices(self, date, end=None, verbose=False):
+        """Provides Marginal Clearing Price information by Reserve Zone for each
+        Day-Ahead Market solution for each Operating Day.
+        Posting is updated each day after the DA Market results are posted.
+        Available at https://portal.spp.org/pages/da-mcp#
+
+        Args:
+            date: date to get data for
+            end: end date
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: Day Ahead Marginal Clearing Prices
+        """
+        if date == "latest":
+            raise ValueError(
+                "Latest not supported for Day Ahead Marginal Clearing Prices",
+            )
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/da-mcp?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MCP-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_day_ahead_operating_reserve_prices(df)
+
+    def _process_day_ahead_operating_reserve_prices(self, df):
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        ).assign(Market="DAM")
+
+        column_mapping = {
+            "RegUP": "Reg_Up",
+            "RegDN": "Reg_Dn",
+            "RampUP": "Ramp_Up",
+            "RampDN": "Ramp_Dn",
+            "Spin": "Spin",
+            "Supp": "Supp",
+            "UncUP": "Unc_Up",
+        }
+
+        df = df.rename(columns=column_mapping)
+
+        cols_to_keep = [
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Reserve Zone",
+        ] + list(
+            column_mapping.values(),
+        )
+
+        # Older datasets might not have all the reserve types
+        return df[[c for c in cols_to_keep if c in df]]
 
     @support_date_range("5_MIN")
     def get_lmp_real_time_weis(self, date, end=None, verbose=False):
@@ -730,9 +1077,17 @@ class SPP(ISOBase):
             # folder path is based on start date
             # file name is based on end date
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Interval/{date.strftime('%d')}/WEIS-RTBM-LMP-SL-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+
+        # TODO: sometimes there are missing interval files (example: https://portal.spp.org/pages/lmp-by-settlement-location-weis#%2F2024%2F01%2FBy_Interval%2F21) # noqa
+        # We can't do anything in these cases but log a message
         msg = f"Downloading {url}"
         log(msg, verbose)
-        df = pd.read_csv(url)
+
+        try:
+            df = pd.read_csv(url)
+        except ConnectionResetError as e:
+            log(f"Error downloading {url}: {e}", verbose)
+            return pd.DataFrame()
 
         return self._process_lmp_real_time_weis(df)
 

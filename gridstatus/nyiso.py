@@ -1,4 +1,7 @@
+from typing import BinaryIO
+
 import pandas as pd
+import requests
 
 import gridstatus
 from gridstatus import utils
@@ -63,7 +66,9 @@ class NYISO(ISOBase):
 
                 row["Status"] = row["Status"][
                     row["Status"].index(STATE_CHANGE)
-                    + len(STATE_CHANGE) : -len(" state.**")
+                    + len(STATE_CHANGE) : -len(
+                        " state.**",
+                    )
                 ].capitalize()
 
             return row
@@ -323,6 +328,14 @@ class NYISO(ISOBase):
 
         return df
 
+    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
+
+        msg = f"Downloading interconnection queue from {url}"
+        log(msg, verbose)
+        response = requests.get(url)
+        return utils.get_response_blob(response)
+
     def get_interconnection_queue(self, verbose=False):
         """Return NYISO interconnection queue
 
@@ -336,28 +349,24 @@ class NYISO(ISOBase):
 
         # 3 sheets - ['Interconnection Queue', 'Withdrawn', 'In Service']
         # harded coded for now. perhaps this url can be parsed from the html here:
-        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
+        raw_data = self.get_raw_interconnection_queue(verbose)
 
-        msg = f"Downloading interconnection queue from {url}"
-        log(msg, verbose)
-
-        all_sheets = pd.read_excel(
-            url,
-            sheet_name=["Interconnection Queue", "Withdrawn"],
-        )
+        # Create ExcelFile so we only need to download file once
+        excel_file = pd.ExcelFile(raw_data)
 
         # Drop extra rows at bottom
         active = (
-            all_sheets["Interconnection Queue"]
+            pd.read_excel(excel_file, sheet_name="Interconnection Queue")
             .dropna(
                 subset=["Queue Pos.", "Project Name"],
             )
             .copy()
-        )
+            # Active projects can have multiple values for "Points of Interconnection"
+        ).rename(columns={"Points of Interconnection": "Interconnection Point"})
 
         active["Status"] = InterconnectionQueueStatus.ACTIVE.value
 
-        withdrawn = all_sheets["Withdrawn"]
+        withdrawn = pd.read_excel(excel_file, sheet_name="Withdrawn")
         withdrawn["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
         # assume it was withdrawn when last updated
         withdrawn["Withdrawn Date"] = withdrawn["Last Update"]
@@ -365,7 +374,7 @@ class NYISO(ISOBase):
         withdrawn = withdrawn.rename(columns={"Utility ": "Utility"})
 
         # make completed look like the other two sheets
-        completed = pd.read_excel(url, sheet_name="In Service", header=[0, 1])
+        completed = pd.read_excel(excel_file, sheet_name="In Service", header=[0, 1])
         completed.insert(15, "SGIA Tender Date", None)
         completed.insert(16, "CY Complete Date", None)
         completed.insert(17, "Proposed Initial-Sync Date", None)
@@ -377,11 +386,36 @@ class NYISO(ISOBase):
             and "SGIA Tender Date" not in completed.columns
         ):
             active = active.drop(columns=["SGIA Tender Date"])
-        completed.columns = active.columns
+        completed_colnames_map = {
+            ("Queue", "Pos."): "Queue Pos.",
+            ("Queue", "Owner/Developer"): "Developer Name",
+            ("Queue", "Project Name"): "Project Name",
+            ("Date", "of IR"): "Date of IR",
+            ("SP", "(MW)"): "SP (MW)",
+            ("WP", "(MW)"): "WP (MW)",
+            ("Type/", "Fuel"): "Type/ Fuel",
+            ("Location", "County"): "County",
+            ("Location", "State"): "State",
+            ("Z", "Unnamed: 9_level_1"): "Z",
+            ("Interconnection", "Point"): "Interconnection Point",
+            ("Interconnection", "Utility "): "Utility",
+            ("Interconnection", "S"): "S",
+            ("Last Update", "Unnamed: 13_level_1"): "Last Updated Date",
+            ("Availability", "of Studies"): "Availability of Studies",
+            ("SGIA Tender Date", ""): "SGIA Tender Date",
+            ("CY Complete Date", ""): "CY Complete Date",
+            ("Proposed Initial-Sync Date", ""): "Proposed Initial-Sync Date",
+            ("Proposed", " In-Service"): "Proposed In-Service Date",
+            ("Proposed", "COD"): "Proposed COD",
+            ("Proposed", "COD.1"): "Proposed COD.1",
+            ("Proposed", "COD.2"): "Proposed COD.2",
+            ("Proposed", "COD.3"): "Proposed COD.3",
+            ("Status", ""): "Status",
+        }
+        completed.columns = completed.columns.to_flat_index().map(
+            lambda c: completed_colnames_map[c],
+        )
 
-        # the spreadsheet doesnt have a date, so make it null
-        completed["Proposed  In-Service"] = None
-        completed["Proposed COD"] = None
         # assume it was finished when last updated
         completed["Actual Completion Date"] = completed["Last Updated Date"]
 
@@ -441,8 +475,8 @@ class NYISO(ISOBase):
             queue["Proposed COD"],
             errors="coerce",
         )
-        queue["Proposed  In-Service"] = pd.to_datetime(
-            queue["Proposed  In-Service"],
+        queue["Proposed In-Service Date"] = pd.to_datetime(
+            queue["Proposed In-Service Date"],
             errors="coerce",
         )
         queue["Proposed Initial-Sync Date"] = pd.to_datetime(
@@ -472,7 +506,7 @@ class NYISO(ISOBase):
         }
 
         extra_columns = [
-            "Proposed  In-Service",
+            "Proposed In-Service Date",
             "Proposed Initial-Sync Date",
             "Last Updated Date",
             "Z",
@@ -523,23 +557,22 @@ class NYISO(ISOBase):
             * Notes
             * Generator Type
         """
+        generator_url = "http://mis.nyiso.com/public/csv/generator/generator.csv"
 
-        url = "http://mis.nyiso.com/public/csv/generator/generator.csv"
-
-        msg = f"Requesting {url}"
+        msg = f"Requesting {generator_url}"
         log(msg, verbose)
 
-        df = pd.read_csv(url)
+        df = pd.read_csv(generator_url)
 
         # need to be updated once a year. approximately around end of april
         # find it here: https://www.nyiso.com/gold-book-resources
-        capacity_url_2022 = "https://www.nyiso.com/documents/20142/30338270/2022-NYCA-Generators.xlsx/f0526021-37fd-2c27-94ee-14d0f31878c1"  # noqa
+        capacity_url_2023 = "https://www.nyiso.com/documents/20142/37320118/2023-NYCA-Generators.xlsx/145ca922-064c-133f-b3e8-3b4a30ed2845"  # noqa
 
-        msg = f"Requesting {url}"
+        msg = f"Requesting {capacity_url_2023}"
         log(msg, verbose)
 
         generators = pd.read_excel(
-            capacity_url_2022,
+            capacity_url_2023,
             sheet_name=[
                 "Table III-2a",
                 "Table III-2b",
@@ -551,11 +584,8 @@ class NYISO(ISOBase):
         generators["Table III-2a"]["Generator Type"] = "Market Generator"
         generators["Table III-2b"]["Generator Type"] = "Non-Market Generator"
 
-        # combined both sheets
-        generators = pd.concat(generators.values())
-
-        # manually transcribed column names
-        generators.columns = [
+        # manually transcribed column names (inspect spreadsheet for confirmation)
+        mapped_columns = [
             "LINE REF. NO.",
             "Owner, Operator, and / or Billing Organization",
             "Station Unit",
@@ -566,18 +596,26 @@ class NYISO(ISOBase):
             "State",
             "In-Service Date",
             "Name Plate Rating (V) MW",
-            "2022 CRIS MW Summer",
-            "2022 CRIS MW Winter",
-            "2022 Capability MW Summer",
-            "2022 Capability MW Winter",
+            "2023 CRIS MW Summer",
+            "2023 CRIS MW Winter",
+            "2023 Capability MW Summer",
+            "2023 Capability MW Winter",
             "Is Dual Fuel",
             "Unit Type",
             "Fuel Type 1",
             "Fuel Type 2",
-            "2021 Net Energy GWh",
+            "2022 Net Energy GWh",
             "Notes",
             "Generator Type",
         ]
+
+        # Rename the columns separately, so they match on the concat
+        generators["Table III-2a"].columns = mapped_columns
+        generators["Table III-2b"].columns = mapped_columns
+
+        # combine both sheets
+        generators = pd.concat(generators.values())
+
         generators = generators.dropna(subset=["PTID"])
 
         generators["PTID"] = generators["PTID"].astype(int)
@@ -585,7 +623,14 @@ class NYISO(ISOBase):
         # in other data
         generators = generators.drop(columns=["Zone", "LINE REF. NO."])
 
-        combined = pd.merge(df, generators, on=["PTID"], how="left")
+        # TODO: df has both Generator PTID and Aggregation PTID
+        combined = pd.merge(
+            df,
+            generators,
+            left_on="Generator PTID",
+            right_on="PTID",
+            how="left",
+        )
 
         unit_type_map = {
             "CC": "Combined Cycle",

@@ -729,6 +729,17 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
+    def get_raw_interconnection_queue(self, verbose=False):
+        doc_info = self._get_document(
+            report_type_id=GIS_REPORT_RTID,
+            constructed_name_contains="GIS_Report",
+            verbose=verbose,
+        )
+        msg = f"Downloading interconnection queue from: {doc_info.url} "
+        log(msg, verbose)
+        response = requests.get(doc_info.url)
+        return utils.get_response_blob(response)
+
     def get_interconnection_queue(self, verbose=False):
         """
         Get interconnection queue for ERCOT
@@ -736,23 +747,14 @@ class Ercot(ISOBase):
         Monthly historical data available here:
             http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
         """  # noqa
-
-        doc_info = self._get_document(
-            report_type_id=GIS_REPORT_RTID,
-            constructed_name_contains="GIS_Report",
-            verbose=verbose,
-        )
-
+        raw_data = self.get_raw_interconnection_queue(verbose)
         # TODO other sheets for small projects, inactive, and cancelled project
         # TODO see if this data matches up with summaries in excel file
         # TODO historical data available as well
 
-        msg = f"Downloading interconnection queue from: {doc_info.url} "
-        log(msg, verbose)
-
         # skip rows and handle header
         queue = pd.read_excel(
-            doc_info.url,
+            raw_data,
             sheet_name="Project Details - Large Gen",
             skiprows=30,
         ).iloc[4:]
@@ -2454,12 +2456,14 @@ class Ercot(ISOBase):
             ending_time_col_name = "TimeEnding"
             interval_length = pd.Timedelta(minutes=15)
 
-            doc["Interval Start"] = (
-                pd.to_datetime(
-                    doc["DeliveryDate"] + " " + doc[ending_time_col_name] + ":00",
-                )
-                - interval_length
+            doc["Interval End"] = pd.to_datetime(
+                doc["DeliveryDate"] + " " + doc["TimeEnding"] + ":00",
             )
+            doc["Interval End"] = doc["Interval End"].dt.tz_localize(
+                "US/Central",
+                ambiguous=doc["DSTFlag"] == "N",
+            )
+            doc["Interval Start"] = doc["Interval End"] - interval_length
 
         else:
             interval_length = pd.Timedelta(hours=1)
@@ -2477,30 +2481,31 @@ class Ercot(ISOBase):
                 "HourBeginning"
             ].astype("timedelta64[h]")
 
-        ambiguous = dst_ambiguous_default
-        if "DSTFlag" in doc.columns:
-            # DST Flag is Y during the repeated hour
-            # So, it's N during DST And Y during Standard Time
-            # Pandas wants True for DST and False for Standard Time
-            # during ambiguous times
-            ambiguous = doc["DSTFlag"] == "N"
+        if "TimeEnding" not in original_cols:
+            ambiguous = dst_ambiguous_default
+            if "DSTFlag" in doc.columns:
+                # DST Flag is Y during the repeated hour
+                # So, it's N during DST And Y during Standard Time
+                # Pandas wants True for DST and False for Standard Time
+                # during ambiguous times
+                ambiguous = doc["DSTFlag"] == "N"
 
-        try:
-            doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
-                self.default_timezone,
-                ambiguous=ambiguous,
-            )
-        except NonExistentTimeError:
-            # this handles how ercot does labels the instant
-            # of the DST transition differently than
-            # pandas does
-            doc["Interval Start"] = doc["Interval Start"] + pd.Timedelta(hours=1)
-            doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
-                self.default_timezone,
-                ambiguous=ambiguous,
-            ) - pd.Timedelta(hours=1)
+            try:
+                doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=ambiguous,
+                )
+            except NonExistentTimeError:
+                # this handles how ercot does labels the instant
+                # of the DST transition differently than
+                # pandas does
+                doc["Interval Start"] = doc["Interval Start"] + pd.Timedelta(hours=1)
+                doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=ambiguous,
+                ) - pd.Timedelta(hours=1)
 
-        doc["Interval End"] = doc["Interval Start"] + interval_length
+            doc["Interval End"] = doc["Interval Start"] + interval_length
 
         doc["Time"] = doc["Interval Start"]
         doc = doc.sort_values("Time", ascending=True)

@@ -53,7 +53,7 @@ class EIA:
         data = self.session.get(url, headers=headers)
         response = data.json()["response"]
         df = pd.DataFrame(response["data"])
-        return df, response["total"]
+        return df, int(response["total"])
 
     def get_dataset(self, dataset, start, end, facets=None, n_workers=1, verbose=False):
         """Get data from a dataset
@@ -553,7 +553,7 @@ def _handle_region_data(df):
         },
     )
 
-    df["MW"] = df["MW"].astype("Int64")
+    df["MW"] = df["MW"].astype(float)
 
     # pivot on type
     df = df.pivot_table(
@@ -566,7 +566,7 @@ def _handle_region_data(df):
 
     # fix after pivot
     for col in ["Load", "Net Generation", "Load Forecast", "Total Interchange"]:
-        df[col] = df[col].astype("Int64")
+        df[col] = df[col].astype(float)
 
     return df
 
@@ -614,7 +614,7 @@ def _handle_fuel_type_data(df):
         axis=1,
     )
 
-    df["MW"] = df["MW"].astype("Int64")
+    df["MW"] = df["MW"].astype(float)
 
     # pivot on type
     df = df.pivot_table(
@@ -627,7 +627,7 @@ def _handle_fuel_type_data(df):
 
     # nans after pivot because not
     # all respondents have all fuel types
-    df[fuel_mix_cols] = df[fuel_mix_cols].astype("Int64").fillna(0)
+    df[fuel_mix_cols] = df[fuel_mix_cols].astype(float).fillna(0)
 
     df.columns.name = None
 

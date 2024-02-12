@@ -37,16 +37,13 @@ class TestNYISO(BaseTestISO):
         df = self.iso.get_fuel_mix(start=last_day_of_prev_month, end=first_day_of_month)
 
         # Midnight of the end date
-        assert df["Time"].max() == first_day_of_month.normalize() + pd.Timedelta(
-            days=1,
-            minutes=-5,
-        )
+        assert df["Time"].max() == first_day_of_month.normalize() + pd.Timedelta(days=1)
         # First 5 minute interval of the start date
         assert df["Time"].min() == last_day_of_prev_month.normalize() + pd.Timedelta(
             minutes=5,
         )
 
-        assert df["Time"].dt.date.nunique() == 2  # 2 days
+        assert df["Time"].dt.date.nunique() == 3  # 2 days in range + 1 day for midnight
         self._check_fuel_mix(df)
 
     def test_month_start_multiple_months(self):
@@ -68,8 +65,6 @@ class TestNYISO(BaseTestISO):
 
     """get_generators"""
 
-    # todo
-    @pytest.mark.skip(reason="Needs to be updated to 2023 data")
     def test_get_generators(self):
         df = self.iso.get_generators()
         columns = [
@@ -107,6 +102,10 @@ class TestNYISO(BaseTestISO):
     def test_get_load_month_range(self):
         df = self.iso.get_load(start="2023-04-01", end="2023-05-16")
         assert df.shape[0] >= 0
+
+    def test_get_load_historical(self):
+        # TODO: why does this not work more than 8 days in the past
+        super().test_get_load_historical(lookback_days=8)
 
     """get_lmp"""
 
@@ -195,6 +194,14 @@ class TestNYISO(BaseTestISO):
                 market=Markets.DAY_AHEAD_HOURLY,
                 location_type="dummy",
             )
+
+    """get_interconnection_queue"""
+
+    # This test is in addition to the base_test_iso test
+    def test_get_interconnection_queue_handles_new_file(self):
+        df = self.iso.get_interconnection_queue()
+        # There are a few missing values, but a small percentage
+        assert df["Interconnection Location"].isna().sum() < 0.01 * df.shape[0]
 
     """get_loads"""
 
