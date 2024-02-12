@@ -118,6 +118,7 @@ class TestNYISO(BaseTestISO):
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
+        # Markets.REAL_TIME_15_MIN, # Not supported
     )
     def test_get_lmp_historical(self, market):
         super().test_get_lmp_historical(market=market)
@@ -125,6 +126,7 @@ class TestNYISO(BaseTestISO):
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_15_MIN,
     )
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
@@ -132,13 +134,14 @@ class TestNYISO(BaseTestISO):
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_15_MIN,
     )
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market=market)
 
     def test_get_lmp_historical_with_range(self):
         start = "2021-12-01"
-        end = "2022-2-02"
+        end = "2022-02-02"
         df = self.iso.get_lmp(
             start=start,
             end=end,
@@ -240,7 +243,6 @@ class TestNYISO(BaseTestISO):
 
     def test_various_edt_to_est(self):
         # number of rows hardcoded based on when this test was written. should stay same
-
         date = "Nov 7, 2021"
 
         df = self.iso.get_status(date=date)

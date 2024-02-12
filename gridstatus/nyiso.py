@@ -247,7 +247,10 @@ class NYISO(ISOBase):
 
     @lmp_config(
         supports={
+            # Real Time Dispatch (RTD)
             Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            # Real Time Commitment (RTC)
+            Markets.REAL_TIME_15_MIN: ["latest", "today"],
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
         },
     )
@@ -264,11 +267,15 @@ class NYISO(ISOBase):
         """
         Supported Markets:
             - ``REAL_TIME_5_MIN``
+            - ``REAL_TIME_15_MIN``
             - ``DAY_AHEAD_HOURLY``
 
         Supported Location Types:
             - ``zone``
             - ``generator``
+
+        For documentation on real time dispatch and real time commitment, see:
+        https://www.nyiso.com/documents/20142/1404816/RTC-RTD%20Convergence%20Study.pdf/f3843982-dd30-4c66-6c21-e101c3cb85af
         """
         if date == "latest":
             return self._latest_lmp_from_today(
@@ -309,6 +316,31 @@ class NYISO(ISOBase):
         df["Market"] = market.value
         df["Location Type"] = "Zone" if location_type == ZONE else "Generator"
 
+        # NYISO includes both RTD and RTC in the same file, so we have to differentiate
+        # them. The RTD values are at 5 minute intervals, while the RTC values are at
+        # 15 minute intervals.
+        if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
+            df["Time Step"] = df["Interval Start"].diff(1)
+
+            # Find timestamps that are 15 minutes apart
+            rtc_timestamps = df.loc[
+                df["Time Step"] == pd.Timedelta("15 minutes"),
+                "Interval Start",
+            ]
+
+            if not rtc_timestamps.empty:
+                first_rtc_timestamp = rtc_timestamps.min()
+
+                df.loc[
+                    df["Interval Start"] < first_rtc_timestamp,
+                    "Market",
+                ] = Markets.REAL_TIME_5_MIN.value
+
+                df.loc[
+                    df["Interval Start"] >= first_rtc_timestamp,
+                    "Market",
+                ] = Markets.REAL_TIME_15_MIN.value
+
         df = df[
             [
                 "Time",
@@ -326,7 +358,7 @@ class NYISO(ISOBase):
 
         df = utils.filter_lmp_locations(df, locations)
 
-        return df
+        return df[df["Market"] == market.value].reset_index(drop=True)
 
     def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
         url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
@@ -712,12 +744,12 @@ class NYISO(ISOBase):
         return df
 
     def _set_marketname(self, market: Markets) -> str:
-        if market == Markets.REAL_TIME_5_MIN:
+        if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
             marketname = "realtime"
         elif market == Markets.DAY_AHEAD_HOURLY:
             marketname = "damlbmp"
         else:
-            raise RuntimeError("LMP Market is not supported")
+            raise RuntimeError(f"LMP Market {market} is not supported")
         return marketname
 
     def _set_location_type(self, location_type: str) -> str:
@@ -822,7 +854,7 @@ class NYISO(ISOBase):
 
             df = pd.concat(all_dfs)
 
-        return df
+        return df.sort_values("Time").reset_index(drop=True)
 
     def get_capacity_prices(self, date=None, verbose=False):
         """Pull the most recent capacity market report's market clearing prices
