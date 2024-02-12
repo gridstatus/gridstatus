@@ -294,15 +294,18 @@ class ISONE(ISOBase):
         data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
 
         # Extract the datetime from the string
+        # "C","Report for 02/10/2024"
         match = re.search(
-            r"Report generated (\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}) ([A-Z]{3})",
+            r"Report for (\d{2}/\d{2}/\d{4})",
             raw_string,
         )
 
         # Parse the datetime if the pattern is found
         if match:
             report_datetime_str = match.group(1)
-            report_datetime = pd.Timestamp(report_datetime_str, tz=match.group(2))
+            report_datetime = pd.Timestamp(
+                report_datetime_str, tz=self.default_timezone
+            )
         else:
             raise ValueError("Report datetime not found")
 
