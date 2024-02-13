@@ -318,16 +318,21 @@ class NYISO(ISOBase):
 
         # NYISO includes both RTD and RTC in the same file, so we have to differentiate
         # them. The RTD values are at 5 minute intervals, while the RTC values are at
-        # 15 minute intervals.
+        # 15 minute intervals (The first RTC value may be only 10 minutes after the last
+        # RTD value.)
         if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
-            df["Time Step"] = df["Interval Start"].diff(1)
+            time_steps = df["Interval Start"].diff(1)
 
-            # Find timestamps that are 15 minutes apart
+            # Find timestamps that are greater than 5 minutes apart (if any) and
+            # mark these as RTC
             rtc_timestamps = df.loc[
-                df["Time Step"] == pd.Timedelta("15 minutes"),
+                time_steps > pd.Timedelta(minutes=5),
                 "Interval Start",
             ]
 
+            # If there are RTC intervals, we need to differentiate between the markets
+            # for downstream processing. Assume all intervals after the first RTC
+            # interval are RTC intervals.
             if not rtc_timestamps.empty:
                 first_rtc_timestamp = rtc_timestamps.min()
 
