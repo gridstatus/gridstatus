@@ -247,9 +247,9 @@ class NYISO(ISOBase):
 
     @lmp_config(
         supports={
-            # Real Time Dispatch (RTD)
             Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
-            # Real Time Commitment (RTC)
+            # TODO: add historical RTC data.
+            # https://www.nyiso.com/custom-reports?report=ham_lbmp_gen
             Markets.REAL_TIME_15_MIN: ["latest", "today"],
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
         },
@@ -266,14 +266,16 @@ class NYISO(ISOBase):
     ):
         """
         Supported Markets:
-            - ``REAL_TIME_5_MIN``
-            - ``REAL_TIME_15_MIN``
+            - ``REAL_TIME_5_MIN`` (RTC)
+            - ``REAL_TIME_15_MIN`` (RTD)
             - ``DAY_AHEAD_HOURLY``
 
         Supported Location Types:
             - ``zone``
             - ``generator``
 
+        REAL_TIME_5_MIN is the Real Time Dispatch (RTD) market.
+        REAL_TIME_15_MIN is the Real Time Commitment (RTC) market.
         For documentation on real time dispatch and real time commitment, see:
         https://www.nyiso.com/documents/20142/1404816/RTC-RTD%20Convergence%20Study.pdf/f3843982-dd30-4c66-6c21-e101c3cb85af
         """
@@ -316,35 +318,27 @@ class NYISO(ISOBase):
         df["Market"] = market.value
         df["Location Type"] = "Zone" if location_type == ZONE else "Generator"
 
-        # NYISO includes both RTD and RTC in the same file, so we have to differentiate
-        # them. The RTD values are at 5 minute intervals, while the RTC values are at
-        # 15 minute intervals (The first RTC value may be only 10 minutes after the last
-        # RTD value.)
+        # NYISO includes both RTD and RTC in the same file, so we need to differentiate
+        # between them by looking up the most recent real time dispatch interval
+        # and labeling intervals after that time as RTC intervals.
         if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
-            time_steps = df["Interval Start"].diff(1)
-
-            # Find timestamps that are greater than 5 minutes apart (if any) and
-            # mark these as RTC
-            rtc_timestamps = df.loc[
-                time_steps > pd.Timedelta(minutes=5),
-                "Interval Start",
-            ]
-
             # If there are RTC intervals, we need to differentiate between the markets
             # for downstream processing. Assume all intervals after the first RTC
             # interval are RTC intervals.
-            if not rtc_timestamps.empty:
-                first_rtc_timestamp = rtc_timestamps.min()
 
-                df.loc[
-                    df["Interval Start"] < first_rtc_timestamp,
-                    "Market",
-                ] = Markets.REAL_TIME_5_MIN.value
+            first_rtc_timestamp = self._get_most_recent_real_time_dispatch_interval(
+                verbose=verbose,
+            )
 
-                df.loc[
-                    df["Interval Start"] >= first_rtc_timestamp,
-                    "Market",
-                ] = Markets.REAL_TIME_15_MIN.value
+            df.loc[
+                df["Interval Start"] < first_rtc_timestamp,
+                "Market",
+            ] = Markets.REAL_TIME_5_MIN.value
+
+            df.loc[
+                df["Interval Start"] >= first_rtc_timestamp,
+                "Market",
+            ] = Markets.REAL_TIME_15_MIN.value
 
         df = df[
             [
@@ -364,6 +358,16 @@ class NYISO(ISOBase):
         df = utils.filter_lmp_locations(df, locations)
 
         return df[df["Market"] == market.value].reset_index(drop=True)
+
+    def _get_most_recent_real_time_dispatch_interval(self, verbose=False):
+        # Finds the most recent real time dispatch interval
+        return pd.Timestamp(
+            pd.read_csv(
+                "http://mis.nyiso.com/public/realtime/realtime_zone_lbmp.csv",
+                nrows=1,
+            ).iloc[0]["Time Stamp"],
+            tz=self.default_timezone,
+        )
 
     def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
         url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
