@@ -1,6 +1,5 @@
 import io
 import math
-import re
 from io import StringIO
 from typing import BinaryIO
 
@@ -229,31 +228,48 @@ class ISONE(ISOBase):
 
         return df
 
-    @support_date_range(frequency="DAY_START")
     def get_solar_forecast(self, date, end=None, verbose=False):
         """Return solar forecast published on a specific date
+
+        Forecast is published for 7 days and generated daily by 10 am.
         https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/seven-day-solar-power-forecast
         """
-        return self._get_solar_or_wind_forecast(
-            date,
-            end,
-            resource_type="Solar",
-            verbose=verbose,
+        return (
+            self._get_solar_or_wind_forecast(
+                date,
+                end,
+                resource_type="Solar",
+                verbose=verbose,
+            )
+            .reset_index(drop=True)
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+    def get_wind_forecast(self, date, end=None, verbose=False):
+        """Return wind forecast published on a specific date
+
+        Forecast is published for 7 days and generated daily by 10 am.
+        https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/seven-day-wind-power-forecast
+        """
+        return (
+            self._get_solar_or_wind_forecast(
+                date,
+                end,
+                resource_type="Wind",
+                verbose=verbose,
+            )
+            .reset_index(drop=True)
+            .sort_values(["Interval Start", "Publish Time"])
         )
 
     @support_date_range(frequency="DAY_START")
-    def get_wind_forecast(self, date, end=None, verbose=False):
-        """Return wind forecast published on a specific date
-        https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/seven-day-wind-power-forecast
-        """
-        return self._get_solar_or_wind_forecast(
-            date,
-            end,
-            resource_type="Wind",
-            verbose=verbose,
-        )
-
-    def _get_solar_or_wind_forecast(self, date, end, resource_type, verbose=False):
+    def _get_solar_or_wind_forecast(
+        self,
+        date,
+        end=None,
+        resource_type="Wind",
+        verbose=False,
+    ):
         """Return solar or wind forecast published on a specific date
 
         Resource type can be "Solar" or "Wind"
@@ -293,22 +309,8 @@ class ISONE(ISOBase):
 
         data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
 
-        # Extract the datetime from the string
-        # "C","Report for 02/10/2024"
-        match = re.search(
-            r"Report for (\d{2}/\d{2}/\d{4})",
-            raw_string,
-        )
-
-        # Parse the datetime if the pattern is found
-        if match:
-            report_datetime_str = match.group(1)
-            report_datetime = pd.Timestamp(
-                report_datetime_str, tz=self.default_timezone
-            )
-        else:
-            raise ValueError("Report datetime not found")
-
+        # Website says report is generally available by 10 am.
+        report_datetime = date.normalize() + pd.Timedelta(hours=10)
         data["Publish Time"] = report_datetime
 
         data = utils.move_cols_to_front(

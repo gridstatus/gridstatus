@@ -130,30 +130,144 @@ class TestISONE(BaseTestISO):
     """get_wind_forecast"""
 
     def test_get_wind_forecast_today(self):
-        ...
+        df = self.iso.get_wind_forecast(date="today", verbose=VERBOSE)
+
+        assert df["Publish Time"].unique() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(hours=10)
+
+        assert df["Interval Start"].min() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(hours=10)
+
+        assert df["Interval Start"].max() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(days=7, hours=9)
+
+        self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
     def test_get_wind_forecast_latest(self):
-        ...
+        assert self.iso.get_wind_forecast(date="latest", verbose=VERBOSE).equals(
+            self.iso.get_wind_forecast(date="today", verbose=VERBOSE),
+        )
 
     def test_get_wind_forecast_historical_date_range(self):
-        ...
+        two_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=2)
+        five_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=5)
+
+        df = self.iso.get_wind_forecast(
+            date=(five_days_ago, two_days_ago),
+            verbose=VERBOSE,
+        )
+
+        assert (
+            df["Publish Time"].unique()
+            == [
+                five_days_ago + pd.Timedelta(hours=10),
+                five_days_ago + pd.Timedelta(days=1, hours=10),
+                # Wind forecast is not inclusive of the end date
+                five_days_ago + pd.Timedelta(days=2, hours=10),
+            ]
+        ).all()
+
+        assert df["Interval Start"].min() == five_days_ago + pd.Timedelta(hours=10)
+        # Not inclusive of the end date
+        assert df["Interval Start"].max() == two_days_ago - pd.Timedelta(
+            days=1,
+        ) + pd.Timedelta(days=7, hours=9)
+
+        self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
     def test_get_wind_forecast_historical_single_date(self):
-        ...
+        four_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=4)
+
+        df = self.iso.get_wind_forecast(date=four_days_ago, verbose=VERBOSE)
+
+        assert df["Publish Time"].unique() == four_days_ago + pd.Timedelta(hours=10)
+        assert df["Interval Start"].min() == four_days_ago + pd.Timedelta(hours=10)
+        assert df["Interval Start"].max() == four_days_ago + pd.Timedelta(
+            days=7,
+            hours=9,
+        )
+
+        self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
     """get_solar_forecast"""
 
     def test_get_solar_forecast_today(self):
-        ...
+        df = self.iso.get_solar_forecast(date="today", verbose=VERBOSE)
+
+        assert df["Publish Time"].unique() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(hours=10)
+
+        assert df["Interval Start"].min() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(hours=10)
+
+        assert df["Interval Start"].max() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(days=7, hours=9)
+
+        self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
     def test_get_solar_forecast_latest(self):
-        ...
+        assert self.iso.get_solar_forecast(date="latest", verbose=VERBOSE).equals(
+            self.iso.get_solar_forecast(date="today", verbose=VERBOSE),
+        )
 
     def test_get_solar_forecast_historical_date_range(self):
-        ...
+        two_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=2)
+        five_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=5)
+
+        df = self.iso.get_solar_forecast(
+            date=(five_days_ago, two_days_ago),
+            verbose=VERBOSE,
+        )
+
+        assert (
+            df["Publish Time"].unique()
+            == [
+                five_days_ago + pd.Timedelta(hours=10),
+                five_days_ago + pd.Timedelta(days=1, hours=10),
+                # Solar forecast is not inclusive of the end date
+                five_days_ago + pd.Timedelta(days=2, hours=10),
+            ]
+        ).all()
+
+        assert df["Interval Start"].min() == five_days_ago + pd.Timedelta(hours=10)
+        # Not inclusive of the end date
+        assert df["Interval Start"].max() == two_days_ago - pd.Timedelta(
+            days=1,
+        ) + pd.Timedelta(days=7, hours=9)
+
+        self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
     def test_get_solar_forecast_historical_single_date(self):
-        ...
+        four_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=4)
+
+        df = self.iso.get_solar_forecast(date=four_days_ago, verbose=VERBOSE)
+
+        assert df["Publish Time"].unique() == four_days_ago + pd.Timedelta(hours=10)
+        assert df["Interval Start"].min() == four_days_ago + pd.Timedelta(hours=10)
+        assert df["Interval Start"].max() == four_days_ago + pd.Timedelta(
+            days=7,
+            hours=9,
+        )
+
+        self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
     """get_storage"""
 
@@ -164,3 +278,12 @@ class TestISONE(BaseTestISO):
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
+
+    def _check_solar_or_wind_forecast(self, df, resource_type):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            f"{resource_type} Forecast",
+        ]
+        self._check_time_columns(df, "interval", skip_column_named_time=True)

@@ -281,7 +281,12 @@ class BaseTestISO:
         assert df.shape[0] > 0
         assert df[col].is_monotonic_increasing
 
-    def _check_time_columns(self, df, instant_or_interval="interval"):
+    def _check_time_columns(
+        self,
+        df,
+        instant_or_interval="interval",
+        skip_column_named_time=False,
+    ):
         assert isinstance(df, pd.DataFrame)
 
         if instant_or_interval == "interval":
@@ -296,6 +301,9 @@ class BaseTestISO:
             raise ValueError(
                 "instant_or_interval must be 'interval' or 'instant'",
             )
+
+        if skip_column_named_time:
+            time_cols.remove("Time")
 
         assert time_cols == df.columns[: len(time_cols)].tolist()
         # check all time cols are localized timestamps
