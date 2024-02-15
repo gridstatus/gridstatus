@@ -1,6 +1,5 @@
 import io
 import math
-from io import StringIO
 from typing import BinaryIO
 
 import pandas as pd
@@ -283,19 +282,10 @@ class ISONE(ISOBase):
             f"https://www.iso-ne.com/transform/csv/wphf?start={date.strftime('%Y%m%d')}"
         )
 
-        # We return the raw data so we can extract metadata (publish time)
-        raw_string = _make_request(url, skiprows=None, verbose=verbose, return_raw=True)
+        df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
-        # Remove lines that don't contain data table
-        cleaned_data = "\n".join(
-            [line for line in raw_string.split("\n") if line.startswith('"D"')],
-        )
-
-        # Create a buffer and read using pandas
-        df = pd.read_csv(StringIO(cleaned_data), header=None).drop(columns=[0, 1])
-
-        df.columns = df.iloc[1]
-        df = df.drop(index=[0, 1]).reset_index(drop=True)
+        df.columns = df.iloc[0]
+        df = df.drop(columns=["D", "Date"], index=[0, 1]).reset_index(drop=True)
 
         data = df.melt(id_vars=["Hour Ending"], var_name="Date", value_name=value_name)
 
@@ -804,7 +794,7 @@ class ISONE(ISOBase):
         return data
 
 
-def _make_request(url, skiprows, verbose, return_raw=False):
+def _make_request(url, skiprows, verbose):
     attempt = 0
     while attempt < 3:
         with requests.Session() as s:
@@ -833,9 +823,6 @@ def _make_request(url, skiprows, verbose, return_raw=False):
             f"Failed to get data from {url}. Check if ISONE is down and \
                 try again later",
         )
-
-    if return_raw:
-        return response.content.decode("utf8")
 
     df = pd.read_csv(
         io.StringIO(response.content.decode("utf8")),
