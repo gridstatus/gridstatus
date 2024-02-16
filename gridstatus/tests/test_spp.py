@@ -82,7 +82,11 @@ class TestSPP(BaseTestISO):
         Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_historical(self, market):
-        super().test_get_lmp_historical(market=market)
+        super().test_get_lmp_historical(
+            market=market,
+            # SPP only offers interval data in for a limited period of time in the past.
+            date_str=str(pd.Timestamp.now().date() - pd.Timedelta(days=300)),
+        )
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
