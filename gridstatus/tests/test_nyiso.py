@@ -139,6 +139,53 @@ class TestNYISO(BaseTestISO):
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market=market)
 
+    def test_get_lmp_real_time_5_and_15_min_today(self):
+        df_5 = self.iso.get_lmp("today", market=Markets.REAL_TIME_5_MIN)
+        df_15 = self.iso.get_lmp("today", market=Markets.REAL_TIME_15_MIN)
+
+        assert df_5["Interval End"].max() < df_15["Interval End"].min()
+
+        assert (
+            df_5["Interval End"] - df_5["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+        assert (
+            df_15["Interval End"] - df_15["Interval Start"] == pd.Timedelta(minutes=15)
+        ).all()
+
+        diffs_5 = df_5["Interval End"].diff()
+        # We can't check the min of diffs_5 is equal to 5 minutes because the intervals
+        # are not always exact
+        assert diffs_5[diffs_5 > pd.Timedelta(minutes=0)].min() <= pd.Timedelta(
+            minutes=5,
+        )
+        assert diffs_5.max() == pd.Timedelta(minutes=5)
+
+        diffs_15 = df_15["Interval End"].diff()
+        assert diffs_15[diffs_15 > pd.Timedelta(minutes=0)].min() == pd.Timedelta(
+            minutes=15,
+        )
+        assert diffs_15.max() == pd.Timedelta(minutes=15)
+
+    def test_get_lmp_real_time_5_and_15_min_latest(self):
+        df_5 = self.iso.get_lmp("latest", market=Markets.REAL_TIME_5_MIN)
+        df_15 = self.iso.get_lmp("latest", market=Markets.REAL_TIME_15_MIN)
+
+        assert df_5["Interval End"].max() < df_15["Interval End"].min()
+
+        assert (
+            df_5["Interval End"] - df_5["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+        assert (
+            df_15["Interval End"] - df_15["Interval Start"] == pd.Timedelta(minutes=15)
+        ).all()
+
+        diffs_5 = df_5["Interval End"].diff().dropna()
+        # There is only one interval, so the diff is 0
+        assert (diffs_5 == pd.Timedelta(minutes=0)).all()
+
+        diffs_15 = df_15["Interval End"].diff().dropna()
+        assert (diffs_15 == pd.Timedelta(minutes=0)).all()
+
     def test_get_lmp_historical_with_range(self):
         start = "2021-12-01"
         end = "2022-02-02"
