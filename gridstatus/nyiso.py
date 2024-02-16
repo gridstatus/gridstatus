@@ -330,15 +330,17 @@ class NYISO(ISOBase):
                 verbose=verbose,
             )
 
-            df.loc[
-                df["Interval Start"] < first_rtc_timestamp,
-                "Market",
-            ] = Markets.REAL_TIME_5_MIN.value
+            rtc_mask = df["Interval Start"] >= first_rtc_timestamp
 
-            df.loc[
-                df["Interval Start"] >= first_rtc_timestamp,
-                "Market",
-            ] = Markets.REAL_TIME_15_MIN.value
+            df.loc[~rtc_mask, "Market"] = Markets.REAL_TIME_5_MIN.value
+            df.loc[rtc_mask, "Market"] = Markets.REAL_TIME_15_MIN.value
+
+            df.loc[rtc_mask, "Interval End"] = df.loc[
+                rtc_mask,
+                "Interval Start",
+            ] + pd.Timedelta(
+                minutes=15,
+            )
 
         df = df[
             [

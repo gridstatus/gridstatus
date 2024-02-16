@@ -150,8 +150,9 @@ class BaseTestISO:
         assert df_1.equals(df_2)
 
     # @pytest.mark.parametrize in ISO
-    def test_get_lmp_historical(self, market=None):
-        date_str = "2022-07-22"
+    # Allow for passing in a date string in case the ISO's historical lmp data
+    # is not available for the selected date.
+    def test_get_lmp_historical(self, market=None, date_str="2022-07-22"):
         if market is not None:
             hist = self.iso.get_lmp(date_str, market=market)
             assert isinstance(hist, pd.DataFrame)
