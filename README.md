@@ -33,7 +33,7 @@ To learn more about our hosted API visit: https://www.gridstatus.io/api.
 
 ## Installation
 
-`gridstatus` supports python 3.8+. Install with pip
+`gridstatus` supports python 3.9+. Install with pip
 
 ```
 python -m pip install gridstatus

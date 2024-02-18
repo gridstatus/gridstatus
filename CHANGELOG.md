@@ -2,6 +2,11 @@
 
 ## v0.25.0 - TBD
 
+### Development
+
+- Added support for using poetry for dependency management for local development
+- Dropped support for Python 3.8
+
 ### SPP
 
 - Add `spp.get_solar_and_wind_forecast_short_term` and `spp.get_solar_and_wind_forecast_mid_term` for solar and wind forecasts
