@@ -10,9 +10,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: PyPI Upload
-        uses: FeatureLabs/gh-action-pypi-upload@v2
+        uses: snok/install-poetry@v1
         env:
           PYPI_USERNAME: ${{ secrets.PYPI_USERNAME }}
           PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
           TEST_PYPI_USERNAME: ${{ secrets.TEST_PYPI_USERNAME }}
           TEST_PYPI_PASSWORD: ${{ secrets.TEST_PYPI_PASSWORD }}
+        run: |
+          poetry publish --build
