@@ -842,38 +842,6 @@ testing = ["covdefaults (>=2.3)", "coverage (>=7.3.2)", "diff-cover (>=8)", "pyt
 typing = ["typing-extensions (>=4.8)"]
 
 [[package]]
-name = "flit"
-version = "3.9.0"
-description = "A simple packaging tool for simple packages."
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "flit-3.9.0-py3-none-any.whl", hash = "sha256:076c3aaba5ac24cf0ad3251f910900d95a08218e6bcb26f21fef1036cc4679ca"},
-    {file = "flit-3.9.0.tar.gz", hash = "sha256:d75edf5eb324da20d53570a6a6f87f51e606eee8384925cd66a90611140844c7"},
-]
-
-[package.dependencies]
-docutils = "*"
-flit_core = ">=3.9.0"
-requests = "*"
-tomli-w = "*"
-
-[package.extras]
-doc = ["pygments-github-lexers", "sphinx", "sphinxcontrib_github_alt"]
-test = ["pytest (>=2.7.3)", "pytest-cov", "responses", "testpath", "tomli"]
-
-[[package]]
-name = "flit-core"
-version = "3.9.0"
-description = "Distribution-building parts of Flit. See flit package for more information"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "flit_core-3.9.0-py3-none-any.whl", hash = "sha256:7aada352fb0c7f5538c4fafeddf314d3a6a92ee8e2b1de70482329e42de70301"},
-    {file = "flit_core-3.9.0.tar.gz", hash = "sha256:72ad266176c4a3fcfab5f2930d76896059851240570ce9a98733b658cb786eba"},
-]
-
-[[package]]
 name = "fonttools"
 version = "4.49.0"
 description = "Tools to manipulate font files"
@@ -3583,20 +3551,23 @@ testing = ["beautifulsoup4", "matplotlib", "myst-nb (>=1.0.0rc0)", "pytest", "py
 
 [[package]]
 name = "sphinx-togglebutton"
-version = "0.0.1"
-description = "Add a toggle button to items on a page."
+version = "0.3.2"
+description = "Toggle page content and collapse admonitions in Sphinx."
 optional = false
 python-versions = "*"
 files = [
-    {file = "sphinx-togglebutton-0.0.1.tar.gz", hash = "sha256:89c24b84f6f707ca721b9d7200f97f430f3c48206628eef4050db9bf0ac12d9e"},
-    {file = "sphinx_togglebutton-0.0.1-py3-none-any.whl", hash = "sha256:b69bb281f7af4157fe7d9b6611b29919bcf6f6e5a5828204c2b4391392252e0c"},
+    {file = "sphinx-togglebutton-0.3.2.tar.gz", hash = "sha256:ab0c8b366427b01e4c89802d5d078472c427fa6e9d12d521c34fa0442559dc7a"},
+    {file = "sphinx_togglebutton-0.3.2-py3-none-any.whl", hash = "sha256:9647ba7874b7d1e2d43413d8497153a85edc6ac95a3fea9a75ef9c1e08aaae2b"},
 ]
 
 [package.dependencies]
-flit = "*"
+docutils = "*"
 setuptools = "*"
 sphinx = "*"
 wheel = "*"
+
+[package.extras]
+sphinx = ["matplotlib", "myst-nb", "numpy", "sphinx-book-theme", "sphinx-design", "sphinx-examples"]
 
 [[package]]
 name = "sphinxcontrib-applehelp"
@@ -3938,17 +3909,6 @@ files = [
 ]
 
 [[package]]
-name = "tomli-w"
-version = "1.0.0"
-description = "A lil' TOML writer"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "tomli_w-1.0.0-py3-none-any.whl", hash = "sha256:9f2a07e8be30a0729e533ec968016807069991ae2fd921a78d42f429ae5f4463"},
-    {file = "tomli_w-1.0.0.tar.gz", hash = "sha256:f463434305e0336248cac9c2dc8076b707d8a12d019dd349f5c1e382dd1ae1b9"},
-]
-
-[[package]]
 name = "tornado"
 version = "6.4"
 description = "Tornado is a Python web framework and asynchronous networking library, originally developed at FriendFeed."
@@ -4172,4 +4132,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "85d66fa85d461c5011d26312065243755adfb546e54b2b3fa47fe814fa966654"
+content-hash = "26315c9525b6d8ac7a2d09b3517b988fc1463d042353cbe07b334feefeae03c3"
