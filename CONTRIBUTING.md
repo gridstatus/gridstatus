@@ -54,8 +54,9 @@ poetry config virtualenvs.in-project true
 # Install the project dependencies
 poetry install --all-extras
 ```
+* Activate the poetry shell by running `poetry shell`
 
- * Installing the dev dependencies enables a pre-commit hook that ensures linting has been run before committing
+* Installing the dev dependencies enables a pre-commit hook that ensures linting has been run before committing
 
 The best way to ensure everything is installed correctly by running running the tests. They should all pass.
 

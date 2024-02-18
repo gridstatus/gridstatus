@@ -20,7 +20,7 @@
 ## GridStatus.io and Hosted API
 To preview some of the data this library provide access to, visit [GridStatus.io](https://www.gridstatus.io/).
 
-If you are trying to use our hosted API, you might want to check out the gridstatusio library [here](https://github.com/gridstatus/gridstatusio). 
+If you are trying to use our hosted API, you might want to check out the gridstatusio library [here](https://github.com/gridstatus/gridstatusio).
 
 To learn more about our hosted API visit: https://www.gridstatus.io/api.
 
