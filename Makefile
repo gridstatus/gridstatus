@@ -1,10 +1,10 @@
 .PHONY: clean
 clean:
-	poetry run find . -name '*.pyo' -delete
-	poetry run find . -name '*.pyc' -delete
-	poetry run find . -name __pycache__ -delete
-	poetry run find . -name '*~' -delete
-	poetry run find . -name '.coverage.*' -delete
+	find . -name '*.pyo' -delete
+	find . -name '*.pyc' -delete
+	find . -name __pycache__ -delete
+	find . -name '*~' -delete
+	find . -name '.coverage.*' -delete
 
 PYTEST_CMD := poetry run pytest -s -vv gridstatus/ -n auto
 NOT_SLOW := -m "not slow" --reruns 5 --reruns-delay 3
@@ -23,16 +23,16 @@ test-slow:
 
 .PHONY: installdeps-dev
 installdeps-dev:
-	poetry install --extras "dev"
+	poetry install --all-extras
 	poetry run pre-commit install
 
 .PHONY: installdeps-test
 installdeps-test:
-	poetry install --extras "test"
+	poetry install --all-extras
 
 .PHONY: installdeps-docs
 installdeps-docs:
-	poetry install --extras "docs"
+	poetry install --all-extras
 
 .PHONY: lint
 lint:
@@ -65,4 +65,4 @@ package: upgradepip upgradebuild upgradesetuptools
 
 .PHONY: docs
 docs: clean
-	make -C docs/ -e "SPHINXOPTS=-j auto" clean html
+	poetry run make -C docs/ -e "SPHINXOPTS=-j auto" clean html
