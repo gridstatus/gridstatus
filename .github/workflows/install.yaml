@@ -15,11 +15,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Create wheel and tar.gz
         run: |
-          make package
+          poetry build
       - name: Install package
         run: |
-          python -m pip install unpacked/.
+          python -m pip install dist/*.whl
       - name: Test import and simple usage
         run: |
           python -c "import gridstatus;print(gridstatus.__version__)"
-          python -c "import gridstatus;gridstatus.list_isos()"
+          python -c "import gridstatus;print(gridstatus.list_isos())"

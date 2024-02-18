@@ -59,9 +59,6 @@ upgradesetuptools:
 .PHONY: package
 package: upgradepip upgradebuild upgradesetuptools
 	poetry build
-	$(eval PACKAGE=$(shell poetry run python -c 'import setuptools; setuptools.setup()' --version))
-	tar -zxvf "dist/gridstatus-${PACKAGE}.tar.gz"
-	mv "gridstatus-${PACKAGE}" unpacked
 
 .PHONY: docs
 docs: clean
