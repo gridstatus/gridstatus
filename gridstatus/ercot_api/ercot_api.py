@@ -6,6 +6,7 @@ import requests
 from tqdm import tqdm
 
 from gridstatus.ercot_api.api_parser import get_endpoints_map
+from gridstatus.gs_logging import log
 
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
@@ -14,6 +15,7 @@ def hit_ercot_api(
     endpoint: str,
     page_size: int = 1000,
     max_pages: Optional[int] = None,
+    verbose: bool = False,
     **api_params,
 ) -> pd.DataFrame:
     """Retrieves data from the given endpoint of the ERCOT API
@@ -28,6 +30,7 @@ def hit_ercot_api(
         max_pages: if provided, will stop paginating after reaching this number.
             Useful in testing to avoid long-running queries, but may result in
             incomplete data.
+        verbose: if True, will print out status messages
         api_params: any additional arguments and values to pass along to the endpoint
 
     Raises:
@@ -69,6 +72,12 @@ def hit_ercot_api(
             parsed_api_params["page"] = current_page
             response = requests.get(urlstring, params=parsed_api_params).json()
 
+            log(f"Requesting url: {urlstring}", verbose)
+
+            if response.get("statusCode") != 200:
+                log(f"Error: {response.get('message')}", verbose)
+                break
+
             # this section runs on first request/page only
             if columns is None:
                 columns = [f["name"] for f in response["fields"]]
@@ -85,7 +94,7 @@ def hit_ercot_api(
                     if denominator < total_pages:
                         print(
                             f"warning: only retrieving {max_pages} pages "
-                            f"out of {total_pages} total"
+                            f"out of {total_pages} total",
                         )
                 progress_bar.total = denominator
                 progress_bar.refresh()
