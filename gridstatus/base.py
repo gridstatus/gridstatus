@@ -15,6 +15,14 @@ class NotSupported(Exception):
     pass
 
 
+class NoDataFoundException(Exception):
+    """Exception raised when no data is found by a data retrieval function."""
+
+    def __init__(self, message="No data found"):
+        self.message = message
+        super().__init__(self.message)
+
+
 class Markets(Enum):
     """Names of LMP Markets"""
 

@@ -6,7 +6,7 @@ import pandas as pd
 import tqdm
 
 from gridstatus import utils
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NoDataFoundException
 
 
 def _get_args_dict(fn, args, kwargs):
@@ -235,6 +235,14 @@ class support_date_range:
             if errors:
                 print("Errors that occurred while getting data:")
                 pprint.pprint(errors)
+
+            if not all_df:
+                raise NoDataFoundException(
+                    "No data found for date range {} to {}".format(
+                        args_dict["date"],
+                        args_dict["end"],
+                    ),
+                )
 
             # if first item is a dict, then we neeed to concat by key
             if all_df and isinstance(all_df[0], dict):
