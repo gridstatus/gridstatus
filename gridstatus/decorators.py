@@ -239,8 +239,8 @@ class support_date_range:
             if not all_df:
                 raise NoDataFoundException(
                     "No data found for date range {} to {}".format(
-                        args_dict["date"],
-                        args_dict["end"],
+                        args_dict.get("date"),
+                        args_dict.get("end"),
                     ),
                 )
 
