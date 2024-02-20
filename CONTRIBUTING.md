@@ -1,6 +1,6 @@
-# Contributing 
+# Contributing
 
-Thank you for considering contributing to our project! We are grateful for any time and effort you put into making this project better. 
+Thank you for considering contributing to our project! We are grateful for any time and effort you put into making this project better.
 
 There are several ways you can contribute:
 
@@ -42,21 +42,23 @@ When submitting a pull request, please make sure to:
 
 To set up a development environment for this project, you will need to:
 
-* Install Python 3.8 or higher and make sure java is installed on your system
+* Install Python 3.9 or higher and make sure java is installed on your system
 
-* Clone the repository. If you are working on a PR, you should clone your fork. 
+* Fork the repository and clone it to your local machine. For a PR, create a new branch in your fork.
 
-* Install the project dependencies by running each of the following commands within a virtualenv
+* Install the project dependencies by running:
 
-    ```
-    make installdeps-dev
-    make installdeps-test
-    make installdeps-docs
-    ```
+```shell
+# Configure poetry to use a virtual environment
+poetry config virtualenvs.in-project true
+# Install the project dependencies
+poetry install --all-extras
+```
+* Activate the poetry shell by running `poetry shell`. This will run in a virtual environment with all the dependencies installed.
 
- * Installing the dev dependencies enables a pre-commit hook that ensures linting has been run before committing
+* Installing the dev dependencies enables a pre-commit hook that ensures linting has been run before committing
 
-The best way to ensure everything is installed correctly by running running the tests. They should all pass. 
+The best way to ensure everything is installed correctly by running running the tests. They should all pass.
 
 ## Running Tests and Linting
 
@@ -76,7 +78,7 @@ make lint
 make lint-fix
 ```
 
-We use `pytest` for testing, so you can also run the test directly with the `pytest` command. 
+We use `pytest` for testing, so you can also run the test directly with the `pytest` command from within the `poetry shell`.
 
 
 ## Adding Documentation and Examples

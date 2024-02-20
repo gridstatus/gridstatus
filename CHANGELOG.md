@@ -1,6 +1,11 @@
 # Changelog
 
-## v0.25.0 - TBD
+## v0.25.0 - Feb 20, 2024
+
+### Development
+
+- Added support for using poetry for dependency management for local development
+- Dropped support for Python 3.8
 
 ### SPP
 

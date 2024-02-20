@@ -1,130 +1,82 @@
-[project]
+[tool.poetry]
 name = "gridstatus"
-readme = { file = "README.md", content-type = "text/markdown" }
+version = "0.25.0"
+readme = "README.md"
 description = "API to access energy data"
-dynamic = ["version"]
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
 ]
 authors = [
-    {name="Max Kanter", email="kmax12@gmail.com"}
+    "Max Kanter <kmax12@gmail.com>"
 ]
 maintainers = [
-    {name="Max Kanter", email="kmax12@gmail.com"}
+    "Max Kanter <kmax12@gmail.com>"
 ]
 keywords = ["energy", "independent system operator"]
-license = {file = "LICENSE"}
-requires-python = ">=3.8,<4"
-dependencies = [
-    "requests >= 2.28.1, <2.30.0",
-    "pandas >= 1.3.0, <2.0.0",
-    "beautifulsoup4 >= 4.8.13",
-    "tabulate >= 0.8.10",
-    "tqdm >= 4.64.1",
-    "openpyxl >= 3.1.0",
-    "tabula-py >= 2.5.1",
-    "lxml >= 4.9.1",
-    "plotly >= 5.11.0",
-    "termcolor >= 2.2.0",
-]
+license = "LICENSE"
 
-[project.urls]
-"Source Code"= "https://github.com/kmax12/gridstatus/"
+[tool.poetry.urls]
+"Source Code" = "https://github.com/kmax12/gridstatus/"
 "Changes" = "https://github.com/kmax12/gridstatus/blob/main/CHANGELOG.md"
 "Issue Tracker" = "https://github.com/kmax12/gridstatus/issues"
 
-[project.optional-dependencies]
-test = [
-    "pytest == 7.1.2",
-    "pytest-xdist == 3.0.2",
-    "pytest-rerunfailures == 10.3",
-    "pytest-cov == 4.0.0",
-]
-dev = [
-    "ruff >= 0.0.291",
-    "black[jupyter] == 22.12.0",
-    "pre-commit == 2.21.0",
-]
-docs = [
-    "ipython == 8.4.0",
-    "jupyter == 1.0.0",
-    "matplotlib == 3.5.2",
-    "sphinx==6.2.1",
-    "sphinx-book-theme == 1.0.1",
-    "sphinx-inline-tabs == 2022.1.2b11",
-    "sphinx-copybutton == 0.5.0",
-    "myst-nb == 1.0.0rc0",
-    "sphinx_design",
-    "sphinxext-opengraph",
-    "sphinx-thebe",
-    "sphinx_togglebutton",
-    "sphinx-favicon",
-    "sphinx-autoapi==3.0.0",
-    "plotly",
-    "kaleido",
-    "sphinxext-opengraph"
-]
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "^2.28.1"
+pandas = "^1.3.0"
+beautifulsoup4 = "^4.8.13"
+tabulate = "^0.8.10"
+tqdm = "^4.64.1"
+openpyxl = "^3.1.0"
+tabula-py = "^2.5.1"
+lxml = "^4.9.1"
+plotly = "^5.11.0"
+termcolor = "^2.2.0"
 
-[tool.setuptools]
-include-package-data = true
-license-files = ["LICENSE"]
+[tool.poetry.dev-dependencies]
+pytest = "^7.1.2"
+pytest-xdist = "^3.0.2"
+pytest-rerunfailures = "^10.3"
+pytest-cov = "^4.0.0"
+ruff = "^0.0.202"
+black = { version = "^22.12.0", extras = ["jupyter"] }
+pre-commit = "^2.21.0"
+ipython = "^8.4.0"
+jupyter = "^1.0.0"
+matplotlib = "^3.5.2"
+myst-nb = "^1.0.0rc0"
+sphinx = "^6.2.1"
+sphinx-book-theme = "^1.0.1"
+sphinx-copybutton = "0.5.2"
+sphinx-inline-tabs = "^2022.1.2b11"
+sphinx_design = "0.5.0"
+sphinxext-opengraph = "0.9.1"
+sphinx-thebe = "0.3.0"
+sphinx_togglebutton = "^0.3.2"
+sphinx-favicon = "1.0.1"
+sphinx-autoapi = "^3.0.0"
+kaleido = "0.2.1"
 
-[tool.setuptools.dynamic]
-version = {attr = "gridstatus.version.__version__"}
-
-[tool.setuptools.packages.find]
-namespaces = true
-
-[tool.setuptools.package-data]
-"*" = [
-    "LICENSE",
-    "README.md",
-    "eia_data/grid_monitor_files.json"
-]
-[tool.setuptools.exclude-package-data]
-"*" = [
-    "* __pycache__",
-    "*.py[co]",
-]
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
-testpaths = [
-    "gridstatus/tests/*"
-]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-]
+testpaths = ["gridstatus/tests/*"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [tool.black]
 line-length = 88
 target-version = ['py311']
 
-[build-system]
-requires = [
-    "setuptools >= 61",
-    "wheel",
-]
-build-backend = "setuptools.build_meta"
-
 [tool.ruff]
 line-length = 88
 ignore = []
-select = [
-    # Pyflakes
-    "F",
-    # Pycodestyle
-    "E",
-    "W",
-    # flake8-quotes
-    "Q",
-    # isort
-    "I001"
-]
+select = ["F", "E", "W", "Q", "I001"]
 src = ["gridstatus"]
 
 [tool.ruff.isort]
@@ -137,7 +89,7 @@ known-first-party = ["gridstatus"]
 source = ["gridstatus"]
 
 [tool.coverage.report]
-exclude_lines =[
+exclude_lines = [
     "pragma: no cover",
     "def __repr__",
     "raise AssertionError",

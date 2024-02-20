@@ -6,7 +6,7 @@ clean:
 	find . -name '*~' -delete
 	find . -name '.coverage.*' -delete
 
-PYTEST_CMD := python -m pytest -s -vv gridstatus/ -n auto
+PYTEST_CMD := poetry run pytest -s -vv gridstatus/ -n auto
 NOT_SLOW := -m "not slow" --reruns 5 --reruns-delay 3
 
 .PHONY: test
@@ -23,46 +23,43 @@ test-slow:
 
 .PHONY: installdeps-dev
 installdeps-dev:
-	python -m pip install ".[dev]"
-	pre-commit install
+	poetry install --all-extras
+	poetry run pre-commit install
 
 .PHONY: installdeps-test
 installdeps-test:
-	python -m pip install ".[test]"
+	poetry install --all-extras
 
 .PHONY: installdeps-docs
 installdeps-docs:
-	python -m pip install ".[docs]"
+	poetry install --all-extras
 
 .PHONY: lint
 lint:
-	ruff gridstatus/
-	black gridstatus/ --check
+	poetry run ruff gridstatus/
+	poetry run black gridstatus/ --check
 
 .PHONY: lint-fix
 lint-fix:
-	ruff gridstatus/ --fix
-	black gridstatus/
+	poetry run ruff gridstatus/ --fix
+	poetry run black gridstatus/
 
 .PHONY: upgradepip
 upgradepip:
-	python -m pip install --upgrade pip
+	poetry run python -m pip install --upgrade pip
 
 .PHONY: upgradebuild
 upgradebuild:
-	python -m pip install --upgrade build
+	poetry run python -m pip install --upgrade build
 
 .PHONY: upgradesetuptools
 upgradesetuptools:
-	python -m pip install --upgrade setuptools
+	poetry run python -m pip install --upgrade setuptools
 
 .PHONY: package
 package: upgradepip upgradebuild upgradesetuptools
-	python -m build
-	$(eval PACKAGE=$(shell python -c 'import setuptools; setuptools.setup()' --version))
-	tar -zxvf "dist/gridstatus-${PACKAGE}.tar.gz"
-	mv "gridstatus-${PACKAGE}" unpacked
+	poetry build
 
 .PHONY: docs
 docs: clean
-	make -C docs/ -e "SPHINXOPTS=-j auto" clean html
+	poetry run make -C docs/ -e "SPHINXOPTS=-j auto" clean html
