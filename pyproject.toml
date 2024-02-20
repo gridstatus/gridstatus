@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gridstatus"
-version = "0.24.0"
+version = "0.25.0"
 readme = "README.md"
 description = "API to access energy data"
 classifiers = [

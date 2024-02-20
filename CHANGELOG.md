@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.25.0 - TBD
+## v0.25.0 - Feb 20, 2024
 
 ### Development
 
