@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.26.0 - TBD
+
+- Add ERCOT DAM System Lambda (`ercot.get_dam_system_lambda`)
+
 ## v0.25.0 - Feb 20, 2024
 
 ### Development

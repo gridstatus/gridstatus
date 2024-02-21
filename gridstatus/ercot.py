@@ -38,6 +38,10 @@ LOCATION_TYPE_ZONE_DC_EW = "Load Zone DC Tie Energy Weighted"
 """
 Report Type IDs
 """
+# DAM System Lambda
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-523-CD
+DAM_SYSTEM_LAMBDA_RTID = 13113
+
 # SCED System Lambda
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-322-CD
 SCED_SYSTEM_LAMBDA_RTID = 13114
@@ -1914,6 +1918,54 @@ class Ercot(ISOBase):
         ).reset_index()
 
         return self.parse_doc(df, verbose=verbose)
+
+    @support_date_range("DAY_START")
+    def get_dam_system_lambda(self, date, end=None, verbose=False):
+        """Get Day-Ahead Market System Lambda
+
+        File is typically published around 12:30 pm for the day ahead
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP4-523-CD
+
+        Arguments:
+            date (str, datetime): date to get data for
+            end (str, datetime, optional): end time to get data for. If None,
+                return 1 day of data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with day-ahead market system lambda data
+        """
+        # Subtract one day since this is the day ahead market
+        date = date if date == "latest" else date - pd.DateOffset(days=1)
+
+        doc = self._get_document(
+            report_type_id=DAM_SYSTEM_LAMBDA_RTID,
+            date=date,
+            verbose=verbose,
+        )
+
+        return self._handle_dam_system_lambda_file(doc, verbose=verbose)
+
+    def _handle_dam_system_lambda_file(self, doc, verbose):
+        df = self.read_doc(doc, parse=True, verbose=verbose)
+
+        # Set the publish time from the document metadata
+        df["Publish Time"] = pd.to_datetime(doc.publish_date)
+        df["Market"] = "DAM"
+
+        df = utils.move_cols_to_front(
+            df.drop(columns=["Time"]).rename(columns={"SystemLambda": "System Lambda"}),
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Market",
+                "System Lambda",
+            ],
+        )
+
+        return df
 
     @support_date_range(frequency=None)
     def get_sced_system_lambda(self, date, end=None, verbose=False):
