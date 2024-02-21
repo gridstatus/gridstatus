@@ -2,10 +2,19 @@ on:
   release:
     types: [published]
 
-name: Release
+name: Build and Release
 jobs:
   pypi-release:
     runs-on: ubuntu-latest
+    # Uses trusted published from GitHub Actions. No need
+    # for credentials or API tokens.
+    # https://docs.pypi.org/trusted-publishers/using-a-publisher/
+    environment:
+      name: pypi
+      url: https://pypi.org/p/gridstatus
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
     steps:
     - name: Check out code
       uses: actions/checkout@v3
@@ -27,15 +36,12 @@ jobs:
           exit 1
         fi
 
-    - name: Configure Poetry for PyPI
-      run: |
-        poetry config http-basic.pypi ${{ secrets.PYPI_USERNAME }} ${{ secrets.PYPI_PASSWORD }}
-
     - name: Install dependencies
       run: poetry install
 
     - name: Build package
       run: poetry build
 
-    - name: Publish package to PyPI
-      run: poetry publish
+    # https://github.com/pypa/gh-action-pypi-publish
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
