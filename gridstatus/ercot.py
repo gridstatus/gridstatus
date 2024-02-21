@@ -1936,44 +1936,34 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with day-ahead market system lambda data
         """
-        if date == "latest":
-            # Fetch the latest data published after the start of yesterday.
-            # This is either data published yesterday for today, or data published
-            # today for tomorrow.
-            date = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        # Subtract one day since this is the day ahead market
+        date = date if date == "latest" else date - pd.DateOffset(days=1)
 
-            doc = self._get_document(
-                report_type_id=DAM_SYSTEM_LAMBDA_RTID,
-                published_after=date - pd.Timedelta(days=1),
-                verbose=verbose,
-            )
-
-        else:
-            # Subtract one day since this is the day ahead market
-            date -= pd.DateOffset(days=1)
-
-            doc = self._get_document(
-                report_type_id=DAM_SYSTEM_LAMBDA_RTID,
-                date=date,
-                verbose=verbose,
-            )
+        doc = self._get_document(
+            report_type_id=DAM_SYSTEM_LAMBDA_RTID,
+            date=date,
+            verbose=verbose,
+        )
 
         return self._handle_dam_system_lambda_file(doc, verbose=verbose)
 
     def _handle_dam_system_lambda_file(self, doc, verbose):
         df = self.read_doc(doc, parse=True, verbose=verbose)
 
-        # Set the publish time to the time the doc was published
+        # Set the publish time from the document metadata
         df["Publish Time"] = pd.to_datetime(doc.publish_date)
-
         df["Market"] = "DAM"
 
         df = utils.move_cols_to_front(
-            df,
-            ["Interval Start", "Interval End", "Publish Time"],
+            df.drop(columns=["Time"]).rename(columns={"SystemLambda": "System Lambda"}),
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Market",
+                "System Lambda",
+            ],
         )
-
-        df = df.drop(columns=["Time"]).rename(columns={"SystemLambda": "System Lambda"})
 
         return df
 

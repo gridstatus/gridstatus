@@ -1148,8 +1148,8 @@ class TestErcot(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Publish Time",
-            "System Lambda",
             "Market",
+            "System Lambda",
         ]
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
