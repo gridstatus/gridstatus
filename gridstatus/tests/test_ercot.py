@@ -12,6 +12,51 @@ from gridstatus.tests.base_test_iso import BaseTestISO
 class TestErcot(BaseTestISO):
     iso = Ercot()
 
+    def test_get_dam_system_lambda_latest(self):
+        # We can't test "today" because the file published today may not be available
+        df = self.iso.get_dam_system_lambda("latest", verbose=True)
+
+        self._check_dam_system_lambda(df)
+        assert df["Publish Time"].dt.date.nunique() == 1
+
+    @pytest.mark.skip(reason="Data may not be available")
+    def test_get_dam_system_lambda_today(self):
+        pass
+
+    def test_get_dam_system_lambda_historical(self):
+        two_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=2,
+        )
+
+        df = self.iso.get_dam_system_lambda(two_days_ago)
+
+        self._check_dam_system_lambda(df)
+
+        assert df["Publish Time"].dt.date.unique() == [two_days_ago]
+
+    def test_get_dam_system_lambda_historical_range(self):
+        three_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=3,
+        )
+
+        two_days_ago = three_days_ago + pd.Timedelta(
+            days=1,
+        )
+
+        df = self.iso.get_dam_system_lambda(
+            start=three_days_ago,
+            end=two_days_ago,
+            verbose=True,
+        )
+
+        self._check_dam_system_lambda(df)
+
+        assert df["Publish Time"].dt.date.unique() == [three_days_ago, two_days_ago]
+
     def test_get_sced_system_lambda(self):
         for i in ["latest", "today"]:
             df = self.iso.get_sced_system_lambda(i, verbose=True)
@@ -1084,3 +1129,15 @@ class TestErcot(BaseTestISO):
         location_types = df["Location Type"].unique()
         assert len(location_types) == 1
         assert location_types[0] == location_type
+
+    def _check_dam_system_lambda(self, df):
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "System Lambda",
+        ]
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+        assert df["System Lambda"].dtype == float
