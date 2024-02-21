@@ -34,7 +34,7 @@ class TestErcot(BaseTestISO):
 
         self._check_dam_system_lambda(df)
 
-        assert df["Publish Time"].dt.date.unique() == [two_days_ago]
+        assert list(df["Publish Time"].dt.date.unique()) == [two_days_ago]
 
     def test_get_dam_system_lambda_historical_range(self):
         three_days_ago = pd.Timestamp.now(
@@ -49,13 +49,16 @@ class TestErcot(BaseTestISO):
 
         df = self.iso.get_dam_system_lambda(
             start=three_days_ago,
-            end=two_days_ago,
+            end=two_days_ago + pd.Timedelta(days=1),
             verbose=True,
         )
 
         self._check_dam_system_lambda(df)
 
-        assert df["Publish Time"].dt.date.unique() == [three_days_ago, two_days_ago]
+        assert list(df["Publish Time"].dt.date.unique()) == [
+            three_days_ago,
+            two_days_ago,
+        ]
 
     def test_get_sced_system_lambda(self):
         for i in ["latest", "today"]:
@@ -1132,9 +1135,9 @@ class TestErcot(BaseTestISO):
 
     def _check_dam_system_lambda(self, df):
         cols = [
-            "Time",
             "Interval Start",
             "Interval End",
+            "Publish Time",
             "System Lambda",
         ]
         assert df.shape[0] >= 0
