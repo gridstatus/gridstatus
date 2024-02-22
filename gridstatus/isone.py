@@ -285,17 +285,43 @@ class ISONE(ISOBase):
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
         df.columns = df.iloc[0]
-        df = df.drop(columns=["D", "Date"], index=[0, 1]).reset_index(drop=True)
+        df = df.drop(columns=["D", "Date"], index=[0]).reset_index(drop=True)
 
-        data = df.melt(id_vars=["Hour Ending"], var_name="Date", value_name=value_name)
+        data = df.melt(
+            id_vars=["Hour Ending"],
+            var_name="Date",
+            value_name=value_name,
+        ).dropna(subset=[value_name])
 
-        data["Interval Start"] = pd.to_datetime(
-            data["Date"] + " "
-            # Subtract 1 from the hour ending to get the start of the interval
-            # Make sure to 0-pad the hour
-            + (data["Hour Ending"].astype(int) - 1).astype(str).str.zfill(2) + ":00",
-            # TODO: might need to handle DST transitions
-        ).dt.tz_localize(self.default_timezone)
+        # for DST end transitions isone uses 02X to represent repeated 1am hour
+        data["Hour Start"] = (
+            data["Hour Ending"]
+            .replace(
+                "02X",
+                "02",
+            )
+            .astype(int)
+            - 1
+        )
+
+        data["Interval Start"] = (
+            pd.to_datetime(data["Date"]) + data["Hour Start"].astype("timedelta64[h]")
+        ).dt.tz_localize(
+            self.default_timezone,
+            ambiguous="infer",
+            nonexistent="NaT",
+        )
+
+        # Handle start of DST
+        if data["Interval Start"].isna().any():
+            hour_start = data.loc[data["Interval Start"].isna(), "Hour Start"] - 1
+
+            data.loc[data["Interval Start"].isna(), "Interval Start"] = (
+                pd.to_datetime(data.loc[data["Interval Start"].isna(), "Date"])
+                + hour_start.astype("timedelta64[h]")
+            ).dt.tz_localize(
+                self.default_timezone,
+            )
 
         data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
 
@@ -308,7 +334,7 @@ class ISONE(ISOBase):
             ["Interval Start", "Interval End", "Publish Time", value_name],
         ).drop(columns=["Date", "Hour Ending"])
 
-        return data.dropna(subset=[value_name])
+        return data
 
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
         """

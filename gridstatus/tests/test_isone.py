@@ -286,4 +286,4 @@ class TestISONE(BaseTestISO):
             "Publish Time",
             f"{resource_type} Forecast",
         ]
-        self._check_time_columns(df, "interval", skip_column_named_time=True)
+        self._check_time_columns(df, "interval")
