@@ -293,26 +293,15 @@ class ISONE(ISOBase):
             value_name=value_name,
         ).dropna(subset=[value_name])
 
-        # for DST end transitions isone uses 02X to represent repeated 1am hour
-        data["Hour Start"] = (
-            data["Hour Ending"]
-            .replace(
-                "02X",
-                "02",
-            )
-            .astype(int)
-            - 1
-        )
+        data = self._create_interval_start_from_hour_start(data)
 
-        data["Interval Start"] = (
-            pd.to_datetime(data["Date"]) + data["Hour Start"].astype("timedelta64[h]")
-        ).dt.tz_localize(
+        data["Interval Start"] = data["Interval Start"].dt.tz_localize(
             self.default_timezone,
             ambiguous="infer",
             nonexistent="NaT",
         )
 
-        # Handle start of DST
+        # Handle start of DST since the hour ending in the raw data does not exist
         if data["Interval Start"].isna().any():
             hour_start = data.loc[data["Interval Start"].isna(), "Hour Start"] - 1
 
@@ -540,20 +529,7 @@ class ISONE(ISOBase):
             interval = pd.Timedelta(minutes=5)
 
         if "Hour Ending" in data.columns:
-            # for DST end transitions isone uses 02X to represent repeated 1am hour
-            data["Hour Start"] = (
-                data["Hour Ending"]
-                .replace(
-                    "02X",
-                    "02",
-                )
-                .astype(int)
-                - 1
-            )
-
-            data["Interval Start"] = pd.to_datetime(data["Date"]) + data[
-                "Hour Start"
-            ].astype("timedelta64[h]")
+            data = self._create_interval_start_from_hour_start(data)
 
         def handle_date_time(s):
             return pd.to_datetime(s).dt.tz_localize(
@@ -815,6 +791,26 @@ class ISONE(ISOBase):
                 "Mw": mw_rename,
                 "CreationDate": "Forecast Time",
             },
+        )
+
+        return data
+
+    def _create_interval_start_from_hour_start(self, data):
+        # for DST end transitions isone uses 02X to represent repeated 1am hour
+        data["Hour Start"] = (
+            data["Hour Ending"]
+            .replace(
+                "02X",
+                "02",
+            )
+            .astype(int)
+            - 1
+        )
+
+        data["Interval Start"] = pd.to_datetime(data["Date"]) + data[
+            "Hour Start"
+        ].astype(
+            "timedelta64[h]",
         )
 
         return data
