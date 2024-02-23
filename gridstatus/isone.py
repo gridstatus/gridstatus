@@ -227,6 +227,104 @@ class ISONE(ISOBase):
 
         return df
 
+    def get_solar_forecast(self, date, end=None, verbose=False):
+        """Return solar forecast published on a specific date
+
+        Forecast is published for 7 days and generated daily by 10 am.
+        https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/seven-day-solar-power-forecast
+        """
+        return (
+            self._get_solar_or_wind_forecast(
+                date,
+                end,
+                resource_type="Solar",
+                verbose=verbose,
+            )
+            .reset_index(drop=True)
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+    def get_wind_forecast(self, date, end=None, verbose=False):
+        """Return wind forecast published on a specific date
+
+        Forecast is published for 7 days and generated daily by 10 am.
+        https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/seven-day-wind-power-forecast
+        """
+        return (
+            self._get_solar_or_wind_forecast(
+                date,
+                end,
+                resource_type="Wind",
+                verbose=verbose,
+            )
+            .reset_index(drop=True)
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def _get_solar_or_wind_forecast(
+        self,
+        date,
+        end=None,
+        resource_type="Wind",
+        verbose=False,
+    ):
+        """Return solar or wind forecast published on a specific date
+
+        Resource type can be "Solar" or "Wind"
+        """
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone)
+
+        value_name = f"{resource_type.capitalize()} Forecast"
+
+        url = (
+            f"https://www.iso-ne.com/transform/csv/wphf?start={date.strftime('%Y%m%d')}"
+        )
+
+        df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
+
+        df.columns = df.iloc[0]
+        df = df.drop(columns=["D", "Date"], index=[0]).reset_index(drop=True)
+
+        data = df.melt(
+            id_vars=["Hour Ending"],
+            var_name="Date",
+            value_name=value_name,
+        ).dropna(subset=[value_name])
+
+        data = self._create_interval_start_from_hour_start(data)
+
+        data["Interval Start"] = data["Interval Start"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous="infer",
+            nonexistent="NaT",
+        )
+
+        # Handle start of DST since the hour ending in the raw data does not exist
+        if data["Interval Start"].isna().any():
+            hour_start = data.loc[data["Interval Start"].isna(), "Hour Start"] - 1
+
+            data.loc[data["Interval Start"].isna(), "Interval Start"] = (
+                pd.to_datetime(data.loc[data["Interval Start"].isna(), "Date"])
+                + hour_start.astype("timedelta64[h]")
+            ).dt.tz_localize(
+                self.default_timezone,
+            )
+
+        data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
+
+        # Website says report is generally available by 10 am.
+        report_datetime = date.normalize() + pd.Timedelta(hours=10)
+        data["Publish Time"] = report_datetime
+
+        data = utils.move_cols_to_front(
+            data,
+            ["Interval Start", "Interval End", "Publish Time", value_name],
+        ).drop(columns=["Date", "Hour Start", "Hour Ending"])
+
+        return data
+
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
@@ -431,20 +529,7 @@ class ISONE(ISOBase):
             interval = pd.Timedelta(minutes=5)
 
         if "Hour Ending" in data.columns:
-            # for DST end transitions isone uses 02X to represent repeated 1am hour
-            data["Hour Start"] = (
-                data["Hour Ending"]
-                .replace(
-                    "02X",
-                    "02",
-                )
-                .astype(int)
-                - 1
-            )
-
-            data["Interval Start"] = pd.to_datetime(data["Date"]) + data[
-                "Hour Start"
-            ].astype("timedelta64[h]")
+            data = self._create_interval_start_from_hour_start(data)
 
         def handle_date_time(s):
             return pd.to_datetime(s).dt.tz_localize(
@@ -706,6 +791,26 @@ class ISONE(ISOBase):
                 "Mw": mw_rename,
                 "CreationDate": "Forecast Time",
             },
+        )
+
+        return data
+
+    def _create_interval_start_from_hour_start(self, data):
+        # for DST end transitions isone uses 02X to represent repeated 1am hour
+        data["Hour Start"] = (
+            data["Hour Ending"]
+            .replace(
+                "02X",
+                "02",
+            )
+            .astype(int)
+            - 1
+        )
+
+        data["Interval Start"] = pd.to_datetime(data["Date"]) + data[
+            "Hour Start"
+        ].astype(
+            "timedelta64[h]",
         )
 
         return data
