@@ -321,7 +321,7 @@ class ISONE(ISOBase):
         data = utils.move_cols_to_front(
             data,
             ["Interval Start", "Interval End", "Publish Time", value_name],
-        ).drop(columns=["Date", "Hour Ending"])
+        ).drop(columns=["Date", "Hour Start", "Hour Ending"])
 
         return data
 

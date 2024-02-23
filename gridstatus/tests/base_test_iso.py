@@ -290,7 +290,8 @@ class BaseTestISO:
         assert isinstance(df, pd.DataFrame)
 
         if instant_or_interval == "interval":
-            time_cols = ["Interval Start", "Interval End"]
+            # TODO: remove "Time" from time_cols for "interval"
+            time_cols = ["Time", "Interval Start", "Interval End"]
             ordered_by_col = "Interval Start"
         elif instant_or_interval == "instant":
             time_cols = ["Time"]
