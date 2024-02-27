@@ -165,7 +165,7 @@ def make_lmp_availability_table():
         },
     )
 
-    transposed = transposed.sort_index().applymap(convert_bool_to_emoji)
+    transposed = transposed.sort_index().apply(lambda x: x.map(convert_bool_to_emoji))
 
     return transposed.to_markdown() + "\n"
 

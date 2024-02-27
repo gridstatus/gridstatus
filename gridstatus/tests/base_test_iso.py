@@ -372,9 +372,10 @@ class BaseTestISO:
         assert self._check_is_datetime_type(df["Time"])
 
     def _check_is_datetime_type(self, series):
-        return pd.core.dtypes.common.is_datetime64_ns_dtype(
+        # any_dtype allows for TZ-aware or naive datetimes
+        return pd.api.types.is_datetime64_any_dtype(
             series,
-        ) | pd.core.dtypes.common.is_timedelta64_ns_dtype(series)
+        ) | pd.api.types.is_timedelta64_dtype(series)
 
     lmp_cols = [
         "Time",

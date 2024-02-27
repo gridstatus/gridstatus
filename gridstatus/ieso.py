@@ -1,6 +1,7 @@
 import time
 import xml.etree.ElementTree as ET
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -231,7 +232,7 @@ class IESO(ISOBase):
         interval_starts = pd.date_range(
             start_date,
             periods=len(projected_values),
-            freq="H",
+            freq="h",
             tz=self.default_timezone,
         )
 

@@ -328,15 +328,13 @@ class Ercot(ISOBase):
 
         dfs = []
         for day in data["data"].keys():
-            df = (
-                pd.DataFrame(data["data"][day])
-                .applymap(
-                    lambda x: x["gen"],
-                    na_action="ignore",
+            df = pd.DataFrame(data["data"][day])
+            df_transformed = df.apply(
+                lambda col: col.apply(
+                    lambda x: x.get('gen') if isinstance(x, dict) else pd.NA
                 )
-                .T
-            )
-            dfs.append(df)
+            ).T
+            dfs.append(df_transformed)
 
         mix = pd.concat(dfs)
         mix.index.name = "Time"
@@ -1099,7 +1097,7 @@ class Ercot(ISOBase):
         df.loc[is_load_zone_dc_tie, "Location Type"] = LOCATION_TYPE_ZONE_DC
         df.loc[is_resource_node, "Location Type"] = LOCATION_TYPE_RESOURCE_NODE
         # If a location type is not found, default to LOCATION_TYPE_RESOURCE_NODE
-        df["Location Type"].fillna(LOCATION_TYPE_RESOURCE_NODE, inplace=True)
+        df["Location Type"] = df["Location Type"].fillna(LOCATION_TYPE_RESOURCE_NODE)
 
         # energy weighted only exists in real time data
         # since depends on energy usage
@@ -2217,7 +2215,7 @@ class Ercot(ISOBase):
 
         if date == "latest":
             # Go back one hour to ensure we have data
-            date = pd.Timestamp.now(tz=self.default_timezone).floor("H") - pd.Timedelta(
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("h") - pd.Timedelta(
                 hours=1,
             )
 
