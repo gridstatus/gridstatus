@@ -2,7 +2,9 @@
 
 ## v0.26.0 - TBD
 
+- Last release supporting pandas <2
 - Add ERCOT DAM System Lambda (`ercot.get_dam_system_lambda`)
+- Add ISONE solar and wind forecasts (`isone.get_solar_forecast` and `isone.get_wind_forecast`)
 
 ## v0.25.0 - Feb 20, 2024
 
