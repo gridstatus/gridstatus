@@ -331,7 +331,7 @@ class Ercot(ISOBase):
             df = pd.DataFrame(data["data"][day])
             df_transformed = df.apply(
                 lambda col: col.apply(
-                    lambda x: x.get('gen') if isinstance(x, dict) else pd.NA
+                    lambda x: x.get("gen") if isinstance(x, dict) else pd.NA
                 )
             ).T
             dfs.append(df_transformed)
