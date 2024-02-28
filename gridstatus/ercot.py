@@ -2194,7 +2194,7 @@ class Ercot(ISOBase):
             "ConstraintLimit": "Constraint Limit",
             "ConstraintName": "Constraint Name",
             "ConstraintValue": "Constraint Value",
-            "ContigencyName": "Contingency Name",
+            "ContingencyName": "Contingency Name",
             "DeliveryTime": "Delivery Time",
             "FromStation": "From Station",
             "FromStationkV": "From Station kV",

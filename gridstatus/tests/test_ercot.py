@@ -98,7 +98,7 @@ class TestErcot(BaseTestISO):
         "Publish Time",
         "Constraint ID",
         "Constraint Name",
-        "ContingencyName",
+        "Contingency Name",
         "Constraint Limit",
         "Constraint Value",
         "Violation Amount",
@@ -133,9 +133,11 @@ class TestErcot(BaseTestISO):
         ]
 
     def test_get_dam_shadow_prices_latest(self):
-        assert self.iso.get_dam_shadow_prices("latest").equals(
-            self.iso.get_dam_shadow_prices("today"),
-        )
+        df = self.iso.get_dam_shadow_prices("latest")
+
+        self._check_dam_shadow_prices(df)
+
+        assert df["Publish Time"].nunique() == 1
 
     def test_get_dam_shadow_prices_historical(self):
         three_days_ago = self.local_today() - pd.Timedelta(
@@ -184,7 +186,7 @@ class TestErcot(BaseTestISO):
         "Publish Time",
         "Constraint ID",
         "Constraint Name",
-        "ContingencyName",
+        "Contingency Name",
         "Shadow Price",
         "Max Shadow Price",
         "Limit",
@@ -984,8 +986,6 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
         assert df["Publish Time"].nunique() == 3
-
-        return df
 
     def test_get_hourly_wind_report(self):
         # test specific hour
