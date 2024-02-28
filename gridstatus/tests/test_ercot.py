@@ -92,13 +92,30 @@ class TestErcot(BaseTestISO):
 
     """dam_shadow_prices"""
 
-    def test_get_dam_shadow_prices(self):
+    def test_get_dam_shadow_prices_today(self):
         pass
 
+    def test_get_dam_shadow_prices_latest(self):
+        pass
+
+    def test_get_dam_shadow_prices_historical(self):
+        pass
+
+    def test_get_dam_shadow_prices_historical_range(self):
+        pass
 
     """sced_shadow_prices"""
 
-    def test_get_sced_shadow_prices(self):
+    def test_get_sced_shadow_prices_today(self):
+        pass
+
+    def test_get_sced_shadow_prices_latest(self):
+        pass
+
+    def test_get_sced_shadow_prices_historical(self):
+        pass
+
+    def test_get_sced_shadow_prices_historical_range(self):
         pass
 
     """as_prices"""
