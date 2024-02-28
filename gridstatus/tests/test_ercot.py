@@ -91,6 +91,7 @@ class TestErcot(BaseTestISO):
             assert isinstance(df["System Lambda"].unique()[0], float)
 
     """dam_shadow_prices"""
+
     expected_shadow_prices_columns = [
         "Interval Start",
         "Interval End",
@@ -179,17 +180,80 @@ class TestErcot(BaseTestISO):
 
     """sced_shadow_prices"""
 
+    expected_sced_shadow_prices_columns = [
+        "SCED Timestamp",
+        "Constraint ID",
+        "Constraint Name",
+        "ContingencyName",
+        "Shadow Price",
+        "Max Shadow Price",
+        "Limit",
+        "Value",
+        "Violated MW",
+        "From Station",
+        "To Station",
+        "From Station kV",
+        "To Station kV",
+        "CCT Status",
+    ]
+
+    def _check_sced_shadow_prices(self, df):
+        assert df.columns.tolist() == self.expected_sced_shadow_prices_columns
+
+        self._check_time_columns(df, instant_or_interval="instant", sced=True)
+
     def test_get_sced_shadow_prices_today(self):
-        pass
+        df = self.iso.get_sced_shadow_prices("today", verbose=True)
+        self._check_sced_shadow_prices(df)
+
+        assert df["SCED Timestamp"].min() < self.local_start_of_today()
+        assert df["SCED Timestamp"].max() < self.local_now()
 
     def test_get_sced_shadow_prices_latest(self):
-        pass
+        df = self.iso.get_sced_shadow_prices("latest", verbose=True)
+
+        self._check_sced_shadow_prices(df)
+
+        assert df["SCED Timestamp"].min() > self.local_start_of_today()
+
+        assert df["SCED Timestamp"].max() < self.local_now()
 
     def test_get_sced_shadow_prices_historical(self):
-        pass
+        three_days_ago = self.local_today() - pd.Timedelta(
+            days=3,
+        )
+
+        df = self.iso.get_sced_shadow_prices(three_days_ago, verbose=True)
+
+        self._check_sced_shadow_prices(df)
+
+        assert df["SCED Timestamp"].min() < self.local_start_of_day(three_days_ago)
+        assert df["SCED Timestamp"].max() < self.local_start_of_day(
+            three_days_ago,
+        ) + pd.Timedelta(hours=23)
 
     def test_get_sced_shadow_prices_historical_range(self):
-        pass
+        four_days_ago = self.local_today() - pd.Timedelta(days=4)
+        two_days_ago = four_days_ago + pd.Timedelta(days=2)
+
+        df = self.iso.get_sced_shadow_prices(
+            date=four_days_ago,
+            end=two_days_ago,
+            verbose=True,
+        )
+
+        self._check_sced_shadow_prices(df)
+
+        assert df["SCED Timestamp"].min() < self.local_start_of_day(four_days_ago)
+
+        assert (
+            df["SCED Timestamp"].max()
+            > pd.Timestamp(
+                two_days_ago - pd.Timedelta(days=1),
+                tz=self.iso.default_timezone,
+            ).normalize()
+        )
+        assert df["SCED Timestamp"].max() < self.local_start_of_day(two_days_ago)
 
     """as_prices"""
 

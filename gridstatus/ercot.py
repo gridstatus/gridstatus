@@ -2092,6 +2092,7 @@ class Ercot(ISOBase):
             end,
             verbose,
             report_type_id=SCED_SHADOW_PRICES_RTID,
+            shadow_prices=True,
         )
 
         return self._handle_sced_shadow_prices_docs(docs, verbose=verbose)
@@ -2101,31 +2102,52 @@ class Ercot(ISOBase):
             docs,
             verbose=verbose,
             desc="Reading SCED Shadow Prices files",
-            column_name_mapper=self._shadow_prices_column_name_mapper,
+            column_name_mapper=self._shadow_prices_column_name_mapper(),
             front_columns=["SCED Timestamp", "Constraint ID"],
         )
 
-    def _get_sced_docs(self, date, end, verbose, report_type_id):
-        # no end, so assume requesting one day
-        # use the timestamp from the friendly name
+    def _get_sced_docs(self, date, end, verbose, report_type_id, shadow_prices=False):
+        # Shadow prices do not have time timestamp in the friendly name, so
+        # we must use the published time.
+        friendly_name_timestamp_after = None
+        friendly_name_timestamp_before = None
+
+        published_after = None
+        published_before = None
+
         if date == "latest":
             date = date
-            friendly_name_timestamp_after = None
-            friendly_name_timestamp_before = None
+        # no end, so assume requesting one day
+        # use the timestamp from the friendly name
         elif end is None:
-            friendly_name_timestamp_after = date.normalize()
-            friendly_name_timestamp_before = (
-                friendly_name_timestamp_after + pd.DateOffset(days=1)
-            )
+            if shadow_prices:
+                published_after = date.normalize()
+                published_before = published_after + pd.DateOffset(days=1)
+            else:
+                friendly_name_timestamp_after = date.normalize()
+                friendly_name_timestamp_before = (
+                    friendly_name_timestamp_after + pd.DateOffset(days=1)
+                )
+
+            # date needs to be set to none so the docs are not filtered on the date
             date = None
         else:
-            friendly_name_timestamp_after = date
-            friendly_name_timestamp_before = end
+
+            if shadow_prices:
+                published_after = date
+                published_before = end
+
+            else:
+                friendly_name_timestamp_after = date
+                friendly_name_timestamp_before = end
+
             date = None
 
         docs = self._get_documents(
             report_type_id=report_type_id,
             date=date,
+            published_after=published_after,
+            published_before=published_before,
             friendly_name_timestamp_after=friendly_name_timestamp_after,
             friendly_name_timestamp_before=friendly_name_timestamp_before,
             verbose=verbose,
@@ -2154,6 +2176,7 @@ class Ercot(ISOBase):
         for doc in tqdm.tqdm(docs, desc=desc, disable=not verbose):
             log(f"Reading {doc.url}", verbose)
             df = pd.read_csv(doc.url, compression="zip")
+            df["Publish Time"] = pd.to_datetime(doc.publish_date)
             all_dfs.append(df)
 
         df = pd.concat(all_dfs)
@@ -2440,6 +2463,7 @@ class Ercot(ISOBase):
             published_before = None
 
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
+
         matches = []
         for doc in docs:
             match = True

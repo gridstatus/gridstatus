@@ -298,6 +298,7 @@ class BaseTestISO:
         df,
         instant_or_interval="interval",
         skip_column_named_time=False,
+        sced=False,
     ):
         assert isinstance(df, pd.DataFrame)
 
@@ -306,8 +307,12 @@ class BaseTestISO:
             time_cols = ["Time", "Interval Start", "Interval End"]
             ordered_by_col = "Interval Start"
         elif instant_or_interval == "instant":
-            time_cols = ["Time"]
-            ordered_by_col = "Time"
+            if sced:
+                time_cols = ["SCED Timestamp"]
+                ordered_by_col = "SCED Timestamp"
+            else:
+                time_cols = ["Time"]
+                ordered_by_col = "Time"
             assert "Interval Start" not in df.columns
             assert "Interval End" not in df.columns
         else:
