@@ -231,7 +231,7 @@ class IESO(ISOBase):
         interval_starts = pd.date_range(
             start_date,
             periods=len(projected_values),
-            freq="H",
+            freq="h",
             tz=self.default_timezone,
         )
 

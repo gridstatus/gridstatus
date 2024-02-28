@@ -779,7 +779,7 @@ class TestErcot(BaseTestISO):
         ) - pd.Timedelta(hours=2)
 
         # test date range
-        end = date.floor("H")
+        end = date.floor("h")
         start = end - pd.Timedelta(
             hours=3,
         )
@@ -983,7 +983,7 @@ class TestErcot(BaseTestISO):
 
         assert df["Interval Start"].min() == pd.Timestamp.now(
             tz=self.iso.default_timezone,
-        ).floor("H") - pd.Timedelta(hours=1)
+        ).floor("h") - pd.Timedelta(hours=1)
 
         # 1 Hour of data
         assert df.shape[0] == 4

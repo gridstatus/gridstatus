@@ -174,7 +174,7 @@ class TestIESO(BaseTestISO):
         assert df[TIME_COLUMN].max() >= pd.Timestamp.now(
             tz=self.default_timezone,
             # Account for data not immediately available
-        ).floor("H") - pd.Timedelta(hours=2)
+        ).floor("h") - pd.Timedelta(hours=2)
 
     def test_get_generator_report_hourly_today(self):
         df = self.iso.get_generator_report_hourly("today")
@@ -240,7 +240,7 @@ class TestIESO(BaseTestISO):
         self._check_load(df)
         now = pd.Timestamp.now(tz=self.default_timezone)
         # First interval should be the first interval of the hour
-        assert df[TIME_COLUMN].min() == now.floor("H")
+        assert df[TIME_COLUMN].min() == now.floor("h")
 
         assert df.shape[0] <= 12
 

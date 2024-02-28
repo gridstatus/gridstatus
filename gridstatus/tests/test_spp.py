@@ -357,10 +357,10 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("5T")
+        assert df["Publish Time"].max() == (now).floor("5min")
 
         assert df["Interval Start"].min() <= now
-        assert df["Interval Start"].max() >= now.floor("H")
+        assert df["Interval Start"].max() >= now.floor("h")
 
         self._check_load_forecast(df, "SHORT_TERM")
 
@@ -370,7 +370,7 @@ class TestSPP(BaseTestISO):
         # Single publish time
         assert (
             latest["Publish Time"]
-            == (self.iso.now() - pd.Timedelta(minutes=2)).floor("5T")
+            == (self.iso.now() - pd.Timedelta(minutes=2)).floor("5min")
         ).all()
 
         self._check_load_forecast(latest, "SHORT_TERM")
@@ -434,7 +434,7 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("H")
+        assert df["Publish Time"].max() == (now).floor("h")
 
         assert df["Interval Start"].min() <= now
 
@@ -450,7 +450,7 @@ class TestSPP(BaseTestISO):
         # Single publish time
         assert (
             latest["Publish Time"]
-            == (self.iso.now() - pd.Timedelta(minutes=10)).floor("H")
+            == (self.iso.now() - pd.Timedelta(minutes=10)).floor("h")
         ).all()
 
         self._check_load_forecast(latest, "MID_TERM")
@@ -495,7 +495,7 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("5T")
+        assert df["Publish Time"].max() == (now).floor("5min")
 
         assert df["Interval Start"].min() <= now
 
@@ -511,7 +511,7 @@ class TestSPP(BaseTestISO):
         # Single publish time
         assert (
             latest["Publish Time"]
-            == (self.iso.now() - pd.Timedelta(minutes=2)).floor("5T")
+            == (self.iso.now() - pd.Timedelta(minutes=2)).floor("5min")
         ).all()
 
         self._check_solar_and_wind_forecast(latest, "SHORT_TERM")
@@ -575,7 +575,7 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("H")
+        assert df["Publish Time"].max() == (now).floor("h")
 
         assert df["Interval Start"].min() <= now
 
@@ -591,7 +591,7 @@ class TestSPP(BaseTestISO):
         # Single publish time
         assert (
             latest["Publish Time"]
-            == (self.iso.now() - pd.Timedelta(minutes=10)).floor("H")
+            == (self.iso.now() - pd.Timedelta(minutes=10)).floor("h")
         ).all()
 
         self._check_solar_and_wind_forecast(latest, "MID_TERM")

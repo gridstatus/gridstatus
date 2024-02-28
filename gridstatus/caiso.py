@@ -28,9 +28,9 @@ def determine_lmp_frequency(args):
     # due to limitations of OASIS api
     if isinstance(locations, str) and locations.lower() in ["all", "all_ap_nodes"]:
         if market == Markets.REAL_TIME_5_MIN:
-            return "1H"
+            return "1h"
         elif market == Markets.REAL_TIME_15_MIN:
-            return "1H"
+            return "1h"
         elif market == Markets.DAY_AHEAD_HOURLY:
             return "1D"
         else:
@@ -312,7 +312,9 @@ class CAISO(ISOBase):
             and locations.lower() in ["all", "all_ap_nodes"]
         ):
             warnings.warn(
-                "Only 1 hour of data will be returned for real time markets if end is not specified and all nodes are requested",  # noqa
+                "Only 1 hour of data will be returned for real time markets if end is "
+                "not specified and all nodes are requested",
+                # noqa
             )
 
         df = self.get_oasis_dataset(
@@ -677,7 +679,10 @@ class CAISO(ISOBase):
 
         pdf = None
         for date_str in date_strs:
-            url = f"http://www.caiso.com/Documents/Wind_SolarReal-TimeDispatchCurtailmentReport{date_str}.pdf"  # noqa: E501
+            url = (
+                f"http://www.caiso.com/Documents/Wind_SolarReal"
+                f"-TimeDispatchCurtailmentReport{date_str}.pdf"
+            )  # noqa: E501
 
             msg = f"Fetching URL: {url}"
             log(msg, verbose)
@@ -866,7 +871,8 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of curtailed non-operational generator report
 
             column glossary:
-            http://www.caiso.com/market/Pages/OutageManagement/Curtailed-OperationalGeneratorReportGlossary.aspx
+            http://www.caiso.com/market/Pages/OutageManagement/Curtailed
+            -OperationalGeneratorReportGlossary.aspx
 
             if requesting multiple days, may want to run
             following to remove outages that get reported across multiple days:
@@ -883,19 +889,19 @@ class CAISO(ISOBase):
             )
 
         url = (
-            "http://www.caiso.com/Documents/Curtailed-non-operational-generator-prior-trade-date-report-"
-            + date.strftime("%Y%m%d")
-            + ".xlsx"
+            "http://www.caiso.com/Documents/Curtailed-non-operational-generator-prior"
+            "-trade-date-report-" + date.strftime("%Y%m%d") + ".xlsx"
         )
 
         log(f"Fetching {url}", verbose=verbose)
         # fetch this way to avoid having to
         # make request twice
         content = requests.get(url).content
+        content_io = io.BytesIO(content)
 
         # find index of OUTAGE MRID
         test_parse = pd.read_excel(
-            content,
+            content_io,
             usecols="B:M",
             sheet_name="PREV_DAY_OUTAGES",
         )
@@ -904,7 +910,7 @@ class CAISO(ISOBase):
 
         # load again, but skip rows up to outage mrid
         df = pd.read_excel(
-            content,
+            content_io,
             usecols="B:M",
             skiprows=outage_mrid_index,
             sheet_name="PREV_DAY_OUTAGES",
@@ -1166,14 +1172,15 @@ class CAISO(ISOBase):
 
 def _make_timestamp(time_str, today, timezone="US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
-    return pd.Timestamp(
+    ts = pd.Timestamp(
         year=today.year,
         month=today.month,
         day=today.day,
         hour=hour,
         minute=minute,
-        tz=timezone,
     )
+    ts = ts.tz_localize(timezone, ambiguous=True)
+    return ts
 
 
 def _get_historical(file, date, verbose=False):
@@ -1550,7 +1557,6 @@ oasis_dataset_config = {
         },
     },
 }
-
 
 if __name__ == "__main__":
     import gridstatus

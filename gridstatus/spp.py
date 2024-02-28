@@ -236,7 +236,7 @@ class SPP(ISOBase):
         if date > self.now():
             return
 
-        url = self._short_term_load_forecast_url(date.floor("5T"))
+        url = self._short_term_load_forecast_url(date.floor("5min"))
 
         log(f"Downloading {url}", verbose=verbose)
         df = pd.read_csv(url)
@@ -276,7 +276,7 @@ class SPP(ISOBase):
         if date > self.now():
             return
 
-        url = self._mid_term_load_forecast_url(date.floor("H"))
+        url = self._mid_term_load_forecast_url(date.floor("h"))
 
         log(f"Downloading {url}", verbose=verbose)
         df = pd.read_csv(url)
@@ -350,7 +350,7 @@ class SPP(ISOBase):
         if date > self.now():
             return
 
-        url = self._short_term_solar_and_wind_url(date.floor("5T"))
+        url = self._short_term_solar_and_wind_url(date.floor("5min"))
 
         log(f"Downloading {url}", verbose=verbose)
         df = pd.read_csv(url)
@@ -390,7 +390,7 @@ class SPP(ISOBase):
         if date > self.now():
             return
 
-        url = self._mid_term_solar_and_wind_url(date.floor("H"))
+        url = self._mid_term_solar_and_wind_url(date.floor("h"))
 
         log(f"Downloading {url}", verbose=verbose)
         df = pd.read_csv(url)

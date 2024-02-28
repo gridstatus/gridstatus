@@ -462,7 +462,12 @@ class NYISO(ISOBase):
         # assume it was finished when last updated
         completed["Actual Completion Date"] = completed["Last Updated Date"]
 
-        queue = pd.concat([active, withdrawn, completed])
+        dfs = [
+            df
+            for df in [active, withdrawn, completed]
+            if not df.empty and not df.isna().all().all()
+        ]
+        queue = pd.concat(dfs)
 
         # fix extra space in column name
 
