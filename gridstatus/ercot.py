@@ -49,6 +49,14 @@ DAM_SYSTEM_LAMBDA_RTID = 13113
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-322-CD
 SCED_SYSTEM_LAMBDA_RTID = 13114
 
+# DAM Shadow Prices
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-191-CD
+DAM_SHADOW_PRICES_RTID = 12332
+
+# SCED Shadow Prices
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-86-CD
+SCED_SHADOW_PRICES_RTID = 12302
+
 # DAM Clearing Prices for Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-188-CD
 DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 12329
@@ -2065,6 +2073,146 @@ class Ercot(ISOBase):
 
         df.sort_values("SCED Timestamp", inplace=True)
         return df
+
+    @support_date_range("DAY_START")
+    def get_dam_shadow_prices(self, date, end=None, verbose=False):
+        """Get Day-Ahead Market Shadow Prices
+
+        Arguments:
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with day-ahead market shadow prices
+        """
+        # Subtract one day since this is the day ahead market
+        date = date if date == "latest" else date - pd.DateOffset(days=1)
+
+        doc = self._get_document(
+            date=date,
+            report_type_id=DAM_SHADOW_PRICES_RTID,
+            verbose=verbose,
+        )
+
+        return self._handle_dam_shadow_prices_file(doc, verbose=verbose)
+
+    def _handle_dam_shadow_prices_file(self, doc, verbose):
+        df = self.read_doc(doc, parse=True, verbose=verbose)
+
+        df = df.rename(
+            columns={
+                "ConstraintID": "Constraint ID",
+                "ConstraintName": "Constraint Name",
+                "ContigencyName": "Contingency Name",
+                "ConstraintLimit": "Constraint Limit",
+                "ConstraintValue": "Constraint Value",
+                "ViolationAmount": "Violation Amount",
+                "ShadowPrice": "Shadow Price",
+                "FromStation": "From Station",
+                "ToStation": "To Station",
+                "FromStationkV": "From Station kV",
+                "ToStationkV": "To Station kV",
+                "DeliveryTime": "Delivery Time",
+            },
+        )
+
+        df["Publish Time"] = pd.to_datetime(doc.publish_date)
+        df["Market"] = "DAM"
+
+        # This seems to be the same as Interval End
+        df["Delivery Time"] = pd.to_datetime(df["Delivery Time"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        assert (df["Delivery Time"] == df["Interval End"]).all()
+
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time", "Market"],
+        )
+
+        return (
+            df.drop(columns=["Time", "Delivery Time"])
+            .sort_values(["Interval Start", "Constraint ID"])
+            .reset_index()
+        )
+
+    @support_date_range(frequency=None)
+    def get_sced_shadow_prices(self, date, end=None, verbose=False):
+        """Get Real-Time Market Shadow Prices
+
+        Arguments:
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with real-time market shadow prices
+        """
+        # no end, so assume requesting one day
+        # use the timestamp from the friendly name
+        if date == "latest":
+            date = date
+            friendly_name_timestamp_after = None
+            friendly_name_timestamp_before = None
+        elif end is None:
+            friendly_name_timestamp_after = date.normalize()
+            friendly_name_timestamp_before = (
+                friendly_name_timestamp_after + pd.DateOffset(days=1)
+            )
+            date = None
+        else:
+            friendly_name_timestamp_after = date
+            friendly_name_timestamp_before = end
+            date = None
+
+        docs = self._get_documents(
+            report_type_id=SCED_SHADOW_PRICES_RTID,
+            date=date,
+            friendly_name_timestamp_after=friendly_name_timestamp_after,
+            friendly_name_timestamp_before=friendly_name_timestamp_before,
+            verbose=verbose,
+            constructed_name_contains="csv.zip",
+        )
+
+        return self._handle_sced_shadow_prices_docs(docs, verbose=verbose)
+
+    def _handle_sced_shadow_prices_docs(self, docs, verbose):
+        all_dfs = []
+
+        for doc in tqdm.tqdm(
+            docs,
+            desc="Reading SCED Shadow Prices files",
+            disable=not verbose,
+        ):
+            log(f"Reading {doc.url}", verbose)
+            df = pd.read_csv(doc.url, compression="zip")
+            all_dfs.append(df)
+
+        df = pd.concat(all_dfs)
+
+        df = self._handle_sced_timestamp(df, verbose=verbose)
+
+        df = df.rename(
+            columns={
+                "ConstraintID": "Constraint ID",
+                "ConstraintName": "Constraint Name",
+                "ContigencyName": "Contingency Name",
+                "ShadowPrice": "Shadow Price",
+                "MaxShadowPrice": "Max Shadow Price",
+                "ViolatedMW": "Violated MW",
+                "FromStation": "From Station",
+                "ToStation": "To Station",
+                "FromStationkV": "From Station kV",
+                "ToStationkV": "To Station kV",
+                "CCTStatus": "CCT Status",
+                "SystemLambda": "System Lambda",
+            },
+        )
+
+        df["Market"] = "RTM"
+        df = utils.move_cols_to_front(df, ["SCED Timestamp", "Constraint ID"])
+
+        return df.sort_values(["SCED Timestamp", "Constraint ID"]).reset_index(
+            drop=True,
+        )
 
     @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(self, date, verbose=False):

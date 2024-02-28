@@ -16,6 +16,8 @@ from gridstatus.tests.base_test_iso import BaseTestISO
 class TestErcot(BaseTestISO):
     iso = Ercot()
 
+    """dam_system_lambda"""
+
     def test_get_dam_system_lambda_latest(self):
         df = self.iso.get_dam_system_lambda("latest", verbose=True)
 
@@ -74,6 +76,8 @@ class TestErcot(BaseTestISO):
             two_days_ago - pd.Timedelta(days=1),
         ]
 
+    """sced_system_lambda"""
+
     def test_get_sced_system_lambda(self):
         for i in ["latest", "today"]:
             df = self.iso.get_sced_system_lambda(i, verbose=True)
@@ -85,6 +89,19 @@ class TestErcot(BaseTestISO):
             today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
             assert df["SCED Timestamp"].unique()[0].date() == today
             assert isinstance(df["System Lambda"].unique()[0], float)
+
+    """dam_shadow_prices"""
+
+    def test_get_dam_shadow_prices(self):
+        pass
+
+
+    """sced_shadow_prices"""
+
+    def test_get_sced_shadow_prices(self):
+        pass
+
+    """as_prices"""
 
     def test_get_as_prices(self):
         as_cols = [
