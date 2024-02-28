@@ -92,11 +92,10 @@ class TestErcot(BaseTestISO):
 
     """dam_shadow_prices"""
 
-    expected_shadow_prices_columns = [
+    expected_dam_shadow_prices_columns = [
         "Interval Start",
         "Interval End",
         "Publish Time",
-        "Market",
         "Constraint ID",
         "Constraint Name",
         "ContingencyName",
@@ -111,7 +110,7 @@ class TestErcot(BaseTestISO):
     ]
 
     def _check_dam_shadow_prices(self, df):
-        assert df.columns.tolist() == self.expected_shadow_prices_columns
+        assert df.columns.tolist() == self.expected_dam_shadow_prices_columns
 
         self._check_time_columns(
             df,
@@ -129,7 +128,7 @@ class TestErcot(BaseTestISO):
             hours=23,
         )
 
-        assert df["Publish Time"].unique() == [
+        assert df["Publish Time"].dt.date.unique().tolist() == [
             self.local_today() - pd.Timedelta(days=1),
         ]
 
@@ -151,7 +150,7 @@ class TestErcot(BaseTestISO):
             three_days_ago,
         ) + pd.Timedelta(hours=23)
 
-        assert df["Publish Time"].unique().tolist() == [
+        assert df["Publish Time"].dt.date.unique().tolist() == [
             three_days_ago - pd.Timedelta(days=1),
         ]
 
@@ -172,7 +171,7 @@ class TestErcot(BaseTestISO):
             two_days_ago,
         ) + pd.Timedelta(hours=23)
 
-        assert df["Publish Time"].unique().tolist() == [
+        assert df["Publish Time"].dt.date.unique().tolist() == [
             four_days_ago - pd.Timedelta(days=1),
             two_days_ago - pd.Timedelta(days=2),
             two_days_ago - pd.Timedelta(days=1),
@@ -182,6 +181,7 @@ class TestErcot(BaseTestISO):
 
     expected_sced_shadow_prices_columns = [
         "SCED Timestamp",
+        "Publish Time",
         "Constraint ID",
         "Constraint Name",
         "ContingencyName",
@@ -209,14 +209,21 @@ class TestErcot(BaseTestISO):
         assert df["SCED Timestamp"].min() < self.local_start_of_today()
         assert df["SCED Timestamp"].max() < self.local_now()
 
+        assert (
+            df["Publish Time"]
+            .between(self.local_start_of_today(), self.local_now())
+            .all()
+        )
+
     def test_get_sced_shadow_prices_latest(self):
         df = self.iso.get_sced_shadow_prices("latest", verbose=True)
 
         self._check_sced_shadow_prices(df)
 
         assert df["SCED Timestamp"].min() > self.local_start_of_today()
-
         assert df["SCED Timestamp"].max() < self.local_now()
+
+        assert df["Publish Time"].dt.date.unique() == [self.local_today()]
 
     def test_get_sced_shadow_prices_historical(self):
         three_days_ago = self.local_today() - pd.Timedelta(
@@ -232,6 +239,15 @@ class TestErcot(BaseTestISO):
             three_days_ago,
         ) + pd.Timedelta(hours=23)
 
+        assert (
+            df["Publish Time"]
+            .between(
+                self.local_start_of_day(three_days_ago),
+                self.local_start_of_day(three_days_ago + pd.Timedelta(days=1)),
+            )
+            .all()
+        )
+
     def test_get_sced_shadow_prices_historical_range(self):
         four_days_ago = self.local_today() - pd.Timedelta(days=4)
         two_days_ago = four_days_ago + pd.Timedelta(days=2)
@@ -245,15 +261,16 @@ class TestErcot(BaseTestISO):
         self._check_sced_shadow_prices(df)
 
         assert df["SCED Timestamp"].min() < self.local_start_of_day(four_days_ago)
+        assert df["SCED Timestamp"].max() < self.local_start_of_day(two_days_ago)
 
         assert (
-            df["SCED Timestamp"].max()
-            > pd.Timestamp(
-                two_days_ago - pd.Timedelta(days=1),
-                tz=self.iso.default_timezone,
-            ).normalize()
+            df["Publish Time"]
+            .between(
+                self.local_start_of_day(four_days_ago),
+                self.local_start_of_day(two_days_ago),
+            )
+            .all()
         )
-        assert df["SCED Timestamp"].max() < self.local_start_of_day(two_days_ago)
 
     """as_prices"""
 

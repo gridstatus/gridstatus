@@ -2011,7 +2011,7 @@ class Ercot(ISOBase):
             desc="Reading SCED System Lambda files",
             column_name_mapper={"SystemLambda": "System Lambda"},
             front_columns=[],
-        )
+        ).drop(columns=["Publish Time"])
 
     def _handle_sced_timestamp(self, df, verbose=False):
         df = df.rename(
@@ -2053,11 +2053,9 @@ class Ercot(ISOBase):
 
     def _handle_dam_shadow_prices_file(self, doc, verbose):
         df = self.read_doc(doc, parse=True, verbose=verbose)
-
         df = df.rename(columns=self._shadow_prices_column_name_mapper())
 
         df["Publish Time"] = pd.to_datetime(doc.publish_date)
-        df["Market"] = "DAM"
 
         # This seems to be the same as Interval End
         df["Delivery Time"] = pd.to_datetime(df["Delivery Time"]).dt.tz_localize(
@@ -2068,7 +2066,7 @@ class Ercot(ISOBase):
 
         df = utils.move_cols_to_front(
             df,
-            ["Interval Start", "Interval End", "Publish Time", "Market"],
+            ["Interval Start", "Interval End", "Publish Time"],
         )
 
         return (
@@ -2103,7 +2101,7 @@ class Ercot(ISOBase):
             verbose=verbose,
             desc="Reading SCED Shadow Prices files",
             column_name_mapper=self._shadow_prices_column_name_mapper(),
-            front_columns=["SCED Timestamp", "Constraint ID"],
+            front_columns=["SCED Timestamp", "Publish Time", "Constraint ID"],
         )
 
     def _get_sced_docs(self, date, end, verbose, report_type_id, shadow_prices=False):

@@ -244,7 +244,6 @@ class BaseTestISO:
             or (df["Interval Start"].dt.date == today).all()
             or (df["Interval End"].dt.date == today).all()
         )
-        return df
 
     """get_load_forecast"""
 
