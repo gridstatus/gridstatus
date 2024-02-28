@@ -9,6 +9,18 @@ from gridstatus.base import GridStatus, _interconnection_columns
 class BaseTestISO:
     iso = None
 
+    def local_now(self):
+        return pd.Timestamp.now(tz=self.iso.default_timezone)
+
+    def local_today(self):
+        return self.local_now().date()
+
+    def local_start_of_day(self, date):
+        return pd.Timestamp(date).tz_localize(self.iso.default_timezone).normalize()
+
+    def local_start_of_today(self):
+        return self.local_start_of_day(self.local_today())
+
     def test_init(self):
         assert self.iso is not None
 

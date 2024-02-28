@@ -2054,7 +2054,7 @@ class Ercot(ISOBase):
     def _handle_dam_shadow_prices_file(self, doc, verbose):
         df = self.read_doc(doc, parse=True, verbose=verbose)
 
-        df = df.rename(columns=self._shadow_prices_column_name_mapper)
+        df = df.rename(columns=self._shadow_prices_column_name_mapper())
 
         df["Publish Time"] = pd.to_datetime(doc.publish_date)
         df["Market"] = "DAM"
@@ -2074,7 +2074,7 @@ class Ercot(ISOBase):
         return (
             df.drop(columns=["Time", "Delivery Time"])
             .sort_values(["Interval Start", "Constraint ID"])
-            .reset_index()
+            .reset_index(drop=True)
         )
 
     @support_date_range(frequency=None)
@@ -2705,12 +2705,3 @@ class Ercot(ISOBase):
                 doc = doc.drop(columns=[col])
 
         return doc
-
-
-if __name__ == "__main__":
-    iso = Ercot()
-    # df = iso.get_sced_system_lambda(date="09/13/2023", verbose=True)
-    df = iso.get_sced_system_lambda(date="latest", verbose=True)
-    print(df["SCED Time Stamp"].unique()[0].date())
-    print(df)
-    print(df.columns)
