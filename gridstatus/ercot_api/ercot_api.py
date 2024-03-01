@@ -9,12 +9,14 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
+from gridstatus.ercot import Ercot
 from gridstatus.ercot_api.api_parser import get_endpoints_map
 from gridstatus.gs_logging import log
 
 TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
+# https://data.ercot.com/data-product-archive/NP4-183-CD
 DAM_EMIL_ID = "NP4-183-CD"
 
 TOKEN_EXPIRATION_SECONDS = 3600
@@ -22,9 +24,14 @@ TOKEN_EXPIRATION_SECONDS = 3600
 
 class AuthenticatedErcotApi:
     """
-    Class to authenticate and make requests to the ERCOT API
+    Class to authenticate and make requests to the ERCOT Data API (api.ercot.com)
 
-    "https://developer.ercot.com/applications/pubapi/ERCOT%20Public%20API%20Registration%20and%20Authentication/"
+    WARNING: the API appears to be a WIP and may change without notice.
+
+    To authenticate, you need a username and password plus a subscription key.
+
+    To register, create an account here: https://apiexplorer.ercot.com/
+    To obtain a subscription key, follow the instructions here: https://developer.ercot.com/applications/pubapi/ERCOT%20Public%20API%20Registration%20and%20Authentication/
     """  # noqa
 
     def __init__(
@@ -33,9 +40,11 @@ class AuthenticatedErcotApi:
         password: str = None,
         subscription_key: str = None,
     ):
-        self.username = username or os.getenv("ERCOT_USERNAME")
-        self.password = password or os.getenv("ERCOT_PASSWORD")
-        self.subscription_key = subscription_key or os.getenv("ERCOT_SUBSCRIPTION_KEY")
+        self.username = username or os.getenv("ERCOT_API_USERNAME")
+        self.password = password or os.getenv("ERCOT_API_PASSWORD")
+        self.subscription_key = subscription_key or os.getenv(
+            "ERCOT_API_SUBSCRIPTION_KEY",
+        )
 
         if not all([self.username, self.password, self.subscription_key]):
             raise ValueError(
@@ -56,6 +65,7 @@ class AuthenticatedErcotApi:
             "scope": "openid fec253ea-0d06-4272-a5e6-b478baeecd70 offline_access",
             "client_id": self.client_id,
         }
+
         response = requests.post(self.token_url, data=payload)
         response_data = response.json()
 
@@ -79,6 +89,8 @@ class AuthenticatedErcotApi:
         verbose=False,
     ):
         self.refresh_token_if_needed()
+
+        # Both forms of authentication are required
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Ocp-Apim-Subscription-Key": self.subscription_key,
@@ -99,6 +111,14 @@ class AuthenticatedErcotApi:
             return response.content
 
     def get_zip_file(self, emil_id, document_id, verbose=False):
+        """
+        Retrieves a zip file specified by the emil_id and document_id.
+
+        Args:
+            emil_id (str): the EMIL ID of the data product
+            document_id (int): the document ID of the specific file to download
+        """
+
         url = f"{BASE_URL}/archive/{emil_id}?download={document_id}"
 
         content = self.make_api_call(url, parse_json=False, verbose=verbose)
@@ -106,7 +126,6 @@ class AuthenticatedErcotApi:
         # Use BytesIO for the byte stream
         zip_file = io.BytesIO(content)
 
-        # Open the zip file
         with zipfile.ZipFile(zip_file, "r") as z:
             # Extract file names (assuming only one file in the zip)
             file_names = z.namelist()
@@ -120,11 +139,22 @@ class AuthenticatedErcotApi:
         return df
 
     def get_public_reports(self, verbose=False):
+        # General information about the public reports
         return self.make_api_call(BASE_URL, verbose=verbose)
 
-    def get_archive_for_data_product(self, emil_id, verbose=False):
+    def get_archive_list_for_data_product(self, emil_id, verbose=False):
+        """
+        Retrieves the list of all files available for a given data product.
+
+        Args:
+            emil_id (str): the EMIL ID of the data product
+
+        Returns:
+            list: a list of dictionaries, each containing metadata about a file
+        """
         url = f"{BASE_URL}/archive/{emil_id}"
 
+        # TODO: handle pagination. The API returns a maximum of 1000 records at a time
         response = self.make_api_call(url, verbose=verbose)
 
         archives = response.get("archives")
@@ -143,7 +173,19 @@ class AuthenticatedErcotApi:
         end_date=None,
         verbose=False,
     ):
-        archives = self.get_archive_for_data_product(emil_id, verbose=verbose)
+        """
+        Finds the document IDs for the emil id files that match a given date range
+
+        Args:
+            emil_id (str): the EMIL ID of the data product
+            start_date (str): the start date in the format "YYYY-MM-DD"
+            end_date (str): the end date in the format "YYYY-MM-DD"
+            verbose (bool): if True, will print out status messages
+
+        Returns:
+            list: a list of document IDs to download
+        """
+        archives = self.get_archive_list_for_data_product(emil_id, verbose=verbose)
 
         date_range = [str(pd.Timestamp(start_date).date())]
         found_dates = []
@@ -165,7 +207,14 @@ class AuthenticatedErcotApi:
 
         return document_ids
 
-    def get_dam_hourly(self, start_date, end_date=None, verbose=False):
+    def get_dam_lmp_hourly(self, start_date, end_date=None, verbose=False):
+        """
+        Retrieves the hourly Day Ahead Market (DAM) Location Marginal Prices (LMPs)
+        for the given date range.
+
+        Data source: https://data.ercot.com/data-product-archive/NP4-183-CD
+        (requires login)
+        """
         document_ids = self.get_document_ids_to_download(
             DAM_EMIL_ID,
             start_date,
@@ -181,7 +230,17 @@ class AuthenticatedErcotApi:
 
         data = pd.concat(dfs)
 
-        return data
+        return self.parse_dam_doc(data)
+
+    def parse_dam_doc(self, data):
+        return (
+            Ercot()
+            .parse_doc(data)
+            .rename(columns={"BusName": "Location"})
+            .drop(columns=["Time"])
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+        )
 
 
 def hit_ercot_api(
