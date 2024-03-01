@@ -1,4 +1,8 @@
 import argparse
+import io
+import os
+import time
+import zipfile
 from typing import Optional
 
 import pandas as pd
@@ -8,7 +12,176 @@ from tqdm import tqdm
 from gridstatus.ercot_api.api_parser import get_endpoints_map
 from gridstatus.gs_logging import log
 
+TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
 BASE_URL = "https://api.ercot.com/api/public-reports"
+
+DAM_EMIL_ID = "NP4-183-CD"
+
+TOKEN_EXPIRATION_SECONDS = 3600
+
+
+class AuthenticatedErcotApi:
+    """
+    Class to authenticate and make requests to the ERCOT API
+
+    "https://developer.ercot.com/applications/pubapi/ERCOT%20Public%20API%20Registration%20and%20Authentication/"
+    """  # noqa
+
+    def __init__(
+        self,
+        username: str = None,
+        password: str = None,
+        subscription_key: str = None,
+    ):
+        self.username = username or os.getenv("ERCOT_USERNAME")
+        self.password = password or os.getenv("ERCOT_PASSWORD")
+        self.subscription_key = subscription_key or os.getenv("ERCOT_SUBSCRIPTION_KEY")
+
+        if not all([self.username, self.password, self.subscription_key]):
+            raise ValueError(
+                "Username, password, and subscription key must be provided or set as environment variables",  # noqa
+            )
+
+        self.client_id = "fec253ea-0d06-4272-a5e6-b478baeecd70"  # From the docs
+        self.token_url = TOKEN_URL
+        self.token = None
+        self.token_expiry = None
+
+    def get_token(self):
+        payload = {
+            "grant_type": "password",
+            "username": self.username,
+            "password": self.password,
+            "response_type": "id_token",
+            "scope": "openid fec253ea-0d06-4272-a5e6-b478baeecd70 offline_access",
+            "client_id": self.client_id,
+        }
+        response = requests.post(self.token_url, data=payload)
+        response_data = response.json()
+
+        if "id_token" in response_data:
+            self.token = response_data["id_token"]
+            self.token_expiry = time.time() + TOKEN_EXPIRATION_SECONDS
+
+        else:
+            raise Exception("Failed to obtain token")
+
+    def refresh_token_if_needed(self):
+        if not self.token or time.time() >= self.token_expiry:
+            self.get_token()
+
+    def make_api_call(
+        self,
+        url,
+        method="GET",
+        data=None,
+        parse_json=True,
+        verbose=False,
+    ):
+        self.refresh_token_if_needed()
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Ocp-Apim-Subscription-Key": self.subscription_key,
+        }
+
+        log(f"Requesting url: {url}", verbose)
+
+        if method == "GET":
+            response = requests.get(url, headers=headers)
+        elif method == "POST":
+            response = requests.post(url, headers=headers, data=data)
+        else:
+            raise ValueError("Unsupported method")
+
+        if parse_json:
+            return response.json()
+        else:
+            return response.content
+
+    def get_zip_file(self, emil_id, document_id, verbose=False):
+        url = f"{BASE_URL}/archive/{emil_id}?download={document_id}"
+
+        content = self.make_api_call(url, parse_json=False, verbose=verbose)
+
+        # Use BytesIO for the byte stream
+        zip_file = io.BytesIO(content)
+
+        # Open the zip file
+        with zipfile.ZipFile(zip_file, "r") as z:
+            # Extract file names (assuming only one file in the zip)
+            file_names = z.namelist()
+            if len(file_names) == 0:
+                raise Exception("No files found in the zip archive")
+
+            # Read the first file as a pandas DataFrame
+            with z.open(file_names[0]) as f:
+                df = pd.read_csv(f)
+
+        return df
+
+    def get_public_reports(self, verbose=False):
+        return self.make_api_call(BASE_URL, verbose=verbose)
+
+    def get_archive_for_data_product(self, emil_id, verbose=False):
+        url = f"{BASE_URL}/archive/{emil_id}"
+
+        response = self.make_api_call(url, verbose=verbose)
+
+        archives = response.get("archives")
+
+        if not archives:
+            raise ValueError(f"No archives found for {emil_id}")
+
+        log(f"Found {len(archives)} archives for {emil_id}", verbose)
+
+        return archives
+
+    def get_document_ids_to_download(
+        self,
+        emil_id,
+        start_date,
+        end_date=None,
+        verbose=False,
+    ):
+        archives = self.get_archive_for_data_product(emil_id, verbose=verbose)
+
+        date_range = [str(pd.Timestamp(start_date).date())]
+        found_dates = []
+
+        if end_date:
+            date_range = [
+                str(date.date()) for date in pd.date_range(start_date, end_date)
+            ]
+
+        document_ids = []
+
+        for doc in archives:
+            doc_posted_date = doc["postDatetime"].split("T")[0]
+            if doc_posted_date in date_range:
+                found_dates.append(doc_posted_date)
+                document_ids.append(doc["docId"])
+
+        log(f"Missing dates: {set(date_range) - set(found_dates)}", verbose)
+
+        return document_ids
+
+    def get_dam_hourly(self, start_date, end_date=None, verbose=False):
+        document_ids = self.get_document_ids_to_download(
+            DAM_EMIL_ID,
+            start_date,
+            end_date,
+            verbose=verbose,
+        )
+
+        dfs = []
+
+        for doc_id in tqdm(document_ids, desc="Downloading documents"):
+            df = self.get_zip_file(DAM_EMIL_ID, document_id=doc_id, verbose=verbose)
+            dfs.append(df)
+
+        data = pd.concat(dfs)
+
+        return data
 
 
 def hit_ercot_api(
