@@ -63,7 +63,7 @@ The best way to ensure everything is installed correctly by running running the 
 ## Environment Variables
 
 * Copy `.env.template` into a new file called `.env` and fill in the appropriate values for the environment variables. `.env` should not be committed to the repository.
-* Fill out these variables if you want to use the EIA or ERCOT APIs.
+* Fill out these variables if you want to use the EIA or ERCOT APIs. They should be available in the `pipenv shell` thanks to the `poetry-dotenv-plugin` plugin.
 
 
 ## Running Tests and Linting
