@@ -9,6 +9,7 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
+from gridstatus.decorators import support_date_range
 from gridstatus.ercot import Ercot
 from gridstatus.ercot_api.api_parser import get_endpoints_map
 from gridstatus.gs_logging import log
@@ -17,7 +18,7 @@ TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
 # https://data.ercot.com/data-product-archive/NP4-183-CD
-DAM_EMIL_ID = "NP4-183-CD"
+DAM_LMP_HOURLY_EMIL_ID = "NP4-183-CD"
 
 TOKEN_EXPIRATION_SECONDS = 3600
 
@@ -33,6 +34,8 @@ class AuthenticatedErcotApi:
     To register, create an account here: https://apiexplorer.ercot.com/
     To obtain a subscription key, follow the instructions here: https://developer.ercot.com/applications/pubapi/ERCOT%20Public%20API%20Registration%20and%20Authentication/
     """  # noqa
+
+    default_timezone = "US/Central"
 
     def __init__(
         self,
@@ -84,6 +87,7 @@ class AuthenticatedErcotApi:
         self,
         url,
         method="GET",
+        params=None,
         data=None,
         parse_json=True,
         verbose=False,
@@ -99,9 +103,9 @@ class AuthenticatedErcotApi:
         log(f"Requesting url: {url}", verbose)
 
         if method == "GET":
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, params=params, headers=headers)
         elif method == "POST":
-            response = requests.post(url, headers=headers, data=data)
+            response = requests.post(url, params=params, headers=headers, data=data)
         else:
             raise ValueError("Unsupported method")
 
@@ -142,20 +146,38 @@ class AuthenticatedErcotApi:
         # General information about the public reports
         return self.make_api_call(BASE_URL, verbose=verbose)
 
-    def get_archive_list_for_data_product(self, emil_id, verbose=False):
+    def get_document_list_for_data_product(
+        self,
+        emil_id,
+        start_date=None,
+        end_date=None,
+        size=None,
+        verbose=False,
+    ):
         """
-        Retrieves the list of all files available for a given data product.
+        Retrieves the list of all files available for a given data product. Documents
+        are sorted by post date, with the most recent documents appearing first. Using
+        a size=1 will return the most recent document.
 
         Args:
             emil_id (str): the EMIL ID of the data product
+            size (int): the number of records to return (max 1000)
 
         Returns:
             list: a list of dictionaries, each containing metadata about a file
         """
         url = f"{BASE_URL}/archive/{emil_id}"
 
+        params = {
+            "size": size,
+            "postDatetimeFrom": start_date.date() if start_date else None,
+            "postDatetimeTo": end_date.date() if end_date else None,
+        }
+
+        params = {k: v for k, v in params.items() if v is not None}
+
         # TODO: handle pagination. The API returns a maximum of 1000 records at a time
-        response = self.make_api_call(url, verbose=verbose)
+        response = self.make_api_call(url, params=params, verbose=verbose)
 
         archives = response.get("archives")
 
@@ -170,6 +192,7 @@ class AuthenticatedErcotApi:
         self,
         emil_id,
         start_date,
+        size=None,
         end_date=None,
         verbose=False,
     ):
@@ -185,29 +208,39 @@ class AuthenticatedErcotApi:
         Returns:
             list: a list of document IDs to download
         """
-        archives = self.get_archive_list_for_data_product(emil_id, verbose=verbose)
+        archives = self.get_document_list_for_data_product(
+            emil_id,
+            start_date,
+            end_date,
+            size=size,
+            verbose=verbose,
+        )
 
-        date_range = [str(pd.Timestamp(start_date).date())]
-        found_dates = []
+        if start_date is not None:
+            date_range = [str(pd.Timestamp(start_date).date())]
+            found_dates = []
 
-        if end_date:
-            date_range = [
-                str(date.date()) for date in pd.date_range(start_date, end_date)
-            ]
+            if end_date:
+                date_range = [
+                    str(date.date()) for date in pd.date_range(start_date, end_date)
+                ]
 
-        document_ids = []
+            document_ids = []
 
-        for doc in archives:
-            doc_posted_date = doc["postDatetime"].split("T")[0]
-            if doc_posted_date in date_range:
-                found_dates.append(doc_posted_date)
-                document_ids.append(doc["docId"])
+            for doc in archives:
+                doc_posted_date = doc["postDatetime"].split("T")[0]
+                if doc_posted_date in date_range:
+                    found_dates.append(doc_posted_date)
+                    document_ids.append(doc["docId"])
 
-        log(f"Missing dates: {set(date_range) - set(found_dates)}", verbose)
+            log(f"Missing dates: {set(date_range) - set(found_dates)}", verbose)
+        else:
+            document_ids = [doc["docId"] for doc in archives]
 
         return document_ids
 
-    def get_dam_lmp_hourly(self, start_date, end_date=None, verbose=False):
+    @support_date_range(frequency=None)
+    def get_dam_lmp_hourly_by_bus(self, date, end_date=None, verbose=False):
         """
         Retrieves the hourly Day Ahead Market (DAM) Location Marginal Prices (LMPs)
         for the given date range.
@@ -215,17 +248,32 @@ class AuthenticatedErcotApi:
         Data source: https://data.ercot.com/data-product-archive/NP4-183-CD
         (requires login)
         """
+        size = None
+
+        # Subtract one day since this is the day ahead market
+        date = date if date == "latest" else date - pd.DateOffset(days=1)
+
+        if date == "latest":
+            size = 1
+            date = None
+            end_date = None
+
         document_ids = self.get_document_ids_to_download(
-            DAM_EMIL_ID,
-            start_date,
-            end_date,
+            emil_id=DAM_LMP_HOURLY_EMIL_ID,
+            start_date=date,
+            end_date=end_date,
+            size=size,
             verbose=verbose,
         )
 
         dfs = []
 
         for doc_id in tqdm(document_ids, desc="Downloading documents"):
-            df = self.get_zip_file(DAM_EMIL_ID, document_id=doc_id, verbose=verbose)
+            df = self.get_zip_file(
+                DAM_LMP_HOURLY_EMIL_ID,
+                document_id=doc_id,
+                verbose=verbose,
+            )
             dfs.append(df)
 
         data = pd.concat(dfs)
