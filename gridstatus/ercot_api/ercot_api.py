@@ -23,7 +23,7 @@ DAM_LMP_HOURLY_EMIL_ID = "NP4-183-CD"
 TOKEN_EXPIRATION_SECONDS = 3600
 
 
-class AuthenticatedErcotApi:
+class ErcotAPI:
     """
     Class to authenticate and make requests to the ERCOT Data API (api.ercot.com)
 
@@ -240,7 +240,7 @@ class AuthenticatedErcotApi:
         return document_ids
 
     @support_date_range(frequency=None)
-    def get_dam_lmp_hourly_by_bus(self, date, end_date=None, verbose=False):
+    def get_dam_lmp_hourly_by_bus(self, date, end=None, verbose=False):
         """
         Retrieves the hourly Day Ahead Market (DAM) Location Marginal Prices (LMPs)
         for the given date range.
@@ -256,12 +256,12 @@ class AuthenticatedErcotApi:
         if date == "latest":
             size = 1
             date = None
-            end_date = None
+            end = None
 
         document_ids = self.get_document_ids_to_download(
             emil_id=DAM_LMP_HOURLY_EMIL_ID,
             start_date=date,
-            end_date=end_date,
+            end_date=end,
             size=size,
             verbose=verbose,
         )

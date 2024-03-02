@@ -5,11 +5,11 @@ import pytest
 import pytz
 
 from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES, get_endpoints_map
-from gridstatus.ercot_api.ercot_api import AuthenticatedErcotApi, hit_ercot_api
+from gridstatus.ercot_api.ercot_api import ErcotAPI, hit_ercot_api
 
 
-class TestAuthenticatedErcotApi:
-    iso = AuthenticatedErcotApi()
+class TestErcotAPI:
+    iso = ErcotAPI()
 
     def _check_dam_lmp_hourly_by_bus(self, df):
         assert df.columns.tolist() == [
