@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
-from gridstatus import Ercot, Markets, NotSupported
+from gridstatus import ELECTRICAL_BUS_LOCATION_TYPE, Ercot, Markets, NotSupported
 from gridstatus.ercot import parse_timestamp_from_friendly_name
 from gridstatus.tests.base_test_iso import BaseTestISO
 
@@ -1069,7 +1069,7 @@ class TestErcot(BaseTestISO):
 
         df = self.iso.get_lmp(
             date="latest",
-            location_type="Electrical Bus",
+            location_type=ELECTRICAL_BUS_LOCATION_TYPE,
         )
 
         assert df.shape[0] >= 0
@@ -1078,7 +1078,7 @@ class TestErcot(BaseTestISO):
         now = pd.Timestamp.now(tz=self.iso.default_timezone)
         start = now - pd.Timedelta(hours=1)
         df = self.iso.get_lmp(
-            location_type="Electrical Bus",
+            location_type=ELECTRICAL_BUS_LOCATION_TYPE,
             start=start,
             end=now,
             verbose=True,

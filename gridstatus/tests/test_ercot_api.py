@@ -4,6 +4,8 @@ import pandas as pd
 import pytest
 import pytz
 
+from gridstatus.base import Markets
+from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
 from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES, get_endpoints_map
 from gridstatus.ercot_api.ercot_api import ErcotAPI, hit_ercot_api
 
@@ -11,25 +13,32 @@ from gridstatus.ercot_api.ercot_api import ErcotAPI, hit_ercot_api
 class TestErcotAPI:
     iso = ErcotAPI()
 
-    def _check_dam_lmp_hourly_by_bus(self, df):
+    def _check_lmp_by_bus_dam(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
+            "Market",
             "Location",
+            "Location Type",
             "LMP",
         ]
 
         assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
         assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+
+        assert (df["Market"] == Markets.DAY_AHEAD_HOURLY.name).all()
+
         assert df.dtypes["Location"] == "object"
+        assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
+
         assert df.dtypes["LMP"] == "float64"
 
         assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
 
-    def test_get_dam_lmp_hourly_by_bus_latest(self):
-        df = self.iso.get_dam_lmp_hourly_by_bus("latest")
+    def test_get_lmp_by_bus_dam_latest(self):
+        df = self.iso.get_lmp_by_bus_dam("latest")
 
-        self._check_dam_lmp_hourly_by_bus(df)
+        self._check_lmp_by_bus_dam(df)
 
         assert df["Interval Start"].min() == pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -39,10 +48,10 @@ class TestErcotAPI:
             tz=self.iso.default_timezone,
         ).normalize() + pd.Timedelta(days=2)
 
-    def test_get_dam_lmp_hourly_by_bus_today(self):
-        df = self.iso.get_dam_lmp_hourly_by_bus("today")
+    def test_get_lmp_by_bus_dam_today(self):
+        df = self.iso.get_lmp_by_bus_dam("today")
 
-        self._check_dam_lmp_hourly_by_bus(df)
+        self._check_lmp_by_bus_dam(df)
 
         assert (
             df["Interval Start"].min()
@@ -53,29 +62,29 @@ class TestErcotAPI:
             tz=self.iso.default_timezone,
         ).normalize() + pd.Timedelta(days=1)
 
-    def test_get_dam_lmp_hourly_by_bus_historical(self):
+    def test_get_lmp_by_bus_dam_historical(self):
         one_year_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
             days=365,
         )
 
-        df = self.iso.get_dam_lmp_hourly_by_bus(one_year_ago)
+        df = self.iso.get_lmp_by_bus_dam(one_year_ago)
 
-        self._check_dam_lmp_hourly_by_bus(df)
+        self._check_lmp_by_bus_dam(df)
 
         assert df["Interval Start"].min() == one_year_ago.normalize()
         assert df["Interval End"].max() == one_year_ago.normalize() + pd.Timedelta(
             days=1,
         )
 
-    def test_get_dam_lmp_hourly_by_bus_historical_range(self):
+    def test_get_lmp_by_bus_dam_historical_range(self):
         one_year_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
             days=365,
         )
         end_date = one_year_ago + pd.Timedelta(days=7)
 
-        df = self.iso.get_dam_lmp_hourly_by_bus(one_year_ago, end_date)
+        df = self.iso.get_lmp_by_bus_dam(one_year_ago, end_date)
 
-        self._check_dam_lmp_hourly_by_bus(df)
+        self._check_lmp_by_bus_dam(df)
 
         assert df["Interval Start"].min() == one_year_ago.normalize()
         assert df["Interval End"].max() == end_date.normalize()

@@ -9,8 +9,10 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
+from gridstatus import utils
+from gridstatus.base import Markets
 from gridstatus.decorators import support_date_range
-from gridstatus.ercot import Ercot
+from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE, Ercot
 from gridstatus.ercot_api.api_parser import get_endpoints_map
 from gridstatus.gs_logging import log
 
@@ -240,7 +242,7 @@ class ErcotAPI:
         return document_ids
 
     @support_date_range(frequency=None)
-    def get_dam_lmp_hourly_by_bus(self, date, end=None, verbose=False):
+    def get_lmp_by_bus_dam(self, date, end=None, verbose=False):
         """
         Retrieves the hourly Day Ahead Market (DAM) Location Marginal Prices (LMPs)
         for the given date range.
@@ -289,14 +291,32 @@ class ErcotAPI:
         return self.parse_dam_doc(data)
 
     def parse_dam_doc(self, data):
-        return (
+        data = (
             Ercot()
             .parse_doc(data)
             .rename(columns={"BusName": "Location"})
             .drop(columns=["Time"])
             .sort_values(["Interval Start"])
             .reset_index(drop=True)
+            .assign(
+                Market=Markets.DAY_AHEAD_HOURLY.name,
+                **{"Location Type": ELECTRICAL_BUS_LOCATION_TYPE},
+            )
         )
+
+        data = utils.move_cols_to_front(
+            data,
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+            ],
+        )
+
+        return data
 
 
 def hit_ercot_api(
