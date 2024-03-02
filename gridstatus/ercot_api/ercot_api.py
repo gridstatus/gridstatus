@@ -248,10 +248,11 @@ class ErcotAPI:
         Data source: https://data.ercot.com/data-product-archive/NP4-183-CD
         (requires login)
         """
-        size = None
-
         # Subtract one day since this is the day ahead market
         date = date if date == "latest" else date - pd.DateOffset(days=1)
+        end = end if end is None else end - pd.DateOffset(days=1)
+
+        size = None
 
         if date == "latest":
             size = 1
@@ -266,17 +267,24 @@ class ErcotAPI:
             verbose=verbose,
         )
 
-        dfs = []
-
-        for doc_id in tqdm(document_ids, desc="Downloading documents"):
-            df = self.get_zip_file(
+        if len(document_ids) == 1:
+            data = self.get_zip_file(
                 DAM_LMP_HOURLY_EMIL_ID,
-                document_id=doc_id,
+                document_id=document_ids[0],
                 verbose=verbose,
             )
-            dfs.append(df)
 
-        data = pd.concat(dfs)
+        else:
+            dfs = []
+            for doc_id in tqdm(document_ids, desc="Downloading documents"):
+                dfs.append(
+                    self.get_zip_file(
+                        DAM_LMP_HOURLY_EMIL_ID,
+                        document_id=doc_id,
+                        verbose=verbose,
+                    ),
+                )
+            data = pd.concat(dfs)
 
         return self.parse_dam_doc(data)
 

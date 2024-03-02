@@ -24,7 +24,7 @@ class TestErcotAPI:
         assert df.dtypes["Location"] == "object"
         assert df.dtypes["LMP"] == "float64"
 
-        assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1H")).all()
+        assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
 
     def test_get_dam_lmp_hourly_by_bus_latest(self):
         df = self.iso.get_dam_lmp_hourly_by_bus("latest")
@@ -78,7 +78,7 @@ class TestErcotAPI:
         self._check_dam_lmp_hourly_by_bus(df)
 
         assert df["Interval Start"].min() == one_year_ago.normalize()
-        assert df["Interval End"].max() == end_date.normalize() + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end_date.normalize()
 
 
 def _endpoints_map_check(endpoint_dict: dict) -> list[str]:
