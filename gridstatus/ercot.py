@@ -2031,7 +2031,7 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range("DAY_START")
-    def get_dam_shadow_prices(self, date, end=None, verbose=False):
+    def get_shadow_prices_dam(self, date, end=None, verbose=False):
         """Get Day-Ahead Market Shadow Prices
 
         Arguments:
@@ -2049,10 +2049,16 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        return self._handle_dam_shadow_prices_file(doc, verbose=verbose)
+        return self._handle_shadow_prices_dam_doc(doc, verbose=verbose)
 
-    def _handle_dam_shadow_prices_file(self, doc, verbose):
-        df = self.read_doc(doc, parse=True, verbose=verbose)
+    def _handle_shadow_prices_dam_doc(self, doc, verbose):
+        # Use skipinitialspace to remove spaces after delimiters in all cells
+        df = self.read_doc(
+            doc,
+            parse=True,
+            verbose=verbose,
+            read_csv_kwargs=dict(skipinitialspace=True),
+        )
         df = df.rename(columns=self._shadow_prices_column_name_mapper())
 
         df["Publish Time"] = pd.to_datetime(doc.publish_date)
@@ -2066,17 +2072,25 @@ class Ercot(ISOBase):
 
         df = utils.move_cols_to_front(
             df,
-            ["Interval Start", "Interval End", "Publish Time"],
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Constraint Name",
+                "Contingency Name",
+            ],
         )
+
+        df = self._construct_limiting_facility_column(df)
 
         return (
             df.drop(columns=["Time", "Delivery Time"])
-            .sort_values(["Interval Start", "Constraint ID"])
+            .sort_values(["Interval Start", "Constraint Name", "Contingency Name"])
             .reset_index(drop=True)
         )
 
     @support_date_range(frequency=None)
-    def get_sced_shadow_prices(self, date, end=None, verbose=False):
+    def get_shadow_prices_sced(self, date, end=None, verbose=False):
         """Get Real-Time Market Shadow Prices
 
         Arguments:
@@ -2093,16 +2107,29 @@ class Ercot(ISOBase):
             shadow_prices=True,
         )
 
-        return self._handle_sced_shadow_prices_docs(docs, verbose=verbose)
+        df = self._handle_shadow_prices_sced_docs(docs, verbose=verbose)
 
-    def _handle_sced_shadow_prices_docs(self, docs, verbose):
-        return self._handle_sced_docs(
+        return df
+
+    def _handle_shadow_prices_sced_docs(self, docs, verbose):
+        df = self._handle_sced_docs(
             docs,
             verbose=verbose,
             desc="Reading SCED Shadow Prices files",
             column_name_mapper=self._shadow_prices_column_name_mapper(),
-            front_columns=["SCED Timestamp", "Publish Time", "Constraint ID"],
+            front_columns=[
+                "SCED Timestamp",
+                "Publish Time",
+                "Constraint Name",
+                "Contingency Name",
+            ],
+            # Skip spaces after delimiters in all cells
+            read_csv_kwargs=dict(skipinitialspace=True),
         )
+
+        df = self._construct_limiting_facility_column(df)
+
+        return df
 
     def _get_sced_docs(self, date, end, verbose, report_type_id, shadow_prices=False):
         # Shadow prices do not have time timestamp in the friendly name, so
@@ -2154,7 +2181,15 @@ class Ercot(ISOBase):
 
         return docs
 
-    def _handle_sced_docs(self, docs, verbose, desc, column_name_mapper, front_columns):
+    def _handle_sced_docs(
+        self,
+        docs,
+        verbose,
+        desc,
+        column_name_mapper,
+        front_columns,
+        read_csv_kwargs={},
+    ):
         """
         Handles a list of SCED documents
 
@@ -2164,6 +2199,7 @@ class Ercot(ISOBase):
             desc (str): description for tqdm
             column_name_mapper (dict): dictionary to map column names
             front_columns (list): columns to move to the front
+            read_csv_kwargs (dict): kwargs to pass to pd.read_csv
 
         Returns:
             pandas.DataFrame: A DataFrame with SCED data sorted by SCED Timestamp
@@ -2173,12 +2209,11 @@ class Ercot(ISOBase):
 
         for doc in tqdm.tqdm(docs, desc=desc, disable=not verbose):
             log(f"Reading {doc.url}", verbose)
-            df = pd.read_csv(doc.url, compression="zip")
+            df = pd.read_csv(doc.url, compression="zip", **read_csv_kwargs)
             df["Publish Time"] = pd.to_datetime(doc.publish_date)
             all_dfs.append(df)
 
         df = pd.concat(all_dfs)
-
         df = self._handle_sced_timestamp(df, verbose=verbose)
         df = df.rename(columns=column_name_mapper)
 
@@ -2186,6 +2221,19 @@ class Ercot(ISOBase):
             df = utils.move_cols_to_front(df, front_columns)
 
         return df.sort_values("SCED Timestamp").reset_index(drop=True)
+
+    def _construct_limiting_facility_column(self, df):
+        df["Limiting Facility"] = (
+            df["From Station"]
+            + "_"
+            + df["From Station kV"].astype(str)
+            + "_"
+            + df["To Station"]
+            + "_"
+            + df["To Station kV"].astype(str)
+        )
+
+        return df
 
     def _shadow_prices_column_name_mapper(self):
         return {
@@ -2594,9 +2642,9 @@ class Ercot(ISOBase):
         df = pd.read_csv(z.open(settlement_points_file))
         return df
 
-    def read_doc(self, doc, parse=True, verbose=False):
+    def read_doc(self, doc, parse=True, verbose=False, read_csv_kwargs={}):
         log(f"Reading {doc.url}", verbose)
-        df = pd.read_csv(doc.url, compression="zip")
+        df = pd.read_csv(doc.url, compression="zip", **read_csv_kwargs)
         if parse:
             df = self.parse_doc(df, verbose=verbose)
         return df
