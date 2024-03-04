@@ -89,7 +89,7 @@ class ErcotAPI:
         self,
         url,
         method="GET",
-        params=None,
+        api_params=None,
         data=None,
         parse_json=True,
         verbose=False,
@@ -105,9 +105,9 @@ class ErcotAPI:
         log(f"Requesting url: {url}", verbose)
 
         if method == "GET":
-            response = requests.get(url, params=params, headers=headers)
+            response = requests.get(url, params=api_params, headers=headers)
         elif method == "POST":
-            response = requests.post(url, params=params, headers=headers, data=data)
+            response = requests.post(url, params=api_params, headers=headers, data=data)
         else:
             raise ValueError("Unsupported method")
 
@@ -170,16 +170,16 @@ class ErcotAPI:
         """
         url = f"{BASE_URL}/archive/{emil_id}"
 
-        params = {
+        api_params = {
             "size": size,
             "postDatetimeFrom": start_date.date() if start_date else None,
             "postDatetimeTo": end_date.date() if end_date else None,
         }
 
-        params = {k: v for k, v in params.items() if v is not None}
+        api_params = {k: v for k, v in api_params.items() if v is not None}
 
         # TODO: handle pagination. The API returns a maximum of 1000 records at a time
-        response = self.make_api_call(url, params=params, verbose=verbose)
+        response = self.make_api_call(url, params=api_params, verbose=verbose)
 
         archives = response.get("archives")
 
@@ -378,7 +378,12 @@ def hit_ercot_api(
             if max_pages is not None and current_page > max_pages:
                 break
             parsed_api_params["page"] = current_page
-            response = requests.get(urlstring, params=parsed_api_params).json()
+            response = ErcotAPI().make_api_call(
+                urlstring,
+                api_params=parsed_api_params,
+                verbose=verbose,
+                parse_json=True,
+            )
 
             log(f"Requesting url: {urlstring}", verbose)
 
