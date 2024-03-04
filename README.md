@@ -47,7 +47,7 @@ python -m pip install --upgrade gridstatus
 
 ## Documentation and Examples
 
-To learn more, visit the [documentation](https://docs.gridstatus.io/) and view [example notebooks](https://docs.gridstatus.io/en/latest/Examples/index.html).
+To learn more, visit the [documentation](https://docs.gridstatus.io/) and view [example notebooks](https://docs.gridstatus.io/en/latest/Examples/caiso/index.html).
 
 ## Get Help
 

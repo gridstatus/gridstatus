@@ -119,7 +119,9 @@ interconnection_queues
 :caption: Examples
 
 Examples/caiso/index.md
+Examples/eia/index.md
 Examples/ercot/index.md
+Examples/ercot_api/index.md
 Examples/nyiso/index.md
 Examples/pjm/index.md
 Examples/spp/index.md
