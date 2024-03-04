@@ -7,7 +7,7 @@ import requests
 import tqdm
 
 from gridstatus import utils
-from gridstatus.base import ISOBase, Markets, NotSupported
+from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import (
     _get_pjm_archive_date,
     pjm_update_dates,
@@ -893,9 +893,9 @@ class PJM(ISOBase):
         if "errors" in r:
             raise RuntimeError(r["errors"])
 
-        # todo should this be a warning?
+        # # todo should this be a warning?
         if r["totalRows"] == 0:
-            raise RuntimeError("No data found for query")
+            raise NoDataFoundException(f"No data found for {endpoint}")
 
         df = pd.DataFrame(r["items"])
 

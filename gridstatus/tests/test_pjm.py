@@ -3,7 +3,7 @@ import pytest
 
 import gridstatus
 from gridstatus import PJM, NotSupported
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import _get_pjm_archive_date
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
@@ -16,7 +16,7 @@ class TestPJM(BaseTestISO):
 
     def test_get_fuel_mix_no_data(self):
         date = "2000-01-14"
-        with pytest.raises(RuntimeError):
+        with pytest.raises(NoDataFoundException):
             self.iso.get_fuel_mix(start=date)
 
     def test_get_fuel_mix_dst_shift_back(self):
@@ -94,7 +94,7 @@ class TestPJM(BaseTestISO):
     def test_get_lmp_no_data(self):
         # raise no error since date in future
         future_date = pd.Timestamp.now().normalize() + pd.DateOffset(days=10)
-        with pytest.raises(RuntimeError):
+        with pytest.raises(NoDataFoundException):
             self.iso.get_lmp(
                 date=future_date,
                 market="REAL_TIME_5_MIN",

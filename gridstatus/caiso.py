@@ -12,7 +12,13 @@ from tabulate import tabulate
 from termcolor import colored
 
 from gridstatus import utils
-from gridstatus.base import GridStatus, ISOBase, Markets, NotSupported
+from gridstatus.base import (
+    GridStatus,
+    ISOBase,
+    Markets,
+    NoDataFoundException,
+    NotSupported,
+)
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
@@ -328,8 +334,9 @@ class CAISO(ISOBase):
         )
 
         if df.empty:
-            log(f"No data found for date: {date} and end: {end}", verbose=verbose)
-            return df
+            raise NoDataFoundException(
+                f"No data found for start date: {date} and end date: {end}",
+            )
 
         df = df.pivot_table(
             index=["Time", "Interval Start", "Interval End", "NODE"],
@@ -906,7 +913,6 @@ class CAISO(ISOBase):
         # find index of OUTAGE MRID
         test_parse = pd.read_excel(
             content_io,
-            content,
             usecols="B:M",
             sheet_name="PREV_DAY_OUTAGES",
         )

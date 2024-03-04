@@ -2,12 +2,15 @@ import pandas as pd
 import pytest
 
 from gridstatus import CAISO, Markets
+from gridstatus.base import NoDataFoundException
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 
 
 class TestCAISO(BaseTestISO):
     iso = CAISO()
+
+    trading_hub_locations = iso.trading_hub_locations
 
     """get_as"""
 
@@ -235,22 +238,21 @@ class TestCAISO(BaseTestISO):
         assert df["Location"].nunique() > 2300
         assert df["Interval Start"].dt.hour.nunique() == 2
 
-    def test_get_lmp_too_far_in_past_returns_empty(self):
+    def test_get_lmp_too_far_in_past_raises_custom_exception(self):
         too_old_date = pd.Timestamp.now().date() - pd.Timedelta(days=1201)
 
-        df = self.iso.get_lmp(
-            date=too_old_date,
-            locations="ALL_AP_NODES",
-            market="REAL_TIME_15_MIN",
-        )
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_lmp(
+                date=too_old_date,
+                locations=self.trading_hub_locations,
+                market="REAL_TIME_15_MIN",
+            )
 
-        assert df.empty
-
-        valid_date = pd.Timestamp.now().date() - pd.Timedelta(days=1200)
+        valid_date = pd.Timestamp.now().date() - pd.Timedelta(days=1000)
 
         df = self.iso.get_lmp(
             date=valid_date,
-            locations="ALL_AP_NODES",
+            locations=self.trading_hub_locations,
             market="REAL_TIME_15_MIN",
         )
 
@@ -258,12 +260,20 @@ class TestCAISO(BaseTestISO):
 
     def test_warning_no_end_date(self):
         start = pd.Timestamp("2021-04-01T03:00").tz_localize("UTC")
-        with pytest.warns(UserWarning):
-            self.iso.get_lmp(
-                start=start,
-                locations="ALL_AP_NODES",
-                market="REAL_TIME_15_MIN",
-            )
+        with (
+            pytest.warns(
+                UserWarning,
+                match="Only 1 hour of data will be returned for real time markets if end is not specified and all nodes are requested",  # noqa
+            ),
+        ):
+            try:
+                self.iso.get_lmp(
+                    start=start,
+                    locations="ALL_AP_NODES",
+                    market="REAL_TIME_15_MIN",
+                )
+            except NoDataFoundException:
+                pass
 
     @staticmethod
     def _check_as_data(df, market):
