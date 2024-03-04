@@ -1,6 +1,12 @@
 # Changelog
 
-## v0.26.0 - TBD
+## v0.27.0 - Mar 4, 2024
+
+### Breaking Changes
+
+* Dropped support for pandas < 2
+
+## v0.26.0 - Feb 27, 2024
 
 - Last release supporting pandas <2
 - Add ERCOT DAM System Lambda (`ercot.get_dam_system_lambda`)

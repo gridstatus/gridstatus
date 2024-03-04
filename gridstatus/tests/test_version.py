@@ -2,4 +2,4 @@ from gridstatus import __version__
 
 
 def test_version():
-    assert __version__ == "0.26.0"
+    assert __version__ == "0.27.0"
