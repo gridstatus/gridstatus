@@ -8,7 +8,7 @@ import requests
 from tqdm import tqdm
 
 from gridstatus import utils
-from gridstatus.base import Markets, NoDataFoundError
+from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE, Ercot
 from gridstatus.ercot_api.api_parser import parse_all_endpoints
@@ -149,6 +149,7 @@ class ErcotAPI:
 
         data = self.hit_ercot_api(
             endpoint=DAM_LMP_ENDPOINT,
+            page_size=250_000,
             verbose=verbose,
             **api_params,
         )
@@ -194,7 +195,7 @@ class ErcotAPI:
     def hit_ercot_api(
         self,
         endpoint: str,
-        page_size: int = 10_000,
+        page_size: int = 100_000,
         max_pages: Optional[int] = None,
         verbose: bool = False,
         **api_params,
@@ -207,12 +208,14 @@ class ErcotAPI:
                 - "/np6-345-cd/act_sys_load_by_wzn",
                 - "/np6-787-cd/lmp_electrical_bus"
             page_size: specifies the number of results to return per page, defaulting
-                to 1000 (the ERCOT API default).
+                to 100_000 because otherwise this will be very slow when fetching
+                large datasets.
             max_pages: if provided, will stop paginating after reaching this number.
                 Useful in testing to avoid long-running queries, but may result in
                 incomplete data.
             verbose: if True, will print out status messages
-            api_params: additional arguments and values to pass along to the endpoint
+            api_params: additional arguments and values to pass along to the endpoint.
+                These are generally filters that limit the data returned.
 
         Raises:
             KeyError if the given endpoint does not exist
@@ -284,7 +287,7 @@ class ErcotAPI:
                 current_page += 1
 
         if not data_results:
-            raise NoDataFoundError(
+            raise NoDataFoundException(
                 f"No data found for {endpoint} with params {api_params}",
             )
 
