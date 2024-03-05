@@ -1,8 +1,6 @@
 import argparse
-import io
 import os
 import time
-import zipfile
 from typing import Optional
 
 import pandas as pd
@@ -10,7 +8,7 @@ import requests
 from tqdm import tqdm
 
 from gridstatus import utils
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NoDataFoundError
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE, Ercot
 from gridstatus.ercot_api.api_parser import parse_all_endpoints
@@ -19,17 +17,20 @@ from gridstatus.gs_logging import log
 TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
+# This file is publicly available and contains the full list of endpoints and their parameters # noqa
+ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"  # noqa
+
 # https://data.ercot.com/data-product-archive/NP4-183-CD
 DAM_LMP_HOURLY_EMIL_ID = "NP4-183-CD"
-
 DAM_LMP_ENDPOINT = "/np4-183-cd/dam_hourly_lmp"
 
+# How long a token lasts for before needing to be refreshed
 TOKEN_EXPIRATION_SECONDS = 3600
 
 
 class ErcotAPI:
     """
-    Class to authenticate and make requests to the ERCOT Data API (api.ercot.com)
+    Class to authenticate with and make requests to the ERCOT Data API (api.ercot.com)
 
     WARNING: the API appears to be a WIP and may change without notice.
 
@@ -59,6 +60,7 @@ class ErcotAPI:
             )
 
         self.client_id = "fec253ea-0d06-4272-a5e6-b478baeecd70"  # From the docs
+        self.endpoints_map = self._get_endpoints_map()
         self.token_url = TOKEN_URL
         self.token = None
         self.token_expiry = None
@@ -118,132 +120,11 @@ class ErcotAPI:
         else:
             return response.content
 
-    def get_zip_file(self, emil_id, document_id, verbose=False):
-        """
-        Retrieves a zip file specified by the emil_id and document_id.
-
-        Args:
-            emil_id (str): the EMIL ID of the data product
-            document_id (int): the document ID of the specific file to download
-        """
-
-        url = f"{BASE_URL}/archive/{emil_id}?download={document_id}"
-
-        content = self.make_api_call(url, parse_json=False, verbose=verbose)
-
-        # Use BytesIO for the byte stream
-        zip_file = io.BytesIO(content)
-
-        with zipfile.ZipFile(zip_file, "r") as z:
-            # Extract file names (assuming only one file in the zip)
-            file_names = z.namelist()
-            if len(file_names) == 0:
-                raise Exception("No files found in the zip archive")
-
-            # Read the first file as a pandas DataFrame
-            with z.open(file_names[0]) as f:
-                df = pd.read_csv(f)
-
-        return df
-
     def get_public_reports(self, verbose=False):
         # General information about the public reports
         return self.make_api_call(BASE_URL, verbose=verbose)
 
-    def get_document_list_for_data_product(
-        self,
-        emil_id,
-        start_date=None,
-        end_date=None,
-        size=None,
-        verbose=False,
-    ):
-        """
-        Retrieves the list of all files available for a given data product. Documents
-        are sorted by post date, with the most recent documents appearing first. Using
-        a size=1 will return the most recent document.
-
-        Args:
-            emil_id (str): the EMIL ID of the data product
-            size (int): the number of records to return (max 1000)
-
-        Returns:
-            list: a list of dictionaries, each containing metadata about a file
-        """
-        url = f"{BASE_URL}/archive/{emil_id}"
-
-        api_params = {
-            "size": size,
-            "postDatetimeFrom": start_date.date() if start_date else None,
-            "postDatetimeTo": end_date.date() if end_date else None,
-        }
-
-        api_params = {k: v for k, v in api_params.items() if v is not None}
-
-        # TODO: handle pagination. The API returns a maximum of 1000 records at a time
-        response = self.make_api_call(url, params=api_params, verbose=verbose)
-
-        archives = response.get("archives")
-
-        if not archives:
-            raise ValueError(f"No archives found for {emil_id}")
-
-        log(f"Found {len(archives)} archives for {emil_id}", verbose)
-
-        return archives
-
-    def get_document_ids_to_download(
-        self,
-        emil_id,
-        start_date,
-        size=None,
-        end_date=None,
-        verbose=False,
-    ):
-        """
-        Finds the document IDs for the emil id files that match a given date range
-
-        Args:
-            emil_id (str): the EMIL ID of the data product
-            start_date (str): the start date in the format "YYYY-MM-DD"
-            end_date (str): the end date in the format "YYYY-MM-DD"
-            verbose (bool): if True, will print out status messages
-
-        Returns:
-            list: a list of document IDs to download
-        """
-        archives = self.get_document_list_for_data_product(
-            emil_id,
-            start_date,
-            end_date,
-            size=size,
-            verbose=verbose,
-        )
-
-        if start_date is not None:
-            date_range = [str(pd.Timestamp(start_date).date())]
-            found_dates = []
-
-            if end_date:
-                date_range = [
-                    str(date.date()) for date in pd.date_range(start_date, end_date)
-                ]
-
-            document_ids = []
-
-            for doc in archives:
-                doc_posted_date = doc["postDatetime"].split("T")[0]
-                if doc_posted_date in date_range:
-                    found_dates.append(doc_posted_date)
-                    document_ids.append(doc["docId"])
-
-            log(f"Missing dates: {set(date_range) - set(found_dates)}", verbose)
-        else:
-            document_ids = [doc["docId"] for doc in archives]
-
-        return document_ids
-
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="DAY_START")
     def get_lmp_by_bus_dam(self, date, end=None, verbose=False):
         """
         Retrieves the hourly Day Ahead Market (DAM) Location Marginal Prices (LMPs)
@@ -252,50 +133,40 @@ class ErcotAPI:
         Data source: https://data.ercot.com/data-product-archive/NP4-183-CD
         (requires login)
         """
-        # Subtract one day since this is the day ahead market
-        date = date if date == "latest" else date - pd.DateOffset(days=1)
-        end = end if end is None else end - pd.DateOffset(days=1)
-
-        size = None
-
+        # Since we are filtering on the deliveryDate, there's no need to subtract a day
+        # even though this is a day ahead market
         if date == "latest":
-            size = 1
-            date = None
-            end = None
-
-        document_ids = self.get_document_ids_to_download(
-            emil_id=DAM_LMP_HOURLY_EMIL_ID,
-            start_date=date,
-            end_date=end,
-            size=size,
-            verbose=verbose,
-        )
-
-        if len(document_ids) == 1:
-            data = self.get_zip_file(
-                DAM_LMP_HOURLY_EMIL_ID,
-                document_id=document_ids[0],
-                verbose=verbose,
+            date = pd.Timestamp.now(tz=self.default_timezone).date() + pd.Timedelta(
+                days=1,
             )
 
-        else:
-            dfs = []
-            for doc_id in tqdm(document_ids, desc="Downloading documents"):
-                dfs.append(
-                    self.get_zip_file(
-                        DAM_LMP_HOURLY_EMIL_ID,
-                        document_id=doc_id,
-                        verbose=verbose,
-                    ),
-                )
-            data = pd.concat(dfs)
+        api_params = {
+            "deliveryDateFrom": date,
+            "deliveryDateTo": end,
+        }
+
+        api_params = {k: v for k, v in api_params.items() if v is not None}
+
+        data = self.hit_ercot_api(
+            endpoint=DAM_LMP_ENDPOINT,
+            verbose=verbose,
+            **api_params,
+        )
 
         return self.parse_dam_doc(data)
 
     def parse_dam_doc(self, data):
         data = (
             Ercot()
-            .parse_doc(data)
+            .parse_doc(
+                data.rename(
+                    columns=dict(
+                        deliveryDate="DeliveryDate",
+                        hourEnding="HourEnding",
+                        busName="BusName",
+                    ),
+                ),
+            )
             .rename(columns={"BusName": "Location"})
             .drop(columns=["Time"])
             .sort_values(["Interval Start"])
@@ -320,41 +191,10 @@ class ErcotAPI:
 
         return data
 
-    def describe_one_endpoint(self, endpoint: str) -> None:
-        """Prints details about a given endpoint"""
-        endpoint_contents = self.get_endpoints_map().get(endpoint, None)
-
-        if endpoint_contents is None:
-            print(f"{endpoint} is not a valid ERCOT API endpoint")
-            return
-
-        print(f"Endpoint: {endpoint}")
-        print(f"Summary:  {endpoint_contents['summary']}")
-        print("Parameters:")
-        for param, details in sorted(endpoint_contents["parameters"].items()):
-            print(f"    {param} - {details['value_type']}")
-
-    def get_endpoints_map(self) -> dict:
-        endpoints = requests.get(
-            "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json",
-        ).json()
-
-        endpoints = parse_all_endpoints(apijson=endpoints)
-
-        return endpoints
-
-    def list_all_endpoints(self) -> None:
-        """Prints all available endpoints"""
-        endpoints = self.get_endpoints_map()
-
-        for endpoint, contents in sorted(endpoints.items()):
-            print(endpoint)
-            print(f"    {contents['summary']}")
-
     def hit_ercot_api(
         self,
         endpoint: str,
-        page_size: int = 1000,
+        page_size: int = 10_000,
         max_pages: Optional[int] = None,
         verbose: bool = False,
         **api_params,
@@ -380,21 +220,9 @@ class ErcotAPI:
         Returns:
             a dataframe of results
         """
+        parsed_api_params = self._parse_api_params(endpoint, page_size, api_params)
 
-        # validate endpoint string
-        endpoint_contents = self.get_endpoints_map().get(endpoint, None)
-        if endpoint_contents is None:
-            raise KeyError(f"{endpoint} is not a valid ERCOT API endpoint")
-
-        # prepare url string
         urlstring = f"{BASE_URL}{endpoint}"
-
-        # determine parameters and types for endpoint, validate and parse api_params
-        parsed_api_params = {"size": page_size}
-        for arg, value in api_params.items():
-            parser = endpoint_contents["parameters"].get(arg, {}).get("parser_method")
-            if parser is not None:
-                parsed_api_params[arg] = parser(value)
 
         # make requests, paginating as needed
         current_page = 1
@@ -402,14 +230,11 @@ class ErcotAPI:
         data_results = []
         columns = None
 
-        with tqdm(
-            desc="Paginating results",
-            ncols=80,
-            total=1,
-        ) as progress_bar:
+        with tqdm(desc="Paginating results", ncols=80) as progress_bar:
             while current_page <= total_pages:
                 if max_pages is not None and current_page > max_pages:
                     break
+
                 parsed_api_params["page"] = current_page
 
                 log(
@@ -443,11 +268,14 @@ class ErcotAPI:
                         denominator = total_pages
                     else:
                         denominator = min(total_pages, max_pages)
+
                         if denominator < total_pages:
+                            # User requested fewer pages than total
                             print(
                                 f"warning: only retrieving {max_pages} pages "
                                 f"out of {total_pages} total",
                             )
+
                     progress_bar.total = denominator
                     progress_bar.refresh()
 
@@ -456,13 +284,58 @@ class ErcotAPI:
                 current_page += 1
 
         if not data_results:
-            print("No data results returned, try different query params")
+            raise NoDataFoundError(
+                f"No data found for {endpoint} with params {api_params}",
+            )
 
         # prepare and return dataframe of results
         return pd.DataFrame(
             data=data_results,
             columns=columns,
         )
+
+    def list_all_endpoints(self) -> None:
+        """Prints all available endpoints"""
+        for endpoint, contents in sorted(self.endpoints_map.items()):
+            print(endpoint)
+            print(f"    {contents['summary']}")
+
+    def describe_one_endpoint(self, endpoint: str) -> None:
+        """Prints details about a given endpoint"""
+        endpoint_contents = self.endpoints_map.get(endpoint, None)
+
+        if endpoint_contents is None:
+            print(f"{endpoint} is not a valid ERCOT API endpoint")
+            return
+
+        print(f"Endpoint: {endpoint}")
+        print(f"Summary:  {endpoint_contents['summary']}")
+        print("Parameters:")
+        for param, details in sorted(endpoint_contents["parameters"].items()):
+            print(f"    {param} - {details['value_type']}")
+
+    def _parse_api_params(self, endpoint, page_size, api_params):
+        # validate endpoint string
+        endpoint_contents = self.endpoints_map.get(endpoint, None)
+
+        if endpoint_contents is None:
+            raise KeyError(f"{endpoint} is not a valid ERCOT API endpoint")
+
+        # determine parameters and types for endpoint, validate and parse api_params
+        parsed_api_params = {"size": page_size}
+
+        for arg, value in api_params.items():
+            parser = endpoint_contents["parameters"].get(arg, {}).get("parser_method")
+            if parser is not None:
+                parsed_api_params[arg] = parser(value)
+
+        return parsed_api_params
+
+    def _get_endpoints_map(self):
+        endpoints = requests.get(ENDPOINTS_MAP_URL).json()
+        endpoints = parse_all_endpoints(apijson=endpoints)
+
+        return endpoints
 
 
 if __name__ == "__main__":
