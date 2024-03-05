@@ -1,5 +1,3 @@
-import json
-import pathlib
 import types
 from datetime import date, datetime
 from typing import Union
@@ -77,7 +75,7 @@ def _bool_parser(boolvalue: Union[str, bool]) -> str:
         return boolvalue.lower()
 
 
-def _parse_all_endpoints(apijson: dict) -> dict:
+def parse_all_endpoints(apijson: dict) -> dict:
     return {
         endpoint_string: _parse_endpoint_contents(contents)
         for endpoint_string, contents in apijson["paths"].items()
@@ -124,15 +122,5 @@ def _parse_schema(schema: dict) -> tuple[str, callable]:
         return ("float", lambda f: float(f))
     else:
         raise TypeError(
-            f"unexpected schema type {schema['type']} and format {schema['format']}"
+            f"unexpected schema type {schema['type']} and format {schema['format']}",
         )
-
-
-def get_endpoints_map() -> dict:
-    """Provides access to a parsed map of all data endpoints and their parameters"""
-    global _endpoints_map  # enable us to edit it in here
-    if _endpoints_map is None:
-        with open(f"{pathlib.Path(__file__).parent}/pubapi-apim-api.json") as rf:
-            apijson = json.load(rf)
-        _endpoints_map = _parse_all_endpoints(apijson=apijson)
-    return _endpoints_map
