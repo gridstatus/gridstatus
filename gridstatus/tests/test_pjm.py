@@ -86,7 +86,10 @@ class TestPJM(BaseTestISO):
     )
     def test_get_lmp_today(self, market):
         if market in [Markets.REAL_TIME_HOURLY]:
-            with pytest.raises(RuntimeError, match="No data found for query"):
+            with pytest.raises(
+                NoDataFoundException,
+                match="No data found for rt_hrl_lmps",
+            ):  # noqa
                 super().test_get_lmp_today(market=market)
         else:
             super().test_get_lmp_today(market=market)

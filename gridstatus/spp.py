@@ -1157,7 +1157,7 @@ class SPP(ISOBase):
         """
         Returns a session object for the Marketplace API
         """
-        html = requests.get(MARKETPLACE_BASE_URL)
+        html = requests.get(FILE_BROWSER_API_URL)
         jsessionid = html.cookies.get("JSESSIONID")
         soup = BeautifulSoup(html.content, "html.parser")
         csrf_token = soup.find("meta", {"id": "_csrf"}).attrs["content"]
