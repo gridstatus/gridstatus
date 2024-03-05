@@ -748,7 +748,7 @@ class PJM(ISOBase):
                 verbose=verbose,
                 interval_duration_min=interval_duration_min,
             )
-        except RuntimeError as e:
+        except NoDataFoundException as e:
             if "No data found" not in str(e):
                 raise e
 
