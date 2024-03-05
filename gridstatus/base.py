@@ -15,6 +15,11 @@ class NotSupported(Exception):
     pass
 
 
+# Custom exception to raise when no data is found
+class NoDataFoundException(Exception):
+    pass
+
+
 class Markets(Enum):
     """Names of LMP Markets"""
 

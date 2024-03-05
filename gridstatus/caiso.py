@@ -12,7 +12,13 @@ from tabulate import tabulate
 from termcolor import colored
 
 from gridstatus import utils
-from gridstatus.base import GridStatus, ISOBase, Markets, NotSupported
+from gridstatus.base import (
+    GridStatus,
+    ISOBase,
+    Markets,
+    NoDataFoundException,
+    NotSupported,
+)
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
@@ -326,6 +332,11 @@ class CAISO(ISOBase):
             raw_data=False,
             verbose=verbose,
         )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No data found for start date: {date} and end date: {end}",
+            )
 
         df = df.pivot_table(
             index=["Time", "Interval Start", "Interval End", "NODE"],
@@ -1557,9 +1568,3 @@ oasis_dataset_config = {
         },
     },
 }
-
-if __name__ == "__main__":
-    import gridstatus
-
-    iso = gridstatus.CAISO()
-    print(CAISO().list_oasis_datasets())
