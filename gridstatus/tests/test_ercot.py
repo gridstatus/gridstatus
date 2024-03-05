@@ -4,8 +4,12 @@ import pandas as pd
 import pytest
 
 import gridstatus
-from gridstatus import ELECTRICAL_BUS_LOCATION_TYPE, Ercot, Markets, NotSupported
-from gridstatus.ercot import parse_timestamp_from_friendly_name
+from gridstatus import Markets, NotSupported
+from gridstatus.ercot import (
+    ELECTRICAL_BUS_LOCATION_TYPE,
+    Ercot,
+    parse_timestamp_from_friendly_name,
+)
 from gridstatus.tests.base_test_iso import BaseTestISO
 
 
