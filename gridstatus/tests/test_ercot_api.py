@@ -89,6 +89,44 @@ class TestErcotAPI:
         assert df["Interval Start"].min() == eighty_days_ago.normalize()
         assert df["Interval End"].max() == end_date.normalize() + pd.Timedelta(days=1)
 
+    """get_shadow_prices_sced"""
+
+    def test_get_shadow_prices_sced_today(self):
+        df = self.iso.get_shadow_prices_sced("today")
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Shadow Price",
+        ]
+
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+
+        assert df.dtypes["Shadow Price"] == "float64"
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta("5min")
+        ).all()
+
+    """get_shadow_prices_dam"""
+
+    def test_get_shadow_prices_dam_today(self):
+        df = self.iso.get_shadow_prices_dam("today")
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Shadow Price",
+        ]
+
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+
+        assert df.dtypes["Shadow Price"] == "float64"
+
+        assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
+
 
 def _endpoints_map_check(endpoint_dict: dict) -> list[str]:
     """Applies unit test checks to a single endpoint in the endpoints map.

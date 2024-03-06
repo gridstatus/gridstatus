@@ -198,6 +198,12 @@ class ErcotAPI:
 
         return data
 
+    def get_shadow_prices_sced(self, date, verbose=False):
+        pass
+
+    def get_shadow_prices_dam(self, date, verbose=False):
+        pass
+
     def hit_ercot_api(
         self,
         endpoint: str,
