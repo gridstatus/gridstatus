@@ -24,6 +24,8 @@ ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/puba
 DAM_LMP_HOURLY_EMIL_ID = "NP4-183-CD"
 DAM_LMP_ENDPOINT = "/np4-183-cd/dam_hourly_lmp"
 
+SHADOW_PRICES_DAM_ENDPOINT = "/np4-191-cd/dam_shadow_prices"
+
 # How long a token lasts for before needing to be refreshed
 TOKEN_EXPIRATION_SECONDS = 3600
 
@@ -140,6 +142,10 @@ class ErcotAPI:
                 days=1,
             )
 
+        # Assume if there's only a start date, fetch data for that day only
+        if end is None:
+            end = date
+
         api_params = {
             "deliveryDateFrom": date,
             "deliveryDateTo": end,
@@ -149,7 +155,7 @@ class ErcotAPI:
 
         data = self.hit_ercot_api(
             endpoint=DAM_LMP_ENDPOINT,
-            page_size=250_000,
+            page_size=500_000,
             verbose=verbose,
             **api_params,
         )

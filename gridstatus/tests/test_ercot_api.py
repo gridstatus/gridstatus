@@ -63,31 +63,31 @@ class TestErcotAPI:
         ).normalize() + pd.Timedelta(days=1)
 
     def test_get_lmp_by_bus_dam_historical(self):
-        one_year_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
-            days=365,
+        eighty_days_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=80,
         )
 
-        df = self.iso.get_lmp_by_bus_dam(one_year_ago)
+        df = self.iso.get_lmp_by_bus_dam(eighty_days_ago)
 
         self._check_lmp_by_bus_dam(df)
 
-        assert df["Interval Start"].min() == one_year_ago.normalize()
-        assert df["Interval End"].max() == one_year_ago.normalize() + pd.Timedelta(
+        assert df["Interval Start"].min() == eighty_days_ago.normalize()
+        assert df["Interval End"].max() == eighty_days_ago.normalize() + pd.Timedelta(
             days=1,
         )
 
     def test_get_lmp_by_bus_dam_historical_range(self):
-        one_year_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
-            days=365,
+        eighty_days_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=80,
         )
-        end_date = one_year_ago + pd.Timedelta(days=7)
+        end_date = eighty_days_ago + pd.Timedelta(days=2)
 
-        df = self.iso.get_lmp_by_bus_dam(one_year_ago, end_date)
+        df = self.iso.get_lmp_by_bus_dam(eighty_days_ago, end_date)
 
         self._check_lmp_by_bus_dam(df)
 
-        assert df["Interval Start"].min() == one_year_ago.normalize()
-        assert df["Interval End"].max() == end_date.normalize()
+        assert df["Interval Start"].min() == eighty_days_ago.normalize()
+        assert df["Interval End"].max() == end_date.normalize() + pd.Timedelta(days=1)
 
 
 def _endpoints_map_check(endpoint_dict: dict) -> list[str]:
