@@ -35,6 +35,9 @@ LOCATION_TYPE_ZONE_EW = "Load Zone Energy Weighted"
 LOCATION_TYPE_ZONE_DC = "Load Zone DC Tie"
 LOCATION_TYPE_ZONE_DC_EW = "Load Zone DC Tie Energy Weighted"
 
+ELECTRICAL_BUS_LOCATION_TYPE = "Electrical Bus"
+SETTLEMENT_POINT_LOCATION_TYPE = "Settlement Point"
+
 """
 Report Type IDs
 """
@@ -331,8 +334,8 @@ class Ercot(ISOBase):
             df = pd.DataFrame(data["data"][day])
             df_transformed = df.apply(
                 lambda col: col.apply(
-                    lambda x: x.get("gen") if isinstance(x, dict) else pd.NA
-                )
+                    lambda x: x.get("gen") if isinstance(x, dict) else pd.NA,
+                ),
             ).T
             dfs.append(df_transformed)
 
@@ -877,22 +880,23 @@ class Ercot(ISOBase):
         self,
         date,
         end=None,
-        market: str = Markets.REAL_TIME_SCED,
-        locations: list = "ALL",
-        location_type: str = "ALL",
+        location_type: str = SETTLEMENT_POINT_LOCATION_TYPE,  # TODO: support 'ALL'
         verbose=False,
     ):
         """Get LMP data for ERCOT normally produced by SCED every five minutes
 
         Can specify the location type to return "electrical bus"
-        or "settlement point" data
+        or "settlement point" data. Defaults to "settlement point"
 
         """
-
-        if location_type.lower() == "Electrical Bus".lower():
+        if location_type.lower() == ELECTRICAL_BUS_LOCATION_TYPE.lower():
             report = LMPS_BY_ELECTRICAL_BUS_RTID
-        elif location_type.lower() == "Settlement Point".lower():
+        elif location_type.lower() == SETTLEMENT_POINT_LOCATION_TYPE.lower():
             report = LMPS_BY_SETTLEMENT_POINT_RTID
+        else:
+            raise ValueError(
+                f"Invalid location type: {location_type}. Must be 'settlement point' or 'electrical bus'",  # noqa
+            )
 
         # if end is None, assume requesting one day
         if end is None:
@@ -915,7 +919,7 @@ class Ercot(ISOBase):
 
         return self._handle_lmp(docs=docs, verbose=verbose)
 
-    def _handle_lmp(self, docs, verbose=False):
+    def _handle_lmp(self, docs, verbose=False, sced=True):
         df = self.read_docs(
             docs,
             parse=False,
@@ -944,12 +948,14 @@ class Ercot(ISOBase):
                     "ElectricalBus": "Location",
                 },
             )
-            df["Location Type"] = "Electrical Bus"
-            # make Location string and location typoe category
+            df["Location Type"] = ELECTRICAL_BUS_LOCATION_TYPE
+            # make Location string and location type category
             df["Location"] = df["Location"].astype("string")
             df["Location Type"] = df["Location Type"].astype("category")
 
-        df["Market"] = Markets.REAL_TIME_SCED.value
+        df["Market"] = (
+            Markets.REAL_TIME_SCED.value if sced else Markets.DAY_AHEAD_HOURLY.value
+        )
 
         df = df[
             [

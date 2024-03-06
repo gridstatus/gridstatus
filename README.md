@@ -45,6 +45,17 @@ Upgrade using the following command
 python -m pip install --upgrade gridstatus
 ```
 
+## Environment Variables
+
+- Some parsers require the use of environment variables
+  - The `EIA` class
+  - The `ErcotAPI` class
+- Environment variables can be set in the following ways
+  - In a `.env` file in the root of the project
+  - In the environment where the code is run
+- See [.env.template](.env.template) for the required environment variables and how to register for them
+
+
 ## Documentation and Examples
 
 To learn more, visit the [documentation](https://docs.gridstatus.io/) and view [example notebooks](https://docs.gridstatus.io/en/latest/Examples/caiso/index.html).

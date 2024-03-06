@@ -1,10 +1,93 @@
 import datetime
 
+import pandas as pd
 import pytest
 import pytz
 
-from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES, get_endpoints_map
-from gridstatus.ercot_api.ercot_api import hit_ercot_api
+from gridstatus.base import Markets
+from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
+from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES
+from gridstatus.ercot_api.ercot_api import ErcotAPI
+
+
+class TestErcotAPI:
+    iso = ErcotAPI()
+
+    def _check_lmp_by_bus_dam(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+
+        assert (df["Market"] == Markets.DAY_AHEAD_HOURLY.name).all()
+
+        assert df.dtypes["Location"] == "object"
+        assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
+
+        assert df.dtypes["LMP"] == "float64"
+
+        assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
+
+    def test_get_lmp_by_bus_dam_latest(self):
+        df = self.iso.get_lmp_by_bus_dam("latest")
+
+        self._check_lmp_by_bus_dam(df)
+
+        assert df["Interval Start"].min() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(days=1)
+
+        assert df["Interval End"].max() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(days=2)
+
+    def test_get_lmp_by_bus_dam_today(self):
+        df = self.iso.get_lmp_by_bus_dam("today")
+
+        self._check_lmp_by_bus_dam(df)
+
+        assert (
+            df["Interval Start"].min()
+            == pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
+        )
+
+        assert df["Interval End"].max() == pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() + pd.Timedelta(days=1)
+
+    def test_get_lmp_by_bus_dam_historical(self):
+        eighty_days_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=80,
+        )
+
+        df = self.iso.get_lmp_by_bus_dam(eighty_days_ago)
+
+        self._check_lmp_by_bus_dam(df)
+
+        assert df["Interval Start"].min() == eighty_days_ago.normalize()
+        assert df["Interval End"].max() == eighty_days_ago.normalize() + pd.Timedelta(
+            days=1,
+        )
+
+    def test_get_lmp_by_bus_dam_historical_range(self):
+        eighty_days_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+            days=80,
+        )
+        end_date = eighty_days_ago + pd.Timedelta(days=2)
+
+        df = self.iso.get_lmp_by_bus_dam(eighty_days_ago, end_date)
+
+        self._check_lmp_by_bus_dam(df)
+
+        assert df["Interval Start"].min() == eighty_days_ago.normalize()
+        assert df["Interval End"].max() == end_date.normalize() + pd.Timedelta(days=1)
 
 
 def _endpoints_map_check(endpoint_dict: dict) -> list[str]:
@@ -40,7 +123,7 @@ def _endpoints_map_check(endpoint_dict: dict) -> list[str]:
 
 
 def test_get_endpoints_map():
-    endpoints_map = get_endpoints_map()
+    endpoints_map = ErcotAPI()._get_endpoints_map()
 
     # update this count as needed, if ercot api evolves to add/remove endpoints
     assert len(endpoints_map) == 102
@@ -61,7 +144,7 @@ def test_hit_ercot_api():
     First we test that entering a bad endpoint results in a keyerror
     """
     with pytest.raises(KeyError) as _:
-        hit_ercot_api("just a real bad endpoint right here")
+        ErcotAPI().hit_ercot_api("just a real bad endpoint right here")
 
     """
     Now a happy path test, using "actual system load by weather zone" endpoint.
@@ -73,7 +156,7 @@ def test_hit_ercot_api():
     """
     two_days_ago = datetime.datetime.now(tz=pytz.UTC) - datetime.timedelta(days=2)
     actual_by_wzn_endpoint = "/np6-345-cd/act_sys_load_by_wzn"
-    two_days_actual_by_wzn = hit_ercot_api(
+    two_days_actual_by_wzn = ErcotAPI().hit_ercot_api(
         actual_by_wzn_endpoint,
         operatingDayFrom=two_days_ago,
     )
@@ -91,7 +174,7 @@ def test_hit_ercot_api():
     min_load = two_days_actual_by_wzn["total"].min()
     max_load = two_days_actual_by_wzn["total"].max()
     in_between_load = (max_load + min_load) / 2
-    higher_loads_result = hit_ercot_api(
+    higher_loads_result = ErcotAPI().hit_ercot_api(
         actual_by_wzn_endpoint,
         operatingDayFrom=two_days_ago,
         totalFrom=in_between_load,
@@ -105,7 +188,7 @@ def test_hit_ercot_api():
         to 2, we should only get 20 rows total. We can also use this opportunity to
         test that invalid parameter names are silently ignored.
     """
-    small_pages_result = hit_ercot_api(
+    small_pages_result = ErcotAPI().hit_ercot_api(
         actual_by_wzn_endpoint,
         page_size=10,
         max_pages=2,

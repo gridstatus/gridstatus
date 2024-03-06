@@ -60,6 +60,12 @@ poetry install --all-extras
 
 The best way to ensure everything is installed correctly by running running the tests. They should all pass.
 
+## Environment Variables
+
+* Copy `.env.template` into a new file called `.env` and fill in the appropriate values for the environment variables. `.env` should not be committed to the repository.
+* Fill out these variables if you want to use the EIA or ERCOT APIs. They should be available in the `pipenv shell` thanks to the `poetry-dotenv-plugin` plugin.
+
+
 ## Running Tests and Linting
 
 To ensure that your changes are correct and follow our style guide, we ask you to run the tests and linting before submitting a pull request. You can use the following commands to do so:
