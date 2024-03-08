@@ -236,6 +236,8 @@ class ErcotAPI:
         data = self.ercot.parse_doc(data, verbose=verbose)
         data = data.rename(columns=self._shadow_prices_column_name_mapper())
         data = self._construct_limiting_facility_column(data)
+        # Fill all empty strings in the dataframe with NaN
+        data = data.replace("", pd.NA)
 
         data = utils.move_cols_to_front(
             data,
@@ -248,6 +250,8 @@ class ErcotAPI:
                 "Limiting Facility",
             ],
         )
+
+        data = data.drop(columns=["Delivery Time", "Time"])
 
         return data.sort_values(["Interval Start", "Constraint ID"]).reset_index(
             drop=True,
@@ -286,6 +290,8 @@ class ErcotAPI:
         data = self.ercot._handle_sced_timestamp(data, verbose=verbose)
         data = data.rename(columns=self._shadow_prices_column_name_mapper())
         data = self._construct_limiting_facility_column(data)
+        # Fill all empty strings in the dataframe with NaN
+        data = data.replace("", pd.NA)
 
         data = utils.move_cols_to_front(
             data,
@@ -320,6 +326,7 @@ class ErcotAPI:
     def _shadow_prices_column_name_mapper(self):
         return {
             "CCTStatus": "CCT Status",
+            "ConstraintId": "Constraint ID",  # API is inconsistent with capitalization
             "ConstraintID": "Constraint ID",
             "ConstraintLimit": "Constraint Limit",
             "ConstraintName": "Constraint Name",

@@ -49,14 +49,6 @@ DAM_SYSTEM_LAMBDA_RTID = 13113
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-322-CD
 SCED_SYSTEM_LAMBDA_RTID = 13114
 
-# DAM Shadow Prices
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-191-CD
-DAM_SHADOW_PRICES_RTID = 12332
-
-# SCED Shadow Prices
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-86-CD
-SCED_SHADOW_PRICES_RTID = 12302
-
 # DAM Clearing Prices for Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-188-CD
 DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 12329
@@ -1995,23 +1987,36 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrame
 
         """
-        docs = self._get_sced_docs(
-            date,
-            end,
-            verbose,
+
+        # no end, so assume requesting one day
+        # use the timestamp from the friendly name
+        if date == "latest":
+            date = date
+            friendly_name_timestamp_after = None
+            friendly_name_timestamp_before = None
+        elif end is None:
+            friendly_name_timestamp_after = date.normalize()
+            friendly_name_timestamp_before = (
+                friendly_name_timestamp_after + pd.DateOffset(days=1)
+            )
+            date = None
+        else:
+            friendly_name_timestamp_after = date
+            friendly_name_timestamp_before = end
+            date = None
+
+        docs = self._get_documents(
             report_type_id=SCED_SYSTEM_LAMBDA_RTID,
+            date=date,
+            friendly_name_timestamp_after=friendly_name_timestamp_after,
+            friendly_name_timestamp_before=friendly_name_timestamp_before,
+            verbose=verbose,
+            constructed_name_contains="csv.zip",
         )
 
-        return self._handle_sced_system_lambda(docs, verbose=verbose)
+        df = self._handle_sced_system_lambda(docs, verbose=verbose)
 
-    def _handle_sced_system_lambda(self, docs, verbose):
-        return self._handle_sced_docs(
-            docs,
-            verbose=verbose,
-            desc="Reading SCED System Lambda files",
-            column_name_mapper={"SystemLambda": "System Lambda"},
-            front_columns=[],
-        ).drop(columns=["Publish Time"])
+        return df
 
     def _handle_sced_timestamp(self, df, verbose=False):
         df = df.rename(
@@ -2030,232 +2035,36 @@ class Ercot(ISOBase):
 
         return df
 
-    @support_date_range("DAY_START")
-    def get_shadow_prices_dam(self, date, end=None, verbose=False):
-        """Get Day-Ahead Market Shadow Prices
-
-        Arguments:
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        Returns:
-            pandas.DataFrame: A DataFrame with day-ahead market shadow prices
-        """
-        # Subtract one day since this is the day ahead market
-        date = date if date == "latest" else date - pd.DateOffset(days=1)
-
-        doc = self._get_document(
-            date=date,
-            report_type_id=DAM_SHADOW_PRICES_RTID,
-            verbose=verbose,
-        )
-
-        return self._handle_shadow_prices_dam_doc(doc, verbose=verbose)
-
-    def _handle_shadow_prices_dam_doc(self, doc, verbose):
-        # Use skipinitialspace to remove spaces after delimiters in all cells
-        df = self.read_doc(
-            doc,
-            parse=True,
-            verbose=verbose,
-            read_csv_kwargs=dict(skipinitialspace=True),
-        )
-        df = df.rename(columns=self._shadow_prices_column_name_mapper())
-
-        df["Publish Time"] = pd.to_datetime(doc.publish_date)
-
-        # This seems to be the same as Interval End
-        df["Delivery Time"] = pd.to_datetime(df["Delivery Time"]).dt.tz_localize(
-            self.default_timezone,
-        )
-
-        assert (df["Delivery Time"] == df["Interval End"]).all()
-
-        df = utils.move_cols_to_front(
-            df,
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Constraint Name",
-                "Contingency Name",
-            ],
-        )
-
-        df = self._construct_limiting_facility_column(df)
-
-        return (
-            df.drop(columns=["Time", "Delivery Time"])
-            .sort_values(["Interval Start", "Constraint Name", "Contingency Name"])
-            .reset_index(drop=True)
-        )
-
-    @support_date_range(frequency=None)
-    def get_shadow_prices_sced(self, date, end=None, verbose=False):
-        """Get Real-Time Market Shadow Prices
-
-        Arguments:
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        Returns:
-            pandas.DataFrame: A DataFrame with real-time market shadow prices
-        """
-        docs = self._get_sced_docs(
-            date,
-            end,
-            verbose,
-            report_type_id=SCED_SHADOW_PRICES_RTID,
-            shadow_prices=True,
-        )
-
-        df = self._handle_shadow_prices_sced_docs(docs, verbose=verbose)
-
-        return df
-
-    def _handle_shadow_prices_sced_docs(self, docs, verbose):
-        df = self._handle_sced_docs(
-            docs,
-            verbose=verbose,
-            desc="Reading SCED Shadow Prices files",
-            column_name_mapper=self._shadow_prices_column_name_mapper(),
-            front_columns=[
-                "SCED Timestamp",
-                "Publish Time",
-                "Constraint Name",
-                "Contingency Name",
-            ],
-            # Skip spaces after delimiters in all cells
-            read_csv_kwargs=dict(skipinitialspace=True),
-        )
-
-        df = self._construct_limiting_facility_column(df)
-
-        return df
-
-    def _get_sced_docs(self, date, end, verbose, report_type_id, shadow_prices=False):
-        # Shadow prices do not have time timestamp in the friendly name, so
-        # we must use the published time.
-        friendly_name_timestamp_after = None
-        friendly_name_timestamp_before = None
-
-        published_after = None
-        published_before = None
-
-        if date == "latest":
-            date = date
-        # no end, so assume requesting one day
-        # use the timestamp from the friendly name
-        elif end is None:
-            if shadow_prices:
-                published_after = date.normalize()
-                published_before = published_after + pd.DateOffset(days=1)
-            else:
-                friendly_name_timestamp_after = date.normalize()
-                friendly_name_timestamp_before = (
-                    friendly_name_timestamp_after + pd.DateOffset(days=1)
-                )
-
-            # date needs to be set to none so the docs are not filtered on the date
-            date = None
-        else:
-
-            if shadow_prices:
-                published_after = date
-                published_before = end
-
-            else:
-                friendly_name_timestamp_after = date
-                friendly_name_timestamp_before = end
-
-            date = None
-
-        docs = self._get_documents(
-            report_type_id=report_type_id,
-            date=date,
-            published_after=published_after,
-            published_before=published_before,
-            friendly_name_timestamp_after=friendly_name_timestamp_after,
-            friendly_name_timestamp_before=friendly_name_timestamp_before,
-            verbose=verbose,
-            constructed_name_contains="csv.zip",
-        )
-
-        return docs
-
-    def _handle_sced_docs(
-        self,
-        docs,
-        verbose,
-        desc,
-        column_name_mapper,
-        front_columns,
-        read_csv_kwargs={},
-    ):
-        """
-        Handles a list of SCED documents
-
-        Args:
-            docs (list): list of Document
-            verbose (bool): print verbose output
-            desc (str): description for tqdm
-            column_name_mapper (dict): dictionary to map column names
-            front_columns (list): columns to move to the front
-            read_csv_kwargs (dict): kwargs to pass to pd.read_csv
-
-        Returns:
-            pandas.DataFrame: A DataFrame with SCED data sorted by SCED Timestamp
-
-        """
+    def _handle_sced_system_lambda(self, docs, verbose):
         all_dfs = []
-
-        for doc in tqdm.tqdm(docs, desc=desc, disable=not verbose):
+        for doc in tqdm.tqdm(
+            docs,
+            desc="Reading SCED System Lambda files",
+            disable=not verbose,
+        ):
             log(f"Reading {doc.url}", verbose)
-            df = pd.read_csv(doc.url, compression="zip", **read_csv_kwargs)
-            df["Publish Time"] = pd.to_datetime(doc.publish_date)
+            df = pd.read_csv(doc.url, compression="zip")
             all_dfs.append(df)
 
-        df = pd.concat(all_dfs)
+        if len(all_dfs) == 0:
+            df = pd.DataFrame(
+                columns=["SCEDTimeStamp", "RepeatedHourFlag", "SystemLambda"],
+            )
+        else:
+            df = pd.concat(all_dfs)
+
         df = self._handle_sced_timestamp(df, verbose=verbose)
-        df = df.rename(columns=column_name_mapper)
 
-        if front_columns:
-            df = utils.move_cols_to_front(df, front_columns)
+        df["SystemLambda"] = df["SystemLambda"].astype("float64")
 
-        return df.sort_values("SCED Timestamp").reset_index(drop=True)
-
-    def _construct_limiting_facility_column(self, df):
-        df["Limiting Facility"] = (
-            df["From Station"]
-            + "_"
-            + df["From Station kV"].astype(str)
-            + "_"
-            + df["To Station"]
-            + "_"
-            + df["To Station kV"].astype(str)
+        df = df.rename(
+            columns={
+                "SystemLambda": "System Lambda",
+            },
         )
 
-        df.loc[df["Contingency Name" == "BASE CASE", "Limiting Facility"]] = None
-
+        df.sort_values("SCED Timestamp", inplace=True)
         return df
-
-    def _shadow_prices_column_name_mapper(self):
-        return {
-            "CCTStatus": "CCT Status",
-            "ConstraintID": "Constraint ID",
-            "ConstraintLimit": "Constraint Limit",
-            "ConstraintName": "Constraint Name",
-            "ConstraintValue": "Constraint Value",
-            "ContingencyName": "Contingency Name",
-            "DeliveryTime": "Delivery Time",
-            "FromStation": "From Station",
-            "FromStationkV": "From Station kV",
-            "MaxShadowPrice": "Max Shadow Price",
-            "ShadowPrice": "Shadow Price",
-            "SystemLambda": "System Lambda",
-            "ToStation": "To Station",
-            "ToStationkV": "To Station kV",
-            "ViolatedMW": "Violated MW",
-            "ViolationAmount": "Violation Amount",
-        }
 
     @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(self, date, verbose=False):
@@ -2511,7 +2320,6 @@ class Ercot(ISOBase):
             published_before = None
 
         docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
-
         matches = []
         for doc in docs:
             match = True
@@ -2644,9 +2452,9 @@ class Ercot(ISOBase):
         df = pd.read_csv(z.open(settlement_points_file))
         return df
 
-    def read_doc(self, doc, parse=True, verbose=False, read_csv_kwargs={}):
+    def read_doc(self, doc, parse=True, verbose=False):
         log(f"Reading {doc.url}", verbose)
-        df = pd.read_csv(doc.url, compression="zip", **read_csv_kwargs)
+        df = pd.read_csv(doc.url, compression="zip")
         if parse:
             df = self.parse_doc(df, verbose=verbose)
         return df
@@ -2777,3 +2585,12 @@ class Ercot(ISOBase):
                 doc = doc.drop(columns=[col])
 
         return doc
+
+
+if __name__ == "__main__":
+    iso = Ercot()
+    # df = iso.get_sced_system_lambda(date="09/13/2023", verbose=True)
+    df = iso.get_sced_system_lambda(date="latest", verbose=True)
+    print(df["SCED Time Stamp"].unique()[0].date())
+    print(df)
+    print(df.columns)

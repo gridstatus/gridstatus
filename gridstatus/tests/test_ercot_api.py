@@ -13,6 +13,8 @@ from gridstatus.ercot_api.ercot_api import ErcotAPI
 class TestErcotAPI:
     iso = ErcotAPI()
 
+    """lmp_by_bus_dam"""
+
     def _check_lmp_by_bus_dam(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
@@ -89,43 +91,191 @@ class TestErcotAPI:
         assert df["Interval Start"].min() == eighty_days_ago.normalize()
         assert df["Interval End"].max() == end_date.normalize() + pd.Timedelta(days=1)
 
-    """get_shadow_prices_sced"""
+    """shadow_prices_dam"""
 
-    def test_get_shadow_prices_sced_today(self):
-        df = self.iso.get_shadow_prices_sced("today")
+    expected_shadow_prices_dam_columns = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Constraint Name",
+        "Contingency Name",
+        "Constraint ID",
+        "Constraint Limit",
+        "Constraint Value",
+        "Violation Amount",
+        "Shadow Price",
+        "From Station",
+        "To Station",
+        "From Station kV",
+        "To Station kV",
+        "Limiting Facility",
+    ]
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Shadow Price",
-        ]
+    def _check_shadow_prices_dam(self, df):
+        assert df.columns.tolist() == self.expected_shadow_prices_dam_columns
 
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-
-        assert df.dtypes["Shadow Price"] == "float64"
-
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta("5min")
-        ).all()
-
-    """get_shadow_prices_dam"""
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
 
     def test_get_shadow_prices_dam_today(self):
-        df = self.iso.get_shadow_prices_dam("today")
+        df = self.iso.get_shadow_prices_dam("today", verbose=True)
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Shadow Price",
+        self._check_shadow_prices_dam(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+            hours=23,
+        )
+
+        assert df["Publish Time"].dt.date.unique().tolist() == [
+            self.local_today() - pd.Timedelta(days=1),
         ]
 
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+    def test_get_shadow_prices_dam_latest(self):
+        df = self.iso.get_shadow_prices_dam("latest")
 
-        assert df.dtypes["Shadow Price"] == "float64"
+        self._check_shadow_prices_dam(df)
 
-        assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
+        assert df["Publish Time"].nunique() == 1
+
+    def test_get_shadow_prices_dam_historical(self):
+        three_days_ago = self.local_today() - pd.Timedelta(
+            days=3,
+        )
+        df = self.iso.get_shadow_prices_dam(three_days_ago, verbose=True)
+
+        self._check_shadow_prices_dam(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(three_days_ago)
+        assert df["Interval Start"].max() == self.local_start_of_day(
+            three_days_ago,
+        ) + pd.Timedelta(hours=23)
+
+        assert df["Publish Time"].dt.date.unique().tolist() == [
+            three_days_ago - pd.Timedelta(days=1),
+        ]
+
+    def test_get_shadow_prices_dam_historical_range(self):
+        four_days_ago = self.local_today() - pd.Timedelta(days=4)
+        two_days_ago = four_days_ago + pd.Timedelta(days=2)
+
+        df = self.iso.get_shadow_prices_dam(
+            date=four_days_ago,
+            end=two_days_ago + pd.Timedelta(days=1),
+            verbose=True,
+        )
+
+        self._check_shadow_prices_dam(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(four_days_ago)
+        assert df["Interval Start"].max() == self.local_start_of_day(
+            two_days_ago,
+        ) + pd.Timedelta(hours=23)
+
+        assert df["Publish Time"].dt.date.unique().tolist() == [
+            four_days_ago - pd.Timedelta(days=1),
+            two_days_ago - pd.Timedelta(days=2),
+            two_days_ago - pd.Timedelta(days=1),
+        ]
+
+    """shadow_prices_sced"""
+
+    expected_shadow_prices_sced_columns = [
+        "SCED Timestamp",
+        "Publish Time",
+        "Constraint Name",
+        "Contingency Name",
+        "Constraint ID",
+        "Shadow Price",
+        "Max Shadow Price",
+        "Limit",
+        "Value",
+        "Violated MW",
+        "From Station",
+        "To Station",
+        "From Station kV",
+        "To Station kV",
+        "CCT Status",
+        "Limiting Facility",
+    ]
+
+    def _check_shadow_prices_sced(self, df):
+        assert df.columns.tolist() == self.expected_shadow_prices_sced_columns
+
+        self._check_time_columns(df, instant_or_interval="instant", sced=True)
+
+    def test_get_shadow_prices_sced_today(self):
+        df = self.iso.get_shadow_prices_sced("today", verbose=True)
+        self._check_shadow_prices_sced(df)
+
+        assert df["SCED Timestamp"].min() < self.local_start_of_today()
+        assert df["SCED Timestamp"].max() < self.local_now()
+
+        assert (
+            df["Publish Time"]
+            .between(self.local_start_of_today(), self.local_now())
+            .all()
+        )
+
+    def test_get_shadow_prices_sced_latest(self):
+        df = self.iso.get_shadow_prices_sced("latest", verbose=True)
+
+        self._check_shadow_prices_sced(df)
+
+        assert df["SCED Timestamp"].min() > self.local_start_of_today()
+        assert df["SCED Timestamp"].max() < self.local_now()
+
+        assert df["Publish Time"].dt.date.unique() == [self.local_today()]
+
+    def test_get_shadow_prices_sced_historical(self):
+        three_days_ago = self.local_today() - pd.Timedelta(
+            days=3,
+        )
+
+        df = self.iso.get_shadow_prices_sced(three_days_ago, verbose=True)
+
+        self._check_shadow_prices_sced(df)
+
+        assert df["SCED Timestamp"].min() < self.local_start_of_day(three_days_ago)
+        assert df["SCED Timestamp"].max() < self.local_start_of_day(
+            three_days_ago,
+        ) + pd.Timedelta(hours=23)
+
+        assert (
+            df["Publish Time"]
+            .between(
+                self.local_start_of_day(three_days_ago),
+                self.local_start_of_day(three_days_ago + pd.Timedelta(days=1)),
+            )
+            .all()
+        )
+
+    def test_get_shadow_prices_sced_historical_range(self):
+        four_days_ago = self.local_today() - pd.Timedelta(days=4)
+        two_days_ago = four_days_ago + pd.Timedelta(days=2)
+
+        df = self.iso.get_shadow_prices_sced(
+            date=four_days_ago,
+            end=two_days_ago,
+            verbose=True,
+        )
+
+        self._check_shadow_prices_sced(df)
+
+        assert df["SCED Timestamp"].min() < self.local_start_of_day(four_days_ago)
+        assert df["SCED Timestamp"].max() < self.local_start_of_day(two_days_ago)
+
+        assert (
+            df["Publish Time"]
+            .between(
+                self.local_start_of_day(four_days_ago),
+                self.local_start_of_day(two_days_ago),
+            )
+            .all()
+        )
 
 
 def _endpoints_map_check(endpoint_dict: dict) -> list[str]:
