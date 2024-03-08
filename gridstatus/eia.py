@@ -4,6 +4,7 @@ import json
 import os
 import re
 from pathlib import Path
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -38,6 +39,27 @@ class EIA:
             )
         self.api_key = api_key
         self.session = requests.Session()
+        
+    def list_facets(self, route="/"):
+        """List all available facets and metadata for a dataset."""
+        url = f"{self.BASE_URL}{route}"
+        params = {
+            "api_key": self.api_key,
+        }
+        data = self.session.get(url, params=params)
+        response = data.json()['response']
+        try:
+          facet_list = response['facets']
+        except KeyError:
+            msg = f"'facets' not found in keys. \n Data route: {url} is not an endpoint."
+            warnings.warn(msg, UserWarning)
+            return
+        facet_info = {}
+        for facet in facet_list:
+            id = facet['id']
+            facet_url = f"{route}/facet/{id}"
+            facet_info[id] = self.list_routes(facet_url)
+        return facet_info
 
     def list_routes(self, route="/"):
         """List all available routes"""
@@ -45,8 +67,13 @@ class EIA:
         params = {
             "api_key": self.api_key,
         }
+        response=None
         data = self.session.get(url, params=params)
-        response = data.json()["response"]
+        try:
+            response = data.json()["response"]
+        except KeyError:
+            print(data.json().keys())
+            print(url)
         return response
 
     def _fetch_page(self, url, headers):
