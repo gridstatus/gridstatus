@@ -2233,6 +2233,8 @@ class Ercot(ISOBase):
             + df["To Station kV"].astype(str)
         )
 
+        df.loc[df["Contingency Name" == "BASE CASE", "Limiting Facility"]] = None
+
         return df
 
     def _shadow_prices_column_name_mapper(self):
