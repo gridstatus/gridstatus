@@ -139,7 +139,16 @@ class TestPJM(BaseTestISO):
     """ get_load """
 
     def test_get_load_today(self):
-        df = super().test_get_load_today()
+        df = self.iso.get_load("today")
+        self._check_load(df)
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+
+        # okay as long as one of these columns is only today
+        assert (
+            (df["Time"].dt.date == today).all()
+            or (df["Interval Start"].dt.date == today).all()
+            or (df["Interval End"].dt.date == today).all()
+        )
 
         assert df.columns.tolist() == [
             "Time",

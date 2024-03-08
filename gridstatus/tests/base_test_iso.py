@@ -6,9 +6,66 @@ import gridstatus
 from gridstatus.base import GridStatus, _interconnection_columns
 
 
-class BaseTestISO:
+class TestHelperMixin:
     iso = None
 
+    def local_now(self):
+        return pd.Timestamp.now(tz=self.iso.default_timezone)
+
+    def local_today(self):
+        return self.local_now().date()
+
+    def local_start_of_day(self, date):
+        return pd.Timestamp(date).tz_localize(self.iso.default_timezone).normalize()
+
+    def local_start_of_today(self):
+        return self.local_start_of_day(self.local_today())
+
+    def _check_ordered_by_time(self, df, col):
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape[0] > 0
+        assert df[col].is_monotonic_increasing
+
+    def _check_time_columns(
+        self,
+        df,
+        instant_or_interval="interval",
+        skip_column_named_time=False,
+        sced=False,
+    ):
+        assert isinstance(df, pd.DataFrame)
+
+        if instant_or_interval == "interval":
+            # TODO: remove "Time" from time_cols for "interval"
+            time_cols = ["Time", "Interval Start", "Interval End"]
+            ordered_by_col = "Interval Start"
+        elif instant_or_interval == "instant":
+            if sced:
+                time_cols = ["SCED Timestamp"]
+                ordered_by_col = "SCED Timestamp"
+            else:
+                time_cols = ["Time"]
+                ordered_by_col = "Time"
+            assert "Interval Start" not in df.columns
+            assert "Interval End" not in df.columns
+        else:
+            raise ValueError(
+                "instant_or_interval must be 'interval' or 'instant'",
+            )
+
+        if skip_column_named_time:
+            time_cols.remove("Time")
+
+        assert time_cols == df.columns[: len(time_cols)].tolist()
+        # check all time cols are localized timestamps
+        for col in time_cols:
+            assert isinstance(df.loc[0][col], pd.Timestamp)
+            assert df.loc[0][col].tz is not None
+
+        self._check_ordered_by_time(df, ordered_by_col)
+
+
+class BaseTestISO(TestHelperMixin):
     def test_init(self):
         assert self.iso is not None
 
@@ -232,7 +289,6 @@ class BaseTestISO:
             or (df["Interval Start"].dt.date == today).all()
             or (df["Interval End"].dt.date == today).all()
         )
-        return df
 
     """get_load_forecast"""
 
@@ -275,44 +331,6 @@ class BaseTestISO:
         self._check_storage(storage)
 
     """other"""
-
-    def _check_ordered_by_time(self, df, col):
-        assert isinstance(df, pd.DataFrame)
-        assert df.shape[0] > 0
-        assert df[col].is_monotonic_increasing
-
-    def _check_time_columns(
-        self,
-        df,
-        instant_or_interval="interval",
-        skip_column_named_time=False,
-    ):
-        assert isinstance(df, pd.DataFrame)
-
-        if instant_or_interval == "interval":
-            # TODO: remove "Time" from time_cols for "interval"
-            time_cols = ["Time", "Interval Start", "Interval End"]
-            ordered_by_col = "Interval Start"
-        elif instant_or_interval == "instant":
-            time_cols = ["Time"]
-            ordered_by_col = "Time"
-            assert "Interval Start" not in df.columns
-            assert "Interval End" not in df.columns
-        else:
-            raise ValueError(
-                "instant_or_interval must be 'interval' or 'instant'",
-            )
-
-        if skip_column_named_time:
-            time_cols.remove("Time")
-
-        assert time_cols == df.columns[: len(time_cols)].tolist()
-        # check all time cols are localized timestamps
-        for col in time_cols:
-            assert isinstance(df.loc[0][col], pd.Timestamp)
-            assert df.loc[0][col].tz is not None
-
-        self._check_ordered_by_time(df, ordered_by_col)
 
     def _check_fuel_mix(self, df):
         assert isinstance(df, pd.DataFrame)

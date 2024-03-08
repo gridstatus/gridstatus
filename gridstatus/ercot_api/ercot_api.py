@@ -25,6 +25,7 @@ DAM_LMP_HOURLY_EMIL_ID = "NP4-183-CD"
 DAM_LMP_ENDPOINT = "/np4-183-cd/dam_hourly_lmp"
 
 SHADOW_PRICES_DAM_ENDPOINT = "/np4-191-cd/dam_shadow_prices"
+SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
 
 # How long a token lasts for before needing to be refreshed
 TOKEN_EXPIRATION_SECONDS = 3600
@@ -66,6 +67,7 @@ class ErcotAPI:
         self.token_url = TOKEN_URL
         self.token = None
         self.token_expiry = None
+        self.ercot = Ercot()
 
     def get_token(self):
         payload = {
@@ -143,15 +145,12 @@ class ErcotAPI:
             )
 
         # Assume if there's only a start date, fetch data for that day only
-        if end is None:
-            end = date
+        end = end or date
 
         api_params = {
             "deliveryDateFrom": date,
             "deliveryDateTo": end,
         }
-
-        api_params = {k: v for k, v in api_params.items() if v is not None}
 
         data = self.hit_ercot_api(
             endpoint=DAM_LMP_ENDPOINT,
@@ -164,8 +163,7 @@ class ErcotAPI:
 
     def parse_dam_doc(self, data):
         data = (
-            Ercot()
-            .parse_doc(
+            self.ercot.parse_doc(
                 data.rename(
                     columns=dict(
                         deliveryDate="DeliveryDate",
@@ -198,6 +196,161 @@ class ErcotAPI:
 
         return data
 
+    @support_date_range(frequency=None)
+    def get_shadow_prices_dam(self, date, end=None, verbose=False):
+        """Get Day-Ahead Market Shadow Prices
+
+        Arguments:
+            date (str): the date to fetch shadow prices for. Can be "latest" to fetch
+                the next day's shadow prices.
+            end (str, optional): the end date to fetch shadow prices for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with day-ahead market shadow prices
+        """  # noqa
+        # Get data for today through tomorrow (because the data for tomorrow will not
+        # always be available)
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).date()
+            end = date + pd.Timedelta(days=1)
+
+        # Assume if there's only a start date, fetch data for that day only
+        end = end or date
+
+        api_params = {
+            "deliveryDateFrom": date,
+            "deliveryDateTo": end,
+        }
+
+        data = self.hit_ercot_api(
+            endpoint=SHADOW_PRICES_DAM_ENDPOINT,
+            page_size=50_000,
+            verbose=verbose,
+            **api_params,
+        )
+
+        return self._handle_shadow_prices_dam(data, verbose=verbose)
+
+    def _handle_shadow_prices_dam(self, data, verbose=False):
+        data = self.ercot.parse_doc(data, verbose=verbose)
+        data = data.rename(columns=self._shadow_prices_column_name_mapper())
+        data = self._construct_limiting_facility_column(data)
+        # Fill all empty strings in the dataframe with NaN
+        data = data.replace("", pd.NA)
+
+        data = utils.move_cols_to_front(
+            data,
+            [
+                "Interval Start",
+                "Interval End",
+                "Constraint ID",
+                "Constraint Name",
+                "Contingency Name",
+                "Limiting Facility",
+            ],
+        )
+
+        data = data.drop(columns=["Delivery Time", "Time"])
+
+        return data.sort_values(["Interval Start", "Constraint ID"]).reset_index(
+            drop=True,
+        )
+
+    @support_date_range(frequency=None)
+    def get_shadow_prices_sced(self, date, end=None, verbose=False):
+        """Get Real-Time Market Shadow Prices
+
+        Arguments:
+            date (str): the date to fetch shadow prices for. Can be "latest".
+            end (str, optional): the end date to fetch shadow prices for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with real-time market shadow prices
+        """  # noqa
+        # Query for the past two hours because the data is published every hour
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("H") - pd.Timedelta(
+                hours=1,
+            )
+            end = date + pd.Timedelta(hours=2)
+
+        # Assume if no end date is provided, we only want data for the given date
+        end = end or date.normalize() + pd.Timedelta(days=1)
+
+        api_params = {
+            "SCEDTimestampFrom": date - pd.Timedelta(hours=1),
+            "SCEDTimestampTo": end,
+        }
+
+        data = self.hit_ercot_api(
+            endpoint=SHADOW_PRICES_SCED_ENDPOINT,
+            page_size=50_000,
+            verbose=verbose,
+            **api_params,
+        )
+
+        return self._handle_shadow_prices_sced(data, verbose=verbose)
+
+    def _handle_shadow_prices_sced(self, data, verbose=False):
+        data = self.ercot._handle_sced_timestamp(data, verbose=verbose)
+        data = data.rename(columns=self._shadow_prices_column_name_mapper())
+        data = self._construct_limiting_facility_column(data)
+        # Fill all empty strings in the dataframe with NaN
+        data = data.replace("", pd.NA)
+
+        data = utils.move_cols_to_front(
+            data,
+            [
+                "SCED Timestamp",
+                "Constraint ID",
+                "Constraint Name",
+                "Contingency Name",
+                "Limiting Facility",
+            ],
+        )
+
+        return data.sort_values(["SCED Timestamp", "Constraint ID"]).reset_index(
+            drop=True,
+        )
+
+    def _construct_limiting_facility_column(self, data):
+        data.loc[:, "Limiting Facility"] = (
+            data["From Station"]
+            + "_"
+            + data["From Station kV"].astype(str)
+            + "_"
+            + data["To Station"]
+            + "_"
+            + data["To Station kV"].astype(str)
+        )
+
+        data.loc[data["Contingency Name"] == "BASE CASE", "Limiting Facility"] = pd.NA
+
+        return data
+
+    def _shadow_prices_column_name_mapper(self):
+        return {
+            "CCTStatus": "CCT Status",
+            "ConstraintId": "Constraint ID",  # API is inconsistent with capitalization
+            "ConstraintID": "Constraint ID",
+            "ConstraintLimit": "Constraint Limit",
+            "ConstraintName": "Constraint Name",
+            "ConstraintValue": "Constraint Value",
+            "ContingencyName": "Contingency Name",
+            "DeliveryTime": "Delivery Time",
+            "FromStation": "From Station",
+            "FromStationkV": "From Station kV",
+            "MaxShadowPrice": "Max Shadow Price",
+            "ShadowPrice": "Shadow Price",
+            "SystemLambda": "System Lambda",
+            "ToStation": "To Station",
+            "ToStationkV": "To Station kV",
+            "ViolatedMW": "Violated MW",
+            "ViolationAmount": "Violation Amount",
+        }
+
     def hit_ercot_api(
         self,
         endpoint: str,
@@ -229,6 +382,7 @@ class ErcotAPI:
         Returns:
             a dataframe of results
         """
+        api_params = {k: v for k, v in api_params.items() if v is not None}
         parsed_api_params = self._parse_api_params(endpoint, page_size, api_params)
 
         urlstring = f"{BASE_URL}{endpoint}"
@@ -297,11 +451,14 @@ class ErcotAPI:
                 f"No data found for {endpoint} with params {api_params}",
             )
 
-        # prepare and return dataframe of results
-        return pd.DataFrame(
-            data=data_results,
-            columns=columns,
-        )
+        # Capitalize the first letter of each column name but leave the rest alone
+        columns = [col[:1].upper() + col[1:] for col in columns]
+
+        # Strip the extra whitespace from the data
+        data = pd.DataFrame(data=data_results, columns=columns)
+        data = data.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
+
+        return data
 
     def list_all_endpoints(self) -> None:
         """Prints all available endpoints"""
