@@ -209,11 +209,11 @@ class ErcotAPI:
         Returns:
             pandas.DataFrame: A DataFrame with day-ahead market shadow prices
         """  # noqa
-        # Get data for tomorrow
+        # Get data for today through tomorrow (because the data for tomorrow will not
+        # always be available)
         if date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone).date() + pd.Timedelta(
-                days=1,
-            )
+            date = pd.Timestamp.now(tz=self.default_timezone).date()
+            end = date + pd.Timedelta(days=1)
 
         # Assume if there's only a start date, fetch data for that day only
         end = end or date
@@ -269,11 +269,18 @@ class ErcotAPI:
         Returns:
             pandas.DataFrame: A DataFrame with real-time market shadow prices
         """  # noqa
+        # Query for the past two hours because the data is published every hour
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("H") - pd.Timedelta(
+                hours=1,
+            )
+            end = date + pd.Timedelta(hours=2)
+
         # Assume if no end date is provided, we only want data for the given date
-        end = end or date
+        end = end or date.normalize() + pd.Timedelta(days=1)
 
         api_params = {
-            "SCEDTimestampFrom": date,
+            "SCEDTimestampFrom": date - pd.Timedelta(hours=1),
             "SCEDTimestampTo": end,
         }
 
