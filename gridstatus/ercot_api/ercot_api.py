@@ -271,7 +271,7 @@ class ErcotAPI:
         """  # noqa
         # Query for the past two hours because the data is published every hour
         if date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone).floor("H") - pd.Timedelta(
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("h") - pd.Timedelta(
                 hours=1,
             )
             end = date + pd.Timedelta(hours=2)
