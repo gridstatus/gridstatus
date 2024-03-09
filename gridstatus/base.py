@@ -75,6 +75,21 @@ class ISOBase:
     interconnection_homepage = None
 
     def _get_json(self, url, verbose=False, retries=None, **kwargs):
+        """
+        Makes a get request to the given url and returns the json response. Optionally
+        retries the request if it fails.
+
+        Args:
+            url (str): The URL to request
+            verbose (bool): Whether to print log messages
+            retries (int): The number of retries to attempt if the request fails. The
+                total tries will be 1 + retries
+            **kwargs: Additional keyword arguments to pass to requests.get
+
+        Returns:
+            dict: The JSON response from the request if successful. Otherwise, raises
+                a requests.RequestException
+        """
         max_attempts = 1 if retries is None else retries + 1
         attempt = 0
         while attempt < max_attempts:

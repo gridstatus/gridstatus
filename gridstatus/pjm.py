@@ -1036,6 +1036,7 @@ class PJM(ISOBase):
         return queue
 
     def _get_key(self):
+        # Not using retries here, should we be?
         settings = self._get_json(
             "https://dataminer2.pjm.com/config/settings.json",
             verbose=False,
