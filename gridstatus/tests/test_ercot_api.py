@@ -44,13 +44,22 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_lmp_by_bus_dam(df)
 
-        assert df["Interval Start"].min() == pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() + pd.Timedelta(days=1)
+        assert (
+            df["Interval Start"].min()
+            == (
+                pd.Timestamp.now(
+                    tz=self.iso.default_timezone,
+                )
+                + pd.Timedelta(days=1)
+            ).normalize()
+        )
 
-        assert df["Interval End"].max() == pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() + pd.Timedelta(days=2)
+        assert (
+            df["Interval End"].max()
+            == (
+                pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(days=2)
+            ).normalize()
+        )
 
     def test_get_lmp_by_bus_dam_today(self):
         df = self.iso.get_lmp_by_bus_dam("today")
@@ -62,9 +71,15 @@ class TestErcotAPI(TestHelperMixin):
             == pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
         )
 
-        assert df["Interval End"].max() == pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() + pd.Timedelta(days=1)
+        assert (
+            df["Interval End"].max()
+            == (
+                pd.Timestamp.now(
+                    tz=self.iso.default_timezone,
+                )
+                + pd.Timedelta(days=1)
+            ).normalize()
+        )
 
     def test_get_lmp_by_bus_dam_historical(self):
         eighty_days_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
@@ -294,16 +309,16 @@ class TestErcotAPI(TestHelperMixin):
             using the totalFrom parameter. There should be fewer than 48 rows, and all
             values for total load should be greater than the threshold we put in.
         """
-        min_load = two_days_actual_by_wzn["total"].min()
-        max_load = two_days_actual_by_wzn["total"].max()
+        min_load = two_days_actual_by_wzn["Total"].min()
+        max_load = two_days_actual_by_wzn["Total"].max()
         in_between_load = (max_load + min_load) / 2
         higher_loads_result = self.iso.hit_ercot_api(
             actual_by_wzn_endpoint,
             operatingDayFrom=two_days_ago,
             totalFrom=in_between_load,
         )
-        assert len(higher_loads_result["total"]) < result_rows
-        assert all(higher_loads_result["total"] > in_between_load)
+        assert len(higher_loads_result["Total"]) < result_rows
+        assert all(higher_loads_result["Total"] > in_between_load)
 
         """
         Now we test the page_size and max_pages arguments. We know that our two days
