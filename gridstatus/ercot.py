@@ -286,9 +286,13 @@ class Ercot(ISOBase):
 
         df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
 
-        df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_convert(
-            self.default_timezone,
+        # need to use apply since there can be mixed
+        # fixed offsets during dst transition
+        # that result in object dtypes in pandas
+        df["timestamp"] = df["timestamp"].apply(
+            lambda x: pd.to_datetime(x).tz_convert("UTC"),
         )
+        df["timestamp"] = df["timestamp"].dt.tz_convert(self.default_timezone)
 
         df = df.rename(
             columns={
@@ -345,6 +349,7 @@ class Ercot(ISOBase):
 
         # need to use apply since there can be mixed
         # fixed offsets during dst transition
+        # that result in object dtypes in pandas
         mix["Time"] = mix["Time"].apply(lambda x: pd.to_datetime(x).tz_convert("UTC"))
 
         # most timestamps are a few seconds off round 5 minute ticks
@@ -538,10 +543,13 @@ class Ercot(ISOBase):
         date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
 
         data = pd.DataFrame(r["data"])
-
-        data["Interval End"] = pd.to_datetime(data["timestamp"]).dt.tz_convert(
-            self.default_timezone,
+        # need to use apply since there can be mixed
+        # fixed offsets during dst transition
+        # that result in object dtypes in pandas
+        data["Interval End"] = data["timestamp"].apply(
+            lambda x: pd.to_datetime(x).tz_convert("UTC"),
         )
+        data["Interval End"] = data["Interval End"].dt.tz_convert(self.default_timezone)
 
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
         data["Time"] = data["Interval Start"]
