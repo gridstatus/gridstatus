@@ -413,12 +413,20 @@ class CAISO(ISOBase):
 
         df = _get_historical("storage", date, verbose=verbose)
 
+        rename = {
+            "Total batteries": "Supply",
+            "Stand-alone batteries": "Stand-alone Batteries",
+            "Hybrid batteries": "Hybrid Batteries",
+        }
+
+        # need to cast back to int since
+        # _get_historical sometimes returns as float
+        # because during DST switch there are nans
+        # in the data that get dropped
+        df[list(rename.keys())] = df[rename.keys()].astype(int)
+
         df = df.rename(
-            columns={
-                "Total batteries": "Supply",
-                "Stand-alone batteries": "Stand-alone Batteries",
-                "Hybrid batteries": "Hybrid Batteries",
-            },
+            columns=rename,
         )
         df = df[
             [
@@ -430,6 +438,7 @@ class CAISO(ISOBase):
                 "Hybrid Batteries",
             ]
         ]
+
         return df
 
     @support_date_range(frequency="31D")
