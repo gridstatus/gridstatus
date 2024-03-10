@@ -1707,8 +1707,6 @@ class Ercot(ISOBase):
 
         Returns:
             pandas.DataFrame: A DataFrame with hourly resource outage capacity data
-
-
         """
 
         df = self._get_hourly_report(
@@ -1725,8 +1723,17 @@ class Ercot(ISOBase):
         df = self.read_doc(doc, parse=False, verbose=verbose)
         # there is no DST flag column
         # and the data set ignores DST
-        # so, we will default to assuming it is DST
-        df = self.parse_doc(df, dst_ambiguous_default=True, verbose=verbose)
+        # so, we will default to assuming it is DST. We will also
+        # set nonexistent times to NaT and drop them
+        df = self.parse_doc(
+            df,
+            dst_ambiguous_default=True,
+            nonexistent="NaT",
+            verbose=verbose,
+        )
+
+        df = df.dropna(subset=["Interval Start"])
+
         df.insert(
             0,
             "Publish Time",
@@ -2476,7 +2483,13 @@ class Ercot(ISOBase):
             dfs.append(self.read_doc(doc, parse=parse, verbose=verbose))
         return pd.concat(dfs).reset_index(drop=True)
 
-    def parse_doc(self, doc, dst_ambiguous_default="infer", verbose=False):
+    def parse_doc(
+        self,
+        doc,
+        dst_ambiguous_default="infer",
+        verbose=False,
+        nonexistent="raise",
+    ):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
 
@@ -2558,6 +2571,7 @@ class Ercot(ISOBase):
                 doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
                     self.default_timezone,
                     ambiguous=ambiguous,
+                    nonexistent=nonexistent,
                 )
             except NonExistentTimeError:
                 # this handles how ercot does labels the instant
