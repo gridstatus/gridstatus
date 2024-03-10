@@ -17,6 +17,10 @@ jobs:
       id: latest_commit
       run: echo "LATEST_COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
+    - name: Get the latest commit message of gridstatus
+      id: commit_message
+      run: echo "COMMIT_MESSAGE=$(git show -s --format=%s)" >> $GITHUB_ENV
+
     - name: Checkout gs-etl
       uses: actions/checkout@v4
       with:
@@ -39,6 +43,10 @@ jobs:
         commit-message: Update gridstatus version
         title: 'Update gridstatus to commit $LATEST_COMMIT_HASH'
         branch: 'update-gridstatus-$LATEST_COMMIT_HASH'
-        body: 'This is an automated PR to update the gridstatus version'
+        body: |
+          This is an automated PR to update the gridstatus version.
+
+          Latest gridstatus commit message:
+          $COMMIT_MESSAGE
         base: 'main'
         path: gs-etl
