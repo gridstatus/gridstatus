@@ -13,7 +13,11 @@ from gridstatus.tests.base_test_iso import TestHelperMixin
 
 @pytest.mark.requires_ercot_auth
 class TestErcotAPI(TestHelperMixin):
-    iso = ErcotAPI()
+    @classmethod
+    def setup_class(cls):
+        # https://docs.pytest.org/en/stable/how-to/xunit_setup.html
+        # Runs before all tests in this class
+        cls.iso = ErcotAPI()
 
     """lmp_by_bus_dam"""
 
