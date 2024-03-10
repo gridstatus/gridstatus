@@ -1212,6 +1212,12 @@ def _get_historical(file, date, verbose=False):
     # sometimes there are extra rows at the end, so this lets us ignore them
     df = df.dropna(subset=["Time"])
 
+    # drop where every column after Time is null
+    # this happens whens there during spring DST
+    # change and they keep the non-existent hour
+    # but have nulls for all other columns
+    df = df.dropna(subset=df.columns[1:], how="all")
+
     df["Time"] = df["Time"].apply(
         _make_timestamp,
         today=date,
