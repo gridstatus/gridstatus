@@ -16,6 +16,9 @@ from gridstatus.decorators import (
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
+# PJM requires retries because the API is flaky
+DEFAULT_RETRIES = 3
+
 
 class PJM(ISOBase):
     """PJM"""
@@ -408,6 +411,10 @@ class PJM(ISOBase):
         "93353963",
         "93353965",
     ]
+
+    def __init__(self, retries=DEFAULT_RETRIES):
+        self.retries = retries
+        super().__init__()
 
     markets = [
         Markets.REAL_TIME_5_MIN,
@@ -884,8 +891,11 @@ class PJM(ISOBase):
         log(msg, verbose)
 
         api_key = self._get_key()
+
         r = self._get_json(
             "https://api.pjm.com/api/v1/" + endpoint,
+            verbose=verbose,
+            retries=self.retries,
             params=final_params,
             headers={"Ocp-Apim-Subscription-Key": api_key},
         )
@@ -906,6 +916,8 @@ class PJM(ISOBase):
                 next_url = [x for x in r["links"] if x["rel"] == "next"][0]["href"]
                 r = self._get_json(
                     next_url,
+                    verbose=verbose,
+                    retries=self.retries,
                     headers={
                         "Ocp-Apim-Subscription-Key": api_key,
                     },
@@ -1028,8 +1040,10 @@ class PJM(ISOBase):
         return queue
 
     def _get_key(self):
+        # Not using retries here, should we be?
         settings = self._get_json(
             "https://dataminer2.pjm.com/config/settings.json",
+            verbose=False,
         )
 
         return settings["subscriptionKey"]

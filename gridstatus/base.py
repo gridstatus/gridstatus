@@ -1,3 +1,4 @@
+import time
 from enum import Enum
 from typing import BinaryIO
 
@@ -73,16 +74,40 @@ class ISOBase:
     status_homepage = None
     interconnection_homepage = None
 
-    def _get_json(self, *args, **kwargs):
-        if "verbose" in kwargs:
-            verbose = kwargs.pop("verbose")
-            msg = f"Requesting {args[0]} with {kwargs}"
-            log(msg, verbose)
+    def _get_json(self, url, verbose=False, retries=None, **kwargs):
+        """
+        Makes a get request to the given url and returns the json response. Optionally
+        retries the request if it fails.
 
-        r = requests.get(*args, **kwargs)
-        r = r.json()
+        Args:
+            url (str): The URL to request
+            verbose (bool): Whether to print log messages
+            retries (int): The number of retries to attempt if the request fails. The
+                total tries will be 1 + retries
+            **kwargs: Additional keyword arguments to pass to requests.get
 
-        return r
+        Returns:
+            dict: The JSON response from the request if successful. Otherwise, raises
+                a requests.RequestException
+        """
+        max_attempts = 1 if retries is None else retries + 1
+        attempt = 0
+        while attempt < max_attempts:
+            try:
+                log(f"Requesting {url} with {kwargs}", verbose)
+                r = requests.get(url, **kwargs)
+                r.raise_for_status()  # Raise an error for HTTP error codes
+                return r.json()
+            except requests.RequestException as e:
+                attempt += 1
+                if attempt >= max_attempts:
+                    raise
+                wait_time = 2 ** (attempt - 1)
+                log(
+                    f"Request failed with {e}. Retrying in {wait_time} seconds...",
+                    verbose,
+                )
+                time.sleep(wait_time)
 
     def get_status(self, date, end=None, verbose=False):
         raise NotImplementedError()
