@@ -413,12 +413,20 @@ class CAISO(ISOBase):
 
         df = _get_historical("storage", date, verbose=verbose)
 
+        rename = {
+            "Total batteries": "Supply",
+            "Stand-alone batteries": "Stand-alone Batteries",
+            "Hybrid batteries": "Hybrid Batteries",
+        }
+
+        # need to cast back to int since
+        # _get_historical sometimes returns as float
+        # because during DST switch there are nans
+        # in the data that get dropped
+        df[list(rename.keys())] = df[rename.keys()].astype(int)
+
         df = df.rename(
-            columns={
-                "Total batteries": "Supply",
-                "Stand-alone batteries": "Stand-alone Batteries",
-                "Hybrid batteries": "Hybrid Batteries",
-            },
+            columns=rename,
         )
         df = df[
             [
@@ -430,6 +438,7 @@ class CAISO(ISOBase):
                 "Hybrid Batteries",
             ]
         ]
+
         return df
 
     @support_date_range(frequency="31D")
@@ -1211,6 +1220,12 @@ def _get_historical(file, date, verbose=False):
 
     # sometimes there are extra rows at the end, so this lets us ignore them
     df = df.dropna(subset=["Time"])
+
+    # drop every column after Time where values
+    # are all null. this happens during spring DST
+    # change and caiso keeps the non-existent hour
+    # but has nulls for all other columns
+    df = df.dropna(subset=df.columns[1:], how="all")
 
     df["Time"] = df["Time"].apply(
         _make_timestamp,
