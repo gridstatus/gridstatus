@@ -16,6 +16,9 @@ from gridstatus.decorators import (
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
+# PJM requires retries because the API is flaky
+DEFAULT_RETRIES = 3
+
 
 class PJM(ISOBase):
     """PJM"""
@@ -27,9 +30,6 @@ class PJM(ISOBase):
     interconnection_homepage = (
         "https://www.pjm.com/planning/service-requests/services-request-status"
     )
-
-    # PJM requires retries because the API is flaky
-    retries = 3
 
     location_types = [
         "ZONE",
@@ -411,6 +411,10 @@ class PJM(ISOBase):
         "93353963",
         "93353965",
     ]
+
+    def __init__(self, retries=DEFAULT_RETRIES):
+        self.retries = retries
+        super().__init__()
 
     markets = [
         Markets.REAL_TIME_5_MIN,
