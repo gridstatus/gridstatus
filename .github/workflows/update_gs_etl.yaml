@@ -1,0 +1,44 @@
+name: Update gs-etl dependency
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-dependency:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout gridstatus
+      uses: actions/checkout@v4
+
+    - name: Get the latest commit hash of gridstatus
+      id: latest_commit
+      run: echo "LATEST_COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+    - name: Checkout gs-etl
+      uses: actions/checkout@v4
+      with:
+        repository: gridstatus/gs-etl
+        token: ${{ secrets.PAT }}
+        path: gs-etl
+
+    - name: Install Poetry
+      uses: snok/install-poetry-action@v1
+
+    - name: Update gridstatus dependency in gs-etl
+      run: |
+        cd gs-etl
+        poetry add git+https://github.com/kmax12/gridstatus.git#$LATEST_COMMIT_HASH
+
+    - name: Push changes and create Pull Request
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.PAT }}
+        commit-message: Update gridstatus version
+        title: 'Update gridstatus to commit $LATEST_COMMIT_HASH'
+        branch: 'update-gridstatus-$LATEST_COMMIT_HASH'
+        body: 'This is an automated PR to update the gridstatus version'
+        base: 'main'
+        path: gs-etl
