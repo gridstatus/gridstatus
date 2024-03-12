@@ -41,17 +41,12 @@ class EIA:
         self.session = requests.Session()
         
     def list_facets(self, route="/"):
-        """List all available facets and metadata for a dataset."""
-        url = f"{self.BASE_URL}{route}"
-        params = {
-            "api_key": self.api_key,
-        }
-        data = self.session.get(url, params=params)
-        response = data.json()['response']
+        """List all available facets and facet options for a dataset."""
+        response = self.list_routes(route=route)
         try:
           facet_list = response['facets']
         except KeyError:
-            msg = f"'facets' not found in keys. \n Data route: {url} is not an endpoint."
+            msg = f"'facets' not found in keys. \n Data route: {route} is not an endpoint."
             warnings.warn(msg, UserWarning)
             return
         facet_info = {}
@@ -67,22 +62,41 @@ class EIA:
         params = {
             "api_key": self.api_key,
         }
-        response=None
-        data = self.session.get(url, params=params)
         try:
-            response = data.json()["response"]
-        except KeyError:
-            print(data.json().keys())
-            print(url)
+            data = self.session.get(url, params=params)
+            data.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            raise err
+        response = data.json()["response"]
         return response
 
     def _fetch_page(self, url, headers):
-        data = self.session.get(url, headers=headers)
+        try:
+            data = self.session.get(url, headers=headers)
+            data.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            raise err
         response = data.json()["response"]
         df = pd.DataFrame(response["data"])
         return df, int(response["total"])
+    
+    def _facet_handler(self, facets):
+        """Ensures facets are properly formatted."""
+        
+        for k, v in facets.items():
+            if not isinstance(v, list):
+                facets[k] = [v]
+        
+        return facets
 
-    def get_dataset(self, dataset, start, end, facets=None, n_workers=1, verbose=False):
+    def get_dataset(self, 
+                    dataset, 
+                    start, 
+                    end, 
+                    frequency="hourly",
+                    facets=None, 
+                    n_workers=1, 
+                    verbose=False):
         """Get data from a dataset
 
         Only supports "electricity/rto/interchange-data" dataset for now.
@@ -114,11 +128,13 @@ class EIA:
 
         if facets is None:
             facets = {}
+        else:
+            facets = self._facet_handler(facets)
 
         params = {
             "start": start_str,
             "end": end_str,
-            "frequency": "hourly",
+            "frequency": frequency,
             "data": [
                 "value",
             ],
@@ -189,6 +205,7 @@ class EIA:
         df = raw_df.copy()
 
         if dataset in DATASET_CONFIG:
+            
             df = DATASET_CONFIG[dataset]["handler"](df)
 
         return df
