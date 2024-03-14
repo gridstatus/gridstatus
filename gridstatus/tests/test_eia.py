@@ -37,6 +37,23 @@ def _check_region_data(df):
     assert df["Interval End"].dtype == "datetime64[ns, UTC]"
     assert df.shape[0] > 0
     assert df.columns.tolist() == columns
+    
+    
+def _check_region_subba_data(df):
+    columns = [
+        "Interval Start",
+        "Interval End",
+        "BA",
+        "BA Name",
+        "Subregion",
+        "Subregion Name",
+        "MW"
+    ]
+
+    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
+    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
+    assert df.shape[0] > 0
+    assert df.columns.tolist() == columns
 
 
 def _check_fuel_type(df, subset=False):
