@@ -619,6 +619,37 @@ def _handle_region_data(df):
     return df
 
 
+def _handle_region_sub_ba_data(df):
+    """electricity/rto/region-sub-ba-data"""
+    df = _handle_time(df, frequency="1h")
+    
+    df = df.rename(
+        {
+            "value":"MW",
+            "subba-name":"Subregion Name",
+            "subba":"Subregion",
+            "parent":"BA",
+            "parent-name":"BA Name"
+        },
+        axis=1,
+    )
+    
+    df = df[
+        [
+            "Interval Start",
+            "Interval End",
+            "BA",
+            "BA Name",
+            "Subregion",
+            "Subregion Name",
+            "MW",
+        ]
+    ]
+
+    df = df.sort_values(["Interval Start", "Subregion"])
+
+    return df
+
 def _handle_rto_interchange(df):
     """electricity/rto/interchange-data"""
     df = _handle_time(df, frequency="1h")
@@ -693,12 +724,28 @@ DATASET_CONFIG = {
         ],
         "handler": _handle_rto_interchange,
     },
+    "electricity/rto/region-sub-ba-data":{
+        "index": [
+            "period",
+            "subba",
+            "parent"
+        ],
+        "handler": _handle_region_sub_ba_data, 
+    },
     "electricity/rto/region-data": {
-        "index": ["period", "respondent", "type"],
+        "index": [
+            "period", 
+            "respondent", 
+            "type"
+        ],
         "handler": _handle_region_data,
     },
     "electricity/rto/fuel-type-data": {
-        "index": ["period", "respondent", "fueltype"],
+        "index": [
+            "period", 
+            "respondent", 
+            "fueltype"
+        ],
         "handler": _handle_fuel_type_data,
     },
 }
