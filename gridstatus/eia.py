@@ -111,7 +111,8 @@ class EIA:
             start (str or pd.Timestamp): Start date
             end (str or pd.Timestamp): End date
             frequency (str): Specifies the data frequency. 
-            Accepts [`hourly`, `local-hourly`]. Where `hourly` is
+            Accepts [`hourly`, `local-hourly`]. Where `hourly` is refers
+            to the UTC time and local-hourly is the local time.
             Default is `hourly`. 
             facets (dict, optional): Facets to
                 add to the request header. Defaults to None.
