@@ -6,20 +6,24 @@ clean:
 	find . -name '*~' -delete
 	find . -name '.coverage.*' -delete
 
-PYTEST_CMD := poetry run pytest -s -vv gridstatus/ -n auto
-NOT_SLOW := -m "not slow" --reruns 5 --reruns-delay 3
+PYTEST_CMD := poetry run pytest -s -vv gridstatus/ -n auto --reruns 5 --reruns-delay 3
+NOT_SLOW_AND_NOT_REQUIRES_ERCOT_AUTH := -m "not slow and not requires_ercot_auth"
 
 .PHONY: test
 test:
-	$(PYTEST_CMD) $(NOT_SLOW)
+	$(PYTEST_CMD) $(NOT_SLOW_AND_NOT_REQUIRES_ERCOT_AUTH)
 
 .PHONY: test-cov
 test-cov:
-	$(PYTEST_CMD) $(NOT_SLOW) --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
+	$(PYTEST_CMD) $(NOT_SLOW_AND_NOT_REQUIRES_ERCOT_AUTH) --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
+
+.PHONY: test-ercot-api
+test-ercot-api:
+	$(PYTEST_CMD) -m "not slow and requires_ercot_auth"
 
 .PHONY: test-slow
 test-slow:
-	$(PYTEST_CMD) -m "slow"
+	$(PYTEST_CMD) -m "slow and not requires_ercot_auth"
 
 .PHONY: installdeps-dev
 installdeps-dev:

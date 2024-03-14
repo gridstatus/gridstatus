@@ -400,10 +400,21 @@ class MonthBeginOffset:
 
 class FiveMinOffset:
     def __ladd__(self, other):
-        # round up to next 5 min interval
-        # add 1 microsecond to ensure we make it to the
+        # Store the original timezone
+        original_tz = other.tz
+
+        # Convert to UTC to avoid DST issues
+        other_utc = other.tz_convert("UTC")
+
+        # Round up to the next 5 min interval
+        # Add 1 microsecond to ensure we make it to the
         # next interval when already on a 5 min interval
-        return (other + pd.Timedelta(microseconds=1)).ceil("5min")
+        rounded_utc = (other_utc + pd.Timedelta(microseconds=1)).ceil("5min")
+
+        # Convert back to the original timezone
+        s = rounded_utc.tz_convert(original_tz)
+
+        return s
 
     def __radd__(self, other):
         return self.__ladd__(other)

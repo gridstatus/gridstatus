@@ -14,6 +14,8 @@ DST_BOUNDARIES = [
     "Nov 6, 2022",
 ]
 
+WIND_OR_SOLAR_FORECAST_LENGTH = pd.Timedelta(days=6, hours=22)
+
 
 class TestISONE(BaseTestISO):
     iso = ISONE()
@@ -140,9 +142,10 @@ class TestISONE(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() + pd.Timedelta(hours=10)
 
-        assert df["Interval Start"].max() == pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() + pd.Timedelta(days=7, hours=9)
+        assert (
+            df["Interval Start"].max() - df["Interval Start"].min()
+            == WIND_OR_SOLAR_FORECAST_LENGTH
+        )
 
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
@@ -175,10 +178,10 @@ class TestISONE(BaseTestISO):
         ).all()
 
         assert df["Interval Start"].min() == five_days_ago + pd.Timedelta(hours=10)
-        # Not inclusive of the end date
-        assert df["Interval Start"].max() == two_days_ago - pd.Timedelta(
-            days=1,
-        ) + pd.Timedelta(days=7, hours=9)
+
+        assert df["Interval Start"].max() - df[
+            "Interval Start"
+        ].min() == WIND_OR_SOLAR_FORECAST_LENGTH + pd.Timedelta(days=2)
 
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
@@ -191,9 +194,9 @@ class TestISONE(BaseTestISO):
 
         assert df["Publish Time"].unique() == four_days_ago + pd.Timedelta(hours=10)
         assert df["Interval Start"].min() == four_days_ago + pd.Timedelta(hours=10)
-        assert df["Interval Start"].max() == four_days_ago + pd.Timedelta(
-            days=7,
-            hours=9,
+        assert (
+            df["Interval Start"].max() - df["Interval Start"].min()
+            == WIND_OR_SOLAR_FORECAST_LENGTH
         )
 
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
@@ -211,9 +214,10 @@ class TestISONE(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() + pd.Timedelta(hours=10)
 
-        assert df["Interval Start"].max() == pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() + pd.Timedelta(days=7, hours=9)
+        assert (
+            df["Interval Start"].max() - df["Interval Start"].min()
+            == WIND_OR_SOLAR_FORECAST_LENGTH
+        )
 
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
@@ -246,10 +250,10 @@ class TestISONE(BaseTestISO):
         ).all()
 
         assert df["Interval Start"].min() == five_days_ago + pd.Timedelta(hours=10)
-        # Not inclusive of the end date
-        assert df["Interval Start"].max() == two_days_ago - pd.Timedelta(
-            days=1,
-        ) + pd.Timedelta(days=7, hours=9)
+
+        assert df["Interval Start"].max() - df[
+            "Interval Start"
+        ].min() == WIND_OR_SOLAR_FORECAST_LENGTH + pd.Timedelta(days=2)
 
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
@@ -262,9 +266,10 @@ class TestISONE(BaseTestISO):
 
         assert df["Publish Time"].unique() == four_days_ago + pd.Timedelta(hours=10)
         assert df["Interval Start"].min() == four_days_ago + pd.Timedelta(hours=10)
-        assert df["Interval Start"].max() == four_days_ago + pd.Timedelta(
-            days=7,
-            hours=9,
+
+        assert (
+            df["Interval Start"].max() - df["Interval Start"].min()
+            == WIND_OR_SOLAR_FORECAST_LENGTH
         )
 
         self._check_solar_or_wind_forecast(df, resource_type="Solar")

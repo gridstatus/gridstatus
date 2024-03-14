@@ -840,7 +840,7 @@ class SPP(ISOBase):
             "returnGeometry": "false",
             "outFields": "*",
         }
-        doc = self._get_json(base_url, params=args, verbose=verbose)
+        doc = self._get_json(base_url, verbose=verbose, params=args)
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
