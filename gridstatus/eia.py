@@ -99,7 +99,12 @@ class EIA:
                     verbose=False):
         """Get data from a dataset
 
-        Only supports "electricity/rto/interchange-data" dataset for now.
+        Currently supports the following datasets:
+        
+        - "electricity/rto/interchange-data"
+        - "electricity/rto/region-data"
+        - "electricity/rto/region-sub-ba-data"
+        - "electricity/rto/fuel-type-data"
 
         Args:
             dataset (str): Dataset path
