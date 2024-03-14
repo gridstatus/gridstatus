@@ -105,6 +105,9 @@ class EIA:
             dataset (str): Dataset path
             start (str or pd.Timestamp): Start date
             end (str or pd.Timestamp): End date
+            frequency (str): Specifies the data frequency. 
+            Accepts [`hourly`, `local-hourly`]. Where `hourly` is
+            Default is `hourly`. 
             facets (dict, optional): Facets to
                 add to the request header. Defaults to None.
             n_workers (int, optional): Number of
@@ -610,7 +613,8 @@ def _handle_region_data(df):
 
     # fix after pivot
     for col in ["Load", "Net Generation", "Load Forecast", "Total Interchange"]:
-        df[col] = df[col].astype(float)
+        if col in df.columns:
+            df[col] = df[col].astype(float)
 
     return df
 
