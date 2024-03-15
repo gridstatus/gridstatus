@@ -3,8 +3,8 @@ import datetime
 import json
 import os
 import re
-from pathlib import Path
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -39,19 +39,22 @@ class EIA:
             )
         self.api_key = api_key
         self.session = requests.Session()
-        
+
     def list_facets(self, route="/"):
         """List all available facets and facet options for a dataset."""
         response = self.list_routes(route=route)
         try:
-          facet_list = response['facets']
+            facet_list = response["facets"]
         except KeyError:
-            msg = f"'facets' not found in keys. \n Data route: {route} is not an endpoint."
+            msg = (
+                f"'facets' not found in keys. \n"
+                f"Data route: {route} is not an endpoint."
+            )
             warnings.warn(msg, UserWarning)
             return
         facet_info = {}
         for facet in facet_list:
-            id = facet['id']
+            id = facet["id"]
             facet_url = f"{route}/facet/{id}"
             facet_info[id] = self.list_routes(facet_url)
         return facet_info
@@ -79,28 +82,30 @@ class EIA:
         response = data.json()["response"]
         df = pd.DataFrame(response["data"])
         return df, int(response["total"])
-    
+
     def _facet_handler(self, facets):
         """Ensures facets are properly formatted."""
-        
+
         for k, v in facets.items():
             if not isinstance(v, list):
                 facets[k] = [v]
-        
+
         return facets
 
-    def get_dataset(self, 
-                    dataset, 
-                    start, 
-                    end, 
-                    frequency="hourly",
-                    facets=None, 
-                    n_workers=1, 
-                    verbose=False):
+    def get_dataset(
+        self,
+        dataset,
+        start,
+        end,
+        frequency="hourly",
+        facets=None,
+        n_workers=1,
+        verbose=False,
+    ):
         """Get data from a dataset
 
         Currently supports the following datasets:
-        
+
         - "electricity/rto/interchange-data"
         - "electricity/rto/region-data"
         - "electricity/rto/region-sub-ba-data"
@@ -110,10 +115,10 @@ class EIA:
             dataset (str): Dataset path
             start (str or pd.Timestamp): Start date
             end (str or pd.Timestamp): End date
-            frequency (str): Specifies the data frequency. 
+            frequency (str): Specifies the data frequency.
                 Accepts [`hourly`, `local-hourly`]. Where `hourly` is refers
                 to the UTC time and local-hourly is the local time.
-            Default is `hourly`. 
+            Default is `hourly`.
             facets (dict, optional): Facets to
                 add to the request header. Defaults to None.
             n_workers (int, optional): Number of
@@ -214,7 +219,7 @@ class EIA:
         df = raw_df.copy()
 
         if dataset in DATASET_CONFIG:
-            
+
             df = DATASET_CONFIG[dataset]["handler"](df)
 
         return df
@@ -628,18 +633,18 @@ def _handle_region_data(df):
 def _handle_region_sub_ba_data(df):
     """electricity/rto/region-sub-ba-data"""
     df = _handle_time(df, frequency="1h")
-    
+
     df = df.rename(
         {
-            "value":"MW",
-            "subba-name":"Subregion Name",
-            "subba":"Subregion",
-            "parent":"BA",
-            "parent-name":"BA Name"
+            "value": "MW",
+            "subba-name": "Subregion Name",
+            "subba": "Subregion",
+            "parent": "BA",
+            "parent-name": "BA Name",
         },
         axis=1,
     )
-    
+
     df = df[
         [
             "Interval Start",
@@ -655,6 +660,7 @@ def _handle_region_sub_ba_data(df):
     df = df.sort_values(["Interval Start", "Subregion"])
 
     return df
+
 
 def _handle_rto_interchange(df):
     """electricity/rto/interchange-data"""
@@ -730,28 +736,16 @@ DATASET_CONFIG = {
         ],
         "handler": _handle_rto_interchange,
     },
-    "electricity/rto/region-sub-ba-data":{
-        "index": [
-            "period",
-            "subba",
-            "parent"
-        ],
-        "handler": _handle_region_sub_ba_data, 
+    "electricity/rto/region-sub-ba-data": {
+        "index": ["period", "subba", "parent"],
+        "handler": _handle_region_sub_ba_data,
     },
     "electricity/rto/region-data": {
-        "index": [
-            "period", 
-            "respondent", 
-            "type"
-        ],
+        "index": ["period", "respondent", "type"],
         "handler": _handle_region_data,
     },
     "electricity/rto/fuel-type-data": {
-        "index": [
-            "period", 
-            "respondent", 
-            "fueltype"
-        ],
+        "index": ["period", "respondent", "fueltype"],
         "handler": _handle_fuel_type_data,
     },
 }

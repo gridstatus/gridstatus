@@ -37,8 +37,8 @@ def _check_region_data(df):
     assert df["Interval End"].dtype == "datetime64[ns, UTC]"
     assert df.shape[0] > 0
     assert df.columns.tolist() == columns
-    
-    
+
+
 def _check_region_subba_data(df):
     columns = [
         "Interval Start",
@@ -47,7 +47,7 @@ def _check_region_subba_data(df):
         "BA Name",
         "Subregion",
         "Subregion Name",
-        "MW"
+        "MW",
     ]
 
     assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
@@ -90,13 +90,13 @@ def test_list_routes():
     routes = eia.list_routes("electricity/rto/")
 
     assert "interchange-data" in [r["id"] for r in routes["routes"]]
-    
+
 
 def test_list_facets():
     eia = gridstatus.EIA()
-    
+
     facets = eia.list_facets("electricity/rto/region-data")
-    
+
     assert "type" in facets.keys()
 
 
@@ -138,8 +138,8 @@ def test_rto_region_data():
     # this check that pagination is working
     assert df[df["Respondent"] == "BPAT"].isnull().sum().sum() == 0
     _check_region_data(df)
-    
-    
+
+
 def test_rto_region_subba_data():
     eia = gridstatus.EIA()
     start = "2020-01-01"
