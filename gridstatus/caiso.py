@@ -251,14 +251,12 @@ class CAISO(ISOBase):
         )
 
         totals["TRADING_HUB"] = "CAISO"
-        totals["Location Type"] = "ISO"
 
-        df["Location Type"] = "Trading Hub"
         df = pd.concat([df, totals])
 
         df = df.pivot_table(
             columns=["RENEWABLE_TYPE"],
-            index=["Interval Start", "Interval End", "TRADING_HUB", "Location Type"],
+            index=["Interval Start", "Interval End", "TRADING_HUB"],
             values="MW",
         ).reset_index()
 
@@ -270,7 +268,7 @@ class CAISO(ISOBase):
                     "Wind": "Wind MW",
                 },
             ),
-            ["Interval Start", "Interval End", "Location", "Location Type"],
+            ["Interval Start", "Interval End", "Location"],
         )
 
         return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)

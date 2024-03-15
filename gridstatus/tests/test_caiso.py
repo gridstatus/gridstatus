@@ -63,16 +63,11 @@ class TestCAISO(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Location",
-            "Location Type",
             "Solar MW",
             "Wind MW",
         ]
 
         assert df["Location"].unique().tolist() == ["CAISO", "NP15", "SP15", "ZP26"]
-
-        assert df.loc[df["Location"] != "CAISO", "Location Type"].unique().tolist() == [
-            "Trading Hub",
-        ]
 
         totals = df.loc[df["Location"] == "CAISO"]
         non_totals = df.loc[df["Location"] != "CAISO"]
