@@ -219,6 +219,60 @@ class CAISO(ISOBase):
 
         return df
 
+    def get_solar_and_wind_forecast_dam(self, date, end=None, verbose=False):
+        """Return wind and solar forecast in hourly intervals
+
+        Data at: http://oasis.caiso.com/mrioasis/logon.do  at System Demand >
+        Wind and Solar Forecast
+        """
+        if date == "latest":
+            return self.get_solar_and_wind_forecast_dam("today", verbose=verbose)
+
+        data = self.get_oasis_dataset(
+            dataset="wind_and_solar_forecast",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        return self._process_solar_and_wind_forecast_dam(data)
+
+    def _process_solar_and_wind_forecast_dam(self, data):
+        df = data[
+            ["Interval Start", "Interval End", "TRADING_HUB", "RENEWABLE_TYPE", "MW"]
+        ]
+
+        # Totals across all trading hubs for each renewable type
+        totals = (
+            df.groupby(["RENEWABLE_TYPE", "Interval Start", "Interval End"])["MW"]
+            .sum()
+            .reset_index()
+        )
+
+        totals["TRADING_HUB"] = "CAISO"
+
+        df = pd.concat([df, totals])
+
+        df = df.pivot_table(
+            columns=["RENEWABLE_TYPE"],
+            index=["Interval Start", "Interval End", "TRADING_HUB"],
+            values="MW",
+        ).reset_index()
+
+        df = utils.move_cols_to_front(
+            df.rename(
+                columns={
+                    "TRADING_HUB": "Location",
+                    "Solar": "Solar MW",
+                    "Wind": "Wind MW",
+                },
+            ),
+            ["Interval Start", "Interval End", "Location"],
+        )
+
+        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
     def get_pnodes(self, verbose=False):
         start = utils._handle_date("today")
 
@@ -1471,7 +1525,7 @@ oasis_dataset_config = {
             "queryname": "SLD_REN_FCST",
             "version": 1,
         },
-        "params": {},
+        "params": {"market_run_id": "DAM"},
     },
     "pnode_map": {
         "query": {
