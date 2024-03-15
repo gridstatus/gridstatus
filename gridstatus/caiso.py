@@ -236,17 +236,31 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
+        return self._process_solar_and_wind_forecast_dam(data)
+
+    def _process_solar_and_wind_forecast_dam(self, data):
         df = data[
             ["Interval Start", "Interval End", "TRADING_HUB", "RENEWABLE_TYPE", "MW"]
         ]
 
-        df = df.pivot_table(
-            columns=["RENEWABLE_TYPE"],
-            index=["Interval Start", "Interval End", "TRADING_HUB"],
-            values="MW",
-        ).reset_index()
+        # Totals across all trading hubs for each renewable type
+        totals = (
+            df.groupby(["RENEWABLE_TYPE", "Interval Start", "Interval End"])["MW"]
+            .sum()
+            .reset_index()
+        )
+
+        totals["TRADING_HUB"] = "CAISO"
+        totals["Location Type"] = "ISO"
 
         df["Location Type"] = "Trading Hub"
+        df = pd.concat([df, totals])
+
+        df = df.pivot_table(
+            columns=["RENEWABLE_TYPE"],
+            index=["Interval Start", "Interval End", "TRADING_HUB", "Location Type"],
+            values="MW",
+        ).reset_index()
 
         df = utils.move_cols_to_front(
             df.rename(

@@ -1,3 +1,5 @@
+import math
+
 import pandas as pd
 import pytest
 
@@ -66,7 +68,26 @@ class TestCAISO(BaseTestISO):
             "Wind MW",
         ]
 
-        assert list(df["Location Type"].unique()) == ["Trading Hub"]
+        assert df["Location"].unique().tolist() == ["CAISO", "NP15", "SP15", "ZP26"]
+
+        assert df.loc[df["Location"] != "CAISO", "Location Type"].unique().tolist() == [
+            "Trading Hub",
+        ]
+
+        totals = df.loc[df["Location"] == "CAISO"]
+        non_totals = df.loc[df["Location"] != "CAISO"]
+
+        assert math.isclose(
+            totals["Solar MW"].sum(),
+            non_totals["Solar MW"].sum(),
+            rel_tol=0.01,
+        )
+
+        assert math.isclose(
+            totals["Wind MW"].sum(),
+            non_totals["Wind MW"].sum(),
+            rel_tol=0.01,
+        )
 
         self._check_time_columns(
             df,
