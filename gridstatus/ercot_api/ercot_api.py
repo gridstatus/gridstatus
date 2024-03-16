@@ -3,6 +3,7 @@ import os
 import time
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import requests
 from tqdm import tqdm
@@ -11,9 +12,10 @@ from gridstatus import utils
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE, Ercot
-from gridstatus.ercot_api.api_parser import parse_all_endpoints
+from gridstatus.ercot_api.api_parser import _timestamp_parser, parse_all_endpoints
 from gridstatus.gs_logging import log
 
+# API to hit with subscription key to get token
 TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
@@ -24,7 +26,11 @@ ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/puba
 DAM_LMP_HOURLY_EMIL_ID = "NP4-183-CD"
 DAM_LMP_ENDPOINT = "/np4-183-cd/dam_hourly_lmp"
 
+
+# https://data.ercot.com/data-product-archive/NP4-191-CD
 SHADOW_PRICES_DAM_ENDPOINT = "/np4-191-cd/dam_shadow_prices"
+
+# https://data.ercot.com/data-product-archive/NP6-86-CD
 SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
 
 # How long a token lasts for before needing to be refreshed
@@ -110,7 +116,7 @@ class ErcotAPI:
             "Ocp-Apim-Subscription-Key": self.subscription_key,
         }
 
-        log(f"Requesting url: {url}", verbose)
+        log(f"Requesting url: {url} with params: {api_params}", verbose)
 
         if method == "GET":
             response = requests.get(url, params=api_params, headers=headers)
@@ -316,17 +322,17 @@ class ErcotAPI:
         )
 
     def _construct_limiting_facility_column(self, data):
-        data.loc[:, "Limiting Facility"] = (
-            data["From Station"]
+        data["Limiting Facility"] = np.where(
+            data["Contingency Name"] != "BASE CASE",
+            data["From Station"].astype(str)
             + "_"
             + data["From Station kV"].astype(str)
             + "_"
-            + data["To Station"]
+            + data["To Station"].astype(str)
             + "_"
-            + data["To Station kV"].astype(str)
+            + data["To Station kV"].astype(str),
+            pd.NA,
         )
-
-        data.loc[data["Contingency Name"] == "BASE CASE", "Limiting Facility"] = pd.NA
 
         return data
 
@@ -350,6 +356,104 @@ class ErcotAPI:
             "ViolatedMW": "Violated MW",
             "ViolationAmount": "Violation Amount",
         }
+
+    def get_historical_data(
+        self,
+        emil_id,
+        start_date,
+        end_date,
+        data_handler,
+        verbose=False,
+    ):
+        """Retrieves historical data from the given emil_id from start to end date.
+
+        Arguments:
+            emil_id [str]: a string representing a specific ERCOT EMIL record. Example:
+                if the endpoint is "/np6-345-cd/act_sys_load_by_wzn", the emil_id
+                would be "NP6-345-CD"
+            start_date: the start date for the historical data
+            end_date: the end date for the historical data
+            data_handler: a function that takes the data and returns a parsed dataframe
+            verbose: if True, will print out status messages
+
+        Returns:
+            [pandas.DataFrame]: a dataframe of historical data
+        """
+        links = self._get_historical_data_links(emil_id, start_date, end_date, verbose)
+
+        dfs = []
+
+        for link in tqdm(links, desc="Fetching historical data"):
+            try:
+                # Data comes back as a compressed zip file.
+                response = self.make_api_call(link, verbose=verbose, parse_json=False)
+
+                # Convert the bytes to a file-like object
+                bytes = pd.io.common.BytesIO(response)
+
+                # Decompress the zip file and read the csv
+                df = pd.read_csv(bytes, compression="zip")
+                dfs.append(data_handler(df))
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"Link: {link} failed with error: {e}")
+
+        return pd.concat(dfs)
+
+    def _get_historical_data_links(self, emil_id, start_date, end_date, verbose=False):
+        """Retrieves links for historical data from the given emil_id from
+        start to end date.
+
+        Arguments:
+            emil_id [str]: a string representing a specific ERCOT EMIL record. Example:
+                if the endpoint is "/np6-345-cd/act_sys_load_by_wzn", the emil_id
+                would be "NP6-345-CD"
+            start_date: the start date for the historical data
+            end_date: the end date for the historical data
+            verbose: if True, will print out status messages
+
+        Returns:
+            [list]: a list of links to historical data
+        """
+        urlstring = f"{BASE_URL}/archive/{emil_id}"
+
+        page_num = 1
+
+        api_params = {
+            "postDatetimeFrom": _timestamp_parser(start_date),
+            "postDatetimeTo": _timestamp_parser(end_date),
+            "size": "1000",
+            "page": page_num,
+        }
+
+        response = self.make_api_call(
+            urlstring,
+            api_params=api_params,
+            verbose=verbose,
+        )
+
+        meta = response["_meta"]
+
+        total_pages = meta["totalPages"]
+        archives = response["archives"]
+
+        while page_num < total_pages:
+            page_num += 1
+            api_params["page"] = page_num
+            response = self.make_api_call(
+                urlstring,
+                api_params=api_params,
+                verbose=verbose,
+            )
+            archives.extend(response["archives"])
+
+        links = [
+            archive.get("_links").get("endpoint").get("href") for archive in archives
+        ]
+
+        log(f"Found {len(links)} archives", verbose)
+
+        return links
 
     def hit_ercot_api(
         self,
@@ -384,7 +488,6 @@ class ErcotAPI:
         """
         api_params = {k: v for k, v in api_params.items() if v is not None}
         parsed_api_params = self._parse_api_params(endpoint, page_size, api_params)
-
         urlstring = f"{BASE_URL}{endpoint}"
 
         # make requests, paginating as needed
