@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import re
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -39,31 +40,85 @@ class EIA:
         self.api_key = api_key
         self.session = requests.Session()
 
+    def list_facets(self, route="/"):
+        """List all available facets and facet options for a dataset."""
+        response = self.list_routes(route=route)
+        try:
+            facet_list = response["facets"]
+        except KeyError:
+            msg = (
+                f"'facets' not found in keys. \n"
+                f"Data route: {route} is not an endpoint."
+            )
+            warnings.warn(msg, UserWarning)
+            return
+        facet_info = {}
+        for facet in facet_list:
+            id = facet["id"]
+            facet_url = f"{route}/facet/{id}"
+            facet_info[id] = self.list_routes(facet_url)
+        return facet_info
+
     def list_routes(self, route="/"):
         """List all available routes"""
         url = f"{self.BASE_URL}{route}"
         params = {
             "api_key": self.api_key,
         }
-        data = self.session.get(url, params=params)
+        try:
+            data = self.session.get(url, params=params)
+            data.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            raise err
         response = data.json()["response"]
         return response
 
     def _fetch_page(self, url, headers):
-        data = self.session.get(url, headers=headers)
+        try:
+            data = self.session.get(url, headers=headers)
+            data.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            raise err
         response = data.json()["response"]
         df = pd.DataFrame(response["data"])
         return df, int(response["total"])
 
-    def get_dataset(self, dataset, start, end, facets=None, n_workers=1, verbose=False):
+    def _facet_handler(self, facets):
+        """Ensures facets are properly formatted."""
+
+        for k, v in facets.items():
+            if not isinstance(v, list):
+                facets[k] = [v]
+
+        return facets
+
+    def get_dataset(
+        self,
+        dataset,
+        start,
+        end,
+        frequency="hourly",
+        facets=None,
+        n_workers=1,
+        verbose=False,
+    ):
         """Get data from a dataset
 
-        Only supports "electricity/rto/interchange-data" dataset for now.
+        Currently supports the following datasets:
+
+        - "electricity/rto/interchange-data"
+        - "electricity/rto/region-data"
+        - "electricity/rto/region-sub-ba-data"
+        - "electricity/rto/fuel-type-data"
 
         Args:
             dataset (str): Dataset path
             start (str or pd.Timestamp): Start date
             end (str or pd.Timestamp): End date
+            frequency (str): Specifies the data frequency.
+                Accepts [`hourly`, `local-hourly`]. Where `hourly` is refers
+                to the UTC time and local-hourly is the local time.
+            Default is `hourly`.
             facets (dict, optional): Facets to
                 add to the request header. Defaults to None.
             n_workers (int, optional): Number of
@@ -87,11 +142,13 @@ class EIA:
 
         if facets is None:
             facets = {}
+        else:
+            facets = self._facet_handler(facets)
 
         params = {
             "start": start_str,
             "end": end_str,
-            "frequency": "hourly",
+            "frequency": frequency,
             "data": [
                 "value",
             ],
@@ -162,6 +219,7 @@ class EIA:
         df = raw_df.copy()
 
         if dataset in DATASET_CONFIG:
+
             df = DATASET_CONFIG[dataset]["handler"](df)
 
         return df
@@ -566,7 +624,40 @@ def _handle_region_data(df):
 
     # fix after pivot
     for col in ["Load", "Net Generation", "Load Forecast", "Total Interchange"]:
-        df[col] = df[col].astype(float)
+        if col in df.columns:
+            df[col] = df[col].astype(float)
+
+    return df
+
+
+def _handle_region_sub_ba_data(df):
+    """electricity/rto/region-sub-ba-data"""
+    df = _handle_time(df, frequency="1h")
+
+    df = df.rename(
+        {
+            "value": "MW",
+            "subba-name": "Subregion Name",
+            "subba": "Subregion",
+            "parent": "BA",
+            "parent-name": "BA Name",
+        },
+        axis=1,
+    )
+
+    df = df[
+        [
+            "Interval Start",
+            "Interval End",
+            "BA",
+            "BA Name",
+            "Subregion",
+            "Subregion Name",
+            "MW",
+        ]
+    ]
+
+    df = df.sort_values(["Interval Start", "Subregion"])
 
     return df
 
@@ -644,6 +735,10 @@ DATASET_CONFIG = {
             "toba",
         ],
         "handler": _handle_rto_interchange,
+    },
+    "electricity/rto/region-sub-ba-data": {
+        "index": ["period", "subba", "parent"],
+        "handler": _handle_region_sub_ba_data,
     },
     "electricity/rto/region-data": {
         "index": ["period", "respondent", "type"],

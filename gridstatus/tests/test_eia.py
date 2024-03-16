@@ -39,6 +39,23 @@ def _check_region_data(df):
     assert df.columns.tolist() == columns
 
 
+def _check_region_subba_data(df):
+    columns = [
+        "Interval Start",
+        "Interval End",
+        "BA",
+        "BA Name",
+        "Subregion",
+        "Subregion Name",
+        "MW",
+    ]
+
+    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
+    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
+    assert df.shape[0] > 0
+    assert df.columns.tolist() == columns
+
+
 def _check_fuel_type(df, subset=False):
     columns = [
         "Interval Start",
@@ -75,11 +92,19 @@ def test_list_routes():
     assert "interchange-data" in [r["id"] for r in routes["routes"]]
 
 
+def test_list_facets():
+    eia = gridstatus.EIA()
+
+    facets = eia.list_facets("electricity/rto/region-data")
+
+    assert "type" in facets.keys()
+
+
 def test_rto_interchange():
     eia = gridstatus.EIA()
 
-    start = pd.Timestamp.now() - pd.Timedelta(days=7)
-    end = start + pd.Timedelta(days=3)
+    start = "2020-01-01"
+    end = "2020-01-04"
 
     df = eia.get_dataset(
         dataset="electricity/rto/interchange-data",
@@ -97,8 +122,8 @@ def test_rto_interchange():
 
 def test_rto_region_data():
     eia = gridstatus.EIA()
-    start = pd.Timestamp.now() - pd.Timedelta(days=7)
-    end = start + pd.Timedelta(days=3)
+    start = "2020-01-01"
+    end = "2020-01-04"
 
     df = eia.get_dataset(
         dataset="electricity/rto/region-data",
@@ -113,6 +138,26 @@ def test_rto_region_data():
     # this check that pagination is working
     assert df[df["Respondent"] == "BPAT"].isnull().sum().sum() == 0
     _check_region_data(df)
+
+
+def test_rto_region_subba_data():
+    eia = gridstatus.EIA()
+    start = "2020-01-01"
+    end = "2020-01-04"
+
+    df = eia.get_dataset(
+        dataset="electricity/rto/region-sub-ba-data",
+        start=start,
+        end=end,
+        verbose=True,
+    )
+
+    assert df["Interval End"].min().date() == pd.Timestamp(start).date()
+    assert df["Interval End"].max().date() == pd.Timestamp(end).date()
+    # pick a respondent that we know has no nulls
+    # this check that pagination is working
+    assert df[df["Subregion"] == "PGAE"].isnull().sum().sum() == 0
+    _check_region_subba_data(df)
 
 
 def test_fuel_type():
