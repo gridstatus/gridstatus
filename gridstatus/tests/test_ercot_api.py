@@ -43,47 +43,22 @@ class TestErcotAPI(TestHelperMixin):
 
         assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
 
-    def test_get_lmp_by_bus_dam_latest(self):
-        df = self.iso.get_lmp_by_bus_dam("latest")
-
-        self._check_lmp_by_bus_dam(df)
-
-        assert (
-            df["Interval Start"].min()
-            == pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
-        )
-
-        # Depending on when this is run, the data may be for today only or
-        # today and tomorrow
-        assert df["Interval End"].max() in [
-            (
-                pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(days=d)
-            ).normalize()
-            for d in [1, 2]
-        ]
-
-    def test_get_lmp_by_bus_dam_today(self):
+    def test_get_lmp_by_bus_dam_today_and_latest(self):
         df = self.iso.get_lmp_by_bus_dam("today")
 
         self._check_lmp_by_bus_dam(df)
 
-        assert (
-            df["Interval Start"].min()
-            == pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
-        )
+        assert df["Interval Start"].min() == self.local_start_of_today()
 
-        assert (
-            df["Interval End"].max()
-            == (
-                pd.Timestamp.now(
-                    tz=self.iso.default_timezone,
-                )
-                + pd.Timedelta(days=1)
-            ).normalize()
-        )
+        # The end date will depend on when this runs, so check if it's today or tomorrow
+        assert df["Interval End"].max() in [
+            (self.local_start_of_today() + pd.Timedelta(days=d)) for d in [1, 2]
+        ]
+
+        assert self.iso.get_lmp_by_bus_dam("latest").equals(df)
 
     def test_get_lmp_by_bus_dam_historical(self):
-        past_date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.Timedelta(
             days=HISTORICAL_DAYS_THRESHOLD * 2,
         )
 
@@ -97,7 +72,7 @@ class TestErcotAPI(TestHelperMixin):
         )
 
     def test_get_lmp_by_bus_dam_historical_range(self):
-        past_date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.Timedelta(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
         )
         past_end_date = past_date + pd.Timedelta(days=2)
@@ -107,9 +82,7 @@ class TestErcotAPI(TestHelperMixin):
         self._check_lmp_by_bus_dam(df)
 
         assert df["Interval Start"].min() == past_date.normalize()
-        assert df["Interval End"].max() == past_end_date.normalize() + pd.Timedelta(
-            days=1,
-        )
+        assert df["Interval End"].max() == past_end_date.normalize()
 
     """shadow_prices_dam"""
 
@@ -145,26 +118,26 @@ class TestErcotAPI(TestHelperMixin):
             .all()
         )
 
-    def test_get_shadow_prices_dam_today(self):
+    def test_get_shadow_prices_dam_today_and_latest(self):
         df = self.iso.get_shadow_prices_dam("today", verbose=True)
 
         self._check_shadow_prices_dam(df)
 
         assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
-            hours=23,
-        )
+        # The end date will depend on when this runs, so check if it's end of today
+        # or end of tomorrow
+        assert df["Interval End"].max() in [
+            self.local_start_of_today()
+            + pd.Timedelta(
+                days=d,
+            )
+            for d in [1, 2]
+        ]
 
-    def test_get_shadow_prices_dam_latest(self):
-        df = self.iso.get_shadow_prices_dam("latest")
-
-        self._check_shadow_prices_dam(df)
-
-        # Latest returns data for today and maybe tomorrow if it's been published
-        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert self.iso.get_shadow_prices_dam("latest").equals(df)
 
     def test_get_shadow_prices_dam_historical(self):
-        past_date = self.local_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.Timedelta(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
         )
         df = self.iso.get_shadow_prices_dam(past_date, verbose=True)
@@ -177,7 +150,7 @@ class TestErcotAPI(TestHelperMixin):
         ) + pd.Timedelta(hours=23)
 
     def test_get_shadow_prices_dam_historical_range(self):
-        past_date = self.local_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.Timedelta(
             days=HISTORICAL_DAYS_THRESHOLD * 4,
         )
         past_end_date = past_date + pd.Timedelta(days=2)
@@ -221,7 +194,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_time_columns(df, instant_or_interval="instant", sced=True)
 
-    def test_get_shadow_prices_sced_today(self):
+    def test_get_shadow_prices_sced_today_and_latest(self):
         df = self.iso.get_shadow_prices_sced("today", verbose=True)
         self._check_shadow_prices_sced(df)
 
@@ -231,15 +204,10 @@ class TestErcotAPI(TestHelperMixin):
         )
         assert df["SCED Timestamp"].max() < self.local_now()
 
-    def test_get_shadow_prices_sced_latest(self):
-        df = self.iso.get_shadow_prices_sced("latest", verbose=True)
-        self._check_shadow_prices_sced(df)
-
-        assert df["SCED Timestamp"].min() > self.local_start_of_today()
-        assert df["SCED Timestamp"].max() < self.local_now()
+        assert self.iso.get_shadow_prices_sced("latest").equals(df)
 
     def test_get_shadow_prices_sced_historical(self):
-        past_date = self.local_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.Timedelta(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
         )
         df = self.iso.get_shadow_prices_sced(past_date, verbose=True)
@@ -259,7 +227,7 @@ class TestErcotAPI(TestHelperMixin):
         )
 
     def test_get_shadow_prices_sced_historical_range(self):
-        past_date = self.local_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.Timedelta(
             days=HISTORICAL_DAYS_THRESHOLD * 2,
         )
         past_end_date = past_date + pd.Timedelta(days=2)

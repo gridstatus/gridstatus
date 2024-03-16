@@ -145,7 +145,7 @@ class ErcotAPI:
         # General information about the public reports
         return self.make_api_call(BASE_URL, verbose=verbose)
 
-    @support_date_range(frequency="DAY_START")
+    @support_date_range(frequency=None)
     def get_lmp_by_bus_dam(self, date, end=None, verbose=False):
         """
         Retrieves the hourly Day Ahead Market (DAM) Location Marginal Prices (LMPs)
@@ -154,18 +154,17 @@ class ErcotAPI:
         Data source: https://data.ercot.com/data-product-archive/NP4-183-CD
         (requires login)
         """
-        # Since we are filtering on the deliveryDate, there's no need to subtract a day
-        # even though this is a day ahead market
         if date == "latest":
-            # The data may not be available for tomorrow yet, so send in parameters
-            # for today through tomorrow.
-            date = pd.Timestamp.now(tz=self.default_timezone).date()
-            end = date + pd.Timedelta(days=1)
+            return self.get_lmp_by_bus_dam("today", verbose=verbose)
 
-        # Assume if there's only a start date, fetch data for that day only
+        # The Ercot API needs to have a start and end filter date, so we must set it.
+        # To ensure we get all the data for the given date, we set the end date to the
+        # date plus one if it is not provided.
         end = end or (date + pd.Timedelta(days=1))
 
         if self._should_use_historical(date):
+            # For historical data, we need to subtract a day because we filter by
+            # posted date
             data = self.get_historical_data(
                 endpoint=DAM_LMP_ENDPOINT,
                 start_date=date - pd.Timedelta(days=1),
@@ -173,6 +172,8 @@ class ErcotAPI:
                 verbose=verbose,
             )
         else:
+            # For non-historical data, we do not need to subtract a day because filter
+            # by delivery date
             api_params = {
                 "deliveryDateFrom": date,
                 "deliveryDateTo": end,
@@ -235,18 +236,17 @@ class ErcotAPI:
         Returns:
             pandas.DataFrame: A DataFrame with day-ahead market shadow prices
         """  # noqa
-        # Get data for today through tomorrow (because the data for tomorrow will not
-        # always be available)
         if date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone).date()
-            end = date + pd.Timedelta(days=1)
+            return self.get_shadow_prices_dam("today", verbose=verbose)
 
-        # Assume if there's only a start date, fetch data for that day only
+        # The Ercot API needs to have a start and end filter date, so we must set it.
+        # To ensure we get all the data for the given date, we set the end date to the
+        # date plus one if it is not provided.
         end = end or (date + pd.Timedelta(days=1))
 
         if self._should_use_historical(date):
-            # Have to subtract a day here because this is DAM data and the posted date
-            # is one date before the delivery date
+            # For the historical data, we need to subtract a day because we filter by
+            # posted date
             data = self.get_historical_data(
                 endpoint=SHADOW_PRICES_DAM_ENDPOINT,
                 start_date=date - pd.Timedelta(days=1),
@@ -254,6 +254,8 @@ class ErcotAPI:
                 verbose=verbose,
             )
         else:
+            # For non-historical data, we do not need to subtract a day because filter
+            # by delivery date
             api_params = {
                 "deliveryDateFrom": date,
                 "deliveryDateTo": end,
@@ -305,14 +307,12 @@ class ErcotAPI:
         Returns:
             pandas.DataFrame: A DataFrame with real-time market shadow prices
         """  # noqa
-        # Query for the past two hours because the data is published every hour
         if date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone).floor("h") - pd.Timedelta(
-                hours=1,
-            )
-            end = date + pd.Timedelta(hours=2)
+            return self.get_shadow_prices_sced("today", verbose=verbose)
 
-        # Assume if no end date is provided, we only want data for the given date
+        # The Ercot API needs to have a start and end filter date, so we must set it.
+        # To ensure we get all the data for the given date, we set the end date to the
+        # date plus one if it is not provided.
         end = end or (date + pd.Timedelta(days=1)).normalize()
 
         if self._should_use_historical(date):
@@ -324,8 +324,7 @@ class ErcotAPI:
             )
         else:
             api_params = {
-                # Lag one hour to ensure we get data covering the timestamp requested
-                "SCEDTimestampFrom": date - pd.Timedelta(hours=1),
+                "SCEDTimestampFrom": date,
                 "SCEDTimestampTo": end,
             }
 
