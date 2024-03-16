@@ -36,6 +36,14 @@ SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
 # How long a token lasts for before needing to be refreshed
 TOKEN_EXPIRATION_SECONDS = 3600
 
+# Number of historical links to fetch at once. The max is 1_000
+DEFAULT_HISTORICAL_SIZE = 1_000
+
+# Number of days in past when we should use the historical method
+# NOTE: this seems to vary per dataset. If you get an error about no data available and
+# your date is within this number of the current date, try decreasing this number.
+HISTORICAL_DAYS_THRESHOLD = 90
+
 
 class ErcotAPI:
     """
@@ -74,6 +82,9 @@ class ErcotAPI:
         self.token = None
         self.token_expiry = None
         self.ercot = Ercot()
+
+    def _local_start_of_today(self):
+        return pd.Timestamp("now", tz=self.default_timezone).floor("d")
 
     def get_token(self):
         payload = {
@@ -146,24 +157,33 @@ class ErcotAPI:
         # Since we are filtering on the deliveryDate, there's no need to subtract a day
         # even though this is a day ahead market
         if date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone).date() + pd.Timedelta(
-                days=1,
-            )
+            # The data may not be available for tomorrow yet, so send in parameters
+            # for today through tomorrow.
+            date = pd.Timestamp.now(tz=self.default_timezone).date()
+            end = date + pd.Timedelta(days=1)
 
         # Assume if there's only a start date, fetch data for that day only
-        end = end or date
+        end = end or (date + pd.Timedelta(days=1))
 
-        api_params = {
-            "deliveryDateFrom": date,
-            "deliveryDateTo": end,
-        }
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=DAM_LMP_ENDPOINT,
+                start_date=date - pd.Timedelta(days=1),
+                end_date=end - pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "deliveryDateFrom": date,
+                "deliveryDateTo": end,
+            }
 
-        data = self.hit_ercot_api(
-            endpoint=DAM_LMP_ENDPOINT,
-            page_size=500_000,
-            verbose=verbose,
-            **api_params,
-        )
+            data = self.hit_ercot_api(
+                endpoint=DAM_LMP_ENDPOINT,
+                page_size=500_000,
+                verbose=verbose,
+                **api_params,
+            )
 
         return self.parse_dam_doc(data)
 
@@ -222,19 +242,29 @@ class ErcotAPI:
             end = date + pd.Timedelta(days=1)
 
         # Assume if there's only a start date, fetch data for that day only
-        end = end or date
+        end = end or (date + pd.Timedelta(days=1))
 
-        api_params = {
-            "deliveryDateFrom": date,
-            "deliveryDateTo": end,
-        }
+        if self._should_use_historical(date):
+            # Have to subtract a day here because this is DAM data and the posted date
+            # is one date before the delivery date
+            data = self.get_historical_data(
+                endpoint=SHADOW_PRICES_DAM_ENDPOINT,
+                start_date=date - pd.Timedelta(days=1),
+                end_date=end - pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "deliveryDateFrom": date,
+                "deliveryDateTo": end,
+            }
 
-        data = self.hit_ercot_api(
-            endpoint=SHADOW_PRICES_DAM_ENDPOINT,
-            page_size=50_000,
-            verbose=verbose,
-            **api_params,
-        )
+            data = self.hit_ercot_api(
+                endpoint=SHADOW_PRICES_DAM_ENDPOINT,
+                page_size=50_000,
+                verbose=verbose,
+                **api_params,
+            )
 
         return self._handle_shadow_prices_dam(data, verbose=verbose)
 
@@ -283,19 +313,28 @@ class ErcotAPI:
             end = date + pd.Timedelta(hours=2)
 
         # Assume if no end date is provided, we only want data for the given date
-        end = end or date.normalize() + pd.Timedelta(days=1)
+        end = end or (date + pd.Timedelta(days=1)).normalize() + pd.Timedelta(days=1)
 
-        api_params = {
-            "SCEDTimestampFrom": date - pd.Timedelta(hours=1),
-            "SCEDTimestampTo": end,
-        }
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=SHADOW_PRICES_SCED_ENDPOINT,
+                start_date=date,
+                end_date=end,
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                # Lag one hour to ensure we get data covering the timestamp requested
+                "SCEDTimestampFrom": date - pd.Timedelta(hours=1),
+                "SCEDTimestampTo": end,
+            }
 
-        data = self.hit_ercot_api(
-            endpoint=SHADOW_PRICES_SCED_ENDPOINT,
-            page_size=50_000,
-            verbose=verbose,
-            **api_params,
-        )
+            data = self.hit_ercot_api(
+                endpoint=SHADOW_PRICES_SCED_ENDPOINT,
+                page_size=50_000,
+                verbose=verbose,
+                **api_params,
+            )
 
         return self._handle_shadow_prices_sced(data, verbose=verbose)
 
@@ -359,27 +398,30 @@ class ErcotAPI:
 
     def get_historical_data(
         self,
-        emil_id,
+        endpoint,
         start_date,
         end_date,
-        data_handler,
         verbose=False,
     ):
         """Retrieves historical data from the given emil_id from start to end date.
 
         Arguments:
-            emil_id [str]: a string representing a specific ERCOT EMIL record. Example:
-                if the endpoint is "/np6-345-cd/act_sys_load_by_wzn", the emil_id
-                would be "NP6-345-CD"
+            endpoint: a string representing a specific ERCOT API endpoint.
             start_date: the start date for the historical data
             end_date: the end date for the historical data
-            data_handler: a function that takes the data and returns a parsed dataframe
             verbose: if True, will print out status messages
 
         Returns:
             [pandas.DataFrame]: a dataframe of historical data
         """
+        emil_id = endpoint.split("/")[1]
         links = self._get_historical_data_links(emil_id, start_date, end_date, verbose)
+
+        if not links:
+            raise NoDataFoundException(
+                f"No historical data links found for {endpoint} with",
+                f"time range {start_date} to {end_date}",
+            )
 
         dfs = []
 
@@ -392,28 +434,23 @@ class ErcotAPI:
                 bytes = pd.io.common.BytesIO(response)
 
                 # Decompress the zip file and read the csv
-                df = pd.read_csv(bytes, compression="zip")
-                dfs.append(data_handler(df))
-                time.sleep(0.1)
+                dfs.append(pd.read_csv(bytes, compression="zip"))
+
+                time.sleep(0.1)  # Necessary to avoid rate limiting
+
             except Exception as e:
                 print(f"Link: {link} failed with error: {e}")
+                time.sleep(5)
+                continue
 
         return pd.concat(dfs)
 
     def _get_historical_data_links(self, emil_id, start_date, end_date, verbose=False):
-        """Retrieves links for historical data from the given emil_id from
+        """Retrieves links to download historical data for the given emil_id from
         start to end date.
 
-        Arguments:
-            emil_id [str]: a string representing a specific ERCOT EMIL record. Example:
-                if the endpoint is "/np6-345-cd/act_sys_load_by_wzn", the emil_id
-                would be "NP6-345-CD"
-            start_date: the start date for the historical data
-            end_date: the end date for the historical data
-            verbose: if True, will print out status messages
-
         Returns:
-            [list]: a list of links to historical data
+            [list]: a list of links to download historical data
         """
         urlstring = f"{BASE_URL}/archive/{emil_id}"
 
@@ -422,7 +459,7 @@ class ErcotAPI:
         api_params = {
             "postDatetimeFrom": _timestamp_parser(start_date),
             "postDatetimeTo": _timestamp_parser(end_date),
-            "size": "1000",
+            "size": DEFAULT_HISTORICAL_SIZE,
             "page": page_num,
         }
 
@@ -440,6 +477,7 @@ class ErcotAPI:
         while page_num < total_pages:
             page_num += 1
             api_params["page"] = page_num
+
             response = self.make_api_call(
                 urlstring,
                 api_params=api_params,
@@ -562,6 +600,14 @@ class ErcotAPI:
         data = data.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
 
         return data
+
+    def _should_use_historical(self, date):
+        return utils._handle_date(
+            date,
+            tz=self.default_timezone,
+        ) < self._local_start_of_today() - pd.Timedelta(
+            days=HISTORICAL_DAYS_THRESHOLD,
+        )
 
     def list_all_endpoints(self) -> None:
         """Prints all available endpoints"""
