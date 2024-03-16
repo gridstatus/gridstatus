@@ -313,7 +313,7 @@ class ErcotAPI:
             end = date + pd.Timedelta(hours=2)
 
         # Assume if no end date is provided, we only want data for the given date
-        end = end or (date + pd.Timedelta(days=1)).normalize() + pd.Timedelta(days=1)
+        end = end or (date + pd.Timedelta(days=1)).normalize()
 
         if self._should_use_historical(date):
             data = self.get_historical_data(
@@ -425,7 +425,12 @@ class ErcotAPI:
 
         dfs = []
 
-        for link in tqdm(links, desc="Fetching historical data"):
+        for link in tqdm(
+            links,
+            desc="Fetching historical data",
+            ncols=80,
+            disable=not verbose,
+        ):
             try:
                 # Data comes back as a compressed zip file.
                 response = self.make_api_call(link, verbose=verbose, parse_json=False)
@@ -534,7 +539,11 @@ class ErcotAPI:
         data_results = []
         columns = None
 
-        with tqdm(desc="Paginating results", ncols=80) as progress_bar:
+        with tqdm(
+            desc="Paginating results",
+            ncols=80,
+            disable=not verbose,
+        ) as progress_bar:
             while current_page <= total_pages:
                 if max_pages is not None and current_page > max_pages:
                     break

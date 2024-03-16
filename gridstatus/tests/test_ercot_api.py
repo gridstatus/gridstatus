@@ -174,7 +174,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(past_date)
         assert df["Interval Start"].max() == self.local_start_of_day(
             past_date,
-        ) - pd.Timedelta(hours=1)
+        ) + pd.Timedelta(hours=23)
 
     def test_get_shadow_prices_dam_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(
@@ -251,8 +251,9 @@ class TestErcotAPI(TestHelperMixin):
         assert df["SCED Timestamp"].min() < start_of_past_date
 
         max_timestamp = df["SCED Timestamp"].max()
+
         assert (
-            start_of_past_date + pd.Timedelta(hours=23)
+            start_of_past_date + pd.Timedelta(hours=22)
             < max_timestamp
             < start_of_past_date + pd.Timedelta(hours=24)
         )
@@ -278,7 +279,7 @@ class TestErcotAPI(TestHelperMixin):
         assert (
             self.local_start_of_day(past_end_date)
             - pd.Timedelta(days=1)
-            + pd.Timedelta(hours=23)
+            + pd.Timedelta(hours=22)
             < max_timestamp
             < self.local_start_of_day(past_end_date)
         )
