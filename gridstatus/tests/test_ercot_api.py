@@ -144,7 +144,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_shadow_prices_dam(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date.date())
         assert df["Interval Start"].max() == self.local_start_of_day(
             past_date,
         ) + pd.Timedelta(hours=23)
@@ -163,7 +163,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_shadow_prices_dam(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date.date())
         # The data ends at the end of the day before the end date
         assert df["Interval Start"].max() == self.local_start_of_day(
             past_end_date,
@@ -214,7 +214,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_shadow_prices_sced(df)
 
-        start_of_past_date = self.local_start_of_day(past_date)
+        start_of_past_date = self.local_start_of_day(past_date.date())
 
         assert df["SCED Timestamp"].min() < start_of_past_date
 
@@ -240,16 +240,16 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_shadow_prices_sced(df)
 
-        assert df["SCED Timestamp"].min() < self.local_start_of_day(past_date)
+        assert df["SCED Timestamp"].min() < self.local_start_of_day(past_date.date())
 
         max_timestamp = df["SCED Timestamp"].max()
 
         assert (
-            self.local_start_of_day(past_end_date)
+            self.local_start_of_day(past_end_date.date())
             - pd.Timedelta(days=1)
             + pd.Timedelta(hours=22)
             < max_timestamp
-            < self.local_start_of_day(past_end_date)
+            < self.local_start_of_day(past_end_date.date())
         )
 
     """hit_ercot_api"""
