@@ -440,7 +440,7 @@ class ErcotAPI:
                 # Decompress the zip file and read the csv
                 dfs.append(pd.read_csv(bytes, compression="zip"))
 
-                time.sleep(0.15)  # Necessary to avoid rate limiting
+                time.sleep(0.2)  # Necessary to avoid rate limiting
 
             except Exception as e:
                 print(f"Link: {link} failed with error: {e}")
