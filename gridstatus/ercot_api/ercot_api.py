@@ -41,7 +41,8 @@ DEFAULT_HISTORICAL_SIZE = 1_000
 
 # Number of days in past when we should use the historical method
 # NOTE: this seems to vary per dataset. If you get an error about no data available and
-# your date is within this number of the current date, try decreasing this number.
+# your date is less than this many days in the past, try decreasing this number to
+# search for historical data more recently.
 HISTORICAL_DAYS_THRESHOLD = 90
 
 
@@ -400,15 +401,23 @@ class ErcotAPI:
         endpoint,
         start_date,
         end_date,
+        sleep_seconds=0.1,
         verbose=False,
     ):
         """Retrieves historical data from the given emil_id from start to end date.
+        The historical data endpoint only allows filtering by the postDatetimeTo and
+        postDatetimeFrom parameters. The retrieval process has two steps:
+
+        1. Get the links to download the historical data
+        2. Download the historical data from the links
 
         Arguments:
-            endpoint: a string representing a specific ERCOT API endpoint.
-            start_date: the start date for the historical data
-            end_date: the end date for the historical data
-            verbose: if True, will print out status messages
+            endpoint [str]: a string representing a specific ERCOT API endpoint.
+            start_date [date]: the start date for the historical data
+            end_date [date]: the end date for the historical data
+            sleep_seconds [float]: the number of seconds to sleep between requests.
+                Increase if you are getting rate limited.
+            verbose [bool]: if True, will print out status messages
 
         Returns:
             [pandas.DataFrame]: a dataframe of historical data
@@ -440,11 +449,18 @@ class ErcotAPI:
                 # Decompress the zip file and read the csv
                 dfs.append(pd.read_csv(bytes, compression="zip"))
 
-                time.sleep(0.2)  # Necessary to avoid rate limiting
+                # Necessary to avoid rate limiting
+                time.sleep(sleep_seconds)
 
             except Exception as e:
                 print(f"Link: {link} failed with error: {e}")
-                time.sleep(5)
+                if response.status_code == 429:
+                    # Rate limited, so sleep for a longer time
+                    log(
+                        f"Rate limited. Sleeping for {sleep_seconds * 10} seconds",
+                        verbose,
+                    )
+                    time.sleep(sleep_seconds * 10)
                 continue
 
         return pd.concat(dfs)
@@ -467,27 +483,29 @@ class ErcotAPI:
             "page": page_num,
         }
 
-        response = self.make_api_call(
-            urlstring,
-            api_params=api_params,
-            verbose=verbose,
-        )
+        response = self.make_api_call(urlstring, api_params=api_params, verbose=verbose)
 
         meta = response["_meta"]
-
         total_pages = meta["totalPages"]
         archives = response["archives"]
 
-        while page_num < total_pages:
-            page_num += 1
-            api_params["page"] = page_num
+        with self._create_progress_bar(
+            total_pages,
+            "Fetching historical links",
+            verbose=verbose,
+        ) as pbar:
+            while page_num < total_pages:
+                page_num += 1
+                api_params["page"] = page_num
 
-            response = self.make_api_call(
-                urlstring,
-                api_params=api_params,
-                verbose=verbose,
-            )
-            archives.extend(response["archives"])
+                response = self.make_api_call(
+                    urlstring,
+                    api_params=api_params,
+                    verbose=verbose,
+                )
+                archives.extend(response["archives"])
+
+                pbar.update(1)
 
         links = [
             archive.get("_links").get("endpoint").get("href") for archive in archives
@@ -532,21 +550,49 @@ class ErcotAPI:
         parsed_api_params = self._parse_api_params(endpoint, page_size, api_params)
         urlstring = f"{BASE_URL}{endpoint}"
 
-        # make requests, paginating as needed
         current_page = 1
-        total_pages = 1
-        data_results = []
-        columns = None
+        # Make a first request to get the total number of pages and first data
+        parsed_api_params["page"] = current_page
+        response = self.make_api_call(
+            urlstring,
+            api_params=parsed_api_params,
+            verbose=verbose,
+        )
+        # The data comes back as a list of lists. We get the columns to
+        # create a dataframe after we have all the data
+        columns = [f["name"] for f in response["fields"]]
 
-        with tqdm(
-            desc="Paginating results",
-            ncols=80,
-            disable=not verbose,
-        ) as progress_bar:
-            while current_page <= total_pages:
-                if max_pages is not None and current_page > max_pages:
+        # ensure that there is data before proceeding
+        if "data" not in response or "_meta" not in response:
+            raise NoDataFoundException(
+                f"No data found for {endpoint} with params {api_params}",
+            )
+
+        data_results = response["data"]
+        total_pages = response["_meta"]["totalPages"]
+        pages_to_retrieve = total_pages
+
+        # determine total number of pages to be retrieved
+        if max_pages is not None:
+            pages_to_retrieve = min(total_pages, max_pages)
+
+            if pages_to_retrieve < total_pages:
+                # User requested fewer pages than total
+                print(
+                    f"warning: only retrieving {max_pages} pages "
+                    f"out of {total_pages} total",
+                )
+
+        with self._create_progress_bar(
+            pages_to_retrieve,
+            "Fetching data",
+            verbose=verbose,
+        ) as pbar:
+            while current_page < total_pages:
+                if max_pages is not None and current_page >= max_pages:
                     break
 
+                current_page += 1
                 parsed_api_params["page"] = current_page
 
                 log(
@@ -567,38 +613,8 @@ class ErcotAPI:
                     log(f"Error: {response.get('message')}", verbose)
                     break
 
-                # this section runs on first request/page only
-                if columns is None:
-                    columns = [f["name"] for f in response["fields"]]
-                    # ensure that there is data before proceeding
-                    # note: this logic may be vulnerable to API changes!
-                    if "data" not in response or "_meta" not in response:
-                        break
-                    total_pages = response["_meta"]["totalPages"]
-                    # determine number-of-pages denominator for progress bar
-                    if max_pages is None:
-                        denominator = total_pages
-                    else:
-                        denominator = min(total_pages, max_pages)
-
-                        if denominator < total_pages:
-                            # User requested fewer pages than total
-                            print(
-                                f"warning: only retrieving {max_pages} pages "
-                                f"out of {total_pages} total",
-                            )
-
-                    progress_bar.total = denominator
-                    progress_bar.refresh()
-
                 data_results.extend(response["data"])
-                progress_bar.update(1)
-                current_page += 1
-
-        if not data_results:
-            raise NoDataFoundException(
-                f"No data found for {endpoint} with params {api_params}",
-            )
+                pbar.update(1)
 
         # Capitalize the first letter of each column name but leave the rest alone
         columns = [col[:1].upper() + col[1:] for col in columns]
@@ -659,6 +675,14 @@ class ErcotAPI:
         endpoints = parse_all_endpoints(apijson=endpoints)
 
         return endpoints
+
+    def _create_progress_bar(self, total_pages, desc, verbose):
+        return tqdm(
+            total=total_pages,
+            desc=desc,
+            ncols=80,
+            disable=not verbose,
+        )
 
 
 if __name__ == "__main__":

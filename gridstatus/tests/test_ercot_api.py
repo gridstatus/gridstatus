@@ -252,6 +252,99 @@ class TestErcotAPI(TestHelperMixin):
             < self.local_start_of_day(past_end_date.date())
         )
 
+    """get_historical_data"""
+
+    def test_get_historical_data(self):
+        start_date = datetime.date(2023, 1, 1)
+        end_date = datetime.date(2023, 1, 4)
+
+        data = self.iso.get_historical_data(
+            "/np4-745-cd/spp_hrly_actual_fcast_geo",
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        assert data.columns.tolist() == [
+            "DELIVERY_DATE",
+            "HOUR_ENDING",
+            "GEN_SYSTEM_WIDE",
+            "COP_HSL_SYSTEM_WIDE",
+            "STPPF_SYSTEM_WIDE",
+            "PVGRPP_SYSTEM_WIDE",
+            "GEN_CenterWest",
+            "COP_HSL_CenterWest",
+            "STPPF_CenterWest",
+            "PVGRPP_CenterWest",
+            "GEN_NorthWest",
+            "COP_HSL_NorthWest",
+            "STPPF_NorthWest",
+            "PVGRPP_NorthWest",
+            "GEN_FarWest",
+            "COP_HSL_FarWest",
+            "STPPF_FarWest",
+            "PVGRPP_FarWest",
+            "GEN_FarEast",
+            "COP_HSL_FarEast",
+            "STPPF_FarEast",
+            "PVGRPP_FarEast",
+            "GEN_SouthEast",
+            "COP_HSL_SouthEast",
+            "STPPF_SouthEast",
+            "PVGRPP_SouthEast",
+            "GEN_CenterEast",
+            "COP_HSL_CenterEast",
+            "STPPF_CenterEast",
+            "PVGRPP_CenterEast",
+            "DSTFlag",
+        ]
+
+        data["DELIVERY_DATE"] = pd.to_datetime(data["DELIVERY_DATE"], format="%m/%d/%Y")
+
+        assert data["DELIVERY_DATE"].min().date() == datetime.date(2022, 12, 30)
+        # This a forecast
+        assert data["DELIVERY_DATE"].max().date() == datetime.date(2023, 1, 10)
+        # Any change in the shape would be a regression since this is historical data
+        assert data.shape == (15552, 31)
+
+        start_date = datetime.date(2020, 12, 1)
+        end_date = datetime.date(2020, 12, 2)
+
+        data = self.iso.get_historical_data(
+            "/np4-732-cd/wpp_hrly_avrg_actl_fcast",
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        assert data.columns.tolist() == [
+            "DELIVERY_DATE",
+            "HOUR_ENDING",
+            "ACTUAL_SYSTEM_WIDE",
+            "COP_HSL_SYSTEM_WIDE",
+            "STWPF_SYSTEM_WIDE",
+            "WGRPP_SYSTEM_WIDE",
+            "ACTUAL_LZ_SOUTH_HOUSTON",
+            "COP_HSL_LZ_SOUTH_HOUSTON",
+            "STWPF_LZ_SOUTH_HOUSTON",
+            "WGRPP_LZ_SOUTH_HOUSTON",
+            "ACTUAL_LZ_WEST",
+            "COP_HSL_LZ_WEST",
+            "STWPF_LZ_WEST",
+            "WGRPP_LZ_WEST",
+            "ACTUAL_LZ_NORTH",
+            "COP_HSL_LZ_NORTH",
+            "STWPF_LZ_NORTH",
+            "WGRPP_LZ_NORTH",
+            "DSTFlag",
+        ]
+
+        data["DELIVERY_DATE"] = pd.to_datetime(data["DELIVERY_DATE"], format="%m/%d/%Y")
+        assert data["DELIVERY_DATE"].min().date() == datetime.date(2020, 11, 29)
+        assert data["DELIVERY_DATE"].max().date() == datetime.date(2020, 12, 8)
+
+        # Since this is historical data, we do not except the shape to change. A change
+        # would be a regression.
+        assert data.shape == (5184, 19)
+
     """hit_ercot_api"""
 
     def test_hit_ercot_api(self):
