@@ -1928,7 +1928,7 @@ class Ercot(ISOBase):
             else:
                 df_offers_hourly = (
                     df_offers.groupby(["Delivery Date", "Hour Ending"])
-                    .apply(_make_bid_curve)
+                    .apply(_make_bid_curve, include_groups=False)
                     .reset_index(name=name)
                 )
             all_dfs.append(df_offers_hourly)
@@ -2087,7 +2087,7 @@ class Ercot(ISOBase):
         )
 
         df.sort_values("SCED Timestamp", inplace=True)
-        return df
+        return df[["Interval Start", "Interval End", "SCED Timestamp", "System Lambda"]]
 
     @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(self, date, verbose=False):
@@ -2147,7 +2147,7 @@ class Ercot(ISOBase):
                     "Block Indicator",
                 ],
             )
-            .apply(_handle_offers)
+            .apply(_handle_offers, include_groups=False)
             .reset_index()
         )
 
