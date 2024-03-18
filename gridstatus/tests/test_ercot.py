@@ -83,6 +83,8 @@ class TestErcot(BaseTestISO):
             df = self.iso.get_sced_system_lambda(i, verbose=True)
             assert df.shape[0] >= 0
             assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
                 "SCED Timestamp",
                 "System Lambda",
             ]
@@ -1068,6 +1070,8 @@ class TestErcot(BaseTestISO):
 
     def test_get_lmp_electrical_bus(self):
         cols = [
+            "Interval Start",
+            "Interval End",
             "SCED Timestamp",
             "Market",
             "Location",
@@ -1109,6 +1113,8 @@ class TestErcot(BaseTestISO):
         )
 
         cols = [
+            "Interval Start",
+            "Interval End",
             "SCED Timestamp",
             "Market",
             "Location",
@@ -1118,6 +1124,11 @@ class TestErcot(BaseTestISO):
 
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
+
+        assert (df["Interval Start"] == df["SCED Timestamp"].dt.round("5min")).all()
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
 
     def test_read_docs_return_empty_df(self):
         df = self.iso.read_docs(docs=[], empty_df=pd.DataFrame(columns=["test"]))
