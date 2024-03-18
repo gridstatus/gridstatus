@@ -1040,17 +1040,23 @@ class PJM(ISOBase):
 
         return queue
 
-    @support_date_range(frequency="DAY_START")
+    @support_date_range(frequency=None)
     def get_solar_forecast(self, date, end=None, verbose=False):
         """
-        Retrieves the hourly solar forecast from https://dataminer2.pjm.com/feed/hourly_solar_power_forecast/definition
-        including behind the meter solar forecast
-        """  # noqa: E501
+        Retrieves the hourly solar forecast including behind the meter solar forecast.
+        From:  https://dataminer2.pjm.com/feed/hourly_solar_power_forecast/definition
+        Only available in past 30 days
+        """
+        if date == "latest":
+            date = "today"
+
         df = self._get_pjm_json(
             "hourly_solar_power_forecast",
             start=date,
             params={
-                "fields": "datetime_beginning_ept,datetime_beginning_utc,datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,evaluated_at_utc,solar_forecast_btm_mwh,solar_forecast_mwh",  # noqa: E501
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,"
+                "evaluated_at_utc,solar_forecast_btm_mwh,solar_forecast_mwh",
             },
             end=end,
             filter_timestamp_name="evaluated_at",
@@ -1064,7 +1070,7 @@ class PJM(ISOBase):
         df = df.rename(
             columns={
                 "evaluated_at_utc": "Forecast Time",
-                "solar_forecast_btm_mwh": "Solar Forecast (Behind the Meter)",
+                "solar_forecast_btm_mwh": "Solar Forecast BTM",
                 "solar_forecast_mwh": "Solar Forecast",
             },
         )
@@ -1079,24 +1085,32 @@ class PJM(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Forecast Time",
-                "Solar Forecast (Behind the Meter)",
+                "Solar Forecast BTM",
                 "Solar Forecast",
             ]
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
 
-    @support_date_range(frequency="DAY_START")
-    def get_wind_forecast(self, date, end, verbose=False):
+    @support_date_range(frequency=None)
+    def get_wind_forecast(self, date, end=None, verbose=False):
         """
-        Retrieves the houly wind forecast from vhttps://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
-        """  # noqa: E501
+        Retrieves the hourly wind forecast
+        From: vhttps://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
+        Only available in past 30 days
+        """
+        if date == "latest":
+            date = "today"
+
         df = self._get_pjm_json(
             "hourly_wind_power_forecast",
             start=date,
             params={
-                "fields": "datetime_beginning_ept,datetime_beginning_utc,datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,evaluated_at_utc,wind_forecast_mwh",  # noqa: E501
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,"
+                "evaluated_at_utc,wind_forecast_mwh",
             },
+            end=end,
             filter_timestamp_name="evaluated_at",
             interval_duration_min=60,
             verbose=verbose,
