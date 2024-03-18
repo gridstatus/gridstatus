@@ -317,6 +317,22 @@ class TestPJM(BaseTestISO):
             end,
         ]
 
+    """get_solar_forecast"""
+
+    def test_get_solar_forecast_today(self):
+        pass
+
+    def test_get_solar_forecast_historical_range(self):
+        pass
+
+    """get_wind_forecast"""
+
+    def test_get_wind_forecast_today(self):
+        pass
+
+    def test_get_wind_forecast_historical_range(self):
+        pass
+
     def _lmp_tests(self, m):
         # uses location_type hub because it has the fewest results, so runs faster
 
