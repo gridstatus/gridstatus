@@ -427,9 +427,10 @@ class PJM(ISOBase):
                 at https://www.pjm.com/
         """
         super().__init__()
-        self._api_key = api_key or os.getenv("PJM_API_KEY")
+        self.retries = retries
+        self.api_key = api_key or os.getenv("PJM_API_KEY")
 
-        if not self._api_key:
+        if not self.api_key:
             raise ValueError("api_key must be provided or set in PJM_API_KEY env var")
 
     @support_date_range(frequency="365D")
