@@ -22,16 +22,30 @@ BASE_URL = "https://api.ercot.com/api/public-reports"
 # This file is publicly available and contains the full list of endpoints and their parameters # noqa
 ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"  # noqa
 
-# https://data.ercot.com/data-product-archive/NP4-183-CD
-DAM_LMP_HOURLY_EMIL_ID = "NP4-183-CD"
-DAM_LMP_ENDPOINT = "/np4-183-cd/dam_hourly_lmp"
+# https://data.ercot.com/data-product-archive/NP4-188-CD
+AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
 
+# https://data.ercot.com/data-product-archive/NP3-911-ER
+AS_REPORTS_ENDPOINT = "/np3-911-er/2d_self_arranged_as_rrsffr"
+
+# https://data.ercot.com/data-product-archive/NP4-745-CD
+HOURLY_SOLAR_REPORT_ENDPOINT = "/np4-745-cd/spp_hrly_actual_fcast_geo"
+
+#  https://data.ercot.com/data-product-archive/NP6-788-CD
+LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-788-cd/lmp_node_zone_hub"
+
+# https://data.ercot.com/data-product-archive/NP3-233-CD
+HOURLY_RESOURCE_OUTAGE_CAPACITY_REPORTS_ENDPOINT = "/np3-233-cd/hourly_res_outage_cap"
+
+# https://data.ercot.com/data-product-archive/NP4-183-CD
+DAM_LMP_ENDPOINT = "/np4-183-cd/dam_hourly_lmp"
 
 # https://data.ercot.com/data-product-archive/NP4-191-CD
 SHADOW_PRICES_DAM_ENDPOINT = "/np4-191-cd/dam_shadow_prices"
 
 # https://data.ercot.com/data-product-archive/NP6-86-CD
 SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
+
 
 # How long a token lasts for before needing to be refreshed
 TOKEN_EXPIRATION_SECONDS = 3600
@@ -147,6 +161,111 @@ class ErcotAPI:
         return self.make_api_call(BASE_URL, verbose=verbose)
 
     @support_date_range(frequency=None)
+    def get_as_prices(self, date, end=None, verbose=False):
+        """Get Ancillary Services Prices
+
+        Arguments:
+            date (str): the date to fetch prices for. Can be "latest" to fetch the next
+                day's prices.
+            end (str, optional): the end date to fetch prices for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with ancillary services prices
+        """
+        if date == "latest":
+            return self.get_as_prices("today", verbose=verbose)
+
+        end = end or (date + pd.Timedelta(days=1))
+
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                # Need to subtract 1 because we filter by posted date and this data
+                # is day-ahead
+                endpoint=AS_PRICES_ENDPOINT,
+                start_date=date - pd.Timedelta(days=1),
+                end_date=end - pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "deliveryDateFrom": date,
+                "deliveryDateTo": end,
+            }
+
+            data = self.hit_ercot_api(
+                endpoint=AS_PRICES_ENDPOINT,
+                page_size=500_000,
+                verbose=verbose,
+                **api_params,
+            )
+
+        return self._handle_as_prices(data, verbose=verbose)
+
+    def _handle_as_prices(self, data, verbose=False):
+        data = self.ercot.parse_doc(data, verbose=verbose)
+        data = self.ercot._finalize_as_price_df(data, pivot=True)
+
+        return (
+            data.sort_values(["Interval Start"])
+            .drop(columns=["Time"])
+            .reset_index(
+                drop=True,
+            )
+        )
+
+    @support_date_range(frequency=None)
+    def get_as_reports(self, date, end=None, verbose=False):
+        """Get Ancillary Services Reports
+
+        Arguments:
+            date (str): the date to fetch reports for. Can be "latest" to fetch the next
+                day's reports.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with ancillary services reports
+        """
+        if date == "latest":
+            return self.get_as_reports("today", verbose=verbose)
+
+        end = end or (date + pd.Timedelta(days=1))
+
+        api_params = {
+            "deliveryDateFrom": date,
+            "deliveryDateTo": end,
+        }
+        self.hit_ercot_api(
+            "/np3-911-er/2d_self_arranged_as_rrsffr",
+            page_size=500_000,
+            verbose=verbose,
+            **api_params,
+        )
+
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=AS_REPORTS_ENDPOINT,
+                start_date=date - pd.Timedelta(days=1),
+                end_date=end - pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "deliveryDateFrom": date,
+                "deliveryDateTo": end,
+            }
+
+            data = self.hit_ercot_api(
+                endpoint=AS_REPORTS_ENDPOINT,
+                page_size=500_000,
+                verbose=verbose,
+                **api_params,
+            )
+
+        return self.ercot.parse_doc(data, verbose=verbose)
+
+    @support_date_range(frequency=None)
     def get_lmp_by_bus_dam(self, date, end=None, verbose=False):
         """
         Retrieves the hourly Day Ahead Market (DAM) Location Marginal Prices (LMPs)
@@ -165,7 +284,7 @@ class ErcotAPI:
 
         if self._should_use_historical(date):
             # For historical data, we need to subtract a day because we filter by
-            # posted date
+            # posted date and this is day-ahead data
             data = self.get_historical_data(
                 endpoint=DAM_LMP_ENDPOINT,
                 start_date=date - pd.Timedelta(days=1),
@@ -401,6 +520,7 @@ class ErcotAPI:
         endpoint,
         start_date,
         end_date,
+        read_as_csv=True,
         sleep_seconds=0.1,
         verbose=False,
     ):
@@ -446,8 +566,11 @@ class ErcotAPI:
                 # Convert the bytes to a file-like object
                 bytes = pd.io.common.BytesIO(response)
 
-                # Decompress the zip file and read the csv
-                dfs.append(pd.read_csv(bytes, compression="zip"))
+                if not read_as_csv:
+                    dfs.append(bytes)
+                else:
+                    # Decompress the zip file and read the csv
+                    dfs.append(pd.read_csv(bytes, compression="zip"))
 
                 # Necessary to avoid rate limiting
                 time.sleep(sleep_seconds)
@@ -463,7 +586,7 @@ class ErcotAPI:
                     time.sleep(sleep_seconds * 10)
                 continue
 
-        return pd.concat(dfs)
+        return pd.concat(dfs) if read_as_csv else dfs
 
     def _get_historical_data_links(self, emil_id, start_date, end_date, verbose=False):
         """Retrieves links to download historical data for the given emil_id from
