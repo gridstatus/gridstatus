@@ -1900,8 +1900,8 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_hourly_resource_outage_capacity(self, doc, verbose=False):
-        df = self.read_doc(doc, parse=False, verbose=verbose)
+    def _handle_hourly_resource_outage_capacity(self, doc, verbose=False, df=None):
+        df = self.read_doc(doc, parse=False, verbose=verbose) if df is None else df
         # there is no DST flag column
         # and the data set ignores DST
         # so, we will default to assuming it is DST. We will also

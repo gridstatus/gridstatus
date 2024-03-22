@@ -20,7 +20,9 @@ TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
 # This file is publicly available and contains the full list of endpoints and their parameters # noqa
-ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"  # noqa
+ENDPOINTS_MAP_URL = (
+    "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"  # noqa
+)
 
 # https://data.ercot.com/data-product-archive/NP4-188-CD
 AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
@@ -308,6 +310,49 @@ class ErcotAPI:
         return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
 
     @support_date_range(frequency=None)
+    def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
+        """Get Hourly Resource Outage Capacity Reports
+
+        Arguments:
+            date (str): the date to fetch reports for.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly resource outage capacity reports
+        """
+        if date == "latest":
+            return self.get_hourly_resource_outage_capacity("today", verbose=verbose)
+
+        end = end or (date + pd.Timedelta(days=1))
+
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=HOURLY_RESOURCE_OUTAGE_CAPACITY_REPORTS_ENDPOINT,
+                start_date=date,
+                end_date=end,
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "operatingDateFrom": date,
+                "operatingDateTo": end,
+            }
+
+            data = self.hit_ercot_api(
+                endpoint=HOURLY_RESOURCE_OUTAGE_CAPACITY_REPORTS_ENDPOINT,
+                page_size=500_000,
+                verbose=verbose,
+                **api_params,
+            )
+
+        self.ercot.parse_doc(data, verbose=verbose)
+
+        return self.ercot._handle_hourly_resource_outage_capacity(
+            doc=None, verbose=verbose, df=data
+        )
+
+    @support_date_range(frequency=None)
     def get_lmp_by_bus_dam(self, date, end=None, verbose=False):
         """
         Retrieves the hourly Day Ahead Market (DAM) Location Marginal Prices (LMPs)
@@ -563,7 +608,7 @@ class ErcotAPI:
         start_date,
         end_date,
         read_as_csv=True,
-        sleep_seconds=0.05,
+        sleep_seconds=0.25,
         verbose=False,
     ):
         """Retrieves historical data from the given emil_id from start to end date.
