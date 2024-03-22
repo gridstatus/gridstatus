@@ -563,7 +563,7 @@ class ErcotAPI:
         start_date,
         end_date,
         read_as_csv=True,
-        sleep_seconds=0.1,
+        sleep_seconds=0.05,
         verbose=False,
     ):
         """Retrieves historical data from the given emil_id from start to end date.
