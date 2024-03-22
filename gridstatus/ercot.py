@@ -2057,12 +2057,28 @@ class Ercot(ISOBase):
             "OFFNS",
         ]
 
+        # Some of these produces are not in earlier data
+        exclude_products = [
+            "ECRSM",
+            "ECRSS",
+            "NSPNM",
+            "RRSFFR",
+            "RRSUFR",
+            "RRSPFR",
+        ]
+
+        prefix = "2d"
+
+        # Earlier prefixes are 48h
+        if z.namelist()[0].split("_")[0] == "48h":
+            prefix = "48h"
+
         all_dfs = []
         for as_name in cleared_products:
             suffix = f"{as_name}-{date_str}.csv"
-            cleared = f"2d_Cleared_DAM_AS_{suffix}"
+            cleared = f"{prefix}_Cleared_DAM_AS_{suffix}"
 
-            if as_name in ["ECRSM", "ECRSS"] and cleared not in z.namelist():
+            if as_name in exclude_products and cleared not in z.namelist():
                 continue
 
             df_cleared = pd.read_csv(z.open(cleared))
@@ -2070,9 +2086,9 @@ class Ercot(ISOBase):
 
         for as_name in self_arranged_products:
             suffix = f"{as_name}-{date_str}.csv"
-            self_arranged = f"2d_Self_Arranged_AS_{suffix}"
+            self_arranged = f"{prefix}_Self_Arranged_AS_{suffix}"
 
-            if as_name in ["ECRSM", "ECRSS"] and self_arranged not in z.namelist():
+            if as_name in exclude_products and self_arranged not in z.namelist():
                 continue
 
             df_self_arranged = pd.read_csv(z.open(self_arranged))
@@ -2086,9 +2102,9 @@ class Ercot(ISOBase):
 
         for as_name in offers_products:
             suffix = f"{as_name}-{date_str}.csv"
-            offers = f"2d_Agg_AS_Offers_{suffix}"
+            offers = f"{prefix}_Agg_AS_Offers_{suffix}"
 
-            if as_name in ["ECRSM", "ECRSS"] and offers not in z.namelist():
+            if as_name in exclude_products and offers not in z.namelist():
                 continue
 
             df_offers = pd.read_csv(z.open(offers))
