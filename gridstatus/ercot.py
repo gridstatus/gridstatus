@@ -2018,8 +2018,8 @@ class Ercot(ISOBase):
 
         return self._handle_as_reports_file(doc.url, verbose=verbose)
 
-    def _handle_as_reports_file(self, file_path, verbose):
-        z = utils.get_zip_folder(file_path, verbose=verbose)
+    def _handle_as_reports_file(self, file_path, verbose, **kwargs):
+        z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
         # extract the date from the file name
         date_str = z.namelist()[0][-13:-4]

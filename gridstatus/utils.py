@@ -198,10 +198,10 @@ def get_zip_file(url, verbose=False):
     return z.open(z.namelist()[0])
 
 
-def get_zip_folder(url, verbose=False):
+def get_zip_folder(url, verbose=False, **kwargs):
     msg = f"Requesting {url}"
     log(msg, verbose)
-    r = requests.get(url)
+    r = requests.get(url, **kwargs)
     z = ZipFile(io.BytesIO(r.content))
     return z
 

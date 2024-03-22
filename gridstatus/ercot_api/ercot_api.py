@@ -26,7 +26,7 @@ ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/puba
 AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
 
 # https://data.ercot.com/data-product-archive/NP3-911-ER
-AS_REPORTS_ENDPOINT = "/np3-911-er/2d_self_arranged_as_rrsffr"
+AS_REPORTS_EMIL_ID = "np3-911-er"
 
 # https://data.ercot.com/data-product-archive/NP4-745-CD
 HOURLY_SOLAR_REPORT_ENDPOINT = "/np4-745-cd/spp_hrly_actual_fcast_geo"
@@ -125,6 +125,17 @@ class ErcotAPI:
         if not self.token or time.time() >= self.token_expiry:
             self.get_token()
 
+    def headers(self):
+        self.refresh_token_if_needed()
+
+        # Both forms of authentication are required
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Ocp-Apim-Subscription-Key": self.subscription_key,
+        }
+
+        return headers
+
     def make_api_call(
         self,
         url,
@@ -134,20 +145,17 @@ class ErcotAPI:
         parse_json=True,
         verbose=False,
     ):
-        self.refresh_token_if_needed()
-
-        # Both forms of authentication are required
-        headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Ocp-Apim-Subscription-Key": self.subscription_key,
-        }
-
         log(f"Requesting url: {url} with params: {api_params}", verbose)
 
         if method == "GET":
-            response = requests.get(url, params=api_params, headers=headers)
+            response = requests.get(url, params=api_params, headers=self.headers())
         elif method == "POST":
-            response = requests.post(url, params=api_params, headers=headers, data=data)
+            response = requests.post(
+                url,
+                params=api_params,
+                headers=self.headers(),
+                data=data,
+            )
         else:
             raise ValueError("Unsupported method")
 
@@ -219,51 +227,37 @@ class ErcotAPI:
         """Get Ancillary Services Reports
 
         Arguments:
-            date (str): the date to fetch reports for. Can be "latest" to fetch the next
-                day's reports.
+            date (str): the date to fetch reports for.
             end (str, optional): the end date to fetch reports for. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
             pandas.DataFrame: A DataFrame with ancillary services reports
         """
-        if date == "latest":
-            return self.get_as_reports("today", verbose=verbose)
+        if date in ["latest", "today"]:
+            raise ValueError("Cannot get AS reports for 'latest' or 'today'")
 
-        end = end or (date + pd.Timedelta(days=1))
+        # Published with a 2-day delay
+        report_date = date.normalize() + pd.DateOffset(days=2)
+        end = end or (report_date + pd.Timedelta(days=1))
 
-        api_params = {
-            "deliveryDateFrom": date,
-            "deliveryDateTo": end,
-        }
-        self.hit_ercot_api(
-            "/np3-911-er/2d_self_arranged_as_rrsffr",
-            page_size=500_000,
+        urls = self._get_historical_data_links(
+            emil_id=AS_REPORTS_EMIL_ID,
+            start_date=report_date,
+            end_date=end,
             verbose=verbose,
-            **api_params,
         )
 
-        if self._should_use_historical(date):
-            data = self.get_historical_data(
-                endpoint=AS_REPORTS_ENDPOINT,
-                start_date=date - pd.Timedelta(days=1),
-                end_date=end - pd.Timedelta(days=1),
+        dfs = [
+            self.ercot._handle_as_reports_file(
+                url,
                 verbose=verbose,
+                headers=self.headers(),
             )
-        else:
-            api_params = {
-                "deliveryDateFrom": date,
-                "deliveryDateTo": end,
-            }
+            for url in urls
+        ]
 
-            data = self.hit_ercot_api(
-                endpoint=AS_REPORTS_ENDPOINT,
-                page_size=500_000,
-                verbose=verbose,
-                **api_params,
-            )
-
-        return self.ercot.parse_doc(data, verbose=verbose)
+        return pd.concat(dfs).reset_index(drop=True).drop(columns=["Time"])
 
     @support_date_range(frequency=None)
     def get_lmp_by_bus_dam(self, date, end=None, verbose=False):
