@@ -2310,8 +2310,13 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_three_day_highest_price_as_offer_selected_file(self, doc, verbose):
-        df = self.read_doc(doc, verbose=verbose)
+    def _handle_three_day_highest_price_as_offer_selected_file(
+        self,
+        doc,
+        verbose=False,
+        df=None,
+    ):
+        df = self.read_doc(doc, verbose=verbose) if df is None else df
 
         df = df.rename(
             columns={
