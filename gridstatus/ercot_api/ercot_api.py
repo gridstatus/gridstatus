@@ -25,6 +25,8 @@ ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/puba
 # https://data.ercot.com/data-product-archive/NP4-188-CD
 AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
 
+# We only use the historical API for AS REPORTS because those downloads are easier
+# to parse (all the files are included in one zip file)
 # https://data.ercot.com/data-product-archive/NP3-911-ER
 AS_REPORTS_EMIL_ID = "np3-911-er"
 
@@ -258,6 +260,52 @@ class ErcotAPI:
         ]
 
         return pd.concat(dfs).reset_index(drop=True).drop(columns=["Time"])
+
+    @support_date_range(frequency=None)
+    def get_lmp_by_settlement_point(self, date, end=None, verbose=False):
+        """Get Locational Marginal Prices by Settlement Point
+
+        Arguments:
+            date (str): the date to fetch prices for. Can be "latest" to fetch the next
+                day's prices.
+            end (str, optional): the end date to fetch prices for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with locational marginal prices
+        """
+        if date == "latest":
+            return self.get_lmp_by_settlement_point("today", verbose=verbose)
+
+        end = end or (date + pd.Timedelta(days=1))
+
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=LMP_BY_SETTLEMENT_POINT_ENDPOINT,
+                start_date=date,
+                end_date=end,
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "SCEDTimestampFrom": date,
+                "SCEDTimestampTo": end,
+            }
+
+            data = self.hit_ercot_api(
+                endpoint=LMP_BY_SETTLEMENT_POINT_ENDPOINT,
+                page_size=500_000,
+                verbose=verbose,
+                **api_params,
+            )
+
+        data = self.ercot._handle_lmp(
+            docs=None,
+            verbose=verbose,
+            df=data.rename(columns={"RepeatHourFlag": "RepeatedHourFlag"}),
+        )
+
+        return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
 
     @support_date_range(frequency=None)
     def get_lmp_by_bus_dam(self, date, end=None, verbose=False):

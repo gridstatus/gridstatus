@@ -1051,23 +1051,24 @@ class Ercot(ISOBase):
 
         return self._handle_lmp(docs=docs, verbose=verbose)
 
-    def _handle_lmp(self, docs, verbose=False, sced=True):
-        df = self.read_docs(
-            docs,
-            parse=False,
-            # need to return a DF that works with the
-            # logic in rest of function
-            empty_df=pd.DataFrame(
-                columns=[
-                    "SCEDTimestamp",
-                    "RepeatedHourFlag",
-                    "Location",
-                    "Location Type",
-                    "LMP",
-                ],
-            ),
-            verbose=verbose,
-        )
+    def _handle_lmp(self, docs, verbose=False, sced=True, df=None):
+        if df is None:
+            df = self.read_docs(
+                docs,
+                parse=False,
+                # need to return a DF that works with the
+                # logic in rest of function
+                empty_df=pd.DataFrame(
+                    columns=[
+                        "SCEDTimestamp",
+                        "RepeatedHourFlag",
+                        "Location",
+                        "Location Type",
+                        "LMP",
+                    ],
+                ),
+                verbose=verbose,
+            )
 
         df = self._handle_sced_timestamp(df=df, verbose=verbose)
 
