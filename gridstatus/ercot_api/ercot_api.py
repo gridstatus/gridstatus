@@ -20,9 +20,7 @@ TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
 # This file is publicly available and contains the full list of endpoints and their parameters # noqa
-ENDPOINTS_MAP_URL = (
-    "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"  # noqa
-)
+ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"  # noqa
 
 # https://data.ercot.com/data-product-archive/NP4-188-CD
 AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
@@ -245,12 +243,14 @@ class ErcotAPI:
         report_date = date.normalize() + pd.DateOffset(days=2)
         end = end or (report_date + pd.Timedelta(days=1))
 
-        urls = self._get_historical_data_links(
+        links_and_posted_datetimes = self._get_historical_data_links(
             emil_id=AS_REPORTS_EMIL_ID,
             start_date=report_date,
             end_date=end,
             verbose=verbose,
         )
+
+        urls = [tup[0] for tup in links_and_posted_datetimes]
 
         dfs = [
             self.ercot._handle_as_reports_file(
@@ -326,30 +326,42 @@ class ErcotAPI:
 
         end = end or (date + pd.Timedelta(days=1))
 
-        if self._should_use_historical(date):
-            data = self.get_historical_data(
-                endpoint=HOURLY_RESOURCE_OUTAGE_CAPACITY_REPORTS_ENDPOINT,
-                start_date=date,
-                end_date=end,
+        data = self.get_historical_data(
+            endpoint=HOURLY_RESOURCE_OUTAGE_CAPACITY_REPORTS_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            add_post_datetime=True,
+        )
+
+        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        data = self.ercot.parse_doc(
+            data,
+            # there is no DST flag column and the data set ignores DST
+            # so, we will default to assuming it is DST. We will also
+            # set nonexistent times to NaT and drop them
+            dst_ambiguous_default=True,
+            nonexistent="NaT",
+            verbose=verbose,
+        )
+
+        data = utils.move_cols_to_front(
+            data,
+            ["Interval Start", "Interval End", "Publish Time"],
+        )
+
+        return (
+            self.ercot._handle_hourly_resource_outage_capacity(
+                doc=None,
                 verbose=verbose,
+                df=data,
             )
-        else:
-            api_params = {
-                "operatingDateFrom": date,
-                "operatingDateTo": end,
-            }
-
-            data = self.hit_ercot_api(
-                endpoint=HOURLY_RESOURCE_OUTAGE_CAPACITY_REPORTS_ENDPOINT,
-                page_size=500_000,
-                verbose=verbose,
-                **api_params,
-            )
-
-        self.ercot.parse_doc(data, verbose=verbose)
-
-        return self.ercot._handle_hourly_resource_outage_capacity(
-            doc=None, verbose=verbose, df=data
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+            .drop(columns=["Time", "postDatetime"])
         )
 
     @support_date_range(frequency=None)
@@ -609,6 +621,7 @@ class ErcotAPI:
         end_date,
         read_as_csv=True,
         sleep_seconds=0.25,
+        add_post_datetime=False,
         verbose=False,
     ):
         """Retrieves historical data from the given emil_id from start to end date.
@@ -630,21 +643,29 @@ class ErcotAPI:
             [pandas.DataFrame]: a dataframe of historical data
         """
         emil_id = endpoint.split("/")[1]
-        links = self._get_historical_data_links(emil_id, start_date, end_date, verbose)
+        links_and_post_datetimes = self._get_historical_data_links(
+            emil_id,
+            start_date,
+            end_date,
+            verbose,
+        )
 
-        if not links:
+        if not links_and_post_datetimes:
             raise NoDataFoundException(
                 f"No historical data links found for {endpoint} with",
                 f"time range {start_date} to {end_date}",
             )
 
+        links, post_datetimes = zip(*links_and_post_datetimes)
+
         dfs = []
 
-        for link in tqdm(
-            links,
+        for link, posted_datetime in tqdm(
+            zip(links, post_datetimes),
             desc="Fetching historical data",
             ncols=80,
             disable=not verbose,
+            total=len(links),
         ):
             try:
                 # Data comes back as a compressed zip file.
@@ -657,7 +678,12 @@ class ErcotAPI:
                     dfs.append(bytes)
                 else:
                     # Decompress the zip file and read the csv
-                    dfs.append(pd.read_csv(bytes, compression="zip"))
+                    df = pd.read_csv(bytes, compression="zip")
+
+                    if add_post_datetime:
+                        df["postDatetime"] = posted_datetime
+
+                    dfs.append(df)
 
                 # Necessary to avoid rate limiting
                 time.sleep(sleep_seconds)
@@ -717,13 +743,17 @@ class ErcotAPI:
 
                 pbar.update(1)
 
-        links = [
-            archive.get("_links").get("endpoint").get("href") for archive in archives
+        links_and_post_datetimes = [
+            (
+                archive.get("_links").get("endpoint").get("href"),
+                archive.get("postDatetime"),
+            )
+            for archive in archives
         ]
 
-        log(f"Found {len(links)} archives", verbose)
+        log(f"Found {len(links_and_post_datetimes)} archives", verbose)
 
-        return links
+        return links_and_post_datetimes
 
     def hit_ercot_api(
         self,

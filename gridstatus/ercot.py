@@ -1901,25 +1901,26 @@ class Ercot(ISOBase):
         return df
 
     def _handle_hourly_resource_outage_capacity(self, doc, verbose=False, df=None):
-        df = self.read_doc(doc, parse=False, verbose=verbose) if df is None else df
-        # there is no DST flag column
-        # and the data set ignores DST
-        # so, we will default to assuming it is DST. We will also
-        # set nonexistent times to NaT and drop them
-        df = self.parse_doc(
-            df,
-            dst_ambiguous_default=True,
-            nonexistent="NaT",
-            verbose=verbose,
-        )
+        if df is None:
+            df = self.read_doc(doc, parse=False, verbose=verbose)
+            # there is no DST flag column
+            # and the data set ignores DST
+            # so, we will default to assuming it is DST. We will also
+            # set nonexistent times to NaT and drop them
+            df = self.parse_doc(
+                df,
+                dst_ambiguous_default=True,
+                nonexistent="NaT",
+                verbose=verbose,
+            )
 
-        df = df.dropna(subset=["Interval Start"])
+            df = df.dropna(subset=["Interval Start"])
 
-        df.insert(
-            0,
-            "Publish Time",
-            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
-        )
+            df.insert(
+                0,
+                "Publish Time",
+                pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+            )
 
         outage_types = ["Total Resource", "Total IRR", "Total New Equip Resource"]
 
