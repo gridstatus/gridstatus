@@ -1959,8 +1959,8 @@ class Ercot(ISOBase):
             df = df.rename(
                 columns={
                     "TotalResourceMW": "Total Resource MW",
-                    "TotalIRR": "Total IRR",
-                    "TotalNewEquipResource": "Total New Equip Resource",
+                    "TotalIRRMW": "Total IRR MW",
+                    "TotalNewEquipResourceMW": "Total New Equip Resource MW",
                 },
             )
         return df
