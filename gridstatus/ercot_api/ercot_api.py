@@ -620,7 +620,7 @@ class ErcotAPI:
         start_date,
         end_date,
         read_as_csv=True,
-        sleep_seconds=0.1,
+        sleep_seconds=0.05,
         add_post_datetime=False,
         verbose=False,
     ):
