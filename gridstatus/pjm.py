@@ -1150,12 +1150,3 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
-
-    def _get_key(self):
-        # Not using retries here, should we be?
-        settings = self._get_json(
-            "https://dataminer2.pjm.com/config/settings.json",
-            verbose=False,
-        )
-
-        return settings["subscriptionKey"]
