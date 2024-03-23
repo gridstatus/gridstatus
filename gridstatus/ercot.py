@@ -2328,12 +2328,6 @@ class Ercot(ISOBase):
             date=report_date,
             verbose=verbose,
         )
-        import IPython
-
-        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
-            "last_expr_or_assign"
-        )
-        IPython.embed()
 
         df = self._handle_three_day_highest_price_as_offer_selected_file(doc, verbose)
 
@@ -2377,6 +2371,7 @@ class Ercot(ISOBase):
                     "AS Type",
                     "Block Indicator",
                 ],
+                dropna=False,  # Have to include missing because older data
             )
             .apply(_handle_offers, include_groups=False)
             .reset_index()
