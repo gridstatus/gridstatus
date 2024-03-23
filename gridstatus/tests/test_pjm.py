@@ -345,7 +345,7 @@ class TestPJM(BaseTestISO):
         )
 
         assert (
-            df["Forecast Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+            df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
             == self.local_today()
         ).all()
 
@@ -363,9 +363,9 @@ class TestPJM(BaseTestISO):
             past_date,
         ) + pd.Timedelta(days=2)
 
-        assert df["Forecast Time"].min() == self.local_start_of_day(past_date)
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # This data also includes one forecast time on the next day
-        assert df["Forecast Time"].max() == self.local_start_of_day(
+        assert df["Publish Time"].max() == self.local_start_of_day(
             past_date,
         ) + pd.Timedelta(days=1)
 
@@ -382,9 +382,9 @@ class TestPJM(BaseTestISO):
             past_end_date,
         ) + pd.Timedelta(days=2)
 
-        assert df["Forecast Time"].min() == self.local_start_of_day(past_date)
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # This data also includes one forecast time on the next day
-        assert df["Forecast Time"].max() == self.local_start_of_day(past_end_date)
+        assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
 
     """get_wind_forecast"""
 
@@ -417,7 +417,7 @@ class TestPJM(BaseTestISO):
         )
 
         assert (
-            df["Forecast Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+            df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
             == self.local_today()
         ).all()
 
@@ -437,9 +437,9 @@ class TestPJM(BaseTestISO):
             past_date,
         ) + pd.Timedelta(days=2, hours=5)
 
-        assert df["Forecast Time"].min() == self.local_start_of_day(past_date)
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # This data also includes one forecast time on the next day
-        assert df["Forecast Time"].max() == self.local_start_of_day(
+        assert df["Publish Time"].max() == self.local_start_of_day(
             past_date,
         ) + pd.Timedelta(days=1)
 
@@ -459,9 +459,9 @@ class TestPJM(BaseTestISO):
             past_end_date,
         ) + pd.Timedelta(days=2)
 
-        assert df["Forecast Time"].min() == self.local_start_of_day(past_date)
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # This data also includes one forecast time on the next day
-        assert df["Forecast Time"].max() == self.local_start_of_day(past_end_date)
+        assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
 
     """_lmp_tests"""
 
