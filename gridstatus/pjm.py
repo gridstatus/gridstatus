@@ -1069,14 +1069,14 @@ class PJM(ISOBase):
     def _parse_solar_forecast(self, df):
         df = df.rename(
             columns={
-                "evaluated_at_utc": "Forecast Time",
+                "evaluated_at_utc": "Publish Time",
                 "solar_forecast_btm_mwh": "Solar Forecast BTM",
                 "solar_forecast_mwh": "Solar Forecast",
             },
         )
 
-        df["Forecast Time"] = pd.to_datetime(
-            df["Forecast Time"],
+        df["Publish Time"] = pd.to_datetime(
+            df["Publish Time"],
             utc=True,
         ).dt.tz_convert(self.default_timezone)
 
@@ -1084,7 +1084,7 @@ class PJM(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "Forecast Time",
+                "Publish Time",
                 "Solar Forecast BTM",
                 "Solar Forecast",
             ]
@@ -1121,13 +1121,13 @@ class PJM(ISOBase):
     def _parse_wind_forecast(self, df):
         df = df.rename(
             columns={
-                "evaluated_at_utc": "Forecast Time",
+                "evaluated_at_utc": "Publish Time",
                 "wind_forecast_mwh": "Wind Forecast",
             },
         )
 
-        df["Forecast Time"] = pd.to_datetime(
-            df["Forecast Time"],
+        df["Publish Time"] = pd.to_datetime(
+            df["Publish Time"],
             utc=True,
         ).dt.tz_convert(self.default_timezone)
 
@@ -1135,7 +1135,7 @@ class PJM(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "Forecast Time",
+                "Publish Time",
                 "Wind Forecast",
             ]
         ]

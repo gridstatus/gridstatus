@@ -323,7 +323,7 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Forecast Time",
+            "Publish Time",
             "Solar Forecast BTM",
             "Solar Forecast",
         ]
@@ -392,7 +392,7 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Forecast Time",
+            "Publish Time",
             "Wind Forecast",
         ]
 
