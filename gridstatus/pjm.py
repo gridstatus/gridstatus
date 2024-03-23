@@ -864,6 +864,7 @@ class PJM(ISOBase):
         start_row=1,
         row_count=100000,
         interval_duration_min=None,
+        filter_timestamp_name="datetime_beginning",
         verbose=False,
     ):
         default_params = {
@@ -883,7 +884,7 @@ class PJM(ISOBase):
             else:
                 end = start + pd.DateOffset(days=1)
 
-            final_params["datetime_beginning_ept"] = (
+            final_params[f"{filter_timestamp_name}_ept"] = (
                 start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
             )
 
@@ -1039,6 +1040,108 @@ class PJM(ISOBase):
 
         return queue
 
+    @support_date_range(frequency=None)
+    def get_solar_forecast(self, date, end=None, verbose=False):
+        """
+        Retrieves the hourly solar forecast including behind the meter solar forecast.
+        From:  https://dataminer2.pjm.com/feed/hourly_solar_power_forecast/definition
+        Only available in past 30 days
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "hourly_solar_power_forecast",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,"
+                "evaluated_at_utc,solar_forecast_btm_mwh,solar_forecast_mwh",
+            },
+            end=end,
+            filter_timestamp_name="evaluated_at",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._parse_solar_forecast(df)
+
+    def _parse_solar_forecast(self, df):
+        df = df.rename(
+            columns={
+                "evaluated_at_utc": "Publish Time",
+                "solar_forecast_btm_mwh": "Solar Forecast BTM",
+                "solar_forecast_mwh": "Solar Forecast",
+            },
+        )
+
+        df["Publish Time"] = pd.to_datetime(
+            df["Publish Time"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Solar Forecast BTM",
+                "Solar Forecast",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_wind_forecast(self, date, end=None, verbose=False):
+        """
+        Retrieves the hourly wind forecast
+        From: vhttps://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
+        Only available in past 30 days
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "hourly_wind_power_forecast",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,"
+                "evaluated_at_utc,wind_forecast_mwh",
+            },
+            end=end,
+            filter_timestamp_name="evaluated_at",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._parse_wind_forecast(df)
+
+    def _parse_wind_forecast(self, df):
+        df = df.rename(
+            columns={
+                "evaluated_at_utc": "Publish Time",
+                "wind_forecast_mwh": "Wind Forecast",
+            },
+        )
+
+        df["Publish Time"] = pd.to_datetime(
+            df["Publish Time"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Wind Forecast",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
     def _get_key(self):
         # Not using retries here, should we be?
         settings = self._get_json(
@@ -1047,28 +1150,3 @@ class PJM(ISOBase):
         )
 
         return settings["subscriptionKey"]
-
-
-"""
-import gridstatus
-iso = gridstatus.PJM()
-nodes = iso.get_pnode_ids()
-zones = nodes[nodes["pnode_subtype"] == "ZONE"]
-zone_ids = zones["pnode_id"].tolist()
-iso.get_historical_lmp("Oct 1, 2022", "DAY_AHEAD_HOURLY", locations=zone_ids)
-pnode_id
-"""
-
-
-if __name__ == "__main__":
-    import gridstatus
-
-    for i in gridstatus.all_isos:
-        print("\n" + i.name + "\n")
-        for c in i().get_interconnection_queue().columns:
-            print(c.replace("\n", " "))
-
-        i().get_interconnection_queue().to_csv(
-            f"debug/queue/{i.iso_id}-queue.csv",
-            index=None,
-        )

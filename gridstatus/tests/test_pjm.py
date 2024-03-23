@@ -317,6 +317,154 @@ class TestPJM(BaseTestISO):
             end,
         ]
 
+    """get_solar_forecast"""
+
+    def _check_solar_forecast(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Solar Forecast BTM",
+            "Solar Forecast",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    def test_get_solar_forecast_today_or_latest(self):
+        df = self.iso.get_solar_forecast("today")
+
+        self._check_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() >= self.local_start_of_today() + pd.Timedelta(
+            days=2,
+        )
+
+        assert (
+            df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+            == self.local_today()
+        ).all()
+
+        assert self.iso.get_solar_forecast("latest").equals(df)
+
+    def test_get_solar_forecast_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+
+        df = self.iso.get_solar_forecast(past_date)
+
+        self._check_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=2)
+
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
+        # This data also includes one forecast time on the next day
+        assert df["Publish Time"].max() == self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=1)
+
+    def test_get_solar_forecast_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=12)
+        past_end_date = past_date + pd.Timedelta(days=3)
+
+        df = self.iso.get_solar_forecast(past_date, past_end_date)
+
+        self._check_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_end_date,
+        ) + pd.Timedelta(days=2)
+
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
+        # This data also includes one forecast time on the next day
+        assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
+
+    """get_wind_forecast"""
+
+    def _check_wind_forecast(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Wind Forecast",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    def test_get_wind_forecast_today_or_latest(self):
+        df = self.iso.get_wind_forecast("today")
+
+        self._check_wind_forecast(df)
+
+        # For some reason, the start of the forecast is 5 hours after the day start
+        assert df["Interval Start"].min() == self.local_start_of_today() + pd.Timedelta(
+            hours=5,
+        )
+        assert df["Interval End"].max() >= self.local_start_of_today() + pd.Timedelta(
+            days=2,
+            hours=5,
+        )
+
+        assert (
+            df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+            == self.local_today()
+        ).all()
+
+        assert self.iso.get_wind_forecast("latest").equals(df)
+
+    def test_get_wind_forecast_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+
+        df = self.iso.get_wind_forecast(past_date)
+
+        self._check_wind_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(hours=5)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=2, hours=5)
+
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
+        # This data also includes one forecast time on the next day
+        assert df["Publish Time"].max() == self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=1)
+
+    def test_get_wind_forecast_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=12)
+        past_end_date = past_date + pd.Timedelta(days=3)
+
+        df = self.iso.get_wind_forecast(past_date, past_end_date)
+
+        self._check_wind_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(hours=5)
+
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_end_date,
+        ) + pd.Timedelta(days=2)
+
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
+        # This data also includes one forecast time on the next day
+        assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
+
+    """_lmp_tests"""
+
     def _lmp_tests(self, m):
         # uses location_type hub because it has the fewest results, so runs faster
 
