@@ -13,7 +13,11 @@ jobs:
     env:
       # This is not a secret because it is a free API key. At worst,
       # we may hit the rate limit.
-      EIA_API_KEY: "9e1a7ae3ce839e9ad174eb4028b7a7b2"
+      EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+      PJM_API_KEY: ${{ secrets.PJM_API_KEY }}
+      ERCOT_API_USERNAME: ${{ secrets.ERCOT_API_USERNAME }}
+      ERCOT_API_PASSWORD: ${{ secrets.ERCOT_API_PASSWORD }}
+      ERCOT_API_SUBSCRIPTION_KEY: ${{ secrets.ERCOT_API_SUBSCRIPTION_KEY }}
     steps:
       - uses: actions/checkout@v3
 
