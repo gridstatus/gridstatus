@@ -620,7 +620,7 @@ class ErcotAPI:
         start_date,
         end_date,
         read_as_csv=True,
-        sleep_seconds=0.25,
+        sleep_seconds=0.1,
         add_post_datetime=False,
         verbose=False,
     ):
@@ -635,8 +635,12 @@ class ErcotAPI:
             endpoint [str]: a string representing a specific ERCOT API endpoint.
             start_date [date]: the start date for the historical data
             end_date [date]: the end date for the historical data
+            read_as_csv [bool]: if True, will read the data as a csv. Otherwise, will
+                return the bytes.
             sleep_seconds [float]: the number of seconds to sleep between requests.
                 Increase if you are getting rate limited.
+            add_post_datetime [bool]: if True, will add the postDatetime to the
+                dataframe. This is used for getting publish times.
             verbose [bool]: if True, will print out status messages
 
         Returns:
@@ -689,14 +693,15 @@ class ErcotAPI:
                 time.sleep(sleep_seconds)
 
             except Exception as e:
-                print(f"Link: {link} failed with error: {e}")
-                if response.status_code == 429:
+                if "Rate limit is exceeded" in response.decode("utf-8"):
                     # Rate limited, so sleep for a longer time
                     log(
                         f"Rate limited. Sleeping for {sleep_seconds * 10} seconds",
                         verbose,
                     )
                     time.sleep(sleep_seconds * 10)
+                else:
+                    log(f"Link: {link} failed with error: {e}", verbose)
                 continue
 
         return pd.concat(dfs) if read_as_csv else dfs

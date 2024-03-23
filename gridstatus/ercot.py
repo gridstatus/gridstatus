@@ -1924,26 +1924,44 @@ class Ercot(ISOBase):
 
         outage_types = ["Total Resource", "Total IRR", "Total New Equip Resource"]
 
-        for t in outage_types:
-            t_no_space = t.replace(" ", "")
+        # Earlier data doesn't have these columns
+        if all(
+            col in df.columns
+            for col in [
+                "TotalResourceMWZoneSouth",
+                "TotalResourceMWZoneNorth",
+                "TotalResourceMWZoneWest",
+                "TotalResourceMWZoneHouston",
+            ]
+        ):
+            for t in outage_types:
+                t_no_space = t.replace(" ", "")
+                df = df.rename(
+                    columns={
+                        f"{t_no_space}MWZoneSouth": f"{t} MW Zone South",
+                        f"{t_no_space}MWZoneNorth": f"{t} MW Zone North",
+                        f"{t_no_space}MWZoneWest": f"{t} MW Zone West",
+                        f"{t_no_space}MWZoneHouston": f"{t} MW Zone Houston",
+                    },
+                )
+
+                df.insert(
+                    df.columns.tolist().index(f"{t} MW Zone Houston") + 1,
+                    f"{t} MW",
+                    (
+                        df[f"{t} MW Zone South"]
+                        + df[f"{t} MW Zone North"]
+                        + df[f"{t} MW Zone West"]
+                        + df[f"{t} MW Zone Houston"]
+                    ),
+                )
+        else:
             df = df.rename(
                 columns={
-                    f"{t_no_space}MWZoneSouth": f"{t} MW Zone South",
-                    f"{t_no_space}MWZoneNorth": f"{t} MW Zone North",
-                    f"{t_no_space}MWZoneWest": f"{t} MW Zone West",
-                    f"{t_no_space}MWZoneHouston": f"{t} MW Zone Houston",
+                    "TotalResourceMW": "Total Resource MW",
+                    "TotalIRR": "Total IRR",
+                    "TotalNewEquipResource": "Total New Equip Resource",
                 },
-            )
-
-            df.insert(
-                df.columns.tolist().index(f"{t} MW Zone Houston") + 1,
-                f"{t} MW",
-                (
-                    df[f"{t} MW Zone South"]
-                    + df[f"{t} MW Zone North"]
-                    + df[f"{t} MW Zone West"]
-                    + df[f"{t} MW Zone Houston"]
-                ),
             )
         return df
 
