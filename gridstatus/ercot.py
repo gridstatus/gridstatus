@@ -2328,6 +2328,12 @@ class Ercot(ISOBase):
             date=report_date,
             verbose=verbose,
         )
+        import IPython
+
+        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
+            "last_expr_or_assign"
+        )
+        IPython.embed()
 
         df = self._handle_three_day_highest_price_as_offer_selected_file(doc, verbose)
 
@@ -2344,6 +2350,8 @@ class Ercot(ISOBase):
         df = df.rename(
             columns={
                 "Resource Name with Highest-Priced Offer Selected in DAM and SASMs": "Resource Name",  # noqa: E501
+                # Older data
+                "Resource Name with Highest-Priced Offer Selected in DAM": "Resource Name",  # noqa: E501
             },
         )
 
