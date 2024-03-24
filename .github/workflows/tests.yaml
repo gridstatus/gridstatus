@@ -11,8 +11,6 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11"]
     env:
-      # This is not a secret because it is a free API key. At worst,
-      # we may hit the rate limit.
       EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
       PJM_API_KEY: ${{ secrets.PJM_API_KEY }}
       ERCOT_API_USERNAME: ${{ secrets.ERCOT_API_USERNAME }}

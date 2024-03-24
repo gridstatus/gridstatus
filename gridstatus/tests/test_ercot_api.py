@@ -11,7 +11,6 @@ from gridstatus.ercot_api.ercot_api import HISTORICAL_DAYS_THRESHOLD, ErcotAPI
 from gridstatus.tests.base_test_iso import TestHelperMixin
 
 
-@pytest.mark.requires_ercot_auth
 class TestErcotAPI(TestHelperMixin):
     @classmethod
     def setup_class(cls):
