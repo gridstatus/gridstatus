@@ -2051,7 +2051,7 @@ class Ercot(ISOBase):
         # SCED runs at least every 5 minutes. These values are only approximations,
         # not exact.
         # Round to nearest 5 minutes
-        df["Interval Start"] = df["SCED Timestamp"].dt.round("5min")
+        df["Interval Start"] = df["SCED Timestamp"].dt.floor("5min")
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
 
         df = df.drop("RepeatedHourFlag", axis=1)
