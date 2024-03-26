@@ -70,9 +70,6 @@ build-backend = "poetry.core.masonry.api"
 testpaths = ["gridstatus/tests/*"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    # TODO: figure out how to run tests in PRs that require
-    # ERCOT authentication
-    "requires_ercot_auth: requires ERCOT authentication via environment variables (deselect with '-m \"not requires_ercot_auth\"')",
 ]
 
 [tool.black]

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.28.0 - Mar 20, 2024
+
+### Breaking Changes
+
+* PJM requires an `api_key` on initialization (can be set as `PJM_API_KEY` environment variable)
+
 ## v0.27.0 - Mar 4, 2024
 
 ### Breaking Changes

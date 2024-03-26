@@ -1,4 +1,5 @@
 import math
+import os
 import warnings
 from typing import BinaryIO
 
@@ -412,15 +413,25 @@ class PJM(ISOBase):
         "93353965",
     ]
 
-    def __init__(self, retries=DEFAULT_RETRIES):
-        self.retries = retries
-        super().__init__()
-
     markets = [
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
     ]
+
+    def __init__(self, api_key=None, retries=DEFAULT_RETRIES) -> None:
+        """
+        Arguments:
+            api_key (str, optional): PJM API key. Alternatively, can be set
+                in PJM_API_KEY environment variable. Register for an API key
+                at https://www.pjm.com/
+        """
+        super().__init__()
+        self.retries = retries
+        self.api_key = api_key or os.getenv("PJM_API_KEY")
+
+        if not self.api_key:
+            raise ValueError("api_key must be provided or set in PJM_API_KEY env var")
 
     @support_date_range(frequency="365D")
     def get_fuel_mix(self, date, end=None, verbose=False):
@@ -862,7 +873,7 @@ class PJM(ISOBase):
         params,
         end=None,
         start_row=1,
-        row_count=100000,
+        row_count=50000,
         interval_duration_min=None,
         filter_timestamp_name="datetime_beginning",
         verbose=False,
@@ -888,17 +899,20 @@ class PJM(ISOBase):
                 start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
             )
 
-        msg = f"Retrieving data from {endpoint} with params {final_params}"
-        log(msg, verbose)
+        # Exclude API key from logs
+        params_to_log = final_params.copy()
+        if "Ocp-Apim-Subscription-Key" in params_to_log:
+            params_to_log["Ocp-Apim-Subscription-Key"] = "API_KEY_HIDDEN"
 
-        api_key = self._get_key()
+        msg = f"Retrieving data from {endpoint} with params {params_to_log}"
+        log(msg, verbose)
 
         r = self._get_json(
             "https://api.pjm.com/api/v1/" + endpoint,
             verbose=verbose,
             retries=self.retries,
             params=final_params,
-            headers={"Ocp-Apim-Subscription-Key": api_key},
+            headers={"Ocp-Apim-Subscription-Key": self.api_key},
         )
 
         if "errors" in r:
@@ -920,7 +934,7 @@ class PJM(ISOBase):
                     verbose=verbose,
                     retries=self.retries,
                     headers={
-                        "Ocp-Apim-Subscription-Key": api_key,
+                        "Ocp-Apim-Subscription-Key": self.api_key,
                     },
                 )
                 to_add.append(pd.DataFrame(r["items"]))
@@ -1141,12 +1155,3 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
-
-    def _get_key(self):
-        # Not using retries here, should we be?
-        settings = self._get_json(
-            "https://dataminer2.pjm.com/config/settings.json",
-            verbose=False,
-        )
-
-        return settings["subscriptionKey"]
