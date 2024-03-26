@@ -899,7 +899,12 @@ class PJM(ISOBase):
                 start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
             )
 
-        msg = f"Retrieving data from {endpoint} with params {final_params}"
+        # Exclude API key from logs
+        params_to_log = final_params.copy()
+        if "Ocp-Apim-Subscription-Key" in params_to_log:
+            params_to_log["Ocp-Apim-Subscription-Key"] = "API_KEY_HIDDEN"
+
+        msg = f"Retrieving data from {endpoint} with params {params_to_log}"
         log(msg, verbose)
 
         r = self._get_json(
