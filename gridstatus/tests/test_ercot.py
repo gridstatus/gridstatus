@@ -1125,7 +1125,7 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
-        assert (df["Interval Start"] == df["SCED Timestamp"].dt.round("5min")).all()
+        assert (df["Interval Start"] == df["SCED Timestamp"].dt.floor("5min")).all()
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
