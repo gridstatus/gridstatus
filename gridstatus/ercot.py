@@ -534,11 +534,6 @@ class Ercot(ISOBase):
     def _get_update_timestamp_from_supply_demand_json(self, supply_demand_json):
         return pd.to_datetime(supply_demand_json["lastUpdated"])
 
-    def _get_date_from_supply_demand_json(self, supply_demand_json):
-        return self._get_update_timestamp_from_supply_demand_json(
-            supply_demand_json,
-        ).date()
-
     def _get_todays_outlook_non_forecast(self, date, verbose=False):
         """Returns most recent data point for supply in MW
 
@@ -550,8 +545,6 @@ class Ercot(ISOBase):
         ), "Only today's data is supported"
 
         supply_demand_json = self._get_supply_demand_json(verbose=verbose)
-
-        date = self._get_date_from_supply_demand_json(supply_demand_json)
         data = pd.DataFrame(supply_demand_json["data"])
 
         # need to use apply since there can be mixed
@@ -682,7 +675,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_committed_capacity(self, date="latest", verbose=False):
+    def get_capacity_committed(self, date="latest", verbose=False):
         """
         Retrieves the actual committed capacity (the amount of power available from
         generating units that were on-line or providing operating reserves).
@@ -701,7 +694,7 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    def get_forecasted_capacity(self, date="latest", verbose=False):
+    def get_capacity_forecast(self, date="latest", verbose=False):
         """
         Retrieves the forecasted committed capacity (Committed Capacity) and the
         forecasted available capacity (Available Capacity) for the current day.
@@ -755,7 +748,7 @@ class Ercot(ISOBase):
             ]
         ].sort_values("Interval Start")
 
-    def get_available_seasonal_forecasted_capacity(self, date="latest", verbose=False):
+    def get_available_seasonal_capacity_forecast(self, date="latest", verbose=False):
         """
         Retrieves the forecasted demand (Load Forecast) and the forecasted available
         seasonal capacity (Available Capacity) for the next 6 days.

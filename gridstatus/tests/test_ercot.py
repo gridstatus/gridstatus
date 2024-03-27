@@ -302,10 +302,10 @@ class TestErcot(BaseTestISO):
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
-    """get_committed_capacity"""
+    """get_capacity_committed"""
 
-    def test_get_committed_capacity(self):
-        df = self.iso.get_committed_capacity("latest")
+    def test_get_capacity_committed(self):
+        df = self.iso.get_capacity_committed("latest")
 
         assert df.columns.tolist() == ["Interval Start", "Interval End", "Capacity"]
 
@@ -322,10 +322,10 @@ class TestErcot(BaseTestISO):
             "Available Capacity",
         ]
 
-    """get_available_seasonal_forecasted_capacity"""
+    """get_available_seasonal_capacity_forecast"""
 
-    def test_get_available_seasonal_forecasted_capacity(self):
-        df = self.iso.get_available_seasonal_forecasted_capacity("latest")
+    def test_get_available_seasonal_capacity_forecast(self):
+        df = self.iso.get_available_seasonal_capacity_forecast("latest")
 
         assert df.columns.tolist() == [
             "Interval Start",
