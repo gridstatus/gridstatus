@@ -132,6 +132,19 @@ class TestPJM(BaseTestISO):
             print(self.iso.iso_id, m)
             self._lmp_tests(m)
 
+    def test_get_lmp_returns_latest(self):
+        # this interval has two LMP versions
+        # make sure only one is returned
+        # for each location
+        df = self.iso.get_lmp(
+            start="04-06-2023 17:45",
+            end="04-06-2023 17:50",
+            market="REAL_TIME_5_MIN",
+        )
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert df.duplicated(["Interval Start", "Location Id"]).sum() == 0
+
     @pytest.mark.slow
     def test_get_lmp_5_min(self):
         self._lmp_tests(Markets.REAL_TIME_5_MIN)
