@@ -302,6 +302,39 @@ class TestErcot(BaseTestISO):
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
+    """get_committed_capacity"""
+
+    def test_get_committed_capacity(self):
+        df = self.iso.get_committed_capacity("latest")
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Capacity"]
+
+    """get_forecast_capacity"""
+
+    def test_get_forecast_capacity(self):
+        df = self.iso.get_forecast_capacity("latest")
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Committed Capacity",
+            "Available Capacity",
+        ]
+
+    """get_available_seasonal_forecasted_capacity"""
+
+    def test_get_available_seasonal_forecasted_capacity(self):
+        df = self.iso.get_available_seasonal_forecasted_capacity("latest")
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Available Capacity",
+            "Load Forecast",
+        ]
+
     """get_spp"""
 
     def test_get_spp_dam_today_day_ahead_hourly_hub(self):

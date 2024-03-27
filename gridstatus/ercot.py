@@ -701,7 +701,7 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    def get_capacity_forecast(self, date="latest", verbose=False):
+    def get_forecasted_capacity(self, date="latest", verbose=False):
         """
         Retrieves the forecasted committed capacity (Committed Capacity) and the
         forecasted available capacity (Available Capacity) for the current day.
@@ -755,7 +755,7 @@ class Ercot(ISOBase):
             ]
         ].sort_values("Interval Start")
 
-    def get_available_seasonal_capacity_forecast(self, date="latest", verbose=False):
+    def get_available_seasonal_forecasted_capacity(self, date="latest", verbose=False):
         """
         Retrieves the forecasted demand (Load Forecast) and the forecasted available
         seasonal capacity (Available Capacity) for the next 6 days.
