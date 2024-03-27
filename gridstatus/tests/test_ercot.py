@@ -309,10 +309,22 @@ class TestErcot(BaseTestISO):
 
         assert df.columns.tolist() == ["Interval Start", "Interval End", "Capacity"]
 
-    """get_forecast_capacity"""
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        # The end time is approximately now
+        assert (
+            self.local_now() - pd.Timedelta(minutes=5)
+            < df["Interval End"].max()
+            < self.local_now() + pd.Timedelta(minutes=5)
+        )
 
-    def test_get_forecast_capacity(self):
-        df = self.iso.get_forecast_capacity("latest")
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            minutes=5,
+        )
+
+    """get_capacity_forecast"""
+
+    def test_get_capacity_forecast(self):
+        df = self.iso.get_capacity_forecast("latest")
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -321,6 +333,21 @@ class TestErcot(BaseTestISO):
             "Committed Capacity",
             "Available Capacity",
         ]
+
+        # The start time is approximately now
+        assert (
+            self.local_now() - pd.Timedelta(minutes=5)
+            < df["Interval Start"].min()
+            < self.local_now() + pd.Timedelta(minutes=5)
+        )
+
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            self.local_today() + pd.Timedelta(days=1),
+        )
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            minutes=5,
+        )
 
     """get_available_seasonal_capacity_forecast"""
 
@@ -334,6 +361,17 @@ class TestErcot(BaseTestISO):
             "Available Capacity",
             "Load Forecast",
         ]
+
+        assert df["Interval Start"].min() == self.local_start_of_today() + pd.Timedelta(
+            days=1,
+        )
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.Timedelta(
+            days=7,
+        )
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            hours=1,
+        )
 
     """get_spp"""
 
