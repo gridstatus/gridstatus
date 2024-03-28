@@ -775,6 +775,8 @@ class PJM(ISOBase):
                 params[
                     "fields"
                 ] = "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
+                # remove this field because it's not supported in this endpoint
+                del params["row_is_current"]
 
             data = self._get_pjm_json(
                 market_endpoint,
