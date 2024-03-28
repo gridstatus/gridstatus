@@ -694,7 +694,7 @@ class SPP(ISOBase):
     # 15mb file with five minute resolution
 
     def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
-        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
+        url = "https://opsportal.spp.org/Studies/GenerateSummaryCSV"
         msg = f"Getting interconnection queue from {url}"
         log(msg, verbose)
         response = requests.get(url)
@@ -705,8 +705,6 @@ class SPP(ISOBase):
 
         Returns:
             pandas.DataFrame: Interconnection queue
-
-
         """
         raw_data = self.get_raw_interconnection_queue(verbose)
         queue = pd.read_csv(raw_data, skiprows=1)
