@@ -503,8 +503,8 @@ class Ercot(ISOBase):
         ).astype("timedelta64[h]")
         df["Interval Start"] = df["Interval Start"].dt.tz_localize(
             self.default_timezone,
-            ambiguous=df["RepeatedHourFlag"]
-            == False,  # noqa to prevent linting to is False
+            # Prevent linting to is False
+            ambiguous=df["RepeatedHourFlag"] == False,  # noqa
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
@@ -524,6 +524,16 @@ class Ercot(ISOBase):
 
         return df
 
+    def _get_supply_demand_json(self, verbose=False):
+        url = self.BASE + "/supply-demand.json"
+        msg = f"Fetching {url}"
+        log(msg, verbose)
+
+        return self._get_json(url)
+
+    def _get_update_timestamp_from_supply_demand_json(self, supply_demand_json):
+        return pd.to_datetime(supply_demand_json["lastUpdated"])
+
     def _get_todays_outlook_non_forecast(self, date, verbose=False):
         """Returns most recent data point for supply in MW
 
@@ -533,16 +543,10 @@ class Ercot(ISOBase):
             date,
             self.default_timezone,
         ), "Only today's data is supported"
-        url = self.BASE + "/supply-demand.json"
 
-        msg = f"Fetching {url}"
-        log(msg, verbose)
+        supply_demand_json = self._get_supply_demand_json(verbose=verbose)
+        data = pd.DataFrame(supply_demand_json["data"])
 
-        r = self._get_json(url)
-
-        date = pd.to_datetime(r["lastUpdated"][:10], format="%Y-%m-%d")
-
-        data = pd.DataFrame(r["data"])
         # need to use apply since there can be mixed
         # fixed offsets during dst transition
         # that result in object dtypes in pandas
@@ -670,6 +674,115 @@ class Ercot(ISOBase):
         )
 
         return df
+
+    def get_capacity_committed(self, date="latest", verbose=False):
+        """
+        Retrieves the actual committed capacity (the amount of power available from
+        generating units that were on-line or providing operating reserves).
+
+        Data is ephemeral and does not support past days.
+        """
+        data = self._get_capacity_dataset(verbose=verbose)
+
+        return (
+            data.loc[
+                # Actual values
+                data["forecast"] == 0,
+                ["Interval Start", "Interval End", "capacity"],
+            ]
+            .rename(columns={"capacity": "Capacity"})
+            .reset_index(drop=True)
+        )
+
+    def get_capacity_forecast(self, date="latest", verbose=False):
+        """
+        Retrieves the forecasted committed capacity (Committed Capacity) and the
+        forecasted available capacity (Available Capacity) for the current day.
+
+        Data is ephemeral and does not support past days.
+        """
+        data = self._get_capacity_dataset(verbose=verbose)
+
+        # Forecast values
+        return (
+            data.loc[
+                data["forecast"] == 1,
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "capacity",
+                    "available",
+                ],
+            ]
+            .rename(
+                columns={
+                    "capacity": "Committed Capacity",
+                    "available": "Available Capacity",
+                },
+            )
+            .reset_index(drop=True)
+        )
+
+    def _get_capacity_dataset(self, verbose=False):
+        supply_demand_json = self._get_supply_demand_json(verbose=verbose)
+
+        data = pd.DataFrame(supply_demand_json["data"])
+
+        data.loc[
+            :,
+            "Publish Time",
+        ] = self._get_update_timestamp_from_supply_demand_json(supply_demand_json)
+
+        data["Interval Start"] = pd.to_datetime(data["timestamp"])
+        data["Interval End"] = data["Interval Start"] + pd.Timedelta(minutes=5)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "capacity",
+                "forecast",
+                "available",
+            ]
+        ].sort_values("Interval Start")
+
+    def get_available_seasonal_capacity_forecast(self, date="latest", verbose=False):
+        """
+        Retrieves the forecasted demand (Load Forecast) and the forecasted available
+        seasonal capacity (Available Capacity) for the next 6 days.
+
+        Data is ephemeral and does not support past days.
+        """
+        supply_demand_json = self._get_supply_demand_json(verbose=verbose)
+        data = pd.DataFrame(supply_demand_json["forecast"])
+        data = self.parse_doc(data)
+
+        data.loc[
+            :,
+            "Publish Time",
+        ] = self._get_update_timestamp_from_supply_demand_json(supply_demand_json)
+
+        return (
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "availCapGen",
+                    "forecastedDemand",
+                ]
+            ]
+            .rename(
+                columns={
+                    "availCapGen": "Available Capacity",
+                    "forecastedDemand": "Load Forecast",
+                },
+            )
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
 
     def get_rtm_spp(self, year, verbose=False):
         """Get Historical RTM Settlement Point Prices(SPPs)
@@ -2503,9 +2616,11 @@ class Ercot(ISOBase):
 
         doc.rename(
             columns={
+                "deliveryDate": "DeliveryDate",
                 "Delivery Date": "DeliveryDate",
                 "DELIVERY_DATE": "DeliveryDate",
                 "OperDay": "DeliveryDate",
+                "hourEnding": "HourEnding",
                 "Hour Ending": "HourEnding",
                 "HOUR_ENDING": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",

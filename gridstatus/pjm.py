@@ -757,6 +757,9 @@ class PJM(ISOBase):
                 ),
             )
 
+        # returns on the latest version of the data
+        params["row_is_current"] = "TRUE"
+
         try:
             data = self._get_pjm_json(
                 market_endpoint,
