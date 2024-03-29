@@ -1,11 +1,13 @@
 import json
+import urllib
+import warnings
 from typing import BinaryIO
 
 import pandas as pd
 import requests
 
 from gridstatus import utils
-from gridstatus.base import ISOBase, Markets, NotSupported
+from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
@@ -160,6 +162,87 @@ class MISO(ISOBase):
         url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"  # noqa
         r = self._get_json(url, verbose=verbose)
         return r
+
+    forecast_cols = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "North",
+        "Central",
+        "South",
+        "MISO",
+    ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_solar_forecast(self, date, verbose=False):
+        if date == "latest":
+            return self.get_solar_forecast(date="today", verbose=verbose)
+
+        return self._get_solar_and_wind_forecast_data(
+            date,
+            fuel="solar",
+            verbose=verbose,
+        )[self.forecast_cols]
+
+    @support_date_range(frequency="DAY_START")
+    def get_wind_forecast(self, date, verbose=False):
+        if date == "latest":
+            return self.get_wind_forecast(date="today", verbose=verbose)
+
+        return self._get_solar_and_wind_forecast_data(
+            date,
+            fuel="wind",
+            verbose=verbose,
+        )[self.forecast_cols]
+
+    def _get_solar_and_wind_forecast_data(self, date, fuel, verbose=False):
+        # Example url: https://docs.misoenergy.org/marketreports/20240327_mom.xlsx
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
+
+        log(f"Downloading solar and wind forecast data from {url}", verbose)
+
+        try:
+            # Ignore the UserWarning from openpyxl about styles
+            warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+            excel_file = pd.ExcelFile(url, engine="openpyxl")
+        except urllib.error.HTTPError as e:
+            if e.status == 404:
+                raise NoDataFoundException(
+                    f"No solar or wind forecast found for {date}",
+                )
+
+        publish_time = pd.to_datetime(excel_file.book.properties.modified, utc=True)
+
+        df = (
+            pd.read_excel(
+                excel_file,
+                sheet_name=f"{fuel.upper()} HOURLY",
+                skiprows=4,
+                skipfooter=1,
+            )
+            .dropna(how="all")
+            .assign(**{"Publish Time": publish_time})
+        )
+
+        return self._get_timestamp_from_day_he(df)
+
+    def _get_timestamp_from_day_he(self, df):
+        # Convert column that looks like this **03/27/2024 1 **03/27/2024 24 or to
+        # a valid datetime. Assume Hour Ending is in local time
+        df["hour"] = df["DAY HE"].str.extract(r"(\d+)$").astype(int)
+        df["date"] = pd.to_datetime(
+            df["DAY HE"].str.replace("**", "").str.split(" ").str[0],
+            format="%m/%d/%Y",
+        )
+
+        df["Interval Start"] = pd.to_datetime(df["date"]) + pd.to_timedelta(
+            df["hour"] - 1,
+            "h",
+        )
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        return df
 
     @lmp_config(
         supports={

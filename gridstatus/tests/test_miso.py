@@ -88,6 +88,22 @@ class TestMISO(BaseTestISO):
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
+    """get_solar_forecast"""
+
+    def test_get_solar_forecast_historical(self):
+        ...
+
+    def test_get_solar_forecast_historical_date_range(self):
+        ...
+
+    """get_wind_forecast"""
+
+    def test_get_wind_forecast_historical(self):
+        ...
+
+    def test_get_wind_forecast_historical_date_range(self):
+        ...
+
     """get_status"""
 
     def test_get_status_latest(self):
