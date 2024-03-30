@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from gridstatus import MISO, NotSupported
@@ -88,21 +89,95 @@ class TestMISO(BaseTestISO):
     def test_get_load_forecast_historical_with_date_range(self):
         pass
 
+    solar_and_wind_forecast_cols = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "North",
+        "Central",
+        "South",
+        "MISO",
+    ]
+
     """get_solar_forecast"""
 
+    def _check_solar_and_wind_forecast(self, df):
+        assert df.columns.tolist() == self.solar_and_wind_forecast_cols
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            "1h",
+        )
+
     def test_get_solar_forecast_historical(self):
-        ...
+        past_date = self.local_today() - pd.Timedelta(days=30)
+        df = self.iso.get_solar_forecast(past_date)
+
+        self._check_solar_and_wind_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=7)
+
+        assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
 
     def test_get_solar_forecast_historical_date_range(self):
-        ...
+        past_date = self.local_today() - pd.Timedelta(days=250)
+        end_date = past_date + pd.Timedelta(days=3)
+
+        df = self.iso.get_solar_forecast(
+            start=past_date,
+            end=end_date,
+        )
+
+        self._check_solar_and_wind_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            end_date,
+        ) + pd.Timedelta(days=6)
+
+        assert df["Publish Time"].dt.date.unique().tolist() == [
+            past_date,
+            past_date + pd.Timedelta(days=1),
+            past_date + pd.Timedelta(days=2),
+        ]
 
     """get_wind_forecast"""
 
     def test_get_wind_forecast_historical(self):
-        ...
+        past_date = self.local_today() - pd.Timedelta(days=30)
+        df = self.iso.get_wind_forecast(past_date)
+
+        self._check_solar_and_wind_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=7)
+
+        assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
 
     def test_get_wind_forecast_historical_date_range(self):
-        ...
+        past_date = self.local_today() - pd.Timedelta(days=250)
+        end_date = past_date + pd.Timedelta(days=3)
+
+        df = self.iso.get_wind_forecast(
+            start=past_date,
+            end=end_date,
+        )
+
+        self._check_solar_and_wind_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            end_date,
+        ) + pd.Timedelta(days=6)
+
+        assert df["Publish Time"].dt.date.unique().tolist() == [
+            past_date,
+            past_date + pd.Timedelta(days=1),
+            past_date + pd.Timedelta(days=2),
+        ]
 
     """get_status"""
 

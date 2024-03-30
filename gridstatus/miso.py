@@ -164,7 +164,7 @@ class MISO(ISOBase):
         r = self._get_json(url, verbose=verbose)
         return r
 
-    forecast_cols = [
+    solar_and_wind_forecast_cols = [
         "Interval Start",
         "Interval End",
         "Publish Time",
@@ -183,7 +183,7 @@ class MISO(ISOBase):
             date,
             fuel="solar",
             verbose=verbose,
-        )[self.forecast_cols]
+        )[self.solar_and_wind_forecast_cols]
 
     @support_date_range(frequency="DAY_START")
     def get_wind_forecast(self, date, verbose=False):
@@ -194,7 +194,7 @@ class MISO(ISOBase):
             date,
             fuel="wind",
             verbose=verbose,
-        )[self.forecast_cols]
+        )[self.solar_and_wind_forecast_cols]
 
     def _get_mom_forecast_report(self, date, verbose=False):
         # Example url: https://docs.misoenergy.org/marketreports/20240327_mom.xlsx
@@ -229,9 +229,6 @@ class MISO(ISOBase):
             .assign(**{"Publish Time": publish_time})
         )
 
-        return self._create_interval_timestamps_from_day_string(df)
-
-    def _create_interval_timestamps_from_day_string(self, df):
         # Convert column that looks like this **03/27/2024 1 **03/27/2024 24 or to
         # a valid datetime. Assume Hour Ending is in local time
         df["hour"] = df["DAY HE"].str.extract(r"(\d+)$").astype(int)
@@ -249,7 +246,6 @@ class MISO(ISOBase):
         ).dt.tz_localize(self.default_timezone)
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-
         return df
 
     @lmp_config(
