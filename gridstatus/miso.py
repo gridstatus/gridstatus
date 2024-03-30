@@ -24,6 +24,7 @@ class MISO(ISOBase):
 
     name = "Midcontinent ISO"
     iso_id = "miso"
+    # TODO: what does this next line mean?
     # miso spans multiple timezones, so picking central
     # all parsing is done in EST since that is what api returns
     default_timezone = "US/Eastern"
@@ -235,10 +236,13 @@ class MISO(ISOBase):
             format="%m/%d/%Y",
         )
 
-        df["Interval Start"] = pd.to_datetime(df["date"]) + pd.to_timedelta(
-            df["hour"] - 1,
-            "h",
-        )
+        df["Interval Start"] = (
+            pd.to_datetime(df["date"])
+            + pd.to_timedelta(
+                df["hour"] - 1,
+                "h",
+            )
+        ).dt.tz_localize(self.default_timezone)
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
