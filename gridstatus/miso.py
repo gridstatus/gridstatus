@@ -24,7 +24,7 @@ class MISO(ISOBase):
 
     name = "Midcontinent ISO"
     iso_id = "miso"
-    # TODO: what does this next line mean?
+    # TODO: these next two lines seem to be contradictory
     # miso spans multiple timezones, so picking central
     # all parsing is done in EST since that is what api returns
     default_timezone = "US/Eastern"
@@ -196,11 +196,11 @@ class MISO(ISOBase):
             verbose=verbose,
         )[self.forecast_cols]
 
-    def _get_solar_and_wind_forecast_data(self, date, fuel, verbose=False):
+    def _get_mom_forecast_report(self, date, verbose=False):
         # Example url: https://docs.misoenergy.org/marketreports/20240327_mom.xlsx
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
 
-        log(f"Downloading solar and wind forecast data from {url}", verbose)
+        log(f"Downloading mom forecast data from {url}", verbose)
 
         try:
             # Ignore the UserWarning from openpyxl about styles
@@ -212,6 +212,10 @@ class MISO(ISOBase):
                     f"No solar or wind forecast found for {date}",
                 )
 
+        return excel_file
+
+    def _get_solar_and_wind_forecast_data(self, date, fuel, verbose=False):
+        excel_file = self._get_mom_forecast_report(date, verbose)
         publish_time = pd.to_datetime(excel_file.book.properties.modified, utc=True)
 
         df = (
@@ -225,9 +229,9 @@ class MISO(ISOBase):
             .assign(**{"Publish Time": publish_time})
         )
 
-        return self._get_timestamp_from_day_he(df)
+        return self._create_interval_timestamps_from_day_string(df)
 
-    def _get_timestamp_from_day_he(self, df):
+    def _create_interval_timestamps_from_day_string(self, df):
         # Convert column that looks like this **03/27/2024 1 **03/27/2024 24 or to
         # a valid datetime. Assume Hour Ending is in local time
         df["hour"] = df["DAY HE"].str.extract(r"(\d+)$").astype(int)
