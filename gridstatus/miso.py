@@ -25,11 +25,10 @@ class MISO(ISOBase):
     name = "Midcontinent ISO"
     iso_id = "miso"
 
-    # Parsing of raw data is done in EST since that is what api returns
+    # Parsing of raw data is done in EST since that is what api returns and what
+    # MISO operates in
     # Source: https://www.rtoinsider.com/25291-ferc-oks-miso-use-of-eastern-standard-time-in-day-ahead-market/ # noqa
-    parsing_timezone = "EST"
-    # After parsing, then convert to Eastern Time (EPT)
-    default_timezone = "US/Eastern"
+    default_timezone = "EST"
 
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
 
@@ -62,10 +61,8 @@ class MISO(ISOBase):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url, verbose=verbose)
 
-        time = (
-            pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"])
-            .tz_localize(self.parsing_timezone)
-            .tz_convert(self.default_timezone)
+        time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
+            self.default_timezone,
         )
 
         mix = {}
@@ -99,12 +96,8 @@ class MISO(ISOBase):
                     minutes=int(x.split(":")[1]),
                 ),
             )
-            df["Interval Start"] = (
-                df["Interval Start"]
-                .dt.tz_localize(self.parsing_timezone)
-                .dt.tz_convert(
-                    self.default_timezone,
-                )
+            df["Interval Start"] = df["Interval Start"].dt.tz_localize(
+                self.default_timezone,
             )
             df = df.rename(columns={"Value": "Load"})
             df["Load"] = pd.to_numeric(df["Load"])
@@ -120,10 +113,8 @@ class MISO(ISOBase):
 
         r = self._get_load_and_forecast_data(verbose=verbose)
 
-        date = (
-            pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
-            .tz_localize(self.parsing_timezone)
-            .tz_convert(self.default_timezone)
+        date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0]).tz_localize(
+            self.default_timezone,
         )
 
         df = pd.DataFrame(
@@ -232,17 +223,13 @@ class MISO(ISOBase):
         )
 
         df["Interval Start"] = (
-            (
-                pd.to_datetime(df["date"])
-                + pd.to_timedelta(
-                    df["hour"] - 1,
-                    "h",
-                )
-                # This forecast does not handle DST changes
+            pd.to_datetime(df["date"])
+            + pd.to_timedelta(
+                df["hour"] - 1,
+                "h",
             )
-            .dt.tz_localize(self.parsing_timezone)
-            .dt.tz_convert(self.default_timezone)
-        )
+            # This forecast does not handle DST changes
+        ).dt.tz_localize(self.default_timezone)
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
         return df
@@ -273,12 +260,8 @@ class MISO(ISOBase):
             log(f"Downloading LMP data from {url}", verbose)
             data = pd.read_csv(url)
 
-            data["Interval Start"] = (
-                pd.to_datetime(data["INTERVAL"])
-                .dt.tz_localize(self.parsing_timezone)
-                .dt.tz_convert(
-                    self.default_timezone,
-                )
+            data["Interval Start"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
+                self.default_timezone,
             )
 
             # use dam to get location types
@@ -319,10 +302,7 @@ class MISO(ISOBase):
                 .apply(
                     lambda x: date.replace(tzinfo=None, hour=int(x.split(" ")[1]) - 1),
                 )
-                .dt.tz_localize(self.parsing_timezone)
-                .dt.tz_convert(
-                    self.default_timezone,
-                )
+                .dt.tz_localize(self.default_timezone)
             )
 
             interval_duration = 60
