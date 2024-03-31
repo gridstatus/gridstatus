@@ -24,10 +24,11 @@ class MISO(ISOBase):
 
     name = "Midcontinent ISO"
     iso_id = "miso"
-    # TODO: these next two lines seem to be contradictory
-    # miso spans multiple timezones, so picking central
-    # all parsing is done in EST since that is what api returns
+
+    # Parsing of raw data is done in EST since that is what api returns
+    # Source: https://www.rtoinsider.com/25291-ferc-oks-miso-use-of-eastern-standard-time-in-day-ahead-market/ # noqa
     parsing_timezone = "EST"
+    # After parsing, then convert to Eastern Time (EPT)
     default_timezone = "US/Eastern"
 
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
