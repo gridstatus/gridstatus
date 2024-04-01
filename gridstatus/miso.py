@@ -149,14 +149,20 @@ class MISO(ISOBase):
         r = self._get_json(url, verbose=verbose)
         return r
 
-    solar_and_wind_forecast_cols = [
-        "Interval Start",
-        "Interval End",
-        "Publish Time",
+    # Older datasets do not have every region. In that case, we insert the column
+    # as null
+    solar_and_wind_forecast_region_cols = [
         "North",
         "Central",
         "South",
         "MISO",
+    ]
+
+    solar_and_wind_forecast_cols = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        *solar_and_wind_forecast_region_cols,
     ]
 
     @support_date_range(frequency="DAY_START")
@@ -168,7 +174,7 @@ class MISO(ISOBase):
             date,
             fuel="solar",
             verbose=verbose,
-        )[self.solar_and_wind_forecast_cols]
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_wind_forecast(self, date, verbose=False):
@@ -179,7 +185,7 @@ class MISO(ISOBase):
             date,
             fuel="wind",
             verbose=verbose,
-        )[self.solar_and_wind_forecast_cols]
+        )
 
     def _get_mom_forecast_report(self, date, verbose=False):
         # Example url: https://docs.misoenergy.org/marketreports/20240327_mom.xlsx
@@ -203,19 +209,28 @@ class MISO(ISOBase):
         excel_file = self._get_mom_forecast_report(date, verbose)
         publish_time = pd.to_datetime(excel_file.book.properties.modified, utc=True)
 
+        # The data schema changes on 2022-06-13
+        skiprows = (
+            4 if date > pd.Timestamp("2022-06-12", tz=self.default_timezone) else 3
+        )
+
         df = (
             pd.read_excel(
                 excel_file,
                 sheet_name=f"{fuel.upper()} HOURLY",
-                skiprows=4,
+                skiprows=skiprows,
                 skipfooter=1,
             )
             .dropna(how="all")
             .assign(**{"Publish Time": publish_time})
         )
 
+        # Handle older datasets
+        df = df.rename(columns={"Day HE": "DAY HE"})
+
         # Convert column that looks like this **03/27/2024 1 **03/27/2024 24 or to
         # a valid datetime. Assume Hour Ending is in local time
+
         df["hour"] = df["DAY HE"].str.extract(r"(\d+)$").astype(int)
         df["date"] = pd.to_datetime(
             df["DAY HE"].str.replace("**", "").str.split(" ").str[0],
@@ -232,7 +247,12 @@ class MISO(ISOBase):
         ).dt.tz_localize(self.default_timezone)
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-        return df
+
+        for col in self.solar_and_wind_forecast_region_cols:
+            if col not in df.columns:
+                df[col] = pd.NA
+
+        return df[self.solar_and_wind_forecast_cols]
 
     @lmp_config(
         supports={

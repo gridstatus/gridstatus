@@ -142,6 +142,14 @@ class TestMISO(BaseTestISO):
             past_date + pd.Timedelta(days=2),
         ]
 
+    def test_get_solar_forecast_historical_before_schema_change(self):
+        # Data schema changed on 2022-06-13
+        date = pd.Timestamp("2022-05-12").date()
+
+        df = self.iso.get_solar_forecast(date)
+
+        self._check_solar_and_wind_forecast(df)
+
     """get_wind_forecast"""
 
     def test_get_wind_forecast_historical(self):
@@ -178,6 +186,17 @@ class TestMISO(BaseTestISO):
             past_date + pd.Timedelta(days=1),
             past_date + pd.Timedelta(days=2),
         ]
+
+    def test_get_wind_forecast_historical_before_schema_change(self):
+        # Data schema changed on 2022-06-13
+        # No south data for 2022-05-12 for wind
+        date = pd.Timestamp("2022-05-12").date()
+
+        df = self.iso.get_wind_forecast(date)
+
+        self._check_solar_and_wind_forecast(df)
+
+        assert df["South"].isnull().all()
 
     """get_status"""
 
