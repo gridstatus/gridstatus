@@ -1,11 +1,13 @@
 import json
+import urllib
+import warnings
 from typing import BinaryIO
 
 import pandas as pd
 import requests
 
 from gridstatus import utils
-from gridstatus.base import ISOBase, Markets, NotSupported
+from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
@@ -22,9 +24,11 @@ class MISO(ISOBase):
 
     name = "Midcontinent ISO"
     iso_id = "miso"
-    # miso spans multiple timezones, so picking central
-    # all parsing is done in EST since that is what api returns
-    default_timezone = "US/Eastern"
+
+    # Parsing of raw data is done in EST since that is what api returns and what
+    # MISO operates in
+    # Source: https://www.rtoinsider.com/25291-ferc-oks-miso-use-of-eastern-standard-time-in-day-ahead-market/ # noqa
+    default_timezone = "EST"
 
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
 
@@ -57,14 +61,8 @@ class MISO(ISOBase):
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url, verbose=verbose)
 
-        time = (
-            pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"])
-            .tz_localize(
-                "EST",
-            )
-            .tz_convert(
-                self.default_timezone,
-            )
+        time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
+            self.default_timezone,
         )
 
         mix = {}
@@ -98,12 +96,8 @@ class MISO(ISOBase):
                     minutes=int(x.split(":")[1]),
                 ),
             )
-            df["Interval Start"] = (
-                df["Interval Start"]
-                .dt.tz_localize("EST")
-                .dt.tz_convert(
-                    self.default_timezone,
-                )
+            df["Interval Start"] = df["Interval Start"].dt.tz_localize(
+                self.default_timezone,
             )
             df = df.rename(columns={"Value": "Load"})
             df["Load"] = pd.to_numeric(df["Load"])
@@ -119,14 +113,8 @@ class MISO(ISOBase):
 
         r = self._get_load_and_forecast_data(verbose=verbose)
 
-        date = (
-            pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
-            .tz_localize(
-                tz="EST",
-            )
-            .tz_convert(
-                self.default_timezone,
-            )
+        date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0]).tz_localize(
+            self.default_timezone,
         )
 
         df = pd.DataFrame(
@@ -161,6 +149,111 @@ class MISO(ISOBase):
         r = self._get_json(url, verbose=verbose)
         return r
 
+    # Older datasets do not have every region. In that case, we insert the column
+    # as null
+    solar_and_wind_forecast_region_cols = [
+        "North",
+        "Central",
+        "South",
+        "MISO",
+    ]
+
+    solar_and_wind_forecast_cols = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        *solar_and_wind_forecast_region_cols,
+    ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_solar_forecast(self, date, verbose=False):
+        if date == "latest":
+            return self.get_solar_forecast(date="today", verbose=verbose)
+
+        return self._get_solar_and_wind_forecast_data(
+            date,
+            fuel="solar",
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_wind_forecast(self, date, verbose=False):
+        if date == "latest":
+            return self.get_wind_forecast(date="today", verbose=verbose)
+
+        return self._get_solar_and_wind_forecast_data(
+            date,
+            fuel="wind",
+            verbose=verbose,
+        )
+
+    def _get_mom_forecast_report(self, date, verbose=False):
+        # Example url: https://docs.misoenergy.org/marketreports/20240327_mom.xlsx
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
+
+        log(f"Downloading mom forecast data from {url}", verbose)
+
+        try:
+            # Ignore the UserWarning from openpyxl about styles
+            warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+            excel_file = pd.ExcelFile(url, engine="openpyxl")
+        except urllib.error.HTTPError as e:
+            if e.status == 404:
+                raise NoDataFoundException(
+                    f"No solar or wind forecast found for {date}",
+                )
+
+        return excel_file
+
+    def _get_solar_and_wind_forecast_data(self, date, fuel, verbose=False):
+        excel_file = self._get_mom_forecast_report(date, verbose)
+        publish_time = pd.to_datetime(excel_file.book.properties.modified, utc=True)
+
+        # The data schema changes on 2022-06-13
+        skiprows = (
+            4 if date > pd.Timestamp("2022-06-12", tz=self.default_timezone) else 3
+        )
+
+        df = (
+            pd.read_excel(
+                excel_file,
+                sheet_name=f"{fuel.upper()} HOURLY",
+                skiprows=skiprows,
+                skipfooter=1,
+            )
+            .dropna(how="all")
+            .assign(**{"Publish Time": publish_time})
+        )
+
+        # Handle older datasets
+        df = df.rename(columns={"Day HE": "DAY HE"})
+
+        # Convert column that looks like this **03/27/2024 1 **03/27/2024 24 or to
+        # a valid datetime. Assume Hour Ending is in local time
+
+        df["hour"] = df["DAY HE"].str.extract(r"(\d+)$").astype(int)
+        df["date"] = pd.to_datetime(
+            df["DAY HE"].str.replace("**", "").str.split(" ").str[0],
+            format="%m/%d/%Y",
+        )
+
+        df["Interval Start"] = (
+            pd.to_datetime(df["date"])
+            + pd.to_timedelta(
+                df["hour"] - 1,
+                "h",
+            )
+            # This forecast does not handle DST changes
+        ).dt.tz_localize(self.default_timezone)
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        for col in self.solar_and_wind_forecast_region_cols:
+            if col not in df.columns:
+                df[col] = pd.NA
+
+        return df[self.solar_and_wind_forecast_cols]
+
     @lmp_config(
         supports={
             Markets.REAL_TIME_5_MIN: ["latest", "today"],
@@ -187,12 +280,8 @@ class MISO(ISOBase):
             log(f"Downloading LMP data from {url}", verbose)
             data = pd.read_csv(url)
 
-            data["Interval Start"] = (
-                pd.to_datetime(data["INTERVAL"])
-                .dt.tz_localize("EST")
-                .dt.tz_convert(
-                    self.default_timezone,
-                )
+            data["Interval Start"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
+                self.default_timezone,
             )
 
             # use dam to get location types
@@ -233,10 +322,7 @@ class MISO(ISOBase):
                 .apply(
                     lambda x: date.replace(tzinfo=None, hour=int(x.split(" ")[1]) - 1),
                 )
-                .dt.tz_localize("EST")
-                .dt.tz_convert(
-                    self.default_timezone,
-                )
+                .dt.tz_localize(self.default_timezone)
             )
 
             interval_duration = 60
