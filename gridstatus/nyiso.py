@@ -416,6 +416,8 @@ class NYISO(ISOBase):
         withdrawn["Withdrawal Comment"] = None
         withdrawn = withdrawn.rename(columns={"Utility ": "Utility"})
 
+        withdrawn = withdrawn.rename(columns={"Owner/Developer": "Developer Name"})
+
         # make completed look like the other two sheets
         completed = pd.read_excel(excel_file, sheet_name="In Service", header=[0, 1])
         completed.insert(15, "SGIA Tender Date", None)
@@ -541,7 +543,7 @@ class NYISO(ISOBase):
             "Project Name": "Project Name",
             "County": "County",
             "State": "State",
-            "Owner/Developer": "Interconnecting Entity",
+            "Developer Name": "Interconnecting Entity",
             "Utility": "Transmission Owner",
             "Interconnection Point": "Interconnection Location",
             "Status": "Status",
