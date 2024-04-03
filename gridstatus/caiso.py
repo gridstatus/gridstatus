@@ -204,12 +204,18 @@ class CAISO(ISOBase):
 
         df = df.sort_values("Time")
 
-        # todo - what is the actual time of the forecast?
-        df["Forecast Time"] = df["Time"].iloc[0]
+        # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
+        # ATLAS Reference > Publications > OASIS Publications Schedule
+        df["Publish Time"] = (
+            df["Time"].dt.floor("D")
+            + pd.Timedelta(hours=9, minutes=10)
+            # DAM is for the next day
+            - pd.Timedelta(days=1)
+        )
 
         df = df[
             [
-                "Forecast Time",
+                "Publish Time",
                 "Time",
                 "Interval Start",
                 "Interval End",
@@ -236,16 +242,31 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
+        # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
+        # to OASIS.
+        data["Publish Time"] = (
+            data["Time"].dt.floor("D") + pd.Timedelta(hours=7) - pd.Timedelta(days=1)
+        )
+
         return self._process_solar_and_wind_forecast_dam(data)
 
     def _process_solar_and_wind_forecast_dam(self, data):
         df = data[
-            ["Interval Start", "Interval End", "TRADING_HUB", "RENEWABLE_TYPE", "MW"]
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "TRADING_HUB",
+                "RENEWABLE_TYPE",
+                "MW",
+            ]
         ]
 
         # Totals across all trading hubs for each renewable type
         totals = (
-            df.groupby(["RENEWABLE_TYPE", "Interval Start", "Interval End"])["MW"]
+            df.groupby(
+                ["RENEWABLE_TYPE", "Interval Start", "Interval End", "Publish Time"],
+            )["MW"]
             .sum()
             .reset_index()
         )
@@ -256,7 +277,7 @@ class CAISO(ISOBase):
 
         df = df.pivot_table(
             columns=["RENEWABLE_TYPE"],
-            index=["Interval Start", "Interval End", "TRADING_HUB"],
+            index=["Interval Start", "Interval End", "Publish Time", "TRADING_HUB"],
             values="MW",
         ).reset_index()
 
@@ -268,10 +289,12 @@ class CAISO(ISOBase):
                     "Wind": "Wind MW",
                 },
             ),
-            ["Interval Start", "Interval End", "Location"],
+            ["Interval Start", "Interval End", "Publish Time", "Location"],
         )
 
-        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+        return df.sort_values(
+            ["Interval Start", "Publish Time", "Location"],
+        ).reset_index(drop=True)
 
     def get_pnodes(self, verbose=False):
         start = utils._handle_date("today")
@@ -1585,7 +1608,7 @@ oasis_dataset_config = {
             "version": 1,
         },
         "params": {
-            # todo there are more to support
+            # TODO: support additional markets
             "market_run_id": "DAM",
         },
     },

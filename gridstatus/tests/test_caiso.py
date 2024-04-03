@@ -62,6 +62,7 @@ class TestCAISO(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
+            "Publish Time",
             "Location",
             "Solar MW",
             "Wind MW",
@@ -89,6 +90,13 @@ class TestCAISO(BaseTestISO):
             instant_or_interval="interval",
             skip_column_named_time=True,
         )
+
+        assert (
+            df["Publish Time"]
+            == df["Interval Start"].dt.round("D")
+            - pd.Timedelta(days=1)
+            + pd.Timedelta(hours=7)
+        ).all()
 
     def test_get_solar_and_wind_forecast_dam_today(self):
         df = self.iso.get_solar_and_wind_forecast_dam("today")
