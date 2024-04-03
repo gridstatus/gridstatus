@@ -694,7 +694,7 @@ class SPP(ISOBase):
     # 15mb file with five minute resolution
 
     def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
-        url = "https://opsportal.spp.org/Studies/GenerateActiveCSV"
+        url = "https://opsportal.spp.org/Studies/GenerateSummaryCSV"
         msg = f"Getting interconnection queue from {url}"
         log(msg, verbose)
         response = requests.get(url)
@@ -705,8 +705,6 @@ class SPP(ISOBase):
 
         Returns:
             pandas.DataFrame: Interconnection queue
-
-
         """
         raw_data = self.get_raw_interconnection_queue(verbose)
         queue = pd.read_csv(raw_data, skiprows=1)
@@ -714,6 +712,7 @@ class SPP(ISOBase):
         queue["Status (Original)"] = queue["Status"]
         completed_val = InterconnectionQueueStatus.COMPLETED.value
         active_val = InterconnectionQueueStatus.ACTIVE.value
+        withdrawn_val = InterconnectionQueueStatus.WITHDRAWN.value
         queue["Status"] = queue["Status"].map(
             {
                 "IA FULLY EXECUTED/COMMERCIAL OPERATION": completed_val,
@@ -722,6 +721,7 @@ class SPP(ISOBase):
                 "IA PENDING": active_val,
                 "DISIS STAGE": active_val,
                 "None": active_val,
+                "WITHDRAWN": withdrawn_val,
             },
         )
 
@@ -743,6 +743,7 @@ class SPP(ISOBase):
             "Generation Type": "Generation Type",
             "Request Received": "Queue Date",
             "Substation or Line": "Interconnection Location",
+            "Date Withdrawn": "Withdrawn Date",
         }
 
         # todo: there are a few columns being parsed
@@ -761,7 +762,6 @@ class SPP(ISOBase):
         missing = [
             "Project Name",
             "Interconnecting Entity",
-            "Withdrawn Date",
             "Withdrawal Comment",
             "Actual Completion Date",
         ]
