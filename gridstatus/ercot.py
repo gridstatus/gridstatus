@@ -1800,6 +1800,54 @@ class Ercot(ISOBase):
         df.columns = df.columns.str.replace("_", " ")
         return df
 
+    def get_reported_outages(self, date=None, end=None, verbose=False):
+        """
+        Retrieves the 5-minute data behind this dashboard:
+        https://www.ercot.com/gridmktinfo/dashboards/generationoutages
+
+        Data available at
+        https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json
+
+        This data is ephemeral and only available for the current and previous days
+        """
+
+        json = requests.get(
+            "https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json",  # noqa: E501
+        ).json()
+
+        current = json["current"]
+        previous = json["previous"]
+
+        def flatten_dict(data, prefix=""):
+            """
+            Recursive function to flatten nested dictionaries with prefix handling.
+            Returns a new dictionary with the flattened data.
+            """
+            flat_data = {}
+            for key, value in data.items():
+                if isinstance(value, dict):
+                    flat_data.update(flatten_dict(value, prefix + key + " "))
+                else:
+                    flat_data[(prefix + key).title()] = value
+            return flat_data
+
+        # Flatten each dictionary in the list
+        previous_data = [flatten_dict(data) for data in previous.values()]
+        current_data = [flatten_dict(data) for data in current.values()]
+
+        df = pd.DataFrame.from_dict(current_data + previous_data)
+
+        df["Interval End"] = pd.to_datetime(df["Deliverytime"]).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+
+        df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"]).drop(
+            columns=["Deliverytime", "Dstflag"],
+        )
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
     @support_date_range(frequency=None)
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
         """Hourly Resource Outage Capacity report sourced

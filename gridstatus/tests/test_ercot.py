@@ -820,6 +820,45 @@ class TestErcot(BaseTestISO):
 
         assert df.columns.tolist() == cols
 
+    """get_reported_outages"""
+
+    def test_get_reported_outages(self):
+        df = self.iso.get_reported_outages()
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Combined Unplanned",
+            "Combined Planned",
+            "Combined Total",
+            "Dispatchable Unplanned",
+            "Dispatchable Planned",
+            "Dispatchable Total",
+            "Renewable Unplanned",
+            "Renewable Planned",
+            "Renewable Total",
+        ]
+
+        assert df["Interval Start"].min() <= self.local_start_of_today() - pd.Timedelta(
+            days=6,
+        )
+
+        assert df["Interval Start"].max() >= self.local_start_of_today()
+
+        assert (
+            df["Combined Total"] == (df["Combined Unplanned"] + df["Combined Planned"])
+        ).all()
+
+        assert (
+            df["Dispatchable Total"]
+            == (df["Dispatchable Unplanned"] + df["Dispatchable Planned"])
+        ).all()
+
+        assert (
+            df["Renewable Total"]
+            == (df["Renewable Unplanned"] + df["Renewable Planned"])
+        ).all()
+
     def test_get_hourly_resource_outage_capacity(self):
         cols = [
             "Publish Time",
