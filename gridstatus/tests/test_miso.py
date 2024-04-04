@@ -94,7 +94,7 @@ class TestMISO(BaseTestISO):
         "MISO MTLF (MWh)",
     ]
 
-    def test_get_load_forecast_today_or_latest(self):
+    def test_get_load_forecast_today(self):
         df = self.iso.get_load_forecast("today")
 
         assert df.columns.tolist() == self.load_forecast_cols
@@ -102,10 +102,13 @@ class TestMISO(BaseTestISO):
         assert (df["Publish Time"] == self.local_start_of_today()).all()
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval End"].max() == self.local_start_of_today() + pd.Timedelta(
-            days=5,
+            days=6,
         )
 
-        assert self.iso.get_load_forecast("latest").equals(df)
+    def test_get_load_forecast_latest(self):
+        assert self.iso.get_load_forecast("latest").equals(
+            self.iso.get_load_forecast("today"),
+        )
 
     def test_get_load_forecast_historical(self):
         past_date = self.local_today() - pd.Timedelta(days=30)
@@ -116,7 +119,7 @@ class TestMISO(BaseTestISO):
         assert df["Interval Start"].min() == self.local_start_of_day(past_date)
         assert df["Interval End"].max() == self.local_start_of_day(
             past_date,
-        ) + pd.Timedelta(days=5)
+        ) + pd.Timedelta(days=6)
 
         assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
 
@@ -133,7 +136,7 @@ class TestMISO(BaseTestISO):
         assert df["Interval Start"].min() == self.local_start_of_day(past_date)
         assert df["Interval End"].max() == self.local_start_of_day(
             end_date,
-        ) + pd.Timedelta(days=4)
+        ) + pd.Timedelta(days=5)
 
     def test_get_load_forecast_dst_start_and_end(self):
         dst_start = pd.Timestamp("2022-03-13")

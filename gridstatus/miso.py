@@ -126,8 +126,8 @@ class MISO(ISOBase):
 
         df.loc[:, "HourEnding"] = df["HourEnding"].astype(int)
 
-        df["Interval End"] = pd.to_datetime(
-            df["Market Day"] + pd.to_timedelta(df["HourEnding"], "h"),
+        df["Interval End"] = (
+            pd.to_datetime(df["Market Day"]) + pd.to_timedelta(df["HourEnding"], "h")
         ).dt.tz_localize(self.default_timezone)
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
