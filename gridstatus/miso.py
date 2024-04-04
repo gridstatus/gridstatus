@@ -81,7 +81,7 @@ class MISO(ISOBase):
             return self.get_load(date="today", verbose=verbose)
 
         elif utils.is_today(date, tz=self.default_timezone):
-            r = self._get_load_and_forecast_data(verbose=verbose)
+            r = self._get_load_data(verbose=verbose)
 
             date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
 
@@ -121,26 +121,29 @@ class MISO(ISOBase):
         df = pd.read_excel(url, sheet_name="Sheet1", skiprows=4, skipfooter=1)
 
         df = df.dropna(subset=["HourEnding"])
-
         df = df.loc[df["HourEnding"] != "HourEnding"]
-
         df.loc[:, "HourEnding"] = df["HourEnding"].astype(int)
 
         df["Interval End"] = (
-            pd.to_datetime(df["Market Day"]) + pd.to_timedelta(df["HourEnding"], "h")
+            pd.to_datetime(df["Market Day"])
+            + pd.to_timedelta(df["HourEnding"], unit="h")
         ).dt.tz_localize(self.default_timezone)
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
 
-        # Assume publish time is 12 am
+        # Assume publish time is 12 am. MLTF is made every 15 minutes, but maybe
+        # released only once a day
+        # https://pubs.naruc.org/pub/64EABF52-1866-DAAC-99FB-ACEE7EEC8DAD
         df["Publish Time"] = date.normalize()
+
+        df.columns = df.columns.map(lambda x: x.replace("(MWh)", "").strip())
 
         df = utils.move_cols_to_front(
             df,
             ["Interval Start", "Interval End", "Publish Time"],
         ).drop(columns=["Market Day", "HourEnding"])
 
-        # Include only forecasts
+        # Include only forecasts for the current day into the future
         df = df.loc[
             df["Interval Start"] >= date,
             [col for col in df if "ActualLoad" not in col],
@@ -148,7 +151,7 @@ class MISO(ISOBase):
 
         return df.sort_values("Interval Start").reset_index(drop=True)
 
-    def _get_load_and_forecast_data(self, verbose=False):
+    def _get_load_data(self, verbose=False):
         url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"  # noqa
         r = self._get_json(url, verbose=verbose)
         return r

@@ -85,13 +85,13 @@ class TestMISO(BaseTestISO):
         "Interval Start",
         "Interval End",
         "Publish Time",
-        "LRZ1 MTLF (MWh)",
-        "LRZ2_7 MTLF (MWh)",
-        "LRZ3_5 MTLF (MWh)",
-        "LRZ4 MTLF (MWh)",
-        "LRZ6 MTLF (MWh)",
-        "LRZ8_9_10 MTLF (MWh)",
-        "MISO MTLF (MWh)",
+        "LRZ1 MTLF",
+        "LRZ2_7 MTLF",
+        "LRZ3_5 MTLF",
+        "LRZ4 MTLF",
+        "LRZ6 MTLF",
+        "LRZ8_9_10 MTLF",
+        "MISO MTLF",
     ]
 
     def test_get_load_forecast_today(self):
