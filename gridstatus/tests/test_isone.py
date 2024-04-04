@@ -14,6 +14,8 @@ DST_BOUNDARIES = [
     "Nov 6, 2022",
 ]
 
+# This is the minimum length of a wind or solar forecast. In DST, it seems to be
+# one hour longer.
 WIND_OR_SOLAR_FORECAST_LENGTH = pd.Timedelta(days=6, hours=22)
 
 
@@ -144,7 +146,7 @@ class TestISONE(BaseTestISO):
 
         assert (
             df["Interval Start"].max() - df["Interval Start"].min()
-            == WIND_OR_SOLAR_FORECAST_LENGTH
+            >= WIND_OR_SOLAR_FORECAST_LENGTH
         )
 
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
@@ -181,7 +183,7 @@ class TestISONE(BaseTestISO):
 
         assert df["Interval Start"].max() - df[
             "Interval Start"
-        ].min() == WIND_OR_SOLAR_FORECAST_LENGTH + pd.Timedelta(days=2)
+        ].min() >= WIND_OR_SOLAR_FORECAST_LENGTH + pd.Timedelta(days=2)
 
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
@@ -196,7 +198,7 @@ class TestISONE(BaseTestISO):
         assert df["Interval Start"].min() == four_days_ago + pd.Timedelta(hours=10)
         assert (
             df["Interval Start"].max() - df["Interval Start"].min()
-            == WIND_OR_SOLAR_FORECAST_LENGTH
+            >= WIND_OR_SOLAR_FORECAST_LENGTH
         )
 
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
@@ -216,7 +218,7 @@ class TestISONE(BaseTestISO):
 
         assert (
             df["Interval Start"].max() - df["Interval Start"].min()
-            == WIND_OR_SOLAR_FORECAST_LENGTH
+            >= WIND_OR_SOLAR_FORECAST_LENGTH
         )
 
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
@@ -253,7 +255,7 @@ class TestISONE(BaseTestISO):
 
         assert df["Interval Start"].max() - df[
             "Interval Start"
-        ].min() == WIND_OR_SOLAR_FORECAST_LENGTH + pd.Timedelta(days=2)
+        ].min() >= WIND_OR_SOLAR_FORECAST_LENGTH + pd.Timedelta(days=2)
 
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
@@ -269,7 +271,7 @@ class TestISONE(BaseTestISO):
 
         assert (
             df["Interval Start"].max() - df["Interval Start"].min()
-            == WIND_OR_SOLAR_FORECAST_LENGTH
+            >= WIND_OR_SOLAR_FORECAST_LENGTH
         )
 
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
@@ -292,3 +294,14 @@ class TestISONE(BaseTestISO):
             f"{resource_type} Forecast",
         ]
         self._check_time_columns(df, "interval", skip_column_named_time=True)
+
+        # Due to a little thing called "night" solar forecast should go to zero
+        # at some point in the day
+        if resource_type == "Solar":
+            assert df[f"{resource_type} Forecast"].min() == 0
+        else:
+            assert df[f"{resource_type} Forecast"].min() >= 0
+
+    @pytest.mark.skip("File is no longer accessible")
+    def test_get_interconnection_queue(self):
+        pass

@@ -277,10 +277,9 @@ class ISONE(ISOBase):
             date = pd.Timestamp.now(tz=self.default_timezone)
 
         value_name = f"{resource_type.capitalize()} Forecast"
+        file_designator = "wphf" if resource_type == "Wind" else "sphf"
 
-        url = (
-            f"https://www.iso-ne.com/transform/csv/wphf?start={date.strftime('%Y%m%d')}"
-        )
+        url = f"https://www.iso-ne.com/transform/csv/{file_designator}?start={date.strftime('%Y%m%d')}"  # noqa
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
@@ -322,6 +321,8 @@ class ISONE(ISOBase):
             data,
             ["Interval Start", "Interval End", "Publish Time", value_name],
         ).drop(columns=["Date", "Hour Start", "Hour Ending"])
+
+        data[value_name] = data[value_name].astype(float)
 
         return data
 
@@ -638,6 +639,7 @@ class ISONE(ISOBase):
 
         return io.BytesIO(str(soup).encode("utf-8"))
 
+    # TODO: this no longer works due to a error in requesting the file
     def get_interconnection_queue(self, verbose=False):
         """Get the interconnection queue. Contains active and withdrawm applications.
 
