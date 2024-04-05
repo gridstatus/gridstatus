@@ -1808,8 +1808,11 @@ class Ercot(ISOBase):
         Data available at
         https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json
 
-        This data is ephemeral and only available for the current and previous days
+        This data is ephemeral in that there is only one file available that is
+        constantly updated. There is no historical data.
         """
+
+        log("Downloading ERCOT reported outages data", verbose=verbose)
 
         json = requests.get(
             "https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json",  # noqa: E501
