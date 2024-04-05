@@ -1826,7 +1826,7 @@ class Ercot(ISOBase):
             flat_data = {}
             for key, value in data.items():
                 if isinstance(value, dict):
-                    flat_data.update(flatten_dict(value, prefix + key + " "))
+                    flat_data.update(flatten_dict(value, f"{prefix}{key} "))
                 else:
                     flat_data[(prefix + key).title()] = value
             return flat_data
@@ -1837,16 +1837,19 @@ class Ercot(ISOBase):
 
         df = pd.DataFrame.from_dict(current_data + previous_data)
 
-        df["Interval End"] = pd.to_datetime(df["Deliverytime"]).dt.tz_convert(
-            self.default_timezone,
+        # need to use apply since there can be mixed
+        # fixed offsets during dst transition
+        # that result in object dtypes in pandas
+        df["Time"] = df["Deliverytime"].apply(
+            lambda x: pd.to_datetime(x).tz_convert("UTC"),
         )
-        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+        df["Time"] = df["Time"].dt.tz_convert(self.default_timezone)
 
-        df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"]).drop(
+        df = utils.move_cols_to_front(df, ["Time"]).drop(
             columns=["Deliverytime", "Dstflag"],
         )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort_values("Time").reset_index(drop=True)
 
     @support_date_range(frequency=None)
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
