@@ -1800,6 +1800,60 @@ class Ercot(ISOBase):
         df.columns = df.columns.str.replace("_", " ")
         return df
 
+    def get_reported_outages(self, date=None, end=None, verbose=False):
+        """
+        Retrieves the 5-minute data behind this dashboard:
+        https://www.ercot.com/gridmktinfo/dashboards/generationoutages
+
+        Data available at
+        https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json
+
+        This data is ephemeral in that there is only one file available that is
+        constantly updated. There is no historical data.
+        """
+
+        log("Downloading ERCOT reported outages data", verbose=verbose)
+
+        json = requests.get(
+            "https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json",  # noqa: E501
+        ).json()
+
+        current = json["current"]
+        previous = json["previous"]
+
+        def flatten_dict(data, prefix=""):
+            """
+            Recursive function to flatten nested dictionaries with prefix handling.
+            Returns a new dictionary with the flattened data.
+            """
+            flat_data = {}
+            for key, value in data.items():
+                if isinstance(value, dict):
+                    flat_data.update(flatten_dict(value, f"{prefix}{key} "))
+                else:
+                    flat_data[(prefix + key).title()] = value
+            return flat_data
+
+        # Flatten each dictionary in the list
+        previous_data = [flatten_dict(data) for data in previous.values()]
+        current_data = [flatten_dict(data) for data in current.values()]
+
+        df = pd.DataFrame.from_dict(current_data + previous_data)
+
+        # need to use apply since there can be mixed
+        # fixed offsets during dst transition
+        # that result in object dtypes in pandas
+        df["Time"] = df["Deliverytime"].apply(
+            lambda x: pd.to_datetime(x).tz_convert("UTC"),
+        )
+        df["Time"] = df["Time"].dt.tz_convert(self.default_timezone)
+
+        df = utils.move_cols_to_front(df, ["Time"]).drop(
+            columns=["Deliverytime", "Dstflag"],
+        )
+
+        return df.sort_values("Time").reset_index(drop=True)
+
     @support_date_range(frequency=None)
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
         """Hourly Resource Outage Capacity report sourced
