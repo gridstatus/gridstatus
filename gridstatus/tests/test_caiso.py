@@ -54,6 +54,18 @@ class TestCAISO(BaseTestISO):
         df = self.iso.get_fuel_mix(date=date)
         self._check_fuel_mix(df)
 
+    """get_load_forecast"""
+
+    def test_get_load_forecast_publish_time(self):
+        df = self.iso.get_load_forecast("today")
+
+        assert (
+            df["Publish Time"]
+            == df["Interval Start"].dt.normalize()
+            - pd.Timedelta(days=1)
+            + pd.Timedelta(hours=9, minutes=10)
+        ).all()
+
     """get_solar_and_wind_forecast_dam"""
 
     def _check_solar_and_wind_forecast(self, df):
@@ -93,7 +105,7 @@ class TestCAISO(BaseTestISO):
 
         assert (
             df["Publish Time"]
-            == df["Interval Start"].dt.round("D")
+            == df["Interval Start"].dt.normalize()
             - pd.Timedelta(days=1)
             + pd.Timedelta(hours=7)
         ).all()
