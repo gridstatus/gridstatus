@@ -288,6 +288,14 @@ class CAISO(ISOBase):
             values="MW",
         ).reset_index()
 
+        df = self._add_forecast_publish_time(
+            df,
+            current_time,
+            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
+            # to OASIS.
+            publish_time_offset_from_day_start=publish_time_offset_from_day_start,
+        )
+
         df = utils.move_cols_to_front(
             df.rename(
                 columns={
@@ -296,16 +304,10 @@ class CAISO(ISOBase):
                     "Wind": "Wind MW",
                 },
             ),
-            ["Interval Start", "Interval End", "Location"],
+            ["Interval Start", "Interval End", "Publish Time", "Location"],
         )
 
-        data = self._add_forecast_publish_time(
-            data,
-            current_time,
-            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
-            # to OASIS.
-            publish_time_offset_from_day_start=publish_time_offset_from_day_start,
-        )
+        df.columns.name = None
 
         return df.sort_values(
             ["Interval Start", "Publish Time", "Location"],
@@ -348,9 +350,9 @@ class CAISO(ISOBase):
         # Forecasts today and earlier get a publish time of the previous day at the
         # publish time offset
         data["Publish Time"] = np.where(
-            data["Time"].dt.date > future_forecasts_publish_time.date(),
+            data["Interval Start"].dt.date > future_forecasts_publish_time.date(),
             future_forecasts_publish_time,
-            data["Time"].apply(
+            data["Interval Start"].apply(
                 lambda x: x.floor("D").replace(hour=hour_offset, minute=minute_offset),
             )
             # DAM is for the next day
