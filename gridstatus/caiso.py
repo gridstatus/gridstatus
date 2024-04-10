@@ -5,6 +5,7 @@ import warnings
 from contextlib import redirect_stderr
 from zipfile import ZipFile
 
+import numpy as np
 import pandas as pd
 import requests
 import tabula
@@ -204,13 +205,11 @@ class CAISO(ISOBase):
 
         df = df.sort_values("Time")
 
-        # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
-        # ATLAS Reference > Publications > OASIS Publications Schedule
-        df["Publish Time"] = (
-            df["Time"].dt.floor("D")
-            + pd.Timedelta(hours=9, minutes=10)
-            # DAM is for the next day
-            - pd.Timedelta(days=1)
+        df = self._add_forecast_publish_time(
+            df,
+            # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
+            # ATLAS Reference > Publications > OASIS Publications Schedule
+            publish_time_offset_from_day_start=pd.Timedelta(hours=9, minutes=10),
         )
 
         df = df[
@@ -242,15 +241,25 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
-        # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
-        # to OASIS.
-        data["Publish Time"] = (
-            data["Time"].dt.floor("D") + pd.Timedelta(hours=7) - pd.Timedelta(days=1)
+        return self._process_solar_and_wind_forecast_dam(
+            data,
+            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
+            # to OASIS.
+            publish_time_offset_from_day_start=pd.Timedelta(hours=7),
         )
 
-        return self._process_solar_and_wind_forecast_dam(data)
+    def _process_solar_and_wind_forecast_dam(
+        self,
+        data,
+        publish_time_offset_from_day_start,
+    ):
+        data = self._add_forecast_publish_time(
+            data,
+            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
+            # to OASIS.
+            publish_time_offset_from_day_start=publish_time_offset_from_day_start,
+        )
 
-    def _process_solar_and_wind_forecast_dam(self, data):
         df = data[
             [
                 "Interval Start",
@@ -295,6 +304,43 @@ class CAISO(ISOBase):
         return df.sort_values(
             ["Interval Start", "Publish Time", "Location"],
         ).reset_index(drop=True)
+
+    def _add_forecast_publish_time(self, data, publish_time_offset_from_day_start):
+        """
+        Labels forecasts with a publish time using the logic:
+
+        - If tomorrow or further in the future, the publish time is
+            * Today's publish time if current time is after the publish time
+            * Yesterday's publish time if current time is before the publish time
+        - If today or earlier, the publish time is the previous day's publish time
+
+        We assume the forecast was published the day before the forecasted day unless
+        the forecast is in the future to avoid having publish times in the future.
+        """
+        current_time = pd.Timestamp.now(tz=self.default_timezone)
+        todays_publish_time = (
+            current_time.normalize() + publish_time_offset_from_day_start
+        )
+
+        # If the current time is after the publish time, then future forecasts were
+        # published today. Otherwise, they were published yesterday.
+        if current_time > todays_publish_time:
+            future_forecasts_publish_time = todays_publish_time
+        else:
+            future_forecasts_publish_time = todays_publish_time - pd.Timedelta(days=1)
+
+        # Forecasts tomorrow and later get the future forecasts publish time
+        # Forecasts today and earlier get a publish time of the previous day at the
+        # publish time offset
+        data["Publish Time"] = np.where(
+            data["Time"].dt.date > future_forecasts_publish_time.date(),
+            future_forecasts_publish_time,
+            data["Time"].dt.floor("D") + publish_time_offset_from_day_start
+            # DAM is for the next day
+            - pd.Timedelta(days=1),
+        )
+
+        return data
 
     def get_pnodes(self, verbose=False):
         start = utils._handle_date("today")
