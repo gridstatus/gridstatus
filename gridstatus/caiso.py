@@ -186,6 +186,7 @@ class CAISO(ISOBase):
                 hitting rate limit in regular usage. Defaults to 5 seconds.
 
         """
+        current_time = pd.Timestamp.now(tz=self.default_timezone)
 
         df = self.get_oasis_dataset(
             dataset="demand_forecast",
@@ -207,6 +208,7 @@ class CAISO(ISOBase):
 
         df = self._add_forecast_publish_time(
             df,
+            current_time,
             # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
             # ATLAS Reference > Publications > OASIS Publications Schedule
             publish_time_offset_from_day_start=pd.Timedelta(hours=9, minutes=10),
@@ -233,6 +235,8 @@ class CAISO(ISOBase):
         if date == "latest":
             return self.get_solar_and_wind_forecast_dam("today", verbose=verbose)
 
+        current_time = pd.Timestamp.now(tz=self.default_timezone)
+
         data = self.get_oasis_dataset(
             dataset="wind_and_solar_forecast",
             date=date,
@@ -243,6 +247,7 @@ class CAISO(ISOBase):
 
         return self._process_solar_and_wind_forecast_dam(
             data,
+            current_time,
             # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
             # to OASIS.
             publish_time_offset_from_day_start=pd.Timedelta(hours=7),
@@ -251,30 +256,23 @@ class CAISO(ISOBase):
     def _process_solar_and_wind_forecast_dam(
         self,
         data,
+        current_time,
         publish_time_offset_from_day_start,
     ):
-        data = self._add_forecast_publish_time(
-            data,
-            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
-            # to OASIS.
-            publish_time_offset_from_day_start=publish_time_offset_from_day_start,
-        )
-
         df = data[
             [
                 "Interval Start",
                 "Interval End",
-                "Publish Time",
                 "TRADING_HUB",
                 "RENEWABLE_TYPE",
                 "MW",
             ]
         ]
 
-        # Totals across all trading hubs for each renewable type
+        # Totals across all trading hubs for each renewable type at each interval
         totals = (
             df.groupby(
-                ["RENEWABLE_TYPE", "Interval Start", "Interval End", "Publish Time"],
+                ["RENEWABLE_TYPE", "Interval Start", "Interval End"],
             )["MW"]
             .sum()
             .reset_index()
@@ -286,7 +284,7 @@ class CAISO(ISOBase):
 
         df = df.pivot_table(
             columns=["RENEWABLE_TYPE"],
-            index=["Interval Start", "Interval End", "Publish Time", "TRADING_HUB"],
+            index=["Interval Start", "Interval End", "TRADING_HUB"],
             values="MW",
         ).reset_index()
 
@@ -298,14 +296,27 @@ class CAISO(ISOBase):
                     "Wind": "Wind MW",
                 },
             ),
-            ["Interval Start", "Interval End", "Publish Time", "Location"],
+            ["Interval Start", "Interval End", "Location"],
+        )
+
+        data = self._add_forecast_publish_time(
+            data,
+            current_time,
+            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
+            # to OASIS.
+            publish_time_offset_from_day_start=publish_time_offset_from_day_start,
         )
 
         return df.sort_values(
             ["Interval Start", "Publish Time", "Location"],
         ).reset_index(drop=True)
 
-    def _add_forecast_publish_time(self, data, publish_time_offset_from_day_start):
+    def _add_forecast_publish_time(
+        self,
+        data,
+        current_time,
+        publish_time_offset_from_day_start,
+    ):
         """
         Labels forecasts with a publish time using the logic:
 
@@ -317,9 +328,13 @@ class CAISO(ISOBase):
         We assume the forecast was published the day before the forecasted day unless
         the forecast is in the future to avoid having publish times in the future.
         """
-        current_time = pd.Timestamp.now(tz=self.default_timezone)
-        todays_publish_time = (
-            current_time.normalize() + publish_time_offset_from_day_start
+        hour_offset = publish_time_offset_from_day_start.components.hours
+        minute_offset = publish_time_offset_from_day_start.components.minutes
+
+        # Use replace to avoid DST issues
+        todays_publish_time = current_time.normalize().replace(
+            hour=hour_offset,
+            minute=minute_offset,
         )
 
         # If the current time is after the publish time, then future forecasts were
@@ -335,7 +350,9 @@ class CAISO(ISOBase):
         data["Publish Time"] = np.where(
             data["Time"].dt.date > future_forecasts_publish_time.date(),
             future_forecasts_publish_time,
-            data["Time"].dt.floor("D") + publish_time_offset_from_day_start
+            data["Time"].apply(
+                lambda x: x.floor("D").replace(hour=hour_offset, minute=minute_offset),
+            )
             # DAM is for the next day
             - pd.Timedelta(days=1),
         )
