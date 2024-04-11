@@ -59,6 +59,14 @@ class TestCAISO(BaseTestISO):
     def test_get_load_forecast_publish_time(self):
         df = self.iso.get_load_forecast("today")
 
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Load Forecast",
+        ]
+
         assert df["Publish Time"].nunique() == 1
         assert df["Publish Time"].max() < self.local_now()
 

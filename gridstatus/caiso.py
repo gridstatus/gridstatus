@@ -216,10 +216,10 @@ class CAISO(ISOBase):
 
         df = df[
             [
-                "Publish Time",
                 "Time",
                 "Interval Start",
                 "Interval End",
+                "Publish Time",
                 "Load Forecast",
             ]
         ]
