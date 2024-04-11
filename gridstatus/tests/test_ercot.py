@@ -826,7 +826,8 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_reported_outages()
 
         assert df.columns.tolist() == [
-            "Time" "Combined Unplanned",
+            "Time",
+            "Combined Unplanned",
             "Combined Planned",
             "Combined Total",
             "Dispatchable Unplanned",
@@ -838,7 +839,9 @@ class TestErcot(BaseTestISO):
         ]
 
         assert df["Time"].min() <= self.local_start_of_today() - pd.Timedelta(
+            # Add the minutes because the times do not line up exactly on the hour
             days=6,
+            minutes=-5,
         )
 
         assert df["Time"].max() >= self.local_start_of_today()
