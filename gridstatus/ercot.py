@@ -423,6 +423,9 @@ class Ercot(ISOBase):
             pandas.DataFrame
 
         """
+        # Use the html page for both today and yesterday to ensure all the
+        # data is retrieved. The html page is updated every hour at 20 mins
+        # past the hour but the report is only published once per dat at 0550 UTC.
         if utils.is_today(date, tz=self.default_timezone) or utils.is_yesterday(
             date,
             tz=self.default_timezone,
@@ -453,8 +456,7 @@ class Ercot(ISOBase):
             pandas.DataFrame
         """
         # Use the html page for both today and yesterday to ensure all the
-        # data is retrieved. The html page is updated every hour at 20 mins
-        # past the hour but the report is only published once per dat at 0550 UTC.
+        # data is retrieved.
         if utils.is_today(date, tz=self.default_timezone) or utils.is_yesterday(
             date,
             tz=self.default_timezone,
