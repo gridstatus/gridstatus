@@ -5,6 +5,7 @@ import warnings
 from contextlib import redirect_stderr
 from zipfile import ZipFile
 
+import numpy as np
 import pandas as pd
 import requests
 import tabula
@@ -185,6 +186,7 @@ class CAISO(ISOBase):
                 hitting rate limit in regular usage. Defaults to 5 seconds.
 
         """
+        current_time = pd.Timestamp.now(tz=self.default_timezone)
 
         df = self.get_oasis_dataset(
             dataset="demand_forecast",
@@ -204,15 +206,20 @@ class CAISO(ISOBase):
 
         df = df.sort_values("Time")
 
-        # todo - what is the actual time of the forecast?
-        df["Forecast Time"] = df["Time"].iloc[0]
+        df = self._add_forecast_publish_time(
+            df,
+            current_time,
+            # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
+            # ATLAS Reference > Publications > OASIS Publications Schedule
+            publish_time_offset_from_day_start=pd.Timedelta(hours=9, minutes=10),
+        )
 
         df = df[
             [
-                "Forecast Time",
                 "Time",
                 "Interval Start",
                 "Interval End",
+                "Publish Time",
                 "Load Forecast",
             ]
         ]
@@ -228,6 +235,8 @@ class CAISO(ISOBase):
         if date == "latest":
             return self.get_solar_and_wind_forecast_dam("today", verbose=verbose)
 
+        current_time = pd.Timestamp.now(tz=self.default_timezone)
+
         data = self.get_oasis_dataset(
             dataset="wind_and_solar_forecast",
             date=date,
@@ -236,16 +245,35 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
-        return self._process_solar_and_wind_forecast_dam(data)
+        return self._process_solar_and_wind_forecast_dam(
+            data,
+            current_time,
+            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
+            # to OASIS.
+            publish_time_offset_from_day_start=pd.Timedelta(hours=7),
+        )
 
-    def _process_solar_and_wind_forecast_dam(self, data):
+    def _process_solar_and_wind_forecast_dam(
+        self,
+        data,
+        current_time,
+        publish_time_offset_from_day_start,
+    ):
         df = data[
-            ["Interval Start", "Interval End", "TRADING_HUB", "RENEWABLE_TYPE", "MW"]
+            [
+                "Interval Start",
+                "Interval End",
+                "TRADING_HUB",
+                "RENEWABLE_TYPE",
+                "MW",
+            ]
         ]
 
-        # Totals across all trading hubs for each renewable type
+        # Totals across all trading hubs for each renewable type at each interval
         totals = (
-            df.groupby(["RENEWABLE_TYPE", "Interval Start", "Interval End"])["MW"]
+            df.groupby(
+                ["RENEWABLE_TYPE", "Interval Start", "Interval End"],
+            )["MW"]
             .sum()
             .reset_index()
         )
@@ -260,6 +288,14 @@ class CAISO(ISOBase):
             values="MW",
         ).reset_index()
 
+        df = self._add_forecast_publish_time(
+            df,
+            current_time,
+            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
+            # to OASIS.
+            publish_time_offset_from_day_start=publish_time_offset_from_day_start,
+        )
+
         df = utils.move_cols_to_front(
             df.rename(
                 columns={
@@ -268,10 +304,62 @@ class CAISO(ISOBase):
                     "Wind": "Wind MW",
                 },
             ),
-            ["Interval Start", "Interval End", "Location"],
+            ["Interval Start", "Interval End", "Publish Time", "Location"],
         )
 
-        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+        df.columns.name = None
+
+        return df.sort_values(
+            ["Interval Start", "Publish Time", "Location"],
+        ).reset_index(drop=True)
+
+    def _add_forecast_publish_time(
+        self,
+        data,
+        current_time,
+        publish_time_offset_from_day_start,
+    ):
+        """
+        Labels forecasts with a publish time using the logic:
+
+        - If tomorrow or further in the future, the publish time is
+            * Today's publish time if current time is after the publish time
+            * Yesterday's publish time if current time is before the publish time
+        - If today or earlier, the publish time is the previous day's publish time
+
+        We assume the forecast was published the day before the forecasted day unless
+        the forecast is in the future to avoid having publish times in the future.
+        """
+        hour_offset = publish_time_offset_from_day_start.components.hours
+        minute_offset = publish_time_offset_from_day_start.components.minutes
+
+        # Use replace to avoid DST issues
+        todays_publish_time = current_time.normalize().replace(
+            hour=hour_offset,
+            minute=minute_offset,
+        )
+
+        # If the current time is after the publish time, then future forecasts were
+        # published today. Otherwise, they were published yesterday.
+        if current_time > todays_publish_time:
+            future_forecasts_publish_time = todays_publish_time
+        else:
+            future_forecasts_publish_time = todays_publish_time - pd.Timedelta(days=1)
+
+        # Forecasts tomorrow and later get the future forecasts publish time
+        # Forecasts today and earlier get a publish time of the previous day at the
+        # publish time offset
+        data["Publish Time"] = np.where(
+            data["Interval Start"].dt.date > future_forecasts_publish_time.date(),
+            future_forecasts_publish_time,
+            data["Interval Start"].apply(
+                lambda x: x.floor("D").replace(hour=hour_offset, minute=minute_offset),
+            )
+            # DAM is for the next day
+            - pd.Timedelta(days=1),
+        )
+
+        return data
 
     def get_pnodes(self, verbose=False):
         start = utils._handle_date("today")
@@ -1585,7 +1673,7 @@ oasis_dataset_config = {
             "version": 1,
         },
         "params": {
-            # todo there are more to support
+            # TODO: support additional markets
             "market_run_id": "DAM",
         },
     },

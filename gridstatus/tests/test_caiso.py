@@ -54,14 +54,31 @@ class TestCAISO(BaseTestISO):
         df = self.iso.get_fuel_mix(date=date)
         self._check_fuel_mix(df)
 
+    """get_load_forecast"""
+
+    def test_get_load_forecast_publish_time(self):
+        df = self.iso.get_load_forecast("today")
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Load Forecast",
+        ]
+
+        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].max() < self.local_now()
+
     """get_solar_and_wind_forecast_dam"""
 
-    def _check_solar_and_wind_forecast(self, df):
+    def _check_solar_and_wind_forecast(self, df, expected_count_unique_publish_times):
         assert df.shape[0] > 0
 
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
+            "Publish Time",
             "Location",
             "Solar MW",
             "Wind MW",
@@ -90,9 +107,13 @@ class TestCAISO(BaseTestISO):
             skip_column_named_time=True,
         )
 
+        # Make sure there are no future publish times
+        assert df["Publish Time"].max() < self.local_now()
+        assert df["Publish Time"].nunique() == expected_count_unique_publish_times
+
     def test_get_solar_and_wind_forecast_dam_today(self):
         df = self.iso.get_solar_and_wind_forecast_dam("today")
-        self._check_solar_and_wind_forecast(df)
+        self._check_solar_and_wind_forecast(df, 1)
 
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
@@ -106,7 +127,7 @@ class TestCAISO(BaseTestISO):
 
     def test_get_solar_and_wind_forecast_dam_historical_date(self):
         df = self.iso.get_solar_and_wind_forecast_dam("2024-02-20")
-        self._check_solar_and_wind_forecast(df)
+        self._check_solar_and_wind_forecast(df, 1)
 
         assert df["Interval Start"].min() == self.local_start_of_day("2024-02-20")
         assert df["Interval Start"].max() == self.local_start_of_day(
@@ -119,12 +140,21 @@ class TestCAISO(BaseTestISO):
 
         df = self.iso.get_solar_and_wind_forecast_dam(start, end=end)
 
-        self._check_solar_and_wind_forecast(df)
+        # Only 6 days of data because the end date is exclusive
+        self._check_solar_and_wind_forecast(df, 6)
 
         assert df["Interval Start"].min() == self.local_start_of_day(start)
         assert df["Interval Start"].max() == self.local_start_of_day(
             end,
         ) - pd.Timedelta(hours=1)
+
+    def test_get_solar_and_wind_forecast_dam_future_date_range(self):
+        start = self.local_today() + pd.Timedelta(days=1)
+        end = start + pd.Timedelta(days=2)
+
+        df = self.iso.get_solar_and_wind_forecast_dam(start, end=end)
+
+        self._check_solar_and_wind_forecast(df, 1)
 
     """get_curtailment"""
 
