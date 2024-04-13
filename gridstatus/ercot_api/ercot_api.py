@@ -301,10 +301,9 @@ class ErcotAPI:
                 **api_params,
             )
 
-        data = self.ercot._handle_lmp(
-            docs=None,
-            verbose=verbose,
+        data = self.ercot._handle_lmp_df(
             df=data.rename(columns={"RepeatHourFlag": "RepeatedHourFlag"}),
+            verbose=verbose,
         )
 
         return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
@@ -354,10 +353,9 @@ class ErcotAPI:
         )
 
         return (
-            self.ercot._handle_hourly_resource_outage_capacity(
-                doc=None,
-                verbose=verbose,
+            self.ercot._handle_hourly_resource_outage_capacity_df(
                 df=data,
+                verbose=verbose,
             )
             .sort_values(["Interval Start"])
             .reset_index(drop=True)

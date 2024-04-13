@@ -1051,25 +1051,27 @@ class Ercot(ISOBase):
 
         return self._handle_lmp(docs=docs, verbose=verbose)
 
-    def _handle_lmp(self, docs, verbose=False, sced=True, df=None):
-        if df is None:
-            df = self.read_docs(
-                docs,
-                parse=False,
-                # need to return a DF that works with the
-                # logic in rest of function
-                empty_df=pd.DataFrame(
-                    columns=[
-                        "SCEDTimestamp",
-                        "RepeatedHourFlag",
-                        "Location",
-                        "Location Type",
-                        "LMP",
-                    ],
-                ),
-                verbose=verbose,
-            )
+    def _handle_lmp(self, docs, verbose=False, sced=True):
+        df = self.read_docs(
+            docs,
+            parse=False,
+            # need to return a DF that works with the
+            # logic in rest of function
+            empty_df=pd.DataFrame(
+                columns=[
+                    "SCEDTimestamp",
+                    "RepeatedHourFlag",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                ],
+            ),
+            verbose=verbose,
+        )
 
+        return self._handle_lmp_df(df, verbose=verbose, sced=sced)
+
+    def _handle_lmp_df(self, df, verbose=False, sced=True):
         df = self._handle_sced_timestamp(df=df, verbose=verbose)
 
         if "SettlementPoint" in df.columns:
@@ -1221,10 +1223,6 @@ class Ercot(ISOBase):
         # todo is this needed if we are defaulting to resource node?
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         resource_node = mapping_df["RESOURCE_NODE"].dropna().unique()
-
-        # if df[df.duplicated()].shape[0] > 0:
-        #     import pdb
-        #     pdb.set_trace()
 
         # Create boolean masks for each location type
         is_hub = df["Location"].str.startswith("HB_")
@@ -1900,28 +1898,30 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_hourly_resource_outage_capacity(self, doc, verbose=False, df=None):
-        if df is None:
-            df = self.read_doc(doc, parse=False, verbose=verbose)
-            # there is no DST flag column
-            # and the data set ignores DST
-            # so, we will default to assuming it is DST. We will also
-            # set nonexistent times to NaT and drop them
-            df = self.parse_doc(
-                df,
-                dst_ambiguous_default=True,
-                nonexistent="NaT",
-                verbose=verbose,
-            )
+    def _handle_hourly_resource_outage_capacity(self, doc, verbose=False):
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        # there is no DST flag column
+        # and the data set ignores DST
+        # so, we will default to assuming it is DST. We will also
+        # set nonexistent times to NaT and drop them
+        df = self.parse_doc(
+            df,
+            dst_ambiguous_default=True,
+            nonexistent="NaT",
+            verbose=verbose,
+        )
 
-            df = df.dropna(subset=["Interval Start"])
+        df = df.dropna(subset=["Interval Start"])
 
-            df.insert(
-                0,
-                "Publish Time",
-                pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
-            )
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
 
+        return self._handle_hourly_resource_outage_capacity_df(df)
+
+    def _handle_hourly_resource_outage_capacity_df(self, df):
         outage_types = ["Total Resource", "Total IRR", "Total New Equip Resource"]
 
         # Earlier data doesn't have these columns
@@ -1963,6 +1963,7 @@ class Ercot(ISOBase):
                     "TotalNewEquipResourceMW": "Total New Equip Resource MW",
                 },
             )
+
         return df
 
     @support_date_range("DAY_START")
@@ -2333,13 +2334,8 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_three_day_highest_price_as_offer_selected_file(
-        self,
-        doc,
-        verbose=False,
-        df=None,
-    ):
-        df = self.read_doc(doc, verbose=verbose) if df is None else df
+    def _handle_three_day_highest_price_as_offer_selected_file(self, doc, verbose):
+        df = self.read_doc(doc, verbose=verbose)
 
         df = df.rename(
             columns={
@@ -2371,7 +2367,8 @@ class Ercot(ISOBase):
                     "AS Type",
                     "Block Indicator",
                 ],
-                dropna=False,  # Have to include missing because older data
+                dropna=False,  # Have to include missing because older data has missing
+                # values in some columns
             )
             .apply(_handle_offers, include_groups=False)
             .reset_index()
