@@ -632,7 +632,9 @@ class PJM(ISOBase):
             ]
         ]
 
-        return data
+        return data.sort_values(["Interval Start", "Publish Time"]).reset_index(
+            drop=True,
+        )
 
     # todo https://dataminer2.pjm.com/feed/load_frcstd_hist/definition
     # def get_historical_forecast(self, date):
