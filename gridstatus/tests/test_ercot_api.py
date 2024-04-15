@@ -18,6 +18,39 @@ class TestErcotAPI(TestHelperMixin):
         # Runs before all tests in this class
         cls.iso = ErcotAPI()
 
+    """get_as_prices"""
+
+    def _check_as_prices(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Up",
+            "Responsive Reserves",
+            "ERCOT Contingency Reserve Service",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert (df["Market"] == "DAM").all()
+        assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
+
+    def test_get_as_prices_today(self):
+        df = self.iso.get_as_prices("today")
+
+        self._check_as_prices(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.Timedelta(
+            days=1,
+        )
+
     """lmp_by_bus_dam"""
 
     def _check_lmp_by_bus_dam(self, df):

@@ -629,6 +629,10 @@ class ErcotAPI:
         1. Get the links to download the historical data
         2. Download the historical data from the links
 
+        NOTE: this message is exclusive of the end date. For example, if you want to
+        get data for 2021-01-01 to 2021-01-02, you should set the end date to
+        2021-01-03.
+
         Arguments:
             endpoint [str]: a string representing a specific ERCOT API endpoint.
             start_date [date]: the start date for the historical data
