@@ -8,7 +8,7 @@ import requests
 import tqdm
 
 from gridstatus import utils
-from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
+from gridstatus.base import ISOBase, Markets, NoDataFoundException
 from gridstatus.decorators import (
     _get_pjm_archive_date,
     pjm_update_dates,
@@ -537,15 +537,15 @@ class PJM(ISOBase):
 
         return load
 
-    def get_load_forecast(self, date, verbose=False):
-        """Get forecast for today in hourly intervals.
+    @support_date_range(frequency=None)
+    def get_load_forecast(self, date, end=None, verbose=False):
+        """Get forecast for today or a historical date in hourly intervals.
 
-        Updates every Every half hour on the quarter E.g. 1:15 and 1:45
+        Today's forecast updates every Every half hour on the quarter E.g. 1:15 and 1:45
+        Historical forecasts include all vintages of the forecast.
 
         """
-
-        if not utils.is_today(date, self.default_timezone):
-            raise NotSupported()
+        use_hist = not utils.is_today(date, tz=self.default_timezone)
 
         # todo: should we use the UTC field instead of EPT?
         params = {
@@ -554,25 +554,49 @@ class PJM(ISOBase):
             ),
             "forecast_area": "RTO_COMBINED",
         }
+
+        endpoint_name = "load_frcstd_7_day"
+        filter_timestamp_name = "datetime_beginning"
+        start = None
+        end = utils._handle_date(end, tz=self.default_timezone)
+
+        if use_hist:
+            # Historical data uses a different endpoint with slightly different fields.
+            endpoint_name = "load_frcstd_hist"
+            params = {
+                "fields": (
+                    "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_load_mw"
+                ),
+                "forecast_area": "RTO",
+            }
+            filter_timestamp_name = "forecast_hour_beginning"
+            start = date
+            end = end or (date + pd.Timedelta(days=1))
+
         data = self._get_pjm_json(
-            "load_frcstd_7_day",
-            start=None,
+            endpoint_name,
+            start=start,
+            end=end,
             params=params,
             verbose=verbose,
+            filter_timestamp_name=filter_timestamp_name,
         )
+
         data = data.rename(
             columns={
-                "evaluated_at_datetime_utc": "Forecast Time",
+                "evaluated_at_utc": "Publish Time",
+                "evaluated_at_datetime_utc": "Publish Time",
                 "forecast_load_mw": "Load Forecast",
                 "forecast_datetime_beginning_utc": "Interval Start",
+                "forecast_hour_beginning_utc": "Interval Start",
                 "forecast_datetime_ending_utc": "Interval End",
             },
         )
 
         data.drop("forecast_area", axis=1, inplace=True)
 
-        data["Forecast Time"] = pd.to_datetime(
-            data["Forecast Time"],
+        data["Publish Time"] = pd.to_datetime(
+            data["Publish Time"],
             utc=True,
         ).dt.tz_convert(
             self.default_timezone,
@@ -585,12 +609,16 @@ class PJM(ISOBase):
             self.default_timezone,
         )
 
-        data["Interval End"] = pd.to_datetime(
-            data["Interval End"],
-            utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
-        )
+        # Only real-time data has Interval End
+        if "Interval End" in data.columns:
+            data["Interval End"] = pd.to_datetime(
+                data["Interval End"],
+                utc=True,
+            ).dt.tz_convert(
+                self.default_timezone,
+            )
+        else:
+            data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
 
         data["Time"] = data["Interval Start"]
 
@@ -599,7 +627,7 @@ class PJM(ISOBase):
                 "Time",
                 "Interval Start",
                 "Interval End",
-                "Forecast Time",
+                "Publish Time",
                 "Load Forecast",
             ]
         ]
