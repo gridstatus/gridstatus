@@ -550,9 +550,8 @@ class PJM(ISOBase):
         # todo: should we use the UTC field instead of EPT?
         params = {
             "fields": (
-                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_load_mw"
+                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"
             ),
-            "forecast_area": "RTO_COMBINED",
         }
 
         endpoint_name = "load_frcstd_7_day"
@@ -565,12 +564,12 @@ class PJM(ISOBase):
             endpoint_name = "load_frcstd_hist"
             params = {
                 "fields": (
-                    "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_load_mw"
+                    "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_area,forecast_load_mw"
                 ),
-                "forecast_area": "RTO",
             }
             filter_timestamp_name = "forecast_hour_beginning"
             start = date
+            # If no end is provided, add a day to the date to get a full day of data
             end = end or (date + pd.Timedelta(days=1))
 
         data = self._get_pjm_json(
@@ -590,10 +589,15 @@ class PJM(ISOBase):
                 "forecast_datetime_beginning_utc": "Interval Start",
                 "forecast_hour_beginning_utc": "Interval Start",
                 "forecast_datetime_ending_utc": "Interval End",
+                "forecast_area": "Forecast Area",
             },
         )
 
-        data.drop("forecast_area", axis=1, inplace=True)
+        data = data.pivot(
+            columns="Forecast Area",
+            values="Load Forecast",
+            index=["Publish Time", "Interval Start"],
+        ).reset_index()
 
         data["Publish Time"] = pd.to_datetime(
             data["Publish Time"],
@@ -622,23 +626,14 @@ class PJM(ISOBase):
 
         data["Time"] = data["Interval Start"]
 
-        data = data[
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Load Forecast",
-            ]
-        ]
+        data = utils.move_cols_to_front(
+            data,
+            ["Time", "Interval Start", "Interval End", "Publish Time"],
+        )
 
         return data.sort_values(["Interval Start", "Publish Time"]).reset_index(
             drop=True,
         )
-
-    # todo https://dataminer2.pjm.com/feed/load_frcstd_hist/definition
-    # def get_historical_forecast(self, date):
-    # pass
 
     def get_pnode_ids(self):
         data = {
