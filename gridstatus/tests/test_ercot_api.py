@@ -211,7 +211,7 @@ class TestErcotAPI(TestHelperMixin):
         assert self.iso.get_lmp_by_settlement_point("latest").equals(df)
 
     def test_get_lmp_by_settlement_point_historical_date(self):
-        historical_date = datetime.date(2021, 11, 7)
+        historical_date = datetime.date(2021, 11, 6)
         df = self.iso.get_lmp_by_settlement_point(historical_date, verbose=True)
 
         self._check_lmp_by_settlement_point(df)
@@ -224,8 +224,8 @@ class TestErcotAPI(TestHelperMixin):
         )
 
     def test_get_lmp_by_settlement_point_historical_date_range(self):
-        start_date = datetime.date(2021, 11, 7)
-        end_date = datetime.date(2021, 11, 9)
+        start_date = datetime.date(2021, 11, 12)
+        end_date = datetime.date(2021, 11, 14)
         df = self.iso.get_lmp_by_settlement_point(start_date, end_date, verbose=True)
 
         self._check_lmp_by_settlement_point(df)
@@ -501,6 +501,7 @@ class TestErcotAPI(TestHelperMixin):
 
     def test_get_shadow_prices_sced_today_and_latest(self):
         df = self.iso.get_shadow_prices_sced("today", verbose=True)
+
         self._check_shadow_prices_sced(df)
 
         # We don't know the exact SCED Timestamps

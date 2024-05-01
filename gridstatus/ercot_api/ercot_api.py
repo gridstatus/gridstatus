@@ -602,7 +602,7 @@ class ErcotAPI:
                 "Contingency Name",
                 "Limiting Facility",
             ],
-        )
+        ).drop(columns=["Interval Start", "Interval End"])
 
         return data.sort_values(["SCED Timestamp", "Constraint ID"]).reset_index(
             drop=True,
