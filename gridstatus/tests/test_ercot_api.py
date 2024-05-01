@@ -51,6 +51,81 @@ class TestErcotAPI(TestHelperMixin):
             days=1,
         )
 
+    """get_as_reports"""
+
+    def test_get_as_reports_today_or_latest_raises_error(self):
+        with pytest.raises(ValueError) as error:
+            self.iso.get_as_reports("today")
+            assert str(error.value) == "Cannot get AS reports for 'latest' or 'today'"
+
+        with pytest.raises(ValueError) as error:
+            self.iso.get_as_reports("latest")
+            assert str(error.value) == "Cannot get AS reports for 'latest' or 'today'"
+
+    def test_get_as_reports_historical_date(self):
+        historical_date = datetime.date(2021, 1, 1)
+        df = self.iso.get_as_reports(historical_date, verbose=True)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Total Cleared AS - RegUp",
+            "Total Cleared AS - RegDown",
+            "Total Cleared AS - NonSpin",
+            "Total Self-Arranged AS - RegUp",
+            "Total Self-Arranged AS - RegDown",
+            "Total Self-Arranged AS - NonSpin",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            historical_date,
+        ) + pd.Timedelta(
+            days=1,
+        )
+
+    def test_get_as_reports_historical_date_range(self):
+        start_date = datetime.date(2021, 1, 1)
+        end_date = datetime.date(2021, 1, 3)
+        df = self.iso.get_as_reports(start_date, end_date, verbose=True)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Total Cleared AS - RegUp",
+            "Total Cleared AS - RegDown",
+            "Total Cleared AS - NonSpin",
+            "Total Self-Arranged AS - RegUp",
+            "Total Self-Arranged AS - RegDown",
+            "Total Self-Arranged AS - NonSpin",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        # Not inclusive of the end date
+        assert df["Interval End"].max() == self.local_start_of_day(
+            end_date,
+        )
+
     """lmp_by_bus_dam"""
 
     def _check_lmp_by_bus_dam(self, df):

@@ -236,12 +236,19 @@ class ErcotAPI:
         Returns:
             pandas.DataFrame: A DataFrame with ancillary services reports
         """
-        if date in ["latest", "today"]:
+        if date == "latest" or utils.is_today(date, tz=self.default_timezone):
             raise ValueError("Cannot get AS reports for 'latest' or 'today'")
 
+        offset = pd.DateOffset(days=2)
+
         # Published with a 2-day delay
-        report_date = date.normalize() + pd.DateOffset(days=2)
-        end = end or (report_date + pd.Timedelta(days=1))
+        report_date = date.normalize() + offset
+
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone)
+            end = end + offset
+        else:
+            end = report_date + pd.Timedelta(days=1)
 
         links_and_posted_datetimes = self._get_historical_data_links(
             emil_id=AS_REPORTS_EMIL_ID,
@@ -261,7 +268,12 @@ class ErcotAPI:
             for url in urls
         ]
 
-        return pd.concat(dfs).reset_index(drop=True).drop(columns=["Time"])
+        return (
+            pd.concat(dfs)
+            .reset_index(drop=True)
+            .drop(columns=["Time"])
+            .sort_values("Interval Start")
+        )
 
     @support_date_range(frequency=None)
     def get_lmp_by_settlement_point(self, date, end=None, verbose=False):
