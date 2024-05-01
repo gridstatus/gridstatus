@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.29.0 - Upcoming
+
+- Added more methods to the `ErcotAPI` class which uses the new [Ercot API](https://data.ercot.com/) for fetching data
+  - Eventually, the `ErcotAPI` will be the primary way to fetch data from ERCOT, but for now, we still need the `Ercot` class because the new API doesn't support all datasets.
+
 ## v0.28.0 - Mar 20, 2024
 
 ### Breaking Changes

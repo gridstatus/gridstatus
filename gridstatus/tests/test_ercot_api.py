@@ -18,6 +18,338 @@ class TestErcotAPI(TestHelperMixin):
         # Runs before all tests in this class
         cls.iso = ErcotAPI()
 
+    """utils"""
+
+    def test_handle_end_date(self):
+        dst_start = self.local_start_of_day(datetime.date(2021, 3, 14))
+
+        assert self.iso._handle_end_date(
+            date=dst_start,
+            end=None,
+            days_to_add_if_no_end=1,
+        ) == self.local_start_of_day(datetime.date(2021, 3, 15))
+
+        assert self.iso._handle_end_date(
+            date=dst_start,
+            end=None,
+            days_to_add_if_no_end=-1,
+        ) == self.local_start_of_day(datetime.date(2021, 3, 13))
+
+        assert self.iso._handle_end_date(
+            date=dst_start,
+            end=dst_start,
+            days_to_add_if_no_end=1,
+        ) == self.local_start_of_day(datetime.date(2021, 3, 14))
+
+        dst_end = self.local_start_of_day(datetime.date(2021, 11, 7))
+
+        assert self.iso._handle_end_date(
+            date=dst_end,
+            end=None,
+            days_to_add_if_no_end=1,
+        ) == self.local_start_of_day(datetime.date(2021, 11, 8))
+
+        assert self.iso._handle_end_date(
+            date=dst_end,
+            end=None,
+            days_to_add_if_no_end=-12,
+        ) == self.local_start_of_day(datetime.date(2021, 10, 26))
+
+        assert self.iso._handle_end_date(
+            date=dst_end,
+            end=dst_end,
+            days_to_add_if_no_end=1,
+        ) == self.local_start_of_day(datetime.date(2021, 11, 7))
+
+    """get_as_prices"""
+
+    def _check_as_prices(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Up",
+            "Responsive Reserves",
+            "ERCOT Contingency Reserve Service",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert (df["Market"] == "DAM").all()
+        assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
+
+    def test_get_as_prices_today_or_latest(self):
+        df = self.iso.get_as_prices("today")
+
+        self._check_as_prices(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        # Depending on time of day, the end date will be today or tomorrow
+        assert df["Interval End"].max() in [
+            self.local_start_of_today() + pd.Timedelta(days=1),
+            self.local_start_of_today() + pd.Timedelta(days=2),
+        ]
+
+        assert self.iso.get_as_prices("latest").equals(df)
+
+    def test_get_as_prices_historical_date(self):
+        historical_date = datetime.date(2021, 3, 12)
+        df = self.iso.get_as_prices(historical_date, verbose=True)
+
+        self._check_as_prices(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            historical_date,
+        ) + pd.Timedelta(
+            days=1,
+        )
+
+    def test_get_as_prices_historical_date_range(self):
+        start_date = datetime.date(2021, 3, 8)
+        end_date = datetime.date(2021, 3, 10)
+        df = self.iso.get_as_prices(start_date, end_date, verbose=True)
+
+        self._check_as_prices(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        # Not inclusive of end date
+        assert df["Interval End"].max() == self.local_start_of_day(end_date)
+
+    """get_as_reports"""
+
+    def test_get_as_reports_today_or_latest_raises_error(self):
+        with pytest.raises(ValueError) as error:
+            self.iso.get_as_reports("today")
+            assert str(error.value) == "Cannot get AS reports for 'latest' or 'today'"
+
+        with pytest.raises(ValueError) as error:
+            self.iso.get_as_reports("latest")
+            assert str(error.value) == "Cannot get AS reports for 'latest' or 'today'"
+
+    def test_get_as_reports_historical_date(self):
+        historical_date = datetime.date(2021, 1, 1)
+        df = self.iso.get_as_reports(historical_date, verbose=True)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Total Cleared AS - RegUp",
+            "Total Cleared AS - RegDown",
+            "Total Cleared AS - NonSpin",
+            "Total Self-Arranged AS - RegUp",
+            "Total Self-Arranged AS - RegDown",
+            "Total Self-Arranged AS - NonSpin",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            historical_date,
+        ) + pd.Timedelta(
+            days=1,
+        )
+
+    def test_get_as_reports_historical_date_range(self):
+        start_date = datetime.date(2021, 1, 1)
+        end_date = datetime.date(2021, 1, 3)
+        df = self.iso.get_as_reports(start_date, end_date, verbose=True)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Total Cleared AS - RegUp",
+            "Total Cleared AS - RegDown",
+            "Total Cleared AS - NonSpin",
+            "Total Self-Arranged AS - RegUp",
+            "Total Self-Arranged AS - RegDown",
+            "Total Self-Arranged AS - NonSpin",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        # Not inclusive of the end date
+        assert df["Interval End"].max() == self.local_start_of_day(
+            end_date,
+        )
+
+    """get_lmp_by_settlement_point"""
+
+    def _check_lmp_by_settlement_point(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert (df["Market"] == Markets.REAL_TIME_SCED.name).all()
+        assert sorted(df["Location Type"].unique().tolist()) == [
+            "Load Zone",
+            "Load Zone DC Tie",
+            "Resource Node",
+            "Trading Hub",
+        ]
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta("5min")
+        ).all()
+
+    def test_get_lmp_by_settlement_point_today_or_latest(self):
+        df = self.iso.get_lmp_by_settlement_point("today")
+
+        self._check_lmp_by_settlement_point(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() <= self.local_now()
+
+    def test_get_lmp_by_settlement_point_historical_date(self):
+        historical_date = datetime.date(2021, 11, 6)
+        df = self.iso.get_lmp_by_settlement_point(historical_date, verbose=True)
+
+        self._check_lmp_by_settlement_point(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            historical_date,
+        ) + pd.Timedelta(
+            days=1,
+        )
+
+    def test_get_lmp_by_settlement_point_historical_date_range(self):
+        start_date = datetime.date(2021, 11, 12)
+        end_date = datetime.date(2021, 11, 14)
+        df = self.iso.get_lmp_by_settlement_point(start_date, end_date, verbose=True)
+
+        self._check_lmp_by_settlement_point(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        assert df["Interval End"].max() == self.local_start_of_day(end_date)
+
+    """get_hourly_resource_outage_capacity"""
+
+    def _check_hourly_resource_outage_capacity(self, df):
+        # New files
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Total Resource MW Zone South",
+            "Total Resource MW Zone North",
+            "Total Resource MW Zone West",
+            "Total Resource MW Zone Houston",
+            "Total Resource MW",
+            "Total IRR MW Zone South",
+            "Total IRR MW Zone North",
+            "Total IRR MW Zone West",
+            "Total IRR MW Zone Houston",
+            "Total IRR MW",
+            "Total New Equip Resource MW Zone South",
+            "Total New Equip Resource MW Zone North",
+            "Total New Equip Resource MW Zone West",
+            "Total New Equip Resource MW Zone Houston",
+            "Total New Equip Resource MW",
+        ] or df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Total Resource MW",
+            "Total IRR MW",
+            "Total New Equip Resource MW",
+        ]
+        # Old files
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    def test_get_hourly_resource_outage_capacity_today_or_latest(self):
+        df = self.iso.get_hourly_resource_outage_capacity("today")
+
+        self._check_hourly_resource_outage_capacity(df)
+
+        assert (df["Publish Time"].dt.date == self.local_today()).all()
+
+        assert df["Interval Start"].min() <= self.local_start_of_today()
+        assert df["Interval End"].max() >= self.local_start_of_today() + pd.Timedelta(
+            days=7,
+        )
+
+        assert self.iso.get_hourly_resource_outage_capacity("latest").equals(df)
+
+    def test_get_hourly_resource_outage_capacity_historical_date(self):
+        historical_date = datetime.date(2021, 3, 1)
+        df = self.iso.get_hourly_resource_outage_capacity(historical_date, verbose=True)
+
+        self._check_hourly_resource_outage_capacity(df)
+
+        assert (df["Publish Time"].dt.date == historical_date).all()
+        assert df["Publish Time"].nunique() == 24
+
+        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            historical_date,
+        ) + pd.Timedelta(days=7)
+
+    def test_get_hourly_resource_outage_capacity_historical_date_range(self):
+        start_date = datetime.date(2021, 3, 15)
+        end_date = datetime.date(2021, 3, 17)
+
+        df = self.iso.get_hourly_resource_outage_capacity(
+            start_date,
+            end_date,
+            verbose=True,
+        )
+
+        self._check_hourly_resource_outage_capacity(df)
+
+        # Not inclusive of end date
+        assert df["Publish Time"].dt.date.unique().tolist() == [
+            start_date,
+            start_date + pd.Timedelta(days=1),
+        ]
+        assert df["Publish Time"].nunique() == 2 * 24
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            end_date,
+        ) + pd.Timedelta(days=6)
+
     """lmp_by_bus_dam"""
 
     def _check_lmp_by_bus_dam(self, df):
@@ -170,7 +502,11 @@ class TestErcotAPI(TestHelperMixin):
 
     """shadow_prices_sced"""
 
+    # This dataset has interval timestamps even though it's a SCED dataset
+    # because we add approximate intervals to SCED datasets.
     expected_shadow_prices_sced_columns = [
+        "Interval Start",
+        "Interval End",
         "SCED Timestamp",
         "Constraint ID",
         "Constraint Name",
@@ -191,10 +527,18 @@ class TestErcotAPI(TestHelperMixin):
     def _check_shadow_prices_sced(self, df):
         assert df.columns.tolist() == self.expected_shadow_prices_sced_columns
 
-        self._check_time_columns(df, instant_or_interval="instant", sced=True)
+        time_cols = ["Interval Start", "Interval End", "SCED Timestamp"]
+
+        for col in time_cols:
+            assert isinstance(df.loc[0][col], pd.Timestamp)
+            assert df.loc[0][col].tz is not None
+
+        ordered_by_col = "SCED Timestamp"
+        self._check_ordered_by_time(df, ordered_by_col)
 
     def test_get_shadow_prices_sced_today_and_latest(self):
         df = self.iso.get_shadow_prices_sced("today", verbose=True)
+
         self._check_shadow_prices_sced(df)
 
         # We don't know the exact SCED Timestamps

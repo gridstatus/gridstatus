@@ -1069,6 +1069,9 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
+        return self._handle_lmp_df(df, verbose=verbose, sced=sced)
+
+    def _handle_lmp_df(self, df, verbose=False, sced=True):
         df = self._handle_sced_timestamp(df=df, verbose=verbose)
 
         if "SettlementPoint" in df.columns:
@@ -1220,10 +1223,6 @@ class Ercot(ISOBase):
         # todo is this needed if we are defaulting to resource node?
         mapping_df = self._get_settlement_point_mapping(verbose=verbose)
         resource_node = mapping_df["RESOURCE_NODE"].dropna().unique()
-
-        # if df[df.duplicated()].shape[0] > 0:
-        #     import pdb
-        #     pdb.set_trace()
 
         # Create boolean masks for each location type
         is_hub = df["Location"].str.startswith("HB_")
@@ -1920,29 +1919,51 @@ class Ercot(ISOBase):
             pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
         )
 
+        return self._handle_hourly_resource_outage_capacity_df(df)
+
+    def _handle_hourly_resource_outage_capacity_df(self, df):
         outage_types = ["Total Resource", "Total IRR", "Total New Equip Resource"]
 
-        for t in outage_types:
-            t_no_space = t.replace(" ", "")
+        # Earlier data doesn't have these columns
+        if all(
+            col in df.columns
+            for col in [
+                "TotalResourceMWZoneSouth",
+                "TotalResourceMWZoneNorth",
+                "TotalResourceMWZoneWest",
+                "TotalResourceMWZoneHouston",
+            ]
+        ):
+            for t in outage_types:
+                t_no_space = t.replace(" ", "")
+                df = df.rename(
+                    columns={
+                        f"{t_no_space}MWZoneSouth": f"{t} MW Zone South",
+                        f"{t_no_space}MWZoneNorth": f"{t} MW Zone North",
+                        f"{t_no_space}MWZoneWest": f"{t} MW Zone West",
+                        f"{t_no_space}MWZoneHouston": f"{t} MW Zone Houston",
+                    },
+                )
+
+                df.insert(
+                    df.columns.tolist().index(f"{t} MW Zone Houston") + 1,
+                    f"{t} MW",
+                    (
+                        df[f"{t} MW Zone South"]
+                        + df[f"{t} MW Zone North"]
+                        + df[f"{t} MW Zone West"]
+                        + df[f"{t} MW Zone Houston"]
+                    ),
+                )
+        else:
             df = df.rename(
                 columns={
-                    f"{t_no_space}MWZoneSouth": f"{t} MW Zone South",
-                    f"{t_no_space}MWZoneNorth": f"{t} MW Zone North",
-                    f"{t_no_space}MWZoneWest": f"{t} MW Zone West",
-                    f"{t_no_space}MWZoneHouston": f"{t} MW Zone Houston",
+                    "TotalResourceMW": "Total Resource MW",
+                    "TotalIRRMW": "Total IRR MW",
+                    "TotalNewEquipResourceMW": "Total New Equip Resource MW",
                 },
             )
 
-            df.insert(
-                df.columns.tolist().index(f"{t} MW Zone Houston") + 1,
-                f"{t} MW",
-                (
-                    df[f"{t} MW Zone South"]
-                    + df[f"{t} MW Zone North"]
-                    + df[f"{t} MW Zone West"]
-                    + df[f"{t} MW Zone Houston"]
-                ),
-            )
         return df
 
     @support_date_range("DAY_START")
@@ -2018,8 +2039,8 @@ class Ercot(ISOBase):
 
         return self._handle_as_reports_file(doc.url, verbose=verbose)
 
-    def _handle_as_reports_file(self, file_path, verbose):
-        z = utils.get_zip_folder(file_path, verbose=verbose)
+    def _handle_as_reports_file(self, file_path, verbose, **kwargs):
+        z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
         # extract the date from the file name
         date_str = z.namelist()[0][-13:-4]
@@ -2057,12 +2078,28 @@ class Ercot(ISOBase):
             "OFFNS",
         ]
 
+        # Some of these produces are not in earlier data
+        exclude_products = [
+            "ECRSM",
+            "ECRSS",
+            "NSPNM",
+            "RRSFFR",
+            "RRSUFR",
+            "RRSPFR",
+        ]
+
+        prefix = "2d"
+
+        # Earlier prefixes are 48h
+        if z.namelist()[0].split("_")[0] == "48h":
+            prefix = "48h"
+
         all_dfs = []
         for as_name in cleared_products:
             suffix = f"{as_name}-{date_str}.csv"
-            cleared = f"2d_Cleared_DAM_AS_{suffix}"
+            cleared = f"{prefix}_Cleared_DAM_AS_{suffix}"
 
-            if as_name in ["ECRSM", "ECRSS"] and cleared not in z.namelist():
+            if as_name in exclude_products and cleared not in z.namelist():
                 continue
 
             df_cleared = pd.read_csv(z.open(cleared))
@@ -2070,9 +2107,9 @@ class Ercot(ISOBase):
 
         for as_name in self_arranged_products:
             suffix = f"{as_name}-{date_str}.csv"
-            self_arranged = f"2d_Self_Arranged_AS_{suffix}"
+            self_arranged = f"{prefix}_Self_Arranged_AS_{suffix}"
 
-            if as_name in ["ECRSM", "ECRSS"] and self_arranged not in z.namelist():
+            if as_name in exclude_products and self_arranged not in z.namelist():
                 continue
 
             df_self_arranged = pd.read_csv(z.open(self_arranged))
@@ -2086,9 +2123,9 @@ class Ercot(ISOBase):
 
         for as_name in offers_products:
             suffix = f"{as_name}-{date_str}.csv"
-            offers = f"2d_Agg_AS_Offers_{suffix}"
+            offers = f"{prefix}_Agg_AS_Offers_{suffix}"
 
-            if as_name in ["ECRSM", "ECRSS"] and offers not in z.namelist():
+            if as_name in exclude_products and offers not in z.namelist():
                 continue
 
             df_offers = pd.read_csv(z.open(offers))
@@ -2229,7 +2266,11 @@ class Ercot(ISOBase):
         # SCED runs at least every 5 minutes. These values are only approximations,
         # not exact.
         # Round to nearest 5 minutes
-        df["Interval Start"] = df["SCED Timestamp"].dt.floor("5min")
+        df["Interval Start"] = df["SCED Timestamp"].dt.floor(
+            "5min",
+            ambiguous=df["RepeatedHourFlag"] == "N",
+        )
+
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
 
         df = df.drop("RepeatedHourFlag", axis=1)
@@ -2299,6 +2340,8 @@ class Ercot(ISOBase):
         df = df.rename(
             columns={
                 "Resource Name with Highest-Priced Offer Selected in DAM and SASMs": "Resource Name",  # noqa: E501
+                # Older data
+                "Resource Name with Highest-Priced Offer Selected in DAM": "Resource Name",  # noqa: E501
             },
         )
 
@@ -2324,6 +2367,8 @@ class Ercot(ISOBase):
                     "AS Type",
                     "Block Indicator",
                 ],
+                dropna=False,  # Have to include missing because older data has missing
+                # values in some columns
             )
             .apply(_handle_offers, include_groups=False)
             .reset_index()
