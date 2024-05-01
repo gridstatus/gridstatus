@@ -247,7 +247,7 @@ class ErcotAPI:
 
     @support_date_range(frequency=None)
     def get_as_reports(self, date, end=None, verbose=False):
-        """Get Ancillary Services Reports
+        """Get Ancillary Services Reports. Data contains 48 hours disclosures
 
         Arguments:
             date (str): the date to fetch reports for.
@@ -596,13 +596,15 @@ class ErcotAPI:
         data = utils.move_cols_to_front(
             data,
             [
+                "Interval Start",
+                "Interval End",
                 "SCED Timestamp",
                 "Constraint ID",
                 "Constraint Name",
                 "Contingency Name",
                 "Limiting Facility",
             ],
-        ).drop(columns=["Interval Start", "Interval End"])
+        )
 
         return data.sort_values(["SCED Timestamp", "Constraint ID"]).reset_index(
             drop=True,

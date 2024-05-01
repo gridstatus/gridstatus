@@ -84,15 +84,43 @@ class TestErcotAPI(TestHelperMixin):
         assert (df["Market"] == "DAM").all()
         assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
 
-    def test_get_as_prices_today(self):
+    def test_get_as_prices_today_or_latest(self):
         df = self.iso.get_as_prices("today")
 
         self._check_as_prices(df)
 
         assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval End"].max() == self.local_start_of_today() + pd.Timedelta(
+        # Depending on time of day, the end date will be today or tomorrow
+        assert df["Interval End"].max() in [
+            self.local_start_of_today() + pd.Timedelta(days=1),
+            self.local_start_of_today() + pd.Timedelta(days=2),
+        ]
+
+        assert self.iso.get_as_prices("latest").equals(df)
+
+    def test_get_as_prices_historical_date(self):
+        historical_date = datetime.date(2021, 3, 12)
+        df = self.iso.get_as_prices(historical_date, verbose=True)
+
+        self._check_as_prices(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            historical_date,
+        ) + pd.Timedelta(
             days=1,
         )
+
+    def test_get_as_prices_historical_date_range(self):
+        start_date = datetime.date(2021, 3, 12)
+        end_date = datetime.date(2021, 3, 14)
+        df = self.iso.get_as_prices(start_date, end_date, verbose=True)
+
+        self._check_as_prices(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        # Not inclusive of end date
+        assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
     """get_as_reports"""
 
@@ -497,7 +525,14 @@ class TestErcotAPI(TestHelperMixin):
     def _check_shadow_prices_sced(self, df):
         assert df.columns.tolist() == self.expected_shadow_prices_sced_columns
 
-        self._check_time_columns(df, instant_or_interval="instant", sced=True)
+        time_cols = ["Interval Start", "Interval End", "SCED Timestamp"]
+
+        for col in time_cols:
+            assert isinstance(df.loc[0][col], pd.Timestamp)
+            assert df.loc[0][col].tz is not None
+
+        ordered_by_col = "SCED Timestamp"
+        self._check_ordered_by_time(df, ordered_by_col)
 
     def test_get_shadow_prices_sced_today_and_latest(self):
         df = self.iso.get_shadow_prices_sced("today", verbose=True)
