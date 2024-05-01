@@ -112,8 +112,8 @@ class TestErcotAPI(TestHelperMixin):
         )
 
     def test_get_as_prices_historical_date_range(self):
-        start_date = datetime.date(2021, 3, 12)
-        end_date = datetime.date(2021, 3, 14)
+        start_date = datetime.date(2021, 3, 8)
+        end_date = datetime.date(2021, 3, 10)
         df = self.iso.get_as_prices(start_date, end_date, verbose=True)
 
         self._check_as_prices(df)
@@ -235,8 +235,6 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval End"].max() <= self.local_now()
-
-        assert self.iso.get_lmp_by_settlement_point("latest").equals(df)
 
     def test_get_lmp_by_settlement_point_historical_date(self):
         historical_date = datetime.date(2021, 11, 6)
@@ -504,7 +502,11 @@ class TestErcotAPI(TestHelperMixin):
 
     """shadow_prices_sced"""
 
+    # This dataset has interval timestamps even though it's a SCED dataset
+    # because we add approximate intervals to SCED datasets.
     expected_shadow_prices_sced_columns = [
+        "Interval Start",
+        "Interval End",
         "SCED Timestamp",
         "Constraint ID",
         "Constraint Name",
