@@ -103,6 +103,27 @@ class ErcotAPI:
     def _local_start_of_today(self):
         return pd.Timestamp("now", tz=self.default_timezone).floor("d")
 
+    def _handle_end_date(self, date, end, days_to_add_if_no_end):
+        """
+        Handles a provided end date by either
+
+        1. Using the provided end date converted to the default timezone
+        2. Adding the number of days to the date and converting to the default timezone
+        """
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone)
+        else:
+            # Have to convert to UTC to do addition, then convert back to local time
+            # to avoid DST issues
+            end = (
+                (date.tz_convert("UTC") + pd.Timedelta(days=days_to_add_if_no_end))
+                .normalize()
+                .tz_localize(None)
+                .tz_localize(self.default_timezone)
+            )
+
+        return end
+
     def get_token(self):
         payload = {
             "grant_type": "password",
@@ -186,7 +207,7 @@ class ErcotAPI:
         if date == "latest":
             return self.get_as_prices("today", verbose=verbose)
 
-        end = end or (date + pd.Timedelta(days=1))
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         if self._should_use_historical(date):
             data = self.get_historical_data(
@@ -245,10 +266,9 @@ class ErcotAPI:
         report_date = date.normalize() + offset
 
         if end:
-            end = utils._handle_date(end, tz=self.default_timezone)
-            end = end + offset
+            end = self._handle_end_date(end, end, days_to_add_if_no_end=2)
         else:
-            end = report_date + pd.Timedelta(days=1)
+            end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         links_and_posted_datetimes = self._get_historical_data_links(
             emil_id=AS_REPORTS_EMIL_ID,
@@ -291,7 +311,7 @@ class ErcotAPI:
         if date == "latest":
             return self.get_lmp_by_settlement_point("today", verbose=verbose)
 
-        end = end or (date + pd.Timedelta(days=1))
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         if self._should_use_historical(date):
             data = self.get_historical_data(
@@ -322,7 +342,9 @@ class ErcotAPI:
 
     @support_date_range(frequency=None)
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
-        """Get Hourly Resource Outage Capacity Reports
+        """Get Hourly Resource Outage Capacity Reports. Fetches all reports
+        published on the given date. Reports extend out 168 hours from the
+        start of the day.
 
         Arguments:
             date (str): the date to fetch reports for.
@@ -335,7 +357,7 @@ class ErcotAPI:
         if date == "latest":
             return self.get_hourly_resource_outage_capacity("today", verbose=verbose)
 
-        end = end or (date + pd.Timedelta(days=1))
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         data = self.get_historical_data(
             endpoint=HOURLY_RESOURCE_OUTAGE_CAPACITY_REPORTS_ENDPOINT,
@@ -347,6 +369,7 @@ class ErcotAPI:
 
         data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
             self.default_timezone,
+            ambiguous="NaT",
         )
 
         data = self.ercot.parse_doc(
@@ -357,7 +380,7 @@ class ErcotAPI:
             dst_ambiguous_default=True,
             nonexistent="NaT",
             verbose=verbose,
-        )
+        ).dropna(subset=["Interval Start", "Publish Time"])
 
         data = utils.move_cols_to_front(
             data,
@@ -365,11 +388,8 @@ class ErcotAPI:
         )
 
         return (
-            self.ercot._handle_hourly_resource_outage_capacity_df(
-                df=data,
-                verbose=verbose,
-            )
-            .sort_values(["Interval Start"])
+            self.ercot._handle_hourly_resource_outage_capacity_df(df=data)
+            .sort_values(["Interval Start", "Publish Time"])
             .reset_index(drop=True)
             .drop(columns=["Time", "postDatetime"])
         )
@@ -389,7 +409,7 @@ class ErcotAPI:
         # The Ercot API needs to have a start and end filter date, so we must set it.
         # To ensure we get all the data for the given date, we set the end date to the
         # date plus one if it is not provided.
-        end = end or (date + pd.Timedelta(days=1))
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         if self._should_use_historical(date):
             # For historical data, we need to subtract a day because we filter by
@@ -471,7 +491,7 @@ class ErcotAPI:
         # The Ercot API needs to have a start and end filter date, so we must set it.
         # To ensure we get all the data for the given date, we set the end date to the
         # date plus one if it is not provided.
-        end = end or (date + pd.Timedelta(days=1))
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         if self._should_use_historical(date):
             # For the historical data, we need to subtract a day because we filter by
@@ -542,7 +562,7 @@ class ErcotAPI:
         # The Ercot API needs to have a start and end filter date, so we must set it.
         # To ensure we get all the data for the given date, we set the end date to the
         # date plus one if it is not provided.
-        end = end or (date + pd.Timedelta(days=1)).normalize()
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         if self._should_use_historical(date):
             data = self.get_historical_data(
