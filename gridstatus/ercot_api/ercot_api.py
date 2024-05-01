@@ -266,9 +266,9 @@ class ErcotAPI:
         report_date = date.normalize() + offset
 
         if end:
-            end = self._handle_end_date(end, end, days_to_add_if_no_end=2)
+            end = end + offset
         else:
-            end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+            end = self._handle_end_date(report_date, end, days_to_add_if_no_end=1)
 
         links_and_posted_datetimes = self._get_historical_data_links(
             emil_id=AS_REPORTS_EMIL_ID,
