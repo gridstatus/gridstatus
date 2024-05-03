@@ -396,8 +396,9 @@ class TestPJM(BaseTestISO):
         ) + pd.Timedelta(days=2)
 
         assert df["Publish Time"].min() == self.local_start_of_day(past_date)
-        # This data also includes one forecast time on the next day
-        assert df["Publish Time"].max() == self.local_start_of_day(
+        # When end date is generated this data
+        # doesn't include forecast on the next day
+        assert df["Publish Time"].max() < self.local_start_of_day(
             past_date,
         ) + pd.Timedelta(days=1)
 
@@ -470,8 +471,9 @@ class TestPJM(BaseTestISO):
         ) + pd.Timedelta(days=2, hours=5)
 
         assert df["Publish Time"].min() == self.local_start_of_day(past_date)
-        # This data also includes one forecast time on the next day
-        assert df["Publish Time"].max() == self.local_start_of_day(
+        # When end date is generated this data
+        # doesn't include forecast on the next day
+        assert df["Publish Time"].max() < self.local_start_of_day(
             past_date,
         ) + pd.Timedelta(days=1)
 
