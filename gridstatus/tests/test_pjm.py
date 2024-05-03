@@ -609,10 +609,14 @@ class TestPJM(BaseTestISO):
 
         # expect only 2024-04-30 00:00:00-04:00 and 2024-05-01 00:00:00-04:00 in results
         expected_date_1 = self.to_local_datetime(start_date_local)
-        expected_date_2 = self.to_local_datetime((start_date_local + pd.Timedelta(days=1)))
+        expected_date_2 = self.to_local_datetime(
+            (start_date_local + pd.Timedelta(days=1))
+        )
         expected_dates = {expected_date_1, expected_date_2}
 
-        df = self.iso.get_gen_outages_by_type(start_date_time_local, end_date_time_local)
+        df = self.iso.get_gen_outages_by_type(
+            start_date_time_local, end_date_time_local
+        )
         self._check_gen_outages_by_type(df)
         assert (df["Publish Time"].isin(expected_dates)).all()
         assert (df["Interval End"] == df["Interval Start"] + pd.Timedelta(days=1)).all()

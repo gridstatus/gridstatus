@@ -899,7 +899,8 @@ class PJM(ISOBase):
                 end = utils._handle_date(end)
             else:
                 end = start + pd.DateOffset(days=1)
-                # the end is inclusive, pulls records for next day without below adjustment
+                # the end is inclusive, pulls records
+                # for next day without below adjustment
                 end = end - pd.DateOffset(seconds=1)
 
             final_params[f"{filter_timestamp_name}_ept"] = (
@@ -1177,8 +1178,8 @@ class PJM(ISOBase):
             start=date,
             params={
                 "fields": "forecast_execution_date_ept,forecast_date,"
-                          "region,planned_outages_mw,maintenance_outages_mw,"
-                          "forced_outages_mw,total_outages_mw"
+                "region,planned_outages_mw,maintenance_outages_mw,"
+                "forced_outages_mw,total_outages_mw"
             },
             end=end,
             filter_timestamp_name="forecast_execution_date",
@@ -1220,9 +1221,6 @@ class PJM(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     def to_local_datetime(self, df, column_name):
-        return (
-            pd.to_datetime(df[column_name])
-            .dt.tz_localize(
-                self.default_timezone,
-            )
+        return pd.to_datetime(df[column_name]).dt.tz_localize(
+            self.default_timezone,
         )
