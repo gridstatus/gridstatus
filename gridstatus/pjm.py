@@ -1202,7 +1202,7 @@ class PJM(ISOBase):
         )
 
         df["Interval Start"] = self.to_local_datetime(df, "Interval Start")
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
+        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
         df["Publish Time"] = self.to_local_datetime(df, "Publish Time")
 
         df = df[
