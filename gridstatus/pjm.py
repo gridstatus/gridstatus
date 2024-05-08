@@ -899,6 +899,9 @@ class PJM(ISOBase):
                 end = utils._handle_date(end)
             else:
                 end = start + pd.DateOffset(days=1)
+                # the end is inclusive, pulls records
+                # for next day without below adjustment
+                end = end - pd.DateOffset(seconds=1)
 
             final_params[f"{filter_timestamp_name}_ept"] = (
                 start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
@@ -1115,7 +1118,7 @@ class PJM(ISOBase):
     def get_wind_forecast(self, date, end=None, verbose=False):
         """
         Retrieves the hourly wind forecast
-        From: vhttps://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
+        From: https://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
         Only available in past 30 days
         """
         if date == "latest":
@@ -1160,3 +1163,64 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_gen_outages_by_type(self, date, end=None, verbose=False):
+        """
+        Retrieves the generation outage data
+        From: https://dataminer2.pjm.com/feed/gen_outages_by_type/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "gen_outages_by_type",
+            start=date,
+            params={
+                "fields": "forecast_execution_date_ept,forecast_date,"
+                "region,planned_outages_mw,maintenance_outages_mw,"
+                "forced_outages_mw,total_outages_mw"
+            },
+            end=end,
+            filter_timestamp_name="forecast_execution_date",
+            verbose=verbose,
+        )
+
+        return self._parse_gen_outages_by_type(df)
+
+    def _parse_gen_outages_by_type(self, df):
+        df = df.rename(
+            columns={
+                "forecast_execution_date_ept": "Publish Time",
+                "forecast_date": "Interval Start",
+                "region": "Region",
+                "planned_outages_mw": "Planned Outages MW",
+                "maintenance_outages_mw": "Maintenance Outages MW",
+                "forced_outages_mw": "Forced Outages MW",
+                "total_outages_mw": "Total Outages MW",
+            },
+        )
+
+        df["Interval Start"] = self.to_local_datetime(df, "Interval Start")
+        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+        df["Publish Time"] = self.to_local_datetime(df, "Publish Time")
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "Planned Outages MW",
+                "Maintenance Outages MW",
+                "Forced Outages MW",
+                "Total Outages MW",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    def to_local_datetime(self, df, column_name):
+        return pd.to_datetime(df[column_name]).dt.tz_localize(
+            self.default_timezone,
+        )
