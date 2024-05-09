@@ -419,6 +419,9 @@ class PJM(ISOBase):
         Markets.DAY_AHEAD_HOURLY,
     ]
 
+    load_forecast_endpoint_name = "load_frcstd_7_day"
+    load_forecast_historical_endpoint_name = "load_frcstd_hist"
+
     def __init__(self, api_key=None, retries=DEFAULT_RETRIES) -> None:
         """
         Arguments:
@@ -539,41 +542,29 @@ class PJM(ISOBase):
 
     @support_date_range(frequency=None)
     def get_load_forecast(self, date, end=None, verbose=False):
-        """Get forecast for today or a historical date in hourly intervals.
-
-        Today's forecast updates every Every half hour on the quarter E.g. 1:15 and 1:45
-        Historical forecasts include all vintages of the forecast.
-
         """
-        use_hist = not utils.is_today(date, tz=self.default_timezone)
+        Load forecast made today extending for six days in hourly intervals.
 
-        # todo: should we use the UTC field instead of EPT?
+        Today's forecast updates every every half hour on the quarter E.g. 1:15 and 1:45
+        """
+        if date == "latest":
+            return self.get_load_forecast("today", verbose=verbose)
+
+        if date != "today" or not utils.is_today(date, tz=self.default_timezone):
+            raise ValueError("Only today's forecast is available")
+
         params = {
             "fields": (
-                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"
+                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"  # noqa: E501
             ),
         }
 
-        endpoint_name = "load_frcstd_7_day"
         filter_timestamp_name = "datetime_beginning"
         start = None
         end = utils._handle_date(end, tz=self.default_timezone)
 
-        if use_hist:
-            # Historical data uses a different endpoint with slightly different fields.
-            endpoint_name = "load_frcstd_hist"
-            params = {
-                "fields": (
-                    "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_area,forecast_load_mw"
-                ),
-            }
-            filter_timestamp_name = "forecast_hour_beginning"
-            start = date
-            # If no end is provided, add a day to the date to get a full day of data
-            end = end or (date + pd.Timedelta(days=1))
-
         data = self._get_pjm_json(
-            endpoint_name,
+            self.load_forecast_endpoint_name,
             start=start,
             end=end,
             params=params,
@@ -581,6 +572,38 @@ class PJM(ISOBase):
             filter_timestamp_name=filter_timestamp_name,
         )
 
+        return self._handle_load_forecast(data)
+
+    @support_date_range(frequency="365D", update_dates=pjm_update_dates)
+    def get_load_forecast_historical(self, date, end=None, verbose=False):
+        """
+        Historical load forecast in hourly intervals. Historical forecasts include all
+        vintages of the forecast but has fewer regions than the current forecast.
+        """
+        # Historical data uses a different endpoint with slightly different fields.
+        params = {
+            "fields": (
+                "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_area,forecast_load_mw"  # noqa: E501
+            ),
+        }
+
+        filter_timestamp_name = "forecast_hour_beginning"
+        start = date
+        # If no end is provided, add a day to the date to get a full day of data
+        end = end or (date + pd.Timedelta(days=1))
+
+        data = self._get_pjm_json(
+            self.load_forecast_historical_endpoint_name,
+            start=start,
+            end=end,
+            params=params,
+            verbose=verbose,
+            filter_timestamp_name=filter_timestamp_name,
+        )
+
+        return self._handle_load_forecast(data)
+
+    def _handle_load_forecast(self, data):
         data = data.rename(
             columns={
                 "evaluated_at_utc": "Publish Time",
