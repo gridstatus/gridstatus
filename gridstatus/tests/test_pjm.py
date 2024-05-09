@@ -217,42 +217,102 @@ class TestPJM(BaseTestISO):
     """get_load_forecast"""
 
     load_forecast_columns = [
-        "Time",
         "Interval Start",
         "Interval End",
         "Publish Time",
         "Load Forecast",
+        "AE/MIDATL",
+        "AEP",
+        "AP",
+        "ATSI",
+        "BG&E/MIDATL",
+        "COMED",
+        "DAYTON",
+        "DEOK",
+        "DOMINION",
+        "DP&L/MIDATL",
+        "DUQUESNE",
+        "EKPC",
+        "JCP&L/MIDATL",
+        "METED/MIDATL",
+        "MID_ATLANTIC_REGION",
+        "PECO/MIDATL",
+        "PENELEC/MIDATL",
+        "PEPCO/MIDATL",
+        "PPL/MIDATL",
+        "PSE&G/MIDATL",
+        "RECO/MIDATL",
+        "RTO_COMBINED",
+        "SOUTHERN_REGION",
+        "UGI/MIDATL",
+        "WESTERN_REGION",
+    ]
+
+    def test_get_load_forecast_today(self):
+        df = self.iso.get_load_forecast("today")
+        assert df.columns.tolist() == self.load_forecast_columns
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            days=7,
+        )
+
+        assert df["Publish Time"].nunique() == 1
+
+        assert self.iso.get_load_forecast("latest").equals(df)
+
+    def test_get_load_forecast_in_past_raises_error(self):
+        start_date = self.local_today() - pd.Timedelta(days=1)
+        with pytest.raises(NotSupported):
+            self.iso.get_load_forecast(start_date)
+
+    """get_load_forecast_historical"""
+
+    load_forecast_columns_historical = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Load Forecast",
+        "AEP",
+        "APS",
+        "ATSI",
+        "COMED",
+        "DAY",
+        "DEOK",
+        "DOM",
+        "DUQ",
+        "EKPC",
+        "MIDATL",
+        "RTO",
     ]
 
     def test_get_load_forecast_historical(self):
         start_date = "2023-05-01"
-        df = self.iso.get_load_forecast(start_date)
+        df = self.iso.get_load_forecast_historical(start_date)
 
-        assert df.columns.tolist() == self.load_forecast_columns
+        assert df.columns.tolist() == self.load_forecast_columns_historical
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-
         assert df["Interval End"].max() == self.local_start_of_day(
             start_date,
             # End is inclusive in this case
-        ) + pd.Timedelta(days=1, hours=1)
+        ) + pd.DateOffset(days=1, hours=1)
 
         assert df["Interval Start"].value_counts().max() == 10
-        assert df["Publish Time"].nunique() == 10
+        assert df["Publish Time"].nunique() == 5 * 2
 
     def test_get_load_forecast_historical_with_date_range(self):
         start_date = "2022-10-17"
-        end_date = "2022-10-22"
+        end_date = "2022-10-20"
 
-        df = self.iso.get_load_forecast(start_date, end_date)
+        df = self.iso.get_load_forecast_historical(start_date, end_date)
 
-        assert df.columns.tolist() == self.load_forecast_columns
+        assert df.columns.tolist() == self.load_forecast_columns_historical
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() == self.local_start_of_day(
             end_date,
-        ) + pd.Timedelta(hours=1)
+        ) + pd.DateOffset(days=1, hours=1)
 
         assert df["Interval Start"].value_counts().max() == 10
-        assert df["Publish Time"].nunique() == 10 * 3
+        assert df["Publish Time"].nunique() == 5 * 5
 
     """get_pnode_ids"""
 

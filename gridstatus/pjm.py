@@ -8,7 +8,7 @@ import requests
 import tqdm
 
 from gridstatus import utils
-from gridstatus.base import ISOBase, Markets, NoDataFoundException
+from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import (
     _get_pjm_archive_date,
     pjm_update_dates,
@@ -550,8 +550,11 @@ class PJM(ISOBase):
         if date == "latest":
             return self.get_load_forecast("today", verbose=verbose)
 
-        if date != "today" or not utils.is_today(date, tz=self.default_timezone):
-            raise ValueError("Only today's forecast is available")
+        if not utils.is_today(date, tz=self.default_timezone):
+            raise NotSupported(
+                "Only today's forecast is available through"
+                " get_load_forecast. Try get_load_forecast_historical instead.",
+            )
 
         params = {
             "fields": (
@@ -560,12 +563,10 @@ class PJM(ISOBase):
         }
 
         filter_timestamp_name = "datetime_beginning"
-        start = None
-        end = utils._handle_date(end, tz=self.default_timezone)
 
         data = self._get_pjm_json(
             self.load_forecast_endpoint_name,
-            start=start,
+            start=None,
             end=end,
             params=params,
             verbose=verbose,
@@ -574,7 +575,7 @@ class PJM(ISOBase):
 
         return self._handle_load_forecast(data)
 
-    @support_date_range(frequency="365D", update_dates=pjm_update_dates)
+    @support_date_range(frequency=None)
     def get_load_forecast_historical(self, date, end=None, verbose=False):
         """
         Historical load forecast in hourly intervals. Historical forecasts include all
@@ -588,13 +589,17 @@ class PJM(ISOBase):
         }
 
         filter_timestamp_name = "forecast_hour_beginning"
-        start = date
-        # If no end is provided, add a day to the date to get a full day of data
-        end = end or (date + pd.Timedelta(days=1))
+
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone) + pd.DateOffset(
+                days=1,
+            )
+        else:
+            end = date + pd.DateOffset(days=1)
 
         data = self._get_pjm_json(
             self.load_forecast_historical_endpoint_name,
-            start=start,
+            start=date,
             end=end,
             params=params,
             verbose=verbose,
@@ -647,11 +652,14 @@ class PJM(ISOBase):
         else:
             data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
 
-        data["Time"] = data["Interval Start"]
+        if "RTO" in data.columns:
+            data["Load Forecast"] = data["RTO"]
+        elif "RTO_COMBINED" in data.columns:
+            data["Load Forecast"] = data["RTO_COMBINED"]
 
         data = utils.move_cols_to_front(
             data,
-            ["Time", "Interval Start", "Interval End", "Publish Time"],
+            ["Interval Start", "Interval End", "Publish Time", "Load Forecast"],
         )
 
         return data.sort_values(["Interval Start", "Publish Time"]).reset_index(
