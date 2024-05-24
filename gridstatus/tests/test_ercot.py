@@ -1112,6 +1112,94 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] == 4
         assert df.columns.tolist() == cols
 
+    """get_short_term_system_adequacy"""
+
+    def _check_short_term_system_adequacy(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Capacity Generation Resource South",
+            "Capacity Generation Resource North",
+            "Capacity Generation Resource West",
+            "Capacity Generation Resource Houston",
+            "Capacity Load Resource South",
+            "Capacity Load Resource North",
+            "Capacity Load Resource West",
+            "Capacity Load Resource Houston",
+            "Offline Available MW South",
+            "Offline Available MW North",
+            "Offline Available MW West",
+            "Offline Available MW Houston",
+            "Available Capacity Generation",
+            "Available Capacity Reserve",
+            "Capacity Generation Resource Total",
+            "Capacity Load Resource Total",
+            "Offline Available MW Total",
+        ]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_short_term_system_adequacy_today_or_latest(self):
+        df = self.iso.get_short_term_system_adequacy("today")
+
+        self._check_short_term_system_adequacy(df)
+
+        # At least one published per hour
+        assert (
+            df["Publish Time"].nunique()
+            >= (self.local_now() - self.local_start_of_today()).total_seconds() // 3600
+        )
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            days=7,
+        )
+
+    def test_get_short_term_system_adequacy_latest(self):
+        df = self.iso.get_short_term_system_adequacy("latest")
+
+        self._check_short_term_system_adequacy(df)
+
+        assert df["Publish Time"].nunique() == 1
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            days=7,
+        )
+
+    def test_get_short_term_system_adequacy_historical(self):
+        date = self.local_today() - pd.DateOffset(days=15)
+        df = self.iso.get_short_term_system_adequacy(date)
+
+        assert df["Publish Time"].nunique() >= 24
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date,
+        ) + pd.DateOffset(days=7)
+
+        self._check_short_term_system_adequacy(df)
+
+    def test_get_short_term_system_adequacy_historical_range(self):
+        start = self.local_today() - pd.DateOffset(days=15)
+        end = self.local_today() - pd.DateOffset(days=14)
+        df = self.iso.get_short_term_system_adequacy(
+            start=start,
+            end=end,
+        )
+
+        assert df["Publish Time"].nunique() >= 24
+        assert df["Interval Start"].min() == self.local_start_of_day(start)
+        assert df["Interval End"].max() == self.local_start_of_day(end) + pd.DateOffset(
+            days=6,
+        )
+
+        self._check_short_term_system_adequacy(df)
+
+    """parse_doc"""
+
     def test_parse_doc_works_on_dst_data(self):
         data_string = """DeliveryDate,TimeEnding,Demand,DSTFlag
         03/13/2016,01:15,26362.1563,N

@@ -97,6 +97,10 @@ LMPS_BY_SETTLEMENT_POINT_RTID = 12300
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-235-CD
 SYSTEM_WIDE_ACTUALS_RTID = 12340
 
+# Short term system adequacy report
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-763-CD
+SHORT_TERM_SYSTEM_ADEQUACY_REPORT_RTID = 12315
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -2498,6 +2502,60 @@ class Ercot(ISOBase):
     def _handle_system_wide_actual_load(self, doc, verbose=False):
         return self.read_doc(doc, verbose=verbose)
 
+    @support_date_range("HOUR_START")
+    def get_short_term_system_adequacy(self, date, end=None, verbose=False):
+        """Get Short Term System Adequacy published between date and end.
+
+        Arguments:
+            date (str, datetime): date to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with system adequacy data
+        """
+        return self._get_hourly_report(
+            start=date,
+            end=end,
+            report_type_id=SHORT_TERM_SYSTEM_ADEQUACY_REPORT_RTID,
+            handle_doc=self._handle_short_term_system_adequacy_file,
+            verbose=verbose,
+            extension="csv",
+        ).sort_values(["Interval Start", "Publish Time"])
+
+    def _handle_short_term_system_adequacy_file(self, doc, verbose=False):
+        df = self.read_doc(doc, verbose=verbose)
+
+        df["Publish Time"] = doc.publish_date
+
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time"],
+        ).drop(columns=["Time"])
+
+        df = df.rename(
+            columns={
+                "CapGenResSouth": "Capacity Generation Resource South",
+                "CapGenResNorth": "Capacity Generation Resource North",
+                "CapGenResWest": "Capacity Generation Resource West",
+                "CapGenResHouston": "Capacity Generation Resource Houston",
+                "CapLoadResSouth": "Capacity Load Resource South",
+                "CapLoadResNorth": "Capacity Load Resource North",
+                "CapLoadResWest": "Capacity Load Resource West",
+                "CapLoadResHouston": "Capacity Load Resource Houston",
+                "OfflineAvailableMWSouth": "Offline Available MW South",
+                "OfflineAvailableMWNorth": "Offline Available MW North",
+                "OfflineAvailableMWWest": "Offline Available MW West",
+                "OfflineAvailableMWHouston": "Offline Available MW Houston",
+                "AvailCapGen": "Available Capacity Generation",
+                "AvailCapReserve": "Available Capacity Reserve",
+                "CapGenResTotal": "Capacity Generation Resource Total",
+                "CapLoadResTotal": "Capacity Load Resource Total",
+                "OfflineAvailableMWTotal": "Offline Available MW Total",
+            },
+        )
+
+        return df
+
     def _get_document(
         self,
         report_type_id,
@@ -2638,7 +2696,8 @@ class Ercot(ISOBase):
         extension,
         verbose=False,
     ):
-        if end is None:
+        if start == "latest":
+            # _get_document can handle "latest"
             doc = self._get_document(
                 report_type_id=report_type_id,
                 extension=extension,
@@ -2647,6 +2706,10 @@ class Ercot(ISOBase):
             )
             docs = [doc]
         else:
+            # Set end to get a full day of published data
+            if end is None:
+                end = start + pd.DateOffset(days=1)
+
             docs = self._get_documents(
                 report_type_id=report_type_id,
                 extension=extension,
