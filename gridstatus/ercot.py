@@ -2532,6 +2532,28 @@ class Ercot(ISOBase):
             ["Interval Start", "Interval End", "Publish Time"],
         ).drop(columns=["Time"])
 
+        df = df.rename(
+            columns={
+                "CapGenResSouth": "Capacity Generation Resource South",
+                "CapGenResNorth": "Capacity Generation Resource North",
+                "CapGenResWest": "Capacity Generation Resource West",
+                "CapGenResHouston": "Capacity Generation Resource Houston",
+                "CapLoadResSouth": "Capacity Load Resource South",
+                "CapLoadResNorth": "Capacity Load Resource North",
+                "CapLoadResWest": "Capacity Load Resource West",
+                "CapLoadResHouston": "Capacity Load Resource Houston",
+                "OfflineAvailableMWSouth": "Offline Available MW South",
+                "OfflineAvailableMWNorth": "Offline Available MW North",
+                "OfflineAvailableMWWest": "Offline Available MW West",
+                "OfflineAvailableMWHouston": "Offline Available MW Houston",
+                "AvailCapGen": "Available Capacity Generation",
+                "AvailCapReserve": "Available Capacity Reserve",
+                "CapGenResTotal": "Capacity Generation Resource Total",
+                "CapLoadResTotal": "Capacity Load Resource Total",
+                "OfflineAvailableMWTotal": "Offline Available MW Total",
+            },
+        )
+
         return df
 
     def _get_document(
@@ -2675,6 +2697,7 @@ class Ercot(ISOBase):
         verbose=False,
     ):
         if start == "latest":
+            # _get_document can handle "latest"
             doc = self._get_document(
                 report_type_id=report_type_id,
                 extension=extension,
@@ -2683,6 +2706,7 @@ class Ercot(ISOBase):
             )
             docs = [doc]
         else:
+            # Set end to get a full day of published data
             if end is None:
                 end = start + pd.DateOffset(days=1)
 
