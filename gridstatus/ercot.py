@@ -101,6 +101,9 @@ SYSTEM_WIDE_ACTUALS_RTID = 12340
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-763-CD
 SHORT_TERM_SYSTEM_ADEQUACY_REPORT_RTID = 12315
 
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
+TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -2555,6 +2558,56 @@ class Ercot(ISOBase):
         )
 
         return df
+
+    @support_date_range(frequency=None)
+    def get_temperature_forecast_by_weather_zone(self, date, end=None, verbose=False):
+        """Get temperature forecast by weather zone in hourly intervals. Published
+        once a day at 5 am central.
+
+        Arguments:
+            date (str, datetime): date to get data for
+            end (str, datetime, optional): end time to get data for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with temperature forecast data
+        """
+        if date == "latest":
+            return self.get_temperature_forecast_by_weather_zone(
+                "today",
+                verbose=verbose,
+            )
+        else:
+            # Set end to get a full day of published data
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID,
+                extension="csv",
+                published_after=date,
+                published_before=end,
+            )
+
+        return self._handle_temperature_forecast_by_weather_zone_docs(docs, verbose)
+
+    def _handle_temperature_forecast_by_weather_zone_docs(self, docs, verbose=False):
+        # Process files in a loop to add the publish time for each doc
+        df = pd.concat(
+            [
+                self.read_doc(doc, verbose=verbose).assign(
+                    **{"Publish Time": doc.publish_date}
+                )
+                for doc in docs
+            ],
+        )
+
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time"],
+        ).drop(columns=["Time"])
+
+        return df.sort_values("Interval Start")
 
     def _get_document(
         self,

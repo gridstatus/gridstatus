@@ -1142,7 +1142,7 @@ class TestErcot(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
 
-    def test_get_short_term_system_adequacy_today_or_latest(self):
+    def test_get_short_term_system_adequacy_today(self):
         df = self.iso.get_short_term_system_adequacy("today")
 
         self._check_short_term_system_adequacy(df)
@@ -1169,7 +1169,7 @@ class TestErcot(BaseTestISO):
             days=7,
         )
 
-    def test_get_short_term_system_adequacy_historical(self):
+    def test_get_short_term_system_adequacy_historical_date(self):
         date = self.local_today() - pd.DateOffset(days=15)
         df = self.iso.get_short_term_system_adequacy(date)
 
@@ -1197,6 +1197,95 @@ class TestErcot(BaseTestISO):
         )
 
         self._check_short_term_system_adequacy(df)
+
+    """get_temperature_forecast_by_weather_zone"""
+
+    def _check_temperature_forecast_by_weather_zone(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Coast",
+            "East",
+            "FarWest",
+            "North",
+            "NorthCentral",
+            "SouthCentral",
+            "Southern",
+            "West",
+        ]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+    # For some reason, the datasets (confirmed in the raw data) start with
+    # HourEnding 02:00 and end with HourEnding 01:00
+    temperature_forecast_start_offset = -pd.DateOffset(days=3, hours=-1)
+    temperature_forecast_end_offset = pd.DateOffset(days=9, hours=1)
+
+    def test_get_temperature_forecast_by_weather_zone_today_and_latest(self):
+        df = self.iso.get_temperature_forecast_by_weather_zone("today")
+        self._check_temperature_forecast_by_weather_zone(df)
+
+        # One publish time
+        assert df["Publish Time"].nunique() == 1
+
+        # Data goes into the past 3 days.
+        assert (
+            df["Interval Start"].min()
+            == self.local_start_of_today() + self.temperature_forecast_start_offset
+        )
+
+        assert (
+            df["Interval End"].max()
+            == self.local_start_of_today() + self.temperature_forecast_end_offset
+        )
+
+        assert self.iso.get_temperature_forecast_by_weather_zone("latest").equals(df)
+
+    def test_get_temperature_forecast_by_weather_zone_historical_date(self):
+        date = self.local_today() - pd.DateOffset(days=22)
+        df = self.iso.get_temperature_forecast_by_weather_zone(date)
+
+        assert df["Publish Time"].nunique() == 1
+
+        assert (
+            df["Interval Start"].min()
+            == self.local_start_of_day(date) + self.temperature_forecast_start_offset
+        )
+
+        assert (
+            df["Interval End"].max()
+            == self.local_start_of_day(
+                date,
+            )
+            + self.temperature_forecast_end_offset
+        )
+
+        self._check_temperature_forecast_by_weather_zone(df)
+
+    def test_get_temperature_forecast_by_weather_zone_historical_range(self):
+        start = self.local_today() - pd.DateOffset(days=24)
+        end = self.local_today() - pd.DateOffset(days=21)
+
+        df = self.iso.get_temperature_forecast_by_weather_zone(
+            start=start,
+            end=end,
+        )
+
+        assert df["Publish Time"].nunique() == 3
+        assert (
+            df["Interval Start"].min()
+            == self.local_start_of_day(start) + self.temperature_forecast_start_offset
+        )
+
+        assert df["Interval End"].max() == self.local_start_of_day(
+            end,
+            # Non-inclusive end date
+        ) + self.temperature_forecast_end_offset - pd.DateOffset(days=1)
+
+        self._check_temperature_forecast_by_weather_zone(df)
 
     """parse_doc"""
 
