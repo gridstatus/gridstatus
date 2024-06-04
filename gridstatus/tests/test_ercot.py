@@ -19,6 +19,7 @@ INTERVALS_PER_HOUR_AT_FIVE_MINUTE_RESOLUTION = 12
 class TestErcot(BaseTestISO):
     iso = Ercot()
 
+    # These are the weather zones in ERCOT in the order we want them.
     weather_zone_columns = [
         "Coast",
         "East",
@@ -234,7 +235,7 @@ class TestErcot(BaseTestISO):
                 "Interval End",
             ]
             + self.weather_zone_columns
-            + ["Total"]
+            + ["System Total"]
         )
 
         assert df.columns.tolist() == cols
@@ -328,7 +329,7 @@ class TestErcot(BaseTestISO):
                 "Publish Time",
             ]
             + self.weather_zone_columns
-            + ["Total"]
+            + ["System Total"]
         )
 
         self._check_forecast(df, expected_columns=cols)
