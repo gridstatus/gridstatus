@@ -1207,10 +1207,10 @@ class TestErcot(BaseTestISO):
             "Publish Time",
             "Coast",
             "East",
-            "FarWest",
+            "Far West",
             "North",
-            "NorthCentral",
-            "SouthCentral",
+            "North Central",
+            "South Central",
             "Southern",
             "West",
         ]
