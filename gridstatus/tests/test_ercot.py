@@ -1251,8 +1251,10 @@ class TestErcot(BaseTestISO):
         self._check_real_time_adders_and_reserves(df)
 
         hours_since_start_of_day = (
-            self.local_now() - self.local_start_of_today()
-        ) / pd.Timedelta(hours=1)
+            self.local_now()
+            - self.local_start_of_today()
+            # Integer division
+        ) // pd.Timedelta(hours=1)
 
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert (
