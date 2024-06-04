@@ -101,6 +101,12 @@ SYSTEM_WIDE_ACTUALS_RTID = 12340
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-763-CD
 SHORT_TERM_SYSTEM_ADEQUACY_REPORT_RTID = 12315
 
+
+# Real-Time ORDC and Reliability Deployment Price Adders and Reserves by SCED Interval
+# (ORDC = Operating Reserve Demand Curve)
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-323-CD
+REAL_TIME_ADDERS_AND_RESERVES_RTID = 13221
+
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
 TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
 
@@ -2553,6 +2559,58 @@ class Ercot(ISOBase):
         )
 
         return df
+
+    @support_date_range(frequency=None)
+    def get_real_time_adders_and_reserves(self, date, end=None, verbose=False):
+        """Get Real-Time ORDC and Reliability Deployment Price Adders and
+            Reserves by SCED Interval
+
+        At: https://www.ercot.com/mp/data-products/data-product-details?id=NP6-323-CD
+
+        Arguments:
+            date (str, datetime): date to get data for
+            end (str, datetime): end date to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+        Returns:
+            pandas.DataFrame: A DataFrame with ORDC data
+
+        NOTE: data only goes back 5 days
+        """
+        if date == "latest":
+            docs = [
+                self._get_document(
+                    report_type_id=REAL_TIME_ADDERS_AND_RESERVES_RTID,
+                    published_before=date,
+                    verbose=verbose,
+                ),
+            ]
+        else:
+            # Set date to get a full day of published data
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_ADDERS_AND_RESERVES_RTID,
+                published_after=date,
+                published_before=end,
+                extension="csv",
+                verbose=verbose,
+            )
+
+        return self._handle_real_time_adders_and_reserves_docs(docs, verbose=verbose)
+
+    def _handle_real_time_adders_and_reserves_docs(self, docs, verbose=False):
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._handle_sced_timestamp(df)
+
+        df = utils.move_cols_to_front(
+            df,
+            ["SCED Timestamp", "Interval Start", "Interval End", "BatchID"],
+        )
+
+        df = df.rename(columns={"SystemLambda": "System Lambda"})
+
+        return df.sort_values("SCED Timestamp")
 
     @support_date_range(frequency=None)
     def get_temperature_forecast_by_weather_zone(self, date, end=None, verbose=False):
