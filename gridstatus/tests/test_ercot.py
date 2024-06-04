@@ -8,6 +8,7 @@ from gridstatus import Markets, NotSupported
 from gridstatus.ercot import (
     ELECTRICAL_BUS_LOCATION_TYPE,
     Ercot,
+    ERCOTSevenDayLoadForecastReport,
     parse_timestamp_from_friendly_name,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -17,6 +18,17 @@ INTERVALS_PER_HOUR_AT_FIVE_MINUTE_RESOLUTION = 12
 
 class TestErcot(BaseTestISO):
     iso = Ercot()
+
+    weather_zone_columns = [
+        "Coast",
+        "East",
+        "Far West",
+        "North",
+        "North Central",
+        "South Central",
+        "Southern",
+        "West",
+    ]
 
     """dam_system_lambda"""
 
@@ -215,20 +227,16 @@ class TestErcot(BaseTestISO):
     def test_get_load_by_weather_zone(self):
         df = self.iso.get_load_by_weather_zone("today")
         self._check_time_columns(df, instant_or_interval="interval")
-        cols = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "COAST",
-            "EAST",
-            "FAR_WEST",
-            "NORTH",
-            "NORTH_C",
-            "SOUTHERN",
-            "SOUTH_C",
-            "WEST",
-            "TOTAL",
-        ]
+        cols = (
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+            ]
+            + self.weather_zone_columns
+            + ["Total"]
+        )
+
         assert df.columns.tolist() == cols
 
         # test 5 days ago
@@ -238,6 +246,8 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_load_by_weather_zone(five_days_ago)
         self._check_time_columns(df, instant_or_interval="interval")
         assert df["Time"].unique()[0].date() == five_days_ago
+
+        assert df.columns.tolist() == cols
 
     def test_get_load_by_forecast_zone_today(self):
         df = self.iso.get_load_by_forecast_zone("today")
@@ -303,6 +313,35 @@ class TestErcot(BaseTestISO):
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
         pass
+
+    def test_get_load_forecast_by_weather_zone(self):
+        df = self.iso.get_load_forecast(
+            "today",
+            forecast_type=ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE,
+        )
+
+        cols = (
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+            ]
+            + self.weather_zone_columns
+            + ["Total"]
+        )
+
+        self._check_forecast(df, expected_columns=cols)
+
+        five_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(days=5)
+        df = self.iso.get_load_forecast(
+            five_days_ago,
+            forecast_type=ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE,
+        )
+
+        self._check_forecast(df, expected_columns=cols)
 
     """get_capacity_committed"""
 
@@ -1300,19 +1339,15 @@ class TestErcot(BaseTestISO):
     """get_temperature_forecast_by_weather_zone"""
 
     def _check_temperature_forecast_by_weather_zone(self, df):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Coast",
-            "East",
-            "Far West",
-            "North",
-            "North Central",
-            "South Central",
-            "Southern",
-            "West",
-        ]
+        assert (
+            df.columns.tolist()
+            == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+            ]
+            + self.weather_zone_columns
+        )
 
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)

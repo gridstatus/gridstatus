@@ -453,6 +453,31 @@ class Ercot(ISOBase):
             )
 
             df = self.read_doc(doc_info, verbose=verbose)
+
+        # Clean up columns to match load_forecast_by_weather_zone
+        df = df.rename(
+            columns=self._weather_zone_column_name_mapping(),
+        ).sort_values("Interval Start")
+
+        df.columns = df.columns.map(lambda x: x.replace("_", " ").title())
+
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Coast",
+                "East",
+                "Far West",
+                "North",
+                "North Central",
+                "South Central",
+                "Southern",
+                "West",
+            ],
+        )
+
         return df
 
     @support_date_range("DAY_START")
@@ -677,7 +702,6 @@ class Ercot(ISOBase):
         )
 
         if forecast_type == ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE:
-            # rename with spaces
             df = df.rename(
                 columns=self._weather_zone_column_name_mapping(),
             )
@@ -3018,7 +3042,10 @@ class Ercot(ISOBase):
         return {
             "FarWest": "Far West",
             "NorthCentral": "North Central",
+            "NORTH_C": "North Central",
             "SouthCentral": "South Central",
+            "SOUTH_C": "South Central",
+            "System Total": "Total",
         }
 
 
