@@ -453,6 +453,25 @@ class Ercot(ISOBase):
             )
 
             df = self.read_doc(doc_info, verbose=verbose)
+
+        # Clean up columns to match load_forecast_by_weather_zone
+        df.columns = df.columns.map(lambda x: x.replace("_", " ").title())
+
+        df = df.rename(
+            columns=self._weather_zone_column_name_mapping(),
+        ).sort_values("Interval Start")
+
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+            ]
+            + self._weather_zone_column_name_order()
+            + ["System Total"],
+        )
+
         return df
 
     @support_date_range("DAY_START")
@@ -670,27 +689,23 @@ class Ercot(ISOBase):
 
         df["Publish Time"] = doc.publish_date
 
-        df = df.rename(
-            columns={
-                "SystemTotal": "System Total",
-            },
-        )
+        df = df.rename(columns={"SystemTotal": "System Total"})
 
-        if forecast_type == ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE:
-            # rename with spaces
+        cols_to_move = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+        ]
+
+        if forecast_type.value == ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE.value:
             df = df.rename(
                 columns=self._weather_zone_column_name_mapping(),
             )
 
-        df = utils.move_cols_to_front(
-            df,
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-            ],
-        )
+            cols_to_move += self._weather_zone_column_name_order() + ["System Total"]
+
+        df = utils.move_cols_to_front(df, cols_to_move)
 
         return df
 
@@ -2655,13 +2670,14 @@ class Ercot(ISOBase):
             ],
         )
 
-        df = (
-            utils.move_cols_to_front(
-                df,
-                ["Interval Start", "Interval End", "Publish Time"],
-            )
-            .drop(columns=["Time"])
-            .rename(columns=self._weather_zone_column_name_mapping())
+        df = df.drop(columns=["Time"]).rename(
+            columns=self._weather_zone_column_name_mapping(),
+        )
+
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time"]
+            + list(self._weather_zone_column_name_order()),
         )
 
         return df.sort_values("Interval Start")
@@ -3016,10 +3032,30 @@ class Ercot(ISOBase):
 
     def _weather_zone_column_name_mapping(self):
         return {
+            "Coast": "Coast",
+            "East": "East",
             "FarWest": "Far West",
+            "North": "North",
             "NorthCentral": "North Central",
+            "North C": "North Central",
             "SouthCentral": "South Central",
+            "South C": "South Central",
+            "Southern": "Southern",
+            "West": "West",
+            "Total": "System Total",
         }
+
+    def _weather_zone_column_name_order(self):
+        return [
+            "Coast",
+            "East",
+            "Far West",
+            "North",
+            "North Central",
+            "South Central",
+            "Southern",
+            "West",
+        ]
 
 
 if __name__ == "__main__":
