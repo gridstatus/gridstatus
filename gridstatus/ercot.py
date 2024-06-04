@@ -2599,6 +2599,19 @@ class Ercot(ISOBase):
 
         return self._handle_real_time_adders_and_reserves_docs(docs, verbose=verbose)
 
+    def _handle_real_time_adders_and_reserves_docs(self, docs, verbose=False):
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._handle_sced_timestamp(df)
+
+        df = utils.move_cols_to_front(
+            df,
+            ["SCED Timestamp", "Interval Start", "Interval End", "BatchID"],
+        )
+
+        df = df.rename(columns={"SystemLambda": "System Lambda"})
+
+        return df.sort_values("SCED Timestamp")
+
     @support_date_range(frequency=None)
     def get_temperature_forecast_by_weather_zone(self, date, end=None, verbose=False):
         """Get temperature forecast by weather zone in hourly intervals. Published
@@ -2652,19 +2665,6 @@ class Ercot(ISOBase):
         )
 
         return df.sort_values("Interval Start")
-
-    def _handle_real_time_adders_and_reserves_docs(self, docs, verbose=False):
-        df = self.read_docs(docs, parse=False, verbose=verbose)
-        df = self._handle_sced_timestamp(df)
-
-        df = utils.move_cols_to_front(
-            df,
-            ["SCED Timestamp", "Interval Start", "Interval End", "BatchID"],
-        )
-
-        df = df.rename(columns={"SystemLambda": "System Lambda"})
-
-        return df.sort_values("SCED Timestamp")
 
     def _get_document(
         self,
