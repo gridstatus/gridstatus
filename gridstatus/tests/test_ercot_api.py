@@ -356,7 +356,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Market",
+            "SCED Timestamp" "Market",
             "Location",
             "Location Type",
             "LMP",
