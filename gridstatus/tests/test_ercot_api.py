@@ -356,7 +356,8 @@ class TestErcotAPI(TestHelperMixin):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "SCED Timestamp" "Market",
+            "SCED Timestamp",
+            "Market",
             "Location",
             "Location Type",
             "LMP",
@@ -365,7 +366,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
         assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
 
-        assert (df["Market"] == Markets.DAY_AHEAD_HOURLY.name).all()
+        assert (df["Market"] == Markets.REAL_TIME_SCED.name).all()
         assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
 
         assert df.dtypes["LMP"] == "float64"
@@ -375,7 +376,7 @@ class TestErcotAPI(TestHelperMixin):
         ).all()
 
     def test_get_lmp_by_bus_today(self):
-        df = self.iso.get_lmp_by_bus("today")
+        df = self.iso.get_lmp_by_bus("today", verbose=True)
 
         self._check_lmp_by_bus(df)
 
@@ -397,9 +398,9 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_lmp_by_bus(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval End"].max() == self.local_start_of_day(
-            date.date(),
+            date,
         ) + pd.Timedelta(days=1)
 
     def test_get_lmp_by_bus_historical_date_range(self):
@@ -412,8 +413,9 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_lmp_by_bus(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date.date())
-        assert df["Interval End"].max() == self.local_start_of_day(end_date.date())
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        # Not inclusive of end date
+        assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
     """lmp_by_bus_dam"""
 
