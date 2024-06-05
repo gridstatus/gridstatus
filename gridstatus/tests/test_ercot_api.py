@@ -2,7 +2,6 @@ import datetime
 
 import pandas as pd
 import pytest
-import pytz
 
 from gridstatus.base import Markets
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
@@ -341,7 +340,7 @@ class TestErcotAPI(TestHelperMixin):
         # Not inclusive of end date
         assert df["Publish Time"].dt.date.unique().tolist() == [
             start_date,
-            start_date + pd.DateOffset(days=1),
+            (start_date + pd.DateOffset(days=1)).date(),
         ]
         assert df["Publish Time"].nunique() == 2 * 24
 
@@ -772,7 +771,7 @@ class TestErcotAPI(TestHelperMixin):
         We are also testing here that datetime objects are correctly parsed into
             the desired date string format that the operatingDayFrom parameter expects.
         """
-        two_days_ago = datetime.datetime.now(tz=pytz.UTC) - datetime.DateOffset(days=2)
+        two_days_ago = pd.Timestamp.utcnow() - pd.DateOffset(days=2)
         actual_by_wzn_endpoint = "/np6-345-cd/act_sys_load_by_wzn"
         two_days_actual_by_wzn = self.iso.hit_ercot_api(
             actual_by_wzn_endpoint,
