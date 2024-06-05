@@ -92,8 +92,8 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_today()
         # Depending on time of day, the end date will be today or tomorrow
         assert df["Interval End"].max() in [
-            self.local_start_of_today() + pd.Timedelta(days=1),
-            self.local_start_of_today() + pd.Timedelta(days=2),
+            self.local_start_of_today() + pd.DateOffset(days=1),
+            self.local_start_of_today() + pd.DateOffset(days=2),
         ]
 
         assert self.iso.get_as_prices("latest").equals(df)
@@ -107,7 +107,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
         assert df["Interval End"].max() == self.local_start_of_day(
             historical_date,
-        ) + pd.Timedelta(
+        ) + pd.DateOffset(
             days=1,
         )
 
@@ -161,7 +161,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
         assert df["Interval End"].max() == self.local_start_of_day(
             historical_date,
-        ) + pd.Timedelta(
+        ) + pd.DateOffset(
             days=1,
         )
 
@@ -245,7 +245,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
         assert df["Interval End"].max() == self.local_start_of_day(
             historical_date,
-        ) + pd.Timedelta(
+        ) + pd.DateOffset(
             days=1,
         )
 
@@ -306,7 +306,7 @@ class TestErcotAPI(TestHelperMixin):
         assert (df["Publish Time"].dt.date == self.local_today()).all()
 
         assert df["Interval Start"].min() <= self.local_start_of_today()
-        assert df["Interval End"].max() >= self.local_start_of_today() + pd.Timedelta(
+        assert df["Interval End"].max() >= self.local_start_of_today() + pd.DateOffset(
             days=7,
         )
 
@@ -324,7 +324,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
         assert df["Interval End"].max() >= self.local_start_of_day(
             historical_date,
-        ) + pd.Timedelta(days=7)
+        ) + pd.DateOffset(days=7)
 
     def test_get_hourly_resource_outage_capacity_historical_date_range(self):
         start_date = datetime.date(2021, 3, 15)
@@ -341,14 +341,14 @@ class TestErcotAPI(TestHelperMixin):
         # Not inclusive of end date
         assert df["Publish Time"].dt.date.unique().tolist() == [
             start_date,
-            start_date + pd.Timedelta(days=1),
+            start_date + pd.DateOffset(days=1),
         ]
         assert df["Publish Time"].nunique() == 2 * 24
 
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() >= self.local_start_of_day(
             end_date,
-        ) + pd.Timedelta(days=6)
+        ) + pd.DateOffset(days=6)
 
     """lmp_by_bus"""
 
@@ -392,7 +392,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval End"].max() <= self.local_now()
 
     def test_get_lmp_by_bus_historical_date(self):
-        date = self.local_today() - pd.Timedelta(days=HISTORICAL_DAYS_THRESHOLD * 2)
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
 
         df = self.iso.get_lmp_by_bus(date, verbose=True)
 
@@ -401,13 +401,13 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval End"].max() == self.local_start_of_day(
             date,
-        ) + pd.Timedelta(days=1)
+        ) + pd.DateOffset(days=1)
 
     def test_get_lmp_by_bus_historical_date_range(self):
-        start_date = self.local_today() - pd.Timedelta(
+        start_date = self.local_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
         )
-        end_date = start_date + pd.Timedelta(days=2)
+        end_date = start_date + pd.DateOffset(days=2)
 
         df = self.iso.get_lmp_by_bus(start_date, end_date, verbose=True)
 
@@ -450,13 +450,13 @@ class TestErcotAPI(TestHelperMixin):
 
         # The end date will depend on when this runs, so check if it's today or tomorrow
         assert df["Interval End"].max() in [
-            (self.local_start_of_today() + pd.Timedelta(days=d)) for d in [1, 2]
+            (self.local_start_of_today() + pd.DateOffset(days=d)) for d in [1, 2]
         ]
 
         assert self.iso.get_lmp_by_bus_dam("latest").equals(df)
 
     def test_get_lmp_by_bus_dam_historical(self):
-        past_date = self.local_start_of_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 2,
         )
 
@@ -465,15 +465,15 @@ class TestErcotAPI(TestHelperMixin):
         self._check_lmp_by_bus_dam(df)
 
         assert df["Interval Start"].min() == past_date.normalize()
-        assert df["Interval End"].max() == past_date.normalize() + pd.Timedelta(
+        assert df["Interval End"].max() == past_date.normalize() + pd.DateOffset(
             days=1,
         )
 
     def test_get_lmp_by_bus_dam_historical_range(self):
-        past_date = self.local_start_of_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
         )
-        past_end_date = past_date + pd.Timedelta(days=2)
+        past_end_date = past_date + pd.DateOffset(days=2)
 
         df = self.iso.get_lmp_by_bus_dam(past_date, past_end_date, verbose=True)
 
@@ -526,7 +526,7 @@ class TestErcotAPI(TestHelperMixin):
         # or end of tomorrow
         assert df["Interval End"].max() in [
             self.local_start_of_today()
-            + pd.Timedelta(
+            + pd.DateOffset(
                 days=d,
             )
             for d in [1, 2]
@@ -535,7 +535,7 @@ class TestErcotAPI(TestHelperMixin):
         assert self.iso.get_shadow_prices_dam("latest").equals(df)
 
     def test_get_shadow_prices_dam_historical(self):
-        past_date = self.local_start_of_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
         )
         df = self.iso.get_shadow_prices_dam(past_date, verbose=True)
@@ -548,10 +548,10 @@ class TestErcotAPI(TestHelperMixin):
         ) + pd.Timedelta(hours=23)
 
     def test_get_shadow_prices_dam_historical_range(self):
-        past_date = self.local_start_of_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 4,
         )
-        past_end_date = past_date + pd.Timedelta(days=2)
+        past_end_date = past_date + pd.DateOffset(days=2)
 
         df = self.iso.get_shadow_prices_dam(
             date=past_date,
@@ -617,7 +617,7 @@ class TestErcotAPI(TestHelperMixin):
         assert self.iso.get_shadow_prices_sced("latest").equals(df)
 
     def test_get_shadow_prices_sced_historical(self):
-        past_date = self.local_start_of_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
         )
         df = self.iso.get_shadow_prices_sced(past_date, verbose=True)
@@ -637,10 +637,10 @@ class TestErcotAPI(TestHelperMixin):
         )
 
     def test_get_shadow_prices_sced_historical_range(self):
-        past_date = self.local_start_of_today() - pd.Timedelta(
+        past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 2,
         )
-        past_end_date = past_date + pd.Timedelta(days=2)
+        past_end_date = past_date + pd.DateOffset(days=2)
 
         df = self.iso.get_shadow_prices_sced(
             date=past_date,
@@ -656,7 +656,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (
             self.local_start_of_day(past_end_date.date())
-            - pd.Timedelta(days=1)
+            - pd.DateOffset(days=1)
             + pd.Timedelta(hours=22)
             < max_timestamp
             < self.local_start_of_day(past_end_date.date())
@@ -772,7 +772,7 @@ class TestErcotAPI(TestHelperMixin):
         We are also testing here that datetime objects are correctly parsed into
             the desired date string format that the operatingDayFrom parameter expects.
         """
-        two_days_ago = datetime.datetime.now(tz=pytz.UTC) - datetime.timedelta(days=2)
+        two_days_ago = datetime.datetime.now(tz=pytz.UTC) - datetime.DateOffset(days=2)
         actual_by_wzn_endpoint = "/np6-345-cd/act_sys_load_by_wzn"
         two_days_actual_by_wzn = self.iso.hit_ercot_api(
             actual_by_wzn_endpoint,
