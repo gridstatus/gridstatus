@@ -350,6 +350,71 @@ class TestErcotAPI(TestHelperMixin):
             end_date,
         ) + pd.Timedelta(days=6)
 
+    """lmp_by_bus"""
+
+    def _check_lmp_by_bus(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+
+        assert (df["Market"] == Markets.DAY_AHEAD_HOURLY.name).all()
+        assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
+
+        assert df.dtypes["LMP"] == "float64"
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+
+    def test_get_lmp_by_bus_today(self):
+        df = self.iso.get_lmp_by_bus("today")
+
+        self._check_lmp_by_bus(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() <= self.local_now()
+
+    def test_get_lmp_by_bus_latest(self):
+        df = self.iso.get_lmp_by_bus("latest")
+
+        self._check_lmp_by_bus(df)
+
+        assert df["Interval Start"].min() >= self.local_now() - pd.Timedelta(minutes=30)
+        assert df["Interval End"].max() <= self.local_now()
+
+    def test_get_lmp_by_bus_historical_date(self):
+        date = self.local_today() - pd.Timedelta(days=HISTORICAL_DAYS_THRESHOLD * 2)
+
+        df = self.iso.get_lmp_by_bus(date, verbose=True)
+
+        self._check_lmp_by_bus(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date.date(),
+        ) + pd.Timedelta(days=1)
+
+    def test_get_lmp_by_bus_historical_date_range(self):
+        start_date = self.local_today() - pd.Timedelta(
+            days=HISTORICAL_DAYS_THRESHOLD * 3,
+        )
+        end_date = start_date + pd.Timedelta(days=2)
+
+        df = self.iso.get_lmp_by_bus(start_date, end_date, verbose=True)
+
+        self._check_lmp_by_bus(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date.date())
+        assert df["Interval End"].max() == self.local_start_of_day(end_date.date())
+
     """lmp_by_bus_dam"""
 
     def _check_lmp_by_bus_dam(self, df):

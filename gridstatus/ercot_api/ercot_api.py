@@ -19,6 +19,22 @@ from gridstatus.gs_logging import log
 TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
+# How long a token lasts for before needing to be refreshed
+TOKEN_EXPIRATION_SECONDS = 3600
+
+# Number of historical links to fetch at once. The max is 1_000
+DEFAULT_HISTORICAL_SIZE = 1_000
+
+# Number of results to fetch per page. It's not clear what the max is (1_000_000 works)
+DEFAULT_PAGE_SIZE = 250_000
+
+# Number of days in past when we should use the historical method
+# NOTE: this seems to vary per dataset. If you get an error about no data available and
+# your date is less than this many days in the past, try decreasing this number to
+# search for historical data more recently.
+HISTORICAL_DAYS_THRESHOLD = 90
+
+
 # This file is publicly available and contains the full list of endpoints and their parameters # noqa
 ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"  # noqa
 
@@ -36,6 +52,9 @@ HOURLY_SOLAR_REPORT_ENDPOINT = "/np4-745-cd/spp_hrly_actual_fcast_geo"
 #  https://data.ercot.com/data-product-archive/NP6-788-CD
 LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-788-cd/lmp_node_zone_hub"
 
+# https://data.ercot.com/data-product-archive/NP6-787-CD
+LMP_BY_BUS_ENDPOINT = "/np6-787-cd/lmp_electrical_bus"
+
 # https://data.ercot.com/data-product-archive/NP3-233-CD
 HOURLY_RESOURCE_OUTAGE_CAPACITY_REPORTS_ENDPOINT = "/np3-233-cd/hourly_res_outage_cap"
 
@@ -47,19 +66,6 @@ SHADOW_PRICES_DAM_ENDPOINT = "/np4-191-cd/dam_shadow_prices"
 
 # https://data.ercot.com/data-product-archive/NP6-86-CD
 SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
-
-
-# How long a token lasts for before needing to be refreshed
-TOKEN_EXPIRATION_SECONDS = 3600
-
-# Number of historical links to fetch at once. The max is 1_000
-DEFAULT_HISTORICAL_SIZE = 1_000
-
-# Number of days in past when we should use the historical method
-# NOTE: this seems to vary per dataset. If you get an error about no data available and
-# your date is less than this many days in the past, try decreasing this number to
-# search for historical data more recently.
-HISTORICAL_DAYS_THRESHOLD = 90
 
 
 class ErcotAPI:
@@ -226,7 +232,7 @@ class ErcotAPI:
 
             data = self.hit_ercot_api(
                 endpoint=AS_PRICES_ENDPOINT,
-                page_size=500_000,
+                page_size=DEFAULT_PAGE_SIZE,
                 verbose=verbose,
                 **api_params,
             )
@@ -328,15 +334,12 @@ class ErcotAPI:
 
             data = self.hit_ercot_api(
                 endpoint=LMP_BY_SETTLEMENT_POINT_ENDPOINT,
-                page_size=500_000,
+                page_size=DEFAULT_PAGE_SIZE,
                 verbose=verbose,
                 **api_params,
             )
 
-        data = self.ercot._handle_lmp_df(
-            df=data.rename(columns={"RepeatHourFlag": "RepeatedHourFlag"}),
-            verbose=verbose,
-        )
+        data = self.ercot._handle_lmp_df(df=data, verbose=verbose)
 
         return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
 
@@ -395,6 +398,71 @@ class ErcotAPI:
         )
 
     @support_date_range(frequency=None)
+    def get_lmp_by_bus(self, date, end=None, verbose=False):
+        """Get the Locational Marginal Price for each Electrical Bus, normally produced
+            by SCED every five minutes.
+
+        Arguments:
+            date (str): the date to fetch prices for.
+            end (str, optional): the end date to fetch prices for. Defaults to None.
+        Returns:
+            pandas.DataFrame: A DataFrame with lmps by bus
+
+        Data from https://data.ercot.com/data-product-archive/NP6-787-CD
+        """
+        if date == "latest":
+            # Set the date to a few minutes ago to ensure we get the latest data
+            date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(minutes=15)
+            end = None
+
+        if self._should_use_historical(date):
+            end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+            data = self.get_historical_data(
+                endpoint=LMP_BY_BUS_ENDPOINT,
+                start_date=date,
+                end_date=end,
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "SCEDTimestampFrom": date,
+                "SCEDTimestampTo": end,
+            }
+
+            data = self.hit_ercot_api(
+                endpoint=LMP_BY_BUS_ENDPOINT,
+                page_size=DEFAULT_PAGE_SIZE,
+                verbose=verbose,
+                **api_params,
+            )
+
+        return self._handle_lmp_by_bus(data, verbose=verbose)
+
+    def _handle_lmp_by_bus(self, data, verbose=False):
+        data = self.ercot._handle_sced_timestamp(data, verbose=verbose)
+
+        data = data.rename(columns={"ElectricalBus": "Location"})
+        data["Location Type"] = ELECTRICAL_BUS_LOCATION_TYPE
+        data["Market"] = Markets.REAL_TIME_SCED.value
+
+        data = utils.move_cols_to_front(
+            data,
+            [
+                "Interval Start",
+                "Interval End",
+                "SCED Timestamp",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+            ],
+        )
+
+        return data.sort_values(["SCED Timestamp", "Location"]).reset_index(
+            drop=True,
+        )
+
+    @support_date_range(frequency=None)
     def get_lmp_by_bus_dam(self, date, end=None, verbose=False):
         """
         Retrieves the hourly Day Ahead Market (DAM) Location Marginal Prices (LMPs)
@@ -430,7 +498,7 @@ class ErcotAPI:
 
             data = self.hit_ercot_api(
                 endpoint=DAM_LMP_ENDPOINT,
-                page_size=500_000,
+                page_size=DEFAULT_PAGE_SIZE,
                 verbose=verbose,
                 **api_params,
             )
@@ -512,7 +580,7 @@ class ErcotAPI:
 
             data = self.hit_ercot_api(
                 endpoint=SHADOW_PRICES_DAM_ENDPOINT,
-                page_size=50_000,
+                page_size=DEFAULT_PAGE_SIZE,
                 verbose=verbose,
                 **api_params,
             )
@@ -579,7 +647,7 @@ class ErcotAPI:
 
             data = self.hit_ercot_api(
                 endpoint=SHADOW_PRICES_SCED_ENDPOINT,
-                page_size=50_000,
+                page_size=DEFAULT_PAGE_SIZE,
                 verbose=verbose,
                 **api_params,
             )
@@ -799,7 +867,7 @@ class ErcotAPI:
     def hit_ercot_api(
         self,
         endpoint: str,
-        page_size: int = 100_000,
+        page_size: int = DEFAULT_PAGE_SIZE,
         max_pages: Optional[int] = None,
         verbose: bool = False,
         **api_params,
@@ -812,8 +880,8 @@ class ErcotAPI:
                 - "/np6-345-cd/act_sys_load_by_wzn",
                 - "/np6-787-cd/lmp_electrical_bus"
             page_size: specifies the number of results to return per page, defaulting
-                to 100_000 because otherwise this will be very slow when fetching
-                large datasets.
+                to DEFAULT_PAGE_SIZE because otherwise this will be very slow when
+                fetching large datasets.
             max_pages: if provided, will stop paginating after reaching this number.
                 Useful in testing to avoid long-running queries, but may result in
                 incomplete data.
