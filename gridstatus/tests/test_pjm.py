@@ -589,7 +589,9 @@ class TestPJM(BaseTestISO):
 
         expected_date = self.to_local_datetime(start_date_local)
         assert (df["Publish Time"] == expected_date).all()
-        assert (df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
 
     def test_get_gen_outages_by_type_with_past_date(self):
         start_date_local = self.local_today() - pd.DateOffset(days=3)
@@ -599,7 +601,9 @@ class TestPJM(BaseTestISO):
 
         expected_date = self.to_local_datetime(start_date_local)
         assert (df["Publish Time"] == expected_date).all()
-        assert (df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
 
     def test_get_gen_outages_by_type_with_multi_day_range(self):
         # start example: 2024-04-30 00:00:00-04:00
@@ -612,16 +616,19 @@ class TestPJM(BaseTestISO):
         # expect only 2024-04-30 00:00:00-04:00 and 2024-05-01 00:00:00-04:00 in results
         expected_date_1 = self.to_local_datetime(start_date_local)
         expected_date_2 = self.to_local_datetime(
-            (start_date_local + pd.DateOffset(days=1))
+            (start_date_local + pd.DateOffset(days=1)),
         )
         expected_dates = {expected_date_1, expected_date_2}
 
         df = self.iso.get_gen_outages_by_type(
-            start_date_time_local, end_date_time_local
+            start_date_time_local,
+            end_date_time_local,
         )
         self._check_gen_outages_by_type(df)
         assert (df["Publish Time"].isin(expected_dates)).all()
-        assert (df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
 
     def to_local_datetime(self, date_local):
         return pd.to_datetime(date_local).tz_localize(
