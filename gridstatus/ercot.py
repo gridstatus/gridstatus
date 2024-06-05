@@ -2276,6 +2276,7 @@ class Ercot(ISOBase):
     def _handle_sced_timestamp(self, df, verbose=False):
         df = df.rename(
             columns={
+                "RepeatHourFlag": "RepeatedHourFlag",
                 "SCEDTimeStamp": "SCED Timestamp",
                 "SCEDTimestamp": "SCED Timestamp",
             },
