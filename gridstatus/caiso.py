@@ -817,43 +817,36 @@ class CAISO(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame of curtailment data
         """
-
         # round to beginning of day
         date = date.normalize()
 
-        date_strs = [
-            date.strftime("%b%d_%Y"),
-            date.strftime(
-                "%d%b_%Y",
-            ).lower(),
-            date.strftime("-%b%d_%Y"),
-        ]
-
-        # handle specfic case where dec 02, 2021 has wrong year in file name
-        if date_strs[0] == "Dec02_2021":
-            date_strs = ["02dec_2020"]
-        if date_strs[0] == "Dec02_2020":
-            # this correct, so make sure we don't try the
-            # other file since 2021 is published wrong
-            date_strs = ["Dec02_2020"]
-
         # todo handle not always just 4th pge
+        date_str = date.strftime("%b-%d-%Y").lower()
 
         pdf = None
-        for date_str in date_strs:
-            url = (
-                f"http://www.caiso.com/Documents/Wind_SolarReal"
-                f"-TimeDispatchCurtailmentReport{date_str}.pdf"
-            )  # noqa: E501
+        base_url = "http://www.caiso.com/documents/wind-solar-real-time-dispatch-curtailment-report-"  # noqa
 
-            msg = f"Fetching URL: {url}"
-            log(msg, verbose)
+        # Base url and date string format change for dates prior to May 31, 2024
+        if date < pd.Timestamp("2024-05-31", tz=date.tzinfo):
+            base_url = "https://www.caiso.com/documents/wind_solarreal-timedispatchcurtailmentreport"  # noqa
 
-            r = requests.get(url)
-            if b"404 - Page Not Found" in r.content:
-                continue
-            pdf = io.BytesIO(r.content)
-            break
+            date_str = date.strftime("%b%d_%Y").lower()
+
+        # # handle specfic case where dec 02, 2021 has wrong year in file name
+        if date_str == "dec02_2021":
+            date_str = "02dec_2020"
+
+        url = f"{base_url}{date_str}.pdf"
+
+        msg = f"Fetching URL: {url}"
+        log(msg, verbose)
+
+        r = requests.get(url)
+        if r.status_code == 404:
+            raise ValueError(
+                f"Could not find curtailment PDF for {date}",
+            )
+        pdf = io.BytesIO(r.content)
 
         if pdf is None:
             raise ValueError(
@@ -1050,10 +1043,17 @@ class CAISO(ISOBase):
                 "Date must be on or after June 17, 2021",
             )
 
-        url = (
-            "http://www.caiso.com/Documents/Curtailed-non-operational-generator-prior"
-            "-trade-date-report-" + date.strftime("%Y%m%d") + ".xlsx"
-        )
+        date_str = date.strftime("%b-%d-%Y").lower()
+
+        # Changeover to new format
+        if date < pd.Timestamp("2024-05-31", tz=date.tzinfo):
+            date_str = date.strftime("%Y%m%d")
+
+        url = f"https://www.caiso.com/documents/curtailed-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"  # noqa
+
+        # Jun 1, 2024 is the only date with a different URL. (Yes, really)
+        if date.date() == pd.Timestamp("2024-06-01").date():
+            url = "https://www.caiso.com/documents/curtailed-and-non-operational-generator-prior-trade-date-report-jun-01-2024.xlsx"  # noqa
 
         log(f"Fetching {url}", verbose=verbose)
         # fetch this way to avoid having to
