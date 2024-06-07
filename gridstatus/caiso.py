@@ -1043,17 +1043,21 @@ class CAISO(ISOBase):
                 "Date must be on or after June 17, 2021",
             )
 
+        # After May 31, 2024, the date format is %b-%d-%Y.lower() (jun-01-2024)
         date_str = date.strftime("%b-%d-%Y").lower()
 
-        # Changeover to new format
-        if date < pd.Timestamp("2024-05-31", tz=date.tzinfo):
+        # May 31, 2024 uses a unique format (2024-05-31)
+        if date.date() == pd.Timestamp("2024-05-31").date():
+            date_str = date.strftime("%Y-%m-%d").lower()
+        # Before May 31, 2024, the date format is %Y%m%d (20240530)
+        elif date < pd.Timestamp("2024-05-31", tz=date.tzinfo):
             date_str = date.strftime("%Y%m%d")
 
         url = f"https://www.caiso.com/documents/curtailed-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"  # noqa
 
-        # Jun 1, 2024 is the only date with a different URL. (Yes, really)
+        # Jun 1, 2024 has an extra "and" in the url
         if date.date() == pd.Timestamp("2024-06-01").date():
-            url = "https://www.caiso.com/documents/curtailed-and-non-operational-generator-prior-trade-date-report-jun-01-2024.xlsx"  # noqa
+            url = f"https://www.caiso.com/documents/curtailed-and-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"  # noqa
 
         log(f"Fetching {url}", verbose=verbose)
         # fetch this way to avoid having to
