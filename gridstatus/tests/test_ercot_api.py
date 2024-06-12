@@ -65,7 +65,7 @@ class TestErcotAPI(TestHelperMixin):
     def _check_hourly_wind_report(self, df):
         assert df.columns.tolist() == []
 
-    def test_hourly_wind_report_today(self):
+    def test_get_hourly_wind_report_today(self):
         df = self.iso.get_hourly_wind_report("today")
 
         # We don't know the exact nubmer of publish times
@@ -73,13 +73,13 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_hourly_wind_report(df)
 
-    def test_hourly_wind_report_latest(self):
+    def test_get_hourly_wind_report_latest(self):
         df = self.iso.get_hourly_wind_report("latest")
 
         assert df["Publish Time"].nunique() == 1
         self._check_hourly_wind_report(df)
 
-    def test_hourly_wind_report_historical_date(self):
+    def test_get_hourly_wind_report_historical_date(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
 
         df = self.iso.get_hourly_wind_report(date, verbose=True)
@@ -92,7 +92,7 @@ class TestErcotAPI(TestHelperMixin):
             date.date(),
         ) + pd.DateOffset(days=1)
 
-    def test_hourly_wind_report_historical_date_range(self):
+    def test_get_hourly_wind_report_historical_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
         end = date + pd.DateOffset(days=2)
 
@@ -144,7 +144,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
-    def test_hourly_solar_report_today(self):
+    def test_get_hourly_solar_report_today(self):
         df = self.iso.get_hourly_solar_report("today")
 
         # We don't know the exact nubmer of publish times
@@ -152,13 +152,13 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_hourly_solar_report(df)
 
-    def test_hourly_solar_report_latest(self):
+    def test_get_hourly_solar_report_latest(self):
         df = self.iso.get_hourly_solar_report("latest")
 
         assert df["Publish Time"].nunique() == 1
         self._check_hourly_solar_report(df)
 
-    def test_hourly_solar_report_historical_date(self):
+    def test_get_hourly_solar_report_historical_date(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
 
         df = self.iso.get_hourly_solar_report(date, verbose=True)
@@ -171,7 +171,7 @@ class TestErcotAPI(TestHelperMixin):
             date.date(),
         ) + pd.DateOffset(days=1)
 
-    def test_hourly_solar_report_historical_date_range(self):
+    def test_get_hourly_solar_report_historical_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
         end = date + pd.DateOffset(days=2)
 
