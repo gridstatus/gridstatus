@@ -132,7 +132,7 @@ class ErcotAPI:
             # Have to convert to UTC to do addition, then convert back to local time
             # to avoid DST issues
             end = (
-                (date.tz_convert("UTC") + pd.Timedelta(days=days_to_add_if_no_end))
+                (date.tz_convert("UTC") + pd.DateOffset(days=days_to_add_if_no_end))
                 .normalize()
                 .tz_localize(None)
                 .tz_localize(self.default_timezone)
@@ -911,7 +911,7 @@ class ErcotAPI:
         start_date,
         end_date,
         read_as_csv=True,
-        sleep_seconds=0.05,
+        sleep_seconds=0.15,
         add_post_datetime=False,
         verbose=False,
     ):
@@ -958,6 +958,8 @@ class ErcotAPI:
         links, post_datetimes = zip(*links_and_post_datetimes)
 
         dfs = []
+        retries = 0
+        max_retries = 3
 
         for link, posted_datetime in tqdm(
             zip(links, post_datetimes),
@@ -966,38 +968,52 @@ class ErcotAPI:
             disable=not verbose,
             total=len(links),
         ):
-            try:
-                # Data comes back as a compressed zip file.
-                response = self.make_api_call(link, verbose=verbose, parse_json=False)
-
-                # Convert the bytes to a file-like object
-                bytes = pd.io.common.BytesIO(response)
-
-                if not read_as_csv:
-                    dfs.append(bytes)
-                else:
-                    # Decompress the zip file and read the csv
-                    df = pd.read_csv(bytes, compression="zip")
-
-                    if add_post_datetime:
-                        df["postDatetime"] = posted_datetime
-
-                    dfs.append(df)
-
-                # Necessary to avoid rate limiting
-                time.sleep(sleep_seconds)
-
-            except Exception as e:
-                if "Rate limit is exceeded" in response.decode("utf-8"):
-                    # Rate limited, so sleep for a longer time
-                    log(
-                        f"Rate limited. Sleeping for {sleep_seconds * 10} seconds",
-                        verbose,
+            while retries < max_retries:
+                try:
+                    # Data comes back as a compressed zip file.
+                    response = self.make_api_call(
+                        link,
+                        verbose=verbose,
+                        parse_json=False,
                     )
-                    time.sleep(sleep_seconds * 10)
-                else:
-                    log(f"Link: {link} failed with error: {e}", verbose)
-                continue
+
+                    # Convert the bytes to a file-like object
+                    bytes = pd.io.common.BytesIO(response)
+
+                    if not read_as_csv:
+                        dfs.append(bytes)
+                    else:
+                        # Decompress the zip file and read the csv
+                        df = pd.read_csv(bytes, compression="zip")
+
+                        if add_post_datetime:
+                            df["postDatetime"] = posted_datetime
+
+                        dfs.append(df)
+
+                    # Necessary to avoid rate limiting
+                    time.sleep(sleep_seconds)
+                    break  # Exit the loop if the operation is successful
+
+                except Exception as e:
+                    if "Rate limit is exceeded" in response.decode("utf-8"):
+                        # Rate limited, so sleep for a longer time
+                        log(
+                            f"Rate limited. Sleeping for {sleep_seconds * 10} seconds",
+                            verbose,
+                        )
+                        time.sleep(sleep_seconds * 10)
+                    else:
+                        log(f"Link: {link} failed with error: {e}", verbose)
+                        time.sleep(sleep_seconds)  # Wait before retrying
+
+                    retries += 1
+
+            if retries == max_retries:
+                log(
+                    f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
+                    verbose,
+                )
 
         return pd.concat(dfs) if read_as_csv else dfs
 

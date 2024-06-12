@@ -153,7 +153,14 @@ class TestErcotAPI(TestHelperMixin):
         self._check_hourly_solar_report(df)
 
     def test_get_hourly_solar_report_latest(self):
-        df = self.iso.get_hourly_solar_report("latest")
+        df = self.iso.get_hourly_solar_report("latest", verbose=True)
+
+        import IPython
+
+        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
+            "last_expr_or_assign"
+        )
+        IPython.embed()
 
         assert df["Publish Time"].nunique() == 1
         self._check_hourly_solar_report(df)
