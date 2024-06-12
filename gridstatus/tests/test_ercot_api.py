@@ -60,6 +60,130 @@ class TestErcotAPI(TestHelperMixin):
             days_to_add_if_no_end=1,
         ) == self.local_start_of_day(datetime.date(2021, 11, 7))
 
+    """get_hourly_wind_report"""
+
+    def _check_hourly_wind_report(self, df):
+        assert df.columns.tolist() == []
+
+    def test_hourly_wind_report_today(self):
+        df = self.iso.get_hourly_wind_report("today")
+
+        # We don't know the exact nubmer of publish times
+        assert df["Interval Start"].min() == self.local_start_of_today()
+
+        self._check_hourly_wind_report(df)
+
+    def test_hourly_wind_report_latest(self):
+        df = self.iso.get_hourly_wind_report("latest")
+
+        assert df["Publish Time"].nunique() == 1
+        self._check_hourly_wind_report(df)
+
+    def test_hourly_wind_report_historical_date(self):
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
+
+        df = self.iso.get_hourly_wind_report(date, verbose=True)
+
+        self._check_hourly_wind_report(df)
+
+        assert df["Publish Time"].nunique() == 24
+        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date.date(),
+        ) + pd.DateOffset(days=1)
+
+    def test_hourly_wind_report_historical_date_range(self):
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        end = date + pd.DateOffset(days=2)
+
+        df = self.iso.get_hourly_wind_report(date, end, verbose=True)
+
+        self._check_hourly_wind_report(df)
+
+        assert df["Publish Time"].nunique() == 32
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
+        assert df["Interval End"].max() == self.local_start_of_day(end.date())
+
+    """get_hourly_solar_report"""
+
+    def _check_hourly_solar_report(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "GEN SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STPPF SYSTEM WIDE",
+            "PVGRPP SYSTEM WIDE",
+            "GEN CenterWest",
+            "COP HSL CenterWest",
+            "STPPF CenterWest",
+            "PVGRPP CenterWest",
+            "GEN NorthWest",
+            "COP HSL NorthWest",
+            "STPPF NorthWest",
+            "PVGRPP NorthWest",
+            "GEN FarWest",
+            "COP HSL FarWest",
+            "STPPF FarWest",
+            "PVGRPP FarWest",
+            "GEN FarEast",
+            "COP HSL FarEast",
+            "STPPF FarEast",
+            "PVGRPP FarEast",
+            "GEN SouthEast",
+            "COP HSL SouthEast",
+            "STPPF SouthEast",
+            "PVGRPP SouthEast",
+            "GEN CenterEast",
+            "COP HSL CenterEast",
+            "STPPF CenterEast",
+            "PVGRPP CenterEast",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+
+    def test_hourly_solar_report_today(self):
+        df = self.iso.get_hourly_solar_report("today")
+
+        # We don't know the exact nubmer of publish times
+        assert df["Interval Start"].min() == self.local_start_of_today()
+
+        self._check_hourly_solar_report(df)
+
+    def test_hourly_solar_report_latest(self):
+        df = self.iso.get_hourly_solar_report("latest")
+
+        assert df["Publish Time"].nunique() == 1
+        self._check_hourly_solar_report(df)
+
+    def test_hourly_solar_report_historical_date(self):
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
+
+        df = self.iso.get_hourly_solar_report(date, verbose=True)
+
+        self._check_hourly_solar_report(df)
+
+        assert df["Publish Time"].nunique() == 24
+        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date.date(),
+        ) + pd.DateOffset(days=1)
+
+    def test_hourly_solar_report_historical_date_range(self):
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        end = date + pd.DateOffset(days=2)
+
+        df = self.iso.get_hourly_solar_report(date, end, verbose=True)
+
+        self._check_hourly_solar_report(df)
+
+        assert df["Publish Time"].nunique() == 32
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
+        assert df["Interval End"].max() == self.local_start_of_day(end.date())
+
     """get_as_prices"""
 
     def _check_as_prices(self, df):
