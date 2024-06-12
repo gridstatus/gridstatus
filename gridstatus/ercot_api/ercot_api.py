@@ -46,9 +46,6 @@ AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
 # https://data.ercot.com/data-product-archive/NP3-911-ER
 AS_REPORTS_EMIL_ID = "np3-911-er"
 
-# https://data.ercot.com/data-product-archive/NP4-745-CD
-HOURLY_SOLAR_REPORT_ENDPOINT = "/np4-745-cd/spp_hrly_actual_fcast_geo"
-
 #  https://data.ercot.com/data-product-archive/NP6-788-CD
 LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-788-cd/lmp_node_zone_hub"
 
@@ -66,6 +63,16 @@ SHADOW_PRICES_DAM_ENDPOINT = "/np4-191-cd/dam_shadow_prices"
 
 # https://data.ercot.com/data-product-archive/NP6-86-CD
 SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
+
+# Wind Power Production
+# https://data.ercot.com/data-product-archive/NP4-732-CD
+HOURLY_WIND_POWER_PRODUCTION_ENDPOINT = "/np4-732-cd/wpp_hrly_avrg_actl_fcast"
+
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# https://data.ercot.com/data-product-archive/NP4-745-CD
+HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT = (
+    "/np4-745-cd/spp_hrly_actual_fcast_geo"
+)
 
 
 class ErcotAPI:
@@ -105,6 +112,9 @@ class ErcotAPI:
         self.token = None
         self.token_expiry = None
         self.ercot = Ercot()
+
+    def _local_now(self):
+        return pd.Timestamp("now", tz=self.default_timezone)
 
     def _local_start_of_today(self):
         return pd.Timestamp("now", tz=self.default_timezone).floor("d")
@@ -196,6 +206,177 @@ class ErcotAPI:
     def get_public_reports(self, verbose=False):
         # General information about the public reports
         return self.make_api_call(BASE_URL, verbose=verbose)
+
+    @support_date_range(frequency=None)
+    def get_hourly_wind_report(self, date, end=None, verbose=False):
+        """Get Wind Power Production - Hourly Averaged Actual and Forecasted Values
+
+        Arguments:
+            date (str): the date to fetch reports for.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly wind power production reports
+        """
+        if date == "latest":
+            date = self._local_now() - pd.Timedelta(hours=2)
+            end = self._local_now()
+
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=HOURLY_WIND_POWER_PRODUCTION_ENDPOINT,
+                start_date=date,
+                end_date=end,
+                verbose=verbose,
+                add_post_datetime=True,
+            )
+        else:
+            api_params = {
+                "deliveryDateFrom": date,
+                "deliveryDateTo": end,
+            }
+
+            data = self.hit_ercot_api(
+                endpoint=HOURLY_WIND_POWER_PRODUCTION_ENDPOINT,
+                page_size=DEFAULT_PAGE_SIZE,
+                verbose=verbose,
+                **api_params,
+            )
+
+        return self._handle_hourly_wind_report(data, verbose=verbose)
+
+    def _handle_hourly_wind_report(self, data, verbose=False):
+        data = data.rename(
+            # ALL CAPS
+            columns={
+                "DELIVERY DATE": "Delivery Date",
+                "PostedDatetime": "postDatetime",
+                "ActualSystemWide": "ACTUAL SYSTEM WIDE",
+                "COPHSLSystemWide": "COP HSL SYSTEM WIDE",
+                "STWPFSystemWide": "STWPF SYSTEM WIDE",
+                "WGRPPSystemWide": "WGRPP SYSTEM WIDE",
+                "ActualLoadZoneSouthHouston": "ACTUAL LZ SOUTH HOUSTON",
+                "COPHSLLoadZoneSouthHouston": "COP HSL LZ SOUTH HOUSTON",
+                "STWPFLoadZoneSouthHouston": "STWPF LZ SOUTH HOUSTON",
+                "WGRPPLoadZoneSouthHouston": "WGRPP LZ SOUTH HOUSTON",
+                "ActualLoadZoneWest": "ACTUAL LZ WEST",
+                "COPHSLLoadZoneWest": "COP HSL LZ WEST",
+                "STWPFLoadZoneWest": "STWPF LZ WEST",
+                "WGRPPLoadZoneWest": "WGRPP LZ WEST",
+                "ActualLoadZoneNorth": "ACTUAL LZ NORTH",
+                "COPHSLLoadZoneNorth": "COP HSL LZ NORTH",
+                "STWPFLoadZoneNorth": "STWPF LZ NORTH",
+                "WGRPPLoadZoneNorth": "WGRPP LZ NORTH",
+            },
+        )
+
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        data.columns = data.columns.str.replace("_", " ")
+
+        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        data = (
+            utils.move_cols_to_front(
+                data,
+                ["Interval Start", "Interval End", "Publish Time"],
+            )
+            .drop(columns=["Time", "postDatetime"])
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+        return data
+
+    @support_date_range(frequency=None)
+    def get_hourly_solar_report(self, date, end=None, verbose=False):
+        """Get Solar Power Production - Hourly Averaged Actual and Forecasted Values by
+        Geographical Region
+
+        Arguments:
+            date (str): the date to fetch reports for.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly wind power production reports
+        """
+        if date == "latest":
+            date = self._local_now() - pd.Timedelta(hours=2)
+            end = self._local_now()
+
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT,  # noqa
+                start_date=date,
+                end_date=end,
+                verbose=verbose,
+                add_post_datetime=True,
+            )
+        else:
+            api_params = {
+                "deliveryDateFrom": date,
+                "deliveryDateTo": end,
+            }
+
+            data = self.hit_ercot_api(
+                endpoint=HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT,  # noqa
+                page_size=DEFAULT_PAGE_SIZE,
+                verbose=verbose,
+                **api_params,
+            )
+
+        return self._handle_hourly_solar_report(data, verbose=verbose)
+
+    def _handle_hourly_solar_report(self, data, verbose=False):
+        data = data.rename(
+            # ALL CAPS
+            columns={
+                "DELIVERY DATE": "Delivery Date",
+                "PostedDatetime": "postDatetime",
+                "ActualSystemWide": "ACTUAL SYSTEM WIDE",
+                "COPHSLSystemWide": "COP HSL SYSTEM WIDE",
+                "STWPFSystemWide": "STWPF SYSTEM WIDE",
+                "WGRPPSystemWide": "WGRPP SYSTEM WIDE",
+                "ActualLoadZoneSouthHouston": "ACTUAL LZ SOUTH HOUSTON",
+                "COPHSLLoadZoneSouthHouston": "COP HSL LZ SOUTH HOUSTON",
+                "STWPFLoadZoneSouthHouston": "STWPF LZ SOUTH HOUSTON",
+                "WGRPPLoadZoneSouthHouston": "WGRPP LZ SOUTH HOUSTON",
+                "ActualLoadZoneWest": "ACTUAL LZ WEST",
+                "COPHSLLoadZoneWest": "COP HSL LZ WEST",
+                "STWPFLoadZoneWest": "STWPF LZ WEST",
+                "WGRPPLoadZoneWest": "WGRPP LZ WEST",
+                "ActualLoadZoneNorth": "ACTUAL LZ NORTH",
+                "COPHSLLoadZoneNorth": "COP HSL LZ NORTH",
+                "STWPFLoadZoneNorth": "STWPF LZ NORTH",
+                "WGRPPLoadZoneNorth": "WGRPP LZ NORTH",
+            },
+        )
+
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        data.columns = data.columns.str.replace("_", " ")
+
+        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        data = (
+            utils.move_cols_to_front(
+                data,
+                ["Interval Start", "Interval End", "Publish Time"],
+            )
+            .drop(columns=["Time", "postDatetime"])
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+        return data
 
     @support_date_range(frequency=None)
     def get_as_prices(self, date, end=None, verbose=False):
