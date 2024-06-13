@@ -1061,6 +1061,8 @@ class ErcotAPI:
                     f"out of {total_pages} total",
                 )
 
+        max_retries = 3
+
         with self._create_progress_bar(
             pages_to_retrieve,
             "Fetching data",
@@ -1078,20 +1080,32 @@ class ErcotAPI:
                     verbose,
                 )
 
-                response = self.make_api_call(
-                    urlstring,
-                    api_params=parsed_api_params,
-                    verbose=verbose,
-                )
+                retry = 0
 
-                status_code = response.get("statusCode")
+                while retry < max_retries:
+                    try:
+                        response = self.make_api_call(
+                            urlstring,
+                            api_params=parsed_api_params,
+                            verbose=verbose,
+                        )
 
-                # status code only seems to be present for a failure
-                if status_code and status_code != 200:
-                    log(f"Error: {response.get('message')}", verbose)
-                    break
+                        status_code = response.get("statusCode")
 
-                data_results.extend(response["data"])
+                        # status code only seems to be present for a failure
+                        if status_code and status_code != 200:
+                            log(f"Error: {response.get('message')}", verbose)
+                            retry += 1
+                            continue
+
+                        data_results.extend(response["data"])
+                        # Exit the loop if the operation is successful
+                        break
+
+                    except Exception as e:
+                        log(f"Error: {e}", verbose)
+                        retry += 1
+
                 pbar.update(1)
 
         # Capitalize the first letter of each column name but leave the rest alone
