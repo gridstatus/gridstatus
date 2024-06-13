@@ -26,7 +26,7 @@ TOKEN_EXPIRATION_SECONDS = 3600
 DEFAULT_HISTORICAL_SIZE = 1_000
 
 # Number of results to fetch per page. It's not clear what the max is (1_000_000 works)
-DEFAULT_PAGE_SIZE = 250_000
+DEFAULT_PAGE_SIZE = 100_000
 
 # Number of days in past when we should use the historical method
 # NOTE: this seems to vary per dataset. If you get an error about no data available and
@@ -225,54 +225,19 @@ class ErcotAPI:
 
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
-        if self._should_use_historical(date):
-            data = self.get_historical_data(
-                endpoint=HOURLY_WIND_POWER_PRODUCTION_ENDPOINT,
-                start_date=date,
-                end_date=end,
-                verbose=verbose,
-                add_post_datetime=True,
-            )
-        else:
-            api_params = {
-                "deliveryDateFrom": date,
-                "deliveryDateTo": end,
-            }
-
-            data = self.hit_ercot_api(
-                endpoint=HOURLY_WIND_POWER_PRODUCTION_ENDPOINT,
-                page_size=DEFAULT_PAGE_SIZE,
-                verbose=verbose,
-                **api_params,
-            )
+        # Only use the historical API because it allows us to filter on posted time (
+        # publish time)
+        data = self.get_historical_data(
+            endpoint=HOURLY_WIND_POWER_PRODUCTION_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            add_post_datetime=True,
+        )
 
         return self._handle_hourly_wind_report(data, verbose=verbose)
 
     def _handle_hourly_wind_report(self, data, verbose=False):
-        data = data.rename(
-            # ALL CAPS
-            columns={
-                "DELIVERY DATE": "Delivery Date",
-                "PostedDatetime": "postDatetime",
-                "ActualSystemWide": "ACTUAL SYSTEM WIDE",
-                "COPHSLSystemWide": "COP HSL SYSTEM WIDE",
-                "STWPFSystemWide": "STWPF SYSTEM WIDE",
-                "WGRPPSystemWide": "WGRPP SYSTEM WIDE",
-                "ActualLoadZoneSouthHouston": "ACTUAL LZ SOUTH HOUSTON",
-                "COPHSLLoadZoneSouthHouston": "COP HSL LZ SOUTH HOUSTON",
-                "STWPFLoadZoneSouthHouston": "STWPF LZ SOUTH HOUSTON",
-                "WGRPPLoadZoneSouthHouston": "WGRPP LZ SOUTH HOUSTON",
-                "ActualLoadZoneWest": "ACTUAL LZ WEST",
-                "COPHSLLoadZoneWest": "COP HSL LZ WEST",
-                "STWPFLoadZoneWest": "STWPF LZ WEST",
-                "WGRPPLoadZoneWest": "WGRPP LZ WEST",
-                "ActualLoadZoneNorth": "ACTUAL LZ NORTH",
-                "COPHSLLoadZoneNorth": "COP HSL LZ NORTH",
-                "STWPFLoadZoneNorth": "STWPF LZ NORTH",
-                "WGRPPLoadZoneNorth": "WGRPP LZ NORTH",
-            },
-        )
-
         data = Ercot().parse_doc(data, verbose=verbose)
 
         data.columns = data.columns.str.replace("_", " ")
@@ -306,69 +271,24 @@ class ErcotAPI:
             pandas.DataFrame: A DataFrame with hourly wind power production reports
         """
         if date == "latest":
-            date = self._local_now() - pd.Timedelta(hours=2)
+            date = self._local_now() - pd.Timedelta(hours=1)
             end = self._local_now()
 
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
-        if self._should_use_historical(date):
-            data = self.get_historical_data(
-                endpoint=HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT,  # noqa
-                start_date=date,
-                end_date=end,
-                verbose=verbose,
-                add_post_datetime=True,
-            )
-        else:
-            api_params = {
-                "deliveryDateFrom": date,
-                "deliveryDateTo": end,
-            }
-
-            data = self.hit_ercot_api(
-                endpoint=HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT,  # noqa
-                page_size=DEFAULT_PAGE_SIZE,
-                verbose=verbose,
-                **api_params,
-            )
+        # Only use the historical API because it allows us to filter on posted time (
+        # publish time)
+        data = self.get_historical_data(
+            endpoint=HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT,  # noqa
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            add_post_datetime=True,
+        )
 
         return self._handle_hourly_solar_report(data, verbose=verbose)
 
     def _handle_hourly_solar_report(self, data, verbose=False):
-        data = data.rename(
-            columns={
-                "PostedDatetime": "postDatetime",
-                "GenSystemWide": "GEN SYSTEM WIDE",
-                "COPHSLSystemWide": "COP HSL SYSTEM WIDE",
-                "STPPFSystemWide": "STPPF SYSTEM WIDE",
-                "PVGRPPSystemWide": "PVGRPP SYSTEM WIDE",
-                "GenCenterWest": "GEN CenterWest",
-                "COPHSLCenterWest": "COP HSL CenterWest",
-                "STPPFCenterWest": "STPPF CenterWest",
-                "PVGRPPCenterWest": "PVGRPP CenterWest",
-                "GenNorthWest": "GEN NorthWest",
-                "COPHSLNorthWest": "COP HSL NorthWest",
-                "STPPFNorthWest": "STPPF NorthWest",
-                "PVGRPPNorthWest": "PVGRPP NorthWest",
-                "GenFarWest": "GEN FarWest",
-                "COPHSLFarWest": "COP HSL FarWest",
-                "STPPFFarWest": "STPPF FarWest",
-                "PVGRPPFarWest": "PVGRPP FarWest",
-                "GenFarEast": "GEN FarEast",
-                "COPHSLFarEast": "COP HSL FarEast",
-                "STPPFFarEast": "STPPF FarEast",
-                "PVGRPPFarEast": "PVGRPP FarEast",
-                "GenSouthEast": "GEN SouthEast",
-                "COPHSLSouthEast": "COP HSL SouthEast",
-                "STPPFSouthEast": "STPPF SouthEast",
-                "PVGRPPSouthEast": "PVGRPP SouthEast",
-                "GenCenterEast": "GEN CenterEast",
-                "COPHSLCenterEast": "COP HSL CenterEast",
-                "STPPFCenterEast": "STPPF CenterEast",
-                "PVGRPPCenterEast": "PVGRPP CenterEast",
-            },
-        )
-
         data = Ercot().parse_doc(data, verbose=verbose)
 
         data.columns = data.columns.str.replace("_", " ")
@@ -928,8 +848,10 @@ class ErcotAPI:
 
         Arguments:
             endpoint [str]: a string representing a specific ERCOT API endpoint.
-            start_date [date]: the start date for the historical data
-            end_date [date]: the end date for the historical data
+            start_date [datetime]: the start datetime for the historical data. Used
+                as the postDatetimeFrom query parameter.
+            end_date [datetime]: the end date for the historical data. Used as the
+                postDatetimeTo query parameter.
             read_as_csv [bool]: if True, will read the data as a csv. Otherwise, will
                 return the bytes.
             sleep_seconds [float]: the number of seconds to sleep between requests.

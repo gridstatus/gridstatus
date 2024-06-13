@@ -147,20 +147,16 @@ class TestErcotAPI(TestHelperMixin):
     def test_get_hourly_solar_report_today(self):
         df = self.iso.get_hourly_solar_report("today")
 
-        # We don't know the exact nubmer of publish times
-        assert df["Interval Start"].min() == self.local_start_of_today()
+        # We don't know the exact number of publish times
+        # The data should start at the beginning of two days ago
+        assert df[
+            "Interval Start"
+        ].min() == self.local_start_of_today() - pd.DateOffset(days=2)
 
         self._check_hourly_solar_report(df)
 
     def test_get_hourly_solar_report_latest(self):
-        df = self.iso.get_hourly_solar_report("latest", verbose=True)
-
-        import IPython
-
-        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
-            "last_expr_or_assign"
-        )
-        IPython.embed()
+        df = self.iso.get_hourly_solar_report("latest")
 
         assert df["Publish Time"].nunique() == 1
         self._check_hourly_solar_report(df)
@@ -168,7 +164,7 @@ class TestErcotAPI(TestHelperMixin):
     def test_get_hourly_solar_report_historical_date(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
 
-        df = self.iso.get_hourly_solar_report(date, verbose=True)
+        df = self.iso.get_hourly_solar_report(date)
 
         self._check_hourly_solar_report(df)
 
