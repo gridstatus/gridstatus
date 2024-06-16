@@ -1762,7 +1762,7 @@ class Ercot(ISOBase):
 
         return df
 
-    @support_date_range("HOUR_START")
+    @support_date_range(frequency=None)
     def get_hourly_wind_report(self, date, end=None, verbose=False):
         """Get Hourly Wind Report.
 
@@ -1781,18 +1781,16 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with hourly wind report data
         """
-        doc = self._get_document(
-            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,
-            published_before=date,
+        return self._get_hourly_report(
+            start=date,
+            end=end,
+            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,  # noqa: E501
             extension="csv",
-            verbose=verbose,
+            handle_doc=self._handle_hourly_wind_or_solar_report,
+            verbose=True,
         )
 
-        df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
-
-        return df
-
-    @support_date_range("HOUR_START")
+    @support_date_range(frequency=None)
     def get_hourly_solar_report(self, date, end=None, verbose=False):
         """Get Hourly Solar Report.
 
@@ -1810,17 +1808,14 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with hourly solar report data
         """
-
-        doc = self._get_document(
+        return self._get_hourly_report(
+            start=date,
+            end=end,
             report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,  # noqa: E501
-            published_before=date,
             extension="csv",
-            verbose=verbose,
+            handle_doc=self._handle_hourly_wind_or_solar_report,
+            verbose=True,
         )
-
-        df = self._handle_hourly_wind_or_solar_report(doc, verbose=verbose)
-
-        return df
 
     def _handle_hourly_wind_or_solar_report(self, doc, verbose=False):
         df = self.read_doc(doc, verbose=verbose)
