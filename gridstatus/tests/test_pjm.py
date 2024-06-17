@@ -696,7 +696,7 @@ class TestPJM(BaseTestISO):
         self._check_projected_rto_statistics_at_peak(df)
 
         assert df["Interval Start"].min() == self.local_start_of_day(past_date)
-        assert df["Interval End"].max() >= self.local_start_of_day(
+        assert df["Interval End"].max() == self.local_start_of_day(
             past_date,
         ) + pd.DateOffset(days=1)
 
@@ -712,4 +712,72 @@ class TestPJM(BaseTestISO):
         assert df["Interval End"].max() == self.local_start_of_day(past_end_date)
 
         assert df.shape[0] == 800
+        assert df["Publish Time"].nunique() == 800
+
+    """get_projected_area_statistics_at_peak"""
+
+    def _check_projected_area_statistics_at_peak(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Projected Peak Time",
+            "Area",
+            "Internal Scheduled Capacity",
+            "PJM Load Forecast",
+            "Unscheduled Steam Capacity",
+        ]
+
+        assert set(df["Area"].unique().tolist()) == {
+            "DAYTON",
+            "AEP",
+            "ATSI",
+            "COMED",
+            "MIDATL",
+            "EKPC",
+            "DOM",
+            "DEOK",
+            "DUQ",
+            "OVEC",
+            "AP",
+        }
+
+    def test_projected_area_statistics_at_peak_today_or_latest(self):
+        df = self.iso.get_projected_area_statistics_at_peak("today")
+
+        self._check_projected_area_statistics_at_peak(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            days=1,
+        )
+
+        assert self.iso.get_projected_area_statistics_at_peak("latest").equals(df)
+
+    def test_projected_area_statistics_at_peak_historical_date(self):
+        past_date = self.local_today() - pd.DateOffset(days=2000)
+
+        df = self.iso.get_projected_area_statistics_at_peak(past_date)
+
+        self._check_projected_area_statistics_at_peak(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            past_date,
+        ) + pd.DateOffset(days=1)
+
+    def test_projected_area_statistics_at_peak_historical_date_range(self):
+        past_date = self.local_today() - pd.DateOffset(days=2000)
+        past_end_date = past_date + pd.Timedelta(days=800)
+
+        df = self.iso.get_projected_area_statistics_at_peak(past_date, past_end_date)
+
+        self._check_projected_area_statistics_at_peak(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() == self.local_start_of_day(past_end_date)
+
+        unique_area_count = df["Area"].nunique()
+
+        assert df.shape[0] == 800 * unique_area_count
         assert df["Publish Time"].nunique() == 800

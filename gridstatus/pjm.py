@@ -1223,7 +1223,7 @@ class PJM(ISOBase):
     # Can retrieve a max of 365 days at a time.
     @support_date_range(frequency="365D")
     def get_projected_rto_statistics_at_peak(self, date, end=None, verbose=False):
-        """Data for the projected peak of the day
+        """RTO-wide projected data for the peak of the day
 
         https://dataminer2.pjm.com/feed/ops_sum_frcst_peak_rto/definition
         """
@@ -1266,6 +1266,60 @@ class PJM(ISOBase):
                 "total_scheduled_capacity": "Total Scheduled Capacity",
                 "load_forecast": "Load Forecast",
                 "operating_reserve": "Operating Reserve",
+                "unscheduled_steam_capacity": "Unscheduled Steam Capacity",
+            },
+        ).drop(columns=["projected_peak_datetime_utc"])
+
+        df["Interval Start"] = df["Projected Peak Time"].dt.floor("D")
+        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time"],
+        )
+
+        return df.sort_values("Publish Time").reset_index(drop=True)
+
+    @support_date_range(frequency="365D")
+    def get_projected_area_statistics_at_peak(self, date, end=None, verbose=False):
+        """Area projected data for the peak of the day
+
+        https://dataminer2.pjm.com/feed/ops_sum_frcst_peak_area/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            endpoint="ops_sum_frcst_peak_area",
+            start=date,
+            params={
+                "fields": "area,generated_at_ept,internal_scheduled_capacity,"
+                "pjm_load_forecast,projected_peak_datetime_ept,"
+                "projected_peak_datetime_utc,unscheduled_steam_capacity",
+            },
+            end=end,
+            filter_timestamp_name="projected_peak_datetime",
+            verbose=verbose,
+        )
+
+        return self._handle_projected_area_statistics_at_peak(df)
+
+    def _handle_projected_area_statistics_at_peak(self, df):
+        df["projected_peak_datetime_ept"] = pd.to_datetime(
+            df["projected_peak_datetime_ept"],
+        ).dt.tz_localize(self.default_timezone)
+
+        df["generated_at_ept"] = pd.to_datetime(df["generated_at_ept"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        df = df.rename(
+            columns={
+                "projected_peak_datetime_ept": "Projected Peak Time",
+                "generated_at_ept": "Publish Time",
+                "area": "Area",
+                "internal_scheduled_capacity": "Internal Scheduled Capacity",
+                "pjm_load_forecast": "PJM Load Forecast",
                 "unscheduled_steam_capacity": "Unscheduled Steam Capacity",
             },
         ).drop(columns=["projected_peak_datetime_utc"])
