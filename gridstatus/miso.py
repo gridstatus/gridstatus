@@ -271,11 +271,17 @@ class MISO(ISOBase):
         if date in ["today", "latest"]:
             raise NotSupported("Only historical data is available for weekly LMPs")
 
+        if not date.weekday() == 0:
+            log("Weekly LMP data is only available for Mondays", verbose)
+            log("Changing date to the previous Monday", verbose)
+            date -= pd.DateOffset(days=date.weekday())
+
+        # The data file contains data starting two weeks before the date and
+        # ending one week before the date. To get data that covers the date, we
+        # need to add two weeks to the date
+        date += pd.DateOffset(weeks=2)
+
         download_url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_5MIN_LMP.zip"
-
-        assert date.weekday() == 0, "Weekly LMP data is only available for Mondays"
-
-        log(f"Downloading weekly LMP data from {download_url}", verbose)
 
         df = pd.read_csv(download_url, compression="zip", skiprows=4, skipfooter=1)
 
@@ -425,6 +431,31 @@ class MISO(ISOBase):
         ]
 
         data = utils.filter_lmp_locations(data, locations)
+
+        return data
+
+    def _handle_hourly_lmp(self, date, raw_data):
+        data_melted = raw_data.melt(
+            id_vars=["Node", "Type", "Value"],
+            value_vars=[col for col in raw_data.columns if col.startswith("HE")],
+            var_name="HE",
+            value_name="value",
+        )
+
+        data = data_melted.pivot_table(
+            index=["Node", "Type", "HE"],
+            columns="Value",
+            values="value",
+            aggfunc="first",
+        ).reset_index()
+
+        data["Interval Start"] = (
+            data["HE"]
+            .apply(
+                lambda x: date.replace(tzinfo=None, hour=int(x.split(" ")[1]) - 1),
+            )
+            .dt.tz_localize(self.default_timezone)
+        )
 
         return data
 

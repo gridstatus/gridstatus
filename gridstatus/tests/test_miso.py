@@ -36,6 +36,58 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
 
+    """get_lmp_weekly"""
+
+    def _check_lmp_weekly(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            "5min",
+        )
+
+    def test_get_lmp_weekly_today_or_latest_raises(self):
+        with pytest.raises(NotSupported):
+            super().test_get_lmp_weekly_today_or_latest_raises()
+
+    def test_get_lmp_weekly_historical_date(self):
+        date = self.local_today() - pd.Timedelta(days=300)
+
+        df = self.iso.get_lmp_weekly(date)
+
+        most_recent_monday = self.local_start_of_day(date) - pd.DateOffset(
+            days=self.local_start_of_day(date).weekday(),
+        )
+
+        assert df["Interval Start"].min() == most_recent_monday
+        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=7)
+
+        self._check_lmp_weekly(df)
+
+    def test_get_lmp_weekly_historical_date_range(self):
+        start = self.local_today() - pd.Timedelta(days=300)
+        # Make sure to span a week
+        end = start + pd.Timedelta(days=12)
+        df = self.iso.get_lmp_weekly(start, end)
+
+        most_recent_monday = self.local_start_of_day(start) - pd.DateOffset(
+            days=self.local_start_of_day(start).weekday(),
+        )
+
+        assert df["Interval Start"].min() == most_recent_monday
+        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=14)
+
+        self._check_lmp_weekly(df)
+
     """get_lmp"""
 
     @with_markets(Markets.REAL_TIME_HOURLY_FINAL, Markets.REAL_TIME_HOURLY_PRELIM)
