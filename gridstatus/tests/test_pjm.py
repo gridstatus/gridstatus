@@ -652,3 +652,64 @@ class TestPJM(BaseTestISO):
             instant_or_interval="interval",
             skip_column_named_time=True,
         )
+
+    """get_projected_rto_statistics_at_peak"""
+
+    def _check_projected_rto_statistics_at_peak(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Projected Peak Time",
+            "Area",
+            "Internal Scheduled Capacity",
+            "Scheduled Tie Flow Total",
+            "Capacity Adjustments",
+            "Total Scheduled Capacity",
+            "Load Forecast",
+            "Operating Reserve",
+            "Unscheduled Steam Capacity",
+        ]
+
+        assert (
+            df["Total Scheduled Capacity"]
+            == df["Load Forecast"] + df["Operating Reserve"]
+        ).all()
+
+    def test_projected_rto_statistics_at_peak_today_or_latest(self):
+        df = self.iso.get_projected_rto_statistics_at_peak("today")
+
+        self._check_projected_rto_statistics_at_peak(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() >= self.local_start_of_today() + pd.DateOffset(
+            days=1,
+        )
+
+        assert self.iso.get_projected_rto_statistics_at_peak("latest").equals(df)
+
+    def test_projected_rto_statistics_at_peak_historical_date(self):
+        past_date = self.local_today() - pd.DateOffset(days=10)
+
+        df = self.iso.get_projected_rto_statistics_at_peak(past_date)
+
+        self._check_projected_rto_statistics_at_peak(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_date,
+        ) + pd.DateOffset(days=1)
+
+    def test_projected_rto_statistics_at_peak_historical_date_range(self):
+        past_date = self.local_today() - pd.DateOffset(days=1000)
+        past_end_date = past_date + pd.Timedelta(days=800)
+
+        df = self.iso.get_projected_rto_statistics_at_peak(past_date, past_end_date)
+
+        self._check_projected_rto_statistics_at_peak(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() == self.local_start_of_day(past_end_date)
+
+        assert df.shape[0] == 800
+        assert df["Publish Time"].nunique() == 800
