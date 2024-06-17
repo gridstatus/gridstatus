@@ -960,8 +960,9 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == cols
         assert df["Publish Time"].nunique() == 3
 
-    def test_get_hourly_wind_report(self):
-        # test specific hour
+    """get_hourly_wind_report"""
+
+    def _check_hourly_wind_report(self, df):
         cols = [
             "Publish Time",
             "Time",
@@ -984,17 +985,54 @@ class TestErcot(BaseTestISO):
             "STWPF LZ NORTH",
             "WGRPP LZ NORTH",
         ]
-        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
-            days=1,
-        )
-        df = self.iso.get_hourly_wind_report(date)
-        assert df["Publish Time"].nunique() == 1  # One for each hour
-        assert df["Publish Time"].min() < date
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
 
-    def test_get_hourly_solar_report(self):
-        # test specific hour
+        assert df.columns.tolist() == cols
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_hourly_wind_report_today(self):
+        df = self.iso.get_hourly_wind_report("today", verbose=True)
+
+        self._check_hourly_wind_report(df)
+
+        hours_since_local_midnight = (
+            self.local_now() - self.local_start_of_today()
+        ) // pd.Timedelta(hours=1)
+
+        assert df["Publish Time"].nunique() == hours_since_local_midnight
+
+    def test_get_hourly_wind_report_latest(self):
+        df = self.iso.get_hourly_wind_report("latest", verbose=True)
+
+        self._check_hourly_wind_report(df)
+
+        assert df["Publish Time"].nunique() == 1
+
+    def test_get_hourly_wind_report_historical_date(self):
+        date = self.local_today() - pd.Timedelta(days=1)
+        df = self.iso.get_hourly_wind_report(date, verbose=True)
+
+        self._check_hourly_wind_report(df)
+
+        assert df["Publish Time"].nunique() == 24  # One for each hour
+        assert df["Publish Time"].min().hour == 0
+        assert df["Publish Time"].max().hour == 23
+
+    def test_get_hourly_wind_report_historical_date_range(self):
+        start = self.local_today() - pd.Timedelta(days=3)
+        end = self.local_today() - pd.Timedelta(days=1)
+        df = self.iso.get_hourly_wind_report(start, end, verbose=True)
+
+        self._check_hourly_wind_report(df)
+
+        assert df["Publish Time"].nunique() == 48
+        assert df["Publish Time"].min().hour == 0
+        assert df["Publish Time"].max().hour == 23
+
+    """get_hourly_solar_report"""
+
+    def _check_hourly_solar_report(self, df):
         cols = [
             "Publish Time",
             "Time",
@@ -1029,15 +1067,50 @@ class TestErcot(BaseTestISO):
             "STPPF CenterEast",
             "PVGRPP CenterEast",
         ]
-        date = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
-            days=1,
-        )
+
+        assert df.columns.tolist() == cols
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_hourly_solar_report_today(self):
+        df = self.iso.get_hourly_solar_report("today", verbose=True)
+
+        self._check_hourly_solar_report(df)
+
+        hours_since_local_midnight = (
+            self.local_now() - self.local_start_of_today()
+        ) // pd.Timedelta(hours=1)
+
+        assert df["Publish Time"].nunique() == hours_since_local_midnight
+
+    def test_get_hourly_solar_report_latest(self):
+        df = self.iso.get_hourly_solar_report("latest", verbose=True)
+
+        self._check_hourly_solar_report(df)
+
+        assert df["Publish Time"].nunique() == 1
+
+    def test_get_hourly_solar_report_historical_date(self):
+        date = self.local_today() - pd.Timedelta(days=1)
         df = self.iso.get_hourly_solar_report(date, verbose=True)
 
-        assert df["Publish Time"].nunique() == 1  # One for each hour
-        assert df["Publish Time"].min() < date
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        self._check_hourly_solar_report(df)
+
+        assert df["Publish Time"].nunique() == 24  # One for each hour
+        assert df["Publish Time"].min().hour == 0
+        assert df["Publish Time"].max().hour == 23
+
+    def test_get_hourly_solar_report_historical_date_range(self):
+        start = self.local_today() - pd.Timedelta(days=3)
+        end = self.local_today() - pd.Timedelta(days=1)
+        df = self.iso.get_hourly_solar_report(start, end, verbose=True)
+
+        self._check_hourly_solar_report(df)
+
+        assert df["Publish Time"].nunique() == 48
+        assert df["Publish Time"].min().hour == 0
+        assert df["Publish Time"].max().hour == 23
 
     """get_storage"""
 
