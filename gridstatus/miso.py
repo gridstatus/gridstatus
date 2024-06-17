@@ -261,6 +261,68 @@ class MISO(ISOBase):
 
         return df[self.solar_and_wind_forecast_cols]
 
+    @support_date_range(frequency="W-MON")
+    def get_lmp_weekly(self, date, end=None, verbose=False):
+        """Retrieves weekly lmp data that includes price corrections to the real time
+        data.
+
+        Data from: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3AHistorical%20LMP%2FMarketReportName%3AWeekly%20Real-Time%205-Min%20LMP%20(zip)&t=10&p=0&s=MarketReportPublished&sd=desc
+        """
+        if date in ["today", "latest"]:
+            raise NotSupported("Only historical data is available for weekly LMPs")
+
+        download_url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_5MIN_LMP.zip"
+
+        assert date.weekday() == 0, "Weekly LMP data is only available for Mondays"
+
+        log(f"Downloading weekly LMP data from {download_url}", verbose)
+
+        df = pd.read_csv(download_url, compression="zip", skiprows=4, skipfooter=1)
+
+        return self._handle_lmp_weekly(df, verbose)
+
+    def _handle_lmp_weekly(self, df, verbose=False):
+        df["Interval Start"] = pd.to_datetime(df["MKTHOUR_EST"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        df = df.rename(
+            columns={
+                "CON_LMP": "Congestion",
+                "LOSS_LMP": "Loss",
+                "PNODENAME": "Location",
+            },
+        )
+        node_to_type = self._get_node_to_type_mapping(verbose)
+
+        df = df.merge(
+            node_to_type,
+            left_on="Location",
+            right_on="Node",
+            how="left",
+        )
+
+        df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
+        df["Market"] = Markets.REAL_TIME_5_MIN.value
+
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ],
+        ).drop(columns=["MKTHOUR_EST", "Node"])
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
     @lmp_config(
         supports={
             Markets.REAL_TIME_5_MIN: ["latest", "today"],
@@ -302,12 +364,8 @@ class MISO(ISOBase):
                 self.default_timezone,
             )
 
-            # use dam to get location types
-            today = utils._handle_date("today", self.default_timezone)
-            url = f"https://docs.misoenergy.org/marketreports/{today.strftime('%Y%m%d')}_da_expost_lmp.csv"  # noqa
-            log(f"Downloading LMP data from {url}", verbose)
-            today_dam_data = pd.read_csv(url, skiprows=4)
-            node_to_type = today_dam_data[["Node", "Type"]].drop_duplicates()
+            node_to_type = self._get_node_to_type_mapping()
+
             data = data.merge(
                 node_to_type,
                 left_on="CPNODE",
@@ -339,13 +397,7 @@ class MISO(ISOBase):
         data = data.sort_values(["Interval Start", "Node"])
         data = add_interval_end(data, interval_duration)
 
-        rename = {
-            "Node": "Location",
-            "Type": "Location Type",
-            "LMP": "LMP",
-            "MLC": "Loss",
-            "MCC": "Congestion",
-        }
+        rename = {"Node": "Location", "MLC": "Loss", "MCC": "Congestion"}
 
         data.rename(columns=rename, inplace=True)
 
@@ -376,30 +428,19 @@ class MISO(ISOBase):
 
         return data
 
-    def _handle_hourly_lmp(self, date, raw_data):
-        data_melted = raw_data.melt(
-            id_vars=["Node", "Type", "Value"],
-            value_vars=[col for col in raw_data.columns if col.startswith("HE")],
-            var_name="HE",
-            value_name="value",
+    def _get_node_to_type_mapping(self, verbose=False):
+        # use dam to get location types
+        today = utils._handle_date("today", self.default_timezone)
+        url = f"https://docs.misoenergy.org/marketreports/{today.strftime('%Y%m%d')}_da_expost_lmp.csv"  # noqa
+        log(f"Downloading LMP data from {url}", verbose)
+        today_dam_data = pd.read_csv(url, skiprows=4)
+        node_to_type = (
+            today_dam_data[["Node", "Type"]]
+            .drop_duplicates()
+            .rename(columns={"Type": "Location Type"})
         )
 
-        data = data_melted.pivot_table(
-            index=["Node", "Type", "HE"],
-            columns="Value",
-            values="value",
-            aggfunc="first",
-        ).reset_index()
-
-        data["Interval Start"] = (
-            data["HE"]
-            .apply(
-                lambda x: date.replace(tzinfo=None, hour=int(x.split(" ")[1]) - 1),
-            )
-            .dt.tz_localize(self.default_timezone)
-        )
-
-        return data
+        return node_to_type
 
     def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
         url = "https://www.misoenergy.org/api/giqueue/getprojects"
