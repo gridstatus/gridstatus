@@ -314,7 +314,12 @@ class NYISO(ISOBase):
 
         df = df.rename(columns=columns)
 
-        df["Energy"] = df["LMP"] - (df["Loss"] - df["Congestion"])
+        # In NYISO raw data, a negative congestion number means a higher LMP. We
+        # flip the sign to make it consistent with other ISOs where a negative
+        # congestion number means a lower LMP. Thus, LMP = Energy + Loss + Congestion
+        # for NYISO, as in other ISOs.
+        df["Congestion"] *= -1
+        df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
         df["Market"] = market.value
         df["Location Type"] = "Zone" if location_type == ZONE else "Generator"
 
