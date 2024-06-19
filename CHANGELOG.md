@@ -5,6 +5,7 @@
 - Added more methods to the `ErcotAPI` class which uses the new [Ercot API](https://data.ercot.com/) for fetching data
   - Eventually, the `ErcotAPI` will be the primary way to fetch data from ERCOT, but for now, we still need the `Ercot` class because the new API doesn't support all datasets.
 - Add `pjm.get_gen_outages_by_type` to get generation outage data
+- Flips the congestion sign on NYISO to be consistent with other ISOs. In the NYISO raw data, a negative congestion value means a higher LMP, which is the opposite of other ISOs. We flip the sign so that a negative congestion value means a lower LMP as it does in other ISOs.
 
 ## v0.28.0 - Mar 20, 2024
 
