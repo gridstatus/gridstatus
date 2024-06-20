@@ -1,4 +1,5 @@
 import io
+from datetime import timezone
 from typing import BinaryIO
 
 import pandas as pd
@@ -820,6 +821,15 @@ class ISONE(ISOBase):
                 if provided
             intervals (list): List of intervals in the format "HH-HH"
         """
+        if (date.tz == timezone.utc) or (date.tz.zone != self.default_timezone):
+            raise ValueError("Date must be in default timezone")
+
+        if end:
+            if (end.tz == timezone.utc) or (end.tz.zone != self.default_timezone):
+                raise ValueError("End must be in default timezone")
+            if end.date() != date.date():
+                raise ValueError("Date and end must be on the same day")
+
         # Convert intervals to hour ranges
         interval_hours = [
             (int(interval.split("-")[0]), int(interval.split("-")[1]))
@@ -838,16 +848,8 @@ class ISONE(ISOBase):
                 second=0,
                 microsecond=0,
             )
-            interval_end = interval_start + pd.Timedelta(hours=end_hour - start_hour)
 
-            # Adjust the day for interval_end if it passes midnight
-            if end_hour == 24:
-                interval_end = interval_end.replace(
-                    hour=0,
-                    minute=0,
-                    second=0,
-                    microsecond=0,
-                ) + pd.Timedelta(days=1)
+            interval_end = interval_start + pd.Timedelta(hours=end_hour - start_hour)
 
             # Check if the interval overlaps with the given range
             if interval_start < end and interval_end > date:

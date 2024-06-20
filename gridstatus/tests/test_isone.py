@@ -342,3 +342,36 @@ class TestISONE(BaseTestISO):
             end,
             self.iso.lmp_real_time_intervals,
         ) == ["20-24"]
+
+    def test_filter_raises_error(self):
+        start = pd.Timestamp("2024-01-01 09:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+        # No error
+        end = pd.Timestamp("2024-01-01 14:00:00").tz_localize(self.iso.default_timezone)
+
+        assert self.iso._filter_intervals_in_range(
+            start,
+            end,
+            self.iso.lmp_real_time_intervals,
+        ) == ["08-12", "12-16"]
+
+        # Raises due to timezone
+        end = end.tz_convert("UTC")
+
+        with pytest.raises(ValueError):
+            self.iso._filter_intervals_in_range(
+                start,
+                end,
+                self.iso.lmp_real_time_intervals,
+            )
+
+        end = pd.Timestamp("2024-01-01 14:00:00").tz_localize(self.iso.default_timezone)
+
+        with pytest.raises(ValueError):
+            self.iso._filter_intervals_in_range(
+                start,
+                # Raises due to next day
+                end + pd.DateOffset(days=1),
+                self.iso.lmp_real_time_intervals,
+            )
