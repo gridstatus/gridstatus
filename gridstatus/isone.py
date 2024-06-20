@@ -1,5 +1,4 @@
 import io
-import math
 from typing import BinaryIO
 
 import pandas as pd
@@ -34,6 +33,8 @@ class ISONE(ISOBase):
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
     ]
+
+    lmp_real_time_intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
 
     hubs = {"H.INTERNAL_HUB": 4000}
     zones = {
@@ -406,40 +407,37 @@ class ISONE(ISOBase):
 
         now = pd.Timestamp.now(tz=self.default_timezone)
         if market == Markets.REAL_TIME_5_MIN:
-            # todo handle intervals for current day
-            intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
+            intervals = self.lmp_real_time_intervals[:]
 
-            # optimze for current day
             if now.date() == date.date():
-                hour = now.hour
-                # select completed 4 hour intervals based on current hour
-                intervals = intervals[: math.ceil((hour + 1) / 4) - 1]
+                intervals = self._filter_intervals_in_range(
+                    date,
+                    end,
+                    self.lmp_real_time_intervals,
+                )
 
             dfs = []
             for interval in intervals:
                 msg = "Loading interval {}".format(interval)
                 log(msg, verbose=verbose)
                 u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"  # noqa
-                dfs.append(
-                    pd.read_csv(
-                        u,
-                        skiprows=[0, 1, 2, 3, 5],
-                        skipfooter=1,
-                        engine="python",
-                    ),
-                )
+                try:
+                    dfs.append(
+                        pd.read_csv(
+                            u,
+                            skiprows=[0, 1, 2, 3, 5],
+                            skipfooter=1,
+                            engine="python",
+                        ),
+                    )
+                except Exception as e:
+                    log(f"Failed to load {u} with {e}", verbose=verbose)
 
             data = pd.concat(dfs)
 
-            data["Local Time"] = (
-                date.strftime(
-                    "%Y-%m-%d",
-                )
-                + " "
-                + data["Local Time"]
-            )
+            data["Local Time"] = date.strftime("%Y-%m-%d") + " " + data["Local Time"]
 
-            # add current interval
+            # add all intervals > than the max interval in the data
             if now.date() == date.date():
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
                 msg = "Loading current interval"
@@ -456,12 +454,7 @@ class ISONE(ISOBase):
                 ]
                 data = pd.concat([data, data_current])
 
-            data.rename(
-                columns={
-                    "Local Time": "Interval Start",
-                },
-                inplace=True,
-            )
+            data = data.rename(columns={"Local Time": "Interval Start"})
 
         elif market == Markets.REAL_TIME_HOURLY:
             if date.date() < now.date():
@@ -816,6 +809,50 @@ class ISONE(ISOBase):
         )
 
         return data
+
+    def _filter_intervals_in_range(date, end, intervals):
+        """Filters intervals to those are at least partially within the given range.
+        If no end is provided, includes all intervals that start after the given date.
+
+        Args:
+            date (Datetime): Start datetime
+            end (Optional[Datetime]): End datetime
+            intervals (list): List of intervals in the format "HH-HH"
+        """
+        # Convert intervals to hour ranges
+        interval_hours = [
+            (int(interval.split("-")[0]), int(interval.split("-")[1]))
+            for interval in intervals
+        ]
+
+        if not end:
+            end = date.replace(hour=23, minute=59, second=59, microsecond=0)
+
+        # Get the start and end times for each interval
+        selected_intervals = []
+        for start_hour, end_hour in interval_hours:
+            interval_start = date.replace(
+                hour=start_hour,
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            interval_end = interval_start + pd.Timedelta(hours=end_hour - start_hour)
+
+            # Adjust the day for interval_end if it passes midnight
+            if end_hour == 24:
+                interval_end = interval_end.replace(
+                    hour=0,
+                    minute=0,
+                    second=0,
+                    microsecond=0,
+                ) + pd.Timedelta(days=1)
+
+            # Check if the interval overlaps with the given range
+            if interval_start < end and interval_end > date:
+                selected_intervals.append(f"{start_hour:02}-{end_hour:02}")
+
+        return selected_intervals
 
 
 def _make_request(url, skiprows, verbose):
