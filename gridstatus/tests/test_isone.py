@@ -309,7 +309,21 @@ class TestISONE(BaseTestISO):
     """utils"""
 
     def test_filter_intervals_in_range(self):
-        start = pd.Timestamp("2024-01-01 09:00:00").tz_localize(
+        start = pd.Timestamp("2024-01-01 00:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+        end = None
+
+        assert (
+            self.iso._filter_intervals_in_range(
+                start,
+                end,
+                self.iso.lmp_real_time_intervals,
+            )
+            == self.iso.lmp_real_time_intervals
+        )
+
+        start = pd.Timestamp("2024-01-01 08:00:00").tz_localize(
             self.iso.default_timezone,
         )
         end = None

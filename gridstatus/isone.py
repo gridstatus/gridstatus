@@ -839,9 +839,8 @@ class ISONE(ISOBase):
         if not end:
             end = date.replace(hour=23, minute=59, second=59, microsecond=0)
 
-        # Get the start and end times for each interval
         selected_intervals = []
-        for start_hour, end_hour in interval_hours:
+        for index, (start_hour, end_hour) in enumerate(interval_hours):
             interval_start = date.replace(
                 hour=start_hour,
                 minute=0,
@@ -853,7 +852,7 @@ class ISONE(ISOBase):
 
             # Check if the interval overlaps with the given range
             if interval_start < end and interval_end > date:
-                selected_intervals.append(f"{start_hour:02}-{end_hour:02}")
+                selected_intervals.append(intervals[index])
 
         return selected_intervals
 
