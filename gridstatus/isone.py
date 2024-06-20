@@ -810,13 +810,14 @@ class ISONE(ISOBase):
 
         return data
 
-    def _filter_intervals_in_range(date, end, intervals):
+    def _filter_intervals_in_range(self, date, end, intervals):
         """Filters intervals to those are at least partially within the given range.
         If no end is provided, includes all intervals that start after the given date.
 
         Args:
-            date (Datetime): Start datetime
-            end (Optional[Datetime]): End datetime
+            date (Datetime): Start datetime. Must be in self.default_timezone
+            end (Optional[Datetime]): End datetime. Must be in self.default_timezone
+                if provided
             intervals (list): List of intervals in the format "HH-HH"
         """
         # Convert intervals to hour ranges

@@ -305,3 +305,40 @@ class TestISONE(BaseTestISO):
     @pytest.mark.skip("File is no longer accessible")
     def test_get_interconnection_queue(self):
         pass
+
+    """utils"""
+
+    def test_filter_intervals_in_range(self):
+        start = pd.Timestamp("2024-01-01 09:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+        end = None
+
+        assert self.iso._filter_intervals_in_range(
+            start,
+            end,
+            self.iso.lmp_real_time_intervals,
+        ) == ["08-12", "12-16", "16-20", "20-24"]
+
+        end = pd.Timestamp("2024-01-01 14:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+
+        assert self.iso._filter_intervals_in_range(
+            start,
+            end,
+            self.iso.lmp_real_time_intervals,
+        ) == ["08-12", "12-16"]
+
+        start = pd.Timestamp("2024-01-01 22:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+        end = pd.Timestamp("2024-01-01 23:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+
+        assert self.iso._filter_intervals_in_range(
+            start,
+            end,
+            self.iso.lmp_real_time_intervals,
+        ) == ["20-24"]
