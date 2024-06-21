@@ -1,5 +1,4 @@
 import io
-from datetime import timezone
 from typing import BinaryIO
 
 import pandas as pd
@@ -411,7 +410,7 @@ class ISONE(ISOBase):
             intervals = self.lmp_real_time_intervals[:]
 
             if now.date() == date.date():
-                intervals = self._filter_intervals_in_range(
+                intervals = self._select_intervals_for_data_request(
                     date,
                     end,
                     self.lmp_real_time_intervals,
@@ -422,6 +421,8 @@ class ISONE(ISOBase):
                 msg = "Loading interval {}".format(interval)
                 log(msg, verbose=verbose)
                 u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"  # noqa
+                # Use a try and except in case the data for previous intervals is not
+                # published yet.
                 try:
                     dfs.append(
                         pd.read_csv(
@@ -811,9 +812,9 @@ class ISONE(ISOBase):
 
         return data
 
-    def _filter_intervals_in_range(self, date, end, intervals):
-        """Filters intervals to those are at least partially within the given range.
-        If no end is provided, includes all intervals that start after the given date.
+    def _select_intervals_for_data_request(self, date, end, intervals):
+        """Filters intervals given a start and end datetime. All completed intervals
+        are included as well as any intervals that include the start datetime.
 
         Args:
             date (Datetime): Start datetime. Must be in self.default_timezone
@@ -821,38 +822,22 @@ class ISONE(ISOBase):
                 if provided
             intervals (list): List of intervals in the format "HH-HH"
         """
-        if (date.tz == timezone.utc) or (date.tz.zone != self.default_timezone):
-            raise ValueError("Date must be in default timezone")
+        now = self.local_now()
 
-        if end:
-            if (end.tz == timezone.utc) or (end.tz.zone != self.default_timezone):
-                raise ValueError("End must be in default timezone")
-            if end.date() != date.date():
-                raise ValueError("Date and end must be on the same day")
+        # Converts hour into the index in 4 hour interval array
+        def _hour_to_interval_index(hour):
+            if not 0 <= hour <= 23:
+                raise ValueError("Hour must be between 0 and 23")
+            return hour // 4
 
-        # Convert intervals to hour ranges
-        interval_hours = [
-            (int(interval.split("-")[0]), int(interval.split("-")[1]))
-            for interval in intervals
-        ]
-
-        if not end:
-            end = date.replace(hour=23, minute=59, second=59, microsecond=0)
-
-        selected_intervals = []
-        for index, (start_hour, end_hour) in enumerate(interval_hours):
-            interval_start = date.replace(
-                hour=start_hour,
-                minute=0,
-                second=0,
-                microsecond=0,
+        # No need to get data for future intervals. This method will never return
+        # the 20-24 interval.
+        last_interval_hour = min(now.hour, end.hour) if end else now.hour
+        selected_intervals = intervals[
+            _hour_to_interval_index(date.hour) : _hour_to_interval_index(
+                last_interval_hour,
             )
-
-            interval_end = interval_start + pd.Timedelta(hours=end_hour - start_hour)
-
-            # Check if the interval overlaps with the given range
-            if interval_start < end and interval_end > date:
-                selected_intervals.append(intervals[index])
+        ]
 
         return selected_intervals
 

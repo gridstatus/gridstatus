@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 
@@ -308,84 +310,58 @@ class TestISONE(BaseTestISO):
 
     """utils"""
 
-    def test_filter_intervals_in_range(self):
-        start = pd.Timestamp("2024-01-01 00:00:00").tz_localize(
+    def test_select_intervals_for_data_request(self):
+        mock_now = pd.Timestamp("2024-01-01 21:00:00").tz_localize(
             self.iso.default_timezone,
         )
-        end = None
 
-        assert (
-            self.iso._filter_intervals_in_range(
+        with patch.object(ISONE, "local_now", return_value=mock_now):
+            start = pd.Timestamp("2024-01-01 03:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
+            end = None
+
+            assert self.iso._select_intervals_for_data_request(
                 start,
                 end,
                 self.iso.lmp_real_time_intervals,
+            ) == ["00-04", "04-08", "08-12", "12-16", "16-20"]
+
+            start = pd.Timestamp("2024-01-01 07:00:00").tz_localize(
+                self.iso.default_timezone,
             )
-            == self.iso.lmp_real_time_intervals
-        )
+            end = pd.Timestamp("2024-01-01 20:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
 
-        start = pd.Timestamp("2024-01-01 08:00:00").tz_localize(
-            self.iso.default_timezone,
-        )
-        end = None
-
-        assert self.iso._filter_intervals_in_range(
-            start,
-            end,
-            self.iso.lmp_real_time_intervals,
-        ) == ["08-12", "12-16", "16-20", "20-24"]
-
-        end = pd.Timestamp("2024-01-01 14:00:00").tz_localize(
-            self.iso.default_timezone,
-        )
-
-        assert self.iso._filter_intervals_in_range(
-            start,
-            end,
-            self.iso.lmp_real_time_intervals,
-        ) == ["08-12", "12-16"]
-
-        start = pd.Timestamp("2024-01-01 22:00:00").tz_localize(
-            self.iso.default_timezone,
-        )
-        end = pd.Timestamp("2024-01-01 23:00:00").tz_localize(
-            self.iso.default_timezone,
-        )
-
-        assert self.iso._filter_intervals_in_range(
-            start,
-            end,
-            self.iso.lmp_real_time_intervals,
-        ) == ["20-24"]
-
-    def test_filter_raises_error(self):
-        start = pd.Timestamp("2024-01-01 09:00:00").tz_localize(
-            self.iso.default_timezone,
-        )
-        # No error
-        end = pd.Timestamp("2024-01-01 14:00:00").tz_localize(self.iso.default_timezone)
-
-        assert self.iso._filter_intervals_in_range(
-            start,
-            end,
-            self.iso.lmp_real_time_intervals,
-        ) == ["08-12", "12-16"]
-
-        # Raises due to timezone
-        end = end.tz_convert("UTC")
-
-        with pytest.raises(ValueError):
-            self.iso._filter_intervals_in_range(
+            assert self.iso._select_intervals_for_data_request(
                 start,
                 end,
                 self.iso.lmp_real_time_intervals,
+            ) == ["04-08", "08-12", "12-16", "16-20"]
+
+            end = pd.Timestamp("2024-01-01 14:00:00").tz_localize(
+                self.iso.default_timezone,
             )
 
-        end = pd.Timestamp("2024-01-01 14:00:00").tz_localize(self.iso.default_timezone)
-
-        with pytest.raises(ValueError):
-            self.iso._filter_intervals_in_range(
+            assert self.iso._select_intervals_for_data_request(
                 start,
-                # Raises due to next day
-                end + pd.DateOffset(days=1),
+                end,
                 self.iso.lmp_real_time_intervals,
+            ) == ["04-08", "08-12"]
+
+            start = pd.Timestamp("2024-01-01 22:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
+            end = pd.Timestamp("2024-01-01 23:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
+
+            assert (
+                self.iso._select_intervals_for_data_request(
+                    start,
+                    end,
+                    self.iso.lmp_real_time_intervals,
+                )
+                == []
             )

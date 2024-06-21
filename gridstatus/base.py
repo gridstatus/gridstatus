@@ -2,6 +2,7 @@ import time
 from enum import Enum
 from typing import BinaryIO
 
+import pandas as pd
 import requests
 
 from gridstatus.gs_logging import log
@@ -73,6 +74,11 @@ class ISOBase:
     markets = []
     status_homepage = None
     interconnection_homepage = None
+
+    default_timezone = None
+
+    def local_now(self):
+        return pd.Timestamp.now(tz=self.default_timezone)
 
     def _get_json(self, url, verbose=False, retries=None, **kwargs):
         """
