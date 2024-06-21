@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 
@@ -305,3 +307,61 @@ class TestISONE(BaseTestISO):
     @pytest.mark.skip("File is no longer accessible")
     def test_get_interconnection_queue(self):
         pass
+
+    """utils"""
+
+    def test_select_intervals_for_data_request(self):
+        mock_now = pd.Timestamp("2024-01-01 21:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+
+        with patch.object(ISONE, "local_now", return_value=mock_now):
+            start = pd.Timestamp("2024-01-01 03:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
+            end = None
+
+            assert self.iso._select_intervals_for_data_request(
+                start,
+                end,
+                self.iso.lmp_real_time_intervals,
+            ) == ["00-04", "04-08", "08-12", "12-16", "16-20"]
+
+            start = pd.Timestamp("2024-01-01 07:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
+            end = pd.Timestamp("2024-01-01 20:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
+
+            assert self.iso._select_intervals_for_data_request(
+                start,
+                end,
+                self.iso.lmp_real_time_intervals,
+            ) == ["04-08", "08-12", "12-16", "16-20"]
+
+            end = pd.Timestamp("2024-01-01 14:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
+
+            assert self.iso._select_intervals_for_data_request(
+                start,
+                end,
+                self.iso.lmp_real_time_intervals,
+            ) == ["04-08", "08-12"]
+
+            start = pd.Timestamp("2024-01-01 22:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
+            end = pd.Timestamp("2024-01-01 23:00:00").tz_localize(
+                self.iso.default_timezone,
+            )
+
+            assert (
+                self.iso._select_intervals_for_data_request(
+                    start,
+                    end,
+                    self.iso.lmp_real_time_intervals,
+                )
+                == []
+            )

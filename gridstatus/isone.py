@@ -1,5 +1,4 @@
 import io
-import math
 from typing import BinaryIO
 
 import pandas as pd
@@ -34,6 +33,8 @@ class ISONE(ISOBase):
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
     ]
+
+    lmp_real_time_intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
 
     hubs = {"H.INTERNAL_HUB": 4000}
     zones = {
@@ -406,40 +407,39 @@ class ISONE(ISOBase):
 
         now = pd.Timestamp.now(tz=self.default_timezone)
         if market == Markets.REAL_TIME_5_MIN:
-            # todo handle intervals for current day
-            intervals = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
+            intervals = self.lmp_real_time_intervals[:]
 
-            # optimze for current day
             if now.date() == date.date():
-                hour = now.hour
-                # select completed 4 hour intervals based on current hour
-                intervals = intervals[: math.ceil((hour + 1) / 4) - 1]
+                intervals = self._select_intervals_for_data_request(
+                    date,
+                    end,
+                    self.lmp_real_time_intervals,
+                )
 
             dfs = []
             for interval in intervals:
                 msg = "Loading interval {}".format(interval)
                 log(msg, verbose=verbose)
                 u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"  # noqa
-                dfs.append(
-                    pd.read_csv(
-                        u,
-                        skiprows=[0, 1, 2, 3, 5],
-                        skipfooter=1,
-                        engine="python",
-                    ),
-                )
+                # Use a try and except in case the data for previous intervals is not
+                # published yet.
+                try:
+                    dfs.append(
+                        pd.read_csv(
+                            u,
+                            skiprows=[0, 1, 2, 3, 5],
+                            skipfooter=1,
+                            engine="python",
+                        ),
+                    )
+                except Exception as e:
+                    log(f"Failed to load {u} with {e}", verbose=verbose)
 
             data = pd.concat(dfs)
 
-            data["Local Time"] = (
-                date.strftime(
-                    "%Y-%m-%d",
-                )
-                + " "
-                + data["Local Time"]
-            )
+            data["Local Time"] = date.strftime("%Y-%m-%d") + " " + data["Local Time"]
 
-            # add current interval
+            # add all intervals > than the max interval in the data
             if now.date() == date.date():
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
                 msg = "Loading current interval"
@@ -456,12 +456,7 @@ class ISONE(ISOBase):
                 ]
                 data = pd.concat([data, data_current])
 
-            data.rename(
-                columns={
-                    "Local Time": "Interval Start",
-                },
-                inplace=True,
-            )
+            data = data.rename(columns={"Local Time": "Interval Start"})
 
         elif market == Markets.REAL_TIME_HOURLY:
             if date.date() < now.date():
@@ -816,6 +811,35 @@ class ISONE(ISOBase):
         )
 
         return data
+
+    def _select_intervals_for_data_request(self, date, end, intervals):
+        """Filters intervals given a start and end datetime. All completed intervals
+        are included as well as any intervals that include the start datetime.
+
+        Args:
+            date (Datetime): Start datetime. Must be in self.default_timezone
+            end (Optional[Datetime]): End datetime. Must be in self.default_timezone
+                if provided
+            intervals (list): List of intervals in the format "HH-HH"
+        """
+        now = self.local_now()
+
+        # Converts hour into the index in 4 hour interval array
+        def _hour_to_interval_index(hour):
+            if not 0 <= hour <= 23:
+                raise ValueError("Hour must be between 0 and 23")
+            return hour // 4
+
+        # No need to get data for future intervals. This method will never return
+        # the 20-24 interval.
+        last_interval_hour = min(now.hour, end.hour) if end else now.hour
+        selected_intervals = intervals[
+            _hour_to_interval_index(date.hour) : _hour_to_interval_index(
+                last_interval_hour,
+            )
+        ]
+
+        return selected_intervals
 
 
 def _make_request(url, skiprows, verbose):
