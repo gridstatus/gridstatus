@@ -392,7 +392,6 @@ class ISONE(ISOBase):
         Find Node ID mapping:
             https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
         """  # noqa
-
         if date == "latest":
             return self._get_latest_lmp(
                 market=market,
@@ -406,6 +405,7 @@ class ISONE(ISOBase):
             locations = "ALL"
 
         now = pd.Timestamp.now(tz=self.default_timezone)
+
         if market == Markets.REAL_TIME_5_MIN:
             intervals = self.lmp_real_time_intervals[:]
 
@@ -458,7 +458,7 @@ class ISONE(ISOBase):
                     verbose=verbose,
                 )
 
-                if data:
+                if data is not None:
                     data_current = data_current[
                         data_current["Local Time"] > data["Local Time"].max()
                     ]

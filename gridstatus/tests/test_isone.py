@@ -121,6 +121,23 @@ class TestISONE(BaseTestISO):
             verbose=VERBOSE,
         )
 
+    def test_get_lmp_real_time_no_intervals_gets_current_data(self):
+        # Make sure when there are no intervals to fetch, the method still
+        # fetches the current data.
+        date = self.local_now().normalize() + pd.DateOffset(hours=2)
+        end = date + pd.DateOffset(hours=1)
+
+        df = self.iso.get_lmp(
+            (date, end),
+            market=Markets.REAL_TIME_5_MIN,
+            verbose=VERBOSE,
+        )
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].max() >= self.local_start_of_today() + pd.Timedelta(
+            minutes=5,
+        )
+
     """get_load"""
 
     @pytest.mark.parametrize("date", DST_BOUNDARIES)
