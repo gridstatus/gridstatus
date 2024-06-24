@@ -409,7 +409,9 @@ class ISONE(ISOBase):
         if market == Markets.REAL_TIME_5_MIN:
             intervals = self.lmp_real_time_intervals[:]
 
-            if now.date() == date.date():
+            querying_for_today = date.date() == now.date()
+
+            if querying_for_today:
                 intervals = self._select_intervals_for_data_request(
                     date,
                     end,
@@ -435,12 +437,16 @@ class ISONE(ISOBase):
                 except Exception as e:
                     log(f"Failed to load {u} with {e}", verbose=verbose)
 
-            data = pd.concat(dfs)
+            data = None
 
-            data["Local Time"] = date.strftime("%Y-%m-%d") + " " + data["Local Time"]
+            if dfs:
+                data = pd.concat(dfs)
+                data["Local Time"] = (
+                    date.strftime("%Y-%m-%d") + " " + data["Local Time"]
+                )
 
             # add all intervals > than the max interval in the data
-            if now.date() == date.date():
+            if querying_for_today:
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
                 msg = "Loading current interval"
                 log(msg, verbose=verbose)
@@ -451,10 +457,15 @@ class ISONE(ISOBase):
                     skiprows=[0, 1, 2, 4],
                     verbose=verbose,
                 )
-                data_current = data_current[
-                    data_current["Local Time"] > data["Local Time"].max()
-                ]
-                data = pd.concat([data, data_current])
+
+                if data:
+                    data_current = data_current[
+                        data_current["Local Time"] > data["Local Time"].max()
+                    ]
+
+                    data = pd.concat([data, data_current])
+                else:
+                    data = data_current.copy()
 
             data = data.rename(columns={"Local Time": "Interval Start"})
 
