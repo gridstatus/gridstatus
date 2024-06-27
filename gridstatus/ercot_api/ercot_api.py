@@ -220,7 +220,7 @@ class ErcotAPI:
             pandas.DataFrame: A DataFrame with hourly wind power production reports
         """
         if date == "latest":
-            date = self._local_now() - pd.Timedelta(hours=2)
+            date = self._local_now() - pd.Timedelta(hours=1)
             end = self._local_now()
 
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)

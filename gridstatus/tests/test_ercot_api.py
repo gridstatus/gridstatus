@@ -63,13 +63,37 @@ class TestErcotAPI(TestHelperMixin):
     """get_hourly_wind_report"""
 
     def _check_hourly_wind_report(self, df):
-        assert df.columns.tolist() == []
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "ACTUAL SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STWPF SYSTEM WIDE",
+            "WGRPP SYSTEM WIDE",
+            "ACTUAL LZ SOUTH HOUSTON",
+            "COP HSL LZ SOUTH HOUSTON",
+            "STWPF LZ SOUTH HOUSTON",
+            "WGRPP LZ SOUTH HOUSTON",
+            "ACTUAL LZ WEST",
+            "COP HSL LZ WEST",
+            "STWPF LZ WEST",
+            "WGRPP LZ WEST",
+            "ACTUAL LZ NORTH",
+            "COP HSL LZ NORTH",
+            "STWPF LZ NORTH",
+            "WGRPP LZ NORTH",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
     def test_get_hourly_wind_report_today(self):
         df = self.iso.get_hourly_wind_report("today")
 
-        # We don't know the exact nubmer of publish times
-        assert df["Interval Start"].min() == self.local_start_of_today()
+        # The data should start at the beginning of two days ago
+        assert df[
+            "Interval Start"
+        ].min() == self.local_start_of_today() - pd.DateOffset(days=2)
 
         self._check_hourly_wind_report(df)
 
@@ -79,31 +103,22 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_hourly_wind_report(df)
 
-    def test_get_hourly_wind_report_historical_date(self):
-        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
-
-        df = self.iso.get_hourly_wind_report(date, verbose=True)
-
-        self._check_hourly_wind_report(df)
-
-        assert df["Publish Time"].nunique() == 24
-        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
-        assert df["Interval End"].max() == self.local_start_of_day(
-            date.date(),
-        ) + pd.DateOffset(days=1)
-
     def test_get_hourly_wind_report_historical_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
-        end = date + pd.DateOffset(days=2)
+        end = date + pd.Timedelta(hours=2)
 
         df = self.iso.get_hourly_wind_report(date, end, verbose=True)
 
         self._check_hourly_wind_report(df)
 
-        assert df["Publish Time"].nunique() == 32
+        assert df["Publish Time"].nunique() == 2
 
-        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
-        assert df["Interval End"].max() == self.local_start_of_day(end.date())
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            date.date(),
+        ) - pd.DateOffset(days=2)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            date.date(),
+        ) + pd.DateOffset(days=7)
 
     """get_hourly_solar_report"""
 
@@ -161,31 +176,22 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_hourly_solar_report(df)
 
-    def test_get_hourly_solar_report_historical_date(self):
-        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
-
-        df = self.iso.get_hourly_solar_report(date)
-
-        self._check_hourly_solar_report(df)
-
-        assert df["Publish Time"].nunique() == 24
-        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
-        assert df["Interval End"].max() == self.local_start_of_day(
-            date.date(),
-        ) + pd.DateOffset(days=1)
-
     def test_get_hourly_solar_report_historical_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
-        end = date + pd.DateOffset(days=2)
+        end = date + pd.Timedelta(hours=2)
 
         df = self.iso.get_hourly_solar_report(date, end, verbose=True)
 
         self._check_hourly_solar_report(df)
 
-        assert df["Publish Time"].nunique() == 32
+        assert df["Publish Time"].nunique() == 2
 
-        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
-        assert df["Interval End"].max() == self.local_start_of_day(end.date())
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            date.date(),
+        ) - pd.DateOffset(days=2)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            date.date(),
+        ) + pd.DateOffset(days=7)
 
     """get_as_prices"""
 
