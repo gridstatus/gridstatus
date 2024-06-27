@@ -26,7 +26,7 @@ TOKEN_EXPIRATION_SECONDS = 3600
 DEFAULT_HISTORICAL_SIZE = 1_000
 
 # Number of results to fetch per page. It's not clear what the max is (1_000_000 works)
-DEFAULT_PAGE_SIZE = 250_000
+DEFAULT_PAGE_SIZE = 100_000
 
 # Number of days in past when we should use the historical method
 # NOTE: this seems to vary per dataset. If you get an error about no data available and
@@ -46,9 +46,6 @@ AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
 # https://data.ercot.com/data-product-archive/NP3-911-ER
 AS_REPORTS_EMIL_ID = "np3-911-er"
 
-# https://data.ercot.com/data-product-archive/NP4-745-CD
-HOURLY_SOLAR_REPORT_ENDPOINT = "/np4-745-cd/spp_hrly_actual_fcast_geo"
-
 #  https://data.ercot.com/data-product-archive/NP6-788-CD
 LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-788-cd/lmp_node_zone_hub"
 
@@ -66,6 +63,16 @@ SHADOW_PRICES_DAM_ENDPOINT = "/np4-191-cd/dam_shadow_prices"
 
 # https://data.ercot.com/data-product-archive/NP6-86-CD
 SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
+
+# Wind Power Production
+# https://data.ercot.com/data-product-archive/NP4-732-CD
+HOURLY_WIND_POWER_PRODUCTION_ENDPOINT = "/np4-732-cd/wpp_hrly_avrg_actl_fcast"
+
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# https://data.ercot.com/data-product-archive/NP4-745-CD
+HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT = (
+    "/np4-745-cd/spp_hrly_actual_fcast_geo"
+)
 
 
 class ErcotAPI:
@@ -106,6 +113,9 @@ class ErcotAPI:
         self.token_expiry = None
         self.ercot = Ercot()
 
+    def _local_now(self):
+        return pd.Timestamp("now", tz=self.default_timezone)
+
     def _local_start_of_today(self):
         return pd.Timestamp("now", tz=self.default_timezone).floor("d")
 
@@ -122,7 +132,7 @@ class ErcotAPI:
             # Have to convert to UTC to do addition, then convert back to local time
             # to avoid DST issues
             end = (
-                (date.tz_convert("UTC") + pd.Timedelta(days=days_to_add_if_no_end))
+                (date.tz_convert("UTC") + pd.DateOffset(days=days_to_add_if_no_end))
                 .normalize()
                 .tz_localize(None)
                 .tz_localize(self.default_timezone)
@@ -196,6 +206,107 @@ class ErcotAPI:
     def get_public_reports(self, verbose=False):
         # General information about the public reports
         return self.make_api_call(BASE_URL, verbose=verbose)
+
+    @support_date_range(frequency=None)
+    def get_hourly_wind_report(self, date, end=None, verbose=False):
+        """Get Wind Power Production - Hourly Averaged Actual and Forecasted Values
+
+        Arguments:
+            date (str): the date to fetch reports for.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly wind power production reports
+        """
+        if date == "latest":
+            date = self._local_now() - pd.Timedelta(hours=1)
+            end = self._local_now()
+
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        # Only use the historical API because it allows us to filter on posted time (
+        # publish time)
+        data = self.get_historical_data(
+            endpoint=HOURLY_WIND_POWER_PRODUCTION_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            add_post_datetime=True,
+        )
+
+        return self._handle_hourly_wind_report(data, verbose=verbose)
+
+    def _handle_hourly_wind_report(self, data, verbose=False):
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        data.columns = data.columns.str.replace("_", " ")
+
+        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        data = (
+            utils.move_cols_to_front(
+                data,
+                ["Interval Start", "Interval End", "Publish Time"],
+            )
+            .drop(columns=["Time", "postDatetime"])
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+        return data
+
+    @support_date_range(frequency=None)
+    def get_hourly_solar_report(self, date, end=None, verbose=False):
+        """Get Solar Power Production - Hourly Averaged Actual and Forecasted Values by
+        Geographical Region
+
+        Arguments:
+            date (str): the date to fetch reports for.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly wind power production reports
+        """
+        if date == "latest":
+            date = self._local_now() - pd.Timedelta(hours=1)
+            end = self._local_now()
+
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        # Only use the historical API because it allows us to filter on posted time (
+        # publish time)
+        data = self.get_historical_data(
+            endpoint=HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT,  # noqa
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            add_post_datetime=True,
+        )
+
+        return self._handle_hourly_solar_report(data, verbose=verbose)
+
+    def _handle_hourly_solar_report(self, data, verbose=False):
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        data.columns = data.columns.str.replace("_", " ")
+
+        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        data = (
+            utils.move_cols_to_front(
+                data,
+                ["Interval Start", "Interval End", "Publish Time"],
+            )
+            .drop(columns=["Time", "postDatetime"])
+            .sort_values(["Interval Start", "Publish Time"])
+        )
+
+        return data
 
     @support_date_range(frequency=None)
     def get_as_prices(self, date, end=None, verbose=False):
@@ -720,7 +831,7 @@ class ErcotAPI:
         start_date,
         end_date,
         read_as_csv=True,
-        sleep_seconds=0.05,
+        sleep_seconds=0.15,
         add_post_datetime=False,
         verbose=False,
     ):
@@ -737,8 +848,10 @@ class ErcotAPI:
 
         Arguments:
             endpoint [str]: a string representing a specific ERCOT API endpoint.
-            start_date [date]: the start date for the historical data
-            end_date [date]: the end date for the historical data
+            start_date [datetime]: the start datetime for the historical data. Used
+                as the postDatetimeFrom query parameter.
+            end_date [datetime]: the end date for the historical data. Used as the
+                postDatetimeTo query parameter.
             read_as_csv [bool]: if True, will read the data as a csv. Otherwise, will
                 return the bytes.
             sleep_seconds [float]: the number of seconds to sleep between requests.
@@ -767,6 +880,8 @@ class ErcotAPI:
         links, post_datetimes = zip(*links_and_post_datetimes)
 
         dfs = []
+        retries = 0
+        max_retries = 3
 
         for link, posted_datetime in tqdm(
             zip(links, post_datetimes),
@@ -775,38 +890,52 @@ class ErcotAPI:
             disable=not verbose,
             total=len(links),
         ):
-            try:
-                # Data comes back as a compressed zip file.
-                response = self.make_api_call(link, verbose=verbose, parse_json=False)
-
-                # Convert the bytes to a file-like object
-                bytes = pd.io.common.BytesIO(response)
-
-                if not read_as_csv:
-                    dfs.append(bytes)
-                else:
-                    # Decompress the zip file and read the csv
-                    df = pd.read_csv(bytes, compression="zip")
-
-                    if add_post_datetime:
-                        df["postDatetime"] = posted_datetime
-
-                    dfs.append(df)
-
-                # Necessary to avoid rate limiting
-                time.sleep(sleep_seconds)
-
-            except Exception as e:
-                if "Rate limit is exceeded" in response.decode("utf-8"):
-                    # Rate limited, so sleep for a longer time
-                    log(
-                        f"Rate limited. Sleeping for {sleep_seconds * 10} seconds",
-                        verbose,
+            while retries < max_retries:
+                try:
+                    # Data comes back as a compressed zip file.
+                    response = self.make_api_call(
+                        link,
+                        verbose=verbose,
+                        parse_json=False,
                     )
-                    time.sleep(sleep_seconds * 10)
-                else:
-                    log(f"Link: {link} failed with error: {e}", verbose)
-                continue
+
+                    # Convert the bytes to a file-like object
+                    bytes = pd.io.common.BytesIO(response)
+
+                    if not read_as_csv:
+                        dfs.append(bytes)
+                    else:
+                        # Decompress the zip file and read the csv
+                        df = pd.read_csv(bytes, compression="zip")
+
+                        if add_post_datetime:
+                            df["postDatetime"] = posted_datetime
+
+                        dfs.append(df)
+
+                    # Necessary to avoid rate limiting
+                    time.sleep(sleep_seconds)
+                    break  # Exit the loop if the operation is successful
+
+                except Exception as e:
+                    if "Rate limit is exceeded" in response.decode("utf-8"):
+                        # Rate limited, so sleep for a longer time
+                        log(
+                            f"Rate limited. Sleeping for {sleep_seconds * 10} seconds",
+                            verbose,
+                        )
+                        time.sleep(sleep_seconds * 10)
+                    else:
+                        log(f"Link: {link} failed with error: {e}", verbose)
+                        time.sleep(sleep_seconds)  # Wait before retrying
+
+                    retries += 1
+
+            if retries == max_retries:
+                log(
+                    f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
+                    verbose,
+                )
 
         return pd.concat(dfs) if read_as_csv else dfs
 
@@ -932,6 +1061,8 @@ class ErcotAPI:
                     f"out of {total_pages} total",
                 )
 
+        max_retries = 3
+
         with self._create_progress_bar(
             pages_to_retrieve,
             "Fetching data",
@@ -949,20 +1080,32 @@ class ErcotAPI:
                     verbose,
                 )
 
-                response = self.make_api_call(
-                    urlstring,
-                    api_params=parsed_api_params,
-                    verbose=verbose,
-                )
+                retry = 0
 
-                status_code = response.get("statusCode")
+                while retry < max_retries:
+                    try:
+                        response = self.make_api_call(
+                            urlstring,
+                            api_params=parsed_api_params,
+                            verbose=verbose,
+                        )
 
-                # status code only seems to be present for a failure
-                if status_code and status_code != 200:
-                    log(f"Error: {response.get('message')}", verbose)
-                    break
+                        status_code = response.get("statusCode")
 
-                data_results.extend(response["data"])
+                        # status code only seems to be present for a failure
+                        if status_code and status_code != 200:
+                            log(f"Error: {response.get('message')}", verbose)
+                            retry += 1
+                            continue
+
+                        data_results.extend(response["data"])
+                        # Exit the loop if the operation is successful
+                        break
+
+                    except Exception as e:
+                        log(f"Error: {e}", verbose)
+                        retry += 1
+
                 pbar.update(1)
 
         # Capitalize the first letter of each column name but leave the rest alone
