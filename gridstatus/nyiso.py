@@ -1,9 +1,7 @@
-from datetime import datetime
 from typing import BinaryIO
 
 import pandas as pd
 import requests
-from zoneinfo import ZoneInfo
 
 import gridstatus
 from gridstatus import utils
@@ -233,6 +231,7 @@ class NYISO(ISOBase):
             end=end,
             dataset_name="isolf",
             verbose=verbose,
+            add_file_date=True,
         )
 
         data = data[
@@ -795,6 +794,7 @@ class NYISO(ISOBase):
         dataset_name=None,
         filename=None,
         verbose=False,
+        add_file_date=False,
     ):
         """Download a dataset from NYISO's archive
 
@@ -808,6 +808,7 @@ class NYISO(ISOBase):
             filename (str): the name of the file to download.
                 if not provided, dataset_name is used
             verbose (bool): print out requested url
+            add_file_date (bool): add the file date to the dataframe
 
         Returns:
             pandas.DataFrame: the downloaded data
@@ -838,7 +839,8 @@ class NYISO(ISOBase):
 
             df = pd.read_csv(csv_url)
             df = _handle_time(df, dataset_name)
-            df["File Date"] = self._get_load_forecast_file_date(date, verbose)
+            if add_file_date:
+                df["File Date"] = self._get_load_forecast_file_date(date, verbose)
         else:
             zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"  # noqa: E501
             z = utils.get_zip_folder(zip_url, verbose=verbose)
@@ -873,12 +875,11 @@ class NYISO(ISOBase):
                     continue
                 df = pd.read_csv(z.open(csv_filename))
 
-                # Get the modified date of the file
-
-                df["File Date"] = datetime(
-                    *z.getinfo(csv_filename).date_time,
-                    tzinfo=ZoneInfo(self.default_timezone),
-                )
+                if add_file_date:
+                    df["File Date"] = pd.Timestamp(
+                        *z.getinfo(csv_filename).date_time,
+                        tz=self.default_timezone,
+                    )
 
                 df = _handle_time(df, dataset_name)
                 all_dfs.append(df)
