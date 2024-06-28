@@ -98,6 +98,9 @@ def make_availability_table():
 
 
 def _handle_date(date, tz=None):
+    if date is None:
+        return date
+
     if date == "today":
         date = pd.Timestamp.now(tz=tz).normalize()
 

@@ -419,6 +419,9 @@ class PJM(ISOBase):
         Markets.DAY_AHEAD_HOURLY,
     ]
 
+    load_forecast_endpoint_name = "load_frcstd_7_day"
+    load_forecast_historical_endpoint_name = "load_frcstd_hist"
+
     def __init__(self, api_key=None, retries=DEFAULT_RETRIES) -> None:
         """
         Arguments:
@@ -537,42 +540,95 @@ class PJM(ISOBase):
 
         return load
 
-    def get_load_forecast(self, date, verbose=False):
-        """Get forecast for today in hourly intervals.
-
-        Updates every Every half hour on the quarter E.g. 1:15 and 1:45
-
+    @support_date_range(frequency=None)
+    def get_load_forecast(self, date, end=None, verbose=False):
         """
+        Load forecast made today extending for six days in hourly intervals.
 
-        if not utils.is_today(date, self.default_timezone):
-            raise NotSupported()
+        Today's forecast updates every every half hour on the quarter E.g. 1:15 and 1:45
+        """
+        if date == "latest":
+            return self.get_load_forecast("today", verbose=verbose)
 
-        # todo: should we use the UTC field instead of EPT?
+        if not utils.is_today(date, tz=self.default_timezone):
+            raise NotSupported(
+                "Only today's forecast is available through"
+                " get_load_forecast. Try get_load_forecast_historical instead.",
+            )
+
         params = {
             "fields": (
-                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_load_mw"
+                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"  # noqa: E501
             ),
-            "forecast_area": "RTO_COMBINED",
         }
+
+        filter_timestamp_name = "datetime_beginning"
+
         data = self._get_pjm_json(
-            "load_frcstd_7_day",
+            self.load_forecast_endpoint_name,
             start=None,
+            end=end,
             params=params,
             verbose=verbose,
+            filter_timestamp_name=filter_timestamp_name,
         )
+
+        return self._handle_load_forecast(data)
+
+    @support_date_range(frequency=None)
+    def get_load_forecast_historical(self, date, end=None, verbose=False):
+        """
+        Historical load forecast in hourly intervals. Historical forecasts include all
+        vintages of the forecast but has fewer regions than the current forecast.
+        """
+        # Historical data uses a different endpoint with slightly different fields.
+        params = {
+            "fields": (
+                "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_area,forecast_load_mw"  # noqa: E501
+            ),
+        }
+
+        filter_timestamp_name = "forecast_hour_beginning"
+
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone) + pd.DateOffset(
+                days=1,
+            )
+        else:
+            end = date + pd.DateOffset(days=1)
+
+        data = self._get_pjm_json(
+            self.load_forecast_historical_endpoint_name,
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            filter_timestamp_name=filter_timestamp_name,
+        )
+
+        return self._handle_load_forecast(data)
+
+    def _handle_load_forecast(self, data):
         data = data.rename(
             columns={
-                "evaluated_at_datetime_utc": "Forecast Time",
+                "evaluated_at_utc": "Publish Time",
+                "evaluated_at_datetime_utc": "Publish Time",
                 "forecast_load_mw": "Load Forecast",
                 "forecast_datetime_beginning_utc": "Interval Start",
+                "forecast_hour_beginning_utc": "Interval Start",
                 "forecast_datetime_ending_utc": "Interval End",
+                "forecast_area": "Forecast Area",
             },
         )
 
-        data.drop("forecast_area", axis=1, inplace=True)
+        data = data.pivot(
+            columns="Forecast Area",
+            values="Load Forecast",
+            index=["Publish Time", "Interval Start"],
+        ).reset_index()
 
-        data["Forecast Time"] = pd.to_datetime(
-            data["Forecast Time"],
+        data["Publish Time"] = pd.to_datetime(
+            data["Publish Time"],
             utc=True,
         ).dt.tz_convert(
             self.default_timezone,
@@ -585,30 +641,30 @@ class PJM(ISOBase):
             self.default_timezone,
         )
 
-        data["Interval End"] = pd.to_datetime(
-            data["Interval End"],
-            utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
+        # Only real-time data has Interval End
+        if "Interval End" in data.columns:
+            data["Interval End"] = pd.to_datetime(
+                data["Interval End"],
+                utc=True,
+            ).dt.tz_convert(
+                self.default_timezone,
+            )
+        else:
+            data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
+
+        if "RTO" in data.columns:
+            data["Load Forecast"] = data["RTO"]
+        elif "RTO_COMBINED" in data.columns:
+            data["Load Forecast"] = data["RTO_COMBINED"]
+
+        data = utils.move_cols_to_front(
+            data,
+            ["Interval Start", "Interval End", "Publish Time", "Load Forecast"],
         )
 
-        data["Time"] = data["Interval Start"]
-
-        data = data[
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Forecast Time",
-                "Load Forecast",
-            ]
-        ]
-
-        return data
-
-    # todo https://dataminer2.pjm.com/feed/load_frcstd_hist/definition
-    # def get_historical_forecast(self, date):
-    # pass
+        return data.sort_values(["Interval Start", "Publish Time"]).reset_index(
+            drop=True,
+        )
 
     def get_pnode_ids(self):
         data = {
