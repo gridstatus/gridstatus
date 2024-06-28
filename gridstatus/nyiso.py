@@ -1,7 +1,9 @@
+from datetime import datetime
 from typing import BinaryIO
 
 import pandas as pd
 import requests
+from zoneinfo import ZoneInfo
 
 import gridstatus
 from gridstatus import utils
@@ -870,7 +872,13 @@ class NYISO(ISOBase):
                     log(msg, verbose)
                     continue
                 df = pd.read_csv(z.open(csv_filename))
-                df["File Date"] = d.normalize()
+
+                # Get the modified date of the file
+
+                df["File Date"] = datetime(
+                    *z.getinfo(csv_filename).date_time,
+                    tzinfo=ZoneInfo(self.default_timezone),
+                )
 
                 df = _handle_time(df, dataset_name)
                 all_dfs.append(df)
