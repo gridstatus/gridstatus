@@ -838,7 +838,7 @@ class NYISO(ISOBase):
 
             df = pd.read_csv(csv_url)
             df = _handle_time(df, dataset_name)
-            df["File Date"] = date.normalize()
+            df["File Date"] = self._get_load_forecast_file_date(date, verbose)
         else:
             zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"  # noqa: E501
             z = utils.get_zip_folder(zip_url, verbose=verbose)
@@ -886,6 +886,20 @@ class NYISO(ISOBase):
             df = pd.concat(all_dfs)
 
         return df.sort_values("Time").reset_index(drop=True)
+
+    def _get_load_forecast_file_date(self, date, verbose=False):
+        data = pd.read_html(
+            "http://mis.nyiso.com/public/P-7list.htm",
+            skiprows=2,
+            header=0,
+        )[0]
+
+        last_updated_date = data.loc[
+            data["CSV Files"] == date.strftime("%m-%d-%Y"),
+            "Last Updated",
+        ].iloc[0]
+
+        return pd.Timestamp(last_updated_date, tz=self.default_timezone)
 
     def get_capacity_prices(self, date=None, verbose=False):
         """Pull the most recent capacity market report's market clearing prices
