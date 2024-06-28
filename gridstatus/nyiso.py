@@ -876,6 +876,7 @@ class NYISO(ISOBase):
                 df = pd.read_csv(z.open(csv_filename))
 
                 if add_file_date:
+                    # The File Date is the last modified time of the individual csv file
                     df["File Date"] = pd.Timestamp(
                         *z.getinfo(csv_filename).date_time,
                         tz=self.default_timezone,
@@ -889,6 +890,7 @@ class NYISO(ISOBase):
         return df.sort_values("Time").reset_index(drop=True)
 
     def _get_load_forecast_file_date(self, date, verbose=False):
+        """Retrieves the last updated time for load forecast file from the archive"""
         data = pd.read_html(
             "http://mis.nyiso.com/public/P-7list.htm",
             skiprows=2,
