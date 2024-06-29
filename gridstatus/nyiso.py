@@ -231,7 +231,6 @@ class NYISO(ISOBase):
             end=end,
             dataset_name="isolf",
             verbose=verbose,
-            add_file_date=True,
         )
 
         data = data[
@@ -794,7 +793,6 @@ class NYISO(ISOBase):
         dataset_name=None,
         filename=None,
         verbose=False,
-        add_file_date=False,
     ):
         """Download a dataset from NYISO's archive
 
@@ -808,7 +806,6 @@ class NYISO(ISOBase):
             filename (str): the name of the file to download.
                 if not provided, dataset_name is used
             verbose (bool): print out requested url
-            add_file_date (bool): add the file date to the dataframe
 
         Returns:
             pandas.DataFrame: the downloaded data
@@ -816,6 +813,10 @@ class NYISO(ISOBase):
         """
         if filename is None:
             filename = dataset_name
+
+        # We need to add the file date to the load forecast dataset to get the
+        # forecast publish time.
+        add_file_date = "isolf" == dataset_name
 
         date = gridstatus.utils._handle_date(date, self.default_timezone)
         month = date.strftime("%Y%m01")
