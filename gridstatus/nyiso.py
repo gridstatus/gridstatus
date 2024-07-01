@@ -814,6 +814,10 @@ class NYISO(ISOBase):
         if filename is None:
             filename = dataset_name
 
+        # We need to add the file date to the load forecast dataset to get the
+        # forecast publish time.
+        add_file_date = "isolf" == dataset_name
+
         date = gridstatus.utils._handle_date(date, self.default_timezone)
         month = date.strftime("%Y%m01")
         day = date.strftime("%Y%m%d")
@@ -836,7 +840,8 @@ class NYISO(ISOBase):
 
             df = pd.read_csv(csv_url)
             df = _handle_time(df, dataset_name)
-            df["File Date"] = date.normalize()
+            if add_file_date:
+                df["File Date"] = self._get_load_forecast_file_date(date, verbose)
         else:
             zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"  # noqa: E501
             z = utils.get_zip_folder(zip_url, verbose=verbose)
@@ -870,7 +875,13 @@ class NYISO(ISOBase):
                     log(msg, verbose)
                     continue
                 df = pd.read_csv(z.open(csv_filename))
-                df["File Date"] = d.normalize()
+
+                if add_file_date:
+                    # The File Date is the last modified time of the individual csv file
+                    df["File Date"] = pd.Timestamp(
+                        *z.getinfo(csv_filename).date_time,
+                        tz=self.default_timezone,
+                    )
 
                 df = _handle_time(df, dataset_name)
                 all_dfs.append(df)
@@ -878,6 +889,21 @@ class NYISO(ISOBase):
             df = pd.concat(all_dfs)
 
         return df.sort_values("Time").reset_index(drop=True)
+
+    def _get_load_forecast_file_date(self, date, verbose=False):
+        """Retrieves the last updated time for load forecast file from the archive"""
+        data = pd.read_html(
+            "http://mis.nyiso.com/public/P-7list.htm",
+            skiprows=2,
+            header=0,
+        )[0]
+
+        last_updated_date = data.loc[
+            data["CSV Files"] == date.strftime("%m-%d-%Y"),
+            "Last Updated",
+        ].iloc[0]
+
+        return pd.Timestamp(last_updated_date, tz=self.default_timezone)
 
     def get_capacity_prices(self, date=None, verbose=False):
         """Pull the most recent capacity market report's market clearing prices

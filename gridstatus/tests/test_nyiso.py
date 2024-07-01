@@ -410,6 +410,39 @@ class TestNYISO(BaseTestISO):
 
         assert df["Time"].dt.date.nunique() == 3
 
+    def test_load_forecast_today(self):
+        forecast = self.iso.get_load_forecast("today")
+
+        self._check_forecast(
+            forecast,
+            expected_columns=[
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ],
+        )
+
+    def test_load_forecast_historical_date_range(self):
+        end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
+        start = (end - pd.Timedelta(days=7)).date()
+        forecast = self.iso.get_load_forecast(
+            start,
+            end=end,
+        )
+
+        self._check_forecast(
+            forecast,
+            expected_columns=[
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ],
+        )
+
     @staticmethod
     def _check_status(df):
         assert set(df.columns) == set(
