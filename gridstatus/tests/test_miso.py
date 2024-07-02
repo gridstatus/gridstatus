@@ -38,15 +38,25 @@ class TestMISO(BaseTestISO):
 
     """get_lmp"""
 
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_lmp_date_range(self, markets=None):
-        pass
+    @with_markets(Markets.REAL_TIME_HOURLY_FINAL, Markets.REAL_TIME_HOURLY_PRELIM)
+    def test_get_lmp_date_range(self, market):
+        offset_from_today = 5 if market == Markets.REAL_TIME_HOURLY_FINAL else 1
+        super().test_lmp_date_range(market, offset_from_today)
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_HOURLY_FINAL,
+        Markets.REAL_TIME_HOURLY_PRELIM,
     )
     def test_get_lmp_historical(self, market):
-        super().test_get_lmp_historical(market)
+        if market == Markets.REAL_TIME_HOURLY_PRELIM:
+            date = self.local_today() - pd.Timedelta(days=2)
+        else:
+            date = self.local_today() - pd.Timedelta(days=100)
+
+        date_str = date.strftime("%Y-%m-%d")
+
+        super().test_get_lmp_historical(market, date_str=date_str)
 
     @with_markets(
         Markets.REAL_TIME_5_MIN,

@@ -190,18 +190,14 @@ class BaseTestISO(TestHelperMixin):
     """get_lmp"""
 
     # @pytest.mark.parametrize in ISO
-    def test_lmp_date_range(self, market=None):
-        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-        three_days_ago = today - pd.Timedelta(days=3)
-        df_1 = self.iso.get_lmp(
-            start=three_days_ago,
-            end=today,
-            market=market,
+    def test_lmp_date_range(self, market=None, offset_from_today=0):
+        end = pd.Timestamp.now(tz=self.iso.default_timezone).date() - pd.DateOffset(
+            days=offset_from_today,
         )
-        df_2 = self.iso.get_lmp(
-            date=(three_days_ago, today),
-            market=market,
-        )
+        three_days_ago = end - pd.Timedelta(days=3)
+
+        df_1 = self.iso.get_lmp(start=three_days_ago, end=end, market=market)
+        df_2 = self.iso.get_lmp(date=(three_days_ago, end), market=market)
 
         self._check_lmp_columns(df_1, market)
         assert df_1.equals(df_2)
