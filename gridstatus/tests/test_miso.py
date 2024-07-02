@@ -39,7 +39,7 @@ class TestMISO(BaseTestISO):
     """get_lmp"""
 
     @with_markets(Markets.REAL_TIME_HOURLY_FINAL, Markets.REAL_TIME_HOURLY_PRELIM)
-    def test_get_lmp_date_range(self, market):
+    def test_lmp_date_range(self, market):
         offset_from_today = 5 if market == Markets.REAL_TIME_HOURLY_FINAL else 1
         super().test_lmp_date_range(market, offset_from_today)
 
