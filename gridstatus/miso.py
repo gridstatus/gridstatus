@@ -265,16 +265,27 @@ class MISO(ISOBase):
         supports={
             Markets.REAL_TIME_5_MIN: ["latest", "today"],
             Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
+            Markets.REAL_TIME_HOURLY_FINAL: ["historical"],
+            Markets.REAL_TIME_HOURLY_PRELIM: ["historical"],
         },
     )
     @support_date_range(frequency="DAY_START")
-    def get_lmp(self, date, market: str, locations: list = "ALL", verbose=False):
-        # """
-        # Supported Markets:
-        #     - ``REAL_TIME_5_MIN`` - (FiveMinLMP)
-        #     - ``DAY_AHEAD_HOURLY`` - (DayAheadExPostLMP)
-        # """
-
+    def get_lmp(
+        self,
+        date,
+        end=None,
+        market: str = Markets.REAL_TIME_5_MIN,
+        locations: list = "ALL",
+        verbose=False,
+    ):
+        """
+        Supported Markets:
+            - ``REAL_TIME_5_MIN`` - (FiveMinLMP)
+            - ``DAY_AHEAD_HOURLY`` - (DayAheadExPostLMP)
+            - ``REAL_TIME_HOURLY_FINAL`` - (RealTimeFinalLMP)
+            - ``REAL_TIME_HOURLY_PRELIM`` - (RealTimePrelimLMP) Only 4 days of data
+                available, with the most recent being yesterday.
+        """
         if market == Markets.REAL_TIME_5_MIN:
             latest_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=currentinterval&returnType=csv"  # noqa
             today_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=rollingmarketday&returnType=csv"  # noqa
@@ -306,38 +317,26 @@ class MISO(ISOBase):
 
             interval_duration = 5
 
-        elif market == Markets.DAY_AHEAD_HOURLY:
-            url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_da_expost_lmp.csv"  # noqa
+        elif market in [
+            Markets.REAL_TIME_HOURLY_FINAL,
+            Markets.REAL_TIME_HOURLY_PRELIM,
+            Markets.DAY_AHEAD_HOURLY,
+        ]:
+            date_str = date.strftime("%Y%m%d")
+
+            if market == Markets.DAY_AHEAD_HOURLY:
+                url = f"https://docs.misoenergy.org/marketreports/{date_str}_da_expost_lmp.csv"  # noqa
+            elif market == Markets.REAL_TIME_HOURLY_FINAL:
+                url = f"https://docs.misoenergy.org/marketreports/{date_str}_rt_lmp_final.csv"  # noqa
+            elif market == Markets.REAL_TIME_HOURLY_PRELIM:
+                url = f"https://docs.misoenergy.org/marketreports/{date_str}_rt_lmp_prelim.csv"
+
             log(f"Downloading LMP data from {url}", verbose)
             raw_data = pd.read_csv(url, skiprows=4)
-            data_melted = raw_data.melt(
-                id_vars=["Node", "Type", "Value"],
-                value_vars=[col for col in raw_data.columns if col.startswith("HE")],
-                var_name="HE",
-                value_name="value",
-            )
-
-            data = data_melted.pivot_table(
-                index=["Node", "Type", "HE"],
-                columns="Value",
-                values="value",
-                aggfunc="first",
-            ).reset_index()
-
-            data["Interval Start"] = (
-                data["HE"]
-                .apply(
-                    lambda x: date.replace(tzinfo=None, hour=int(x.split(" ")[1]) - 1),
-                )
-                .dt.tz_localize(self.default_timezone)
-            )
-
+            data = self._handle_hourly_lmp(date, raw_data)
             interval_duration = 60
 
-        data = data.sort_values(
-            ["Interval Start", "Node"],
-        )
-
+        data = data.sort_values(["Interval Start", "Node"])
         data = add_interval_end(data, interval_duration)
 
         rename = {
@@ -356,7 +355,6 @@ class MISO(ISOBase):
         )
 
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
-
         data["Market"] = market.value
 
         data = data[
@@ -375,6 +373,31 @@ class MISO(ISOBase):
         ]
 
         data = utils.filter_lmp_locations(data, locations)
+
+        return data
+
+    def _handle_hourly_lmp(self, date, raw_data):
+        data_melted = raw_data.melt(
+            id_vars=["Node", "Type", "Value"],
+            value_vars=[col for col in raw_data.columns if col.startswith("HE")],
+            var_name="HE",
+            value_name="value",
+        )
+
+        data = data_melted.pivot_table(
+            index=["Node", "Type", "HE"],
+            columns="Value",
+            values="value",
+            aggfunc="first",
+        ).reset_index()
+
+        data["Interval Start"] = (
+            data["HE"]
+            .apply(
+                lambda x: date.replace(tzinfo=None, hour=int(x.split(" ")[1]) - 1),
+            )
+            .dt.tz_localize(self.default_timezone)
+        )
 
         return data
 
