@@ -30,7 +30,13 @@ class MISO(ISOBase):
     # Source: https://www.rtoinsider.com/25291-ferc-oks-miso-use-of-eastern-standard-time-in-day-ahead-market/ # noqa
     default_timezone = "EST"
 
-    markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
+    markets = [
+        Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_5_MIN_WEEKLY,
+        Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_HOURLY_FINAL,
+        Markets.REAL_TIME_HOURLY_PRELIM,
+    ]
 
     hubs = [
         "ILLINOIS.HUB",
@@ -268,7 +274,7 @@ class MISO(ISOBase):
 
         Data from: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3AHistorical%20LMP%2FMarketReportName%3AWeekly%20Real-Time%205-Min%20LMP%20(zip)&t=10&p=0&s=MarketReportPublished&sd=desc
         """
-        if date in ["today", "latest"]:
+        if date == "latest" or utils.is_today(date, tz=self.default_timezone):
             raise NotSupported("Only historical data is available for weekly LMPs")
 
         if not date.weekday() == 0:
@@ -283,7 +289,17 @@ class MISO(ISOBase):
 
         download_url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_5MIN_LMP.zip"
 
-        df = pd.read_csv(download_url, compression="zip", skiprows=4, skipfooter=1)
+        try:
+            df = pd.read_csv(
+                download_url,
+                compression="zip",
+                skiprows=4,
+                skipfooter=1,
+                # The c parser does not support skipfooter
+                engine="python",
+            )
+        except urllib.error.HTTPError:
+            raise NoDataFoundException(f"No LMP data found for {date}")
 
         return self._handle_lmp_weekly(df, verbose)
 
@@ -291,7 +307,7 @@ class MISO(ISOBase):
         df["Interval Start"] = pd.to_datetime(df["MKTHOUR_EST"]).dt.tz_localize(
             self.default_timezone,
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+        df = add_interval_end(df, 5).drop(columns=["Time"])
 
         df = df.rename(
             columns={
@@ -310,7 +326,7 @@ class MISO(ISOBase):
         )
 
         df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
-        df["Market"] = Markets.REAL_TIME_5_MIN.value
+        df["Market"] = Markets.REAL_TIME_5_MIN_WEEKLY.value
 
         df = utils.move_cols_to_front(
             df,

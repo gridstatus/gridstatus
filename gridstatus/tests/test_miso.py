@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from gridstatus import MISO, NotSupported
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 
@@ -55,13 +55,14 @@ class TestMISO(BaseTestISO):
             "5min",
         )
 
+        assert df["Market"].unique().tolist() == [Markets.REAL_TIME_5_MIN_WEEKLY.value]
+
     def test_get_lmp_weekly_today_or_latest_raises(self):
         with pytest.raises(NotSupported):
-            super().test_get_lmp_weekly_today_or_latest_raises()
+            self.iso.get_lmp_weekly("today")
 
     def test_get_lmp_weekly_historical_date(self):
         date = self.local_today() - pd.Timedelta(days=300)
-
         df = self.iso.get_lmp_weekly(date)
 
         most_recent_monday = self.local_start_of_day(date) - pd.DateOffset(
@@ -84,9 +85,15 @@ class TestMISO(BaseTestISO):
         )
 
         assert df["Interval Start"].min() == most_recent_monday
-        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=14)
+        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=21)
 
         self._check_lmp_weekly(df)
+
+    def test_get_lmp_weekly_raises_error_if_no_data(self):
+        date = self.local_today() - pd.DateOffset(days=5)
+
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_lmp_weekly(date)
 
     """get_lmp"""
 
