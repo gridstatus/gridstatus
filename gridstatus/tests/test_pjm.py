@@ -892,10 +892,12 @@ class TestPJM(BaseTestISO):
 
         self._check_five_min_solar_generation(df)
 
-        # There could be missing data at the first interval, so we
-        # can only assert that all of the values are for the present day.
+        # There could be missing data at the start or end, so we
+        # can only assert that all of the values are for the correct day
+        # and don't contain intervals that start after end of day.
         assert (df["Interval Start"].dt.day == self.local_start_of_today().day).all()
-        assert df["Interval End"].max() <= (
+        assert df["Interval Start"].min() >= self.local_start_of_today()
+        assert df["Interval Start"].max() < (
             self.local_start_of_today() + pd.Timedelta(days=1)
         )
 
@@ -908,10 +910,12 @@ class TestPJM(BaseTestISO):
 
         self._check_five_min_solar_generation(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(
-            past_date,
-        )
-        assert df["Interval End"].max() >= self.local_start_of_day(
+        # There could be missing data at the start or end, so we
+        # can only assert that all of the values are for the correct day
+        # and don't contain intervals that start after end of day.
+        assert (df["Interval Start"].dt.day == past_date.day).all()
+        assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+        assert df["Interval Start"].max() < self.local_start_of_day(
             past_date,
         ) + pd.Timedelta(days=1)
 
@@ -923,5 +927,63 @@ class TestPJM(BaseTestISO):
 
         self._check_five_min_solar_generation(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
-        assert df["Interval End"].max() >= self.local_start_of_day(past_end_date)
+        assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+        assert df["Interval Start"].max() <= self.local_start_of_day(past_end_date)
+
+    """get_instantaneous_wind_generation"""
+
+    def _check_instantaneous_wind_generation(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Wind Generation",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    def test_get_instantaneous_wind_generation_today_or_latest(self):
+        df = self.iso.get_instantaneous_wind_generation("today")
+
+        self._check_instantaneous_wind_generation(df)
+
+        # There could be missing data at the start or end, so we
+        # can only assert that all of the values are for the correct day
+        # and don't contain intervals that start after end of day.
+        assert (df["Interval Start"].dt.day == self.local_start_of_today().day).all()
+        assert df["Interval Start"].min() >= self.local_start_of_today()
+        assert df["Interval Start"].max() < (
+            self.local_start_of_today() + pd.Timedelta(days=1)
+        )
+
+        assert self.iso.get_instantaneous_wind_generation("latest").equals(df)
+
+    def test_get_instantaneous_wind_generation_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+
+        df = self.iso.get_instantaneous_wind_generation(past_date)
+
+        self._check_instantaneous_wind_generation(df)
+
+        # There could be missing data at the start or end, so we
+        # can only assert that all of the values are for the correct day
+        # and don't contain intervals that start after end of day.
+        assert (df["Interval Start"].dt.day == past_date.day).all()
+        assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+        assert df["Interval Start"].max() < self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=1)
+
+    def test_get_instantaneous_wind_generation_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=12)
+        past_end_date = past_date + pd.Timedelta(days=3)
+
+        df = self.iso.get_instantaneous_wind_generation(past_date, past_end_date)
+
+        self._check_instantaneous_wind_generation(df)
+
+        assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+        assert df["Interval Start"].max() <= self.local_start_of_day(past_end_date)

@@ -1403,9 +1403,18 @@ class PJM(ISOBase):
         verbose: Optional[bool] = False,
     ):
         """
-        Retrieves the 5 min solar generation data
-        From: https://dataminer2.pjm.com/feed/five_min_solar_generation/definition
-        Only available in past 30 days
+        Retrieves the 5 min solar generation data from:
+        https://dataminer2.pjm.com/feed/five_min_solar_generation/definition
+        Only available in past 30 days.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with 5 minute solar generation data.
         """
         if date == "latest":
             date = "today"
@@ -1437,6 +1446,63 @@ class PJM(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Solar Generation",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_instantaneous_wind_generation(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the instantaneous wind generation data from:
+        https://dataminer2.pjm.com/feed/instantaneous_wind_gen/definition
+        Only available in past 30 days.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with instantaneous wind generation data
+                in 15 second intervals.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "instantaneous_wind_gen",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "wind_generation_mw",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=0.25,
+            verbose=verbose,
+        )
+
+        return self._parse_instantaneous_wind_generation(df)
+
+    def _parse_instantaneous_wind_generation(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "wind_generation_mw": "Wind Generation",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Wind Generation",
             ]
         ]
 
