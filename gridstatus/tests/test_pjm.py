@@ -871,3 +871,57 @@ class TestPJM(BaseTestISO):
 
         assert df.shape[0] == 800 * unique_area_count
         assert df["Publish Time"].nunique() == 800
+
+    """get_five_min_solar_generation"""
+
+    def _check_five_min_solar_generation(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Solar Generation",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    def test_get_five_min_solar_generation_today_or_latest(self):
+        df = self.iso.get_five_min_solar_generation("today")
+
+        self._check_five_min_solar_generation(df)
+
+        # There could be missing data at the first interval, so we
+        # can only assert that all of the values are for the present day.
+        assert (df["Interval Start"].dt.day == self.local_start_of_today().day).all()
+        assert df["Interval End"].max() <= (
+            self.local_start_of_today() + pd.Timedelta(days=1)
+        )
+
+        assert self.iso.get_five_min_solar_generation("latest").equals(df)
+
+    def test_get_five_min_solar_generation_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+
+        df = self.iso.get_five_min_solar_generation(past_date)
+
+        self._check_five_min_solar_generation(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            past_date,
+        )
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=1)
+
+    def test_get_five_min_solar_generation_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=12)
+        past_end_date = past_date + pd.Timedelta(days=3)
+
+        df = self.iso.get_five_min_solar_generation(past_date, past_end_date)
+
+        self._check_five_min_solar_generation(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() >= self.local_start_of_day(past_end_date)

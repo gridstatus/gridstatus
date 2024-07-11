@@ -1,7 +1,7 @@
 import math
 import os
 import warnings
-from typing import BinaryIO
+from typing import BinaryIO, Optional
 
 import pandas as pd
 import requests
@@ -1394,3 +1394,50 @@ class PJM(ISOBase):
         return pd.to_datetime(df[column_name]).dt.tz_localize(
             self.default_timezone,
         )
+
+    @support_date_range(frequency=None)
+    def get_five_min_solar_generation(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the 5 min solar generation data
+        From: https://dataminer2.pjm.com/feed/five_min_solar_generation/definition
+        Only available in past 30 days
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "five_min_solar_generation",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "solar_generation_mw",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        return self._parse_five_min_solar_generation(df)
+
+    def _parse_five_min_solar_generation(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "solar_generation_mw": "Solar Generation",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Solar Generation",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
