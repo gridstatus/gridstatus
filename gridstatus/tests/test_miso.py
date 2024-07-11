@@ -108,6 +108,7 @@ class TestMISO(BaseTestISO):
         Markets.REAL_TIME_HOURLY_PRELIM,
     )
     def test_get_lmp_historical(self, market):
+        # Prelim data only goes back 4 days
         if market == Markets.REAL_TIME_HOURLY_PRELIM:
             date = self.local_today() - pd.Timedelta(days=2)
         else:
