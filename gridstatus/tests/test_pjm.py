@@ -874,12 +874,8 @@ class TestPJM(BaseTestISO):
 
     """get_five_min_solar_generation"""
 
-    def _check_five_min_solar_generation(self, df, start, end):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Solar Generation",
-        ]
+    def _check_pjm_generation(self, df, expected_cols, start, end):
+        assert df.columns.tolist() == expected_cols
 
         is_single_day = start.date == end.date
         if is_single_day:
@@ -898,11 +894,22 @@ class TestPJM(BaseTestISO):
             skip_column_named_time=True,
         )
 
+    expected_five_min_solar_gen_cols = [
+        "Interval Start",
+        "Interval End",
+        "Solar Generation",
+    ]
+
     def test_get_five_min_solar_generation_today_or_latest(self):
         df = self.iso.get_five_min_solar_generation("today")
         range_start = self.local_start_of_today()
         range_end = self.local_start_of_today() + pd.Timedelta(days=1)
-        self._check_five_min_solar_generation(df=df, start=range_start, end=range_end)
+        self._check_pjm_generation(
+            df=df,
+            expected_cols=self.expected_five_min_solar_gen_cols,
+            start=range_start,
+            end=range_end,
+        )
 
         assert self.iso.get_five_min_solar_generation("latest").equals(df)
 
@@ -913,7 +920,12 @@ class TestPJM(BaseTestISO):
 
         df = self.iso.get_five_min_solar_generation(past_date)
 
-        self._check_five_min_solar_generation(df=df, start=range_start, end=range_end)
+        self._check_pjm_generation(
+            df=df,
+            expected_cols=self.expected_five_min_solar_gen_cols,
+            start=range_start,
+            end=range_end,
+        )
 
     def test_get_five_min_solar_generation_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
@@ -923,41 +935,29 @@ class TestPJM(BaseTestISO):
 
         df = self.iso.get_five_min_solar_generation(past_date, past_end_date)
 
-        self._check_five_min_solar_generation(df=df, start=range_start, end=range_end)
+        self._check_pjm_generation(
+            df=df,
+            expected_cols=self.expected_five_min_solar_gen_cols,
+            start=range_start,
+            end=range_end,
+        )
 
     """get_instantaneous_wind_generation"""
 
-    def _check_instantaneous_wind_generation(self, df, start, end):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Wind Generation",
-        ]
-
-        is_single_day = start.date == end.date
-        if is_single_day:
-            # Make sure all the intervals start on the specified day
-            assert (df["Interval Start"].dt.day == start.day).all()
-
-        # There could be missing data at the start or end, so we
-        # can only assert that all of the values are between the specified
-        # start and stop times.
-        assert df["Interval Start"].min() >= start
-        assert df["Interval Start"].max() < end
-
-        self._check_time_columns(
-            df,
-            instant_or_interval="interval",
-            skip_column_named_time=True,
-        )
+    expected_wind_gen_cols = [
+        "Interval Start",
+        "Interval End",
+        "Wind Generation",
+    ]
 
     def test_get_instantaneous_wind_generation_today_or_latest(self):
         df = self.iso.get_instantaneous_wind_generation("today")
         range_start = self.local_start_of_today()
         range_end = self.local_start_of_today() + pd.Timedelta(days=1)
 
-        self._check_instantaneous_wind_generation(
+        self._check_pjm_generation(
             df=df,
+            expected_cols=self.expected_wind_gen_cols,
             start=range_start,
             end=range_end,
         )
@@ -971,8 +971,9 @@ class TestPJM(BaseTestISO):
 
         df = self.iso.get_instantaneous_wind_generation(past_date)
 
-        self._check_instantaneous_wind_generation(
+        self._check_pjm_generation(
             df=df,
+            expected_cols=self.expected_wind_gen_cols,
             start=range_start,
             end=range_end,
         )
@@ -985,8 +986,9 @@ class TestPJM(BaseTestISO):
 
         df = self.iso.get_instantaneous_wind_generation(past_date, past_end_date)
 
-        self._check_instantaneous_wind_generation(
+        self._check_pjm_generation(
             df=df,
+            expected_cols=self.expected_wind_gen_cols,
             start=range_start,
             end=range_end,
         )
