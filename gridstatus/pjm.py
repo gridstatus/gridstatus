@@ -1396,7 +1396,7 @@ class PJM(ISOBase):
         )
 
     @support_date_range(frequency=None)
-    def get_five_min_solar_generation(
+    def get_solar_generation_5_min(
         self,
         date: str | pd.Timestamp,
         end: Optional[str | pd.Timestamp] = None,
@@ -1432,9 +1432,9 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        return self._parse_five_min_solar_generation(df)
+        return self._parse_solar_generation_5_min(df)
 
-    def _parse_five_min_solar_generation(self, df: pd.DataFrame):
+    def _parse_solar_generation_5_min(self, df: pd.DataFrame):
         df = df.rename(
             columns={
                 "solar_generation_mw": "Solar Generation",
@@ -1452,7 +1452,7 @@ class PJM(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_instantaneous_wind_generation(
+    def get_wind_generation_instantaneous(
         self,
         date: str | pd.Timestamp,
         end: Optional[str | pd.Timestamp] = None,
@@ -1489,9 +1489,9 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        return self._parse_instantaneous_wind_generation(df)
+        return self._parse_wind_generation_instantaneous(df)
 
-    def _parse_instantaneous_wind_generation(self, df: pd.DataFrame):
+    def _parse_wind_generation_instantaneous(self, df: pd.DataFrame):
         df = df.rename(
             columns={
                 "wind_generation_mw": "Wind Generation",

@@ -872,7 +872,7 @@ class TestPJM(BaseTestISO):
         assert df.shape[0] == 800 * unique_area_count
         assert df["Publish Time"].nunique() == 800
 
-    """get_five_min_solar_generation"""
+    """get_solar_generation_5_min"""
 
     def _check_pjm_generation(self, df, expected_cols, start, end):
         assert df.columns.tolist() == expected_cols
@@ -900,8 +900,8 @@ class TestPJM(BaseTestISO):
         "Solar Generation",
     ]
 
-    def test_get_five_min_solar_generation_today_or_latest(self):
-        df = self.iso.get_five_min_solar_generation("today")
+    def test_get_solar_generation_5_min_today_or_latest(self):
+        df = self.iso.get_solar_generation_5_min("today")
         range_start = self.local_start_of_today()
         range_end = self.local_start_of_today() + pd.Timedelta(days=1)
         self._check_pjm_generation(
@@ -911,14 +911,14 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-        assert self.iso.get_five_min_solar_generation("latest").equals(df)
+        assert self.iso.get_solar_generation_5_min("latest").equals(df)
 
-    def test_get_five_min_solar_generation_historical_date(self):
+    def test_get_solar_generation_5_min_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
 
-        df = self.iso.get_five_min_solar_generation(past_date)
+        df = self.iso.get_solar_generation_5_min(past_date)
 
         self._check_pjm_generation(
             df=df,
@@ -927,13 +927,13 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-    def test_get_five_min_solar_generation_historical_range(self):
+    def test_get_solar_generation_5_min_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
 
-        df = self.iso.get_five_min_solar_generation(past_date, past_end_date)
+        df = self.iso.get_solar_generation_5_min(past_date, past_end_date)
 
         self._check_pjm_generation(
             df=df,
@@ -942,7 +942,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-    """get_instantaneous_wind_generation"""
+    """get_wind_generation_instantaneous"""
 
     expected_wind_gen_cols = [
         "Interval Start",
@@ -950,8 +950,8 @@ class TestPJM(BaseTestISO):
         "Wind Generation",
     ]
 
-    def test_get_instantaneous_wind_generation_today_or_latest(self):
-        df = self.iso.get_instantaneous_wind_generation("today")
+    def test_get_wind_generation_instantaneous_today_or_latest(self):
+        df = self.iso.get_wind_generation_instantaneous("today")
         range_start = self.local_start_of_today()
         range_end = self.local_start_of_today() + pd.Timedelta(days=1)
 
@@ -962,14 +962,14 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-        assert self.iso.get_instantaneous_wind_generation("latest").equals(df)
+        assert self.iso.get_wind_generation_instantaneous("latest").equals(df)
 
-    def test_get_instantaneous_wind_generation_historical_date(self):
+    def test_get_wind_generation_instantaneous_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
 
-        df = self.iso.get_instantaneous_wind_generation(past_date)
+        df = self.iso.get_wind_generation_instantaneous(past_date)
 
         self._check_pjm_generation(
             df=df,
@@ -978,13 +978,13 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-    def test_get_instantaneous_wind_generation_historical_range(self):
+    def test_get_wind_generation_instantaneous_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
 
-        df = self.iso.get_instantaneous_wind_generation(past_date, past_end_date)
+        df = self.iso.get_wind_generation_instantaneous(past_date, past_end_date)
 
         self._check_pjm_generation(
             df=df,
