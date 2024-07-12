@@ -419,9 +419,15 @@ class MISO(ISOBase):
         data = data.sort_values(["Interval Start", "Node"])
         data = add_interval_end(data, interval_duration)
 
-        rename = {"Node": "Location", "MLC": "Loss", "MCC": "Congestion"}
-
-        data.rename(columns=rename, inplace=True)
+        data = data.rename(
+            columns={
+                "Node": "Location",
+                "Type": "Location Type",
+                "LMP": "LMP",
+                "MLC": "Loss",
+                "MCC": "Congestion",
+            },
+        )
 
         data[["LMP", "Loss", "Congestion"]] = data[["LMP", "Loss", "Congestion"]].apply(
             pd.to_numeric,

@@ -108,6 +108,7 @@ class TestMISO(BaseTestISO):
         Markets.REAL_TIME_HOURLY_PRELIM,
     )
     def test_get_lmp_historical(self, market):
+        # Prelim data only goes back 4 days
         if market == Markets.REAL_TIME_HOURLY_PRELIM:
             date = self.local_today() - pd.Timedelta(days=2)
         else:
@@ -252,7 +253,7 @@ class TestMISO(BaseTestISO):
         assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
 
     def test_get_solar_forecast_historical_date_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=250)
+        past_date = self.local_today() - pd.Timedelta(days=200)
         end_date = past_date + pd.Timedelta(days=3)
 
         df = self.iso.get_solar_forecast(
@@ -297,7 +298,7 @@ class TestMISO(BaseTestISO):
         assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
 
     def test_get_wind_forecast_historical_date_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=250)
+        past_date = self.local_today() - pd.Timedelta(days=200)
         end_date = past_date + pd.Timedelta(days=3)
 
         df = self.iso.get_wind_forecast(
