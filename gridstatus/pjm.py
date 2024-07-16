@@ -1566,3 +1566,66 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_transfer_interface_information_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the transfer interface information from:
+        https://dataminer2.pjm.com/feed/transfer_interface_infor/definition
+        Only available in past 30 days.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with transfer interface information
+            in 5 minute intervals.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "transfer_interface_infor",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,name,"
+                "actual_flow,warning_level,transfer_limit"
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        return self._parse_transfer_interface_information_5_min(df)
+
+    def _parse_transfer_interface_information_5_min(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "name": "Interface Name",
+                "actual_flow": "Actual Flow",
+                "warning_level": "Warning Level",
+                "transfer_limit": "Transfer Limit",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Interface Name",
+                "Actual Flow",
+                "Warning Level",
+                "Transfer Limit",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
