@@ -1507,3 +1507,62 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_operational_reserves(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the reserve market quantities in Megawatts from:
+        https://dataminer2.pjm.com/feed/operational_reserves/definition
+        Only available in past 15 days.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with reserve market quantities
+                in 15 second intervals.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "operational_reserves",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "reserve_name,reserve_mw",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=0.25,
+            verbose=verbose,
+        )
+
+        return self._parse_operational_reserves(df)
+
+    def _parse_operational_reserves(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "reserve_name": "Reserve Name",
+                "reserve_mw": "Reserve",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Reserve Name",
+                "Reserve",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
