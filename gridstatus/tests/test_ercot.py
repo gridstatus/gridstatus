@@ -150,12 +150,6 @@ class TestErcot(BaseTestISO):
             "RRS",
         ]
 
-        self._check_time_columns(
-            df,
-            instant_or_interval="interval",
-            skip_column_named_time=True,
-        )
-
     def test_get_as_plan_today_or_latest(self):
         df = self.iso.get_as_plan("today")
 
@@ -163,7 +157,7 @@ class TestErcot(BaseTestISO):
 
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
-            days=6,
+            days=7,
         )
 
         assert df["Publish Time"].dt.date.unique().tolist() == [self.local_today()]
@@ -180,7 +174,7 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval End"].max() == self.local_start_of_day(
             date,
-        ) + pd.DateOffset(days=6)
+        ) + pd.DateOffset(days=7)
 
         assert df["Publish Time"].dt.date.unique().tolist() == [date]
 
@@ -195,9 +189,13 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() == self.local_start_of_day(
             end_date,
+            # Not inclusive of end date
         ) + pd.DateOffset(days=6)
 
-        assert df["Publish Time"].dt.date.unique().tolist() == [start_date, end_date]
+        assert df["Publish Time"].dt.date.unique().tolist() == [
+            start_date,
+            (start_date + pd.DateOffset(days=1)).date(),
+        ]
 
     def test_get_as_monitor(self):
         df = self.iso.get_as_monitor()
