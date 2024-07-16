@@ -1098,3 +1098,57 @@ class TestPJM(BaseTestISO):
             start=range_start,
             end=range_end,
         )
+
+    """get_transfer_interface_information_5_min"""
+
+    expected_transmission_limits_cols = [
+        "Interval Start",
+        "Interval End",
+        "Constraint Name",
+        "Constraint Type",
+        "Contingency",
+        "Shadow Price",
+    ]
+
+    def test_get_transmission_limits_today_or_latest(self):
+        df = self.iso.get_transmission_limits("today")
+        range_start = self.local_start_of_today()
+        range_end = self.local_start_of_today() + pd.Timedelta(days=1)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_transmission_limits_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+        assert self.iso.get_transmission_limits("latest").equals(df)
+
+    def test_get_transmission_limits_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
+
+        df = self.iso.get_transmission_limits(past_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_transmission_limits_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+    def test_get_transmission_limits_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_end_date)
+
+        df = self.iso.get_transmission_limits(past_date, past_end_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_transmission_limits_cols,
+            start=range_start,
+            end=range_end,
+        )

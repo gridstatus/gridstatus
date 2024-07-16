@@ -1629,3 +1629,67 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_transmission_limits(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the current transmission limit information from:
+        https://dataminer2.pjm.com/feed/transfer_interface_infor/definition
+        Only available in past 30 days. Data is published only when constraints
+        exist for that five minute interval.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with transmission limit information
+            in 5 minute intervals, when data is available.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "transmission_limits",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "constraint_name,constraint_type,contingency,shadow_price",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        return self._parse_transmission_limits(df)
+
+    def _parse_transmission_limits(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "constraint_name": "Constraint Name",
+                "constraint_type": "Constraint Type",
+                "contingency": "Contingency",
+                "shadow_price": "Shadow Price",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Constraint Type",
+                "Contingency",
+                "Shadow Price",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
