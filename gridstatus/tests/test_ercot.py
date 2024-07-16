@@ -136,6 +136,69 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == as_cols
         assert df["Time"].unique()[0].date() == date
 
+    """get_as_plan"""
+
+    def _check_as_plan(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "ECRS",
+            "NSPIN",
+            "REGDN",
+            "REGUP",
+            "RRS",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    def test_get_as_plan_today_or_latest(self):
+        df = self.iso.get_as_plan("today")
+
+        self._check_as_plan(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            days=6,
+        )
+
+        assert df["Publish Time"].dt.date.unique().tolist() == [self.local_today()]
+
+        assert self.iso.get_as_plan("latest").equals(df)
+
+    def test_get_as_plan_historical_date(self):
+        date = self.local_today() - pd.Timedelta(days=30)
+
+        df = self.iso.get_as_plan(date)
+
+        self._check_as_plan(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date,
+        ) + pd.DateOffset(days=6)
+
+        assert df["Publish Time"].dt.date.unique().tolist() == [date]
+
+    def test_get_as_plan_historical_date_range(self):
+        start_date = self.local_today() - pd.Timedelta(days=30)
+        end_date = start_date + pd.Timedelta(days=2)
+
+        df = self.iso.get_as_plan(start_date, end_date)
+
+        self._check_as_plan(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            end_date,
+        ) + pd.DateOffset(days=6)
+
+        assert df["Publish Time"].dt.date.unique().tolist() == [start_date, end_date]
+
     def test_get_as_monitor(self):
         df = self.iso.get_as_monitor()
 

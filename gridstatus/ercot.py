@@ -53,6 +53,10 @@ SCED_SYSTEM_LAMBDA_RTID = 13114
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-188-CD
 DAM_CLEARING_PRICES_FOR_CAPACITY_RTID = 12329
 
+# DAM Ancillary Service Plan
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-33-CD
+DAM_ANCILLARY_SERVICE_PLAN_RTID = 12316
+
 # DAM Settlement Point Prices
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-190-CD
 DAM_SETTLEMENT_POINT_PRICES_RTID = 12331
@@ -1377,6 +1381,61 @@ class Ercot(ISOBase):
             doc,
             pivot=True,
         )
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_as_plan(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Ancillary Service requirements by type and quantity for each hour of the
+        current day plus the next 6 days
+
+        Arguments:
+            date (datetime.date, str): date of delivery for AS services
+
+            end (datetime.date, str, optional): if declared, function will return
+                data as a range, from "date" to "end"
+
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with prices for ECRS, NSPIN, REGDN, REGUP, RRS
+        """
+        if date == "latest":
+            return self.get_as_plan("today", verbose=verbose)
+
+        doc_info = self._get_document(
+            report_type_id=DAM_ANCILLARY_SERVICE_PLAN_RTID,
+            date=date,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        msg = f"Downloading {doc_info.url}"
+        log(msg, verbose)
+
+        doc = self.read_doc(doc_info, verbose=verbose).drop(columns=["Time"])
+        doc["Publish Time"] = doc_info.publish_date
+
+        return self._handle_as_plan(doc)
+
+    def _handle_as_plan(self, doc):
+        df = doc.pivot(
+            index=["Interval Start", "Interval End", "Publish Time"],
+            columns="AncillaryType",
+            values="Quantity",
+        ).reset_index()
+
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time"],
+        ).sort_values(["Interval Start", "Publish Time"])
+
+        df.columns.name = None
 
         return df
 
