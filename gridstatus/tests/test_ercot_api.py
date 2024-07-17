@@ -336,11 +336,11 @@ class TestErcotAPI(TestHelperMixin):
             "Interval Start",
             "Interval End",
             "Publish Time",
-            "ECRS",
             "NSPIN",
             "REGDN",
             "REGUP",
             "RRS",
+            "ECRS",
         ]
 
     def test_get_as_plan_today_or_latest(self):

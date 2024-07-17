@@ -1430,9 +1430,19 @@ class Ercot(ISOBase):
             values="Quantity",
         ).reset_index()
 
+        # Put ECRS at the end to match as_prices
         df = utils.move_cols_to_front(
             df,
-            ["Interval Start", "Interval End", "Publish Time"],
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "NSPIN",
+                "REGDN",
+                "REGUP",
+                "RRS",
+                "ECRS",
+            ],
         ).sort_values(["Interval Start", "Publish Time"])
 
         df.columns.name = None
