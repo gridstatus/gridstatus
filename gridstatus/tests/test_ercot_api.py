@@ -408,6 +408,11 @@ class TestErcotAPI(TestHelperMixin):
             # Earlier files only contain two days of data
         ) + pd.DateOffset(days=2)
 
+        # First date of data
+        date = "2010-12-29"
+        df = self.iso.get_as_plan(date)
+        self._check_as_plan(df)
+
     """get_lmp_by_settlement_point"""
 
     def _check_lmp_by_settlement_point(self, df):

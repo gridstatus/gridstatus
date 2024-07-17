@@ -1430,6 +1430,11 @@ class Ercot(ISOBase):
             values="Quantity",
         ).reset_index()
 
+        # For some hours where there are no values, the data has "Not Applicable"
+        # which becomes a column in the pivot. We want to drop this column
+        if "Not Applicable" in df.columns:
+            df = df.drop(columns=["Not Applicable"])
+
         # ECRS went live 2023-06-10 and isn't present in the data before then
         if "ECRS" not in df.columns:
             df["ECRS"] = pd.NA
