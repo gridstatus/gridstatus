@@ -97,6 +97,7 @@ class ErcotAPI:
         username: str = None,
         password: str = None,
         subscription_key: str = None,
+        sleep_seconds: float = 0.2,
     ):
         self.username = username or os.getenv("ERCOT_API_USERNAME")
         self.password = password or os.getenv("ERCOT_API_PASSWORD")
@@ -115,6 +116,8 @@ class ErcotAPI:
         self.token = None
         self.token_expiry = None
         self.ercot = Ercot()
+
+        self.sleep_seconds = sleep_seconds
 
     def _local_now(self):
         return pd.Timestamp("now", tz=self.default_timezone)
@@ -866,7 +869,6 @@ class ErcotAPI:
         start_date,
         end_date,
         read_as_csv=True,
-        sleep_seconds=0.15,
         add_post_datetime=False,
         verbose=False,
     ):
@@ -889,8 +891,6 @@ class ErcotAPI:
                 postDatetimeTo query parameter.
             read_as_csv [bool]: if True, will read the data as a csv. Otherwise, will
                 return the bytes.
-            sleep_seconds [float]: the number of seconds to sleep between requests.
-                Increase if you are getting rate limited.
             add_post_datetime [bool]: if True, will add the postDatetime to the
                 dataframe. This is used for getting publish times.
             verbose [bool]: if True, will print out status messages
@@ -949,20 +949,20 @@ class ErcotAPI:
                         dfs.append(df)
 
                     # Necessary to avoid rate limiting
-                    time.sleep(sleep_seconds)
+                    time.sleep(self.sleep_seconds)
                     break  # Exit the loop if the operation is successful
 
                 except Exception as e:
                     if "Rate limit is exceeded" in response.decode("utf-8"):
                         # Rate limited, so sleep for a longer time
                         log(
-                            f"Rate limited. Sleeping for {sleep_seconds * 10} seconds",
+                            f"Rate limited. Sleeping {self.sleep_seconds * 10} seconds",
                             verbose,
                         )
-                        time.sleep(sleep_seconds * 10)
+                        time.sleep(self.sleep_seconds * 10)
                     else:
                         log(f"Link: {link} failed with error: {e}", verbose)
-                        time.sleep(sleep_seconds)  # Wait before retrying
+                        time.sleep(self.sleep_seconds)  # Wait before retrying
 
                     retries += 1
 

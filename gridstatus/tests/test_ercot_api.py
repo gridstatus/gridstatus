@@ -371,6 +371,8 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Publish Time"].dt.date.unique().tolist() == [date]
 
+        assert df["ECRS"].notna().any()
+
     def test_get_as_plan_historical_date_range(self):
         start_date = self.local_today() - pd.Timedelta(days=30)
         end_date = start_date + pd.Timedelta(days=2)
@@ -389,6 +391,27 @@ class TestErcotAPI(TestHelperMixin):
             start_date,
             (start_date + pd.DateOffset(days=1)).date(),
         ]
+
+    def test_get_as_plan_before_ecrs(self):
+        # Check that we add an ECRS column of nulls if it's not present
+        date = "2012-05-01"
+
+        df = self.iso.get_as_plan(date)
+
+        self._check_as_plan(df)
+
+        assert df["ECRS"].isna().all()
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date,
+            # Earlier files only contain two days of data
+        ) + pd.DateOffset(days=2)
+
+        # First date of data
+        date = "2010-12-29"
+        df = self.iso.get_as_plan(date)
+        self._check_as_plan(df)
 
     """get_lmp_by_settlement_point"""
 
