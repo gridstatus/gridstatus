@@ -1507,3 +1507,189 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_operational_reserves(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the reserve market quantities in Megawatts from:
+        https://dataminer2.pjm.com/feed/operational_reserves/definition
+        Only available in past 15 days.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with reserve market quantities
+                in 15 second intervals.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "operational_reserves",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "reserve_name,reserve_mw",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=0.25,
+            verbose=verbose,
+        )
+
+        return self._parse_operational_reserves(df)
+
+    def _parse_operational_reserves(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "reserve_name": "Reserve Name",
+                "reserve_mw": "Reserve",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Reserve Name",
+                "Reserve",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_transfer_interface_information_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the transfer interface information from:
+        https://dataminer2.pjm.com/feed/transfer_interface_infor/definition
+        Only available in past 30 days.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with transfer interface information
+            in 5 minute intervals.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "transfer_interface_infor",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,name,"
+                "actual_flow,warning_level,transfer_limit"
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        return self._parse_transfer_interface_information_5_min(df)
+
+    def _parse_transfer_interface_information_5_min(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "name": "Interface Name",
+                "actual_flow": "Actual Flow",
+                "warning_level": "Warning Level",
+                "transfer_limit": "Transfer Limit",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Interface Name",
+                "Actual Flow",
+                "Warning Level",
+                "Transfer Limit",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_transmission_limits(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the current transmission limit information from:
+        https://dataminer2.pjm.com/feed/transfer_interface_infor/definition
+        Only available in past 30 days. Data is published only when constraints
+        exist for that five minute interval.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with transmission limit information
+            in 5 minute intervals, when data is available.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "transmission_limits",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "constraint_name,constraint_type,contingency,shadow_price",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        return self._parse_transmission_limits(df)
+
+    def _parse_transmission_limits(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "constraint_name": "Constraint Name",
+                "constraint_type": "Constraint Type",
+                "contingency": "Contingency",
+                "shadow_price": "Shadow Price",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Constraint Type",
+                "Contingency",
+                "Shadow Price",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)

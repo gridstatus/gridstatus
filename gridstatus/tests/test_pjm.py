@@ -874,7 +874,7 @@ class TestPJM(BaseTestISO):
 
     """get_solar_generation_5_min"""
 
-    def _check_pjm_generation(self, df, expected_cols, start, end):
+    def _check_pjm_response(self, df, expected_cols, start, end):
         assert df.columns.tolist() == expected_cols
 
         is_single_day = start.date == end.date
@@ -904,7 +904,7 @@ class TestPJM(BaseTestISO):
         df = self.iso.get_solar_generation_5_min("today")
         range_start = self.local_start_of_today()
         range_end = self.local_start_of_today() + pd.Timedelta(days=1)
-        self._check_pjm_generation(
+        self._check_pjm_response(
             df=df,
             expected_cols=self.expected_five_min_solar_gen_cols,
             start=range_start,
@@ -920,7 +920,7 @@ class TestPJM(BaseTestISO):
 
         df = self.iso.get_solar_generation_5_min(past_date)
 
-        self._check_pjm_generation(
+        self._check_pjm_response(
             df=df,
             expected_cols=self.expected_five_min_solar_gen_cols,
             start=range_start,
@@ -935,7 +935,7 @@ class TestPJM(BaseTestISO):
 
         df = self.iso.get_solar_generation_5_min(past_date, past_end_date)
 
-        self._check_pjm_generation(
+        self._check_pjm_response(
             df=df,
             expected_cols=self.expected_five_min_solar_gen_cols,
             start=range_start,
@@ -955,7 +955,7 @@ class TestPJM(BaseTestISO):
         range_start = self.local_start_of_today()
         range_end = self.local_start_of_today() + pd.Timedelta(days=1)
 
-        self._check_pjm_generation(
+        self._check_pjm_response(
             df=df,
             expected_cols=self.expected_wind_gen_cols,
             start=range_start,
@@ -971,7 +971,7 @@ class TestPJM(BaseTestISO):
 
         df = self.iso.get_wind_generation_instantaneous(past_date)
 
-        self._check_pjm_generation(
+        self._check_pjm_response(
             df=df,
             expected_cols=self.expected_wind_gen_cols,
             start=range_start,
@@ -986,9 +986,169 @@ class TestPJM(BaseTestISO):
 
         df = self.iso.get_wind_generation_instantaneous(past_date, past_end_date)
 
-        self._check_pjm_generation(
+        self._check_pjm_response(
             df=df,
             expected_cols=self.expected_wind_gen_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+    """get_operational_reserves"""
+
+    expected_operational_reserves_cols = [
+        "Interval Start",
+        "Interval End",
+        "Reserve Name",
+        "Reserve",
+    ]
+
+    def test_get_operational_reserves_today_or_latest(self):
+        df = self.iso.get_operational_reserves("today")
+        range_start = self.local_start_of_today()
+        range_end = self.local_start_of_today() + pd.Timedelta(days=1)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_operational_reserves_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+        assert self.iso.get_operational_reserves("latest").equals(df)
+
+    def test_get_operational_reserves_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
+
+        df = self.iso.get_operational_reserves(past_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_operational_reserves_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+    def test_get_operational_reserves_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_end_date)
+
+        df = self.iso.get_operational_reserves(past_date, past_end_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_operational_reserves_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+    """get_transfer_interface_information_5_min"""
+
+    expected_transfer_interface_info_cols = [
+        "Interval Start",
+        "Interval End",
+        "Interface Name",
+        "Actual Flow",
+        "Warning Level",
+        "Transfer Limit",
+    ]
+
+    def test_get_transfer_interface_information_5_min_today_or_latest(self):
+        df = self.iso.get_transfer_interface_information_5_min("today")
+        range_start = self.local_start_of_today()
+        range_end = self.local_start_of_today() + pd.Timedelta(days=1)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_transfer_interface_info_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+        assert self.iso.get_transfer_interface_information_5_min("latest").equals(df)
+
+    def test_get_transfer_interface_information_5_min_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
+
+        df = self.iso.get_transfer_interface_information_5_min(past_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_transfer_interface_info_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+    def test_get_transfer_interface_information_5_min_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_end_date)
+
+        df = self.iso.get_transfer_interface_information_5_min(past_date, past_end_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_transfer_interface_info_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+    """get_transfer_interface_information_5_min"""
+
+    expected_transmission_limits_cols = [
+        "Interval Start",
+        "Interval End",
+        "Constraint Name",
+        "Constraint Type",
+        "Contingency",
+        "Shadow Price",
+    ]
+
+    def test_get_transmission_limits_today_or_latest(self):
+        df = self.iso.get_transmission_limits("today")
+        range_start = self.local_start_of_today()
+        range_end = self.local_start_of_today() + pd.Timedelta(days=1)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_transmission_limits_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+        assert self.iso.get_transmission_limits("latest").equals(df)
+
+    def test_get_transmission_limits_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
+
+        df = self.iso.get_transmission_limits(past_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_transmission_limits_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+    def test_get_transmission_limits_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_end_date)
+
+        df = self.iso.get_transmission_limits(past_date, past_end_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_transmission_limits_cols,
             start=range_start,
             end=range_end,
         )
