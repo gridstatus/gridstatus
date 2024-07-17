@@ -1430,6 +1430,10 @@ class Ercot(ISOBase):
             values="Quantity",
         ).reset_index()
 
+        # ECRS went live 2023-06-10 and isn't present in the data before then
+        if "ECRS" not in df.columns:
+            df["ECRS"] = pd.NA
+
         # Put ECRS at the end to match as_prices
         df = utils.move_cols_to_front(
             df,
