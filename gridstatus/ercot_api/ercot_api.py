@@ -46,6 +46,9 @@ AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
 # https://data.ercot.com/data-product-archive/NP3-911-ER
 AS_REPORTS_EMIL_ID = "np3-911-er"
 
+# https://data.ercot.com/data-product-archive/NP4-33-CD
+AS_PLAN_ENDPOINT = "/np4-33-cd/dam_as_plan"
+
 #  https://data.ercot.com/data-product-archive/NP6-788-CD
 LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-788-cd/lmp_node_zone_hub"
 
@@ -411,6 +414,38 @@ class ErcotAPI:
             .drop(columns=["Time"])
             .sort_values("Interval Start")
         )
+
+    @support_date_range(frequency=None)
+    def get_as_plan(self, date, end=None, verbose=False):
+        """Get Ancillary Service requirements by type and quantity for each hour of the
+        current day plus the next 6 days.
+
+        Arguments:
+            date (str): the date to fetch plans for.
+            end (str, optional): the end date to fetch plans for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with ancillary services plans
+        """
+        if date == "latest":
+            return self.get_as_plan("today", verbose=verbose)
+
+        if not end:
+            end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        data = self.get_historical_data(
+            endpoint=AS_PLAN_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            add_post_datetime=True,
+            verbose=verbose,
+        )
+
+        df = Ercot().parse_doc(data)
+        df["Publish Time"] = pd.to_datetime(df["postDatetime"])
+
+        return Ercot()._handle_as_plan(df)
 
     @support_date_range(frequency=None)
     def get_lmp_by_settlement_point(self, date, end=None, verbose=False):
