@@ -1808,7 +1808,7 @@ class PJM(ISOBase):
         cols = ["SOUTH", "OTHER"]
         for col in cols:
             if col not in df.columns:
-                df[col] = None
+                df[col] = pd.NA
 
         df = df[
             [
