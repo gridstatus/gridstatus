@@ -1695,7 +1695,7 @@ class PJM(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_solar_generation_zonal(
+    def get_solar_generation_by_area(
         self,
         date: str | pd.Timestamp,
         end: Optional[str | pd.Timestamp] = None,
@@ -1731,9 +1731,9 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        return self._parse_solar_generation_zonal(df)
+        return self._parse_solar_generation_by_area(df)
 
-    def _parse_solar_generation_zonal(self, df: pd.DataFrame):
+    def _parse_solar_generation_by_area(self, df: pd.DataFrame):
         df = df.pivot_table(
             index=["Time", "Interval Start", "Interval End"],
             columns="area",
@@ -1757,7 +1757,7 @@ class PJM(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_wind_generation_zonal(
+    def get_wind_generation_by_area(
         self,
         date: str | pd.Timestamp,
         end: Optional[str | pd.Timestamp] = None,
@@ -1793,9 +1793,9 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        return self._parse_wind_generation_zonal(df)
+        return self._parse_wind_generation_by_area(df)
 
-    def _parse_wind_generation_zonal(self, df: pd.DataFrame):
+    def _parse_wind_generation_by_area(self, df: pd.DataFrame):
         df = df.pivot_table(
             index=["Time", "Interval Start", "Interval End"],
             columns="area",
