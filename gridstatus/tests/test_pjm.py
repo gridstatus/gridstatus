@@ -1155,7 +1155,7 @@ class TestPJM(BaseTestISO):
 
     """get_solar_generation_by_area"""
 
-    expected_solar_wind_gen_zonal_cols = [
+    expected_solar_wind_gen_by_area_cols = [
         "Interval Start",
         "Interval End",
         "MIDATL",
@@ -1173,7 +1173,7 @@ class TestPJM(BaseTestISO):
 
         self._check_pjm_response(
             df=df,
-            expected_cols=self.expected_solar_wind_gen_zonal_cols,
+            expected_cols=self.expected_solar_wind_gen_by_area_cols,
             start=range_start,
             end=range_end,
         )
@@ -1189,7 +1189,7 @@ class TestPJM(BaseTestISO):
 
         self._check_pjm_response(
             df=df,
-            expected_cols=self.expected_solar_wind_gen_zonal_cols,
+            expected_cols=self.expected_solar_wind_gen_by_area_cols,
             start=range_start,
             end=range_end,
         )
@@ -1204,7 +1204,7 @@ class TestPJM(BaseTestISO):
 
         self._check_pjm_response(
             df=df,
-            expected_cols=self.expected_solar_wind_gen_zonal_cols,
+            expected_cols=self.expected_solar_wind_gen_by_area_cols,
             start=range_start,
             end=range_end,
         )
@@ -1216,7 +1216,7 @@ class TestPJM(BaseTestISO):
 
         self._check_pjm_response(
             df=df,
-            expected_cols=self.expected_solar_wind_gen_zonal_cols,
+            expected_cols=self.expected_solar_wind_gen_by_area_cols,
             start=range_start,
             end=range_end,
         )
@@ -1232,7 +1232,7 @@ class TestPJM(BaseTestISO):
 
         self._check_pjm_response(
             df=df,
-            expected_cols=self.expected_solar_wind_gen_zonal_cols,
+            expected_cols=self.expected_solar_wind_gen_by_area_cols,
             start=range_start,
             end=range_end,
         )
@@ -1247,7 +1247,7 @@ class TestPJM(BaseTestISO):
 
         self._check_pjm_response(
             df=df,
-            expected_cols=self.expected_solar_wind_gen_zonal_cols,
+            expected_cols=self.expected_solar_wind_gen_by_area_cols,
             start=range_start,
             end=range_end,
         )
