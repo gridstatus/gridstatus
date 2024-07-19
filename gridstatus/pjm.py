@@ -1803,6 +1803,13 @@ class PJM(ISOBase):
             aggfunc="first",
         ).reset_index()
 
+        # SOUTH and OTHER columns did not exist at the start of the
+        # data, but we want them to be present, so make sure they exist.
+        cols = ["SOUTH", "OTHER"]
+        for col in cols:
+            if col not in df.columns:
+                df[col] = None
+
         df = df[
             [
                 "Interval Start",
