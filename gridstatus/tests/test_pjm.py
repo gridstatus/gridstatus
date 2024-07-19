@@ -1152,3 +1152,59 @@ class TestPJM(BaseTestISO):
             start=range_start,
             end=range_end,
         )
+
+    """get_solar_generation_zonal"""
+
+    expected_solar_gen_zonal_cols = [
+        "Interval Start",
+        "Interval End",
+        "MIDATL",
+        "OTHER",
+        "RFC",
+        "RTO",
+        "SOUTH",
+        "WEST",
+    ]
+
+    def test_get_solar_generation_zonal_today_or_latest(self):
+        df = self.iso.get_solar_generation_zonal("today")
+        range_start = self.local_start_of_today()
+        range_end = self.local_start_of_today() + pd.Timedelta(days=1)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_solar_gen_zonal_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+        assert self.iso.get_solar_generation_zonal("latest").equals(df)
+
+    def test_get_solar_generation_zonal_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
+
+        df = self.iso.get_solar_generation_zonal(past_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_solar_gen_zonal_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+    def test_get_solar_generation_zonal_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_end_date)
+
+        df = self.iso.get_solar_generation_zonal(past_date, past_end_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_solar_gen_zonal_cols,
+            start=range_start,
+            end=range_end,
+        )
