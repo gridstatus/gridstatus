@@ -1693,3 +1693,134 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_solar_generation_by_area(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the current solar generation information from:
+        https://dataminer2.pjm.com/feed/solar_gen/definition
+        Data is published daily around 7am market time.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with solar generation information.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "solar_gen",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "area,solar_generation_mw",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._parse_solar_generation_by_area(df)
+
+    def _parse_solar_generation_by_area(self, df: pd.DataFrame):
+        df = df.pivot_table(
+            index=["Time", "Interval Start", "Interval End"],
+            columns="area",
+            values="solar_generation_mw",
+            aggfunc="first",
+        ).reset_index()
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "MIDATL",
+                "OTHER",
+                "RFC",
+                "RTO",
+                "SOUTH",
+                "WEST",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_wind_generation_by_area(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the current wind generation information from:
+        https://dataminer2.pjm.com/feed/wind_gen/definition
+        Data is published daily around 7am market time.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with wind generation information.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "wind_gen",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "area,wind_generation_mw",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._parse_wind_generation_by_area(df)
+
+    def _parse_wind_generation_by_area(self, df: pd.DataFrame):
+        df = df.pivot_table(
+            index=["Time", "Interval Start", "Interval End"],
+            columns="area",
+            values="wind_generation_mw",
+            aggfunc="first",
+        ).reset_index()
+
+        # SOUTH and OTHER columns did not exist at the start of the
+        # data, but we want them to be present, so make sure they exist.
+        cols = ["SOUTH", "OTHER"]
+        for col in cols:
+            if col not in df.columns:
+                df[col] = pd.NA
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "MIDATL",
+                "OTHER",
+                "RFC",
+                "RTO",
+                "SOUTH",
+                "WEST",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
