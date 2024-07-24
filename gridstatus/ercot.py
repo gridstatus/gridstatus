@@ -2084,11 +2084,10 @@ class Ercot(ISOBase):
 
         xls = utils.get_zip_file(doc.url, verbose=verbose)
 
-        df = self._handle_unplanned_resource_outages_file(xls)
-
+        df = self._handle_unplanned_resource_outages_file(doc, xls)
         return df
 
-    def _handle_unplanned_resource_outages_file(self, xls):
+    def _handle_unplanned_resource_outages_file(self, doc, xls):
         as_of = pd.to_datetime(
             pd.read_excel(
                 xls,
@@ -2106,7 +2105,10 @@ class Ercot(ISOBase):
             skipfooter=1,
         )
 
-        df.insert(0, "Report Time", as_of)
+        # Already has local timezone
+        df["Publish Time"] = pd.to_datetime(doc.publish_date)
+
+        df.insert(0, "Current As Of", as_of)
 
         time_cols = ["Actual Outage Start", "Planned End Date", "Actual End Date"]
         for col in time_cols:
@@ -2116,6 +2118,25 @@ class Ercot(ISOBase):
                 self.default_timezone,
                 ambiguous=True,
             )
+
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Current As Of",
+                "Publish Time",
+                "Actual Outage Start",
+                "Planned End Date",
+                "Actual End Date",
+                "Resource Name",
+                "Resource Unit Code",
+                "Fuel Type",
+                "Outage Type",
+                "Nature Of Work",
+                "Available MW Maximum",
+                "Available MW During Outage",
+                "Effective MW Reduction Due to Outage",
+            ],
+        )
 
         return df
 
