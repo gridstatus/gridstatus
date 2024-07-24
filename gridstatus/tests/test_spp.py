@@ -840,3 +840,11 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
 
         self._check_hourly_load(df)
+
+    @pytest.mark.parametrize(
+        "date",
+        ["today", "latest", pd.Timestamp.now()],
+    )
+    def test_get_hourly_load_current_day_not_supported(self, date):
+        with pytest.raises(NotSupported):
+            self.iso.get_hourly_load(date)

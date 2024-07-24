@@ -1232,6 +1232,11 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: Hourly Load
         """
+        if date in ["today", "latest"] or utils.is_today(
+            date, tz=self.default_timezone
+        ):
+            raise NotSupported("Only historical data is available for hourly load data")
+
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
         msg = f"Downloading {url}"
         log(msg, verbose)
