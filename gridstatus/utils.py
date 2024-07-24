@@ -215,7 +215,9 @@ def get_response_blob(resp: requests.Response) -> io.BytesIO:
     return io.BytesIO(resp.content)
 
 
-def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
+def download_csvs_from_zip_url(
+    url, process_csv=None, verbose=False, strip_whitespace_from_cols=False
+):
     z = get_zip_folder(url, verbose=verbose)
 
     all_dfs = []
@@ -226,8 +228,9 @@ def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
             if process_csv:
                 df = process_csv(df, f.filename)
 
-            # Some data files have leading whitespace in header - remove it
-            df = df.rename(columns=lambda x: x.strip())
+            if strip_whitespace_from_cols:
+                # Some data files have leading whitespace in header - remove it
+                df = df.rename(columns=lambda x: x.strip())
 
             all_dfs.append(df)
 

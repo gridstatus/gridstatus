@@ -1257,7 +1257,9 @@ class SPP(ISOBase):
             pd.DataFrame: Hourly Load
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{year}/{year}.zip"  # noqa
-        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
+        df = utils.download_csvs_from_zip_url(
+            url=url, verbose=verbose, strip_whitespace_from_cols=True
+        )
 
         # Some historical files contain null rows. Drop them.
         df = df.dropna(how="all")
