@@ -1218,7 +1218,6 @@ class SPP(ISOBase):
             )
         ]
 
-    ### NEW
     @support_date_range("DAY_START")
     def get_hourly_load(self, date, end=None, verbose=False):
         """Get Hourly Load
