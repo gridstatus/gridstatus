@@ -794,3 +794,49 @@ class TestSPP(BaseTestISO):
         assert (df["Interval End"] - df["Interval Start"] == interval).all()
 
         assert (df["Forecast Type"] == forecast_type).all()
+
+    """ get_hourly_load """
+
+    def _check_hourly_load(self, df):
+        assert isinstance(df, pd.DataFrame)
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "CSWS",
+            "EDE",
+            "GRDA",
+            "INDN",
+            "KACY",
+            "KCPL",
+            "LES",
+            "MPS",
+            "NPPD",
+            "OKGE",
+            "OPPD",
+            "SECI",
+            "SPRM",
+            "SPS",
+            "WAUE",
+            "WFEC",
+            "WR",
+        ]
+
+    def test_get_hourly_load_historical(self):
+        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
+        start = two_days_ago - pd.Timedelta(days=2)
+        df = self.iso.get_hourly_load(start=start, end=two_days_ago)
+
+        assert df["Interval Start"].min().date() == start.date()
+        assert df["Interval Start"].max().date() == two_days_ago.date()
+        self._check_hourly_load(df)
+
+    def test_get_hourly_load_annual(self):
+        year = 2020
+        df = self.iso.get_hourly_load_annual(year=year)
+
+        assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
+        assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
+
+        self._check_hourly_load(df)
