@@ -224,6 +224,10 @@ def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
             df = pd.read_csv(z.open(f.filename))
             if process_csv:
                 df = process_csv(df, f.filename)
+
+            # Some data files have leading whitespace in header - remove it
+            df = df.rename(columns=lambda x: x.strip())
+
             all_dfs.append(df)
 
     df = pd.concat(all_dfs)
