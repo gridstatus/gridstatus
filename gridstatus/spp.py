@@ -1240,7 +1240,6 @@ class SPP(ISOBase):
         msg = f"Downloading {url}"
         log(msg, verbose)
         df = pd.read_csv(url)
-        df = df.rename(columns=lambda x: x.strip())
 
         return self._process_hourly_load(df)
 
@@ -1265,10 +1264,13 @@ class SPP(ISOBase):
         return df
 
     def _process_hourly_load(self, df):
-        # Some historical files contain null rows. Drop them.
+        # Some column names contain leading whitespace in some files - remove it
+        df = df.rename(columns=lambda x: x.strip())
+
+        # Some files contain null rows. Drop them.
         df = df.dropna(how="all")
 
-        # Some historical files don't have time 00:00 for the first interval in a day
+        # Some files don't have time 00:00 for the first interval in a day
         # for example 12/2/2016 instead of 12/2/2016 00:00. This causes datetime
         # conversion problems. This fixes it.
         def clean_market_hour(val):
