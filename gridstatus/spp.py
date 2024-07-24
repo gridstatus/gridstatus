@@ -1216,6 +1216,90 @@ class SPP(ISOBase):
             )
         ]
 
+    ### NEW
+    @support_date_range("DAY_START")
+    def get_hourly_load(self, date, end=None, verbose=False):
+        """Get Hourly Load
+
+        Supports recent data. For historical annual data use get_hourly_load_annual
+
+        Args:
+            date: start date
+            end: end date
+
+        Returns:
+            pd.DataFrame: Hourly Load
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+        df = df.rename(columns=lambda x: x.strip())
+
+        return self._process_hourly_load(df)
+
+    def get_hourly_load_annual(self, year, verbose=True):
+        """Get Hourly Load for a year. Starting 2011.
+        For recent data use `get_hourly_load`
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: Hourly Load
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{year}/{year}.zip"  # noqa
+        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
+        df = df.rename(columns=lambda x: x.strip())
+
+        df = self._process_hourly_load(df)
+
+        df = df[~df["Interval Start"].isnull()]
+
+        df = df.sort_values("Time")
+
+        return df
+
+    def _process_hourly_load(self, df):
+        df = self._handle_market_end_to_interval(
+            df,
+            column="MarketHour",
+            interval_duration=pd.Timedelta(minutes=60),
+        )
+
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "CSWS",
+            "EDE",
+            "GRDA",
+            "INDN",
+            "KACY",
+            "KCPL",
+            "LES",
+            "MPS",
+            "NPPD",
+            "OKGE",
+            "OPPD",
+            "SECI",
+            "SPRM",
+            "SPS",
+            "WAUE",
+            "WFEC",
+            "WR",
+        ]
+
+        # historical data doesn't have all columns
+        for c in cols:
+            if c not in df.columns:
+                df[c] = pd.NA
+
+        df = df[cols]
+
+        return df
+
 
 def process_gen_mix(df, detailed=False):
     """Parse SPP generation mix data from
