@@ -1251,7 +1251,19 @@ class SPP(ISOBase):
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{year}/{year}.zip"  # noqa
         df = utils.download_csvs_from_zip_url(url, verbose=verbose)
+
+        # Some data files have leading whitespace in header - remove it
         df = df.rename(columns=lambda x: x.strip())
+        
+        # Some historical files don't have time 00:00 for the first interval in a day
+        # for example 12/2/2016 instead of 12/2/2016 00:00. This causes datetime
+        # conversion problems. This fixes it.
+        def clean_market_hour(val):
+            if val.endswith(":00"):
+                return val
+            return val + " 00:00"
+        
+        df["MarketHour"] = df["MarketHour"].apply(clean_market_hour)
 
         df = self._process_hourly_load(df)
 
