@@ -821,6 +821,7 @@ class TestSPP(BaseTestISO):
             "WAUE",
             "WFEC",
             "WR",
+            "System Total",
         ]
 
     def test_get_hourly_load_historical(self):

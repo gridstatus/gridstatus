@@ -1260,6 +1260,11 @@ class SPP(ISOBase):
             url=url, verbose=verbose, strip_whitespace_from_cols=True
         )
 
+        return self._process_hourly_load(df)
+
+        return df
+
+    def _process_hourly_load(self, df):
         # Some historical files contain null rows. Drop them.
         df = df.dropna(how="all")
 
@@ -1273,15 +1278,6 @@ class SPP(ISOBase):
 
         df["MarketHour"] = df["MarketHour"].apply(clean_market_hour)
 
-        df = self._process_hourly_load(df)
-
-        df = df[~df["Interval Start"].isnull()].drop_duplicates()
-
-        df = df.sort_values("Time")
-
-        return df
-
-    def _process_hourly_load(self, df):
         df = self._handle_market_end_to_interval(
             df,
             column="MarketHour",
@@ -1289,10 +1285,13 @@ class SPP(ISOBase):
             format="mixed",
         )
 
-        cols = [
+        time_cols = [
             "Time",
             "Interval Start",
             "Interval End",
+        ]
+
+        load_cols = [
             "CSWS",
             "EDE",
             "GRDA",
@@ -1311,13 +1310,19 @@ class SPP(ISOBase):
             "WFEC",
             "WR",
         ]
+        all_cols = time_cols + load_cols
 
         # historical data doesn't have all columns
-        for c in cols:
+        for c in all_cols:
             if c not in df.columns:
                 df[c] = pd.NA
 
-        df = df[cols]
+        df = df[all_cols]
+
+        df = df[~df["Interval Start"].isnull()].drop_duplicates()
+
+        df = df.sort_values("Time")
+        df["System Total"] = df[load_cols].sum(axis=1, skipna=True)
 
         return df
 
