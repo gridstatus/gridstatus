@@ -1,4 +1,5 @@
 import io
+import time
 from dataclasses import dataclass
 from enum import Enum
 from zipfile import ZipFile
@@ -2834,7 +2835,8 @@ class Ercot(ISOBase):
         Returns:
             list of Document with URL and Publish Date
         """
-        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}"  # noqa
+        # Include a cache buster to ensure we get the latest data
+        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}&_{int(time.time())}"  # noqa
 
         msg = f"Fetching document {url}"
         log(msg, verbose)
