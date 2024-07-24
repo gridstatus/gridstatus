@@ -219,6 +219,7 @@ def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
     z = get_zip_folder(url, verbose=verbose)
 
     all_dfs = []
+
     for f in z.filelist:
         if f.filename.endswith(".csv"):
             df = pd.read_csv(z.open(f.filename))
@@ -230,7 +231,7 @@ def download_csvs_from_zip_url(url, process_csv=None, verbose=False):
 
             all_dfs.append(df)
 
-    df = pd.concat(all_dfs)
+    df = pd.concat(all_dfs, ignore_index=True)
 
     return df
 

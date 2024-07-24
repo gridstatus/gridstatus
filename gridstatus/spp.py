@@ -1255,7 +1255,7 @@ class SPP(ISOBase):
         df = utils.download_csvs_from_zip_url(url, verbose=verbose)
 
         # Some historical files contain null rows. Drop them.
-        df = df.dropna()
+        df = df.dropna(how="all")
 
         # Some historical files don't have time 00:00 for the first interval in a day
         # for example 12/2/2016 instead of 12/2/2016 00:00. This causes datetime
@@ -1269,7 +1269,7 @@ class SPP(ISOBase):
 
         df = self._process_hourly_load(df)
 
-        df = df[~df["Interval Start"].isnull()]
+        df = df[~df["Interval Start"].isnull()].drop_duplicates()
 
         df = df.sort_values("Time")
 
