@@ -772,53 +772,64 @@ class TestErcot(BaseTestISO):
 
     """get_unplanned_resource_outages"""
 
-    def test_get_unplanned_resource_outages(self):
-        five_days_ago = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(
-            days=5,
-        )
-        df = self.iso.get_unplanned_resource_outages(date=five_days_ago)
+    def _check_unplanned_resource_outages(self, df):
+        assert df.shape[0] >= 0
 
-        cols = [
-            "Report Time",
+        assert df.columns.tolist() == [
+            "Current As Of",
+            "Publish Time",
+            "Actual Outage Start",
+            "Planned End Date",
+            "Actual End Date",
             "Resource Name",
             "Resource Unit Code",
             "Fuel Type",
             "Outage Type",
+            "Nature Of Work",
             "Available MW Maximum",
             "Available MW During Outage",
             "Effective MW Reduction Due to Outage",
-            "Actual Outage Start",
-            "Planned End Date",
-            "Actual End Date",
-            "Nature Of Work",
         ]
 
         time_cols = [
-            "Report Time",
+            "Current As Of",
+            "Publish Time",
             "Actual Outage Start",
             "Planned End Date",
             "Actual End Date",
         ]
 
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
-        assert df["Report Time"].dt.date.unique() == [five_days_ago.date()]
         for col in time_cols:
-            assert df[col].dt.tz is not None
+            assert df[col].dt.tz.zone == self.iso.default_timezone
 
+    def test_get_unplanned_resource_outages_historical_date(self):
+        five_days_ago = self.local_start_of_today() - pd.DateOffset(days=5)
+        df = self.iso.get_unplanned_resource_outages(date=five_days_ago)
+
+        self._check_unplanned_resource_outages(df)
+
+        assert df["Current As Of"].dt.date.unique() == [five_days_ago.date()]
+        # Publish Time is 3 days after the current as of time
+        assert df["Publish Time"].dt.date.unique() == [
+            (five_days_ago + pd.DateOffset(days=3)).date(),
+        ]
+
+    def test_get_unplanned_resource_outages_historical_range(self):
+        five_days_ago = self.local_start_of_today() - pd.DateOffset(days=5)
         start = five_days_ago - pd.DateOffset(1)
+
         df_2_days = self.iso.get_unplanned_resource_outages(
             start=start,
             end=five_days_ago + pd.DateOffset(1),
         )
 
-        assert df_2_days.shape[0] >= 0
-        assert df_2_days.columns.tolist() == cols
-        assert df_2_days["Report Time"].dt.date.nunique() == 2
-        assert df_2_days["Report Time"].min().date() == start.date()
-        assert df_2_days["Report Time"].max().date() == five_days_ago.date()
+        self._check_unplanned_resource_outages(df_2_days)
+
+        assert df_2_days["Current As Of"].dt.date.nunique() == 2
+        assert df_2_days["Current As Of"].min().date() == start.date()
+        assert df_2_days["Current As Of"].max().date() == five_days_ago.date()
+
+        assert df_2_days["Publish Time"].dt.date.nunique() == 2
 
     """test get_highest_price_as_offer_selected"""
 
