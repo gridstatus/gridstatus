@@ -473,7 +473,9 @@ class SPP(ISOBase):
             "/%Y/%m/%d/OP-MTLF-%Y%m%d%H00.csv",
         )
 
-    def _handle_market_end_to_interval(self, df, column, interval_duration):
+    def _handle_market_end_to_interval(
+        self, df, column, interval_duration, format=None
+    ):
         """Converts market end time to interval end time"""
 
         df = df.rename(
@@ -482,9 +484,9 @@ class SPP(ISOBase):
             },
         )
 
-        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
-            self.default_timezone,
-        )
+        df["Interval End"] = pd.to_datetime(
+            df["Interval End"], utc=True, format=format
+        ).dt.tz_convert(self.default_timezone)
 
         df["Interval Start"] = df["Interval End"] - interval_duration
 
@@ -1215,6 +1217,116 @@ class SPP(ISOBase):
                 for needle in needles
             )
         ]
+
+    @support_date_range("DAY_START")
+    def get_hourly_load(self, date, end=None, verbose=False):
+        """Get Hourly Load
+
+        Supports recent data. For historical annual data use get_hourly_load_annual
+
+        Args:
+            date: start date
+            end: end date
+
+        Returns:
+            pd.DataFrame: Hourly Load
+        """
+        if date in ["today", "latest"] or utils.is_today(
+            date, tz=self.default_timezone
+        ):
+            raise NotSupported("Only historical data is available for hourly load data")
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_hourly_load(df)
+
+    def get_hourly_load_annual(self, year, verbose=True):
+        """Get Hourly Load for a year. Starting 2011.
+        For recent data use `get_hourly_load`
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: Hourly Load
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{year}/{year}.zip"  # noqa
+        df = utils.download_csvs_from_zip_url(
+            url=url, verbose=verbose, strip_whitespace_from_cols=True
+        )
+
+        return self._process_hourly_load(df)
+
+        return df
+
+    def _process_hourly_load(self, df):
+        # Some column names contain leading whitespace in some files - remove it
+        df = df.rename(columns=lambda x: x.strip())
+
+        # Some files contain null rows. Drop them.
+        df = df.dropna(how="all")
+
+        # Some files don't have time 00:00 for the first interval in a day
+        # for example 12/2/2016 instead of 12/2/2016 00:00. This causes datetime
+        # conversion problems. This fixes it.
+        def clean_market_hour(val):
+            if val.endswith(":00"):
+                return val
+            return val + " 00:00"
+
+        df["MarketHour"] = df["MarketHour"].apply(clean_market_hour)
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="MarketHour",
+            interval_duration=pd.Timedelta(minutes=60),
+            format="mixed",
+        )
+
+        time_cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+        ]
+
+        load_cols = [
+            "CSWS",
+            "EDE",
+            "GRDA",
+            "INDN",
+            "KACY",
+            "KCPL",
+            "LES",
+            "MPS",
+            "NPPD",
+            "OKGE",
+            "OPPD",
+            "SECI",
+            "SPRM",
+            "SPS",
+            "WAUE",
+            "WFEC",
+            "WR",
+        ]
+        all_cols = time_cols + load_cols
+
+        # historical data doesn't have all columns
+        for c in all_cols:
+            if c not in df.columns:
+                df[c] = pd.NA
+
+        df = df[all_cols]
+
+        df = df[~df["Interval Start"].isnull()].drop_duplicates()
+
+        df = df.sort_values("Time")
+        df["System Total"] = df[load_cols].sum(axis=1, skipna=True)
+
+        return df
 
 
 def process_gen_mix(df, detailed=False):
