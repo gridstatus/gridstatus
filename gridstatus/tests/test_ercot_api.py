@@ -878,6 +878,52 @@ class TestErcotAPI(TestHelperMixin):
             < self.local_start_of_day(past_end_date.date())
         )
 
+    """get_spp_real_time_15_min"""
+
+    def _check_spp_real_time_15_min(self, df):
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "Market",
+            "SPP",
+        ]
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=15)
+        ).all()
+
+        assert sorted(df["Location Type"].unique().tolist()) == [
+            "Load Zone",
+            "Load Zone DC Tie",
+            "Load Zone DC Tie Energy Weighted",
+            "Load Zone Energy Weighted",
+            "Resource Node",
+            "Trading Hub",
+        ]
+
+        assert df["Market"].unique().tolist() == ["REAL_TIME_15_MIN"]
+
+    def test_get_spp_real_time_15_min_historical_date_range(self):
+        start_date = self.local_today() - pd.DateOffset(days=100)
+
+        end_date = start_date + pd.DateOffset(days=2)
+
+        df = ErcotAPI(sleep_seconds=2.5).get_spp_real_time_15_min(
+            date=start_date,
+            end=end_date,
+            verbose=True,
+        )
+
+        self._check_spp_real_time_15_min(df)
+
+        assert df["Interval Start"].nunique() == 96 * 2
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        assert df["Interval End"].max() == self.local_start_of_day(end_date)
+
     """get_historical_data"""
 
     def test_get_historical_data(self):

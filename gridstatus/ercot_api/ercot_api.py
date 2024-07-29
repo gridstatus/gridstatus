@@ -77,6 +77,10 @@ HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT = (
     "/np4-745-cd/spp_hrly_actual_fcast_geo"
 )
 
+# Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes. # noqa
+# https://data.ercot.com/data-product-archive/NP6-905-CD
+SETTLEMENT_POINT_PRICE_REAL_TIME_15_MIN = "/np6-905-cd/spp_node_zone_hub"
+
 
 class ErcotAPI:
     """
@@ -862,6 +866,43 @@ class ErcotAPI:
             "ViolatedMW": "Violated MW",
             "ViolationAmount": "Violation Amount",
         }
+
+    @support_date_range(frequency=None)
+    def get_spp_real_time_15_min(self, date, end=None, verbose=False):
+        """Get Real Time 15-Minute Settlement Point Prices
+
+        Arguments:
+            date (str): the date to fetch prices for.
+            end (str, optional): the end date to fetch prices for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with settlement point prices
+        """
+        if date == "latest":
+            return self.get_spp_by_settlement_point("today", verbose=verbose)
+
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        data = self.get_historical_data(
+            endpoint=SETTLEMENT_POINT_PRICE_REAL_TIME_15_MIN,
+            # These offsets are necessary so the start and end records are correct
+            start_date=date + pd.Timedelta(minutes=15),
+            end_date=end + pd.Timedelta(minutes=15),
+            verbose=verbose,
+        )
+
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        data = Ercot()._finalize_spp_df(
+            data,
+            market=Markets.REAL_TIME_15_MIN,
+            locations="ALL",
+            location_type="ALL",
+            verbose=verbose,
+        )
+
+        return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
 
     def get_historical_data(
         self,
