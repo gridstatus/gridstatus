@@ -878,9 +878,9 @@ class TestErcotAPI(TestHelperMixin):
             < self.local_start_of_day(past_end_date.date())
         )
 
-    """get_spp_by_settlement_point"""
+    """get_spp_real_time_15_min"""
 
-    def _check_spp_by_settlement_point(self, df):
+    def _check_spp_real_time_15_min(self, df):
         assert df.columns.tolist() == [
             "Time",
             "Interval Start",
@@ -906,18 +906,18 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Market"].unique().tolist() == ["REAL_TIME_15_MIN"]
 
-    def test_get_spp_by_settlement_point_historical_date_range(self):
+    def test_get_spp_real_time_15_min_historical_date_range(self):
         start_date = self.local_today() - pd.DateOffset(days=100)
 
         end_date = start_date + pd.DateOffset(days=2)
 
-        df = ErcotAPI(sleep_seconds=2.5).get_spp_by_settlement_point(
+        df = ErcotAPI(sleep_seconds=2.5).get_spp_real_time_15_min(
             date=start_date,
             end=end_date,
             verbose=True,
         )
 
-        self._check_spp_by_settlement_point(df)
+        self._check_spp_real_time_15_min(df)
 
         assert df["Interval Start"].nunique() == 96 * 2
 
