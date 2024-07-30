@@ -465,6 +465,10 @@ class ISONE(ISOBase):
 
                     data = pd.concat([data, data_current])
                 else:
+                    # Only keep data from today
+                    data_current = data_current[
+                        data_current["Local Time"].dt.date == now.date()
+                    ]
                     data = data_current.copy()
 
             data = data.rename(columns={"Local Time": "Interval Start"})
