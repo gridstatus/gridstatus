@@ -1,7 +1,13 @@
+import numpy as np
 import pandas as pd
 import pytest
 
 from gridstatus import SPP, Markets, NotSupported
+from gridstatus.spp import (
+    LOCATION_TYPE_BUS,
+    LOCATION_TYPE_HUB,
+    LOCATION_TYPE_INTERFACE,
+)
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 
@@ -101,11 +107,36 @@ class TestSPP(BaseTestISO):
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market=market)
 
+    def test_get_lmp_by_bus_latest(self):
+        df = self.iso.get_lmp(
+            date="latest",
+            market=Markets.REAL_TIME_5_MIN,
+            location_type=LOCATION_TYPE_BUS,
+        )
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        assert df["Location Type"].unique() == [LOCATION_TYPE_BUS]
+        assert df["Market"].unique() == [Markets.REAL_TIME_5_MIN.value]
+        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+
     @pytest.mark.parametrize(
         "market,location_type",
         [
-            (Markets.REAL_TIME_5_MIN, "Hub"),
-            (Markets.REAL_TIME_5_MIN, "Interface"),
+            (Markets.REAL_TIME_5_MIN, LOCATION_TYPE_HUB),
+            (Markets.REAL_TIME_5_MIN, LOCATION_TYPE_INTERFACE),
+            (Markets.REAL_TIME_5_MIN, LOCATION_TYPE_BUS),
         ],
     )
     def test_get_lmp_latest_with_locations(self, market, location_type):

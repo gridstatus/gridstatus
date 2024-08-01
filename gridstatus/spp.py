@@ -10,6 +10,7 @@ from gridstatus.decorators import FiveMinOffset, support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
+RTBM_LMP_BY_BUS = "rtbm-lmp-by-bus"
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
@@ -29,6 +30,7 @@ BASE_LOAD_FORECAST_MID_TERM_URL = f"{FILE_BROWSER_DOWNLOAD_URL}/mtlf-vs-actual?p
 
 
 LOCATION_TYPE_ALL = "ALL"
+LOCATION_TYPE_BUS = "Bus"
 LOCATION_TYPE_HUB = "Hub"
 LOCATION_TYPE_INTERFACE = "Interface"
 LOCATION_TYPE_SETTLEMENT_LOCATION = "Settlement Location"
@@ -86,6 +88,7 @@ class SPP(ISOBase):
 
     location_types = [
         LOCATION_TYPE_ALL,
+        LOCATION_TYPE_BUS,
         LOCATION_TYPE_HUB,
         LOCATION_TYPE_INTERFACE,
         LOCATION_TYPE_SETTLEMENT_LOCATION,
@@ -807,6 +810,7 @@ class SPP(ISOBase):
             - ``Hub``
             - ``Interface``
             - ``ALL``
+            - ``Bus``
         """
         if market not in self.markets:
             raise NotSupported(f"Market {market} not supported")
@@ -818,6 +822,7 @@ class SPP(ISOBase):
             df = self._get_rtm5_lmp(
                 date,
                 end,
+                location_type,
                 verbose,
             )
         elif market == Markets.DAY_AHEAD_HOURLY:
@@ -855,18 +860,29 @@ class SPP(ISOBase):
         self,
         date,
         end=None,
+        location_type=LOCATION_TYPE_BUS,
         verbose=False,
     ):
+        fs_name = (
+            RTBM_LMP_BY_BUS
+            if location_type == LOCATION_TYPE_BUS
+            else FS_RTBM_LMP_BY_LOCATION
+        )
+
+        latest_file_id = (
+            "RTBM-LMP-B" if location_type == LOCATION_TYPE_BUS else "RTBM-LMP-SL"
+        )
+
         if date == "latest":
             urls = [
                 FILE_BROWSER_DOWNLOAD_URL
                 + "/"
-                + FS_RTBM_LMP_BY_LOCATION
-                + "?path=%2FRTBM-LMP-SL-latestInterval.csv",
+                + fs_name
+                + f"?path=%2F{latest_file_id}-latestInterval.csv",
             ]
         else:
             urls = self._file_browser_list(
-                fs_name=FS_RTBM_LMP_BY_LOCATION,
+                fs_name=fs_name,
                 type="folder",
                 path=date.strftime("/%Y/%m/By_Interval/%d"),
             )["url"].tolist()
@@ -915,31 +931,37 @@ class SPP(ISOBase):
             interval_duration=interval_duration,
         )
 
-        df["Location"] = df["Settlement Location"]
-        df["PNode"] = df["Pnode"]
-
         df["Market"] = market.value
 
-        df["Location Type"] = LOCATION_TYPE_SETTLEMENT_LOCATION
+        if location_type != LOCATION_TYPE_BUS:
+            df["Location"] = df["Settlement Location"]
 
-        # Create boolean masks for each location type
-        hubs = self._get_location_list(LOCATION_TYPE_HUB, verbose=verbose)
-        interfaces = self._get_location_list(LOCATION_TYPE_INTERFACE, verbose=verbose)
-        is_hub = df["Location"].isin(hubs)
-        is_interface = df["Location"].isin(interfaces)
-        df.loc[is_hub, "Location Type"] = LOCATION_TYPE_HUB
-        df.loc[is_interface, "Location Type"] = LOCATION_TYPE_INTERFACE
+            df["Location Type"] = LOCATION_TYPE_SETTLEMENT_LOCATION
+
+            # Create boolean masks for each location type
+            hubs = self._get_location_list(LOCATION_TYPE_HUB, verbose=verbose)
+            interfaces = self._get_location_list(
+                LOCATION_TYPE_INTERFACE,
+                verbose=verbose,
+            )
+            is_hub = df["Location"].isin(hubs)
+            is_interface = df["Location"].isin(interfaces)
+            df.loc[is_hub, "Location Type"] = LOCATION_TYPE_HUB
+            df.loc[is_interface, "Location Type"] = LOCATION_TYPE_INTERFACE
+            df = utils.filter_lmp_locations(df, location_type=location_type)
+        else:
+            df["Location"] = df["Pnode"]
+            df["Location Type"] = LOCATION_TYPE_BUS
 
         df = df.rename(
             columns={
+                "Pnode": "PNode",
                 "LMP": "LMP",  # for posterity
                 "MLC": "Loss",
                 "MCC": "Congestion",
                 "MEC": "Energy",
             },
         )
-
-        df = utils.filter_lmp_locations(df, location_type=location_type)
 
         df = df[
             [
@@ -956,8 +978,14 @@ class SPP(ISOBase):
                 "Loss",
             ]
         ]
+
         df = df.reset_index(drop=True)
-        return df
+
+        # Since Location = Pnode for bus, we can drop Pnode
+        if location_type == LOCATION_TYPE_BUS:
+            df = df.drop(columns=["PNode"])
+
+        return df.sort_values(["Time", "Location"])
 
     @support_date_range("5_MIN")
     def get_operating_reserves(self, date, end=None, verbose=False):
