@@ -3,7 +3,6 @@ from typing import BinaryIO
 import pandas as pd
 import requests
 import tqdm
-from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import InterconnectionQueueStatus, ISOBase, Markets, NotSupported
@@ -474,7 +473,11 @@ class SPP(ISOBase):
         )
 
     def _handle_market_end_to_interval(
-        self, df, column, interval_duration, format=None
+        self,
+        df,
+        column,
+        interval_duration,
+        format=None,
     ):
         """Converts market end time to interval end time"""
 
@@ -485,7 +488,9 @@ class SPP(ISOBase):
         )
 
         df["Interval End"] = pd.to_datetime(
-            df["Interval End"], utc=True, format=format
+            df["Interval End"],
+            utc=True,
+            format=format,
         ).dt.tz_convert(self.default_timezone)
 
         df["Interval Start"] = df["Interval End"] - interval_duration
@@ -1161,17 +1166,12 @@ class SPP(ISOBase):
         """
         html = requests.get(FILE_BROWSER_API_URL)
         jsessionid = html.cookies.get("JSESSIONID")
-        soup = BeautifulSoup(html.content, "html.parser")
-        csrf_token = soup.find("meta", {"id": "_csrf"}).attrs["content"]
-        csrf_token_header = soup.find(
-            "meta",
-            {"id": "_csrf_header"},
-        ).attrs["content"]
+        xsrf_token = html.cookies.get("XSRF-TOKEN")
 
         return {
-            "cookies": {"JSESSIONID": jsessionid},
+            "cookies": {"JSESSIONID": jsessionid, "XSRF-TOKEN": xsrf_token},
             "headers": {
-                csrf_token_header: csrf_token,
+                "X-XSRF-TOKEN": xsrf_token,
             },
         }
 
@@ -1232,7 +1232,8 @@ class SPP(ISOBase):
             pd.DataFrame: Hourly Load
         """
         if date in ["today", "latest"] or utils.is_today(
-            date, tz=self.default_timezone
+            date,
+            tz=self.default_timezone,
         ):
             raise NotSupported("Only historical data is available for hourly load data")
 
@@ -1256,7 +1257,9 @@ class SPP(ISOBase):
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{year}/{year}.zip"  # noqa
         df = utils.download_csvs_from_zip_url(
-            url=url, verbose=verbose, strip_whitespace_from_cols=True
+            url=url,
+            verbose=verbose,
+            strip_whitespace_from_cols=True,
         )
 
         return self._process_hourly_load(df)
