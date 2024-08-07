@@ -2067,10 +2067,12 @@ class Ercot(ISOBase):
     def get_unplanned_resource_outages(self, date, verbose=False):
         """Get Unplanned Resource Outages.
 
-        Data published at ~5am central on the 3rd day after the day of interest.
+        Data published at ~5am central on the 3rd day after the day of interest. Since
+        the date argument is the publish date, if you want to get data for a specific
+        date, pass in the date of interest - 3 days.
 
         Arguments:
-            date (str, datetime): date to get data for
+            date (str, datetime): publish date of the report
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
@@ -2079,7 +2081,7 @@ class Ercot(ISOBase):
         """
         doc = self._get_document(
             report_type_id=UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID,
-            date=date.normalize() + pd.DateOffset(days=3),
+            date=date.normalize(),
             verbose=verbose,
         )
 

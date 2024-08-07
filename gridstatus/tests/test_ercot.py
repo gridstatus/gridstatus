@@ -808,28 +808,36 @@ class TestErcot(BaseTestISO):
 
         self._check_unplanned_resource_outages(df)
 
-        assert df["Current As Of"].dt.date.unique() == [five_days_ago.date()]
-        # Publish Time is 3 days after the current as of time
-        assert df["Publish Time"].dt.date.unique() == [
-            (five_days_ago + pd.DateOffset(days=3)).date(),
+        assert df["Current As Of"].dt.date.unique() == [
+            (five_days_ago - pd.DateOffset(days=3)).date(),
         ]
+        assert df["Publish Time"].dt.date.unique() == [five_days_ago.date()]
 
     def test_get_unplanned_resource_outages_historical_range(self):
-        five_days_ago = self.local_start_of_today() - pd.DateOffset(days=5)
-        start = five_days_ago - pd.DateOffset(1)
+        start = self.local_start_of_today() - pd.DateOffset(6)
 
         df_2_days = self.iso.get_unplanned_resource_outages(
             start=start,
-            end=five_days_ago + pd.DateOffset(1),
+            end=start + pd.DateOffset(2),
         )
 
         self._check_unplanned_resource_outages(df_2_days)
 
         assert df_2_days["Current As Of"].dt.date.nunique() == 2
-        assert df_2_days["Current As Of"].min().date() == start.date()
-        assert df_2_days["Current As Of"].max().date() == five_days_ago.date()
+        assert (
+            df_2_days["Current As Of"].min().date()
+            == (start - pd.DateOffset(days=3)).date()
+        )
+        assert (
+            df_2_days["Current As Of"].max().date()
+            == (start - pd.DateOffset(days=2)).date()
+        )
 
         assert df_2_days["Publish Time"].dt.date.nunique() == 2
+        assert df_2_days["Publish Time"].min().date() == start.date()
+        assert (
+            df_2_days["Publish Time"].max().date() == (start + pd.DateOffset(1)).date()
+        )
 
     """test get_highest_price_as_offer_selected"""
 
