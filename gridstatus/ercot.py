@@ -2063,8 +2063,8 @@ class Ercot(ISOBase):
 
         return df
 
-    @support_date_range("DAY_START")
-    def get_unplanned_resource_outages(self, date, verbose=False):
+    @support_date_range(frequency=None)
+    def get_unplanned_resource_outages(self, date, end=None, verbose=False):
         """Get Unplanned Resource Outages.
 
         Data published at ~5am central on the 3rd day after the day of interest. Since
@@ -2073,22 +2073,31 @@ class Ercot(ISOBase):
 
         Arguments:
             date (str, datetime): publish date of the report
+            end (str, datetime, optional): end date to download. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
             pandas.DataFrame: A DataFrame with unplanned resource outages
 
         """
-        doc = self._get_document(
+        docs = self._get_documents(
             report_type_id=UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID,
-            date=date.normalize(),
+            published_after=date,
+            # If no end provided, use the date plus 1 day
+            published_before=end or date + pd.DateOffset(days=1),
             verbose=verbose,
         )
 
-        xls = utils.get_zip_file(doc.url, verbose=verbose)
+        dfs = []
 
-        df = self._handle_unplanned_resource_outages_file(doc, xls)
-        return df
+        for doc in docs:
+            xls = utils.get_zip_file(doc.url, verbose=verbose)
+            df = self._handle_unplanned_resource_outages_file(doc, xls)
+            dfs.append(df)
+
+        complete_df = pd.concat(dfs, ignore_index=True)
+
+        return complete_df
 
     def _handle_unplanned_resource_outages_file(self, doc, xls):
         as_of = pd.to_datetime(
