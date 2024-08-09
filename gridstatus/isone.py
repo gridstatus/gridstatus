@@ -437,15 +437,14 @@ class ISONE(ISOBase):
                 except Exception as e:
                     log(f"Failed to load {u} with {e}", verbose=verbose)
 
-            data = None
+            data_intervals = None
 
             if dfs:
-                data = pd.concat(dfs)
-                data["Local Time"] = (
-                    date.strftime("%Y-%m-%d") + " " + data["Local Time"]
+                data_intervals = pd.concat(dfs)
+                data_intervals["Local Time"] = pd.to_datetime(
+                    date.strftime("%Y-%m-%d") + " " + data_intervals["Local Time"],
                 )
 
-            # add all intervals > than the max interval in the data
             if querying_for_today:
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
                 msg = "Loading current interval"
@@ -458,18 +457,22 @@ class ISONE(ISOBase):
                     verbose=verbose,
                 )
 
-                if data is not None:
+                data_current["Local Time"] = pd.to_datetime(data_current["Local Time"])
+
+                if data_intervals is not None:
                     data_current = data_current[
-                        data_current["Local Time"] > data["Local Time"].max()
+                        data_current["Local Time"] > data_intervals["Local Time"].max()
                     ]
 
-                    data = pd.concat([data, data_current])
+                    data = pd.concat([data_intervals, data_current])
                 else:
                     # Only keep data from today
                     data_current = data_current[
                         data_current["Local Time"].dt.date == now.date()
                     ]
                     data = data_current.copy()
+            else:
+                data = data_intervals.copy()
 
             data = data.rename(columns={"Local Time": "Interval Start"})
 
@@ -876,9 +879,7 @@ def _make_request(url, skiprows, verbose):
             if response.status_code == 200 and content_type == "text/csv":
                 break
 
-            print(
-                f"Attempt {attempt+1} failed. Retrying...",
-            )
+            print(f"Attempt {attempt+1} failed. Retrying...")
             attempt += 1
 
     if response.status_code != 200 or content_type != "text/csv":
