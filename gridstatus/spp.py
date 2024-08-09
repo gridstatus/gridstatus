@@ -1,3 +1,4 @@
+import urllib
 from typing import BinaryIO
 
 import pandas as pd
@@ -784,6 +785,60 @@ class SPP(ISOBase):
         )
 
         return queue
+
+    @support_date_range("DAY_START")
+    def get_lmp_real_time_5_min(self, date, end=None, verbose=False):
+        """Get LMP data for the Real-Time 5 Minute Market
+
+        Args:
+            date: date to get data for
+            end: end date
+            verbose: print url
+        """
+        year = date.strftime("%Y")
+        month = date.strftime("%m")
+        day = date.strftime("%d")
+
+        day_url = f"https://portal.spp.org/file-browser-api/download/rtbm-lmp-by-bus?path=%2F{year}%2F{month}%2FBy_Day%2FRTBM-LMP-DAILY-BUS-{year}{month}{day}.csv"
+
+        # First, check if there are daily files for the date. If not, go to
+        # 5-minute files.
+        try:
+            df = pd.read_csv(day_url)
+        # If the daily file doesn't exist, get the 5-minute files
+        except requests.HTTPError:
+            rounded_start = date.floor("5min")
+            rounded_end = end.ceil("5min")
+
+            time_range = pd.date_range(rounded_start, rounded_end, freq="5min")
+
+            dfs = []
+
+            for time in time_range:
+                hour = time.strftime("%H")
+                minute = time.strftime("%M")
+
+                interval_url = f"https://portal.spp.org/file-browser-api/download/rtbm-lmp-by-bus?path=%2F{year}%2F{month}%2FBy_Interval%2F{day}%2FRTBM-LMP-B-{year}{month}{day}{hour}{minute}.csv"
+
+                try:
+                    df = pd.read_csv(interval_url)
+                    dfs.append(df)
+                except urllib.error.HTTPError:
+                    continue
+
+            if not dfs:
+                raise ValueError("No data found for ")
+
+            df = pd.concat(dfs)
+
+        df = self._finalize_spp_df(
+            df,
+            Markets.REAL_TIME_5_MIN,
+            LOCATION_TYPE_BUS,
+            verbose=verbose,
+        )
+
+        return df
 
     @lmp_config(
         supports={
