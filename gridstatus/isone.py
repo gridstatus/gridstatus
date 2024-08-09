@@ -441,8 +441,8 @@ class ISONE(ISOBase):
 
             if dfs:
                 data = pd.concat(dfs)
-                data["Local Time"] = (
-                    date.strftime("%Y-%m-%d") + " " + data["Local Time"]
+                data["Local Time"] = pd.to_datetime(
+                    date.strftime("%Y-%m-%d") + " " + data["Local Time"],
                 )
 
             # add all intervals > than the max interval in the data
@@ -457,6 +457,8 @@ class ISONE(ISOBase):
                     skiprows=[0, 1, 2, 4],
                     verbose=verbose,
                 )
+
+                data_current["Local Time"] = pd.to_datetime(data_current["Local Time"])
 
                 if data is not None:
                     data_current = data_current[
@@ -876,9 +878,7 @@ def _make_request(url, skiprows, verbose):
             if response.status_code == 200 and content_type == "text/csv":
                 break
 
-            print(
-                f"Attempt {attempt+1} failed. Retrying...",
-            )
+            print(f"Attempt {attempt+1} failed. Retrying...")
             attempt += 1
 
     if response.status_code != 200 or content_type != "text/csv":
