@@ -1,5 +1,6 @@
 import argparse
 import os
+import random
 import time
 from typing import Optional
 
@@ -102,6 +103,7 @@ class ErcotAPI:
         password: str = None,
         subscription_key: str = None,
         sleep_seconds: float = 0.2,
+        max_retries: int = 3,
     ):
         self.username = username or os.getenv("ERCOT_API_USERNAME")
         self.password = password or os.getenv("ERCOT_API_PASSWORD")
@@ -122,6 +124,8 @@ class ErcotAPI:
         self.ercot = Ercot()
 
         self.sleep_seconds = sleep_seconds
+        self.initial_delay = min(max(0.1, sleep_seconds), 60.0)
+        self.max_retries = min(max(1, max_retries), 10)
 
     def _local_now(self):
         return pd.Timestamp("now", tz=self.default_timezone)
@@ -195,18 +199,28 @@ class ErcotAPI:
         verbose=False,
     ):
         log(f"Requesting url: {url} with params: {api_params}", verbose)
-
-        if method == "GET":
-            response = requests.get(url, params=api_params, headers=self.headers())
-        elif method == "POST":
-            response = requests.post(
-                url,
-                params=api_params,
-                headers=self.headers(),
-                data=data,
-            )
-        else:
-            raise ValueError("Unsupported method")
+        # make request with exponential backoff retry strategy
+        retries = 0
+        delay = self.initial_delay
+        while retries <= self.max_retries:
+            if method == "GET":
+                response = requests.get(url, params=api_params, headers=self.headers())
+            elif method == "POST":
+                response = requests.post(url, params=api_params, headers=self.headers(), data=data)
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+            
+            retries += 1
+            if response.status_code < 400:
+                break
+            elif response.status_code == 429 and retries <= self.max_retries:
+                log(f"Warn: Rate-limited: Waiting {delay} seconds on retry {retries}/{self.max_retries} "
+                    f"when requesting url: {url} with params: {api_params}", verbose)
+                time.sleep(delay + random.uniform(0, delay * 0.1))
+                delay *= 2
+            else:
+                log(f"Error: Failed to get data from {url} with params: {api_params}", verbose)
+                response.raise_for_status()
 
         if parse_json:
             return response.json()
