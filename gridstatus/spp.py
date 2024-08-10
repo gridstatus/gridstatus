@@ -786,39 +786,131 @@ class SPP(ISOBase):
 
         return queue
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+        },
+    )
     @support_date_range("DAY_START")
-    def get_lmp_real_time_5_min(self, date, end=None, verbose=False):
-        """Get LMP data for the Real-Time 5 Minute Market
+    def get_lmp_real_time_5_min_by_location(
+        self,
+        date,
+        end=None,
+        location_type=LOCATION_TYPE_ALL,
+        verbose=False,
+    ):
+        """Get LMP data by location for the Real-Time 5 Minute Market
+
+        Args:
+            date: date to get data for
+            end: end date
+            location_type: location type to get data for. Options are:
+                - ``ALL``
+                - ``Hub``
+                - ``Interface``
+                - ``Settlement Location``
+            verbose: print url
+        """
+        return self._get_real_time_5_min_data(
+            date,
+            end=end,
+            location_type=location_type,
+            verbose=verbose,
+        )
+
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+        },
+    )
+    @support_date_range("DAY_START")
+    def get_lmp_real_time_5_min_by_bus(self, date, end=None, verbose=False):
+        """Get LMP data by bus for the Real-Time 5 Minute Market
 
         Args:
             date: date to get data for
             end: end date
             verbose: print url
+
+        NOTE: does not take a location_type argument because it always returns
+        LOCATION_TYPE_BUS.
         """
+        return self._get_real_time_5_min_data(
+            date,
+            end=end,
+            location_type=LOCATION_TYPE_BUS,
+            verbose=verbose,
+        )
+
+    def _get_real_time_5_min_data(
+        self,
+        date,
+        end=None,
+        location_type=LOCATION_TYPE_ALL,
+        verbose=False,
+    ):
+        """
+        Internal function that consolidates logic for getting LMP data for the
+        Real-Time 5 Minute Market
+        """
+        if location_type not in self.location_types:
+            raise NotSupported(f"Location type {location_type} not supported")
+
+        if location_type == LOCATION_TYPE_BUS:
+            endpoint = RTBM_LMP_BY_BUS
+            file_prefix = "RTBM-LMP-B"
+            daily_file_prefix = "RTBM-LMP-DAILY-BUS"
+        else:
+            endpoint = FS_RTBM_LMP_BY_LOCATION
+            file_prefix = "RTBM-LMP-SL"
+            daily_file_prefix = "RTBM-LMP-DAILY-SL"
+
+        if date == "latest":
+            url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{file_prefix}-latestInterval.csv"
+
+            return self._finalize_spp_df(
+                pd.read_csv(url),
+                market=Markets.REAL_TIME_5_MIN,
+                location_type=location_type,
+                verbose=verbose,
+            )
+
         year = date.strftime("%Y")
         month = date.strftime("%m")
         day = date.strftime("%d")
 
-        day_url = f"https://portal.spp.org/file-browser-api/download/rtbm-lmp-by-bus?path=%2F{year}%2F{month}%2FBy_Day%2FRTBM-LMP-DAILY-BUS-{year}{month}{day}.csv"
+        day_url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{year}%2F{month}%2FBy_Day%2F{daily_file_prefix}-{year}{month}{day}.csv"
 
-        # First, check if there are daily files for the date. If not, go to
-        # 5-minute files.
+        # First, check for a daily file for the date.
         try:
             df = pd.read_csv(day_url)
+            df.columns = df.columns.map(str.strip)
+            df = df.rename(
+                columns={
+                    "Location Name": "Location",
+                    "GMT Interval End": "GMTIntervalEnd",
+                },
+            ).drop(columns=["Interval End"])
         # If the daily file doesn't exist, get the 5-minute files
-        except requests.HTTPError:
+        except urllib.error.HTTPError:
             rounded_start = date.floor("5min")
+
+            # Need an end date to get the 5-minute files because we construct
+            # a date range
+            end = end or date + pd.DateOffset(hours=1)
+            # end can't be greater than the current time
+            end = min(end, self.local_now().floor("5min"))
             rounded_end = end.ceil("5min")
 
             time_range = pd.date_range(rounded_start, rounded_end, freq="5min")
 
             dfs = []
 
-            for time in time_range:
+            for time in tqdm.tqdm(time_range, desc="Downloading 5-minute files"):
                 hour = time.strftime("%H")
                 minute = time.strftime("%M")
 
-                interval_url = f"https://portal.spp.org/file-browser-api/download/rtbm-lmp-by-bus?path=%2F{year}%2F{month}%2FBy_Interval%2F{day}%2FRTBM-LMP-B-{year}{month}{day}{hour}{minute}.csv"
+                interval_url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{year}%2F{month}%2FBy_Interval%2F{day}%2F{file_prefix}-{year}{month}{day}{hour}{minute}.csv"
 
                 try:
                     df = pd.read_csv(interval_url)
@@ -827,70 +919,52 @@ class SPP(ISOBase):
                     continue
 
             if not dfs:
-                raise ValueError("No data found for ")
+                raise ValueError(
+                    f"No 5 minute files found from {rounded_start} to {rounded_end}",
+                )
 
             df = pd.concat(dfs)
 
         df = self._finalize_spp_df(
             df,
-            Markets.REAL_TIME_5_MIN,
-            LOCATION_TYPE_BUS,
+            market=Markets.REAL_TIME_5_MIN,
+            location_type=location_type,
             verbose=verbose,
         )
+
+        if end:
+            df = df[df["Interval Start"].between(date, end)]
 
         return df
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
-            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
         },
     )
     @support_date_range(frequency="DAY_START")
-    def get_lmp(
+    def get_lmp_day_ahead_hourly(
         self,
         date,
         end=None,
-        market: str = None,
         location_type: str = LOCATION_TYPE_ALL,
         verbose=False,
     ):
-        """Get LMP data
-
-        Supported Markets:
-            - ``REAL_TIME_5_MIN``
-            - ``DAY_AHEAD_HOURLY``
+        """Get day ahead hourly LMP data
 
         Supported Location Types:
             - ``Hub``
             - ``Interface``
             - ``ALL``
-            - ``Bus``
         """
-        if market not in self.markets:
-            raise NotSupported(f"Market {market} not supported")
-
         if location_type not in self.location_types:
             raise NotSupported(f"Location type {location_type} not supported")
 
-        if market == Markets.REAL_TIME_5_MIN:
-            df = self._get_rtm5_lmp(
-                date,
-                end,
-                location_type,
-                verbose,
-            )
-        elif market == Markets.DAY_AHEAD_HOURLY:
-            if date == "latest":
-                raise ValueError("Latest not supported for Day Ahead Hourly")
-            df = self._get_dam_lmp(
-                date,
-                verbose,
-            )
+        df = self._get_dam_lmp(date, verbose)
 
         return self._finalize_spp_df(
             df,
-            market=market,
+            market=Markets.DAY_AHEAD_HOURLY,
             location_type=location_type,
             verbose=verbose,
         )
@@ -979,6 +1053,8 @@ class SPP(ISOBase):
             interval_duration = pd.Timedelta(minutes=5)
         elif market == Markets.DAY_AHEAD_HOURLY:
             interval_duration = pd.Timedelta(hours=1)
+        else:
+            raise ValueError(f"Market {market} not supported")
 
         df = self._handle_market_end_to_interval(
             df,
@@ -1036,7 +1112,7 @@ class SPP(ISOBase):
 
         df = df.reset_index(drop=True)
 
-        # Since Location = Pnode for bus, we can drop Pnode
+        # Since Location = PNode for bus, we can drop PNode
         if location_type == LOCATION_TYPE_BUS:
             df = df.drop(columns=["PNode"])
 
