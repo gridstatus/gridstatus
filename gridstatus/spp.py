@@ -977,43 +977,6 @@ class SPP(ISOBase):
         df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
         return df
 
-    def _get_rtm5_lmp(
-        self,
-        date,
-        end=None,
-        location_type=LOCATION_TYPE_BUS,
-        verbose=False,
-    ):
-        fs_name = (
-            RTBM_LMP_BY_BUS
-            if location_type == LOCATION_TYPE_BUS
-            else FS_RTBM_LMP_BY_LOCATION
-        )
-
-        latest_file_id = (
-            "RTBM-LMP-B" if location_type == LOCATION_TYPE_BUS else "RTBM-LMP-SL"
-        )
-
-        if date == "latest":
-            urls = [
-                FILE_BROWSER_DOWNLOAD_URL
-                + "/"
-                + fs_name
-                + f"?path=%2F{latest_file_id}-latestInterval.csv",
-            ]
-        else:
-            urls = self._file_browser_list(
-                fs_name=fs_name,
-                type="folder",
-                path=date.strftime("/%Y/%m/By_Interval/%d"),
-            )["url"].tolist()
-
-        msg = f"Found {len(urls)} files for {date}"
-        log(msg, verbose)
-
-        df = self._fetch_and_concat_csvs(urls, verbose=verbose)
-        return df
-
     def _get_dam_lmp(
         self,
         date,
@@ -1325,32 +1288,6 @@ class SPP(ISOBase):
                 "X-XSRF-TOKEN": xsrf_token,
             },
         }
-
-    def _file_browser_list(self, fs_name: str, type: str, path: str):
-        """Lists folders in a browser
-
-        Returns: pd.DataFrame of files, or empty pd.DataFrame on error"""
-        session = self._get_marketplace_session()
-        json_payload = {
-            "name": fs_name,
-            "fsName": fs_name,
-            "type": type,
-            "path": path,
-        }
-        list_results = requests.post(
-            FILE_BROWSER_API_URL,
-            json=json_payload,
-            headers=session["headers"],
-            cookies=session["cookies"],
-        )
-        if list_results.status_code == 200:
-            df = pd.DataFrame(list_results.json())
-            df["url"] = (
-                FILE_BROWSER_DOWNLOAD_URL + "/" + fs_name + "?path=" + df["path"]
-            )
-            return df
-        else:
-            return pd.DataFrame()
 
     @staticmethod
     def _match(
