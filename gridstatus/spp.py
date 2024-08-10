@@ -785,7 +785,7 @@ class SPP(ISOBase):
 
         return queue
 
-    @support_date_range("DAY_START")
+    @support_date_range(frequency=None)
     def get_lmp_real_time_5_min_by_location(
         self,
         date,
@@ -890,7 +890,7 @@ class SPP(ISOBase):
             rounded_start = date.floor("5min")
 
             # Need an end date to get the 5-minute files because we construct
-            # a date range
+            # a date range. Use 1 hour after the date to prevent too many files
             end = end or date + pd.DateOffset(hours=1)
             # end can't be greater than the current time
             end = min(end, self.local_now().floor("5min"))
