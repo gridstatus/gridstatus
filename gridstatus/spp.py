@@ -9,7 +9,6 @@ from gridstatus import utils
 from gridstatus.base import InterconnectionQueueStatus, ISOBase, Markets, NotSupported
 from gridstatus.decorators import FiveMinOffset, support_date_range
 from gridstatus.gs_logging import log
-from gridstatus.lmp_config import lmp_config
 
 RTBM_LMP_BY_BUS = "rtbm-lmp-by-bus"
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
@@ -786,11 +785,6 @@ class SPP(ISOBase):
 
         return queue
 
-    @lmp_config(
-        supports={
-            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
-        },
-    )
     @support_date_range("DAY_START")
     def get_lmp_real_time_5_min_by_location(
         self,
@@ -818,11 +812,6 @@ class SPP(ISOBase):
             verbose=verbose,
         )
 
-    @lmp_config(
-        supports={
-            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
-        },
-    )
     @support_date_range("DAY_START")
     def get_lmp_real_time_5_min_by_bus(self, date, end=None, verbose=False):
         """Get LMP data by bus for the Real-Time 5 Minute Market
@@ -889,8 +878,13 @@ class SPP(ISOBase):
                 columns={
                     "Location Name": "Location",
                     "GMT Interval End": "GMTIntervalEnd",
+                    "GMT Interval": "GMTIntervalEnd",
+                    "Settlement Location Name": "Settlement Location",
+                    "PNODE Name": "PNode",
                 },
-            ).drop(columns=["Interval End"])
+            )
+            if "Interval End" in df.columns:
+                df = df.drop(columns=["Interval End"])
         # If the daily file doesn't exist, get the 5-minute files
         except urllib.error.HTTPError:
             rounded_start = date.floor("5min")
@@ -937,11 +931,6 @@ class SPP(ISOBase):
 
         return df
 
-    @lmp_config(
-        supports={
-            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
-        },
-    )
     @support_date_range(frequency="DAY_START")
     def get_lmp_day_ahead_hourly(
         self,
@@ -959,6 +948,9 @@ class SPP(ISOBase):
         """
         if location_type not in self.location_types:
             raise NotSupported(f"Location type {location_type} not supported")
+
+        if date == "latest":
+            raise NotSupported("Latest not supported for day ahead hourly")
 
         df = self._get_dam_lmp(date, verbose)
 
