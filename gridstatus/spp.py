@@ -1,4 +1,3 @@
-import urllib
 from typing import BinaryIO
 
 import pandas as pd
@@ -785,7 +784,7 @@ class SPP(ISOBase):
 
         return queue
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="5_MIN")
     def get_lmp_real_time_5_min_by_location(
         self,
         date,
@@ -799,20 +798,19 @@ class SPP(ISOBase):
             date: date to get data for
             end: end date
             location_type: location type to get data for. Options are:
-                - ``ALL``
-                - ``Hub``
-                - ``Interface``
-                - ``Settlement Location``
+                - ``ALL`` (LOCATION_TYPE_ALL)
+                - ``Hub`` (LOCATION_TYPE_HUB)
+                - ``Interface`` (LOCATION_TYPE_INTERFACE)
+                - ``Settlement Location`` (LOCATION_TYPE_SETTLEMENT_LOCATION)
             verbose: print url
         """
         return self._get_real_time_5_min_data(
             date,
-            end=end,
             location_type=location_type,
             verbose=verbose,
         )
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="5_MIN")
     def get_lmp_real_time_5_min_by_bus(self, date, end=None, verbose=False):
         """Get LMP data by bus for the Real-Time 5 Minute Market
 
@@ -826,7 +824,6 @@ class SPP(ISOBase):
         """
         return self._get_real_time_5_min_data(
             date,
-            end=end,
             location_type=LOCATION_TYPE_BUS,
             verbose=verbose,
         )
@@ -834,7 +831,6 @@ class SPP(ISOBase):
     def _get_real_time_5_min_data(
         self,
         date,
-        end=None,
         location_type=LOCATION_TYPE_ALL,
         verbose=False,
     ):
@@ -848,76 +844,26 @@ class SPP(ISOBase):
         if location_type == LOCATION_TYPE_BUS:
             endpoint = RTBM_LMP_BY_BUS
             file_prefix = "RTBM-LMP-B"
-            daily_file_prefix = "RTBM-LMP-DAILY-BUS"
         else:
             endpoint = FS_RTBM_LMP_BY_LOCATION
             file_prefix = "RTBM-LMP-SL"
-            daily_file_prefix = "RTBM-LMP-DAILY-SL"
 
         if date == "latest":
             url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{file_prefix}-latestInterval.csv"
 
-            return self._finalize_spp_df(
-                pd.read_csv(url),
-                market=Markets.REAL_TIME_5_MIN,
-                location_type=location_type,
-                verbose=verbose,
-            )
+        else:
+            year = date.strftime("%Y")
+            month = date.strftime("%m")
+            day = date.strftime("%d")
 
-        year = date.strftime("%Y")
-        month = date.strftime("%m")
-        day = date.strftime("%d")
+            rounded_date = date.floor("5min")
 
-        day_url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{year}%2F{month}%2FBy_Day%2F{daily_file_prefix}-{year}{month}{day}.csv"
+            hour = rounded_date.strftime("%H")
+            minute = rounded_date.strftime("%M")
 
-        # First, check for a daily file for the date.
-        try:
-            df = pd.read_csv(day_url)
-            df.columns = df.columns.map(str.strip)
-            df = df.rename(
-                columns={
-                    "Location Name": "Location",
-                    "GMT Interval End": "GMTIntervalEnd",
-                    "GMT Interval": "GMTIntervalEnd",
-                    "Settlement Location Name": "Settlement Location",
-                    "PNODE Name": "Pnode",
-                },
-            )
-            if "Interval End" in df.columns:
-                df = df.drop(columns=["Interval End"])
-        # If the daily file doesn't exist, get the 5-minute files
-        except urllib.error.HTTPError:
-            rounded_start = date.floor("5min")
+            url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{year}%2F{month}%2FBy_Interval%2F{day}%2F{file_prefix}-{year}{month}{day}{hour}{minute}.csv"
 
-            # Need an end date to get the 5-minute files because we construct
-            # a date range. Use 1 hour after the date to prevent too many files
-            end = end or date + pd.DateOffset(hours=1)
-            # end can't be greater than the current time
-            end = min(end, self.local_now().floor("5min"))
-            rounded_end = end.ceil("5min")
-
-            time_range = pd.date_range(rounded_start, rounded_end, freq="5min")
-
-            dfs = []
-
-            for time in tqdm.tqdm(time_range, desc="Downloading 5-minute files"):
-                hour = time.strftime("%H")
-                minute = time.strftime("%M")
-
-                interval_url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{year}%2F{month}%2FBy_Interval%2F{day}%2F{file_prefix}-{year}{month}{day}{hour}{minute}.csv"
-
-                try:
-                    df = pd.read_csv(interval_url)
-                    dfs.append(df)
-                except urllib.error.HTTPError:
-                    continue
-
-            if not dfs:
-                raise ValueError(
-                    f"No 5 minute files found from {rounded_start} to {rounded_end}",
-                )
-
-            df = pd.concat(dfs)
+        df = pd.read_csv(url)
 
         df = self._finalize_spp_df(
             df,
@@ -925,9 +871,6 @@ class SPP(ISOBase):
             location_type=location_type,
             verbose=verbose,
         )
-
-        if end:
-            df = df[df["Interval Start"].between(date, end)]
 
         return df
 
