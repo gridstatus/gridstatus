@@ -784,7 +784,6 @@ class SPP(ISOBase):
 
         return queue
 
-    @support_date_range(frequency="5_MIN")
     def get_lmp_real_time_5_min_by_location(
         self,
         date,
@@ -804,13 +803,18 @@ class SPP(ISOBase):
                 - ``Settlement Location`` (LOCATION_TYPE_SETTLEMENT_LOCATION)
             verbose: print url
         """
-        return self._get_real_time_5_min_data(
-            date,
+        return self._finalize_spp_df(
+            self._get_real_time_5_min_data(
+                date,
+                end=end,
+                location_type=location_type,
+                verbose=verbose,
+            ),
+            market=Markets.REAL_TIME_5_MIN,
             location_type=location_type,
             verbose=verbose,
         )
 
-    @support_date_range(frequency="5_MIN")
     def get_lmp_real_time_5_min_by_bus(self, date, end=None, verbose=False):
         """Get LMP data by bus for the Real-Time 5 Minute Market
 
@@ -822,15 +826,23 @@ class SPP(ISOBase):
         NOTE: does not take a location_type argument because it always returns
         LOCATION_TYPE_BUS.
         """
-        return self._get_real_time_5_min_data(
-            date,
+        return self._finalize_spp_df(
+            self._get_real_time_5_min_data(
+                date,
+                end=end,
+                location_type=LOCATION_TYPE_BUS,
+                verbose=verbose,
+            ),
+            market=Markets.REAL_TIME_5_MIN,
             location_type=LOCATION_TYPE_BUS,
             verbose=verbose,
         )
 
+    @support_date_range(frequency="5_MIN")
     def _get_real_time_5_min_data(
         self,
         date,
+        end=None,
         location_type=LOCATION_TYPE_ALL,
         verbose=False,
     ):
@@ -856,21 +868,17 @@ class SPP(ISOBase):
             month = date.strftime("%m")
             day = date.strftime("%d")
 
-            rounded_date = date.floor("5min")
+            # We need to add 5 minutes because each file is for the interval end.
+            rounded_date = date.floor("5min") + pd.DateOffset(minutes=5)
 
             hour = rounded_date.strftime("%H")
             minute = rounded_date.strftime("%M")
 
             url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{year}%2F{month}%2FBy_Interval%2F{day}%2F{file_prefix}-{year}{month}{day}{hour}{minute}.csv"
 
-        df = pd.read_csv(url)
+        log(f"Getting data for {date} from {url}", verbose=verbose)
 
-        df = self._finalize_spp_df(
-            df,
-            market=Markets.REAL_TIME_5_MIN,
-            location_type=location_type,
-            verbose=verbose,
-        )
+        df = pd.read_csv(url)
 
         return df
 

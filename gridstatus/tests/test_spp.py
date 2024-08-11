@@ -119,26 +119,25 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].nunique() == 1
         assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
 
+    @pytest.mark.slow
     def test_get_lmp_real_time_5_min_by_location_today(self):
-        df = self.iso.get_lmp_real_time_5_min_by_location(date="today")
+        df = self.iso.get_lmp_real_time_5_min_by_location(date="today", verbose=True)
 
         self._check_lmp_real_time_5_min_by_location(df)
 
         assert df["Interval Start"].min() == self.local_start_of_today()
-
-        # When fetching data for today, we retrieve the first hour of today.
-        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
-            hours=1,
-        )
+        assert df["Interval End"].max() >= self.local_now().floor(
+            "5min",
+        ) - pd.DateOffset(minutes=10)
 
     def test_get_lmp_real_time_5_min_by_location_date_range(self):
-        # This is close enough to the present that we should fetch the interval files.
         three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
         three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
 
         df = self.iso.get_lmp_real_time_5_min_by_location(
-            start=three_days_ago,
+            date=three_days_ago,
             end=three_days_ago_0215,
+            verbose=True,
         )
 
         self._check_lmp_real_time_5_min_by_location(df)
@@ -147,15 +146,18 @@ class TestSPP(BaseTestISO):
         assert df["Interval End"].max() == three_days_ago_0215
 
     def test_get_lmp_real_time_5_min_by_location_historical_date(self):
-        # This is far enough in the past that there should be a By_Day single file
+        # For a historical date, the decorator only retrieves a single interval
         thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
 
-        df = self.iso.get_lmp_real_time_5_min_by_location(date=thirty_days_ago)
+        df = self.iso.get_lmp_real_time_5_min_by_location(
+            date=thirty_days_ago,
+            verbose=True,
+        )
 
         self._check_lmp_real_time_5_min_by_location(df)
 
         assert df["Interval Start"].min() == thirty_days_ago
-        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(days=1)
+        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(minutes=5)
 
     @pytest.mark.parametrize(
         "location_type",
@@ -207,25 +209,23 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].nunique() == 1
         assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
 
+    @pytest.mark.slow
     def test_get_lmp_real_time_5_min_by_bus_today(self):
-        df = self.iso.get_lmp_real_time_5_min_by_bus(date="today")
+        df = self.iso.get_lmp_real_time_5_min_by_bus(date="today", verbose=True)
 
         self._check_lmp_real_time_5_min_by_bus(df)
 
         assert df["Interval Start"].min() == self.local_start_of_today()
-
-        # When fetching data for today, we retrieve the first hour of today.
-        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
-            hours=1,
-        )
+        assert df["Interval End"].max() >= self.local_now().floor(
+            "5min",
+        ) - pd.DateOffset(minutes=10)
 
     def test_get_lmp_real_time_5_min_by_bus_date_range(self):
-        # This is close enough to the present that we should fetch the interval files.
         three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
         three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
 
         df = self.iso.get_lmp_real_time_5_min_by_bus(
-            start=three_days_ago,
+            date=three_days_ago,
             end=three_days_ago_0215,
         )
 
@@ -235,7 +235,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval End"].max() == three_days_ago_0215
 
     def test_get_lmp_real_time_5_min_by_bus_historical_date(self):
-        # This is far enough in the past that there should be a By_Day single file
+        # For a historical date, the decorator only retrieves a single interval
         thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
 
         df = self.iso.get_lmp_real_time_5_min_by_bus(date=thirty_days_ago)
@@ -243,7 +243,7 @@ class TestSPP(BaseTestISO):
         self._check_lmp_real_time_5_min_by_bus(df)
 
         assert df["Interval Start"].min() == thirty_days_ago
-        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(days=1)
+        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(minutes=5)
 
     """get_lmp_day_ahead_hourly"""
 
