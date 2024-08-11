@@ -15,7 +15,7 @@ class TestErcotAPI(TestHelperMixin):
     def setup_class(cls):
         # https://docs.pytest.org/en/stable/how-to/xunit_setup.html
         # Runs before all tests in this class
-        cls.iso = ErcotAPI()
+        cls.iso = ErcotAPI(sleep_seconds=3, max_retries=5)
 
     """utils"""
 
@@ -911,7 +911,7 @@ class TestErcotAPI(TestHelperMixin):
 
         end_date = start_date + pd.DateOffset(days=2)
 
-        df = ErcotAPI(sleep_seconds=2.5).get_spp_real_time_15_min(
+        df = ErcotAPI(sleep_seconds=3.0, max_retries=5).get_spp_real_time_15_min(
             date=start_date,
             end=end_date,
             verbose=True,

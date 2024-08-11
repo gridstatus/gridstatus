@@ -1,11 +1,13 @@
 import argparse
 import os
+import random
 import time
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 import requests
+import requests.status_codes as status_codes
 from tqdm import tqdm
 
 from gridstatus import utils
@@ -102,6 +104,7 @@ class ErcotAPI:
         password: str = None,
         subscription_key: str = None,
         sleep_seconds: float = 0.2,
+        max_retries: int = 3,
     ):
         self.username = username or os.getenv("ERCOT_API_USERNAME")
         self.password = password or os.getenv("ERCOT_API_PASSWORD")
@@ -122,6 +125,8 @@ class ErcotAPI:
         self.ercot = Ercot()
 
         self.sleep_seconds = sleep_seconds
+        self.initial_delay = min(max(0.1, sleep_seconds), 60.0)
+        self.max_retries = min(max(0, max_retries), 10)
 
     def _local_now(self):
         return pd.Timestamp("now", tz=self.default_timezone)
@@ -195,18 +200,43 @@ class ErcotAPI:
         verbose=False,
     ):
         log(f"Requesting url: {url} with params: {api_params}", verbose)
+        # make request with exponential backoff retry strategy
+        retries = 0
+        delay = self.initial_delay
+        while retries <= self.max_retries:
+            if method == "GET":
+                response = requests.get(url, params=api_params, headers=self.headers())
+            elif method == "POST":
+                response = requests.post(
+                    url, params=api_params, headers=self.headers(), data=data
+                )
+            else:
+                raise ValueError(f"Unsupported method: {method}")
 
-        if method == "GET":
-            response = requests.get(url, params=api_params, headers=self.headers())
-        elif method == "POST":
-            response = requests.post(
-                url,
-                params=api_params,
-                headers=self.headers(),
-                data=data,
-            )
-        else:
-            raise ValueError("Unsupported method")
+            retries += 1
+            if response.status_code < 400:
+                break
+            elif (
+                response.status_code == status_codes.codes.TOO_MANY_REQUESTS
+                and retries <= self.max_retries
+            ):
+                log(
+                    f"Warn: Rate-limited: waiting {delay} seconds before retry {retries}/{self.max_retries} "  # noqa
+                    f"requesting url: {url} with params: {api_params}",
+                    verbose,
+                )
+                time.sleep(delay + random.uniform(0, delay * 0.1))
+                delay *= 2
+            else:
+                if retries > self.max_retries:
+                    error_message = (
+                        f"Error: Rate-limited still after {self.max_retries} retries. "
+                        f"Failed to get data from {url} with params: {api_params}"
+                    )
+                else:
+                    error_message = f"Error: Failed to get data from {url} with params: {api_params}"  # noqa
+                log(error_message, verbose)
+                response.raise_for_status()
 
         if parse_json:
             return response.json()
@@ -1260,9 +1290,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.action == "list":  # TODO avoid case match because lower python version
-        ErcotAPI().list_all_endpoints()
+        ErcotAPI(sleep_seconds=2.0).list_all_endpoints()
     elif args.action == "describe":
-        ErcotAPI().describe_one_endpoint(args.endpoint)
+        ErcotAPI(sleep_seconds=2.0).describe_one_endpoint(args.endpoint)
     else:
         print(f"{args.action} is not a valid action")
         print("Try 'list' or 'describe'")
