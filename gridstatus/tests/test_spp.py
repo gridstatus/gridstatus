@@ -174,6 +174,78 @@ class TestSPP(BaseTestISO):
 
         self._check_lmp_real_time_5_min_by_location(df, location_types=[location_type])
 
+    """get_lmp_real_time_5_min_by_bus"""
+
+    def _check_lmp_real_time_5_min_by_bus(self, df):
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        assert df["Market"].unique() == [Markets.REAL_TIME_5_MIN.value]
+
+        assert df["Location Type"].unique() == [LOCATION_TYPE_BUS]
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+
+    def test_get_lmp_real_time_5_min_by_bus_latest(self):
+        df = self.iso.get_lmp_real_time_5_min_by_bus(date="latest")
+
+        self._check_lmp_real_time_5_min_by_bus(df)
+
+        # Latest data should have one interval
+        assert df["Interval Start"].nunique() == 1
+        assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
+
+    def test_get_lmp_real_time_5_min_by_bus_today(self):
+        df = self.iso.get_lmp_real_time_5_min_by_bus(date="today")
+
+        self._check_lmp_real_time_5_min_by_bus(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+
+        # When fetching data for today, we retrieve the first hour of today.
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            hours=1,
+        )
+
+    def test_get_lmp_real_time_5_min_by_bus_date_range(self):
+        # This is close enough to the present that we should fetch the interval files.
+        three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
+        three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
+
+        df = self.iso.get_lmp_real_time_5_min_by_bus(
+            start=three_days_ago,
+            end=three_days_ago_0215,
+        )
+
+        self._check_lmp_real_time_5_min_by_bus(df)
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval End"].max() == three_days_ago_0215
+
+    def test_get_lmp_real_time_5_min_by_bus_historical_date(self):
+        # This is far enough in the past that there should be a By_Day single file
+        thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
+
+        df = self.iso.get_lmp_real_time_5_min_by_bus(date=thirty_days_ago)
+
+        self._check_lmp_real_time_5_min_by_bus(df)
+
+        assert df["Interval Start"].min() == thirty_days_ago
+        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(days=1)
+
     """get_lmp"""
 
     @with_markets(

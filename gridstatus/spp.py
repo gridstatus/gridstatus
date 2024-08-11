@@ -812,7 +812,7 @@ class SPP(ISOBase):
             verbose=verbose,
         )
 
-    @support_date_range("DAY_START")
+    @support_date_range(frequency=None)
     def get_lmp_real_time_5_min_by_bus(self, date, end=None, verbose=False):
         """Get LMP data by bus for the Real-Time 5 Minute Market
 
