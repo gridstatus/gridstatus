@@ -279,15 +279,9 @@ class TestSPP(BaseTestISO):
 
         assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
 
-    def test_get_lmp_day_ahead_hourly_latest(self):
-        df = self.iso.get_lmp_day_ahead_hourly(date="latest")
-
-        self._check_lmp_day_ahead_hourly(df)
-
-        # Latest data should have one interval
-
-        assert df["Interval Start"].nunique() == 1
-        assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
+    def test_get_lmp_day_ahead_hourly_latest_not_supported(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_lmp_day_ahead_hourly(date="latest")
 
     def test_get_lmp_day_ahead_hourly_today(self):
         df = self.iso.get_lmp_day_ahead_hourly(date="today")
@@ -296,28 +290,26 @@ class TestSPP(BaseTestISO):
 
         assert df["Interval Start"].min() == self.local_start_of_today()
 
-        # When fetching data for today, we retrieve the first hour of today.
         assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
-            hours=1,
+            days=1,
         )
 
     def test_get_lmp_day_ahead_hourly_date_range(self):
-        # This is close enough to the present that we should fetch the interval files.
-        three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
-        three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
+        four_days_ago = self.local_start_of_today() - pd.DateOffset(days=4)
+        two_days_ago = four_days_ago + pd.DateOffset(days=2)
 
         df = self.iso.get_lmp_day_ahead_hourly(
-            start=three_days_ago,
-            end=three_days_ago_0215,
+            start=four_days_ago,
+            end=two_days_ago,
         )
 
         self._check_lmp_day_ahead_hourly(df)
 
-        assert df["Interval Start"].min() == three_days_ago
-        assert df["Interval End"].max() == three_days_ago_0215
+        assert df["Interval Start"].min() == four_days_ago
+        # Not end day inclusive
+        assert df["Interval End"].max() == two_days_ago
 
     def test_get_lmp_day_ahead_hourly_historical_date(self):
-        # This is far enough in the past that there should be a By_Day single file
         thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
 
         df = self.iso.get_lmp_day_ahead_hourly(date=thirty_days_ago)
@@ -337,7 +329,7 @@ class TestSPP(BaseTestISO):
     )
     def test_get_lmp_day_ahead_hourly_filters_location(self, location_type):
         df = self.iso.get_lmp_day_ahead_hourly(
-            date="latest",
+            date="today",
             location_type=location_type,
         )
 
@@ -347,21 +339,23 @@ class TestSPP(BaseTestISO):
     # override these tests
     """get_lmp"""
 
-    @pytest.not_support
+    @pytest.mark.skip(reason="Not Applicable")
     def test_lmp_date_range(self):
         pass
 
-    @pytest.not_supported
+    @pytest.mark.skip(reason="Not Applicable")
     def test_get_lmp_historical(self):
         pass
 
-    @pytest.not_supported
+    @pytest.mark.skip(reason="Not Applicable")
     def test_get_lmp_latest(self):
         pass
 
-    @pytest.not_supported
+    @pytest.mark.skip(reason="Not Applicable")
     def test_get_lmp_today(self):
         pass
+
+    """get_operating_reserves"""
 
     OPERATING_RESERVES_COLUMNS = [
         "Time",
