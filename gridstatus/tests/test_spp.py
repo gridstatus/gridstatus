@@ -521,7 +521,10 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("5min")
+        # Account for small delay in publishing
+        assert df["Publish Time"].max() >= (now).floor("5min") - pd.DateOffset(
+            minutes=5,
+        )
 
         assert df["Interval Start"].min() <= now
         assert df["Interval Start"].max() >= now.floor("h")
@@ -659,7 +662,10 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("5min")
+        # Account for small delay in publishing
+        assert df["Publish Time"].max() >= (now).floor("5min") - pd.DateOffset(
+            minutes=5,
+        )
 
         assert df["Interval Start"].min() <= now
 
