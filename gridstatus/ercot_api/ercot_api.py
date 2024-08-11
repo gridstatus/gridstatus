@@ -193,9 +193,7 @@ class ErcotAPI:
     def make_api_call(
         self,
         url,
-        method="GET",
         api_params=None,
-        data=None,
         parse_json=True,
         verbose=False,
     ):
@@ -204,17 +202,10 @@ class ErcotAPI:
         retries = 0
         delay = self.initial_delay
         while retries <= self.max_retries:
-            if method == "GET":
-                response = requests.get(url, params=api_params, headers=self.headers())
-            elif method == "POST":
-                response = requests.post(
-                    url, params=api_params, headers=self.headers(), data=data
-                )
-            else:
-                raise ValueError(f"Unsupported method: {method}")
+            response = requests.get(url, params=api_params, headers=self.headers())
 
             retries += 1
-            if response.status_code < 400:
+            if response.status_code == status_codes.codes.OK:
                 break
             elif (
                 response.status_code == status_codes.codes.TOO_MANY_REQUESTS
@@ -234,7 +225,10 @@ class ErcotAPI:
                         f"Failed to get data from {url} with params: {api_params}"
                     )
                 else:
-                    error_message = f"Error: Failed to get data from {url} with params: {api_params}"  # noqa
+                    error_message = (
+                        f"Error: Failed to get data from {url} with params:"
+                        f" {api_params}"
+                    )
                 log(error_message, verbose)
                 response.raise_for_status()
 
@@ -1167,8 +1161,6 @@ class ErcotAPI:
                     f"out of {total_pages} total",
                 )
 
-        max_retries = 3
-
         with self._create_progress_bar(
             pages_to_retrieve,
             "Fetching data",
@@ -1186,31 +1178,13 @@ class ErcotAPI:
                     verbose,
                 )
 
-                retry = 0
+                response = self.make_api_call(
+                    urlstring,
+                    api_params=parsed_api_params,
+                    verbose=verbose,
+                )
 
-                while retry < max_retries:
-                    try:
-                        response = self.make_api_call(
-                            urlstring,
-                            api_params=parsed_api_params,
-                            verbose=verbose,
-                        )
-
-                        status_code = response.get("statusCode")
-
-                        # status code only seems to be present for a failure
-                        if status_code and status_code != 200:
-                            log(f"Error: {response.get('message')}", verbose)
-                            retry += 1
-                            continue
-
-                        data_results.extend(response["data"])
-                        # Exit the loop if the operation is successful
-                        break
-
-                    except Exception as e:
-                        log(f"Error: {e}", verbose)
-                        retry += 1
+                data_results.extend(response["data"])
 
                 pbar.update(1)
 

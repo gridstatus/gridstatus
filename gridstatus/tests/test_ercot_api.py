@@ -465,6 +465,7 @@ class TestErcotAPI(TestHelperMixin):
             days=1,
         )
 
+    @pytest.mark.slow
     def test_get_lmp_by_settlement_point_historical_date_range(self):
         start_date = datetime.date(2021, 11, 12)
         end_date = datetime.date(2021, 11, 14)
@@ -619,6 +620,7 @@ class TestErcotAPI(TestHelperMixin):
             date,
         ) + pd.DateOffset(days=1)
 
+    @pytest.mark.slow
     def test_get_lmp_by_bus_historical_date_range(self):
         start_date = self.local_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
