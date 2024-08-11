@@ -880,7 +880,7 @@ class SPP(ISOBase):
                     "GMT Interval End": "GMTIntervalEnd",
                     "GMT Interval": "GMTIntervalEnd",
                     "Settlement Location Name": "Settlement Location",
-                    "PNODE Name": "PNode",
+                    "PNODE Name": "Pnode",
                 },
             )
             if "Interval End" in df.columns:

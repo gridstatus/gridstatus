@@ -10,7 +10,6 @@ from gridstatus.spp import (
     LOCATION_TYPE_SETTLEMENT_LOCATION,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
-from gridstatus.tests.decorators import with_markets
 
 
 class TestSPP(BaseTestISO):
@@ -246,45 +245,17 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == thirty_days_ago
         assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(days=1)
 
-    """get_lmp"""
+    """get_lmp_day_ahead_hourly"""
 
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-    )
-    def test_lmp_date_range(self, market):
-        super().test_lmp_date_range(market=market)
-
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_5_MIN,
-    )
-    def test_get_lmp_historical(self, market):
-        super().test_get_lmp_historical(
-            market=market,
-            # SPP only offers interval data in for a limited period of time in the past.
-            date_str=str(pd.Timestamp.now().date() - pd.Timedelta(days=300)),
-        )
-
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_5_MIN,
-    )
-    def test_get_lmp_today(self, market):
-        super().test_get_lmp_today(market=market)
-
-    @with_markets(
-        Markets.REAL_TIME_5_MIN,
-    )
-    def test_get_lmp_latest(self, market):
-        super().test_get_lmp_latest(market=market)
-
-    def test_get_lmp_by_bus_latest(self):
-        df = self.iso.get_lmp(
-            date="latest",
-            market=Markets.REAL_TIME_5_MIN,
-            location_type=LOCATION_TYPE_BUS,
-        )
-
+    def _check_lmp_day_ahead_hourly(
+        self,
+        df,
+        location_types=[
+            LOCATION_TYPE_HUB,
+            LOCATION_TYPE_INTERFACE,
+            LOCATION_TYPE_SETTLEMENT_LOCATION,
+        ],
+    ):
         assert df.columns.tolist() == [
             "Time",
             "Interval Start",
@@ -292,108 +263,105 @@ class TestSPP(BaseTestISO):
             "Market",
             "Location",
             "Location Type",
+            "PNode",
             "LMP",
             "Energy",
             "Congestion",
             "Loss",
         ]
 
-        assert df["Location Type"].unique() == [LOCATION_TYPE_BUS]
-        assert df["Market"].unique() == [Markets.REAL_TIME_5_MIN.value]
+        assert set(df["Location Type"]) == set(location_types)
+
+        assert df["Market"].unique() == [Markets.DAY_AHEAD_HOURLY.value]
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
         assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
 
+    def test_get_lmp_day_ahead_hourly_latest(self):
+        df = self.iso.get_lmp_day_ahead_hourly(date="latest")
+
+        self._check_lmp_day_ahead_hourly(df)
+
+        # Latest data should have one interval
+
+        assert df["Interval Start"].nunique() == 1
+        assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
+
+    def test_get_lmp_day_ahead_hourly_today(self):
+        df = self.iso.get_lmp_day_ahead_hourly(date="today")
+
+        self._check_lmp_day_ahead_hourly(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+
+        # When fetching data for today, we retrieve the first hour of today.
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            hours=1,
+        )
+
+    def test_get_lmp_day_ahead_hourly_date_range(self):
+        # This is close enough to the present that we should fetch the interval files.
+        three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
+        three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
+
+        df = self.iso.get_lmp_day_ahead_hourly(
+            start=three_days_ago,
+            end=three_days_ago_0215,
+        )
+
+        self._check_lmp_day_ahead_hourly(df)
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval End"].max() == three_days_ago_0215
+
+    def test_get_lmp_day_ahead_hourly_historical_date(self):
+        # This is far enough in the past that there should be a By_Day single file
+        thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
+
+        df = self.iso.get_lmp_day_ahead_hourly(date=thirty_days_ago)
+
+        self._check_lmp_day_ahead_hourly(df)
+
+        assert df["Interval Start"].min() == thirty_days_ago
+        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(days=1)
+
     @pytest.mark.parametrize(
-        "market,location_type",
+        "location_type",
         [
-            (Markets.REAL_TIME_5_MIN, LOCATION_TYPE_HUB),
-            (Markets.REAL_TIME_5_MIN, LOCATION_TYPE_INTERFACE),
-            (Markets.REAL_TIME_5_MIN, LOCATION_TYPE_BUS),
+            LOCATION_TYPE_HUB,
+            LOCATION_TYPE_INTERFACE,
+            LOCATION_TYPE_SETTLEMENT_LOCATION,
         ],
     )
-    def test_get_lmp_latest_with_locations(self, market, location_type):
-        df = self.iso.get_lmp(
+    def test_get_lmp_day_ahead_hourly_filters_location(self, location_type):
+        df = self.iso.get_lmp_day_ahead_hourly(
             date="latest",
-            market=market,
             location_type=location_type,
         )
-        self._check_lmp_columns(df, market)
 
-        location_types = df["Location Type"].unique()
-        assert len(location_types) == 1
-        assert location_types[0] == location_type
+        self._check_lmp_day_ahead_hourly(df, location_types=[location_type])
 
-    def test_get_lmp_latest_settlement_type_returns_three_location_types(self):
-        market = Markets.REAL_TIME_5_MIN
-        df = self.iso.get_lmp(
-            date="latest",
-            market=market,
-            verbose=True,
-        )
-        self._check_lmp_columns(df, market)
+    # This is not a method in the class, but the base class calls it. So we need to
+    # override these tests
+    """get_lmp"""
 
-        assert set(df["Location Type"]) == {
-            "Interface",
-            "Hub",
-            "Settlement Location",
-        }
+    @pytest.not_support
+    def test_lmp_date_range(self):
+        pass
 
-    @pytest.mark.slow
-    @pytest.mark.parametrize(
-        "market,location_type",
-        [
-            (Markets.DAY_AHEAD_HOURLY, "Hub"),
-            (Markets.REAL_TIME_5_MIN, "Hub"),
-        ],
-    )
-    def test_get_lmp_today_with_location(self, market, location_type):
-        df = self.iso.get_lmp(
-            date="today",
-            market=market,
-            location_type=location_type,
-        )
-        self._check_lmp_columns(df, market=market)
-        location_types = df["Location Type"].unique()
-        assert len(location_types) == 1
-        assert location_types[0] == location_type
+    @pytest.not_supported
+    def test_get_lmp_historical(self):
+        pass
 
-    @pytest.mark.parametrize(
-        "date,market,location_type",
-        [
-            ("latest", Markets.REAL_TIME_15_MIN, "Interface"),
-            (
-                pd.Timestamp.now().normalize() - pd.Timedelta(days=2),
-                Markets.REAL_TIME_15_MIN,
-                "Interface",
-            ),
-        ],
-    )
-    def test_get_lmp_unsupported_raises_not_supported(
-        self,
-        date,
-        market,
-        location_type,
-    ):
-        with pytest.raises(NotSupported):
-            self.iso.get_lmp(
-                date=date,
-                market=market,
-                location_type=location_type,
-            )
+    @pytest.not_supported
+    def test_get_lmp_latest(self):
+        pass
 
-    @pytest.mark.parametrize(
-        "date,market,location_type",
-        [
-            ("latest", Markets.DAY_AHEAD_HOURLY, "Hub"),
-            ("latest", Markets.DAY_AHEAD_HOURLY, "Interface"),
-        ],
-    )
-    def test_get_lmp_day_ahead_cannot_have_latest(self, date, market, location_type):
-        with pytest.raises(ValueError):
-            self.iso.get_lmp(
-                date=date,
-                market=market,
-                location_type=location_type,
-            )
+    @pytest.not_supported
+    def test_get_lmp_today(self):
+        pass
 
     OPERATING_RESERVES_COLUMNS = [
         "Time",
