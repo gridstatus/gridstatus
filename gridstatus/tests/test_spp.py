@@ -1,9 +1,15 @@
+import numpy as np
 import pandas as pd
 import pytest
 
 from gridstatus import SPP, Markets, NotSupported
+from gridstatus.spp import (
+    LOCATION_TYPE_BUS,
+    LOCATION_TYPE_HUB,
+    LOCATION_TYPE_INTERFACE,
+    LOCATION_TYPE_SETTLEMENT_LOCATION,
+)
 from gridstatus.tests.base_test_iso import BaseTestISO
-from gridstatus.tests.decorators import with_markets
 
 
 class TestSPP(BaseTestISO):
@@ -69,129 +75,287 @@ class TestSPP(BaseTestISO):
 
         assert fm.columns.tolist() == cols
 
-    """get_lmp"""
+    """get_lmp_real_time_5_min_by_location"""
 
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-    )
-    def test_lmp_date_range(self, market):
-        super().test_lmp_date_range(market=market)
-
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_5_MIN,
-    )
-    def test_get_lmp_historical(self, market):
-        super().test_get_lmp_historical(
-            market=market,
-            # SPP only offers interval data in for a limited period of time in the past.
-            date_str=str(pd.Timestamp.now().date() - pd.Timedelta(days=300)),
-        )
-
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_5_MIN,
-    )
-    def test_get_lmp_today(self, market):
-        super().test_get_lmp_today(market=market)
-
-    @with_markets(
-        Markets.REAL_TIME_5_MIN,
-    )
-    def test_get_lmp_latest(self, market):
-        super().test_get_lmp_latest(market=market)
-
-    @pytest.mark.parametrize(
-        "market,location_type",
-        [
-            (Markets.REAL_TIME_5_MIN, "Hub"),
-            (Markets.REAL_TIME_5_MIN, "Interface"),
+    def _check_lmp_real_time_5_min_by_location(
+        self,
+        df,
+        location_types=[
+            LOCATION_TYPE_HUB,
+            LOCATION_TYPE_INTERFACE,
+            LOCATION_TYPE_SETTLEMENT_LOCATION,
         ],
-    )
-    def test_get_lmp_latest_with_locations(self, market, location_type):
-        df = self.iso.get_lmp(
-            date="latest",
-            market=market,
-            location_type=location_type,
-        )
-        self._check_lmp_columns(df, market)
+    ):
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "PNode",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
 
-        location_types = df["Location Type"].unique()
-        assert len(location_types) == 1
-        assert location_types[0] == location_type
+        assert set(df["Location Type"]) == set(location_types)
 
-    def test_get_lmp_latest_settlement_type_returns_three_location_types(self):
-        market = Markets.REAL_TIME_5_MIN
-        df = self.iso.get_lmp(
-            date="latest",
-            market=market,
-            verbose=True,
-        )
-        self._check_lmp_columns(df, market)
+        assert df["Market"].unique() == [Markets.REAL_TIME_5_MIN.value]
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
 
-        assert set(df["Location Type"]) == {
-            "Interface",
-            "Hub",
-            "Settlement Location",
-        }
+        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+
+    def test_get_lmp_real_time_5_min_by_location_latest(self):
+        df = self.iso.get_lmp_real_time_5_min_by_location(date="latest")
+
+        self._check_lmp_real_time_5_min_by_location(df)
+
+        # Latest data should have one interval
+
+        assert df["Interval Start"].nunique() == 1
+        assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
 
     @pytest.mark.slow
+    def test_get_lmp_real_time_5_min_by_location_today(self):
+        df = self.iso.get_lmp_real_time_5_min_by_location(date="today", verbose=True)
+
+        self._check_lmp_real_time_5_min_by_location(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() >= self.local_now().floor(
+            "5min",
+        ) - pd.DateOffset(minutes=10)
+
+    def test_get_lmp_real_time_5_min_by_location_date_range(self):
+        three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
+        three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
+
+        df = self.iso.get_lmp_real_time_5_min_by_location(
+            date=three_days_ago,
+            end=three_days_ago_0215,
+            verbose=True,
+        )
+
+        self._check_lmp_real_time_5_min_by_location(df)
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval End"].max() == three_days_ago_0215
+
+    def test_get_lmp_real_time_5_min_by_location_historical_date(self):
+        # For a historical date, the decorator only retrieves a single interval
+        thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
+
+        df = self.iso.get_lmp_real_time_5_min_by_location(
+            date=thirty_days_ago,
+            verbose=True,
+        )
+
+        self._check_lmp_real_time_5_min_by_location(df)
+
+        assert df["Interval Start"].min() == thirty_days_ago
+        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(minutes=5)
+
     @pytest.mark.parametrize(
-        "market,location_type",
+        "location_type",
         [
-            (Markets.DAY_AHEAD_HOURLY, "Hub"),
-            (Markets.REAL_TIME_5_MIN, "Hub"),
+            LOCATION_TYPE_HUB,
+            LOCATION_TYPE_INTERFACE,
+            LOCATION_TYPE_SETTLEMENT_LOCATION,
         ],
     )
-    def test_get_lmp_today_with_location(self, market, location_type):
-        df = self.iso.get_lmp(
-            date="today",
-            market=market,
+    def test_get_lmp_real_time_5_min_by_location_filters_location(self, location_type):
+        df = self.iso.get_lmp_real_time_5_min_by_location(
+            date="latest",
             location_type=location_type,
         )
-        self._check_lmp_columns(df, market=market)
-        location_types = df["Location Type"].unique()
-        assert len(location_types) == 1
-        assert location_types[0] == location_type
 
-    @pytest.mark.parametrize(
-        "date,market,location_type",
-        [
-            ("latest", Markets.REAL_TIME_15_MIN, "Interface"),
-            (
-                pd.Timestamp.now().normalize() - pd.Timedelta(days=2),
-                Markets.REAL_TIME_15_MIN,
-                "Interface",
-            ),
-        ],
-    )
-    def test_get_lmp_unsupported_raises_not_supported(
+        self._check_lmp_real_time_5_min_by_location(df, location_types=[location_type])
+
+    """get_lmp_real_time_5_min_by_bus"""
+
+    def _check_lmp_real_time_5_min_by_bus(self, df):
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        assert df["Market"].unique() == [Markets.REAL_TIME_5_MIN.value]
+
+        assert df["Location Type"].unique() == [LOCATION_TYPE_BUS]
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+
+    def test_get_lmp_real_time_5_min_by_bus_latest(self):
+        df = self.iso.get_lmp_real_time_5_min_by_bus(date="latest")
+
+        self._check_lmp_real_time_5_min_by_bus(df)
+
+        # Latest data should have one interval
+        assert df["Interval Start"].nunique() == 1
+        assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
+
+    @pytest.mark.slow
+    def test_get_lmp_real_time_5_min_by_bus_today(self):
+        df = self.iso.get_lmp_real_time_5_min_by_bus(date="today", verbose=True)
+
+        self._check_lmp_real_time_5_min_by_bus(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() >= self.local_now().floor(
+            "5min",
+        ) - pd.DateOffset(minutes=10)
+
+    def test_get_lmp_real_time_5_min_by_bus_date_range(self):
+        three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
+        three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
+
+        df = self.iso.get_lmp_real_time_5_min_by_bus(
+            date=three_days_ago,
+            end=three_days_ago_0215,
+        )
+
+        self._check_lmp_real_time_5_min_by_bus(df)
+
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval End"].max() == three_days_ago_0215
+
+    def test_get_lmp_real_time_5_min_by_bus_historical_date(self):
+        # For a historical date, the decorator only retrieves a single interval
+        thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
+
+        df = self.iso.get_lmp_real_time_5_min_by_bus(date=thirty_days_ago)
+
+        self._check_lmp_real_time_5_min_by_bus(df)
+
+        assert df["Interval Start"].min() == thirty_days_ago
+        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(minutes=5)
+
+    """get_lmp_day_ahead_hourly"""
+
+    def _check_lmp_day_ahead_hourly(
         self,
-        date,
-        market,
-        location_type,
+        df,
+        location_types=[
+            LOCATION_TYPE_HUB,
+            LOCATION_TYPE_INTERFACE,
+            LOCATION_TYPE_SETTLEMENT_LOCATION,
+        ],
     ):
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "PNode",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        assert set(df["Location Type"]) == set(location_types)
+
+        assert df["Market"].unique() == [Markets.DAY_AHEAD_HOURLY.value]
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+
+    def test_get_lmp_day_ahead_hourly_latest_not_supported(self):
         with pytest.raises(NotSupported):
-            self.iso.get_lmp(
-                date=date,
-                market=market,
-                location_type=location_type,
-            )
+            self.iso.get_lmp_day_ahead_hourly(date="latest")
+
+    def test_get_lmp_day_ahead_hourly_today(self):
+        df = self.iso.get_lmp_day_ahead_hourly(date="today")
+
+        self._check_lmp_day_ahead_hourly(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            days=1,
+        )
+
+    def test_get_lmp_day_ahead_hourly_date_range(self):
+        four_days_ago = self.local_start_of_today() - pd.DateOffset(days=4)
+        two_days_ago = four_days_ago + pd.DateOffset(days=2)
+
+        df = self.iso.get_lmp_day_ahead_hourly(
+            start=four_days_ago,
+            end=two_days_ago,
+        )
+
+        self._check_lmp_day_ahead_hourly(df)
+
+        assert df["Interval Start"].min() == four_days_ago
+        # Not end day inclusive
+        assert df["Interval End"].max() == two_days_ago
+
+    def test_get_lmp_day_ahead_hourly_historical_date(self):
+        thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
+
+        df = self.iso.get_lmp_day_ahead_hourly(date=thirty_days_ago)
+
+        self._check_lmp_day_ahead_hourly(df)
+
+        assert df["Interval Start"].min() == thirty_days_ago
+        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(days=1)
 
     @pytest.mark.parametrize(
-        "date,market,location_type",
+        "location_type",
         [
-            ("latest", Markets.DAY_AHEAD_HOURLY, "Hub"),
-            ("latest", Markets.DAY_AHEAD_HOURLY, "Interface"),
+            LOCATION_TYPE_HUB,
+            LOCATION_TYPE_INTERFACE,
+            LOCATION_TYPE_SETTLEMENT_LOCATION,
         ],
     )
-    def test_get_lmp_day_ahead_cannot_have_latest(self, date, market, location_type):
-        with pytest.raises(ValueError):
-            self.iso.get_lmp(
-                date=date,
-                market=market,
-                location_type=location_type,
-            )
+    def test_get_lmp_day_ahead_hourly_filters_location(self, location_type):
+        df = self.iso.get_lmp_day_ahead_hourly(
+            date="today",
+            location_type=location_type,
+        )
+
+        self._check_lmp_day_ahead_hourly(df, location_types=[location_type])
+
+    # This is not a method in the class, but the base class calls it. So we need to
+    # override these tests
+    """get_lmp"""
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_lmp_date_range(self):
+        pass
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_lmp_historical(self):
+        pass
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_lmp_latest(self):
+        pass
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_lmp_today(self):
+        pass
+
+    """get_operating_reserves"""
 
     OPERATING_RESERVES_COLUMNS = [
         "Time",
@@ -357,7 +521,10 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("5min")
+        # Account for small delay in publishing
+        assert df["Publish Time"].max() >= (now).floor("5min") - pd.DateOffset(
+            minutes=10,
+        )
 
         assert df["Interval Start"].min() <= now
         assert df["Interval Start"].max() >= now.floor("h")
@@ -434,7 +601,7 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("h")
+        assert df["Publish Time"].max() >= (now.floor("h") - pd.DateOffset(hours=1))
 
         assert df["Interval Start"].min() <= now
 
@@ -495,7 +662,10 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("5min")
+        # Account for small delay in publishing
+        assert df["Publish Time"].max() >= (now).floor("5min") - pd.DateOffset(
+            minutes=5,
+        )
 
         assert df["Interval Start"].min() <= now
 
@@ -575,7 +745,7 @@ class TestSPP(BaseTestISO):
         now = self.iso.now()
 
         assert df["Publish Time"].min() == now.normalize()
-        assert df["Publish Time"].max() == (now).floor("h")
+        assert df["Publish Time"].max() >= (now.floor("h") - pd.DateOffset(hours=1))
 
         assert df["Interval Start"].min() <= now
 
