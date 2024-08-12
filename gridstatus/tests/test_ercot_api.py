@@ -608,6 +608,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() >= self.local_now() - pd.Timedelta(minutes=30)
         assert df["Interval End"].max() <= self.local_now()
 
+    @pytest.mark.slow
     def test_get_lmp_by_bus_historical_date(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
 
