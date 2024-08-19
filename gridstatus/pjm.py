@@ -1824,3 +1824,80 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_dam_as_market_results(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the day-ahead ancillary service market results from :
+        https://dataminer2.pjm.com/feed/da_reserve_market_results/definition
+        Data is published daily.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with day-ahead ancillary service
+            market results.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "da_reserve_market_results",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,locale,"
+                "service,mcp,mcp_capped,as_req_mw,total_mw,as_mw,ss_mw,ircmwt2,"
+                "dsr_as_mw,nsr_mw"
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        return self._parse_dam_as_market_results(df)
+
+    def _parse_dam_as_market_results(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "locale": "Locale",
+                "service": "Service",
+                "mcp": "Market Clearing Price",
+                "mcp_capped": "Market Clearing Price Capped",
+                "as_req_mw": "Ancillary Service Required",
+                "total_mw": "Total MW",
+                "as_mw": "Assigned MW",
+                "ss_mw": "Self-Scheduled MW",
+                "ircmwt2": "Interface Reserve Capability MW",
+                "dsr_as_mw": "Demand Response MW Assigned",
+                "nsr_mw": "Non-Synchronized Reserve MW Assigned",
+            },
+        )
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Locale",
+                "Service",
+                "Market Clearing Price",
+                "Market Clearing Price Capped",
+                "Ancillary Service Required",
+                "Total MW",
+                "Assigned MW",
+                "Self-Scheduled MW",
+                "Interface Reserve Capability MW",
+                "Demand Response MW Assigned",
+                "Non-Synchronized Reserve MW Assigned",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
