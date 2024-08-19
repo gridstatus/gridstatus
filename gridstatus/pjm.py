@@ -1860,7 +1860,7 @@ class PJM(ISOBase):
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
-            interval_duration_min=5,
+            interval_duration_min=60,
             verbose=verbose,
         )
 
