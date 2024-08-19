@@ -1310,3 +1310,52 @@ class TestPJM(BaseTestISO):
             start=range_start,
             end=range_end,
         )
+
+    expected_real_time_as_market_results_cols = [
+        "Interval Start",
+        "Interval End",
+        "Locale",
+        "Service",
+        "Market Clearing Price",
+        "Market Clearing Price Capped",
+        "Regulation Capability Clearing Price",
+        "Regulation Performance Clearing Price",
+        "Ancillary Service Required",
+        "Total MW",
+        "Assigned MW",
+        "Self-Scheduled MW",
+        "Tier 1 MW",
+        "Interface Reserve Capability MW",
+        "Demand Response MW Assigned",
+        "Non-Synchronized Reserve MW Assigned",
+        "REGD MW",
+    ]
+
+    def test_get_real_time_as_market_results_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
+
+        df = self.iso.get_real_time_as_market_results(past_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_real_time_as_market_results_cols,
+            start=range_start,
+            end=range_end,
+        )
+
+    def test_get_real_time_as_market_results_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_end_date)
+
+        df = self.iso.get_real_time_as_market_results(past_date, past_end_date)
+
+        self._check_pjm_response(
+            df=df,
+            expected_cols=self.expected_real_time_as_market_results_cols,
+            start=range_start,
+            end=range_end,
+        )

@@ -1901,3 +1901,89 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_real_time_as_market_results(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the real-time ancillary service market results from :
+        https://dataminer2.pjm.com/feed/reserve_market_results/definition
+        Data for the previous day is published daily on business days,
+        typically between 11am and 12pm market time.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with real-time ancillary service
+            market results.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "reserve_market_results",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,locale,"
+                "service,mcp,mcp_capped,reg_ccp,reg_pcp,as_req_mw,total_mw,as_mw,"
+                "ss_mw,tier1_mw,ircmwt2,dsr_as_mw,nsr_mw,regd_mw"
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        return self._parse_real_time_as_market_results(df)
+
+    def _parse_real_time_as_market_results(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "locale": "Locale",
+                "service": "Service",
+                "mcp": "Market Clearing Price",
+                "mcp_capped": "Market Clearing Price Capped",
+                "reg_ccp": "Regulation Capability Clearing Price",
+                "reg_pcp": "Regulation Performance Clearing Price",
+                "as_req_mw": "Ancillary Service Required",
+                "total_mw": "Total MW",
+                "as_mw": "Assigned MW",
+                "ss_mw": "Self-Scheduled MW",
+                "tier1_mw": "Tier 1 MW",
+                "ircmwt2": "Interface Reserve Capability MW",
+                "dsr_as_mw": "Demand Response MW Assigned",
+                "nsr_mw": "Non-Synchronized Reserve MW Assigned",
+                "regd_mw": "REGD MW",
+            },
+        )
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Locale",
+                "Service",
+                "Market Clearing Price",
+                "Market Clearing Price Capped",
+                "Regulation Capability Clearing Price",
+                "Regulation Performance Clearing Price",
+                "Ancillary Service Required",
+                "Total MW",
+                "Assigned MW",
+                "Self-Scheduled MW",
+                "Tier 1 MW",
+                "Interface Reserve Capability MW",
+                "Demand Response MW Assigned",
+                "Non-Synchronized Reserve MW Assigned",
+                "REGD MW",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
