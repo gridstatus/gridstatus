@@ -1870,7 +1870,7 @@ class PJM(ISOBase):
         df = df.rename(
             columns={
                 "locale": "Locale",
-                "service": "Service",
+                "service": "Service Type",
                 "mcp": "Market Clearing Price",
                 "mcp_capped": "Market Clearing Price Capped",
                 "as_req_mw": "Ancillary Service Required",
@@ -1887,7 +1887,7 @@ class PJM(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Locale",
-                "Service",
+                "Service Type",
                 "Market Clearing Price",
                 "Market Clearing Price Capped",
                 "Ancillary Service Required",
@@ -1948,7 +1948,7 @@ class PJM(ISOBase):
         df = df.rename(
             columns={
                 "locale": "Locale",
-                "service": "Service",
+                "service": "Service Type",
                 "mcp": "Market Clearing Price",
                 "mcp_capped": "Market Clearing Price Capped",
                 "reg_ccp": "Regulation Capability Clearing Price",
@@ -1969,7 +1969,7 @@ class PJM(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Locale",
-                "Service",
+                "Service Type",
                 "Market Clearing Price",
                 "Market Clearing Price Capped",
                 "Regulation Capability Clearing Price",
