@@ -419,6 +419,18 @@ class PJM(ISOBase):
         Markets.DAY_AHEAD_HOURLY,
     ]
 
+    locale_abbreviated_to_full = {
+        "PJM_RTO": "PJM RTO Reserve Zone",
+        "MAD": "Mid-Atlantic/Dominion Reserve Subzone",
+    }
+
+    service_type_abbreviated_to_full = {
+        "30MIN": "Thirty Minutes Reserve",
+        "PR": "Primary Reserve",
+        "REG": "Regulation",
+        "SR": "Synchronized Reserve",
+    }
+
     load_forecast_endpoint_name = "load_frcstd_7_day"
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
 
@@ -1964,6 +1976,12 @@ class PJM(ISOBase):
                 "regd_mw": "REGD MW",
             },
         )
+        # Replace abbreviated locale values will full values
+        df = df.replace({"Locale": self.locale_abbreviated_to_full})
+
+        # Replace abbreviated service type values with full values
+        df = df.replace({"Service Type": self.service_type_abbreviated_to_full})
+
         df = df[
             [
                 "Interval Start",

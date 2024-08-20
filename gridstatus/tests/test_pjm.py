@@ -1359,3 +1359,16 @@ class TestPJM(BaseTestISO):
             start=range_start,
             end=range_end,
         )
+
+    def test_get_real_time_as_market_results_replaces_abbreviations(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+
+        df = self.iso.get_real_time_as_market_results(past_date, past_end_date)
+
+        assert df["Locale"].isin(self.iso.locale_abbreviated_to_full.values()).all()
+        assert (
+            df["Service Type"]
+            .isin(self.iso.service_type_abbreviated_to_full.values())
+            .all()
+        )
