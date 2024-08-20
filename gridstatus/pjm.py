@@ -1,9 +1,11 @@
 import math
 import os
 import warnings
+from datetime import datetime
 from typing import BinaryIO, Optional
 
 import pandas as pd
+import pytz
 import requests
 import tqdm
 
@@ -418,6 +420,18 @@ class PJM(ISOBase):
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
     ]
+
+    locale_abbreviated_to_full = {
+        "PJM_RTO": "PJM RTO Reserve Zone",
+        "MAD": "Mid-Atlantic/Dominion Reserve Subzone",
+    }
+
+    service_type_abbreviated_to_full = {
+        "30MIN": "Thirty Minutes Reserve",
+        "PR": "Primary Reserve",
+        "REG": "Regulation",
+        "SR": "Synchronized Reserve",
+    }
 
     load_forecast_endpoint_name = "load_frcstd_7_day"
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
@@ -1820,6 +1834,215 @@ class PJM(ISOBase):
                 "RTO",
                 "SOUTH",
                 "WEST",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_dam_as_market_results(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the day-ahead ancillary service market results from :
+        https://dataminer2.pjm.com/feed/da_reserve_market_results/definition
+        Data is published daily.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with day-ahead ancillary service
+            market results.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "da_reserve_market_results",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,locale,"
+                "service,mcp,mcp_capped,as_req_mw,total_mw,as_mw,ss_mw,ircmwt2,"
+                "dsr_as_mw,nsr_mw"
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._parse_dam_as_market_results(df)
+
+    def _parse_dam_as_market_results(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "locale": "Locale",
+                "service": "Service Type",
+                "mcp": "Market Clearing Price",
+                "mcp_capped": "Market Clearing Price Capped",
+                "as_req_mw": "Ancillary Service Required",
+                "total_mw": "Total MW",
+                "as_mw": "Assigned MW",
+                "ss_mw": "Self-Scheduled MW",
+                "ircmwt2": "Interface Reserve Capability MW",
+                "dsr_as_mw": "Demand Response MW Assigned",
+                "nsr_mw": "Non-Synchronized Reserve MW Assigned",
+            },
+        )
+
+        # Add new Ancillary Service column
+        locale_full_name_to_abbreviation = {
+            v: k for k, v in self.locale_abbreviated_to_full.items()
+        }
+        df["Ancillary Service"] = (
+            df["Locale"].replace(locale_full_name_to_abbreviation)
+            + "-"
+            + df["Service Type"]
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Ancillary Service",
+                "Locale",
+                "Service Type",
+                "Market Clearing Price",
+                "Market Clearing Price Capped",
+                "Ancillary Service Required",
+                "Total MW",
+                "Assigned MW",
+                "Self-Scheduled MW",
+                "Interface Reserve Capability MW",
+                "Demand Response MW Assigned",
+                "Non-Synchronized Reserve MW Assigned",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_real_time_as_market_results(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: Optional[bool] = False,
+    ):
+        """
+        Retrieves the real-time ancillary service market results from :
+        https://dataminer2.pjm.com/feed/reserve_market_results/definition
+        Data for the previous day is published daily on business days,
+        typically between 11am and 12pm market time.
+
+        Data granularity changed on Sep 1, 2022 so when querying data,
+        start and end dates must both be before or both after that date.
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with real-time ancillary service
+            market results.
+        """
+        if date == "latest":
+            date = "today"
+
+        # Make sure start and end are both before or both after Sep 1, 2022
+        # when data granularity changes
+        cutoff_date = datetime(
+            2022, 9, 1, 0, 0, 0, 0, pytz.timezone(self.default_timezone)
+        )
+        if date < cutoff_date:
+            if end and end > cutoff_date:
+                raise ValueError(
+                    f"Both start and end dates must be before {cutoff_date}."
+                )
+            interval_duration = 60
+        else:
+            interval_duration = 5
+
+        df = self._get_pjm_json(
+            "reserve_market_results",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,locale,"
+                "service,mcp,mcp_capped,reg_ccp,reg_pcp,as_req_mw,total_mw,as_mw,"
+                "ss_mw,tier1_mw,ircmwt2,dsr_as_mw,nsr_mw,regd_mw"
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=interval_duration,
+            verbose=verbose,
+        )
+
+        return self._parse_real_time_as_market_results(df)
+
+    def _parse_real_time_as_market_results(self, df: pd.DataFrame):
+        df = df.rename(
+            columns={
+                "locale": "Locale",
+                "service": "Service Type",
+                "mcp": "Market Clearing Price",
+                "mcp_capped": "Market Clearing Price Capped",
+                "reg_ccp": "Regulation Capability Clearing Price",
+                "reg_pcp": "Regulation Performance Clearing Price",
+                "as_req_mw": "Ancillary Service Required",
+                "total_mw": "Total MW",
+                "as_mw": "Assigned MW",
+                "ss_mw": "Self-Scheduled MW",
+                "tier1_mw": "Tier 1 MW",
+                "ircmwt2": "Interface Reserve Capability MW",
+                "dsr_as_mw": "Demand Response MW Assigned",
+                "nsr_mw": "Non-Synchronized Reserve MW Assigned",
+                "regd_mw": "REGD MW",
+            },
+        )
+        # Replace abbreviated locale values will full values
+        df = df.replace({"Locale": self.locale_abbreviated_to_full})
+
+        # Replace abbreviated service type values with full values
+        df = df.replace({"Service Type": self.service_type_abbreviated_to_full})
+
+        # Add new Ancillary Service column
+        locale_full_name_to_abbreviation = {
+            v: k for k, v in self.locale_abbreviated_to_full.items()
+        }
+        df["Ancillary Service"] = (
+            df["Locale"].replace(locale_full_name_to_abbreviation)
+            + "-"
+            + df["Service Type"]
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Ancillary Service",
+                "Locale",
+                "Service Type",
+                "Market Clearing Price",
+                "Market Clearing Price Capped",
+                "Regulation Capability Clearing Price",
+                "Regulation Performance Clearing Price",
+                "Ancillary Service Required",
+                "Total MW",
+                "Assigned MW",
+                "Self-Scheduled MW",
+                "Tier 1 MW",
+                "Interface Reserve Capability MW",
+                "Demand Response MW Assigned",
+                "Non-Synchronized Reserve MW Assigned",
+                "REGD MW",
             ]
         ]
 
