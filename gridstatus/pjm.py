@@ -1959,7 +1959,6 @@ class PJM(ISOBase):
 
         # Make sure start and end are both before or both after Sep 1, 2022
         # when data granularity changes
-
         cutoff_date = datetime(
             2022, 9, 1, 0, 0, 0, 0, pytz.timezone(self.default_timezone)
         )
