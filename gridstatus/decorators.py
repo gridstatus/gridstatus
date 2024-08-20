@@ -56,7 +56,7 @@ class support_date_range:
                 save_to = args_dict.pop("save_to")
                 os.makedirs(save_to, exist_ok=True)
 
-            error = "raise"
+            error = "ignore"
             errors = []
             if "error" in args_dict:
                 error = args_dict.pop("error")

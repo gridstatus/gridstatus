@@ -1437,4 +1437,4 @@ class TestPJM(BaseTestISO):
         start = cutoff_date - pd.Timedelta(days=5)
         end = cutoff_date + pd.Timedelta(days=3)
         with pytest.raises(ValueError, match="Both start and end dates must be before"):
-            self.iso.get_real_time_as_market_results(date=start, end=end)
+            self.iso.get_real_time_as_market_results(date=start, end=end, error="raise")
