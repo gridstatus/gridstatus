@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from unittest import mock
 
 import pandas as pd
@@ -1255,6 +1256,7 @@ class TestPJM(BaseTestISO):
     expected_dam_as_market_results_cols = [
         "Interval Start",
         "Interval End",
+        "Ancillary Service",
         "Locale",
         "Service Type",
         "Market Clearing Price",
@@ -1311,9 +1313,36 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    def test_get_dam_as_market_results_parsing(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+
+        df = self.iso.get_dam_as_market_results(past_date, past_end_date)
+
+        # Should have full values for locale and service type without abbreviations
+        assert df["Locale"].isin(self.iso.locale_abbreviated_to_full.values()).all()
+        assert (
+            df["Service Type"]
+            .isin(self.iso.service_type_abbreviated_to_full.values())
+            .all()
+        )
+
+        # Should contain new Ancillary Service that is concatenation of
+        # abbreviated locale and full service values
+        assert "Ancillary Service" in df.columns
+
+        # Should contain new Ancillary Service that is concatenation of
+        # abbreviated locale and full service values
+        assert "Ancillary Service" in df.columns
+        for row in df.iterrows():
+            prefix, suffix = row[1]["Ancillary Service"].split("-")
+            assert prefix in self.iso.locale_abbreviated_to_full.keys()
+            assert suffix in self.iso.service_type_abbreviated_to_full.values()
+
     expected_real_time_as_market_results_cols = [
         "Interval Start",
         "Interval End",
+        "Ancillary Service",
         "Locale",
         "Service Type",
         "Market Clearing Price",
@@ -1360,15 +1389,52 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-    def test_get_real_time_as_market_results_replaces_abbreviations(self):
+    def test_get_real_time_as_market_results_parsing(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
 
         df = self.iso.get_real_time_as_market_results(past_date, past_end_date)
 
+        # Should replace abbreviations with full values
         assert df["Locale"].isin(self.iso.locale_abbreviated_to_full.values()).all()
         assert (
             df["Service Type"]
             .isin(self.iso.service_type_abbreviated_to_full.values())
             .all()
         )
+
+        # Should contain new Ancillary Service that is concatenation of
+        # abbreviated locale and full service values
+        assert "Ancillary Service" in df.columns
+        for row in df.iterrows():
+            prefix, suffix = row[1]["Ancillary Service"].split("-")
+            assert prefix in self.iso.locale_abbreviated_to_full.keys()
+            assert suffix in self.iso.service_type_abbreviated_to_full.values()
+
+    def test_get_real_time_as_market_results_valid_dates(self):
+        cutoff_date = datetime(2022, 9, 1)
+
+        # If both dates are before the cutoff, this is valid
+        # Data interval should be one hour
+        start = cutoff_date - pd.Timedelta(days=5)
+        end = cutoff_date - pd.Timedelta(days=3)
+        df = self.iso.get_real_time_as_market_results(date=start, end=end)
+        interval_start = df.iloc[0, :]["Interval Start"]
+        interval_end = df.iloc[0, :]["Interval End"]
+        assert interval_end - interval_start == pd.Timedelta(hours=1)
+
+        # If both dates are after the cutoff, this is valid
+        # Data interval should be five minutes
+        start = cutoff_date + pd.Timedelta(days=3)
+        end = cutoff_date + pd.Timedelta(days=5)
+        df = self.iso.get_real_time_as_market_results(date=start, end=end)
+        interval_start = df.iloc[0, :]["Interval Start"]
+        interval_end = df.iloc[0, :]["Interval End"]
+        assert interval_end - interval_start == pd.Timedelta(minutes=5)
+
+        # If the start is before the cutoff and the end is after,
+        # this is invalid, and an error should be raised.
+        start = cutoff_date - pd.Timedelta(days=5)
+        end = cutoff_date + pd.Timedelta(days=3)
+        with pytest.raises(ValueError, match="Both"):
+            self.iso.get_real_time_as_market_results(date=start, end=end)

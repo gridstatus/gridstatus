@@ -1,9 +1,11 @@
 import math
 import os
 import warnings
+from datetime import datetime
 from typing import BinaryIO, Optional
 
 import pandas as pd
+import pytz
 import requests
 import tqdm
 
@@ -1894,10 +1896,22 @@ class PJM(ISOBase):
                 "nsr_mw": "Non-Synchronized Reserve MW Assigned",
             },
         )
+
+        # Add new Ancillary Service column
+        locale_full_name_to_abbreviation = {
+            v: k for k, v in self.locale_abbreviated_to_full.items()
+        }
+        df["Ancillary Service"] = (
+            df["Locale"].replace(locale_full_name_to_abbreviation)
+            + "-"
+            + df["Service Type"]
+        )
+
         df = df[
             [
                 "Interval Start",
                 "Interval End",
+                "Ancillary Service",
                 "Locale",
                 "Service Type",
                 "Market Clearing Price",
@@ -1927,6 +1941,9 @@ class PJM(ISOBase):
         Data for the previous day is published daily on business days,
         typically between 11am and 12pm market time.
 
+        Data granularity changed on Sep 1, 2022 so when querying data,
+        start and end dates must both be before or both after that date.
+
         Arguments:
             date (str or pandas.Timestamp): Start datetime for data
             end: (str or pandas.Timestamp, optional): End datetime for data.
@@ -1940,6 +1957,21 @@ class PJM(ISOBase):
         if date == "latest":
             date = "today"
 
+        # Make sure start and end are both before or both after Sep 1, 2022
+        # when data granularity changes
+
+        cutoff_date = datetime(
+            2022, 9, 1, 0, 0, 0, 0, pytz.timezone(self.default_timezone)
+        )
+        if date < cutoff_date:
+            if end and end > cutoff_date:
+                raise ValueError(
+                    f"Both start and end dates must be before {cutoff_date}."
+                )
+            interval_duration = 60
+        else:
+            interval_duration = 5
+
         df = self._get_pjm_json(
             "reserve_market_results",
             start=date,
@@ -1950,7 +1982,7 @@ class PJM(ISOBase):
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
-            interval_duration_min=5,
+            interval_duration_min=interval_duration,
             verbose=verbose,
         )
 
@@ -1982,10 +2014,21 @@ class PJM(ISOBase):
         # Replace abbreviated service type values with full values
         df = df.replace({"Service Type": self.service_type_abbreviated_to_full})
 
+        # Add new Ancillary Service column
+        locale_full_name_to_abbreviation = {
+            v: k for k, v in self.locale_abbreviated_to_full.items()
+        }
+        df["Ancillary Service"] = (
+            df["Locale"].replace(locale_full_name_to_abbreviation)
+            + "-"
+            + df["Service Type"]
+        )
+
         df = df[
             [
                 "Interval Start",
                 "Interval End",
+                "Ancillary Service",
                 "Locale",
                 "Service Type",
                 "Market Clearing Price",
