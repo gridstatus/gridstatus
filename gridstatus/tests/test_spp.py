@@ -245,6 +245,19 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == thirty_days_ago
         assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(minutes=5)
 
+    def test_get_lmp_real_time_5_min_by_bus_last_interval(self):
+        two_days_ago = self.local_start_of_today() - pd.DateOffset(days=2)
+        two_days_ago_2355 = two_days_ago + pd.DateOffset(hours=23, minutes=55)
+
+        df = self.iso.get_lmp_real_time_5_min_by_bus(
+            (two_days_ago_2355, two_days_ago_2355 + pd.DateOffset(minutes=5)),
+        )
+
+        self._check_lmp_real_time_5_min_by_bus(df)
+
+        assert df["Interval Start"].min() == two_days_ago_2355
+        assert df["Interval End"].max() == two_days_ago_2355 + pd.DateOffset(minutes=5)
+
     """get_lmp_day_ahead_hourly"""
 
     def _check_lmp_day_ahead_hourly(

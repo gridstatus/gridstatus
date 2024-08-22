@@ -864,17 +864,28 @@ class SPP(ISOBase):
             url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{file_prefix}-latestInterval.csv"
 
         else:
-            year = date.strftime("%Y")
-            month = date.strftime("%m")
-            day = date.strftime("%d")
+            folder_year = date.strftime("%Y")
+            folder_month = date.strftime("%m")
+            folder_day = date.strftime("%d")
+
+            # The file for the last interval of the day has a name that is on the next
+            # day but the folder is for the day. As an example,
+            # the file with the name 202407010000 representing the interval
+            # 2024-06-30 23:55:00 to 2024-07-01 00:00:00 is in the folder
+            # 2024/06/By_Interval/30/
+            # We therefore use potentially different dates for the folder and the file.
 
             # We need to add 5 minutes because each file is for the interval end.
             rounded_date = date.floor("5min") + pd.DateOffset(minutes=5)
 
+            file_year = rounded_date.strftime("%Y")
+            file_month = rounded_date.strftime("%m")
+            file_day = rounded_date.strftime("%d")
+
             hour = rounded_date.strftime("%H")
             minute = rounded_date.strftime("%M")
 
-            url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{year}%2F{month}%2FBy_Interval%2F{day}%2F{file_prefix}-{year}{month}{day}{hour}{minute}.csv"
+            url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{folder_year}%2F{folder_month}%2FBy_Interval%2F{folder_day}%2F{file_prefix}-{file_year}{file_month}{file_day}{hour}{minute}.csv"
 
         log(f"Getting data for {date} from {url}", verbose=verbose)
 
