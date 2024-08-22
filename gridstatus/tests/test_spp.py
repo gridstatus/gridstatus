@@ -159,6 +159,19 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == thirty_days_ago
         assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(minutes=5)
 
+    def test_get_lmp_real_time_5_min_by_location_last_interval_of_day(self):
+        two_days_ago = self.local_start_of_today() - pd.DateOffset(days=2)
+        two_days_ago_2355 = two_days_ago + pd.DateOffset(hours=23, minutes=55)
+
+        df = self.iso.get_lmp_real_time_5_min_by_location(
+            (two_days_ago_2355, two_days_ago_2355 + pd.DateOffset(minutes=5)),
+        )
+
+        self._check_lmp_real_time_5_min_by_location(df)
+
+        assert df["Interval Start"].min() == two_days_ago_2355
+        assert df["Interval End"].max() == two_days_ago_2355 + pd.DateOffset(minutes=5)
+
     @pytest.mark.parametrize(
         "location_type",
         [
@@ -245,7 +258,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == thirty_days_ago
         assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(minutes=5)
 
-    def test_get_lmp_real_time_5_min_by_bus_last_interval(self):
+    def test_get_lmp_real_time_5_min_by_bus_last_interval_of_day(self):
         two_days_ago = self.local_start_of_today() - pd.DateOffset(days=2)
         two_days_ago_2355 = two_days_ago + pd.DateOffset(hours=23, minutes=55)
 
