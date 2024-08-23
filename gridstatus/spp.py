@@ -12,6 +12,9 @@ from gridstatus.gs_logging import log
 RTBM_LMP_BY_BUS = "rtbm-lmp-by-bus"
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
+LMP_BY_SETTLEMENT_LOCATION_WEIS = "lmp-by-settlement-location-weis"
+OPERATING_RESERVES = "RTBM-OR"
+
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
 FILE_BROWSER_DOWNLOAD_URL = "https://portal.spp.org/file-browser-api/download"
@@ -864,28 +867,7 @@ class SPP(ISOBase):
             url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{file_prefix}-latestInterval.csv"
 
         else:
-            folder_year = date.strftime("%Y")
-            folder_month = date.strftime("%m")
-            folder_day = date.strftime("%d")
-
-            # The file for the last interval of the day has a name that is on the next
-            # day but the folder is for the day. As an example,
-            # the file with the name 202407010000 representing the interval
-            # 2024-06-30 23:55:00 to 2024-07-01 00:00:00 is in the folder
-            # 2024/06/By_Interval/30/
-            # We therefore use potentially different dates for the folder and the file.
-
-            # We need to add 5 minutes because each file is for the interval end.
-            rounded_date = date.floor("5min") + pd.DateOffset(minutes=5)
-
-            file_year = rounded_date.strftime("%Y")
-            file_month = rounded_date.strftime("%m")
-            file_day = rounded_date.strftime("%d")
-
-            hour = rounded_date.strftime("%H")
-            minute = rounded_date.strftime("%M")
-
-            url = f"https://portal.spp.org/file-browser-api/download/{endpoint}?path=%2F{folder_year}%2F{folder_month}%2FBy_Interval%2F{folder_day}%2F{file_prefix}-{file_year}{file_month}{file_day}{hour}{minute}.csv"
+            url = self._format_5_min_url(date, end, endpoint, file_prefix)
 
         log(f"Getting data for {date} from {url}", verbose=verbose)
 
@@ -1040,10 +1022,13 @@ class SPP(ISOBase):
         if date == "latest":
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/RTBM-OR-latestInterval.csv"  # noqa
         else:
-            if end is None:
-                end = date + FiveMinOffset()
-
-            url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/RTBM-OR-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+            url = self._format_5_min_url(
+                date,
+                end,
+                OPERATING_RESERVES,
+                "RTBM-OR-",
+                include_interval=False,
+            )
 
         msg = f"Downloading {url}"
         log(msg, verbose)
@@ -1144,22 +1129,15 @@ class SPP(ISOBase):
             end: end date
             verbose: print url
         """
+        endpoint = "lmp-by-settlement-location-weis"
+
         # if no end, find nearest 5 minute interval end
         # to use
         if date == "latest":
-            url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/WEIS-RTBM-LMP-SL-latestInterval.csv"  # noqa
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/WEIS-RTBM-LMP-SL-latestInterval.csv"  # noqa
         else:
-            if end is None:
-                end = date + FiveMinOffset()
-
-            # always round up to nearest 5 minutes
-            # if already on 5 minute interval, this will do nothing
-            end = end.ceil("5min")
-
+            url = self._format_5_min_url(date, end, endpoint, "WEIS-RTBM-LMP-SL")
             # todo before 2022 only annual files are available
-            # folder path is based on start date
-            # file name is based on end date
-            url = f"{FILE_BROWSER_DOWNLOAD_URL}/lmp-by-settlement-location-weis?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Interval/{date.strftime('%d')}/WEIS-RTBM-LMP-SL-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
 
         # TODO: sometimes there are missing interval files (example: https://portal.spp.org/pages/lmp-by-settlement-location-weis#%2F2024%2F01%2FBy_Interval%2F21) # noqa
         # We can't do anything in these cases but log a message
@@ -1214,6 +1192,29 @@ class SPP(ISOBase):
         ]
 
         return df
+
+    def _format_5_min_url(
+        self,
+        start,
+        end,
+        endpoint,
+        file_prefix,
+        include_interval=True,
+    ):
+        # Folder path is based on start date. File name is based on end date.
+        # As an example, the file with the name 202407010000 representing the interval
+        # 2024-06-30 23:55:00 to 2024-07-01 00:00:00 is in the folder
+        # 2024/06/By_Interval/30/
+
+        end = start + FiveMinOffset() if end is None else end.ceil("5min")
+
+        folder_year = start.strftime("%Y")
+        folder_month = start.strftime("%m")
+        folder_day = start.strftime("%d")
+
+        interval_str = "By_Interval" if include_interval else ""
+
+        return f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}/{interval_str}/{folder_day}/{file_prefix}-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
 
     def _get_location_list(self, location_type, verbose=False):
         if location_type == LOCATION_TYPE_HUB:
