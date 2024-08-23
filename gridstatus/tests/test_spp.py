@@ -415,6 +415,23 @@ class TestSPP(BaseTestISO):
         assert len(df) > 0
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
+    def test_get_operative_reserves_last_interval_of_day(self):
+        two_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=2,
+        )
+        two_days_ago_2355 = two_days_ago + pd.Timedelta(hours=23, minutes=55)
+
+        df = self.iso.get_operating_reserves(
+            start=two_days_ago_2355,
+            end=two_days_ago_2355 + pd.Timedelta(minutes=5),
+        )
+
+        assert df["Interval Start"].min() == two_days_ago_2355
+        assert df["Interval End"].max() == two_days_ago_2355 + pd.Timedelta(minutes=5)
+        assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
+
     DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS = [
         "Interval Start",
         "Interval End",
@@ -521,6 +538,23 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() < three_weeks_ago
         assert df["Interval End"].max() > three_weeks_ago
         assert df["Interval Start"].nunique() == 1
+        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+
+    def test_get_lmp_real_time_weis_last_interval_of_day(self):
+        two_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=2,
+        )
+        two_days_ago_2355 = two_days_ago + pd.Timedelta(hours=23, minutes=55)
+
+        df = self.iso.get_lmp_real_time_weis(
+            start=two_days_ago_2355,
+            end=two_days_ago_2355 + pd.Timedelta(minutes=5),
+        )
+
+        assert df["Interval Start"].min() == two_days_ago_2355
+        assert df["Interval End"].max() == two_days_ago_2355 + pd.Timedelta(minutes=5)
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
     """get_load"""

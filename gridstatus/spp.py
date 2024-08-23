@@ -13,7 +13,7 @@ RTBM_LMP_BY_BUS = "rtbm-lmp-by-bus"
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
 LMP_BY_SETTLEMENT_LOCATION_WEIS = "lmp-by-settlement-location-weis"
-OPERATING_RESERVES = "RTBM-OR"
+OPERATING_RESERVES = "operating-reserves"
 
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
@@ -1026,7 +1026,7 @@ class SPP(ISOBase):
                 date,
                 end,
                 OPERATING_RESERVES,
-                "RTBM-OR-",
+                "RTBM-OR",
                 include_interval=False,
             )
 
@@ -1212,9 +1212,9 @@ class SPP(ISOBase):
         folder_month = start.strftime("%m")
         folder_day = start.strftime("%d")
 
-        interval_str = "By_Interval" if include_interval else ""
+        interval_str = "/By_Interval" if include_interval else ""
 
-        return f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}/{interval_str}/{folder_day}/{file_prefix}-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+        return f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}{interval_str}/{folder_day}/{file_prefix}-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
 
     def _get_location_list(self, location_type, verbose=False):
         if location_type == LOCATION_TYPE_HUB:
