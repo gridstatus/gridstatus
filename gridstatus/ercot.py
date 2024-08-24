@@ -2388,10 +2388,16 @@ class Ercot(ISOBase):
             },
         )
 
-        df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"]).dt.tz_localize(
+        # Some files have errors with the timestamp
+        df["SCED Timestamp"] = pd.to_datetime(
+            df["SCED Timestamp"],
+            errors="coerce",
+        ).dt.tz_localize(
             self.default_timezone,
             ambiguous=df["RepeatedHourFlag"] == "N",
         )
+
+        df = df.dropna(subset=["SCED Timestamp"])
 
         # SCED runs at least every 5 minutes. These values are only approximations,
         # not exact.
