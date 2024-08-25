@@ -1438,3 +1438,12 @@ class TestPJM(BaseTestISO):
         end = cutoff_date + pd.Timedelta(days=3)
         with pytest.raises(ValueError, match="Both start and end dates must be before"):
             self.iso.get_real_time_as_market_results(date=start, end=end, error="raise")
+
+    def test_get_interconnection_queue(self):
+        from gridstatus.base import _interconnection_columns
+
+        queue = self.iso.get_interconnection_queue()
+        # todo make sure datetime columns are right type
+        assert isinstance(queue, pd.DataFrame)
+        assert queue.shape[0] > 0
+        assert set(_interconnection_columns).issubset(queue.columns)

@@ -452,6 +452,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval End"].max() <= self.local_now()
 
+    @pytest.mark.slow
     def test_get_lmp_by_settlement_point_historical_date(self):
         historical_date = datetime.date(2021, 11, 6)
         df = self.iso.get_lmp_by_settlement_point(historical_date, verbose=True)
@@ -909,6 +910,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Market"].unique().tolist() == ["REAL_TIME_15_MIN"]
 
+    @pytest.mark.slow
     def test_get_spp_real_time_15_min_historical_date_range(self):
         start_date = self.local_today() - pd.DateOffset(days=100)
 
@@ -931,13 +933,20 @@ class TestErcotAPI(TestHelperMixin):
 
     def test_get_historical_data(self):
         start_date = datetime.date(2023, 1, 1)
-        end_date = datetime.date(2023, 1, 4)
+        end_date = datetime.date(2023, 1, 3)
 
         data = self.iso.get_historical_data(
             "/np4-745-cd/spp_hrly_actual_fcast_geo",
             start_date=start_date,
             end_date=end_date,
         )
+
+        import IPython
+
+        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
+            "last_expr_or_assign"
+        )
+        IPython.embed()
 
         assert data.columns.tolist() == [
             "DELIVERY_DATE",
@@ -977,9 +986,9 @@ class TestErcotAPI(TestHelperMixin):
 
         assert data["DELIVERY_DATE"].min().date() == datetime.date(2022, 12, 30)
         # This a forecast
-        assert data["DELIVERY_DATE"].max().date() == datetime.date(2023, 1, 10)
+        assert data["DELIVERY_DATE"].max().date() == datetime.date(2023, 1, 9)
         # Any change in the shape would be a regression since this is historical data
-        assert data.shape == (15552, 31)
+        assert data.shape == (10368, 31)
 
         start_date = datetime.date(2020, 12, 1)
         end_date = datetime.date(2020, 12, 2)

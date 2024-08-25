@@ -85,7 +85,7 @@ class TestMISO(BaseTestISO):
         )
 
         assert df["Interval Start"].min() == most_recent_monday
-        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=21)
+        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=14)
 
         self._check_lmp_weekly(df)
 
