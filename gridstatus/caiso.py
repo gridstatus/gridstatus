@@ -647,6 +647,21 @@ class CAISO(ISOBase):
         ]
         return df
 
+    def get_fuel_regions(self, verbose=False):
+        """Retrieves the (mostly static) list of fuel regions with associated data.
+        This file can be joined to the gas prices on Fuel Region Id"""
+        url = "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
+
+        log(f"Fetching {url}", verbose=verbose)
+
+        # Only want the "GPI_Fuel_Region" sheet
+        return pd.read_excel(url, sheet_name="GPI_Fuel_Region").rename(
+            columns={
+                "Fuel Region": "Fuel Region Id",
+                "Cap & Trade Credit": "Cap and Trade Credit",
+            },
+        )
+
     @support_date_range(frequency="31D")
     def get_ghg_allowance(
         self,
