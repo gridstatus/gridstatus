@@ -223,6 +223,21 @@ class TestCAISO(BaseTestISO):
         )
         assert len(df) == 24 * 2
 
+    """get_fuel_regions"""
+
+    def test_get_fuel_regions(self):
+        df = self.iso.get_fuel_regions()
+        assert df.columns.tolist() == [
+            "Fuel Region Id",
+            "Pricing Hub",
+            "Transportation Cost",
+            "Fuel Reimbursement Rate",
+            "Cap and Trade Credit",
+            "Miscellaneous Costs",
+            "Balancing Authority",
+        ]
+        assert df.shape[0] > 180
+
     """get_ghg_allowance"""
 
     def test_get_ghg_allowance(self):
