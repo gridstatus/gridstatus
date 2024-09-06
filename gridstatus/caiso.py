@@ -27,6 +27,7 @@ from gridstatus.lmp_config import lmp_config
 _BASE = "https://www.caiso.com/outlook/SP"
 _HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
 
+DAY_AHEAD_MARKET_MARKET_RUN_ID = "DAM"
 REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
 
 
@@ -1151,31 +1152,33 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_real_time_interchange(self, date, end=None, verbose=False):
-        """Return real time interchange data for a given date
+    def get_tie_flows_real_time(self, date, end=None, verbose=False):
+        """Return real time tie flow data.
+
+        From OASIS: Energy > Energy Imbalance Market > EIM Transfer by Tie
 
         Arguments:
             date (datetime.date, str): date to return data
             end (datetime.date, str): last date of range to return data.
 
         Returns:
-            pandas.DataFrame: A DataFrame of interchange data
+            pandas.DataFrame
         """
         if date == "latest":
             date = pd.Timestamp.utcnow().round("5min")
             end = date + pd.Timedelta(minutes=5)
 
         df = self.get_oasis_dataset(
-            dataset="real_time_interchange",
+            dataset="tie_flows_real_time",
             date=date,
             end=end,
             verbose=verbose,
             raw_data=False,
         )
 
-        return self._process_interchange_data(df)
+        return self._process_tie_flows_data(df)
 
-    def _process_interchange_data(self, df):
+    def _process_tie_flows_data(self, df):
         df = df.drop(
             columns=[
                 "Time",
@@ -1188,7 +1191,7 @@ class CAISO(ISOBase):
                 "UPD_BY",
                 "GROUP",
             ],
-        )
+        ).rename(columns={"MARKET_TYPE": "MARKET", "VALUE": "MW"})
 
         df = utils.move_cols_to_front(
             df,
@@ -1199,9 +1202,81 @@ class CAISO(ISOBase):
                 "DIRECTION",
                 "FROM_BAA",
                 "TO_BAA",
-                "MARKET_TYPE",
+                "MARKET",
                 "BAA_GRP_ID",
-                "VALUE",
+                "MW",
+            ],
+        )
+
+        return df.sort_values(["Interval Start", "TIE_NAME", "DIRECTION", "FROM_BAA"])
+
+    @support_date_range(frequency="DAY_START")
+    def get_tie_schedule_day_ahead_hourly(self, date, end=None, verbose=False):
+        """Return day ahead hourly tie schedule data.
+
+        From OASIS: Energy > Schedule > Schedule by Tie
+
+        Arguments:
+            date (datetime.date, str): date to return data
+            end (datetime.date, str): last date of range to return data.
+
+        Returns:
+            pandas.DataFrame
+        """
+        if date == "latest":
+            return self.get_tie_schedule_day_ahead_hourly("today", verbose=verbose)
+
+        df = self.get_oasis_dataset(
+            dataset="tie_schedule_day_ahead_hourly",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        return self._process_tie_schedule_data(df, date, end)
+
+    def _process_tie_schedule_data(self, df, date, end):
+        df = df.drop(
+            columns=["Time", "GROUP"],
+        ).rename(columns={"MKT_TYPE": "MARKET", "VALUE": "MW"})
+
+        # Retrieve real time data to map tie name to to_baa and from_baa
+        real_time_df = self.get_tie_flows_real_time(date, end)
+
+        keys_columns = ["TIE_NAME", "DIRECTION", "BAA_GRP_ID"]
+        # Create a key column in the real time data
+        real_time_df["key"] = real_time_df[keys_columns].apply(
+            lambda x: "_".join(x.astype(str)),
+            axis=1,
+        )
+
+        # Create a key column in the day ahead data
+        df["key"] = df[keys_columns].apply(
+            lambda x: "_".join(x.astype(str)),
+            axis=1,
+        )
+
+        # Merge the real time data with the day ahead data on the key, keeping only the
+        # from_baa and to_baa columns from the real time data
+        df = df.merge(
+            real_time_df[["key", "FROM_BAA", "TO_BAA"]],
+            on="key",
+            how="left",
+        ).drop(columns=["key"])
+
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "TIE_NAME",
+                "DIRECTION",
+                "FROM_BAA",
+                "TO_BAA",
+                "MARKET",
+                "BAA_GRP_ID",
+                "MW",
             ],
         )
 
@@ -1802,7 +1877,7 @@ oasis_dataset_config = {
             "max_query_frequency": "1d",
         },
     },
-    "real_time_interchange": {
+    "tie_flows_real_time": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,
@@ -1814,12 +1889,15 @@ oasis_dataset_config = {
             "market_run_id": REAL_TIME_DISPATCH_MARKET_RUN_ID,
         },
     },
-    "day_ahead_interchange": {
+    "tie_schedule_day_ahead_hourly": {
         "query": {
             "path": "GroupZip",
             "resultformat": 6,
             "version": 12,
         },
-        "params": {"groupid": ["DAM_ENE_SCH_BY_TIE_GRP"]},
+        "params": {
+            "groupid": ["DAM_ENE_SCH_BY_TIE_GRP"],
+            "market_run_id": DAY_AHEAD_MARKET_MARKET_RUN_ID,
+        },
     },
 }

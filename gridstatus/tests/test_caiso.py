@@ -5,7 +5,10 @@ import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException
-from gridstatus.caiso import REAL_TIME_DISPATCH_MARKET_RUN_ID
+from gridstatus.caiso import (
+    DAY_AHEAD_MARKET_MARKET_RUN_ID,
+    REAL_TIME_DISPATCH_MARKET_RUN_ID,
+)
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 
@@ -476,9 +479,9 @@ class TestCAISO(BaseTestISO):
 
         assert df.shape[0] > 0
 
-    """get_real_time_interchange"""
+    """get_tie_flows_real_time"""
 
-    def _check_real_time_interchange(self, df):
+    def _check_tie_flows_real_time(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -486,38 +489,77 @@ class TestCAISO(BaseTestISO):
             "DIRECTION",
             "FROM_BAA",
             "TO_BAA",
-            "MARKET_TYPE",
+            "MARKET",
             "BAA_GRP_ID",
-            "VALUE",
+            "MW",
         ]
 
         assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
             minutes=5,
         )
 
-        assert df["MARKET_TYPE"].unique() == REAL_TIME_DISPATCH_MARKET_RUN_ID
+        assert df["MARKET"].unique() == REAL_TIME_DISPATCH_MARKET_RUN_ID
 
-    def test_get_real_time_interchange_latest(self):
-        df = self.iso.get_real_time_interchange("latest")
-        self._check_real_time_interchange(df)
+    def test_get_tie_flows_real_time_latest(self):
+        df = self.iso.get_tie_flows_real_time("latest")
+        self._check_tie_flows_real_time(df)
 
         assert df["Interval Start"].min() == pd.Timestamp.utcnow().round("5min")
         assert df["Interval End"].max() == pd.Timestamp.utcnow().round(
             "5min",
         ) + pd.Timedelta(minutes=5)
 
-    def test_get_real_time_interchange_today(self):
-        df = self.iso.get_real_time_interchange("today")
-        self._check_real_time_interchange(df)
+    def test_get_tie_flows_real_time_today(self):
+        df = self.iso.get_tie_flows_real_time("today")
+        self._check_tie_flows_real_time(df)
 
         assert df["Interval Start"].min() == self.local_start_of_today()
 
-    def test_get_real_time_interchange_historical_date_range(self):
+    def test_get_tie_flows_real_time_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=100)
         end = start + pd.DateOffset(days=2)
 
-        df = self.iso.get_real_time_interchange(start, end=end)
-        self._check_real_time_interchange(df)
+        df = self.iso.get_tie_flows_real_time(start, end=end)
+        self._check_tie_flows_real_time(df)
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+    """get_tie_schedule_day_ahead_hourly"""
+
+    def _check_tie_schedule_day_ahead_hourly(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "TIE_NAME",
+            "DIRECTION",
+            "FROM_BAA",
+            "TO_BAA",
+            "MARKET",
+            "BAA_GRP_ID",
+            "MW",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            minutes=60,
+        )
+
+        assert df["MARKET"].unique() == DAY_AHEAD_MARKET_MARKET_RUN_ID
+
+    def test_get_tie_schedule_day_ahead_hourly_today_or_latest(self):
+        df = self.iso.get_tie_schedule_day_ahead_hourly("today")
+        self._check_tie_schedule_day_ahead_hourly(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+
+        assert self.iso.get_tie_schedule_day_ahead_hourly("latest").equals(df)
+
+    def test_get_tie_schedule_day_ahead_hourly_historical_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=100)
+        end = start + pd.DateOffset(days=2)
+
+        df = self.iso.get_tie_schedule_day_ahead_hourly(start, end=end)
+        self._check_tie_schedule_day_ahead_hourly(df)
 
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
