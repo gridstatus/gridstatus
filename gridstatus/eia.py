@@ -766,6 +766,8 @@ def _handle_henry_hub_natural_gas_spot_prices(df):
         },
     )
 
+    df = df.replace({"NA": np.nan})
+
     df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
 
     return df.sort_values(["Interval Start", "area_name", "series"])

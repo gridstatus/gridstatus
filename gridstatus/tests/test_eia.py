@@ -332,12 +332,23 @@ def _check_henry_hub_natural_gas_spot_prices(df):
         "price",
         "units",
     ]
-    assert (df["Interval End"] - df["Interval Start"]).unique() == pd.DateOffset(days=1)
+
+    assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(days=1)
 
     # Only RNGWHHD is present after 2024-04-05
-    assert (
-        df["series"].unique() == ["RNGWHHD", "RNGC1", "RNGC2", "RNGC3", "RNGC4"]
-    ).all()
+    assert set(df["series"].unique()) == set(
+        [
+            "RNGWHHD",
+            "RNGC1",
+            "RNGC2",
+            "RNGC3",
+            "RNGC4",
+        ],
+    )
+
+    assert df["area_name"].isna().any()
+    assert not df["price"].isna().any()
+    assert not df["series"].isna().any()
 
 
 def test_get_henry_hub_natural_gas_spot_prices_historical_date():
