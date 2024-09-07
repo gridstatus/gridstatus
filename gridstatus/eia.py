@@ -766,7 +766,7 @@ def _handle_henry_hub_natural_gas_spot_prices(df):
         },
     )
 
-    df = df.replace({"NA": np.nan})
+    df = df.replace({"NA": pd.NA})
 
     df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
 
