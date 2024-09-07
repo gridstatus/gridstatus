@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -349,6 +350,8 @@ def _check_henry_hub_natural_gas_spot_prices(df):
     assert df["area_name"].isna().any()
     assert not df["price"].isna().any()
     assert not df["series"].isna().any()
+
+    assert np.issubdtype(df["price"], np.float64)
 
 
 def test_get_henry_hub_natural_gas_spot_prices_historical_date():
