@@ -314,3 +314,49 @@ def test_eia_grid_monitor():
     df = eia.get_grid_monitor(area_id="CISO")
 
     assert df.columns.tolist() == cols
+
+
+def _check_henry_hub_natural_gas_spot_prices(df):
+    assert df.columns.tolist() == [
+        "Interval Start",
+        "Interval End",
+        "period",
+        "duoarea",
+        "area_name",
+        "product",
+        "fuel_type",
+        "process",
+        "price_type",
+        "series",
+        "series_description",
+        "price",
+        "units",
+    ]
+    assert (df["Interval End"] - df["Interval Start"]).unique() == pd.DateOffset(days=1)
+
+    # Only RNGWHHD is present after 2024-04-05
+    assert (
+        df["series"].unique() == ["RNGWHHD", "RNGC1", "RNGC2", "RNGC3", "RNGC4"]
+    ).all()
+
+
+def test_get_henry_hub_natural_gas_spot_prices_historical_date():
+    df = gridstatus.eia.EIA().get_henry_hub_natural_gas_spot_prices(
+        "2024-01-02",
+        "2024-01-02",
+    )
+
+    assert df["Interval Start"].min().date() == pd.Timestamp("2024-01-02").date()
+    assert df["Interval End"].max().date() == pd.Timestamp("2024-01-03").date()
+
+
+def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
+    df = gridstatus.eia.EIA().get_henry_hub_natural_gas_spot_prices(
+        "2023-12-04",
+        "2024-01-02",
+    )
+
+    _check_henry_hub_natural_gas_spot_prices(df)
+
+    assert df["Interval Start"].min().date() == pd.Timestamp("2023-12-04").date()
+    assert df["Interval End"].max().date() == pd.Timestamp("2024-01-03").date()
