@@ -753,6 +753,9 @@ def _handle_fuel_type_data(df):
 
 
 def _handle_henry_hub_natural_gas_spot_prices(df):
+    # The other EIA datasets use "period" as the "Interval End" but that is not correct
+    # for this dataset because that would put the data one day ahead of how the EIA
+    # shows it here: https://www.eia.gov/dnav/ng/hist/rngwhhdD.htm
     df["Interval Start"] = pd.to_datetime(df["period"], utc=True)
     df["Interval End"] = df["Interval Start"] + pd.Timedelta("1d")
 
