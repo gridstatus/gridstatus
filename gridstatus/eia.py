@@ -17,6 +17,8 @@ from gridstatus import utils
 from gridstatus.gs_logging import log
 
 HENRY_HUB_NATURAL_GAS_SPOT_PRICES_PATH = "natural-gas/pri/fut"
+# Physical location of Henry Hub is Louisiana
+HENRY_HUB_TIMEZONE = "US/Central"
 
 
 class EIA:
@@ -756,7 +758,11 @@ def _handle_henry_hub_natural_gas_spot_prices(df):
     # The other EIA datasets use "period" as the "Interval End" but that is not correct
     # for this dataset because that would put the data one day ahead of how the EIA
     # shows it here: https://www.eia.gov/dnav/ng/hist/rngwhhdD.htm
-    df["Interval Start"] = pd.to_datetime(df["period"], utc=True)
+    # We use the HENRY_HUB_TIMEZONE because the spot prices are based on delivery
+    # at Henry Hub
+    df["Interval Start"] = pd.to_datetime(df["period"]).dt.tz_localize(
+        HENRY_HUB_TIMEZONE,
+    )
     df["Interval End"] = df["Interval Start"] + pd.Timedelta("1d")
 
     df = df.rename(

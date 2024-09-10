@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
+from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
 
 
 def _check_interchange(df):
@@ -355,22 +356,30 @@ def _check_henry_hub_natural_gas_spot_prices(df):
 
 
 def test_get_henry_hub_natural_gas_spot_prices_historical_date():
-    df = gridstatus.eia.EIA().get_henry_hub_natural_gas_spot_prices(
+    df = EIA().get_henry_hub_natural_gas_spot_prices(
         "2024-01-02",
         "2024-01-02",
     )
 
-    assert df["Interval Start"].min().date() == pd.Timestamp("2024-01-02").date()
-    assert df["Interval End"].max().date() == pd.Timestamp("2024-01-03").date()
+    _check_henry_hub_natural_gas_spot_prices(df)
+
+    assert df["Interval Start"].min() == pd.Timestamp(
+        "2024-01-02",
+        tz=HENRY_HUB_TIMEZONE,
+    )
+    assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
 
 
 def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
-    df = gridstatus.eia.EIA().get_henry_hub_natural_gas_spot_prices(
+    df = EIA().get_henry_hub_natural_gas_spot_prices(
         "2023-12-04",
         "2024-01-02",
     )
 
     _check_henry_hub_natural_gas_spot_prices(df)
 
-    assert df["Interval Start"].min().date() == pd.Timestamp("2023-12-04").date()
-    assert df["Interval End"].max().date() == pd.Timestamp("2024-01-03").date()
+    assert df["Interval Start"].min() == pd.Timestamp(
+        "2023-12-04",
+        tz=HENRY_HUB_TIMEZONE,
+    )
+    assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
