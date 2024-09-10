@@ -1439,9 +1439,9 @@ class TestPJM(BaseTestISO):
         with pytest.raises(ValueError, match="Both start and end dates must be before"):
             self.iso.get_real_time_as_market_results(date=start, end=end, error="raise")
 
-    """get_hourly_metered_load"""
+    """get_metered_load_hourly"""
 
-    def _check_hourly_metered_load(self, df):
+    def _check_metered_load_hourly(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -1466,12 +1466,12 @@ class TestPJM(BaseTestISO):
 
         assert set(df["NERC Region"]) == {"RFC", "SERC", "RTO"}
 
-    def test_get_hourly_metered_load_historical_date(self):
+    def test_get_metered_load_hourly_historical_date(self):
         date = self.local_today() - pd.Timedelta(days=10)
 
-        df = self.iso.get_hourly_metered_load(date)
+        df = self.iso.get_metered_load_hourly(date)
 
-        self._check_hourly_metered_load(df)
+        self._check_metered_load_hourly(df)
 
         assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval End"].max() == self.local_start_of_day(
@@ -1480,13 +1480,13 @@ class TestPJM(BaseTestISO):
             days=1,
         )
 
-    def test_get_hourly_metered_load_historical_date_range(self):
+    def test_get_metered_load_hourly_historical_date_range(self):
         date = self.local_today() - pd.Timedelta(days=12)
         end_date = date + pd.Timedelta(days=3)
 
-        df = self.iso.get_hourly_metered_load(date, end_date)
+        df = self.iso.get_metered_load_hourly(date, end_date)
 
-        self._check_hourly_metered_load(df)
+        self._check_metered_load_hourly(df)
 
         assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval End"].max() == self.local_start_of_day(end_date)
