@@ -66,7 +66,7 @@ def _check_fuel_type(df, subset=False):
         "Respondent Name",
         "Coal",
         "Hydro",
-        "Natural gas",
+        "Natural Gas",
         "Nuclear",
         "Other",
         "Petroleum",
