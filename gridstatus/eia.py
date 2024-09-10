@@ -16,6 +16,10 @@ import gridstatus
 from gridstatus import utils
 from gridstatus.gs_logging import log
 
+HENRY_HUB_NATURAL_GAS_SPOT_PRICES_PATH = "natural-gas/pri/fut"
+# Physical location of Henry Hub is Louisiana
+HENRY_HUB_TIMEZONE = "US/Central"
+
 
 class EIA:
     BASE_URL = "https://api.eia.gov/v2/"
@@ -219,7 +223,6 @@ class EIA:
         df = raw_df.copy()
 
         if dataset in DATASET_CONFIG:
-
             df = DATASET_CONFIG[dataset]["handler"](df)
 
         return df
@@ -580,6 +583,30 @@ class EIA:
             "coke_exports": coke_exports,
         }
 
+    def get_henry_hub_natural_gas_spot_prices(self, date, end=None, verbose=False):
+        """
+        Retrieve Henry Hub natural gas spot prices.
+
+        https://www.eia.gov/dnav/ng/hist/rngwhhdD.htm
+
+        Args:
+            date (str or pd.Timestamp): Date to fetch data for.
+            end (str or pd.Timestamp): End date to fetch data for.
+
+        Returns:
+            pd.DataFrame: DataFrame with Henry Hub natural gas spot prices.
+        """
+
+        data = self.get_dataset(
+            HENRY_HUB_NATURAL_GAS_SPOT_PRICES_PATH,
+            start=date,
+            end=end,
+            frequency="daily",
+            verbose=verbose,
+        )
+
+        return data
+
 
 def _handle_time(df, frequency="1h"):
     df.insert(0, "Interval End", pd.to_datetime(df["period"], utc=True))
@@ -727,6 +754,36 @@ def _handle_fuel_type_data(df):
     return df
 
 
+def _handle_henry_hub_natural_gas_spot_prices(df):
+    # The other EIA datasets use "period" as the "Interval End" but that is not correct
+    # for this dataset because that would put the data one day ahead of how the EIA
+    # shows it here: https://www.eia.gov/dnav/ng/hist/rngwhhdD.htm
+    # We use the HENRY_HUB_TIMEZONE because the spot prices are based on delivery
+    # at Henry Hub in Louisiana. However, this dataset also includes futures prices,
+    # where are based on the NYMEX, so US/Central might not be correct for these prices.
+    df["Interval Start"] = pd.to_datetime(df["period"]).dt.tz_localize(
+        HENRY_HUB_TIMEZONE,
+    )
+    df["Interval End"] = df["Interval Start"] + pd.Timedelta("1d")
+
+    df = df.rename(
+        columns={
+            "area-name": "area_name",
+            "product-name": "fuel_type",
+            "process-name": "price_type",
+            "series-description": "series_description",
+            "value": "price",
+        },
+    )
+
+    df = df.replace({"NA": pd.NA})
+    df["price"] = df["price"].astype(float)
+
+    df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
+
+    return df.sort_values(["Interval Start", "area_name", "series"])
+
+
 DATASET_CONFIG = {
     "electricity/rto/interchange-data": {
         "index": [
@@ -747,5 +804,9 @@ DATASET_CONFIG = {
     "electricity/rto/fuel-type-data": {
         "index": ["period", "respondent", "fueltype"],
         "handler": _handle_fuel_type_data,
+    },
+    HENRY_HUB_NATURAL_GAS_SPOT_PRICES_PATH: {
+        "index": ["period"],
+        "handler": _handle_henry_hub_natural_gas_spot_prices,
     },
 }
