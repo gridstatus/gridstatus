@@ -1611,7 +1611,7 @@ class PJM(ISOBase):
             start=date,
             params={
                 "fields": "datetime_beginning_ept,datetime_beginning_utc,name,"
-                "actual_flow,warning_level,transfer_limit"
+                "actual_flow,warning_level,transfer_limit",
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
@@ -1870,7 +1870,7 @@ class PJM(ISOBase):
             params={
                 "fields": "datetime_beginning_ept,datetime_beginning_utc,locale,"
                 "service,mcp,mcp_capped,as_req_mw,total_mw,as_mw,ss_mw,ircmwt2,"
-                "dsr_as_mw,nsr_mw"
+                "dsr_as_mw,nsr_mw",
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
@@ -1960,12 +1960,19 @@ class PJM(ISOBase):
         # Make sure start and end are both before or both after Sep 1, 2022
         # when data granularity changes
         cutoff_date = datetime(
-            2022, 9, 1, 0, 0, 0, 0, pytz.timezone(self.default_timezone)
+            2022,
+            9,
+            1,
+            0,
+            0,
+            0,
+            0,
+            pytz.timezone(self.default_timezone),
         )
         if date < cutoff_date:
             if end and end > cutoff_date:
                 raise ValueError(
-                    f"Both start and end dates must be before {cutoff_date}."
+                    f"Both start and end dates must be before {cutoff_date}.",
                 )
             interval_duration = 60
         else:
@@ -1977,7 +1984,7 @@ class PJM(ISOBase):
             params={
                 "fields": "datetime_beginning_ept,datetime_beginning_utc,locale,"
                 "service,mcp,mcp_capped,reg_ccp,reg_pcp,as_req_mw,total_mw,as_mw,"
-                "ss_mw,tier1_mw,ircmwt2,dsr_as_mw,nsr_mw,regd_mw"
+                "ss_mw,tier1_mw,ircmwt2,dsr_as_mw,nsr_mw,regd_mw",
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
@@ -2043,6 +2050,57 @@ class PJM(ISOBase):
                 "Demand Response MW Assigned",
                 "Non-Synchronized Reserve MW Assigned",
                 "REGD MW",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_hourly_metered_load(self, date, end=None, verbose=False):
+        """
+        Retrieves the hourly metered load data from:
+
+        https://dataminer2.pjm.com/feed/hrl_load_metered/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "hrl_load_metered",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,is_verified,load_area,mkt_region,mw,nerc_region,zone",  # noqa: E501
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._parse_hourly_metered_load(df)
+
+    def _parse_hourly_metered_load(self, df):
+        df = df.rename(
+            columns={
+                "load_area": "Load Area",
+                "mkt_region": "Mkt Region",
+                "mw": "MW",
+                "nerc_region": "NERC Region",
+                "zone": "Zone",
+                "is_verified": "Is Verified",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "NERC Region",
+                "Mkt Region",
+                "Zone",
+                "Load Area",
+                "MW",
+                "Is Verified",
             ]
         ]
 
