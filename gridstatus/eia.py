@@ -759,7 +759,8 @@ def _handle_henry_hub_natural_gas_spot_prices(df):
     # for this dataset because that would put the data one day ahead of how the EIA
     # shows it here: https://www.eia.gov/dnav/ng/hist/rngwhhdD.htm
     # We use the HENRY_HUB_TIMEZONE because the spot prices are based on delivery
-    # at Henry Hub
+    # at Henry Hub in Louisiana. However, this dataset also includes futures prices,
+    # where are based on the NYMEX, so US/Central might not be correct for these prices.
     df["Interval Start"] = pd.to_datetime(df["period"]).dt.tz_localize(
         HENRY_HUB_TIMEZONE,
     )
