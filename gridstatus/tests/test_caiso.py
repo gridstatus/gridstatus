@@ -486,6 +486,7 @@ class TestCAISO(BaseTestISO):
             "Interval Start",
             "Interval End",
             "TIE_NAME",
+            "DIRECTION_FROM_BAA_TO_BAA",
             "DIRECTION",
             "FROM_BAA",
             "TO_BAA",

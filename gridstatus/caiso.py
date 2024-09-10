@@ -1193,12 +1193,19 @@ class CAISO(ISOBase):
             ],
         ).rename(columns={"MARKET_TYPE": "MARKET", "VALUE": "MW"})
 
+        # Create an identifier column using DIRECTION, FROM_BAA, TO_BAA
+        df["DIRECTION_FROM_BAA_TO_BAA"] = df[["DIRECTION", "FROM_BAA", "TO_BAA"]].apply(
+            lambda x: "_".join(x.astype(str)),
+            axis=1,
+        )
+
         df = utils.move_cols_to_front(
             df,
             [
                 "Interval Start",
                 "Interval End",
                 "TIE_NAME",
+                "DIRECTION_FROM_BAA_TO_BAA",
                 "DIRECTION",
                 "FROM_BAA",
                 "TO_BAA",
@@ -1208,7 +1215,9 @@ class CAISO(ISOBase):
             ],
         )
 
-        return df.sort_values(["Interval Start", "TIE_NAME", "DIRECTION", "FROM_BAA"])
+        return df.sort_values(
+            ["Interval Start", "TIE_NAME", "DIRECTION_FROM_BAA_TO_BAA"],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_tie_schedule_day_ahead_hourly(self, date, end=None, verbose=False):
