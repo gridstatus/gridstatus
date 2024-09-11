@@ -485,13 +485,12 @@ class TestCAISO(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "TIE_NAME",
-            "DIRECTION_FROM_BAA_TO_BAA",
-            "DIRECTION",
-            "FROM_BAA",
-            "TO_BAA",
-            "MARKET",
-            "BAA_GRP_ID",
+            "Interface ID",
+            "Tie Name",
+            "From BAA",
+            "To BAA",
+            "Market",
+            "BAA Grp ID",
             "MW",
         ]
 
@@ -499,7 +498,11 @@ class TestCAISO(BaseTestISO):
             minutes=5,
         )
 
-        assert df["MARKET"].unique() == REAL_TIME_DISPATCH_MARKET_RUN_ID
+        assert df["Market"].unique() == REAL_TIME_DISPATCH_MARKET_RUN_ID
+
+        assert not df.duplicated(
+            subset=["Interval Start", "Tie Name", "From BAA", "To BAA"],
+        ).any()
 
     def test_get_tie_flows_real_time_latest(self):
         df = self.iso.get_tie_flows_real_time("latest")

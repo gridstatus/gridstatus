@@ -1193,30 +1193,54 @@ class CAISO(ISOBase):
             ],
         ).rename(columns={"MARKET_TYPE": "MARKET", "VALUE": "MW"})
 
-        # Create an identifier column using DIRECTION, FROM_BAA, TO_BAA
-        df["DIRECTION_FROM_BAA_TO_BAA"] = df[["DIRECTION", "FROM_BAA", "TO_BAA"]].apply(
-            lambda x: "_".join(x.astype(str)),
-            axis=1,
+        # Multiply imports by -1 to match convention of imports being negative
+        df["MW"] = np.where(df["DIRECTION"] == "I", df["MW"] * -1, df["MW"])
+
+        # Sum MW by Interval Start, TIE_NAME, FROM_BAA, TO_BAA so we can remove
+        # the direction column
+        df = (
+            df.groupby(
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "TIE_NAME",
+                    "FROM_BAA",
+                    "TO_BAA",
+                    "MARKET",
+                    "BAA_GRP_ID",
+                ],
+            )["MW"]
+            .sum()
+            .reset_index()
         )
+
+        df.columns = df.columns.map(
+            lambda x: x.title()
+            .replace("_", " ")
+            .replace("Baa", "BAA")
+            .replace("Mw", "MW")
+            .replace("Id", "ID"),
+        )
+
+        df["Interface ID"] = df["Tie Name"] + "_" + df["From BAA"] + "_" + df["To BAA"]
 
         df = utils.move_cols_to_front(
             df,
             [
                 "Interval Start",
                 "Interval End",
-                "TIE_NAME",
-                "DIRECTION_FROM_BAA_TO_BAA",
-                "DIRECTION",
-                "FROM_BAA",
-                "TO_BAA",
-                "MARKET",
-                "BAA_GRP_ID",
+                "Interface ID",
+                "Tie Name",
+                "From BAA",
+                "To BAA",
+                "Market",
+                "BAA Grp ID",
                 "MW",
             ],
         )
 
         return df.sort_values(
-            ["Interval Start", "TIE_NAME", "DIRECTION_FROM_BAA_TO_BAA"],
+            ["Interval Start", "Interface ID"],
         )
 
     @support_date_range(frequency="DAY_START")
