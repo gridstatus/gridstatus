@@ -2056,7 +2056,7 @@ class PJM(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_metered_load_hourly(self, date, end=None, verbose=False):
+    def get_load_metered_hourly(self, date, end=None, verbose=False):
         """
         Retrieves the hourly metered load data from:
 
@@ -2077,9 +2077,9 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        return self._parse_metered_load_hourly(df)
+        return self._parse_load_metered_hourly(df)
 
-    def _parse_metered_load_hourly(self, df):
+    def _parse_load_metered_hourly(self, df):
         df = df.rename(
             columns={
                 "load_area": "Load Area",
