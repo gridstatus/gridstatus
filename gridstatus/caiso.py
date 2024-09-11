@@ -1222,7 +1222,9 @@ class CAISO(ISOBase):
             .replace("Id", "ID"),
         )
 
-        df["Interface ID"] = df["Tie Name"] + "_" + df["From BAA"] + "_" + df["To BAA"]
+        # Create an identifier column (separated by hyphens because some of the tie
+        # names have underscores in them) to use for indexing
+        df["Interface ID"] = df["Tie Name"] + "-" + df["From BAA"] + "-" + df["To BAA"]
 
         df = utils.move_cols_to_front(
             df,
