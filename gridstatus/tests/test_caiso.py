@@ -540,7 +540,6 @@ class TestCAISO(BaseTestISO):
             "FROM_BAA",
             "TO_BAA",
             "MARKET",
-            "BAA_GRP_ID",
             "MW",
         ]
 

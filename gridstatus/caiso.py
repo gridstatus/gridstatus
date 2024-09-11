@@ -1190,6 +1190,8 @@ class CAISO(ISOBase):
                 "UPD_DATE",
                 "UPD_BY",
                 "GROUP",
+                # Same as FROM_BAA
+                "BAA_GRP_ID",
             ],
         ).rename(columns={"MARKET_TYPE": "MARKET", "VALUE": "MW"})
 
@@ -1207,7 +1209,6 @@ class CAISO(ISOBase):
                     "FROM_BAA",
                     "TO_BAA",
                     "MARKET",
-                    "BAA_GRP_ID",
                 ],
             )["MW"]
             .sum()
@@ -1218,8 +1219,7 @@ class CAISO(ISOBase):
             lambda x: x.title()
             .replace("_", " ")
             .replace("Baa", "BAA")
-            .replace("Mw", "MW")
-            .replace("Id", "ID"),
+            .replace("Mw", "MW"),
         )
 
         # Create an identifier column (separated by hyphens because some of the tie
@@ -1236,7 +1236,6 @@ class CAISO(ISOBase):
                 "From BAA",
                 "To BAA",
                 "Market",
-                "BAA Grp ID",
                 "MW",
             ],
         )
