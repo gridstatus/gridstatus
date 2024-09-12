@@ -5,6 +5,9 @@ import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException
+from gridstatus.caiso import (
+    REAL_TIME_DISPATCH_MARKET_RUN_ID,
+)
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 
@@ -474,6 +477,55 @@ class TestCAISO(BaseTestISO):
             )
 
         assert df.shape[0] > 0
+
+    """get_tie_flows_real_time"""
+
+    def _check_tie_flows_real_time(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Interface ID",
+            "Tie Name",
+            "From BAA",
+            "To BAA",
+            "Market",
+            "MW",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            minutes=5,
+        )
+
+        assert df["Market"].unique() == REAL_TIME_DISPATCH_MARKET_RUN_ID
+
+        assert not df.duplicated(
+            subset=["Interval Start", "Tie Name", "From BAA", "To BAA"],
+        ).any()
+
+    def test_get_tie_flows_real_time_latest(self):
+        df = self.iso.get_tie_flows_real_time("latest")
+        self._check_tie_flows_real_time(df)
+
+        assert df["Interval Start"].min() == pd.Timestamp.utcnow().round("5min")
+        assert df["Interval End"].max() == pd.Timestamp.utcnow().round(
+            "5min",
+        ) + pd.Timedelta(minutes=5)
+
+    def test_get_tie_flows_real_time_today(self):
+        df = self.iso.get_tie_flows_real_time("today")
+        self._check_tie_flows_real_time(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+
+    def test_get_tie_flows_real_time_historical_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=100)
+        end = start + pd.DateOffset(days=2)
+
+        df = self.iso.get_tie_flows_real_time(start, end=end)
+        self._check_tie_flows_real_time(df)
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
 
     """other"""
 
