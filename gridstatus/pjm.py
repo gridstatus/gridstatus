@@ -2105,3 +2105,55 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_forecasted_generation_outages(self, date, end=None, verbose=False):
+        """
+        Retrieves the forecasted generation outages for the next 90 days from:
+
+        https://dataminer2.pjm.com/feed/frcstd_gen_outages/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "frcstd_gen_outages",
+            start=date,
+            params={
+                "fields": "forecast_execution_date_ept,forecast_date,forecast_gen_outage_mw_rto,forecast_gen_outage_mw_west,forecast_gen_outage_mw_other",  # noqa: E501
+            },
+            end=end,
+            filter_timestamp_name="forecast_execution_date",
+            interval_duration_min=1440,
+            verbose=verbose,
+        )
+
+        return self._parse_load_metered_hourly(df)
+
+    def _parse_load_metered_hourly(self, df):
+        df = df.rename(
+            columns={
+                "forecast_execution_date_ept": "Publish Time",
+                "forecast_date": "Interval Start",
+                "forecast_gen_outage_mw_rto": "RTO MW",
+                "forecast_gen_outage_mw_west": "West MW",
+                "forecast_gen_outage_mw_other": "Other MW",
+            },
+        )
+
+        df["Interval Start"] = self.to_local_datetime(df, "Interval Start")
+        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+        df["Publish Time"] = self.to_local_datetime(df, "Publish Time")
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "RTO MW",
+                "West MW",
+                "Other MW",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)

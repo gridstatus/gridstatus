@@ -1490,3 +1490,70 @@ class TestPJM(BaseTestISO):
 
         assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval End"].max() == self.local_start_of_day(end_date)
+
+    """get_forecasted_generation_outages"""
+
+    def _check_forecasted_gen_outages(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "RTO MW",
+            "West MW",
+            "Other MW",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    def test_get_forecasted_generation_outages_today_or_latest(self):
+        df = self.iso.get_forecasted_generation_outages("today")
+        self._check_forecasted_gen_outages(df)
+        start_date_local = self.local_today()
+        expected_date = self.to_local_datetime(start_date_local)
+
+        assert (df["Publish Time"] == expected_date).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
+
+        assert self.iso.get_forecasted_generation_outages("latest").equals(df)
+
+    def test_get_forecasted_generation_outages_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        df = self.iso.get_forecasted_generation_outages(past_date)
+        self._check_forecasted_gen_outages(df)
+        expected_date = self.to_local_datetime(past_date)
+
+        assert (df["Publish Time"] == expected_date).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
+
+    def test_get_forecasted_generation_outages_historical_range(self):
+        # start example: 2024-04-30 00:00:00-04:00
+        start_date_local = self.local_today() - pd.DateOffset(days=3)
+        start_date_time_local = self.local_start_of_day(start_date_local)
+        # end example: 2024-05-01 23:59:59-04:00
+        end_date_local = start_date_time_local + pd.DateOffset(days=2)
+        end_date_time_local = end_date_local - pd.DateOffset(seconds=1)
+
+        # expect only 2024-04-30 00:00:00-04:00 and 2024-05-01 00:00:00-04:00 in results
+        expected_date_1 = self.to_local_datetime(start_date_local)
+        expected_date_2 = self.to_local_datetime(
+            (start_date_local + pd.DateOffset(days=1)),
+        )
+        expected_dates = {expected_date_1, expected_date_2}
+
+        df = self.iso.get_forecasted_generation_outages(
+            start_date_time_local,
+            end_date_time_local,
+        )
+        self._check_forecasted_gen_outages(df)
+        assert (df["Publish Time"].isin(expected_dates)).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
