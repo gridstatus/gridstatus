@@ -2128,9 +2128,9 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        return self._parse_load_metered_hourly(df)
+        return self._parse_forecasted_generation_outages(df)
 
-    def _parse_load_metered_hourly(self, df):
+    def _parse_forecasted_generation_outages(self, df):
         df = df.rename(
             columns={
                 "forecast_execution_date_ept": "Publish Time",
