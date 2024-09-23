@@ -1466,7 +1466,7 @@ def _get_historical(
     verbose: bool = False,
 ) -> pd.DataFrame:
 
-    if date == "today":
+    if utils.is_today(date, CAISO.default_timezone):
         url: str = f"{_BASE}/{file}.csv"
     else:
         date_str: str = date.strftime("%Y%m%d")
