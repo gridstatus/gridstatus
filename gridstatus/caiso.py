@@ -1460,8 +1460,12 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
     return ts
 
 
-def _get_historical(file: str, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
-    
+def _get_historical(
+    file: str,
+    date: str | pd.Timestamp,
+    verbose: bool = False,
+) -> pd.DataFrame:
+
     if date == "today":
         url: str = f"{_BASE}/{file}.csv"
     else:
@@ -1498,6 +1502,7 @@ def _get_historical(file: str, date: str | pd.Timestamp, verbose: bool = False) 
     df.insert(2, "Interval End", df["Time"] + pd.Timedelta(minutes=5))
 
     return df
+
 
 def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
     start, end = _caiso_handle_start_end(start, end)
