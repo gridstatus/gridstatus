@@ -1460,19 +1460,15 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
     return ts
 
 
-def _get_historical(file, date, verbose=False):
-    try:
-        date_str = date.strftime("%Y%m%d")
-        url = _HISTORY_BASE + "/%s/%s.csv" % (date_str, file)
-        msg = f"Fetching URL: {url}"
-        log(msg, verbose)
-    except Exception:
-        # fallback if today and no historical file yet
-        if utils.is_today(date, CAISO.default_timezone):
-            url = _BASE + "/%s.csv" % file
-            msg = f"Fetching URL: {url}"
-            log(msg, verbose)
-
+def _get_historical(file: str, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
+    
+    if date == "today":
+        url: str = f"{_BASE}/{file}.csv"
+    else:
+        date_str: str = date.strftime("%Y%m%d")
+        url: str = f"{_HISTORY_BASE}/{date_str}/{file}.csv"
+    msg: str = f"Fetching URL: {url}"
+    log(msg, verbose)
     df = pd.read_csv(url)
 
     # sometimes there are extra rows at the end, so this lets us ignore them
@@ -1502,7 +1498,6 @@ def _get_historical(file, date, verbose=False):
     df.insert(2, "Interval End", df["Time"] + pd.Timedelta(minutes=5))
 
     return df
-
 
 def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
     start, end = _caiso_handle_start_end(start, end)
