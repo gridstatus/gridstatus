@@ -27,6 +27,9 @@ from gridstatus.lmp_config import lmp_config
 _BASE = "https://www.caiso.com/outlook/SP"
 _HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
 
+DAY_AHEAD_MARKET_MARKET_RUN_ID = "DAM"
+REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
+
 
 def determine_lmp_frequency(args):
     """if querying all must use 1d frequency"""
@@ -647,6 +650,21 @@ class CAISO(ISOBase):
         ]
         return df
 
+    def get_fuel_regions(self, verbose=False):
+        """Retrieves the (mostly static) list of fuel regions with associated data.
+        This file can be joined to the gas prices on Fuel Region Id"""
+        url = "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
+
+        log(f"Fetching {url}", verbose=verbose)
+
+        # Only want the "GPI_Fuel_Region" sheet
+        return pd.read_excel(url, sheet_name="GPI_Fuel_Region").rename(
+            columns={
+                "Fuel Region": "Fuel Region Id",
+                "Cap & Trade Credit": "Cap and Trade Credit",
+            },
+        )
+
     @support_date_range(frequency="31D")
     def get_ghg_allowance(
         self,
@@ -1132,6 +1150,99 @@ class CAISO(ISOBase):
             ).any(), "There are still duplicates"
 
         return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_tie_flows_real_time(self, date, end=None, verbose=False):
+        """Return real time tie flow data.
+
+        From OASIS: Energy > Energy Imbalance Market > EIM Transfer by Tie
+
+        Arguments:
+            date (datetime.date, str): date to return data
+            end (datetime.date, str): last date of range to return data.
+
+        Returns:
+            pandas.DataFrame
+        """
+        if date == "latest":
+            date = pd.Timestamp.utcnow().round("5min")
+            end = date + pd.Timedelta(minutes=5)
+
+        df = self.get_oasis_dataset(
+            dataset="tie_flows_real_time",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        return self._process_tie_flows_data(df)
+
+    def _process_tie_flows_data(self, df):
+        df = df.drop(
+            columns=[
+                "Time",
+                "DATA_ITEM",
+                "OPR_DT",
+                "OPR_HR",
+                "OPR_INTERVAL",
+                "OASIS_REC_STAT",
+                "UPD_DATE",
+                "UPD_BY",
+                "GROUP",
+                # Same as FROM_BAA
+                "BAA_GRP_ID",
+            ],
+        ).rename(columns={"MARKET_TYPE": "MARKET", "VALUE": "MW"})
+
+        # Multiply imports by -1 to match convention of imports being negative
+        df["MW"] = np.where(df["DIRECTION"] == "I", df["MW"] * -1, df["MW"])
+
+        # Sum MW by Interval Start, TIE_NAME, FROM_BAA, TO_BAA so we can remove
+        # the direction column
+        df = (
+            df.groupby(
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "TIE_NAME",
+                    "FROM_BAA",
+                    "TO_BAA",
+                    "MARKET",
+                ],
+            )["MW"]
+            .sum()
+            .reset_index()
+        )
+
+        df.columns = df.columns.map(
+            lambda x: x.title()
+            .replace("_", " ")
+            .replace("Baa", "BAA")
+            .replace("Mw", "MW"),
+        )
+
+        # Create an identifier column (separated by hyphens because some of the tie
+        # names have underscores in them) to use for indexing
+        df["Interface ID"] = df["Tie Name"] + "-" + df["From BAA"] + "-" + df["To BAA"]
+
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Interface ID",
+                "Tie Name",
+                "From BAA",
+                "To BAA",
+                "Market",
+                "MW",
+            ],
+        )
+
+        return df.sort_values(
+            ["Interval Start", "Interface ID"],
+        )
 
     @support_date_range(frequency=determine_oasis_frequency)
     def get_oasis_dataset(
@@ -1726,6 +1837,29 @@ oasis_dataset_config = {
         "meta": {
             "publish_delay": "90 days",
             "max_query_frequency": "1d",
+        },
+    },
+    "tie_flows_real_time": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_EIM_TRANSFER_TIE",
+            "version": 4,
+        },
+        "params": {
+            "baa_grp_id": "ALL",
+            "market_run_id": REAL_TIME_DISPATCH_MARKET_RUN_ID,
+        },
+    },
+    "tie_schedule_day_ahead_hourly": {
+        "query": {
+            "path": "GroupZip",
+            "resultformat": 6,
+            "version": 12,
+        },
+        "params": {
+            "groupid": ["DAM_ENE_SCH_BY_TIE_GRP"],
+            "market_run_id": DAY_AHEAD_MARKET_MARKET_RUN_ID,
         },
     },
 }

@@ -1,7 +1,9 @@
+import numpy as np
 import pandas as pd
 import pytest
 
 import gridstatus
+from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
 
 
 def _check_interchange(df):
@@ -314,3 +316,70 @@ def test_eia_grid_monitor():
     df = eia.get_grid_monitor(area_id="CISO")
 
     assert df.columns.tolist() == cols
+
+
+def _check_henry_hub_natural_gas_spot_prices(df):
+    assert df.columns.tolist() == [
+        "Interval Start",
+        "Interval End",
+        "period",
+        "duoarea",
+        "area_name",
+        "product",
+        "fuel_type",
+        "process",
+        "price_type",
+        "series",
+        "series_description",
+        "price",
+        "units",
+    ]
+
+    assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(days=1)
+
+    # Only RNGWHHD is present after 2024-04-05
+    assert set(df["series"].unique()) == set(
+        [
+            "RNGWHHD",
+            "RNGC1",
+            "RNGC2",
+            "RNGC3",
+            "RNGC4",
+        ],
+    )
+
+    assert df["area_name"].isna().any()
+    assert not df["price"].isna().any()
+    assert not df["series"].isna().any()
+
+    assert np.issubdtype(df["price"], np.float64)
+
+
+def test_get_henry_hub_natural_gas_spot_prices_historical_date():
+    df = EIA().get_henry_hub_natural_gas_spot_prices(
+        "2024-01-02",
+        "2024-01-02",
+    )
+
+    _check_henry_hub_natural_gas_spot_prices(df)
+
+    assert df["Interval Start"].min() == pd.Timestamp(
+        "2024-01-02",
+        tz=HENRY_HUB_TIMEZONE,
+    )
+    assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
+
+
+def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
+    df = EIA().get_henry_hub_natural_gas_spot_prices(
+        "2023-12-04",
+        "2024-01-02",
+    )
+
+    _check_henry_hub_natural_gas_spot_prices(df)
+
+    assert df["Interval Start"].min() == pd.Timestamp(
+        "2023-12-04",
+        tz=HENRY_HUB_TIMEZONE,
+    )
+    assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)

@@ -929,6 +929,50 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
+    """get_spp_day_ahead_hourly"""
+
+    def _check_spp_day_ahead_hourly(self, df):
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "Market",
+            "SPP",
+        ]
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
+        ).all()
+
+        assert sorted(df["Location Type"].unique().tolist()) == [
+            "Load Zone",
+            "Load Zone DC Tie",
+            "Resource Node",
+            "Trading Hub",
+        ]
+
+        assert df["Market"].unique().tolist() == ["DAY_AHEAD_HOURLY"]
+
+    def test_get_spp_day_ahead_hourly_historical_date_range(self):
+        start_date = self.local_today() - pd.DateOffset(days=100)
+
+        end_date = start_date + pd.DateOffset(days=2)
+
+        df = ErcotAPI().get_spp_day_ahead_hourly(
+            date=start_date,
+            end=end_date,
+            verbose=True,
+        )
+
+        self._check_spp_day_ahead_hourly(df)
+
+        assert df["Interval Start"].nunique() == 24 * 2
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        assert df["Interval End"].max() == self.local_start_of_day(end_date)
+
     """get_historical_data"""
 
     def test_get_historical_data(self):
@@ -940,13 +984,6 @@ class TestErcotAPI(TestHelperMixin):
             start_date=start_date,
             end_date=end_date,
         )
-
-        import IPython
-
-        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
-            "last_expr_or_assign"
-        )
-        IPython.embed()
 
         assert data.columns.tolist() == [
             "DELIVERY_DATE",

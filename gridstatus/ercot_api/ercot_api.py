@@ -83,6 +83,10 @@ HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT = (
 # https://data.ercot.com/data-product-archive/NP6-905-CD
 SETTLEMENT_POINT_PRICE_REAL_TIME_15_MIN = "/np6-905-cd/spp_node_zone_hub"
 
+# Day ahead settlement point prices
+# https://data.ercot.com/data-product-archive/NP4-190-CD
+SPP_DAY_AHEAD_HOURLY = "/np4-190-cd/dam_stlmnt_pnt_prices"
+
 
 class ErcotAPI:
     """
@@ -921,6 +925,46 @@ class ErcotAPI:
         data = Ercot()._finalize_spp_df(
             data,
             market=Markets.REAL_TIME_15_MIN,
+            locations="ALL",
+            location_type="ALL",
+            verbose=verbose,
+        )
+
+        return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_spp_day_ahead_hourly(self, date, end=None, verbose=False):
+        """Get Day Ahead Hourly Settlement Point Prices
+
+        Arguments:
+            date (str): the date to fetch prices for.
+            end (str, optional): the end date to fetch prices for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with settlement point prices
+        """
+        if date == "latest":
+            return self.get_spp_day_ahead_hourly("today", verbose=verbose)
+
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        # Subtract 1 from the dates because this is published day-ahead
+        date = date - pd.Timedelta(days=1)
+        end = end - pd.Timedelta(days=1)
+
+        data = self.get_historical_data(
+            endpoint=SPP_DAY_AHEAD_HOURLY,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+        )
+
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        data = Ercot()._finalize_spp_df(
+            data,
+            market=Markets.DAY_AHEAD_HOURLY,
             locations="ALL",
             location_type="ALL",
             verbose=verbose,
