@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11"]
+        python-version: ["3.10", "3.11"]
     env:
       EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
       PJM_API_KEY: ${{ secrets.PJM_API_KEY }}

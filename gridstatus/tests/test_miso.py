@@ -75,7 +75,7 @@ class TestMISO(BaseTestISO):
         self._check_lmp_weekly(df)
 
     def test_get_lmp_weekly_historical_date_range(self):
-        start = self.local_today() - pd.Timedelta(days=300)
+        start = self.local_today() - pd.Timedelta(days=100)
         # Make sure to span a week
         end = start + pd.Timedelta(days=12)
         df = self.iso.get_lmp_weekly(start, end)
@@ -253,7 +253,7 @@ class TestMISO(BaseTestISO):
         assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
 
     def test_get_solar_forecast_historical_date_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=200)
+        past_date = self.local_today() - pd.Timedelta(days=100)
         end_date = past_date + pd.Timedelta(days=3)
 
         df = self.iso.get_solar_forecast(
@@ -298,7 +298,7 @@ class TestMISO(BaseTestISO):
         assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
 
     def test_get_wind_forecast_historical_date_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=200)
+        past_date = self.local_today() - pd.Timedelta(days=100)
         end_date = past_date + pd.Timedelta(days=3)
 
         df = self.iso.get_wind_forecast(
