@@ -97,7 +97,10 @@ def make_availability_table():
     return markdown
 
 
-def _handle_date(date, tz=None):
+def _handle_date(
+    date: str | pd.Timestamp | None,
+    tz: str | None = None,
+) -> pd.Timestamp | None:
     if date is None:
         return date
 
@@ -216,7 +219,10 @@ def get_response_blob(resp: requests.Response) -> io.BytesIO:
 
 
 def download_csvs_from_zip_url(
-    url, process_csv=None, verbose=False, strip_whitespace_from_cols=False
+    url,
+    process_csv=None,
+    verbose=False,
+    strip_whitespace_from_cols=False,
 ):
     z = get_zip_folder(url, verbose=verbose)
 
@@ -239,7 +245,7 @@ def download_csvs_from_zip_url(
     return df
 
 
-def is_today(date, tz):
+def is_today(date: str | pd.Timestamp, tz: str) -> bool:
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
 
 

@@ -1460,19 +1460,19 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
     return ts
 
 
-def _get_historical(file, date, verbose=False):
-    try:
-        date_str = date.strftime("%Y%m%d")
-        url = _HISTORY_BASE + "/%s/%s.csv" % (date_str, file)
-        msg = f"Fetching URL: {url}"
-        log(msg, verbose)
-    except Exception:
-        # fallback if today and no historical file yet
-        if utils.is_today(date, CAISO.default_timezone):
-            url = _BASE + "/%s.csv" % file
-            msg = f"Fetching URL: {url}"
-            log(msg, verbose)
+def _get_historical(
+    file: str,
+    date: str | pd.Timestamp,
+    verbose: bool = False,
+) -> pd.DataFrame:
 
+    if utils.is_today(date, CAISO.default_timezone):
+        url: str = f"{_BASE}/{file}.csv"
+    else:
+        date_str: str = date.strftime("%Y%m%d")
+        url: str = f"{_HISTORY_BASE}/{date_str}/{file}.csv"
+    msg: str = f"Fetching URL: {url}"
+    log(msg, verbose)
     df = pd.read_csv(url)
 
     # sometimes there are extra rows at the end, so this lets us ignore them
