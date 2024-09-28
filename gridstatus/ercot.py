@@ -1905,6 +1905,24 @@ class Ercot(ISOBase):
         )
         # replace _ in column names with spaces
         df.columns = df.columns.str.replace("_", " ")
+
+        df = df.rename(
+            columns={
+                # on Sept 26, 2024 ercot added this column
+                "SYSTEM WIDE HSL": "HSL SYSTEM WIDE",
+                # on Sept 26, 2024 ercot renamed these columns
+                # let's rename new to the old
+                # since it's more consistent with the rest of the data
+                "SYSTEM WIDE GEN": "GEN SYSTEM WIDE",
+                # on Sept 26, 2024 ercot renamed these columns in wind report
+                # let's rename old names to new names
+                # since it's more consistent with solar report
+                "ACTUAL SYSTEM WIDE": "GEN SYSTEM WIDE",
+                "ACTUAL LZ SOUTH HOUSTON": "GEN LZ SOUTH HOUSTON",
+                "ACTUAL LZ WEST": "GEN LZ WEST",
+                "ACTUAL LZ NORTH": "GEN LZ NORTH",
+            },
+        )
         return df
 
     def get_reported_outages(self, date=None, end=None, verbose=False):
