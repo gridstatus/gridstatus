@@ -1048,22 +1048,23 @@ class TestErcot(BaseTestISO):
             "Time",
             "Interval Start",
             "Interval End",
-            "ACTUAL SYSTEM WIDE",
+            "GEN SYSTEM WIDE",
             "COP HSL SYSTEM WIDE",
             "STWPF SYSTEM WIDE",
             "WGRPP SYSTEM WIDE",
-            "ACTUAL LZ SOUTH HOUSTON",
+            "GEN LZ SOUTH HOUSTON",
             "COP HSL LZ SOUTH HOUSTON",
             "STWPF LZ SOUTH HOUSTON",
             "WGRPP LZ SOUTH HOUSTON",
-            "ACTUAL LZ WEST",
+            "GEN LZ WEST",
             "COP HSL LZ WEST",
             "STWPF LZ WEST",
             "WGRPP LZ WEST",
-            "ACTUAL LZ NORTH",
+            "GEN LZ NORTH",
             "COP HSL LZ NORTH",
             "STWPF LZ NORTH",
             "WGRPP LZ NORTH",
+            "HSL SYSTEM WIDE",
         ]
 
         assert df.columns.tolist() == cols
@@ -1146,6 +1147,7 @@ class TestErcot(BaseTestISO):
             "COP HSL CenterEast",
             "STPPF CenterEast",
             "PVGRPP CenterEast",
+            "HSL SYSTEM WIDE",
         ]
 
         assert df.columns.tolist() == cols
