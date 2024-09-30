@@ -1497,7 +1497,7 @@ def _get_historical(
 
     # sometimes this data is from the previous day, in which case we want to label it as such
     latest_file_time = utils.check_latest_value_time(df, file)
-    current_caiso_time = pd.Timestamp.now(tz="US/Pacific")
+    current_caiso_time = pd.Timestamp.now(tz=CAISO.default_timezone)
 
     if latest_file_time > current_caiso_time:
         date = date - pd.Timedelta(days=1)
@@ -1505,7 +1505,7 @@ def _get_historical(
     df["Time"] = df["Time"].apply(
         _make_timestamp,
         today=date,
-        timezone="US/Pacific",
+        timezone=CAISO.default_timezone,
     )
 
     # sometimes returns midnight, which is technically the next day
