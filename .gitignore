@@ -6,6 +6,7 @@ docs/generated/*
 .vscode/settings.json
 
 *.csv
+scripts/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

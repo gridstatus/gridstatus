@@ -345,3 +345,9 @@ def move_cols_to_front(df, cols_to_move):
     for c in cols_to_move:
         cols.remove(c)
     return df[cols_to_move + cols]
+
+
+def check_latest_value_time(df: pd.DataFrame, value_col: str):
+    """Check the latest value time in the DataFrame"""
+    latest_time = df.loc[df[value_col].last_valid_index(), "Time"]
+    return latest_time
