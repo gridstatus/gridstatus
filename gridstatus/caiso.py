@@ -12,6 +12,7 @@ import tabula
 from tabulate import tabulate
 from termcolor import colored
 
+from gridstatus import utils
 from gridstatus.base import (
     GridStatus,
     ISOBase,
@@ -22,14 +23,6 @@ from gridstatus.base import (
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
-from gridstatus.utils import (
-    _handle_date,
-    check_latest_value_time,
-    format_interconnection_df,
-    get_response_blob,
-    is_today,
-    move_cols_to_front,
-)
 
 _BASE = "https://www.caiso.com/outlook/SP"
 _HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
@@ -306,7 +299,7 @@ class CAISO(ISOBase):
             publish_time_offset_from_day_start=publish_time_offset_from_day_start,
         )
 
-        df = move_cols_to_front(
+        df = utils.move_cols_to_front(
             df.rename(
                 columns={
                     "TRADING_HUB": "Location",
@@ -372,7 +365,7 @@ class CAISO(ISOBase):
         return data
 
     def get_pnodes(self, verbose=False):
-        start = _handle_date("today")
+        start = utils._handle_date("today")
 
         df = self.get_oasis_dataset(
             dataset="pnode_map",
@@ -720,7 +713,7 @@ class CAISO(ISOBase):
         msg = f"Downloading interconnection queue from {url}"
         log(msg, verbose)
         response = requests.get(url)
-        return get_response_blob(response)
+        return utils.get_response_blob(response)
 
     def get_interconnection_queue(self, verbose=False):
         raw_data = self.get_raw_interconnection_queue(verbose)
@@ -813,7 +806,7 @@ class CAISO(ISOBase):
             "Winter Capacity (MW)",
         ]
 
-        queue = format_interconnection_df(
+        queue = utils.format_interconnection_df(
             queue=queue,
             rename=rename,
             extra=extra_columns,
@@ -1233,7 +1226,7 @@ class CAISO(ISOBase):
         # names have underscores in them) to use for indexing
         df["Interface ID"] = df["Tie Name"] + "-" + df["From BAA"] + "-" + df["To BAA"]
 
-        df = move_cols_to_front(
+        df = utils.move_cols_to_front(
             df,
             [
                 "Interval Start",
@@ -1484,7 +1477,7 @@ def _get_historical(
     :return: A pandas dataframe of the data
     :rtype: pd.DataFrame
     """
-    if is_today(date, CAISO.default_timezone):
+    if utils.is_today(date, CAISO.default_timezone):
         url: str = f"{_BASE}/{file}.csv"
     else:
         date_str: str = date.strftime("%Y%m%d")
@@ -1503,7 +1496,7 @@ def _get_historical(
     df = df.dropna(subset=df.columns[1:], how="all")
 
     # sometimes this data is from the previous day, in which case we want to label it as such
-    latest_file_time = check_latest_value_time(df, file)
+    latest_file_time = utils.check_latest_value_time(df, file)
     current_caiso_time = pd.Timestamp.now(tz="US/Pacific")
 
     if latest_file_time > current_caiso_time:
