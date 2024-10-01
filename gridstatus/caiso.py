@@ -140,7 +140,7 @@ class CAISO(ISOBase):
 
         return self._get_historical_fuel_mix(date, verbose=verbose)
 
-    def _get_historical_fuel_mix(self, date, verbose=False):
+    def _get_historical_fuel_mix(self, date, column, verbose=False):
         df = _get_historical("fuelsource", date, verbose=verbose)
 
         # rename some inconsistent columns names to standardize across dates
@@ -1463,6 +1463,7 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
 
 def _get_historical(
     file: str,
+    column: str,
     date: str | pd.Timestamp,
     verbose: bool = False,
 ) -> pd.DataFrame:
@@ -1480,9 +1481,11 @@ def _get_historical(
 
     if utils.is_today(date, CAISO.default_timezone):
         url: str = f"{_BASE}/{file}.csv"
+        latest = True
     else:
         date_str: str = date.strftime("%Y%m%d")
         url: str = f"{_HISTORY_BASE}/{date_str}/{file}.csv"
+        latest = False
     msg: str = f"Fetching URL: {url}"
     log(msg, verbose)
     df = pd.read_csv(url)
@@ -1496,12 +1499,13 @@ def _get_historical(
     # but has nulls for all other columns
     df = df.dropna(subset=df.columns[1:], how="all")
 
-    # sometimes this data is from the previous day, in which case we want to label it as such
-    latest_file_time = utils.check_latest_value_time(df, file)
-    current_caiso_time = pd.Timestamp.now(tz=CAISO.default_timezone)
+    # for the latest data, we want to check if the data is actually from the previous day and update the date accordingly
+    if latest:
+        latest_file_time = utils.check_latest_value_time(df, file)
+        current_caiso_time = pd.Timestamp.now(tz=CAISO.default_timezone)
 
-    if latest_file_time > current_caiso_time:
-        date = date - pd.Timedelta(days=1)
+        if latest_file_time > current_caiso_time:
+            date = date - pd.Timedelta(days=1)
 
     df["Time"] = df["Time"].apply(
         _make_timestamp,
