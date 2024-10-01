@@ -26,7 +26,7 @@ license = "LICENSE"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-requests = "^2.28.1"
+requests = "^2.32.2"
 pandas = "^2.2.1"
 beautifulsoup4 = "^4.8.13"
 tabulate = "^0.9.0"
@@ -37,6 +37,13 @@ lxml = "^4.9.1"
 plotly = "^5.11.0"
 termcolor = "^2.2.0"
 xlrd = "^2.0.1"
+# Below pins are for Dependabot security updates
+zipp = "^3.19.1"
+certifi = "^2024.7.4"
+setuptools = "^70.0.0"
+cryptography = "^43.0.1"
+urllib3 = "^2.2.2"
+tornado = "^6.4.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.1.2"
@@ -62,6 +69,9 @@ sphinx-favicon = "1.0.1"
 sphinx-autoapi = "^3.0.0"
 kaleido = "0.2.1"
 poetry-dotenv-plugin = "^0.2.0"
+# Below pins are for Dependabot security updates
+notebook = "^7.2.2"
+jupyterlab = "^4.2.5"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
