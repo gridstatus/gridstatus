@@ -1473,6 +1473,7 @@ def _get_historical(
     Args:
         file (str): The name of the data we are wanting, which is equivalent to the file to get from CAISO
         date (str | pd.Timestamp): The date of the data to get from CAISO
+        column (str): The column to check for the latest value time
         verbose (bool, optional): Whether to print out the URL being fetched, defaults to False
 
     Returns:
