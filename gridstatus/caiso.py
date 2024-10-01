@@ -12,7 +12,7 @@ import tabula
 from tabulate import tabulate
 from termcolor import colored
 
-from gridstatus import utils
+from gridstatus import caiso_utils, utils
 from gridstatus.base import (
     GridStatus,
     ISOBase,
@@ -32,6 +32,7 @@ REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
 
 
 def determine_lmp_frequency(args):
+
     """if querying all must use 1d frequency"""
     locations = args.get("locations", "")
     market = args.get("market", "")
@@ -140,7 +141,7 @@ class CAISO(ISOBase):
         return self._get_historical_fuel_mix(date, verbose=verbose)
 
     def _get_historical_fuel_mix(self, date, verbose=False):
-        df = _get_historical("fuelsource", date, verbose=verbose)
+        df = _get_historical("fuelsource", date, column="Solar", verbose=verbose)
 
         # rename some inconsistent columns names to standardize across dates
         df = df.rename(
@@ -170,7 +171,7 @@ class CAISO(ISOBase):
         return self._get_historical_load(date, verbose=verbose)
 
     def _get_historical_load(self, date, verbose=False):
-        df = _get_historical("demand", date, verbose=verbose)
+        df = _get_historical("demand", date, column="Current demand", verbose=verbose)
 
         df = df[["Time", "Interval Start", "Interval End", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
@@ -556,7 +557,7 @@ class CAISO(ISOBase):
         if date == "latest":
             return self._latest_from_today(self.get_storage)
 
-        df = _get_historical("storage", date, verbose=verbose)
+        df = _get_historical("storage", date, column="Total batteries", verbose=verbose)
 
         rename = {
             "Total batteries": "Supply",
@@ -1463,14 +1464,29 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
 def _get_historical(
     file: str,
     date: str | pd.Timestamp,
+    column: str,
     verbose: bool = False,
 ) -> pd.DataFrame:
 
+    """Get the historical data file from CAISO given a data series name, formats, and returns a pandas dataframe.
+
+    Args:
+        file (str): The name of the data we are wanting, which is equivalent to the file to get from CAISO
+        date (str | pd.Timestamp): The date of the data to get from CAISO
+        column (str): The column to check for the latest value time
+        verbose (bool, optional): Whether to print out the URL being fetched, defaults to False
+
+    Returns:
+        pd.DataFrame: A pandas dataframe of the data
+    """
+
     if utils.is_today(date, CAISO.default_timezone):
         url: str = f"{_BASE}/{file}.csv"
+        latest = True
     else:
         date_str: str = date.strftime("%Y%m%d")
         url: str = f"{_HISTORY_BASE}/{date_str}/{file}.csv"
+        latest = False
     msg: str = f"Fetching URL: {url}"
     log(msg, verbose)
     df = pd.read_csv(url)
@@ -1484,10 +1500,18 @@ def _get_historical(
     # but has nulls for all other columns
     df = df.dropna(subset=df.columns[1:], how="all")
 
+    # for the latest data, we want to check if the data is actually from the previous day and update the date accordingly
+    if latest:
+        latest_file_time = caiso_utils.check_latest_value_time(df, column)
+        current_caiso_time = pd.Timestamp.now(tz=CAISO.default_timezone)
+
+        if latest_file_time > current_caiso_time:
+            date = date - pd.Timedelta(days=1)
+
     df["Time"] = df["Time"].apply(
         _make_timestamp,
         today=date,
-        timezone="US/Pacific",
+        timezone=CAISO.default_timezone,
     )
 
     # sometimes returns midnight, which is technically the next day

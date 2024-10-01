@@ -82,9 +82,8 @@ line-length = 88
 src = ["gridstatus"]
 
 [tool.ruff.lint]
-ignore = []
+ignore = ["E501"]
 select = ["F", "E", "W", "Q", "I001"]
-
 
 [tool.ruff.lint.isort]
 known-first-party = ["gridstatus"]
