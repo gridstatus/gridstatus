@@ -32,6 +32,7 @@ REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
 
 
 def determine_lmp_frequency(args):
+
     """if querying all must use 1d frequency"""
     locations = args.get("locations", "")
     market = args.get("market", "")
@@ -1468,15 +1469,15 @@ def _get_historical(
 
     """Get the historical data file from CAISO given a data series name, formats, and returns a pandas dataframe.
 
-    :param file: The name of the data we are wanting, which is equivalent to the file to get from CAISO
-    :type file: str
-    :param date: The date of the data to get from CAISO
-    :type date: str | pd.Timestamp
-    :param verbose: Whether to print out the URL being fetched, defaults to False
-    :type verbose: bool, optional
-    :return: A pandas dataframe of the data
-    :rtype: pd.DataFrame
+    Args:
+        file (str): The name of the data we are wanting, which is equivalent to the file to get from CAISO
+        date (str | pd.Timestamp): The date of the data to get from CAISO
+        verbose (bool, optional): Whether to print out the URL being fetched, defaults to False
+
+    Returns:
+        pd.DataFrame: A pandas dataframe of the data
     """
+
     if utils.is_today(date, CAISO.default_timezone):
         url: str = f"{_BASE}/{file}.csv"
     else:
