@@ -140,8 +140,8 @@ class CAISO(ISOBase):
 
         return self._get_historical_fuel_mix(date, verbose=verbose)
 
-    def _get_historical_fuel_mix(self, date, column, verbose=False):
-        df = _get_historical("fuelsource", date, verbose=verbose)
+    def _get_historical_fuel_mix(self, date, verbose=False):
+        df = _get_historical("fuelsource", date, column="Solar", verbose=verbose)
 
         # rename some inconsistent columns names to standardize across dates
         df = df.rename(
@@ -171,7 +171,7 @@ class CAISO(ISOBase):
         return self._get_historical_load(date, verbose=verbose)
 
     def _get_historical_load(self, date, verbose=False):
-        df = _get_historical("demand", date, verbose=verbose)
+        df = _get_historical("demand", date, column="Current demand", verbose=verbose)
 
         df = df[["Time", "Interval Start", "Interval End", "Current demand"]]
         df = df.rename(columns={"Current demand": "Load"})
@@ -557,7 +557,7 @@ class CAISO(ISOBase):
         if date == "latest":
             return self._latest_from_today(self.get_storage)
 
-        df = _get_historical("storage", date, verbose=verbose)
+        df = _get_historical("storage", date, column="Total batteries", verbose=verbose)
 
         rename = {
             "Total batteries": "Supply",
@@ -1501,7 +1501,7 @@ def _get_historical(
 
     # for the latest data, we want to check if the data is actually from the previous day and update the date accordingly
     if latest:
-        latest_file_time = utils.check_latest_value_time(df, file)
+        latest_file_time = utils.check_latest_value_time(df, column)
         current_caiso_time = pd.Timestamp.now(tz=CAISO.default_timezone)
 
         if latest_file_time > current_caiso_time:
