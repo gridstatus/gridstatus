@@ -12,7 +12,7 @@ import tabula
 from tabulate import tabulate
 from termcolor import colored
 
-from gridstatus import utils
+from gridstatus import caiso_utils, utils
 from gridstatus.base import (
     GridStatus,
     ISOBase,
@@ -1501,7 +1501,7 @@ def _get_historical(
 
     # for the latest data, we want to check if the data is actually from the previous day and update the date accordingly
     if latest:
-        latest_file_time = utils.check_latest_value_time(df, column)
+        latest_file_time = caiso_utils.check_latest_value_time(df, column)
         current_caiso_time = pd.Timestamp.now(tz=CAISO.default_timezone)
 
         if latest_file_time > current_caiso_time:
