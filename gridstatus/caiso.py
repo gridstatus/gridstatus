@@ -1463,8 +1463,8 @@ def _make_timestamp(time_str, today, timezone="US/Pacific"):
 
 def _get_historical(
     file: str,
-    column: str,
     date: str | pd.Timestamp,
+    column: str,
     verbose: bool = False,
 ) -> pd.DataFrame:
 
