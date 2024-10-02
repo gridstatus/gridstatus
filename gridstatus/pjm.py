@@ -1058,7 +1058,7 @@ class PJM(ISOBase):
 
         if "Interval Start" in df.columns:
             df["Time"] = df["Interval Start"]
-
+        print()
         return df
 
     def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
@@ -1182,16 +1182,45 @@ class PJM(ISOBase):
 
         return self._parse_solar_forecast(df)
 
+    def _parse_solar_forecast(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "evaluated_at_utc": "Publish Time",
+                "solar_forecast_btm_mwh": "Solar Forecast BTM",
+                "solar_forecast_mwh": "Solar Forecast",
+            },
+        )
+
+        df["Publish Time"] = pd.to_datetime(
+            df["Publish Time"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Solar Forecast BTM",
+                "Solar Forecast",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
     @support_date_range(frequency=None)
     def get_wind_forecast(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
+        end: str | pd.Timestamp | None = None,
+        resolution: Literal["5min", "hourly"] = "hourly",
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Retrieves the hourly wind forecast
-        From: https://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
+        Retrieves the hourly or 5-min wind forecast
+        From:
+            Hourly: https://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
+            5-min:  https://dataminer2.pjm.com/feed/five_min_wind_power_forecast/definition
         Only available in past 30 days
 
         Args:
@@ -1206,7 +1235,9 @@ class PJM(ISOBase):
             date = "today"
 
         df = self._get_pjm_json(
-            "hourly_wind_power_forecast",
+            "hourly_wind_power_forecast"
+            if resolution == "hourly"
+            else "five_min_wind_power_forecast",
             start=date,
             params={
                 "fields": "datetime_beginning_ept,datetime_beginning_utc,"

@@ -81,6 +81,7 @@ build-backend = "poetry.core.masonry.api"
 testpaths = ["gridstatus/tests/*"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests that pull from an external API (deselect with '-m \"not integration\"')",
 ]
 
 [tool.black]
