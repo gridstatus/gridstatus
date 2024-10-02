@@ -535,8 +535,18 @@ class TestPJM(BaseTestISO):
     # 1.4. Our transformations and renamings are correctly applied (unit test)
     # 2. There are no data gaps or duplicates (data test)
     @pytest.mark.integration
-    def test_get_solar_forecast_integration(self):
+    def test_get_hourly_solar_forecast_integration(self):
         df = self.iso.get_solar_forecast("today")
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        self._check_solar_forecast(df)
+
+    # NOTE(kladar): This is an example of a more pure integration test,
+    # it tests that the data is returned from the API and that the data is in the expected format,
+    # but does not check the comprehensiveness of the data, which is arguably a separate concern
+    @pytest.mark.integration
+    def test_get_5min_solar_forecast_integration(self):
+        df = self.iso.get_solar_forecast("today", resolution="5min")
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
         self._check_solar_forecast(df)
@@ -636,11 +646,36 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_solar_forecast("latest").equals(df)
 
+    # NOTE(kladar): This is an example of a data test and an integration test in one,
+    # it tests that the data returned (integration) and that there is no data gaps or duplicates (data test)
+    # Over time, I would argue it is probably better to take whatever data we get from the API, move it into a data store
+    # and then test the data in the stores for characteristics that are important for the application, rather than
+    # testing data in-flight from the API.
     @pytest.mark.integration
-    def test_get_solar_forecast_historical_date(self):
+    def test_get_hourly_solar_forecast_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
 
         df = self.iso.get_solar_forecast(past_date)
+
+        self._check_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=2)
+
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
+        # When end date is generated this data
+        # doesn't include forecast on the next day
+        assert df["Publish Time"].max() < self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=1)
+
+    @pytest.mark.integration
+    def test_get_5min_solar_forecast_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+
+        df = self.iso.get_solar_forecast(past_date, resolution="5min")
 
         self._check_solar_forecast(df)
 
@@ -691,14 +726,14 @@ class TestPJM(BaseTestISO):
         )
 
     @pytest.mark.integration
-    def test_get_wind_forecast_integration(self):
+    def test_get_hourly_wind_forecast_integration(self):
         df = self.iso.get_wind_forecast("today")
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
         self._check_wind_forecast(df)
 
     @pytest.mark.integration
-    def test_get_wind_forecast_historical_date_integration(self):
+    def test_get_hourly_wind_forecast_historical_date_integration(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         df = self.iso.get_wind_forecast(past_date)
         assert isinstance(df, pd.DataFrame)
@@ -706,10 +741,34 @@ class TestPJM(BaseTestISO):
         self._check_wind_forecast(df)
 
     @pytest.mark.integration
-    def test_get_wind_forecast_historical_range_integration(self):
+    def test_get_5min_wind_forecast_integration(self):
+        df = self.iso.get_wind_forecast("today", resolution="5min")
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        self._check_wind_forecast(df)
+
+    @pytest.mark.integration
+    def test_get_5min_wind_forecast_historical_date_integration(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        df = self.iso.get_wind_forecast(past_date, resolution="5min")
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        self._check_wind_forecast(df)
+
+    @pytest.mark.integration
+    def test_get_hourly_wind_forecast_historical_range_integration(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
         df = self.iso.get_wind_forecast(past_date, past_end_date)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        self._check_wind_forecast(df)
+
+    @pytest.mark.integration
+    def test_get_5min_wind_forecast_historical_range_integration(self):
+        past_date = self.local_today() - pd.Timedelta(days=12)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        df = self.iso.get_wind_forecast(past_date, past_end_date, resolution="5min")
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
         self._check_wind_forecast(df)
