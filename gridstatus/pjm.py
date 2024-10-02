@@ -2,7 +2,7 @@ import math
 import os
 import warnings
 from datetime import datetime
-from typing import BinaryIO, Optional
+from typing import BinaryIO, Literal, Optional
 
 import pandas as pd
 import pytz
@@ -1133,17 +1133,41 @@ class PJM(ISOBase):
         return queue
 
     @support_date_range(frequency=None)
-    def get_solar_forecast(self, date, end=None, verbose=False):
+    def get_solar_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        resolution: Literal["5min", "hourly"] = "hourly",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
-        Retrieves the hourly solar forecast including behind the meter solar forecast.
-        From:  https://dataminer2.pjm.com/feed/hourly_solar_power_forecast/definition
+        Retrieves the hourly or 5-min solar forecast including behind the meter solar forecast.
+        From:
+            Hourly: https://dataminer2.pjm.com/feed/hourly_solar_power_forecast/definition
+            5-min:  https://dataminer2.pjm.com/feed/five_min_solar_power_forecast/definition
         Only available in past 30 days
+
+        Args:
+            date (str | pd.Timestamp): Start datetime for data
+            end (str | pd.Timestamp | None, optional): End datetime for data. Defaults to None.
+            resolution (Literal["5min", "hourly"], optional): Resolution of the data. Defaults to "hourly".
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: A DataFrame with the solar forecast data.
         """
         if date == "latest":
             date = "today"
 
+        interval_duration_min = 60 if resolution == "hourly" else 5
+        feed = (
+            "hourly_solar_power_forecast"
+            if resolution == "hourly"
+            else "five_min_solar_power_forecast"
+        )
+
         df = self._get_pjm_json(
-            "hourly_solar_power_forecast",
+            feed,
             start=date,
             params={
                 "fields": "datetime_beginning_ept,datetime_beginning_utc,"
@@ -1152,44 +1176,31 @@ class PJM(ISOBase):
             },
             end=end,
             filter_timestamp_name="evaluated_at",
-            interval_duration_min=60,
+            interval_duration_min=interval_duration_min,
             verbose=verbose,
         )
 
         return self._parse_solar_forecast(df)
 
-    def _parse_solar_forecast(self, df):
-        df = df.rename(
-            columns={
-                "evaluated_at_utc": "Publish Time",
-                "solar_forecast_btm_mwh": "Solar Forecast BTM",
-                "solar_forecast_mwh": "Solar Forecast",
-            },
-        )
-
-        df["Publish Time"] = pd.to_datetime(
-            df["Publish Time"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-
-        df = df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Solar Forecast BTM",
-                "Solar Forecast",
-            ]
-        ]
-
-        return df.sort_values("Interval Start").reset_index(drop=True)
-
     @support_date_range(frequency=None)
-    def get_wind_forecast(self, date, end=None, verbose=False):
+    def get_wind_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: Optional[str | pd.Timestamp] = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the hourly wind forecast
         From: https://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
         Only available in past 30 days
+
+        Args:
+            date (str | pd.Timestamp): Start datetime for data
+            end (Optional[str  |  pd.Timestamp], optional): End datetime for data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: A DataFrame with the wind forecast data.
         """
         if date == "latest":
             date = "today"
@@ -1210,7 +1221,7 @@ class PJM(ISOBase):
 
         return self._parse_wind_forecast(df)
 
-    def _parse_wind_forecast(self, df):
+    def _parse_wind_forecast(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "evaluated_at_utc": "Publish Time",
