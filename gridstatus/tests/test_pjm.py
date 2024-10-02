@@ -529,11 +529,11 @@ class TestPJM(BaseTestISO):
     # TODO(kladar): Really what we want to probably test is that most importantly
     # 0. The API is up and returns 200 and data (intergration test)
     # 1. The data returned is in the expected format
-    # 1.1. The data types are correct
-    # 1.2. The horizons are all represented
-    # 1.3. The interval is correct for the given resolution
-    # 1.4. Our transformations and renamings are correctly applied
-    # 2. There are no data gaps or duplicates
+    # 1.1. The data types are correct (unit test)
+    # 1.2. The horizons are all represented (data test)
+    # 1.3. The interval is correct for the given resolution (data test)
+    # 1.4. Our transformations and renamings are correctly applied (unit test)
+    # 2. There are no data gaps or duplicates (data test)
     @pytest.mark.integration
     def test_get_solar_forecast_integration(self):
         df = self.iso.get_solar_forecast("today")
