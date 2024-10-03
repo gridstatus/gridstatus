@@ -1058,7 +1058,7 @@ class PJM(ISOBase):
 
         if "Interval Start" in df.columns:
             df["Time"] = df["Interval Start"]
-        print()
+
         return df
 
     def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
