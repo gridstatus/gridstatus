@@ -1234,10 +1234,15 @@ class PJM(ISOBase):
         if date == "latest":
             date = "today"
 
-        df = self._get_pjm_json(
+        interval_duration_min = 60 if resolution == "hourly" else 5
+        feed = (
             "hourly_wind_power_forecast"
             if resolution == "hourly"
-            else "five_min_wind_power_forecast",
+            else "five_min_wind_power_forecast"
+        )
+
+        df = self._get_pjm_json(
+            feed,
             start=date,
             params={
                 "fields": "datetime_beginning_ept,datetime_beginning_utc,"
@@ -1246,7 +1251,7 @@ class PJM(ISOBase):
             },
             end=end,
             filter_timestamp_name="evaluated_at",
-            interval_duration_min=60,
+            interval_duration_min=interval_duration_min,
             verbose=verbose,
         )
 
