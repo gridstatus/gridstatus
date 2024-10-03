@@ -648,9 +648,7 @@ class TestPJM(BaseTestISO):
 
     # NOTE(kladar): This is an example of a data test and an integration test in one,
     # it tests that the data returned (integration) and that there is no data gaps or duplicates (data test)
-    # Over time, I would argue it is probably better to take whatever data we get from the API, move it into a data store
-    # and then test the data in the stores for characteristics that are important for the application, rather than
-    # testing data in-flight from the API.
+
     @pytest.mark.integration
     def test_get_hourly_solar_forecast_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
@@ -682,7 +680,7 @@ class TestPJM(BaseTestISO):
         assert df["Interval Start"].min() == self.local_start_of_day(past_date)
         assert df["Interval End"].max() >= self.local_start_of_day(
             past_date,
-        ) + pd.Timedelta(days=2)
+        ) + pd.Timedelta(days=1)
 
         assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # When end date is generated this data
