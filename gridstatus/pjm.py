@@ -2,7 +2,7 @@ import math
 import os
 import warnings
 from datetime import datetime
-from typing import BinaryIO, Literal, Optional
+from typing import BinaryIO, Optional
 
 import pandas as pd
 import pytz
@@ -1133,24 +1133,20 @@ class PJM(ISOBase):
         return queue
 
     @support_date_range(frequency=None)
-    def get_solar_forecast(
+    def get_solar_forecast_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
-        resolution: Literal["5min", "hourly"] = "hourly",
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Retrieves the hourly or 5-min solar forecast including behind the meter solar forecast.
-        From:
-            Hourly: https://dataminer2.pjm.com/feed/hourly_solar_power_forecast/definition
-            5-min:  https://dataminer2.pjm.com/feed/five_min_solar_power_forecast/definition
+        Retrieves the hourly solar forecast including behind the meter solar forecast.
+        From: https://dataminer2.pjm.com/feed/hourly_solar_power_forecast/definition
         Only available in past 30 days
 
         Args:
             date (str | pd.Timestamp): Start datetime for data
             end (str | pd.Timestamp | None, optional): End datetime for data. Defaults to None.
-            resolution (Literal["5min", "hourly"], optional): Resolution of the data. Defaults to "hourly".
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
@@ -1159,15 +1155,8 @@ class PJM(ISOBase):
         if date == "latest":
             date = "today"
 
-        interval_duration_min = 60 if resolution == "hourly" else 5
-        feed = (
-            "hourly_solar_power_forecast"
-            if resolution == "hourly"
-            else "five_min_solar_power_forecast"
-        )
-
         df = self._get_pjm_json(
-            feed,
+            "hourly_solar_power_forecast",
             start=date,
             params={
                 "fields": "datetime_beginning_ept,datetime_beginning_utc,"
@@ -1176,7 +1165,46 @@ class PJM(ISOBase):
             },
             end=end,
             filter_timestamp_name="evaluated_at",
-            interval_duration_min=interval_duration_min,
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._parse_solar_forecast(df)
+
+    @support_date_range(frequency=None)
+    def get_solar_forecast_5min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the 5-min solar forecast including behind the meter solar forecast.
+        From: https://dataminer2.pjm.com/feed/five_min_solar_power_forecast/definition
+        Only available in past 30 days
+
+        Args:
+            date (str | pd.Timestamp): Start datetime for data
+            end (str | pd.Timestamp | None, optional): End datetime for data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: A DataFrame with the solar forecast data.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "five_min_solar_power_forecast",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,"
+                "evaluated_at_utc,solar_forecast_btm_mwh,solar_forecast_mwh",
+            },
+            end=end,
+            filter_timestamp_name="evaluated_at",
+            interval_duration_min=5,
             verbose=verbose,
         )
 
@@ -1209,18 +1237,15 @@ class PJM(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_wind_forecast(
+    def get_wind_forecast_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
-        resolution: Literal["5min", "hourly"] = "hourly",
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Retrieves the hourly or 5-min wind forecast
-        From:
-            Hourly: https://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
-            5-min:  https://dataminer2.pjm.com/feed/five_min_wind_power_forecast/definition
+        Retrieves the hourly wind forecast
+        From: https://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
         Only available in past 30 days
 
         Args:
@@ -1234,15 +1259,8 @@ class PJM(ISOBase):
         if date == "latest":
             date = "today"
 
-        interval_duration_min = 60 if resolution == "hourly" else 5
-        feed = (
-            "hourly_wind_power_forecast"
-            if resolution == "hourly"
-            else "five_min_wind_power_forecast"
-        )
-
         df = self._get_pjm_json(
-            feed,
+            "hourly_wind_power_forecast",
             start=date,
             params={
                 "fields": "datetime_beginning_ept,datetime_beginning_utc,"
@@ -1251,7 +1269,46 @@ class PJM(ISOBase):
             },
             end=end,
             filter_timestamp_name="evaluated_at",
-            interval_duration_min=interval_duration_min,
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._parse_wind_forecast(df)
+
+    @support_date_range(frequency=None)
+    def get_wind_forecast_5min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the 5-min wind forecast
+        From: https://dataminer2.pjm.com/feed/five_min_wind_power_forecast/definition
+        Only available in past 30 days
+
+        Args:
+            date (str | pd.Timestamp): Start datetime for data
+            end (Optional[str  |  pd.Timestamp], optional): End datetime for data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: A DataFrame with the wind forecast data.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "five_min_wind_power_forecast",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,"
+                "datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,"
+                "evaluated_at_utc,wind_forecast_mwh",
+            },
+            end=end,
+            filter_timestamp_name="evaluated_at",
+            interval_duration_min=5,
             verbose=verbose,
         )
 
