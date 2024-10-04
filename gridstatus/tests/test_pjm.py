@@ -619,6 +619,20 @@ class TestPJM(BaseTestISO):
 
     """get_wind_forecast integration tests"""
 
+    def _check_wind_forecast(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Wind Forecast",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
     @pytest.mark.integration
     def test_get_wind_forecast_hourly_today_or_latest(self):
         df = self.iso.get_wind_forecast_hourly("today")
