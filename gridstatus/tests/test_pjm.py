@@ -13,8 +13,6 @@ from gridstatus.decorators import _get_pjm_archive_date
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 
-# Fixtures for sample data
-
 
 class TestPJM(BaseTestISO):
     iso = PJM()
