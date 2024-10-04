@@ -11,15 +11,16 @@ kernelspec:
 Below are the currently supported LMP markets
 
 <!-- LMP AVAILABILITY TABLE START -->
-|       | Method    | REAL_TIME_5_MIN           | DAY_AHEAD_HOURLY          | REAL_TIME_15_MIN          | REAL_TIME_HOURLY          |
-|:------|:----------|:--------------------------|:--------------------------|:--------------------------|:--------------------------|
-| CAISO | `get_lmp` | latest, today, historical | latest, today, historical | latest, today, historical | -                         |
-| Ercot | `get_spp` | -                         | latest, today, historical | latest, today, historical | -                         |
-| ISONE | `get_lmp` | latest, today, historical | today, historical         | -                         | latest, today, historical |
-| MISO  | `get_lmp` | latest                    | latest                    | -                         | -                         |
-| NYISO | `get_lmp` | latest, today, historical | latest, today, historical | -                         | -                         |
-| PJM   | `get_lmp` | today, historical         | latest, today, historical | -                         | today, historical         |
-| SPP   | `get_lmp` | latest, today, historical | latest, today, historical | -                         | -                         |
+|       | Method    | REAL_TIME_5_MIN           | REAL_TIME_15_MIN          | DAY_AHEAD_HOURLY          | REAL_TIME_HOURLY          | REAL_TIME_HOURLY_FINAL   | REAL_TIME_HOURLY_PRELIM   |
+|:------|:----------|:--------------------------|:--------------------------|:--------------------------|:--------------------------|:-------------------------|:--------------------------|
+| CAISO | `get_lmp` | latest, today, historical | latest, today, historical | latest, today, historical | -                         | -                        | -                         |
+| Ercot | `get_lmp` | -                         | -                         | -                         | -                         | -                        | -                         |
+| IESO  | -         | -                         | -                         | -                         | -                         | -                        | -                         |
+| ISONE | `get_lmp` | latest, today, historical | -                         | today, historical         | latest, today, historical | -                        | -                         |
+| MISO  | `get_lmp` | latest, today             | -                         | today, historical         | -                         | historical               | historical                |
+| NYISO | `get_lmp` | latest, today, historical | latest, today             | latest, today, historical | -                         | -                        | -                         |
+| PJM   | `get_lmp` | latest, today, historical | -                         | today, historical         | today, historical         | -                        | -                         |
+| SPP   | -         | -                         | -                         | -                         | -                         | -                        | -                         |
 
 <!-- LMP AVAILABILITY TABLE END -->
 
