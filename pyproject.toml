@@ -19,6 +19,13 @@ maintainers = [
 keywords = ["energy", "independent system operator"]
 license = "LICENSE"
 
+[tool.setuptools]
+include-package-data = false
+
+# Exclude gridstatus/tests from package
+[tool.setuptools.packages.find]
+exclude = ["*.tests*"]
+
 [tool.poetry.urls]
 "Source Code" = "https://github.com/kmax12/gridstatus/"
 "Changes" = "https://github.com/kmax12/gridstatus/blob/main/CHANGELOG.md"
