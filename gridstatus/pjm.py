@@ -984,7 +984,6 @@ class PJM(ISOBase):
 
         msg = f"Retrieving data from {endpoint} with params {params_to_log}"
         log(msg, verbose)
-        print(final_params)
         r = self._get_json(
             "https://api.pjm.com/api/v1/" + endpoint,
             verbose=verbose,
