@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 from unittest import mock
@@ -12,50 +13,7 @@ from gridstatus.decorators import _get_pjm_archive_date
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 
-
 # Fixtures for sample data
-@pytest.fixture
-def sample_5min_solar_forecast_data():
-    fixture_path = "gridstatus/tests/fixtures/pjm/pjm_5min_solar_forecast_sample.json"
-    with open(fixture_path, "r") as f:
-        return pd.read_json(f, date_unit="ms").apply(
-            lambda col: pd.to_datetime(col, utc=True)
-            if col.name in ["Interval Start", "Interval End", "Publish Time"]
-            else col,
-        )
-
-
-@pytest.fixture
-def sample_5min_wind_forecast_data():
-    fixture_path = "gridstatus/tests/fixtures/pjm/pjm_5min_wind_forecast_sample.json"
-    with open(fixture_path, "r") as f:
-        return pd.read_json(f, date_unit="ms").apply(
-            lambda col: pd.to_datetime(col, utc=True)
-            if col.name in ["Interval Start", "Interval End", "Publish Time"]
-            else col,
-        )
-
-
-@pytest.fixture
-def sample_hourly_solar_forecast_data():
-    fixture_path = "gridstatus/tests/fixtures/pjm/pjm_hourly_solar_forecast_sample.json"
-    with open(fixture_path, "r") as f:
-        return pd.read_json(f, date_unit="ms").apply(
-            lambda col: pd.to_datetime(col, utc=True)
-            if col.name in ["Interval Start", "Interval End", "Publish Time"]
-            else col,
-        )
-
-
-@pytest.fixture
-def sample_hourly_wind_forecast_data():
-    fixture_path = "gridstatus/tests/fixtures/pjm/pjm_hourly_wind_forecast_sample.json"
-    with open(fixture_path, "r") as f:
-        return pd.read_json(f, date_unit="ms").apply(
-            lambda col: pd.to_datetime(col, utc=True)
-            if col.name in ["Interval Start", "Interval End", "Publish Time"]
-            else col,
-        )
 
 
 class TestPJM(BaseTestISO):
@@ -125,7 +83,7 @@ class TestPJM(BaseTestISO):
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
     )
-    def test_lmp_date_range(self, market):
+    def test_lmp_date_range(self, market: Markets):
         super().test_lmp_date_range(market=market)
 
     @pytest.mark.integration
@@ -134,8 +92,7 @@ class TestPJM(BaseTestISO):
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
     )
-    @pytest.mark.integration
-    def test_get_lmp_historical(self, market):
+    def test_get_lmp_historical(self, market: Markets):
         super().test_get_lmp_historical(market=market)
 
     @pytest.mark.integration
@@ -144,7 +101,7 @@ class TestPJM(BaseTestISO):
         Markets.REAL_TIME_HOURLY,
         Markets.REAL_TIME_5_MIN,
     )
-    def test_get_lmp_latest(self, market):
+    def test_get_lmp_latest(self, market: Markets):
         if market in [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_HOURLY]:
             with pytest.raises(NotSupported):
                 super().test_get_lmp_latest(market=market)
@@ -157,7 +114,7 @@ class TestPJM(BaseTestISO):
         Markets.REAL_TIME_5_MIN,
         Markets.DAY_AHEAD_HOURLY,
     )
-    def test_get_lmp_today(self, market):
+    def test_get_lmp_today(self, market: Markets):
         if market in [Markets.REAL_TIME_HOURLY]:
             with pytest.raises(
                 NoDataFoundException,
@@ -509,24 +466,7 @@ class TestPJM(BaseTestISO):
             end,
         ]
 
-    """get_solar_forecast"""
-
-    def _check_solar_forecast(self, df):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Solar Forecast BTM",
-            "Solar Forecast",
-        ]
-
-        self._check_time_columns(
-            df,
-            instant_or_interval="interval",
-            skip_column_named_time=True,
-        )
-
-    # TODO(kladar): Really what we want to probably test is that most importantly
+    # TODO(kladar): Really what we want to test is that, most importantly:
     # 0. The API is up and returns 200 and data (intergration test)
     # 1. The data returned is in the expected format
     # 1.1. The data types are correct (unit test)
@@ -534,102 +474,60 @@ class TestPJM(BaseTestISO):
     # 1.3. The interval is correct for the given resolution (data test)
     # 1.4. Our transformations and renamings are correctly applied (unit test)
     # 2. There are no data gaps or duplicates (data test)
-    @pytest.mark.integration
-    def test_get_hourly_solar_forecast_integration(self):
-        df = self.iso.get_solar_forecast_hourly("today")
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_solar_forecast(df)
+    """NOTE(kladar): These are the new tests, building up unit tests with mock data along the way. If new
+    technologies or resolutions are added, the tests should be straightforward to update."""
 
-    # NOTE(kladar): This is an example of a more pure integration test,
-    # it tests that the data is returned from the API and that the data is in the expected format,
-    # but does not check the comprehensiveness of the data, which is arguably a separate concern
-    @pytest.mark.integration
-    def test_get_5min_solar_forecast_integration(self):
-        df = self.iso.get_solar_forecast_5min("today")
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_solar_forecast(df)
+    @pytest.fixture(
+        params=[
+            ("pjm_5min_solar_forecast_response.json"),
+            ("pjm_hourly_solar_forecast_response.json"),
+            ("pjm_5min_wind_forecast_response.json"),
+            ("pjm_hourly_wind_forecast_response.json"),
+        ],
+    )
+    def sample_forecast_data(self, request):
+        filename = request.param
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "fixtures", "pjm", filename)
+        with open(file_path, "r") as f:
+            return json.load(f)
 
-    @pytest.mark.integration
-    def test_get_solar_forecast_historical_date_integration(self):
-        past_date = self.local_today() - pd.Timedelta(days=10)
-        df = self.iso.get_solar_forecast_hourly(past_date)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_solar_forecast(df)
+    @mock.patch.object(PJM, "_get_json")
+    def test_get_pjm_json(self, mock_get_json, sample_forecast_data):
+        mock_get_json.return_value = sample_forecast_data
 
-    @pytest.mark.integration
-    def test_get_solar_forecast_historical_range_integration(self):
-        past_date = self.local_today() - pd.Timedelta(days=12)
-        past_end_date = past_date + pd.Timedelta(days=3)
-        df = self.iso.get_solar_forecast_hourly(past_date, past_end_date)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_solar_forecast(df)
-
-    def test_get_solar_forecast_unit_5min(self, sample_5min_solar_forecast_data):
-        with mock.patch.object(
-            self.iso,
-            "get_solar_forecast_5min",
-            return_value=sample_5min_solar_forecast_data,
-        ):
-            df = self.iso.get_solar_forecast_5min("2024-10-01")
-            self._check_solar_forecast(df)
-            assert df["Interval Start"].min() == pd.Timestamp(
-                "2024-10-01 04:00:00+0000",
-                tz="UTC",
-            )
-            assert df["Interval End"].max() >= pd.Timestamp(
-                "2024-10-02 04:00:00+0000",
-                tz="UTC",
-            )
-            assert (
-                df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
-            ).all()
-
-    def test_get_solar_forecast_unit_hourly(self, sample_hourly_solar_forecast_data):
-        with mock.patch.object(
-            self.iso,
-            "get_solar_forecast_hourly",
-            return_value=sample_hourly_solar_forecast_data,
-        ):
-            df = self.iso.get_solar_forecast_hourly("2024-10-01")
-            self._check_solar_forecast(df)
-            assert df["Interval Start"].min() == pd.Timestamp(
-                "2024-10-01 04:00:00+0000",
-                tz="UTC",
-            )
-            assert df["Interval End"].max() >= pd.Timestamp(
-                "2024-10-03 00:00:00+0000",
-                tz="UTC",
-            )
-            assert (
-                df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-            ).all()
-
-    def test_parse_solar_forecast(self, sample_5min_solar_forecast_data: dict) -> None:
-        parsed_df: pd.DataFrame = self.iso._parse_solar_forecast(
-            sample_5min_solar_forecast_data,
+        result = self.iso._get_pjm_json(
+            endpoint="five_min_solar_power_forecast",
+            start="2024-03-01",
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,evaluated_at_utc,solar_forecast_btm_mwh,solar_forecast_mwh",
+            },
+            end="2024-03-02",
+            filter_timestamp_name="evaluated_at",
+            interval_duration_min=5,
+            verbose=False,
         )
 
-        assert isinstance(parsed_df, pd.DataFrame)
-        assert not parsed_df.empty
-        assert set(parsed_df.columns) == {
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Solar Forecast BTM",
-            "Solar Forecast",
-        }
-        assert isinstance(parsed_df["Interval Start"].iloc[0], pd.Timestamp)
-        assert isinstance(parsed_df["Interval End"].iloc[0], pd.Timestamp)
-        assert isinstance(parsed_df["Publish Time"].iloc[0], pd.Timestamp)
-        assert parsed_df["Solar Forecast BTM"].dtype == "float64"
-        assert parsed_df["Solar Forecast"].dtype == "float64"
+        # NOTE(kladar) we can add more asserts here to check the logic of _get_pjm_json more thoroughly going forward
+        assert isinstance(result, pd.DataFrame)
+        assert not result.empty
+        actual_columns = set(result.columns)
+        expected_dt_columns = ["Interval Start", "Interval End", "Publish Time"]
+        for col in set(expected_dt_columns) & set(actual_columns):
+            assert isinstance(
+                result[col].dtype,
+                pd.DatetimeTZDtype,
+            ), f"{col} is not a timezone-aware datetime column"
+            assert str(result[col].dt.tz) == str(
+                self.iso.default_timezone,
+            ), f"{col} timezone doesn't match the default timezone"
 
+    # TODO(kladar) Finding it very difficult to build up the tests and fixtures to test the logic beyond _get_pjm_json.
+    # I've tried 3 or 4 approaches and nothing seemed not terrible, so I don't want to spend too much more time on it at this stage.
+    # I'm sure it'll become clear with time what the best way to do it is.
+    # NOTE(kladar): The following are the old tests, which are more integration tests pulling actual data from the API"""
     @pytest.mark.integration
-    def test_get_solar_forecast_today_or_latest(self):
+    def test_get_solar_forecast_hourly_today_or_latest(self):
         df = self.iso.get_solar_forecast_hourly("today")
 
         self._check_solar_forecast(df)
@@ -646,15 +544,27 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_solar_forecast_hourly("latest").equals(df)
 
-    # NOTE(kladar): This is an example of a data test and an integration test in one,
-    # it tests that the data returned (integration) and that there is no data gaps or duplicates (data test)
+    @pytest.mark.integration
+    def test_get_solar_forecast_hourly_historical_date_integration(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        df = self.iso.get_solar_forecast_hourly(past_date)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        self._check_solar_forecast(df)
 
     @pytest.mark.integration
-    def test_get_hourly_solar_forecast_historical_date(self):
+    def test_get_solar_forecast_hourly_historical_range_integration(self):
+        past_date = self.local_today() - pd.Timedelta(days=12)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        df = self.iso.get_solar_forecast_hourly(past_date, past_end_date)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        self._check_solar_forecast(df)
+
+    @pytest.mark.integration
+    def test_get_solar_forecast_hourly_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
-
         df = self.iso.get_solar_forecast_hourly(past_date)
-
         self._check_solar_forecast(df)
 
         assert df["Interval Start"].min() == self.local_start_of_day(past_date)
@@ -670,7 +580,7 @@ class TestPJM(BaseTestISO):
         ) + pd.Timedelta(days=1)
 
     @pytest.mark.integration
-    def test_get_5min_solar_forecast_historical_date(self):
+    def test_get_solar_forecast_5min_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
 
         df = self.iso.get_solar_forecast_5min(past_date)
@@ -707,72 +617,10 @@ class TestPJM(BaseTestISO):
         # This data also includes one forecast time on the next day
         assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
 
-    """get_wind_forecast"""
-
-    def _check_wind_forecast(self, df: pd.DataFrame) -> None:
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Wind Forecast",
-        ]
-
-        self._check_time_columns(
-            df,
-            instant_or_interval="interval",
-            skip_column_named_time=True,
-        )
+    """get_wind_forecast integration tests"""
 
     @pytest.mark.integration
-    def test_get_hourly_wind_forecast_integration(self):
-        df = self.iso.get_wind_forecast_hourly("today")
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_wind_forecast(df)
-
-    @pytest.mark.integration
-    def test_get_hourly_wind_forecast_historical_date_integration(self):
-        past_date = self.local_today() - pd.Timedelta(days=10)
-        df = self.iso.get_wind_forecast_hourly(past_date)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_wind_forecast(df)
-
-    @pytest.mark.integration
-    def test_get_5min_wind_forecast_integration(self):
-        df = self.iso.get_wind_forecast_5min("today")
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_wind_forecast(df)
-
-    @pytest.mark.integration
-    def test_get_5min_wind_forecast_historical_date_integration(self):
-        past_date = self.local_today() - pd.Timedelta(days=10)
-        df = self.iso.get_wind_forecast_5min(past_date)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_wind_forecast(df)
-
-    @pytest.mark.integration
-    def test_get_hourly_wind_forecast_historical_range_integration(self):
-        past_date = self.local_today() - pd.Timedelta(days=12)
-        past_end_date = past_date + pd.Timedelta(days=3)
-        df = self.iso.get_wind_forecast_hourly(past_date, past_end_date)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_wind_forecast(df)
-
-    @pytest.mark.integration
-    def test_get_5min_wind_forecast_historical_range_integration(self):
-        past_date = self.local_today() - pd.Timedelta(days=12)
-        past_end_date = past_date + pd.Timedelta(days=3)
-        df = self.iso.get_wind_forecast_5min(past_date, past_end_date)
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        self._check_wind_forecast(df)
-
-    @pytest.mark.integration
-    def test_get_hourly_wind_forecast_today_or_latest(self):
+    def test_get_wind_forecast_hourly_today_or_latest(self):
         df = self.iso.get_wind_forecast_hourly("today")
 
         self._check_wind_forecast(df)
@@ -794,13 +642,49 @@ class TestPJM(BaseTestISO):
         assert self.iso.get_wind_forecast_hourly("latest").equals(df)
 
     @pytest.mark.integration
-    def test_get_hourly_wind_forecast_historical_date(self):
-        past_date = self.local_today() - pd.Timedelta(days=10)
-
-        df = self.iso.get_wind_forecast_hourly(past_date)
-
+    def test_get_wind_forecast_hourly_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=12)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        df = self.iso.get_wind_forecast_hourly(past_date, past_end_date)
         self._check_wind_forecast(df)
 
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(hours=5)
+
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_end_date,
+        ) + pd.Timedelta(days=2)
+
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
+        # This data also includes one forecast time on the next day
+        assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
+
+    @pytest.mark.integration
+    def test_get_wind_forecast_5min_today_or_latest(self):
+        df = self.iso.get_wind_forecast_5min("today")
+        self._check_wind_forecast(df)
+        # For some reason, the start of the forecast is 5 hours after the day start
+        assert df["Interval Start"].min() == self.local_start_of_today() + pd.Timedelta(
+            hours=5,
+        )
+        assert df["Interval End"].max() >= self.local_start_of_today() + pd.Timedelta(
+            days=2,
+            hours=5,
+        )
+
+        assert (
+            df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+            == self.local_today()
+        ).all()
+
+        assert self.iso.get_wind_forecast_5min("latest").equals(df)
+
+    @pytest.mark.integration
+    def test_get_wind_forecast_5min_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        df = self.iso.get_wind_forecast_5min(past_date)
+        self._check_wind_forecast(df)
         assert df["Interval Start"].min() == self.local_start_of_day(
             past_date,
         ) + pd.Timedelta(hours=5)
@@ -816,12 +700,10 @@ class TestPJM(BaseTestISO):
         ) + pd.Timedelta(days=1)
 
     @pytest.mark.integration
-    def test_get_hourly_wind_forecast_historical_range(self):
+    def test_get_wind_forecast_5min_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
-
-        df = self.iso.get_wind_forecast_hourly(past_date, past_end_date)
-
+        df = self.iso.get_wind_forecast_5min(past_date, past_end_date)
         self._check_wind_forecast(df)
 
         assert df["Interval Start"].min() == self.local_start_of_day(
@@ -835,64 +717,6 @@ class TestPJM(BaseTestISO):
         assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # This data also includes one forecast time on the next day
         assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
-
-    def test_get_wind_forecast_5min(self, sample_5min_wind_forecast_data):
-        with mock.patch.object(
-            self.iso,
-            "get_wind_forecast_5min",
-            return_value=sample_5min_wind_forecast_data,
-        ):
-            df = self.iso.get_wind_forecast_5min("2024-10-01")
-            self._check_wind_forecast(df)
-            assert df["Interval Start"].min() == pd.Timestamp(
-                "2024-10-01 04:00:00+0000",
-                tz="UTC",
-            )
-            assert df["Interval End"].max() >= pd.Timestamp(
-                "2024-10-02 04:00:00+0000",
-                tz="UTC",
-            )
-            assert (
-                df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
-            ).all()
-
-    def test_get_wind_forecast_hourly(self, sample_hourly_wind_forecast_data):
-        with mock.patch.object(
-            self.iso,
-            "get_wind_forecast_hourly",
-            return_value=sample_hourly_wind_forecast_data,
-        ):
-            df = self.iso.get_wind_forecast_hourly("2024-10-01")
-            self._check_wind_forecast(df)
-            assert df["Interval Start"].min() == pd.Timestamp(
-                "2024-10-01 09:00:00+0000",
-                tz="UTC",
-            )
-            assert df["Interval End"].max() >= pd.Timestamp(
-                "2024-10-03 00:00:00+0000",
-                tz="UTC",
-            )
-            assert (
-                df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-            ).all()
-
-    def test_parse_wind_forecast(self, sample_5min_wind_forecast_data: dict) -> None:
-        parsed_df: pd.DataFrame = self.iso._parse_wind_forecast(
-            sample_5min_wind_forecast_data,
-        )
-
-        assert isinstance(parsed_df, pd.DataFrame)
-        assert not parsed_df.empty
-        assert set(parsed_df.columns) == {
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Wind Forecast",
-        }
-        assert isinstance(parsed_df["Interval Start"].iloc[0], pd.Timestamp)
-        assert isinstance(parsed_df["Interval End"].iloc[0], pd.Timestamp)
-        assert isinstance(parsed_df["Publish Time"].iloc[0], pd.Timestamp)
-        assert parsed_df["Wind Forecast"].dtype == "float64"
 
     """_lmp_tests"""
 
@@ -1666,10 +1490,6 @@ class TestPJM(BaseTestISO):
             .isin(self.iso.service_type_abbreviated_to_full.values())
             .all()
         )
-
-        # Should contain new Ancillary Service that is concatenation of
-        # abbreviated locale and full service values
-        assert "Ancillary Service" in df.columns
 
         # Should contain new Ancillary Service that is concatenation of
         # abbreviated locale and full service values
