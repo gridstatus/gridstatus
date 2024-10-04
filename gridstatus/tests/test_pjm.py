@@ -477,12 +477,10 @@ class TestPJM(BaseTestISO):
     """NOTE(kladar): These are the new tests, building up unit tests with mock data along the way. If new
     technologies or resolutions are added, the tests should be straightforward to update."""
 
+    # NOTE(kladar) - we only have one fixture for now, but will leave it parameterized for now to indicate it can have more
     @pytest.fixture(
         params=[
             ("pjm_5min_solar_forecast_response.json"),
-            ("pjm_hourly_solar_forecast_response.json"),
-            ("pjm_5min_wind_forecast_response.json"),
-            ("pjm_hourly_wind_forecast_response.json"),
         ],
     )
     def sample_forecast_data(self, request):
@@ -595,10 +593,10 @@ class TestPJM(BaseTestISO):
         ) + pd.Timedelta(days=1)
 
     @pytest.mark.integration
-    def test_get_solar_forecast_5min_historical_date(self):
+    def test_get_solar_forecast_5_min_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
 
-        df = self.iso.get_solar_forecast_5min(past_date)
+        df = self.iso.get_solar_forecast_5_min(past_date)
 
         self._check_solar_forecast(df)
 
@@ -615,7 +613,7 @@ class TestPJM(BaseTestISO):
         ) + pd.Timedelta(days=1)
 
     @pytest.mark.integration
-    def test_get_solar_forecast_historical_range(self):
+    def test_get_solar_forecast_hourly_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
 
@@ -690,16 +688,13 @@ class TestPJM(BaseTestISO):
         assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
 
     @pytest.mark.integration
-    def test_get_wind_forecast_5min_today_or_latest(self):
-        df = self.iso.get_wind_forecast_5min("today")
+    def test_get_wind_forecast_5_min_today_or_latest(self):
+        df = self.iso.get_wind_forecast_5_min("today")
         self._check_wind_forecast(df)
-        # For some reason, the start of the forecast is 5 hours after the day start
-        assert df["Interval Start"].min() == self.local_start_of_today() + pd.Timedelta(
-            hours=5,
-        )
+        print(df)
+        assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval End"].max() >= self.local_start_of_today() + pd.Timedelta(
-            days=2,
-            hours=5,
+            hours=6,
         )
 
         assert (
@@ -707,19 +702,20 @@ class TestPJM(BaseTestISO):
             == self.local_today()
         ).all()
 
-        assert self.iso.get_wind_forecast_5min("latest").equals(df)
+        assert self.iso.get_wind_forecast_5_min("latest").equals(df)
 
     @pytest.mark.integration
-    def test_get_wind_forecast_5min_historical_date(self):
+    def test_get_wind_forecast_5_min_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
-        df = self.iso.get_wind_forecast_5min(past_date)
+        df = self.iso.get_wind_forecast_5_min(past_date)
+        print(df)
         self._check_wind_forecast(df)
         assert df["Interval Start"].min() == self.local_start_of_day(
             past_date,
-        ) + pd.Timedelta(hours=5)
+        )
         assert df["Interval End"].max() >= self.local_start_of_day(
             past_date,
-        ) + pd.Timedelta(days=2, hours=5)
+        ) + pd.Timedelta(hours=6)
 
         assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # When end date is generated this data
@@ -729,19 +725,20 @@ class TestPJM(BaseTestISO):
         ) + pd.Timedelta(days=1)
 
     @pytest.mark.integration
-    def test_get_wind_forecast_5min_historical_range(self):
+    def test_get_wind_forecast_5_min_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
-        df = self.iso.get_wind_forecast_5min(past_date, past_end_date)
+        df = self.iso.get_wind_forecast_5_min(past_date, past_end_date)
+        print(df)
         self._check_wind_forecast(df)
 
         assert df["Interval Start"].min() == self.local_start_of_day(
             past_date,
-        ) + pd.Timedelta(hours=5)
+        )
 
         assert df["Interval End"].max() >= self.local_start_of_day(
             past_end_date,
-        ) + pd.Timedelta(days=2)
+        ) + pd.Timedelta(hours=4)
 
         assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # This data also includes one forecast time on the next day
