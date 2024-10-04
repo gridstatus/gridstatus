@@ -105,8 +105,6 @@ class ISOBase:
         while attempt < max_attempts:
             try:
                 log(f"Requesting {url} with {kwargs}", verbose)
-                print(url)
-                print(kwargs)
                 r = requests.get(url, **kwargs)
                 r.raise_for_status()  # Raise an error for HTTP error codes
                 return r.json()
