@@ -8,6 +8,7 @@ clean:
 
 PYTEST_CMD := poetry run pytest -s -vv gridstatus/ -n auto --reruns 5 --reruns-delay 3 --durations=25
 NOT_SLOW := -m "not slow"
+UNIT_ONLY := -m "not slow and not integration"
 
 .PHONY: test
 test:
@@ -20,6 +21,10 @@ test-cov:
 .PHONY: test-slow
 test-slow:
 	$(PYTEST_CMD) -m "slow"
+
+.PHONY: test-unit
+test-unit:
+	$(PYTEST_CMD) $(UNIT_ONLY)
 
 .PHONY: installdeps-dev
 installdeps-dev:

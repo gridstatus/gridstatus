@@ -227,6 +227,7 @@ class BaseTestISO(TestHelperMixin):
 
     """get_load"""
 
+    @pytest.mark.integration
     def test_get_load_historical_with_date_range(self):
         num_days = 4
         end = pd.Timestamp.now(
@@ -243,6 +244,7 @@ class BaseTestISO(TestHelperMixin):
 
         assert data_tuple.equals(data)
 
+    @pytest.mark.integration
     def test_get_load_historical(self, lookback_days=14):
         # pick a test date lookback_days ago
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=lookback_days)).date()

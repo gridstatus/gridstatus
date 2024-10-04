@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 from unittest import mock
@@ -34,11 +35,13 @@ class TestPJM(BaseTestISO):
 
     """get_fuel_mix"""
 
+    @pytest.mark.integration
     def test_get_fuel_mix_no_data(self):
         date = "2000-01-14"
         with pytest.raises(NoDataFoundException):
             self.iso.get_fuel_mix(start=date)
 
+    @pytest.mark.integration
     def test_get_fuel_mix_dst_shift_back(self):
         date = "2021-11-07"
         df = self.iso.get_fuel_mix(start=date)
@@ -48,6 +51,7 @@ class TestPJM(BaseTestISO):
         )  # 25 hours due to shift backwards in time
         assert (df["Interval Start"].dt.strftime("%Y-%m-%d") == date).all()
 
+    @pytest.mark.integration
     def test_get_fuel_mix_dst_shift_forward(self):
         date = "2021-03-14"
         df = self.iso.get_fuel_mix(start=date)
@@ -73,38 +77,42 @@ class TestPJM(BaseTestISO):
         "Loss",
     ]
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
     )
-    def test_lmp_date_range(self, market):
+    def test_lmp_date_range(self, market: Markets):
         super().test_lmp_date_range(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         # Markets.REAL_TIME_5_MIN, # TODO reenable, but too slow
         Markets.REAL_TIME_HOURLY,
         Markets.DAY_AHEAD_HOURLY,
     )
-    def test_get_lmp_historical(self, market):
+    def test_get_lmp_historical(self, market: Markets):
         super().test_get_lmp_historical(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_HOURLY,
         Markets.REAL_TIME_5_MIN,
     )
-    def test_get_lmp_latest(self, market):
+    def test_get_lmp_latest(self, market: Markets):
         if market in [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_HOURLY]:
             with pytest.raises(NotSupported):
                 super().test_get_lmp_latest(market=market)
         else:
             super().test_get_lmp_latest(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.REAL_TIME_HOURLY,
         Markets.REAL_TIME_5_MIN,
         Markets.DAY_AHEAD_HOURLY,
     )
-    def test_get_lmp_today(self, market):
+    def test_get_lmp_today(self, market: Markets):
         if market in [Markets.REAL_TIME_HOURLY]:
             with pytest.raises(
                 NoDataFoundException,
@@ -114,6 +122,7 @@ class TestPJM(BaseTestISO):
         else:
             super().test_get_lmp_today(market=market)
 
+    @pytest.mark.integration
     def test_get_lmp_no_data(self):
         # raise no error since date in future
         future_date = pd.Timestamp.now().normalize() + pd.DateOffset(days=10)
@@ -123,6 +132,7 @@ class TestPJM(BaseTestISO):
                 market="REAL_TIME_5_MIN",
             )
 
+    @pytest.mark.integration
     def test_get_lmp_hourly(self):
         markets = [
             Markets.REAL_TIME_HOURLY,
@@ -133,6 +143,7 @@ class TestPJM(BaseTestISO):
             print(self.iso.iso_id, m)
             self._lmp_tests(m)
 
+    @pytest.mark.integration
     def test_get_lmp_returns_latest(self):
         # this interval has two LMP versions
         # make sure only one is returned
@@ -147,9 +158,11 @@ class TestPJM(BaseTestISO):
         assert df.duplicated(["Interval Start", "Location Id"]).sum() == 0
 
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_get_lmp_5_min(self):
         self._lmp_tests(Markets.REAL_TIME_5_MIN)
 
+    @pytest.mark.integration
     def test_get_lmp_query_by_location_type(self):
         df = self.iso.get_lmp(
             date="Oct 20, 2022",
@@ -160,6 +173,7 @@ class TestPJM(BaseTestISO):
         df
 
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_get_lmp_all_pnodes(self):
         df = self.iso.get_lmp(
             date="Jan 1, 2022",
@@ -171,6 +185,7 @@ class TestPJM(BaseTestISO):
 
     """ get_load """
 
+    @pytest.mark.integration
     def test_get_load_today(self):
         df = self.iso.get_load("today")
         self._check_load(df)
@@ -249,6 +264,7 @@ class TestPJM(BaseTestISO):
         "WESTERN_REGION",
     ]
 
+    @pytest.mark.integration
     def test_get_load_forecast_today(self):
         df = self.iso.get_load_forecast("today")
         assert df.columns.tolist() == self.load_forecast_columns
@@ -261,6 +277,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_load_forecast("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_load_forecast_in_past_raises_error(self):
         start_date = self.local_today() - pd.Timedelta(days=1)
         with pytest.raises(NotSupported):
@@ -286,6 +303,7 @@ class TestPJM(BaseTestISO):
         "RTO",
     ]
 
+    @pytest.mark.integration
     def test_get_load_forecast_historical(self):
         start_date = "2023-05-01"
         df = self.iso.get_load_forecast_historical(start_date)
@@ -300,6 +318,7 @@ class TestPJM(BaseTestISO):
         assert df["Interval Start"].value_counts().max() == 10
         assert df["Publish Time"].nunique() == 5 * 2
 
+    @pytest.mark.integration
     def test_get_load_forecast_historical_with_date_range(self):
         start_date = "2022-10-17"
         end_date = "2022-10-20"
@@ -317,28 +336,33 @@ class TestPJM(BaseTestISO):
 
     """get_pnode_ids"""
 
+    @pytest.mark.integration
     def test_get_pnode_ids(self):
         df = self.iso.get_pnode_ids()
         assert len(df) > 0
 
     """get_status"""
 
+    @pytest.mark.integration
     def test_get_status_latest(self):
         with pytest.raises(NotImplementedError):
             super().test_get_status_latest()
 
     """get_storage"""
 
+    @pytest.mark.integration
     def test_get_storage_historical(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_historical()
 
+    @pytest.mark.integration
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
     """pjm_update_dates"""
 
+    @pytest.mark.integration
     def test_pjm_update_dates(self):
         args_dict = {
             "self": gridstatus.PJM(),
@@ -440,8 +464,64 @@ class TestPJM(BaseTestISO):
             end,
         ]
 
-    """get_solar_forecast"""
+    # TODO(kladar): Really what we want to test is that, most importantly:
+    # 0. The API is up and returns 200 and data (intergration test)
+    # 1. The data returned is in the expected format
+    # 1.1. The data types are correct (unit test)
+    # 1.2. The horizons are all represented (data test)
+    # 1.3. The interval is correct for the given resolution (data test)
+    # 1.4. Our transformations and renamings are correctly applied (unit test)
+    # 2. There are no data gaps or duplicates (data test)
+    """NOTE(kladar): These are the new tests, building up unit tests with mock data along the way. If new
+    technologies or resolutions are added, the tests should be straightforward to update."""
 
+    # NOTE(kladar) - we only have one fixture for now, but will leave it parameterized for now to indicate it can have more
+    @pytest.fixture(
+        params=[
+            ("pjm_5min_solar_forecast_response.json"),
+        ],
+    )
+    def sample_forecast_data(self, request):
+        filename = request.param
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "fixtures", "pjm", filename)
+        with open(file_path, "r") as f:
+            return json.load(f)
+
+    @mock.patch.object(PJM, "_get_json")
+    def test_get_pjm_json(self, mock_get_json, sample_forecast_data):
+        mock_get_json.return_value = sample_forecast_data
+
+        result = self.iso._get_pjm_json(
+            endpoint="five_min_solar_power_forecast",
+            start="2024-03-01",
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,datetime_ending_ept,datetime_ending_utc,evaluated_at_ept,evaluated_at_utc,solar_forecast_btm_mwh,solar_forecast_mwh",
+            },
+            end="2024-03-02",
+            filter_timestamp_name="evaluated_at",
+            interval_duration_min=5,
+            verbose=False,
+        )
+
+        # NOTE(kladar) we can add more asserts here to check the logic of _get_pjm_json more thoroughly going forward
+        assert isinstance(result, pd.DataFrame)
+        assert not result.empty
+        actual_columns = set(result.columns)
+        expected_dt_columns = ["Interval Start", "Interval End", "Publish Time"]
+        for col in set(expected_dt_columns) & set(actual_columns):
+            assert isinstance(
+                result[col].dtype,
+                pd.DatetimeTZDtype,
+            ), f"{col} is not a timezone-aware datetime column"
+            assert str(result[col].dt.tz) == str(
+                self.iso.default_timezone,
+            ), f"{col} timezone doesn't match the default timezone"
+
+    # TODO(kladar) Finding it very difficult to build up the tests and fixtures to test the logic beyond _get_pjm_json.
+    # I've tried 3 or 4 approaches and nothing seemed not terrible, so I don't want to spend too much more time on it at this stage.
+    # I'm sure it'll become clear with time what the best way to do it is.
+    # NOTE(kladar): The following are the old tests, which are more integration tests pulling actual data from the API"""
     def _check_solar_forecast(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
@@ -457,8 +537,9 @@ class TestPJM(BaseTestISO):
             skip_column_named_time=True,
         )
 
-    def test_get_solar_forecast_today_or_latest(self):
-        df = self.iso.get_solar_forecast("today")
+    @pytest.mark.integration
+    def test_get_solar_forecast_hourly_today_or_latest(self):
+        df = self.iso.get_solar_forecast_hourly("today")
 
         self._check_solar_forecast(df)
 
@@ -472,13 +553,29 @@ class TestPJM(BaseTestISO):
             == self.local_today()
         ).all()
 
-        assert self.iso.get_solar_forecast("latest").equals(df)
+        assert self.iso.get_solar_forecast_hourly("latest").equals(df)
 
-    def test_get_solar_forecast_historical_date(self):
+    @pytest.mark.integration
+    def test_get_solar_forecast_hourly_historical_date_integration(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
+        df = self.iso.get_solar_forecast_hourly(past_date)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        self._check_solar_forecast(df)
 
-        df = self.iso.get_solar_forecast(past_date)
+    @pytest.mark.integration
+    def test_get_solar_forecast_hourly_historical_range_integration(self):
+        past_date = self.local_today() - pd.Timedelta(days=12)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        df = self.iso.get_solar_forecast_hourly(past_date, past_end_date)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        self._check_solar_forecast(df)
 
+    @pytest.mark.integration
+    def test_get_solar_forecast_hourly_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        df = self.iso.get_solar_forecast_hourly(past_date)
         self._check_solar_forecast(df)
 
         assert df["Interval Start"].min() == self.local_start_of_day(past_date)
@@ -493,11 +590,32 @@ class TestPJM(BaseTestISO):
             past_date,
         ) + pd.Timedelta(days=1)
 
-    def test_get_solar_forecast_historical_range(self):
+    @pytest.mark.integration
+    def test_get_solar_forecast_5_min_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+
+        df = self.iso.get_solar_forecast_5_min(past_date)
+
+        self._check_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=1)
+
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
+        # When end date is generated this data
+        # doesn't include forecast on the next day
+        assert df["Publish Time"].max() < self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=1)
+
+    @pytest.mark.integration
+    def test_get_solar_forecast_hourly_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
 
-        df = self.iso.get_solar_forecast(past_date, past_end_date)
+        df = self.iso.get_solar_forecast_hourly(past_date, past_end_date)
 
         self._check_solar_forecast(df)
 
@@ -510,7 +628,7 @@ class TestPJM(BaseTestISO):
         # This data also includes one forecast time on the next day
         assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
 
-    """get_wind_forecast"""
+    """get_wind_forecast integration tests"""
 
     def _check_wind_forecast(self, df):
         assert df.columns.tolist() == [
@@ -526,8 +644,9 @@ class TestPJM(BaseTestISO):
             skip_column_named_time=True,
         )
 
-    def test_get_wind_forecast_today_or_latest(self):
-        df = self.iso.get_wind_forecast("today")
+    @pytest.mark.integration
+    def test_get_wind_forecast_hourly_today_or_latest(self):
+        df = self.iso.get_wind_forecast_hourly("today")
 
         self._check_wind_forecast(df)
 
@@ -545,35 +664,13 @@ class TestPJM(BaseTestISO):
             == self.local_today()
         ).all()
 
-        assert self.iso.get_wind_forecast("latest").equals(df)
+        assert self.iso.get_wind_forecast_hourly("latest").equals(df)
 
-    def test_get_wind_forecast_historical_date(self):
-        past_date = self.local_today() - pd.Timedelta(days=10)
-
-        df = self.iso.get_wind_forecast(past_date)
-
-        self._check_wind_forecast(df)
-
-        assert df["Interval Start"].min() == self.local_start_of_day(
-            past_date,
-        ) + pd.Timedelta(hours=5)
-        assert df["Interval End"].max() >= self.local_start_of_day(
-            past_date,
-        ) + pd.Timedelta(days=2, hours=5)
-
-        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
-        # When end date is generated this data
-        # doesn't include forecast on the next day
-        assert df["Publish Time"].max() < self.local_start_of_day(
-            past_date,
-        ) + pd.Timedelta(days=1)
-
-    def test_get_wind_forecast_historical_range(self):
+    @pytest.mark.integration
+    def test_get_wind_forecast_hourly_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
-
-        df = self.iso.get_wind_forecast(past_date, past_end_date)
-
+        df = self.iso.get_wind_forecast_hourly(past_date, past_end_date)
         self._check_wind_forecast(df)
 
         assert df["Interval Start"].min() == self.local_start_of_day(
@@ -583,6 +680,63 @@ class TestPJM(BaseTestISO):
         assert df["Interval End"].max() >= self.local_start_of_day(
             past_end_date,
         ) + pd.Timedelta(days=2)
+
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
+        # This data also includes one forecast time on the next day
+        assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
+
+    @pytest.mark.integration
+    def test_get_wind_forecast_5_min_today_or_latest(self):
+        df = self.iso.get_wind_forecast_5_min("today")
+        self._check_wind_forecast(df)
+        print(df)
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() >= self.local_start_of_today() + pd.Timedelta(
+            hours=6,
+        )
+
+        assert (
+            df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+            == self.local_today()
+        ).all()
+
+        assert self.iso.get_wind_forecast_5_min("latest").equals(df)
+
+    @pytest.mark.integration
+    def test_get_wind_forecast_5_min_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        df = self.iso.get_wind_forecast_5_min(past_date)
+        print(df)
+        self._check_wind_forecast(df)
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            past_date,
+        )
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(hours=6)
+
+        assert df["Publish Time"].min() == self.local_start_of_day(past_date)
+        # When end date is generated this data
+        # doesn't include forecast on the next day
+        assert df["Publish Time"].max() < self.local_start_of_day(
+            past_date,
+        ) + pd.Timedelta(days=1)
+
+    @pytest.mark.integration
+    def test_get_wind_forecast_5_min_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=12)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        df = self.iso.get_wind_forecast_5_min(past_date, past_end_date)
+        print(df)
+        self._check_wind_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            past_date,
+        )
+
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            past_end_date,
+        ) + pd.Timedelta(hours=4)
 
         assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # This data also includes one forecast time on the next day
@@ -673,6 +827,7 @@ class TestPJM(BaseTestISO):
         assert isinstance(hist, pd.DataFrame)
         self._check_lmp_columns(hist, m)
 
+    @pytest.mark.integration
     def test_get_gen_outages_by_type_with_latest(self):
         start_date_local = self.local_today()
         df = self.iso.get_gen_outages_by_type("latest")
@@ -684,6 +839,7 @@ class TestPJM(BaseTestISO):
             df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
         ).all()
 
+    @pytest.mark.integration
     def test_get_gen_outages_by_type_with_past_date(self):
         start_date_local = self.local_today() - pd.DateOffset(days=3)
         start_date_time_local = self.local_start_of_day(start_date_local)
@@ -696,6 +852,7 @@ class TestPJM(BaseTestISO):
             df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
         ).all()
 
+    @pytest.mark.integration
     def test_get_gen_outages_by_type_with_multi_day_range(self):
         # start example: 2024-04-30 00:00:00-04:00
         start_date_local = self.local_today() - pd.DateOffset(days=3)
@@ -767,6 +924,7 @@ class TestPJM(BaseTestISO):
             == df["Load Forecast"] + df["Operating Reserve"]
         ).all()
 
+    @pytest.mark.integration
     def test_projected_rto_statistics_at_peak_today_or_latest(self):
         df = self.iso.get_projected_rto_statistics_at_peak("today")
 
@@ -779,6 +937,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_projected_rto_statistics_at_peak("latest").equals(df)
 
+    @pytest.mark.integration
     def test_projected_rto_statistics_at_peak_historical_date(self):
         past_date = self.local_today() - pd.DateOffset(days=10)
 
@@ -791,6 +950,7 @@ class TestPJM(BaseTestISO):
             past_date,
         ) + pd.DateOffset(days=1)
 
+    @pytest.mark.integration
     def test_projected_rto_statistics_at_peak_historical_date_range(self):
         past_date = self.local_today() - pd.DateOffset(days=1000)
         past_end_date = past_date + pd.Timedelta(days=800)
@@ -833,6 +993,7 @@ class TestPJM(BaseTestISO):
             "AP",
         }
 
+    @pytest.mark.integration
     def test_projected_area_statistics_at_peak_today_or_latest(self):
         df = self.iso.get_projected_area_statistics_at_peak("today")
 
@@ -845,6 +1006,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_projected_area_statistics_at_peak("latest").equals(df)
 
+    @pytest.mark.integration
     def test_projected_area_statistics_at_peak_historical_date(self):
         past_date = self.local_today() - pd.DateOffset(days=2000)
 
@@ -857,6 +1019,7 @@ class TestPJM(BaseTestISO):
             past_date,
         ) + pd.DateOffset(days=1)
 
+    @pytest.mark.integration
     def test_projected_area_statistics_at_peak_historical_date_range(self):
         past_date = self.local_today() - pd.DateOffset(days=2000)
         past_end_date = past_date + pd.Timedelta(days=800)
@@ -901,6 +1064,7 @@ class TestPJM(BaseTestISO):
         "Solar Generation",
     ]
 
+    @pytest.mark.integration
     def test_get_solar_generation_5_min_today_or_latest(self):
         df = self.iso.get_solar_generation_5_min("today")
         range_start = self.local_start_of_today()
@@ -914,6 +1078,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_solar_generation_5_min("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_solar_generation_5_min_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -928,6 +1093,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_solar_generation_5_min_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -951,6 +1117,7 @@ class TestPJM(BaseTestISO):
         "Wind Generation",
     ]
 
+    @pytest.mark.integration
     def test_get_wind_generation_instantaneous_today_or_latest(self):
         df = self.iso.get_wind_generation_instantaneous("today")
         range_start = self.local_start_of_today()
@@ -965,6 +1132,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_wind_generation_instantaneous("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_wind_generation_instantaneous_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -979,6 +1147,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_wind_generation_instantaneous_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1003,6 +1172,7 @@ class TestPJM(BaseTestISO):
         "Reserve",
     ]
 
+    @pytest.mark.integration
     def test_get_operational_reserves_today_or_latest(self):
         df = self.iso.get_operational_reserves("today")
         range_start = self.local_start_of_today()
@@ -1017,6 +1187,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_operational_reserves("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_operational_reserves_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -1031,6 +1202,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_operational_reserves_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1057,6 +1229,7 @@ class TestPJM(BaseTestISO):
         "Transfer Limit",
     ]
 
+    @pytest.mark.integration
     def test_get_transfer_interface_information_5_min_today_or_latest(self):
         df = self.iso.get_transfer_interface_information_5_min("today")
         range_start = self.local_start_of_today()
@@ -1071,6 +1244,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_transfer_interface_information_5_min("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_transfer_interface_information_5_min_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -1085,6 +1259,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_transfer_interface_information_5_min_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1111,6 +1286,7 @@ class TestPJM(BaseTestISO):
         "Shadow Price",
     ]
 
+    @pytest.mark.integration
     def test_get_transmission_limits_today_or_latest(self):
         df = self.iso.get_transmission_limits("today")
         range_start = self.local_start_of_today()
@@ -1125,6 +1301,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_transmission_limits("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_transmission_limits_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -1139,6 +1316,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_transmission_limits_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1167,6 +1345,7 @@ class TestPJM(BaseTestISO):
         "WEST",
     ]
 
+    @pytest.mark.integration
     def test_get_solar_generation_by_area_today_or_latest(self):
         df = self.iso.get_solar_generation_by_area("today")
         range_start = self.local_start_of_today()
@@ -1181,6 +1360,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_solar_generation_by_area("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_solar_generation_by_area_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -1195,6 +1375,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_solar_generation_by_area_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1210,6 +1391,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_wind_generation_by_area_today_or_latest(self):
         df = self.iso.get_wind_generation_by_area("today")
         range_start = self.local_start_of_today()
@@ -1224,6 +1406,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_wind_generation_by_area("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_wind_generation_by_area_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -1238,6 +1421,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_wind_generation_by_area_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1270,6 +1454,7 @@ class TestPJM(BaseTestISO):
         "Non-Synchronized Reserve MW Assigned",
     ]
 
+    @pytest.mark.integration
     def test_get_dam_as_market_results_today_or_latest(self):
         df = self.iso.get_dam_as_market_results("today")
         range_start = self.local_start_of_today()
@@ -1284,6 +1469,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_dam_as_market_results("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_dam_as_market_results_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -1298,6 +1484,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_dam_as_market_results_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1313,6 +1500,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_dam_as_market_results_parsing(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1326,10 +1514,6 @@ class TestPJM(BaseTestISO):
             .isin(self.iso.service_type_abbreviated_to_full.values())
             .all()
         )
-
-        # Should contain new Ancillary Service that is concatenation of
-        # abbreviated locale and full service values
-        assert "Ancillary Service" in df.columns
 
         # Should contain new Ancillary Service that is concatenation of
         # abbreviated locale and full service values
@@ -1360,6 +1544,7 @@ class TestPJM(BaseTestISO):
         "REGD MW",
     ]
 
+    @pytest.mark.integration
     def test_get_real_time_as_market_results_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -1374,6 +1559,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_real_time_as_market_results_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1389,6 +1575,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.integration
     def test_get_real_time_as_market_results_parsing(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
@@ -1411,6 +1598,7 @@ class TestPJM(BaseTestISO):
             assert prefix in self.iso.locale_abbreviated_to_full.keys()
             assert suffix in self.iso.service_type_abbreviated_to_full.values()
 
+    @pytest.mark.integration
     def test_get_real_time_as_market_results_valid_dates(self):
         cutoff_date = datetime(2022, 9, 1)
 
@@ -1439,6 +1627,7 @@ class TestPJM(BaseTestISO):
         with pytest.raises(ValueError, match="Both start and end dates must be before"):
             self.iso.get_real_time_as_market_results(date=start, end=end, error="raise")
 
+    @pytest.mark.integration
     def test_get_interconnection_queue(self):
         from gridstatus.base import _interconnection_columns
 
@@ -1475,6 +1664,7 @@ class TestPJM(BaseTestISO):
 
         assert set(df["NERC Region"]) == {"RFC", "SERC", "RTO"}
 
+    @pytest.mark.integration
     def test_get_load_metered_hourly_historical_date(self):
         date = self.local_today() - pd.Timedelta(days=10)
 
@@ -1489,6 +1679,7 @@ class TestPJM(BaseTestISO):
             days=1,
         )
 
+    @pytest.mark.integration
     def test_get_load_metered_hourly_historical_date_range(self):
         date = self.local_today() - pd.Timedelta(days=12)
         end_date = date + pd.Timedelta(days=3)
@@ -1518,6 +1709,7 @@ class TestPJM(BaseTestISO):
             skip_column_named_time=True,
         )
 
+    @pytest.mark.integration
     def test_get_forecasted_generation_outages_today_or_latest(self):
         df = self.iso.get_forecasted_generation_outages("today")
         self._check_forecasted_gen_outages(df)
@@ -1531,6 +1723,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_forecasted_generation_outages("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_forecasted_generation_outages_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         df = self.iso.get_forecasted_generation_outages(past_date)
@@ -1542,6 +1735,7 @@ class TestPJM(BaseTestISO):
             df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
         ).all()
 
+    @pytest.mark.integration
     def test_get_forecasted_generation_outages_historical_range(self):
         # start example: 2024-04-30 00:00:00-04:00
         start_date_local = self.local_today() - pd.DateOffset(days=3)

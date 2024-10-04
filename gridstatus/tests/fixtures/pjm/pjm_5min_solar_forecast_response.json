@@ -1,0 +1,56 @@
+{
+  "links": [
+    {
+      "rel": "self",
+      "href": "https://api.pjm.com/api/v1/five_min_solar_power_forecast?RowCount=50000&Order=Asc&StartRow=1&IsActiveMetadata=True&Fields=datetime_beginning_ept%2Cdatetime_beginning_utc%2Cdatetime_ending_ept%2Cdatetime_ending_utc%2Cevaluated_at_ept%2Cevaluated_at_utc%2Csolar_forecast_btm_mwh%2Csolar_forecast_mwh&evaluated_at_ept=10%2F01%2F2024%2000%3A00to10%2F01%2F2024%2023%3A59"
+    },
+    {
+      "rel": "metadata",
+      "href": "https://api.pjm.com/api/v1/five_min_solar_power_forecast/metadata"
+    }
+  ],
+  "items": [
+    {
+      "evaluated_at_utc": "2024-10-01T04:00:00",
+      "evaluated_at_ept": "2024-10-01T00:00:00",
+      "datetime_beginning_utc": "2024-10-01T04:00:00",
+      "datetime_beginning_ept": "2024-10-01T00:00:00",
+      "datetime_ending_utc": "2024-10-01T04:05:00",
+      "datetime_ending_ept": "2024-10-01T00:05:00",
+      "solar_forecast_mwh": 0.0,
+      "solar_forecast_btm_mwh": 0.0
+    },
+    {
+      "evaluated_at_utc": "2024-10-02T03:50:00",
+      "evaluated_at_ept": "2024-10-01T23:50:00",
+      "datetime_beginning_utc": "2024-10-02T09:45:00",
+      "datetime_beginning_ept": "2024-10-02T05:45:00",
+      "datetime_ending_utc": "2024-10-02T09:50:00",
+      "datetime_ending_ept": "2024-10-02T05:50:00",
+      "solar_forecast_mwh": 0.0,
+      "solar_forecast_btm_mwh": 0.0
+    }
+  ],
+  "searchSpecification": {
+    "rowCount": 50000,
+    "order": "Asc",
+    "startRow": 1,
+    "isActiveMetadata": true,
+    "fields": [
+      "datetime_beginning_ept",
+      "datetime_beginning_utc",
+      "datetime_ending_ept",
+      "datetime_ending_utc",
+      "evaluated_at_ept",
+      "evaluated_at_utc",
+      "solar_forecast_btm_mwh",
+      "solar_forecast_mwh"
+    ],
+    "filters": [
+      {
+        "evaluated_at_ept": "10/01/2024 00:00to10/01/2024 23:59"
+      }
+    ]
+  },
+  "totalRows": 10368
+}
