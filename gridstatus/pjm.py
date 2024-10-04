@@ -1172,7 +1172,7 @@ class PJM(ISOBase):
         return self._parse_solar_forecast(df)
 
     @support_date_range(frequency=None)
-    def get_solar_forecast_5min(
+    def get_solar_forecast_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -1276,7 +1276,7 @@ class PJM(ISOBase):
         return self._parse_wind_forecast(df)
 
     @support_date_range(frequency=None)
-    def get_wind_forecast_5min(
+    def get_wind_forecast_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
