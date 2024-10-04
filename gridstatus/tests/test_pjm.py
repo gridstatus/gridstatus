@@ -526,6 +526,21 @@ class TestPJM(BaseTestISO):
     # I've tried 3 or 4 approaches and nothing seemed not terrible, so I don't want to spend too much more time on it at this stage.
     # I'm sure it'll become clear with time what the best way to do it is.
     # NOTE(kladar): The following are the old tests, which are more integration tests pulling actual data from the API"""
+    def _check_solar_forecast(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Solar Forecast BTM",
+            "Solar Forecast",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
     @pytest.mark.integration
     def test_get_solar_forecast_hourly_today_or_latest(self):
         df = self.iso.get_solar_forecast_hourly("today")
