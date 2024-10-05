@@ -67,22 +67,23 @@ class TestErcotAPI(TestHelperMixin):
             "Interval Start",
             "Interval End",
             "Publish Time",
-            "ACTUAL SYSTEM WIDE",
+            "SYSTEM WIDE GEN",
             "COP HSL SYSTEM WIDE",
             "STWPF SYSTEM WIDE",
             "WGRPP SYSTEM WIDE",
-            "ACTUAL LZ SOUTH HOUSTON",
+            "GEN LZ SOUTH HOUSTON",
             "COP HSL LZ SOUTH HOUSTON",
             "STWPF LZ SOUTH HOUSTON",
             "WGRPP LZ SOUTH HOUSTON",
-            "ACTUAL LZ WEST",
+            "GEN LZ WEST",
             "COP HSL LZ WEST",
             "STWPF LZ WEST",
             "WGRPP LZ WEST",
-            "ACTUAL LZ NORTH",
+            "GEN LZ NORTH",
             "COP HSL LZ NORTH",
             "STWPF LZ NORTH",
             "WGRPP LZ NORTH",
+            "SYSTEM WIDE HSL",
         ]
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
@@ -127,7 +128,7 @@ class TestErcotAPI(TestHelperMixin):
             "Interval Start",
             "Interval End",
             "Publish Time",
-            "GEN SYSTEM WIDE",
+            "SYSTEM WIDE GEN",
             "COP HSL SYSTEM WIDE",
             "STPPF SYSTEM WIDE",
             "PVGRPP SYSTEM WIDE",
@@ -155,6 +156,7 @@ class TestErcotAPI(TestHelperMixin):
             "COP HSL CenterEast",
             "STPPF CenterEast",
             "PVGRPP CenterEast",
+            "SYSTEM WIDE HSL",
         ]
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
