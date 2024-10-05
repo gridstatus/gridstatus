@@ -1906,6 +1906,9 @@ class Ercot(ISOBase):
         # replace _ in column names with spaces
         df.columns = df.columns.str.replace("_", " ")
 
+        return self._rename_hourly_wind_or_solar_report(df)
+
+    def _rename_hourly_wind_or_solar_report(self, df):
         df = df.rename(
             columns={
                 # on Sept 26, 2024 ercot added this column
@@ -1923,6 +1926,7 @@ class Ercot(ISOBase):
                 "ACTUAL LZ NORTH": "GEN LZ NORTH",
             },
         )
+
         return df
 
     def get_reported_outages(self, date=None, end=None, verbose=False):
