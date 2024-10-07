@@ -1927,6 +1927,10 @@ class Ercot(ISOBase):
             },
         )
 
+        # Add HSL SYSTEM WIDE if it is not in the data (older data may not have it)
+        if "HSL SYSTEM WIDE" not in df:
+            df["HSL SYSTEM WIDE"] = pd.NA
+
         return df
 
     def get_reported_outages(self, date=None, end=None, verbose=False):

@@ -295,10 +295,6 @@ class ErcotAPI:
 
         data = Ercot()._rename_hourly_wind_or_solar_report(data)
 
-        # Add HSL SYSTEM WIDE if it is not in the data (older data may not have it)
-        if "HSL SYSTEM WIDE" not in data:
-            data["HSL SYSTEM WIDE"] = pd.NA
-
         return data
 
     @support_date_range(frequency=None)
@@ -351,10 +347,6 @@ class ErcotAPI:
         )
 
         data = Ercot()._rename_hourly_wind_or_solar_report(data)
-
-        # Add HSL SYSTEM WIDE if it is not in the data (older data may not have it)
-        if "HSL SYSTEM WIDE" not in data:
-            data["HSL SYSTEM WIDE"] = pd.NA
 
         return data
 
