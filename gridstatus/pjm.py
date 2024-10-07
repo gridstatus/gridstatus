@@ -941,6 +941,58 @@ class PJM(ISOBase):
 
         return data
 
+    @support_date_range(frequency=None)
+    def get_it_sced_lmp_5_min(self, date, end=None, verbose=False):
+        """Get 5 minute LMPs from the Integrated Forward Market (IFM)"""
+
+        if date == "latest":
+            return self.get_it_sced_lmp_5_min("today", verbose=verbose)
+
+        params = {
+            "fields": (
+                "case_approval_datetime_utc,datetime_beginning_utc,itsced_lmp,marginal_congestion,marginal_loss,pnode_id,pnode_name"  # noqa: E501
+            ),
+        }
+
+        data = self._get_pjm_json(
+            "five_min_itsced_lmps",
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            interval_duration_min=5,
+        )
+
+        # TODO: are there other columns we want to rename?
+        data = data.rename(
+            columns={
+                "case_approval_datetime_utc": "Publish Time",
+            },
+        )
+
+        data.columns = data.columns.map(lambda x: x.replace("_", " ").title())
+
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Pnode Id",
+                "Pnode Name",
+                "Itsced Lmp",
+                "Marginal Congestion",
+                "Marginal Loss",
+            ]
+        ]
+
+        data["Publish Time"] = (
+            pd.to_datetime(data["Publish Time"])
+            .dt.tz_localize("UTC")
+            .dt.tz_convert(self.default_timezone)
+        )
+
+        return data
+
     def _get_pjm_json(
         self,
         endpoint,

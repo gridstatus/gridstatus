@@ -183,6 +183,51 @@ class TestPJM(BaseTestISO):
 
         assert len(df) > 0
 
+    """get_it_sced_lmp_5_min"""
+
+    def _check_it_sced_lmp_5_min(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Pnode Id",
+            "Pnode Name",
+            "Itsced Lmp",
+            "Marginal Congestion",
+            "Marginal Loss",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            minutes=5,
+        )
+
+    def test_get_it_sced_lmp_5_min_today(self):
+        df = self.iso.get_it_sced_lmp_5_min("today")
+        self._check_it_sced_lmp_5_min(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+
+        assert (
+            df["Publish Time"].dt.date.unique()
+            == [(self.local_today() - pd.Timedelta(days=1)), self.local_today()]
+        ).all()
+
+        assert self.iso.get_it_sced_lmp_5_min("latest").equals(df)
+
+    def test_get_it_sced_lmp_5_min_historical_date_range(self):
+        start_date = self.local_today() - pd.Timedelta(days=10)
+        end_date = start_date + pd.Timedelta(days=3)
+        df = self.iso.get_it_sced_lmp_5_min(start_date, end_date)
+        self._check_it_sced_lmp_5_min(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            end_date,
+        ) + pd.DateOffset(minutes=-10)
+
+        assert df["Publish Time"].dt.date.min() == start_date - pd.Timedelta(days=1)
+        assert df["Publish Time"].dt.date.max() == end_date - pd.Timedelta(days=1)
+
     """ get_load """
 
     @pytest.mark.integration
