@@ -293,6 +293,8 @@ class ErcotAPI:
             .sort_values(["Interval Start", "Publish Time"])
         )
 
+        data = Ercot()._rename_hourly_wind_or_solar_report(data)
+
         return data
 
     @support_date_range(frequency=None)
@@ -343,6 +345,8 @@ class ErcotAPI:
             .drop(columns=["Time", "postDatetime"])
             .sort_values(["Interval Start", "Publish Time"])
         )
+
+        data = Ercot()._rename_hourly_wind_or_solar_report(data)
 
         return data
 

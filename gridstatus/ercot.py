@@ -1906,6 +1906,9 @@ class Ercot(ISOBase):
         # replace _ in column names with spaces
         df.columns = df.columns.str.replace("_", " ")
 
+        return self._rename_hourly_wind_or_solar_report(df)
+
+    def _rename_hourly_wind_or_solar_report(self, df):
         df = df.rename(
             columns={
                 # on Sept 26, 2024 ercot added this column
@@ -1923,6 +1926,11 @@ class Ercot(ISOBase):
                 "ACTUAL LZ NORTH": "GEN LZ NORTH",
             },
         )
+
+        # Add HSL SYSTEM WIDE if it is not in the data (older data may not have it)
+        if "HSL SYSTEM WIDE" not in df:
+            df["HSL SYSTEM WIDE"] = pd.NA
+
         return df
 
     def get_reported_outages(self, date=None, end=None, verbose=False):
