@@ -1448,19 +1448,6 @@ class CAISO(ISOBase):
             print("\n")
 
 
-def _make_timestamp(time_str, today, timezone="US/Pacific"):
-    hour, minute = map(int, time_str.split(":"))
-    ts = pd.Timestamp(
-        year=today.year,
-        month=today.month,
-        day=today.day,
-        hour=hour,
-        minute=minute,
-    )
-    ts = ts.tz_localize(timezone, ambiguous=True)
-    return ts
-
-
 def _get_historical(
     file: str,
     date: str | pd.Timestamp,
@@ -1479,13 +1466,14 @@ def _get_historical(
     Returns:
         pd.DataFrame: A pandas dataframe of the data
     """
-
+    # NOTE: The cache buster is necessary because CAISO will serve cached data from cloudfront on the same url if the url has not changed.
+    cache_buster = int(pd.Timestamp.now(tz=CAISO.default_timezone).timestamp())
     if utils.is_today(date, CAISO.default_timezone):
-        url: str = f"{_BASE}/{file}.csv"
+        url: str = f"{_BASE}/{file}.csv?_={cache_buster}"
         latest = True
     else:
         date_str: str = date.strftime("%Y%m%d")
-        url: str = f"{_HISTORY_BASE}/{date_str}/{file}.csv"
+        url: str = f"{_HISTORY_BASE}/{date_str}/{file}.csv?_={cache_buster}"
         latest = False
     msg: str = f"Fetching URL: {url}"
     log(msg, verbose)
@@ -1509,7 +1497,7 @@ def _get_historical(
             date = date - pd.Timedelta(days=1)
 
     df["Time"] = df["Time"].apply(
-        _make_timestamp,
+        caiso_utils.make_timestamp,
         today=date,
         timezone=CAISO.default_timezone,
     )
