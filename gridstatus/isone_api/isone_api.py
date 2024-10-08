@@ -6,6 +6,7 @@ import requests
 
 from gridstatus import utils
 from gridstatus.base import NoDataFoundException
+from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
 
 # API base URL
@@ -18,15 +19,20 @@ DEFAULT_PAGE_SIZE = 1000
 ZONE_LOCATIONID_MAP = {
     "NEPOOL": 32,
     "INTERNALHUB": 4000,
-    ".Z.MAINE": 4001,
-    ".Z.NEWHAMPSHIRE": 4002,
-    ".Z.VERMONT": 4003,
-    ".Z.CONNECTICUT": 4004,
-    ".Z.RHODEISLAND": 4005,
-    ".Z.SEMASS": 4006,
-    ".Z.WCMASS": 4007,
-    ".Z.NEMASSBOST": 4008,
+    "MAINE": 4001,
+    "NEWHAMPSHIRE": 4002,
+    "VERMONT": 4003,
+    "CONNECTICUT": 4004,
+    "RHODEISLAND": 4005,
+    "SEMASS": 4006,
+    "WCMASS": 4007,
+    "NEMASSBOST": 4008,
 }
+
+EXCLUDE_FROM_REALTIME_HOURLY_DEMAND = [
+    "NEPOOL",
+    "INTERNALHUB",
+]
 
 
 class ISONEAPI:
@@ -56,47 +62,6 @@ class ISONEAPI:
         self.sleep_seconds = sleep_seconds
         self.initial_delay = min(max(0.1, sleep_seconds), 60.0)
         self.max_retries = min(max(0, max_retries), 10)
-
-    def _local_now(self):
-        return pd.Timestamp.now(tz=self.default_timezone)
-
-    def _local_start_of_today(self):
-        return pd.Timestamp.now(tz=self.default_timezone).floor("d")
-
-    def _handle_end_date(self, date, end, days_to_add_if_no_end):
-        if end:
-            end = utils._handle_date(end, tz=self.default_timezone)
-        else:
-            end = (
-                (date.tz_convert("UTC") + pd.DateOffset(days=days_to_add_if_no_end))
-                .normalize()
-                .tz_localize(None)
-                .tz_localize(self.default_timezone)
-            )
-        return end
-
-    def _get_location_id(self, location: str) -> int:
-        """
-        Get the LocId for a given location name.
-
-        Args:
-            location (str): The name of the location, with or without the .Z. prefix.
-
-        Returns:
-            int: The corresponding LocId.
-
-        Raises:
-            ValueError: If the location is not found in the LOCATION_MAP.
-        """
-        location_upper = location.upper().replace(" ", "")
-        if not location_upper.startswith(".Z."):
-            location_upper = f".Z.{location_upper}"
-
-        if location_upper not in ZONE_LOCATIONID_MAP:
-            raise ValueError(
-                f"Invalid location: {location}. Valid locations are: {', '.join(ZONE_LOCATIONID_MAP.keys())}",
-            )
-        return ZONE_LOCATIONID_MAP[location_upper]
 
     def make_api_call(
         self,
@@ -162,8 +127,7 @@ class ISONEAPI:
 
         locations = response["Locations"]["Location"]
         df = pd.DataFrame(locations)
-        df["LocId"] = pd.to_numeric(df["@LocId"], errors="coerce")
-        df.rename(columns={"$": "Name", "@LocId": "LocId"}, inplace=True)
+
         return df
 
     def get_location_by_id(self, location_id: int) -> pd.DataFrame:
@@ -184,11 +148,9 @@ class ISONEAPI:
 
         location = response["Location"]
         df = pd.DataFrame([location])
-        df["LocId"] = pd.to_numeric(df["@LocId"], errors="coerce")
-        df.rename(columns={"$": "Name", "@LocId": "LocId"}, inplace=True)
         return df
 
-    def get_all_locations(self) -> pd.DataFrame:
+    def get_locations_all(self) -> pd.DataFrame:
         """
         Get detailed information for all locations.
 
@@ -203,28 +165,17 @@ class ISONEAPI:
 
         locations = response["Locations"]["Location"]
         df = pd.DataFrame(locations)
-        df["LocId"] = pd.to_numeric(df["@LocId"], errors="coerce")
-        df.rename(columns={"$": "Name", "@LocId": "LocId"}, inplace=True)
         return df
 
-    def get_realtime_hourly_demand_current(self, location: str = None) -> pd.DataFrame:
+    def get_realtime_hourly_demand_current_static(self) -> pd.DataFrame:
         """
-        Get the most recent real-time hourly demand data.
-
-        Args:
-            location (str, optional): The specific location to request data for (with or without .Z. prefix).
+        Get the most recent real-time hourly demand data for default locations.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the real-time hourly demand data.
+            pandas.DataFrame: A DataFrame containing the real-time hourly demand data for default locations.
         """
         url = f"{BASE_URL}/realtimehourlydemand/current"
-
-        if location:
-            location_id = self._get_location_id(location)
-            url += f"/location/{location_id}"
-
         response = self.make_api_call(url)
-        log.debug(f"Response: {response}")
 
         if (
             "HourlyRtDemands" not in response
@@ -249,6 +200,51 @@ class ISONEAPI:
 
         return df
 
+    def get_realtime_hourly_demand_current(
+        self,
+        locations: list[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Get the most recent real-time hourly demand data for specified locations.
+
+        Args:
+            locations (list[str], optional): List of specific location names to request data for.
+                                             If None, data for all locations will be retrieved.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the real-time hourly demand data for all requested locations.
+        """
+        if not locations:
+            locations = [
+                loc
+                for loc in ZONE_LOCATIONID_MAP.keys()
+                if loc not in EXCLUDE_FROM_REALTIME_HOURLY_DEMAND
+            ]
+
+        all_data = []
+
+        for location in locations:
+            location_id = ZONE_LOCATIONID_MAP.get(location)
+            if not location_id:
+                log.warning(f"{location}: Not a known ISO NE Hub or Zone for this data")
+                continue
+
+            url = f"{BASE_URL}/realtimehourlydemand/current/location/{location_id}"
+            response = self.make_api_call(url)
+
+            data = response["HourlyRtDemand"]
+            data["Location"] = location
+            data["LocId"] = location_id
+            all_data.append(data)
+
+        df = pd.DataFrame(all_data)
+        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
+        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
+        df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
+
+        return df
+
+    @support_date_range(frequency="D")
     def get_realtime_hourly_demand_historical_range(
         self,
         date: str | pd.Timestamp,
@@ -261,7 +257,7 @@ class ISONEAPI:
         Args:
             date (str or datetime): The start date for the data request.
             end (str or datetime, optional): The end date for the data request.
-            locations (list[str], optional): List of specific locations to request data for (with or without .Z. prefix).
+            locations (list[str], optional): List of specific locations to request data for.
 
         Returns:
             pandas.DataFrame: A DataFrame containing the real-time hourly demand data for all requested locations.
@@ -270,42 +266,28 @@ class ISONEAPI:
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         if not locations:
-            locations = list(ZONE_LOCATIONID_MAP.keys())
+            locations = [
+                loc
+                for loc in ZONE_LOCATIONID_MAP.keys()
+                if loc not in EXCLUDE_FROM_REALTIME_HOURLY_DEMAND
+            ]
 
         all_data = []
 
         for location in locations:
-            location_id = self._get_location_id(location)
-            url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
-
-            response = self.make_api_call(url)
-            log.debug(f"Response for {location}: {response}")
-
-            if (
-                "HourlyRtDemands" not in response
-                or "HourlyRtDemand" not in response["HourlyRtDemands"]
-            ):
-                log.warning(
-                    f"No real-time hourly demand data found for location: {location}",
-                )
+            location_id = ZONE_LOCATIONID_MAP.get(location)
+            if not location_id:
+                log.warning(f"{location}: Not a known ISO NE Hub or Zone for this data")
                 continue
 
-            formatted_data = [
-                {
-                    "BeginDate": entry["BeginDate"],
-                    "Location": entry["Location"]["$"],
-                    "LocId": entry["Location"]["@LocId"],
-                    "Load": entry["Load"],
-                }
-                for entry in response["HourlyRtDemands"]["HourlyRtDemand"]
-            ]
+            url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
+            response = self.make_api_call(url)
 
-            all_data.extend(formatted_data)
-
-        if not all_data:
-            raise NoDataFoundException(
-                "No real-time hourly demand data found for any of the specified locations and date range.",
-            )
+            data = response["HourlyRtDemands"]["HourlyRtDemand"]
+            for entry in data:
+                entry["Location"] = location
+                entry["LocId"] = location_id
+            all_data.extend(data)
 
         df = pd.DataFrame(all_data)
         df["BeginDate"] = pd.to_datetime(df["BeginDate"])
@@ -314,24 +296,15 @@ class ISONEAPI:
 
         return df
 
-    def get_dayahead_hourly_demand_current(self, location: str = None) -> pd.DataFrame:
+    def get_dayahead_hourly_demand_current_static(self) -> pd.DataFrame:
         """
-        Get the most recent day-ahead hourly demand data.
-
-        Args:
-            location (str, optional): The specific location to request data for (with or without .Z. prefix).
+        Get the most recent day-ahead hourly demand data for default locations.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the day-ahead hourly demand data.
+            pandas.DataFrame: A DataFrame containing the day-ahead hourly demand data for default locations.
         """
         url = f"{BASE_URL}/dayaheadhourlydemand/current"
-
-        if location:
-            location_id = self._get_location_id(location)
-            url += f"/location/{location_id}"
-
         response = self.make_api_call(url)
-        log.debug(f"Response: {response}")
 
         if (
             "HourlyDaDemands" not in response
@@ -356,53 +329,93 @@ class ISONEAPI:
 
         return df
 
+    def get_dayahead_hourly_demand_current(
+        self,
+        locations: list[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Get the most recent day-ahead hourly demand data for specified locations.
+
+        Args:
+            locations (list[str], optional): List of specific location names to request data for.
+                                             If None, data for all locations will be retrieved.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the day-ahead hourly demand data for all requested locations.
+        """
+        if not locations:
+            locations = list(ZONE_LOCATIONID_MAP.keys())
+
+        all_data = []
+
+        for location in locations:
+            location_id = ZONE_LOCATIONID_MAP.get(location)
+            if not location_id:
+                log.warning(f"{location}: Not a known ISO NE Hub or Zone for this data")
+                continue
+
+            url = f"{BASE_URL}/dayaheadhourlydemand/current/location/{location_id}"
+
+            response = self.make_api_call(url)
+            data = response["HourlyDaDemand"]
+            data["Location"] = location
+            data["LocId"] = location_id
+            all_data.append(data)
+
+        if not all_data:
+            raise NoDataFoundException(
+                "No day-ahead hourly demand data found for any of the specified locations.",
+            )
+
+        df = pd.DataFrame(all_data)
+        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
+        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
+        df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
+
+        return df
+
+    @support_date_range(frequency="D")
     def get_dayahead_hourly_demand_historical_range(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
-        location: str = None,
+        locations: list[str] = None,
     ) -> pd.DataFrame:
         """
-        Get day-ahead hourly demand data for a specified date range and optional location.
+        Get day-ahead hourly demand data for a specified date range and optional locations.
 
         Args:
             date (str or datetime): The start date for the data request.
             end (str or datetime, optional): The end date for the data request.
-            location (str, optional): The specific location to request data for (with or without .Z. prefix).
+            locations (list[str], optional): List of specific location names to request data for.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the day-ahead hourly demand data.
+            pandas.DataFrame: A DataFrame containing the day-ahead hourly demand data for all requested locations.
         """
         date = utils._handle_date(date, tz=self.default_timezone)
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
-        url = f"{BASE_URL}/dayaheadhourlydemand/day/{date.strftime('%Y%m%d')}"
-        if location:
-            location_id = self._get_location_id(location)
-            url += f"/location/{location_id}"
+        if not locations:
+            locations = list(ZONE_LOCATIONID_MAP.keys())
 
-        response = self.make_api_call(url)
-        log.debug(f"Response: {response}")
+        all_data = []
 
-        if (
-            "HourlyDaDemands" not in response
-            or "HourlyDaDemand" not in response["HourlyDaDemands"]
-        ):
-            raise NoDataFoundException(
-                "No day-ahead hourly demand data found for the specified date range.",
-            )
+        for location in locations:
+            location_id = ZONE_LOCATIONID_MAP.get(location)
+            if not location_id:
+                log.warning(f"{location}: Not a known ISO NE Hub or Zone for this data")
+                continue
 
-        formatted_data = [
-            {
-                "BeginDate": entry["BeginDate"],
-                "Location": entry["Location"]["$"],
-                "LocId": entry["Location"]["@LocId"],
-                "Load": entry["Load"],
-            }
-            for entry in response["HourlyDaDemands"]["HourlyDaDemand"]
-        ]
+            url = f"{BASE_URL}/dayaheadhourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
+            response = self.make_api_call(url)
 
-        df = pd.DataFrame(formatted_data)
+            data = response["HourlyDaDemands"]["HourlyDaDemand"]
+            for entry in data:
+                entry["Location"] = location
+                entry["LocId"] = location_id
+            all_data.extend(data)
+
+        df = pd.DataFrame(all_data)
         df["BeginDate"] = pd.to_datetime(df["BeginDate"])
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
