@@ -1448,19 +1448,6 @@ class CAISO(ISOBase):
             print("\n")
 
 
-def _make_timestamp(time_str, today, timezone="US/Pacific"):
-    hour, minute = map(int, time_str.split(":"))
-    ts = pd.Timestamp(
-        year=today.year,
-        month=today.month,
-        day=today.day,
-        hour=hour,
-        minute=minute,
-    )
-    ts = ts.tz_localize(timezone, ambiguous=True)
-    return ts
-
-
 def _get_historical(
     file: str,
     date: str | pd.Timestamp,
@@ -1509,7 +1496,7 @@ def _get_historical(
             date = date - pd.Timedelta(days=1)
 
     df["Time"] = df["Time"].apply(
-        _make_timestamp,
+        caiso_utils.make_timestamp,
         today=date,
         timezone=CAISO.default_timezone,
     )
