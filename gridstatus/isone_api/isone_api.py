@@ -253,49 +253,61 @@ class ISONEAPI:
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
-        location: str = None,
+        locations: list[str] = None,
     ) -> pd.DataFrame:
         """
-        Get real-time hourly demand data for a specified date range and optional location.
+        Get real-time hourly demand data for a specified date range and optional locations.
 
         Args:
             date (str or datetime): The start date for the data request.
             end (str or datetime, optional): The end date for the data request.
-            location (str, optional): The specific location to request data for (with or without .Z. prefix).
+            locations (list[str], optional): List of specific locations to request data for (with or without .Z. prefix).
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the real-time hourly demand data.
+            pandas.DataFrame: A DataFrame containing the real-time hourly demand data for all requested locations.
         """
         date = utils._handle_date(date, tz=self.default_timezone)
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
-        url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}"
-        if location:
+        if not locations:
+            locations = list(ZONE_LOCATIONID_MAP.keys())
+
+        all_data = []
+
+        for location in locations:
             location_id = self._get_location_id(location)
-            url += f"/location/{location_id}"
+            url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
 
-        response = self.make_api_call(url)
-        log.debug(f"Response: {response}")
+            response = self.make_api_call(url)
+            log.debug(f"Response for {location}: {response}")
 
-        if (
-            "HourlyRtDemands" not in response
-            or "HourlyRtDemand" not in response["HourlyRtDemands"]
-        ):
+            if (
+                "HourlyRtDemands" not in response
+                or "HourlyRtDemand" not in response["HourlyRtDemands"]
+            ):
+                log.warning(
+                    f"No real-time hourly demand data found for location: {location}",
+                )
+                continue
+
+            formatted_data = [
+                {
+                    "BeginDate": entry["BeginDate"],
+                    "Location": entry["Location"]["$"],
+                    "LocId": entry["Location"]["@LocId"],
+                    "Load": entry["Load"],
+                }
+                for entry in response["HourlyRtDemands"]["HourlyRtDemand"]
+            ]
+
+            all_data.extend(formatted_data)
+
+        if not all_data:
             raise NoDataFoundException(
-                "No real-time hourly demand data found for the specified date range.",
+                "No real-time hourly demand data found for any of the specified locations and date range.",
             )
 
-        formatted_data = [
-            {
-                "BeginDate": entry["BeginDate"],
-                "Location": entry["Location"]["$"],
-                "LocId": entry["Location"]["@LocId"],
-                "Load": entry["Load"],
-            }
-            for entry in response["HourlyRtDemands"]["HourlyRtDemand"]
-        ]
-
-        df = pd.DataFrame(formatted_data)
+        df = pd.DataFrame(all_data)
         df["BeginDate"] = pd.to_datetime(df["BeginDate"])
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
