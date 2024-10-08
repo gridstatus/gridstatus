@@ -1466,13 +1466,14 @@ def _get_historical(
     Returns:
         pd.DataFrame: A pandas dataframe of the data
     """
-
+    # NOTE: The cache buster is necessary because CAISO will serve cached data from cloudfront on the same url if the url has not changed.
+    cache_buster = int(pd.Timestamp.now(tz=CAISO.default_timezone).timestamp())
     if utils.is_today(date, CAISO.default_timezone):
-        url: str = f"{_BASE}/{file}.csv"
+        url: str = f"{_BASE}/{file}.csv?_={cache_buster}"
         latest = True
     else:
         date_str: str = date.strftime("%Y%m%d")
-        url: str = f"{_HISTORY_BASE}/{date_str}/{file}.csv"
+        url: str = f"{_HISTORY_BASE}/{date_str}/{file}.csv?_={cache_buster}"
         latest = False
     msg: str = f"Fetching URL: {url}"
     log(msg, verbose)
