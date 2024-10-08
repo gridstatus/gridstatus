@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from unittest import mock
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -202,10 +203,10 @@ class TestPJM(BaseTestISO):
             minutes=5,
         )
 
-        assert (
-            df["Itsced Lmp"]
-            == df["Marginal Energy"] + df["Marginal Congestion"] + df["Marginal Loss"]
-        ).all()
+        assert np.allclose(
+            df["Itsced Lmp"],
+            df["Marginal Energy"] + df["Marginal Congestion"] + df["Marginal Loss"],
+        )
 
     def test_get_it_sced_lmp_5_min_today(self):
         df = self.iso.get_it_sced_lmp_5_min("today")

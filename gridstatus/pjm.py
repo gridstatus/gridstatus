@@ -992,7 +992,7 @@ class PJM(ISOBase):
         ]
 
         data["Case Approval Time"] = (
-            pd.to_datetime(data["Case Approval time"])
+            pd.to_datetime(data["Case Approval Time"])
             .dt.tz_localize("UTC")
             .dt.tz_convert(self.default_timezone)
         )
