@@ -966,7 +966,7 @@ class PJM(ISOBase):
         # TODO: are there other columns we want to rename?
         data = data.rename(
             columns={
-                "case_approval_datetime_utc": "Publish Time",
+                "case_approval_datetime_utc": "Case Approval Time",
             },
         )
 
@@ -976,7 +976,7 @@ class PJM(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "Publish Time",
+                "Case Approval Time",
                 "Pnode Id",
                 "Pnode Name",
                 "Itsced Lmp",

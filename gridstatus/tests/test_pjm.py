@@ -189,7 +189,7 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Publish Time",
+            "Case Approval Time",
             "Pnode Id",
             "Pnode Name",
             "Itsced Lmp",
@@ -208,7 +208,7 @@ class TestPJM(BaseTestISO):
         assert df["Interval Start"].min() == self.local_start_of_today()
 
         assert (
-            df["Publish Time"].dt.date.unique()
+            df["Case Approval Time"].dt.date.unique()
             == [(self.local_today() - pd.Timedelta(days=1)), self.local_today()]
         ).all()
 
@@ -225,8 +225,10 @@ class TestPJM(BaseTestISO):
             end_date,
         ) + pd.DateOffset(minutes=-10)
 
-        assert df["Publish Time"].dt.date.min() == start_date - pd.Timedelta(days=1)
-        assert df["Publish Time"].dt.date.max() == end_date - pd.Timedelta(days=1)
+        assert df["Case Approval Time"].dt.date.min() == start_date - pd.Timedelta(
+            days=1,
+        )
+        assert df["Case Approval Time"].dt.date.max() == end_date - pd.Timedelta(days=1)
 
     """ get_load """
 
