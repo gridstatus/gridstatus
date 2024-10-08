@@ -193,6 +193,7 @@ class TestPJM(BaseTestISO):
             "Pnode Id",
             "Pnode Name",
             "Itsced Lmp",
+            "Marginal Energy",
             "Marginal Congestion",
             "Marginal Loss",
         ]
@@ -200,6 +201,11 @@ class TestPJM(BaseTestISO):
         assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
             minutes=5,
         )
+
+        assert (
+            df["Itsced Lmp"]
+            == df["Marginal Energy"] + df["Marginal Congestion"] + df["Marginal Loss"]
+        ).all()
 
     def test_get_it_sced_lmp_5_min_today(self):
         df = self.iso.get_it_sced_lmp_5_min("today")

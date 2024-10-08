@@ -972,6 +972,11 @@ class PJM(ISOBase):
 
         data.columns = data.columns.map(lambda x: x.replace("_", " ").title())
 
+        # LMP = Energy + Congestion + Loss so Energy = LMP - Congestion - Loss
+        data["Marginal Energy"] = (
+            data["Itsced Lmp"] - data["Marginal Congestion"] - data["Marginal Loss"]
+        )
+
         data = data[
             [
                 "Interval Start",
@@ -980,13 +985,14 @@ class PJM(ISOBase):
                 "Pnode Id",
                 "Pnode Name",
                 "Itsced Lmp",
+                "Marginal Energy",
                 "Marginal Congestion",
                 "Marginal Loss",
             ]
         ]
 
-        data["Publish Time"] = (
-            pd.to_datetime(data["Publish Time"])
+        data["Case Approval Time"] = (
+            pd.to_datetime(data["Case Approval time"])
             .dt.tz_localize("UTC")
             .dt.tz_convert(self.default_timezone)
         )
