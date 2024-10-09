@@ -231,7 +231,7 @@ class ISONEAPI:
 
             url = f"{BASE_URL}/realtimehourlydemand/current/location/{location_id}"
             response = self.make_api_call(url)
-            print(response)
+
             data = response["HourlyRtDemand"]
             data["Location"] = location
             data["LocId"] = location_id
