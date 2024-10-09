@@ -965,19 +965,18 @@ class PJM(ISOBase):
 
         df.columns = df.columns.map(lambda x: x.replace("_", " ").title())
 
-        # LMP = Energy + Congestion + Loss so Energy = LMP - Congestion - Loss
-        df["Marginal Energy"] = (
-            df["Itsced Lmp"] - df["Marginal Congestion"] - df["Marginal Loss"]
-        )
-
-        # TODO: are there other columns we want to rename?
         df = df.rename(
             columns={
                 "Case Approval Datetime Utc": "Case Approval Time",
-                "Itsced Lmp": "IT SCED LMP",
+                "Itsced Lmp": "LMP",
                 "Pnode Id": "Pnode ID",
+                "Marginal Congestion": "Congestion",
+                "Marginal Loss": "Loss",
             },
         )
+
+        # LMP = Energy + Congestion + Loss so Energy = LMP - Congestion - Loss
+        df["Energy"] = df["LMP"] - df["Congestion"] - df["Loss"]
 
         df = df[
             [
@@ -986,18 +985,17 @@ class PJM(ISOBase):
                 "Case Approval Time",
                 "Pnode ID",
                 "Pnode Name",
-                "IT SCED LMP",
-                "Marginal Energy",
-                "Marginal Congestion",
-                "Marginal Loss",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
             ]
         ]
 
-        df["Case Approval Time"] = (
-            pd.to_datetime(df["Case Approval Time"])
-            .dt.tz_localize("UTC")
-            .dt.tz_convert(self.default_timezone)
-        )
+        df["Case Approval Time"] = pd.to_datetime(
+            df["Case Approval Time"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
 
         return df
 

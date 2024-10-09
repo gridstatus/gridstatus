@@ -193,10 +193,10 @@ class TestPJM(BaseTestISO):
             "Case Approval Time",
             "Pnode ID",
             "Pnode Name",
-            "IT SCED LMP",
-            "Marginal Energy",
-            "Marginal Congestion",
-            "Marginal Loss",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
         ]
 
         assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
@@ -204,8 +204,8 @@ class TestPJM(BaseTestISO):
         )
 
         assert np.allclose(
-            df["IT SCED LMP"],
-            df["Marginal Energy"] + df["Marginal Congestion"] + df["Marginal Loss"],
+            df["LMP"],
+            df["Energy"] + df["Congestion"] + df["Loss"],
         )
 
     def test_get_it_sced_lmp_5_min_today(self):
