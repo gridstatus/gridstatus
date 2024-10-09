@@ -191,6 +191,22 @@ class ISONEAPI:
         df = pd.DataFrame(locations)
         return df
 
+    def _handle_demand(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Process demand DataFrame: convert types and rename columns.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame with demand data.
+
+        Returns:
+            pd.DataFrame: Processed DataFrame.
+        """
+        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
+        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
+        df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
+        df = df.rename(columns={"BeginDate": "Interval Start"})
+        return df[["Interval Start", "Location", "LocId", "Load"]]
+
     def get_realtime_hourly_demand_current_static(self) -> pd.DataFrame:
         """
         Get the most recent real-time hourly demand data for default locations.
@@ -218,11 +234,7 @@ class ISONEAPI:
         ]
 
         df = pd.DataFrame(formatted_data)
-        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
-
-        return df
+        return self._handle_demand(df)
 
     def get_realtime_hourly_demand_current(
         self,
@@ -262,11 +274,7 @@ class ISONEAPI:
             all_data.append(data)
 
         df = pd.DataFrame(all_data)
-        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
-
-        return df[["BeginDate", "Location", "LocId", "Load"]]
+        return self._handle_demand(df)
 
     @support_date_range(frequency="D")
     def get_realtime_hourly_demand_historical_range(
@@ -314,11 +322,7 @@ class ISONEAPI:
             all_data.extend(data)
 
         df = pd.DataFrame(all_data)
-        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
-
-        return df[["BeginDate", "Location", "LocId", "Load"]]
+        return self._handle_demand(df)
 
     def get_dayahead_hourly_demand_current_static(self) -> pd.DataFrame:
         """
@@ -347,11 +351,7 @@ class ISONEAPI:
         ]
 
         df = pd.DataFrame(formatted_data)
-        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
-
-        return df
+        return self._handle_demand(df)
 
     def get_dayahead_hourly_demand_current(
         self,
@@ -392,11 +392,7 @@ class ISONEAPI:
             )
 
         df = pd.DataFrame(all_data)
-        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
-
-        return df[["BeginDate", "Location", "LocId", "Load"]]
+        return self._handle_demand(df)
 
     @support_date_range(frequency="D")
     def get_dayahead_hourly_demand_historical_range(
@@ -440,8 +436,4 @@ class ISONEAPI:
             all_data.extend(data)
 
         df = pd.DataFrame(all_data)
-        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
-
-        return df[["BeginDate", "Location", "LocId", "Load"]]
+        return self._handle_demand(df)

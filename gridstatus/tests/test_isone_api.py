@@ -2,6 +2,7 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -124,15 +125,13 @@ class TestISONEAPI:
         mock_make_api_call,
         isone_realtime_hourly_demand_current,
     ):
-        print("Fixture data:", isone_realtime_hourly_demand_current)
         mock_make_api_call.return_value = isone_realtime_hourly_demand_current
 
         result = self.iso.get_realtime_hourly_demand_current(locations=["MAINE"])
-        print("API response:", mock_make_api_call.return_value)
 
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
-        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
+        assert list(result.columns) == ["Interval Start", "Location", "LocId", "Load"]
         assert result["Location"].iloc[0] == "MAINE"
         assert result["LocId"].iloc[0] == 4001
         assert isinstance(result["Load"].iloc[0], (int, float))
@@ -148,10 +147,10 @@ class TestISONEAPI:
         result = self.iso.get_dayahead_hourly_demand_current(locations=["NEPOOL"])
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
-        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
-        assert result["Location"].iloc[0] == "NEPOOL AREA"
+        assert list(result.columns) == ["Interval Start", "Location", "LocId", "Load"]
+        assert result["Location"].iloc[0] == "NEPOOL"
         assert result["LocId"].iloc[0] == 32
-        assert isinstance(result["Load"].iloc[0], (int, float))
+        assert isinstance(result["Load"].iloc[0], np.number)
 
     # NOTE(kladar): These two are not super useful as tests go, but starting to think about API failure modes and
     # how to catch them.
@@ -195,7 +194,7 @@ class TestISONEAPI:
         )
         assert isinstance(result, pd.DataFrame)
         assert len(result) > 0
-        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
+        assert list(result.columns) == ["Interval Start", "Location", "LocId", "Load"]
         assert result["Location"].iloc[0] == "MAINE"
         assert result["LocId"].iloc[0] == 4001
         assert isinstance(result["Load"].iloc[0], (int, float))
@@ -223,7 +222,7 @@ class TestISONEAPI:
         )
         assert isinstance(result, pd.DataFrame)
         assert len(result) > 0
-        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
+        assert list(result.columns) == ["Interval Start", "Location", "LocId", "Load"]
         assert result["Location"].iloc[0] == "MAINE"
         assert result["LocId"].iloc[0] == 4001
         assert isinstance(result["Load"].iloc[0], (int, float))
