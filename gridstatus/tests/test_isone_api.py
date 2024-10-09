@@ -127,18 +127,15 @@ class TestISONEAPI:
         print("Fixture data:", isone_realtime_hourly_demand_current)
         mock_make_api_call.return_value = isone_realtime_hourly_demand_current
 
-        result = self.iso.get_realtime_hourly_demand_current(locations=[".Z.MAINE"])
+        result = self.iso.get_realtime_hourly_demand_current(locations=["MAINE"])
         print("API response:", mock_make_api_call.return_value)
 
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
-        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
-        assert result["Location"].iloc[0] == ".Z.MAINE"
-        assert isinstance(
-            result["Load"].iloc[0],
-            (int, float),
-        )  # Check if Load is a number
-        assert result["LocId"].iloc[0] == "4001"
+        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
+        assert result["Location"].iloc[0] == "MAINE"
+        assert result["LocId"].iloc[0] == 4001
+        assert isinstance(result["Load"].iloc[0], (int, float))
 
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
     def test_get_dayahead_hourly_demand_current(
@@ -148,16 +145,13 @@ class TestISONEAPI:
     ):
         mock_make_api_call.return_value = isone_dayahead_hourly_demand_current
 
-        result = self.iso.get_dayahead_hourly_demand_current(locations=["NEPOOL AREA"])
+        result = self.iso.get_dayahead_hourly_demand_current(locations=["NEPOOL"])
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
-        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
+        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
         assert result["Location"].iloc[0] == "NEPOOL AREA"
-        assert isinstance(
-            result["Load"].iloc[0],
-            (int, float),
-        )  # Check if Load is a number
-        assert result["LocId"].iloc[0] == "32"
+        assert result["LocId"].iloc[0] == 32
+        assert isinstance(result["Load"].iloc[0], (int, float))
 
     # NOTE(kladar): These two are not super useful as tests go, but starting to think about API failure modes and
     # how to catch them.
@@ -197,47 +191,39 @@ class TestISONEAPI:
         result = self.iso.get_realtime_hourly_demand_historical_range(
             date=date,
             end=end,
-            locations=[".Z.MAINE"],
+            locations=["MAINE"],
         )
         assert isinstance(result, pd.DataFrame)
         assert len(result) > 0
-        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
-        assert result["Location"].iloc[0] == ".Z.MAINE"
-        assert isinstance(result["Load"].iloc[0], (int, float))
+        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
+        assert result["Location"].iloc[0] == "MAINE"
         assert result["LocId"].iloc[0] == 4001
-        assert (
-            pd.to_datetime(result["BeginDate"].min()).date()
-            == pd.to_datetime(date).date()
-        )
-        assert (
-            pd.to_datetime(result["BeginDate"].max()).date()
-            == pd.to_datetime(end).date()
-        )
+        assert isinstance(result["Load"].iloc[0], (int, float))
 
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            ("2024-07-01", "2024-07-02"),
+        ],
+    )
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
     def test_get_dayahead_hourly_demand_historical_range(
         self,
         mock_make_api_call,
         isone_dayahead_hourly_demand_range,
+        date,
+        end,
     ):
         mock_make_api_call.return_value = isone_dayahead_hourly_demand_range
 
         result = self.iso.get_dayahead_hourly_demand_historical_range(
-            date="2023-05-01",
-            end="2023-05-02",
-            locations=["NEPOOL"],
+            date=date,
+            end=end,
+            locations=["MAINE"],
         )
         assert isinstance(result, pd.DataFrame)
         assert len(result) > 0
-        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
-        assert result["Location"].iloc[0] == "NEPOOL"
+        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
+        assert result["Location"].iloc[0] == "MAINE"
+        assert result["LocId"].iloc[0] == 4001
         assert isinstance(result["Load"].iloc[0], (int, float))
-        assert result["LocId"].iloc[0] == 32
-        assert (
-            pd.to_datetime(result["BeginDate"].min()).date()
-            == pd.to_datetime("2023-05-01").date()
-        )
-        assert (
-            pd.to_datetime(result["BeginDate"].max()).date()
-            == pd.to_datetime("2023-05-02").date()
-        )

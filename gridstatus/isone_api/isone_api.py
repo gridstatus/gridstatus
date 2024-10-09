@@ -15,7 +15,6 @@ BASE_URL = "https://webservices.iso-ne.com/api/v1.1"
 # Default page size for API requests
 DEFAULT_PAGE_SIZE = 1000
 
-# NOTE: the .Z. prefix is what is returned by the API so including it here
 ZONE_LOCATIONID_MAP = {
     "NEPOOL": 32,
     "INTERNALHUB": 4000,
@@ -267,7 +266,7 @@ class ISONEAPI:
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
 
-        return df
+        return df[["BeginDate", "Location", "LocId", "Load"]]
 
     @support_date_range(frequency="D")
     def get_realtime_hourly_demand_historical_range(
@@ -319,7 +318,7 @@ class ISONEAPI:
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
 
-        return df
+        return df[["BeginDate", "Location", "LocId", "Load"]]
 
     def get_dayahead_hourly_demand_current_static(self) -> pd.DataFrame:
         """
@@ -397,7 +396,7 @@ class ISONEAPI:
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
 
-        return df
+        return df[["BeginDate", "Location", "LocId", "Load"]]
 
     @support_date_range(frequency="D")
     def get_dayahead_hourly_demand_historical_range(
@@ -445,4 +444,4 @@ class ISONEAPI:
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
 
-        return df
+        return df[["BeginDate", "Location", "LocId", "Load"]]
