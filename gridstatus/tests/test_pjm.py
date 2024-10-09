@@ -191,9 +191,9 @@ class TestPJM(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Case Approval Time",
-            "Pnode Id",
+            "Pnode ID",
             "Pnode Name",
-            "Itsced Lmp",
+            "IT SCED LMP",
             "Marginal Energy",
             "Marginal Congestion",
             "Marginal Loss",
@@ -204,7 +204,7 @@ class TestPJM(BaseTestISO):
         )
 
         assert np.allclose(
-            df["Itsced Lmp"],
+            df["IT SCED LMP"],
             df["Marginal Energy"] + df["Marginal Congestion"] + df["Marginal Loss"],
         )
 

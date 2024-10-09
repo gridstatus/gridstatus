@@ -954,7 +954,7 @@ class PJM(ISOBase):
             ),
         }
 
-        data = self._get_pjm_json(
+        df = self._get_pjm_json(
             "five_min_itsced_lmps",
             start=date,
             end=end,
@@ -963,41 +963,43 @@ class PJM(ISOBase):
             interval_duration_min=5,
         )
 
+        df.columns = df.columns.map(lambda x: x.replace("_", " ").title())
+
+        # LMP = Energy + Congestion + Loss so Energy = LMP - Congestion - Loss
+        df["Marginal Energy"] = (
+            df["Itsced Lmp"] - df["Marginal Congestion"] - df["Marginal Loss"]
+        )
+
         # TODO: are there other columns we want to rename?
-        data = data.rename(
+        df = df.rename(
             columns={
-                "case_approval_datetime_utc": "Case Approval Time",
+                "Case Approval Datetime Utc": "Case Approval Time",
+                "Itsced Lmp": "IT SCED LMP",
+                "Pnode Id": "Pnode ID",
             },
         )
 
-        data.columns = data.columns.map(lambda x: x.replace("_", " ").title())
-
-        # LMP = Energy + Congestion + Loss so Energy = LMP - Congestion - Loss
-        data["Marginal Energy"] = (
-            data["Itsced Lmp"] - data["Marginal Congestion"] - data["Marginal Loss"]
-        )
-
-        data = data[
+        df = df[
             [
                 "Interval Start",
                 "Interval End",
                 "Case Approval Time",
-                "Pnode Id",
+                "Pnode ID",
                 "Pnode Name",
-                "Itsced Lmp",
+                "IT SCED LMP",
                 "Marginal Energy",
                 "Marginal Congestion",
                 "Marginal Loss",
             ]
         ]
 
-        data["Case Approval Time"] = (
-            pd.to_datetime(data["Case Approval Time"])
+        df["Case Approval Time"] = (
+            pd.to_datetime(df["Case Approval Time"])
             .dt.tz_localize("UTC")
             .dt.tz_convert(self.default_timezone)
         )
 
-        return data
+        return df
 
     def _get_pjm_json(
         self,
