@@ -121,7 +121,7 @@ class ISONEAPI:
         """
         url = f"{BASE_URL}/locations"
         response = self.make_api_call(url)
-
+        print(response)
         if "Locations" not in response or "Location" not in response["Locations"]:
             raise NoDataFoundException("No location data found.")
 
@@ -231,7 +231,7 @@ class ISONEAPI:
 
             url = f"{BASE_URL}/realtimehourlydemand/current/location/{location_id}"
             response = self.make_api_call(url)
-
+            print(response)
             data = response["HourlyRtDemand"]
             data["Location"] = location
             data["LocId"] = location_id
@@ -282,7 +282,7 @@ class ISONEAPI:
 
             url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
             response = self.make_api_call(url)
-
+            print(response)
             data = response["HourlyRtDemands"]["HourlyRtDemand"]
             for entry in data:
                 entry["Location"] = location
@@ -357,6 +357,7 @@ class ISONEAPI:
             url = f"{BASE_URL}/dayaheadhourlydemand/current/location/{location_id}"
 
             response = self.make_api_call(url)
+            print(response)
             data = response["HourlyDaDemand"]
             data["Location"] = location
             data["LocId"] = location_id

@@ -1,0 +1,10 @@
+{
+  "HourlyDaDemand": {
+    "BeginDate": "2024-10-09T13:00:00.000-04:00",
+    "Location": {
+      "@LocId": "32",
+      "$": "NEPOOL AREA"
+    },
+    "Load": 10010
+  }
+}

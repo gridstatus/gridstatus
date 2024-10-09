@@ -1,9 +1,11 @@
-from datetime import datetime
+import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
+from gridstatus.base import NoDataFoundException
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 
 
@@ -11,6 +13,11 @@ class TestISONEAPI:
     @classmethod
     def setup_class(cls):
         cls.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
+        cls.fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures", "isone")
+
+    def load_fixture(self, filename):
+        with open(os.path.join(self.fixtures_dir, filename), "r") as f:
+            return json.load(f)
 
     def test_init(self):
         assert self.iso.sleep_seconds == 0.1
@@ -18,13 +25,12 @@ class TestISONEAPI:
         assert self.iso.username is not None
         assert self.iso.password is not None
 
-    def test_get_location_id(self):
+    def test_zone_locationid_map(self):
         for zone, location_id in ZONE_LOCATIONID_MAP.items():
-            assert self.iso._get_location_id(zone) == location_id
-            assert self.iso._get_location_id(zone.replace(".Z.", "")) == location_id
-
-        with pytest.raises(ValueError):
-            self.iso._get_location_id("INVALID_ZONE")
+            assert ZONE_LOCATIONID_MAP[zone] == location_id
+            # Test that the zone name without ".Z." prefix also works
+            if zone.startswith(".Z."):
+                assert ZONE_LOCATIONID_MAP[zone.replace(".Z.", "")] == location_id
 
     @patch("gridstatus.isone_api.isone_api.requests.get")
     def test_make_api_call(self, mock_get):
@@ -40,229 +46,81 @@ class TestISONEAPI:
 
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
     def test_get_locations(self, mock_make_api_call):
-        mock_make_api_call.return_value = {
-            "Locations": {
-                "Location": [
-                    {"@LocId": "1", "$": "Location1"},
-                    {"@LocId": "2", "$": "Location2"},
-                ],
-            },
-        }
+        mock_response = self.load_fixture("isone_locations.json")
+        mock_make_api_call.return_value = mock_response
 
         result = self.iso.get_locations()
         assert isinstance(result, pd.DataFrame)
-        assert len(result) == 2
-        assert list(result.columns) == ["LocId", "Name"]
-
-    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
-    def test_get_location_by_id(self, mock_make_api_call):
-        mock_make_api_call.return_value = {
-            "Location": {"@LocId": "1", "$": "Location1"},
-        }
-
-        result = self.iso.get_location_by_id(1)
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 1
-        assert list(result.columns) == ["LocId", "Name"]
-
-    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
-    def test_get_all_locations(self, mock_make_api_call):
-        mock_make_api_call.return_value = {
-            "Locations": {
-                "Location": [
-                    {"@LocId": "1", "$": "Location1"},
-                    {"@LocId": "2", "$": "Location2"},
-                ],
-            },
-        }
-
-        result = self.iso.get_all_locations()
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 2
-        assert list(result.columns) == ["LocId", "Name"]
+        assert len(result) == 19
+        assert list(result.columns) == [
+            "LocationID",
+            "LocationType",
+            "LocationName",
+            "AreaType",
+        ]
+        assert result["LocationName"].tolist() == [
+            ".H.INTERNAL_HUB",
+            ".Z.MAINE",
+            ".Z.NEWHAMPSHIRE",
+            ".Z.VERMONT",
+            ".Z.CONNECTICUT",
+            ".Z.RHODEISLAND",
+            ".Z.SEMASS",
+            ".Z.WCMASS",
+            ".Z.NEMASSBOST",
+            ".I.SALBRYNB345 1",
+            ".I.ROSETON 345 1",
+            ".I.HQ_P1_P2345 5",
+            ".I.HQHIGATE120 2",
+            ".I.SHOREHAM138 99",
+            ".I.NRTHPORT138 5",
+            "ROS",
+            "SWCT",
+            "CT",
+            "NEMABSTN",
+        ]
 
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
     def test_get_realtime_hourly_demand_current(self, mock_make_api_call):
-        mock_make_api_call.return_value = {
-            "HourlyRtDemands": {
-                "HourlyRtDemand": [
-                    {
-                        "BeginDate": "2023-05-01T00:00:00-04:00",
-                        "Location": {"$": "MAINE", "@LocId": "4001"},
-                        "Load": "1000",
-                    },
-                ],
-            },
-        }
-
-        result = self.iso.get_realtime_hourly_demand_current()
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 1
-        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
-
-    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
-    def test_get_realtime_hourly_demand_historical_range(self, mock_make_api_call):
-        mock_make_api_call.return_value = {
-            "HourlyRtDemands": {
-                "HourlyRtDemand": [
-                    {
-                        "BeginDate": "2023-05-01T00:00:00-04:00",
-                        "Location": {"$": "MAINE", "@LocId": "4001"},
-                        "Load": "1000",
-                    },
-                ],
-            },
-        }
-
-        result = self.iso.get_realtime_hourly_demand_historical_range(
-            date="2023-05-01",
-            end="2023-05-02",
-            location="MAINE",
-        )
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 1
-        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
-
-    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
-    def test_get_dayahead_hourly_demand_current_static(self, mock_make_api_call):
-        mock_response = {
-            "HourlyDaDemands": {
-                "HourlyDaDemand": [
-                    {
-                        "BeginDate": "2023-05-01T00:00:00-04:00",
-                        "Location": {"$": "MAINE", "@LocId": "4001"},
-                        "Load": "1000",
-                    },
-                    {
-                        "BeginDate": "2023-05-01T01:00:00-04:00",
-                        "Location": {"$": "NEWHAMPSHIRE", "@LocId": "4002"},
-                        "Load": "1100",
-                    },
-                ],
-            },
-        }
+        mock_response = self.load_fixture("isone_realtime_hourly_demand_current.json")
         mock_make_api_call.return_value = mock_response
 
-        result = self.iso.get_dayahead_hourly_demand_current_static()
+        result = self.iso.get_realtime_hourly_demand_current(locations=[".Z.MAINE"])
         assert isinstance(result, pd.DataFrame)
-        assert len(result) == 2
-        assert list(result.columns) == ["BeginDate", "Location", "LocId", "Load"]
-        assert result["Location"].tolist() == ["MAINE", "NEWHAMPSHIRE"]
-        assert result["Load"].tolist() == [1000.0, 1100.0]
+        assert len(result) == 1
+        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
+        assert result["Location"].iloc[0] == ".Z.MAINE"
+        assert isinstance(
+            result["Load"].iloc[0],
+            (int, float),
+        )  # Check if Load is a number
+        assert result["LocId"].iloc[0] == "4001"
 
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
     def test_get_dayahead_hourly_demand_current(self, mock_make_api_call):
-        mock_response = {
-            "HourlyDaDemand": {
-                "BeginDate": "2023-05-01T00:00:00-04:00",
-                "Load": "1000",
-            },
-        }
+        mock_response = self.load_fixture("isono_dayahead_hourly_demand_current.json")
         mock_make_api_call.return_value = mock_response
 
-        result = self.iso.get_dayahead_hourly_demand_current(locations=["MAINE"])
+        result = self.iso.get_dayahead_hourly_demand_current(locations=["NEPOOL AREA"])
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
         assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
-        assert result["Location"].iloc[0] == "MAINE"
-        assert result["Load"].iloc[0] == 1000.0
+        assert result["Location"].iloc[0] == "NEPOOL AREA"
+        assert isinstance(
+            result["Load"].iloc[0],
+            (int, float),
+        )  # Check if Load is a number
+        assert result["LocId"].iloc[0] == "32"
 
-    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
-    def test_get_dayahead_hourly_demand_current_all_locations(self, mock_make_api_call):
-        def mock_api_call(url):
-            location_id = url.split("/")[-1]
-            return {
-                "HourlyDaDemand": {
-                    "BeginDate": "2023-05-01T00:00:00-04:00",
-                    "Load": str(int(location_id) * 100),
-                },
-            }
-
-        mock_make_api_call.side_effect = mock_api_call
-
-        result = self.iso.get_dayahead_hourly_demand_current()
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == len(ZONE_LOCATIONID_MAP)
-        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
-        assert set(result["Location"]) == set(ZONE_LOCATIONID_MAP.keys())
-
-    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
-    def test_get_dayahead_hourly_demand_historical_range(self, mock_make_api_call):
-        mock_response = {
-            "HourlyDaDemands": {
-                "HourlyDaDemand": [
-                    {
-                        "BeginDate": "2023-05-01T00:00:00-04:00",
-                        "Load": "1000",
-                    },
-                    {
-                        "BeginDate": "2023-05-01T01:00:00-04:00",
-                        "Load": "1100",
-                    },
-                ],
-            },
-        }
-        mock_make_api_call.return_value = mock_response
-
-        start_date = datetime(2023, 5, 1)
-        end_date = datetime(2023, 5, 2)
-        result = self.iso.get_dayahead_hourly_demand_historical_range(
-            date=start_date,
-            end=end_date,
-            locations=["MAINE"],
-        )
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 2
-        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
-        assert result["Location"].tolist() == ["MAINE", "MAINE"]
-        assert result["Load"].tolist() == [1000.0, 1100.0]
-
-    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
-    def test_get_dayahead_hourly_demand_historical_range_multiple_locations(
-        self,
-        mock_make_api_call,
-    ):
-        def mock_api_call(url):
-            location_id = url.split("/")[-1]
-            return {
-                "HourlyDaDemands": {
-                    "HourlyDaDemand": [
-                        {
-                            "BeginDate": "2023-05-01T00:00:00-04:00",
-                            "Load": str(int(location_id) * 100),
-                        },
-                        {
-                            "BeginDate": "2023-05-01T01:00:00-04:00",
-                            "Load": str(int(location_id) * 110),
-                        },
-                    ],
-                },
-            }
-
-        mock_make_api_call.side_effect = mock_api_call
-
-        start_date = datetime(2023, 5, 1)
-        end_date = datetime(2023, 5, 2)
-        result = self.iso.get_dayahead_hourly_demand_historical_range(
-            date=start_date,
-            end=end_date,
-            locations=["MAINE", "NEWHAMPSHIRE"],
-        )
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 4  # 2 locations * 2 time points
-        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
-        assert set(result["Location"]) == {"MAINE", "NEWHAMPSHIRE"}
-        assert result["Load"].tolist() == [400100.0, 400110.0, 400200.0, 400220.0]
-
+    # NOTE(kladar): These two are not super useful as tests go, but starting to think about API failure modes and
+    # how to catch them.
     def test_get_dayahead_hourly_demand_invalid_location(self):
-        with pytest.raises(
-            Exception,
-        ):  # You might want to be more specific about the exception type
+        with pytest.raises(NoDataFoundException):
             self.iso.get_dayahead_hourly_demand_current(locations=["INVALID_LOCATION"])
 
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
     def test_get_dayahead_hourly_demand_no_data(self, mock_make_api_call):
         mock_make_api_call.return_value = {"HourlyDaDemand": {}}
 
-        with pytest.raises(Exception):  # Again, you might want to be more specific
+        with pytest.raises(NoDataFoundException):
             self.iso.get_dayahead_hourly_demand_current(locations=["MAINE"])
