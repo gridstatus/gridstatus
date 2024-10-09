@@ -36,9 +36,27 @@ def isone_dayahead_hourly_demand_current():
         return json.load(f)
 
 
+@pytest.fixture
+def isone_realtime_hourly_demand_range():
+    with open(
+        os.path.join(FIXTURES_DIR, "isone_realtime_hourly_demand_range.json"),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def isone_dayahead_hourly_demand_range():
+    with open(
+        os.path.join(FIXTURES_DIR, "isone_dayahead_hourly_demand_range.json"),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
 class TestISONEAPI:
-    def __init__(self):
-        self.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
+    def setup_class(cls):
+        cls.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
 
     def test_class_init(self):
         assert self.iso.sleep_seconds == 0.1
@@ -149,7 +167,77 @@ class TestISONEAPI:
 
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
     def test_get_dayahead_hourly_demand_no_data(self, mock_make_api_call):
-        mock_make_api_call.return_value = {"HourlyDaDemand": {}}
+        mock_make_api_call.return_value = {}
 
-        with pytest.raises(NoDataFoundException):
+        with pytest.raises(KeyError) as exc_info:
             self.iso.get_dayahead_hourly_demand_current(locations=["MAINE"])
+
+        assert str(exc_info.value) == "'HourlyDaDemand'"
+
+    # NOTE(kladar): I'm envisioning a future where we update the fixtures occasionally when we run integration tests
+    # and add them to the s3 bucket. We can also have that process update the unit test params here when we update the
+    # fixtures. Also noting that the point of separating the tests is so that we can run them without running the full
+    # integration tests, which is 100x faster for developing and can reasonably autorun the tests on commit.
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            ("2024-07-01", "2024-07-02"),
+        ],
+    )
+    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
+    def test_get_realtime_hourly_demand_historical_range(
+        self,
+        mock_make_api_call,
+        isone_realtime_hourly_demand_range,
+        date,
+        end,
+    ):
+        mock_make_api_call.return_value = isone_realtime_hourly_demand_range
+
+        result = self.iso.get_realtime_hourly_demand_historical_range(
+            date=date,
+            end=end,
+            locations=[".Z.MAINE"],
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
+        assert result["Location"].iloc[0] == ".Z.MAINE"
+        assert isinstance(result["Load"].iloc[0], (int, float))
+        assert result["LocId"].iloc[0] == 4001
+        assert (
+            pd.to_datetime(result["BeginDate"].min()).date()
+            == pd.to_datetime(date).date()
+        )
+        assert (
+            pd.to_datetime(result["BeginDate"].max()).date()
+            == pd.to_datetime(end).date()
+        )
+
+    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
+    def test_get_dayahead_hourly_demand_historical_range(
+        self,
+        mock_make_api_call,
+        isone_dayahead_hourly_demand_range,
+    ):
+        mock_make_api_call.return_value = isone_dayahead_hourly_demand_range
+
+        result = self.iso.get_dayahead_hourly_demand_historical_range(
+            date="2023-05-01",
+            end="2023-05-02",
+            locations=["NEPOOL"],
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        assert list(result.columns) == ["BeginDate", "Load", "Location", "LocId"]
+        assert result["Location"].iloc[0] == "NEPOOL"
+        assert isinstance(result["Load"].iloc[0], (int, float))
+        assert result["LocId"].iloc[0] == 32
+        assert (
+            pd.to_datetime(result["BeginDate"].min()).date()
+            == pd.to_datetime("2023-05-01").date()
+        )
+        assert (
+            pd.to_datetime(result["BeginDate"].max()).date()
+            == pd.to_datetime("2023-05-02").date()
+        )
