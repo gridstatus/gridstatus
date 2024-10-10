@@ -698,6 +698,26 @@ class PJM(ISOBase):
             .sort_values("pnode_id")
             .reset_index(drop=True)
         )
+
+        # this is needed because rt_unverified_fivemin_lmps
+        # doesn't have short name
+        # so we need to extract it from full name
+        # other LMP datasets have but do it this way
+        # for consistent logic
+        def extract_short_name(row):
+            if row["voltage_level"] is None or pd.isna(row["voltage_level"]):
+                return row["pnode_name"]
+            else:
+                # Find the index where voltage_level starts
+                # and extract everything before it
+                index = row["pnode_name"].find(row["voltage_level"])
+                # if not found, return full name
+                if index == -1:
+                    return row["pnode_name"]
+                return row["pnode_name"][:index].strip()
+
+        nodes["pnode_short_name"] = nodes.apply(extract_short_name, axis=1)
+
         return nodes
 
     @lmp_config(
@@ -866,32 +886,6 @@ class PJM(ISOBase):
                 - data["marginal_loss_price_rt"]
             )
 
-        # the pnode_name in the lmp data isn't always full name
-        # so, let drop it for now
-        # will get full name by merge with pnode data later
-        data = data.drop(columns=["pnode_name"])
-
-        p_nodes = self.get_pnode_ids()[["pnode_id", "pnode_name", "voltage_level"]]
-
-        # this is needed because rt_unverified_fivemin_lmps
-        # doesn't have short name
-        # so we need to extract it from full name
-        # other LMP datasets have but do it this way
-        # for consistent logic
-        def extract_short_name(row):
-            if row["voltage_level"] is None or pd.isna(row["voltage_level"]):
-                return row["pnode_name"]
-            else:
-                # Find the index where voltage_level starts
-                # and extract everything before it
-                index = row["pnode_name"].find(row["voltage_level"])
-                # if not found, return full name
-                if index == -1:
-                    return row["pnode_name"]
-                return row["pnode_name"][:index].strip()
-
-        p_nodes["pnode_short_name"] = p_nodes.apply(extract_short_name, axis=1)
-
         # API cannot filter location type for rt 5 min
         data = data.rename(columns={"type": "Location Type"})
         if location_type and market == Markets.REAL_TIME_5_MIN:
@@ -905,7 +899,7 @@ class PJM(ISOBase):
                 map(int, locations),
             )
 
-        data = data.merge(p_nodes)
+        data = self._add_pnode_info_to_lmp_data(data)
 
         data = data.rename(
             columns={
@@ -940,6 +934,83 @@ class PJM(ISOBase):
         data = data.sort_values("Interval Start")
 
         return data
+
+    def _add_pnode_info_to_lmp_data(self, data):
+        # the pnode_name in the lmp data isn't always full name
+        # so, let drop it for now
+        # will get full name by merge with pnode data later
+        data = data.drop(columns=["pnode_name"])
+
+        p_nodes = self.get_pnode_ids()[
+            ["pnode_id", "pnode_name", "voltage_level", "pnode_short_name"]
+        ]
+
+        data = data.merge(p_nodes, on="pnode_id")
+
+        return data
+
+    @support_date_range(frequency=None)
+    def get_it_sced_lmp_5_min(self, date, end=None, verbose=False):
+        """Get 5 minute LMPs from the Integrated Forward Market (IFM)"""
+
+        if date == "latest":
+            return self.get_it_sced_lmp_5_min("today", verbose=verbose)
+
+        params = {
+            "fields": (
+                "case_approval_datetime_utc,datetime_beginning_utc,itsced_lmp,marginal_congestion,marginal_loss,pnode_id,pnode_name"  # noqa: E501
+            ),
+        }
+
+        df = self._get_pjm_json(
+            "five_min_itsced_lmps",
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            interval_duration_min=5,
+        )
+
+        df = self._add_pnode_info_to_lmp_data(df)
+
+        df.columns = df.columns.map(lambda x: x.replace("_", " ").title())
+
+        df = df.rename(
+            columns={
+                "Case Approval Datetime Utc": "Case Approval Time",
+                "Itsced Lmp": "LMP",
+                "Pnode Id": "Location Id",
+                "Pnode Name": "Location Name",
+                "Pnode Short Name": "Location Short Name",
+                "Marginal Congestion": "Congestion",
+                "Marginal Loss": "Loss",
+            },
+        )
+
+        # LMP = Energy + Congestion + Loss so Energy = LMP - Congestion - Loss
+        df["Energy"] = df["LMP"] - df["Congestion"] - df["Loss"]
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Case Approval Time",
+                "Location Id",
+                "Location Name",
+                "Location Short Name",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
+
+        df["Case Approval Time"] = pd.to_datetime(
+            df["Case Approval Time"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+
+        return df
 
     def _get_pjm_json(
         self,
