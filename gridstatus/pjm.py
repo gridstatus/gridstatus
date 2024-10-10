@@ -698,6 +698,26 @@ class PJM(ISOBase):
             .sort_values("pnode_id")
             .reset_index(drop=True)
         )
+
+        # this is needed because rt_unverified_fivemin_lmps
+        # doesn't have short name
+        # so we need to extract it from full name
+        # other LMP datasets have but do it this way
+        # for consistent logic
+        def extract_short_name(row):
+            if row["voltage_level"] is None or pd.isna(row["voltage_level"]):
+                return row["pnode_name"]
+            else:
+                # Find the index where voltage_level starts
+                # and extract everything before it
+                index = row["pnode_name"].find(row["voltage_level"])
+                # if not found, return full name
+                if index == -1:
+                    return row["pnode_name"]
+                return row["pnode_name"][:index].strip()
+
+        nodes["pnode_short_name"] = nodes.apply(extract_short_name, axis=1)
+
         return nodes
 
     @lmp_config(
@@ -866,32 +886,6 @@ class PJM(ISOBase):
                 - data["marginal_loss_price_rt"]
             )
 
-        # the pnode_name in the lmp data isn't always full name
-        # so, let drop it for now
-        # will get full name by merge with pnode data later
-        data = data.drop(columns=["pnode_name"])
-
-        p_nodes = self.get_pnode_ids()[["pnode_id", "pnode_name", "voltage_level"]]
-
-        # this is needed because rt_unverified_fivemin_lmps
-        # doesn't have short name
-        # so we need to extract it from full name
-        # other LMP datasets have but do it this way
-        # for consistent logic
-        def extract_short_name(row):
-            if row["voltage_level"] is None or pd.isna(row["voltage_level"]):
-                return row["pnode_name"]
-            else:
-                # Find the index where voltage_level starts
-                # and extract everything before it
-                index = row["pnode_name"].find(row["voltage_level"])
-                # if not found, return full name
-                if index == -1:
-                    return row["pnode_name"]
-                return row["pnode_name"][:index].strip()
-
-        p_nodes["pnode_short_name"] = p_nodes.apply(extract_short_name, axis=1)
-
         # API cannot filter location type for rt 5 min
         data = data.rename(columns={"type": "Location Type"})
         if location_type and market == Markets.REAL_TIME_5_MIN:
@@ -905,7 +899,7 @@ class PJM(ISOBase):
                 map(int, locations),
             )
 
-        data = data.merge(p_nodes)
+        data = self._add_pnode_info_to_lmp_data(data)
 
         data = data.rename(
             columns={
@@ -941,6 +935,20 @@ class PJM(ISOBase):
 
         return data
 
+    def _add_pnode_info_to_lmp_data(self, data):
+        # the pnode_name in the lmp data isn't always full name
+        # so, let drop it for now
+        # will get full name by merge with pnode data later
+        data = data.drop(columns=["pnode_name"])
+
+        p_nodes = self.get_pnode_ids()[
+            ["pnode_id", "pnode_name", "voltage_level", "pnode_short_name"]
+        ]
+
+        data = data.merge(p_nodes, on="pnode_id")
+
+        return data
+
     @support_date_range(frequency=None)
     def get_it_sced_lmp_5_min(self, date, end=None, verbose=False):
         """Get 5 minute LMPs from the Integrated Forward Market (IFM)"""
@@ -963,13 +971,17 @@ class PJM(ISOBase):
             interval_duration_min=5,
         )
 
+        df = self._add_pnode_info_to_lmp_data(df)
+
         df.columns = df.columns.map(lambda x: x.replace("_", " ").title())
 
         df = df.rename(
             columns={
                 "Case Approval Datetime Utc": "Case Approval Time",
                 "Itsced Lmp": "LMP",
-                "Pnode Id": "Pnode ID",
+                "Pnode Id": "Location Id",
+                "Pnode Name": "Location Name",
+                "Pnode Short Name": "Location Short Name",
                 "Marginal Congestion": "Congestion",
                 "Marginal Loss": "Loss",
             },
@@ -983,8 +995,9 @@ class PJM(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Case Approval Time",
-                "Pnode ID",
-                "Pnode Name",
+                "Location Id",
+                "Location Name",
+                "Location Short Name",
                 "LMP",
                 "Energy",
                 "Congestion",
