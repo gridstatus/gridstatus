@@ -3,7 +3,7 @@ import logging
 
 def setup_gs_etl_logger():
     logger = logging.getLogger("gs_etl")
-    logger.setLevel(logging.INFO)  # Set the logger level to DEBUG
+    logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
     handler.setLevel(logging.INFO)
     handler.setFormatter(
