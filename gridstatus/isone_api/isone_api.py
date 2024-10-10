@@ -139,7 +139,7 @@ class ISONEAPI:
 
     def get_locations(self) -> pd.DataFrame:
         """
-        Get a list of all locations.
+        Get a list of core hub and zone locations.
 
         Returns:
             pandas.DataFrame: A DataFrame containing location information.
