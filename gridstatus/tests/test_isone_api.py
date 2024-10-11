@@ -68,9 +68,6 @@ class TestISONEAPI:
     def test_zone_locationid_map(self):
         for zone, location_id in ZONE_LOCATIONID_MAP.items():
             assert ZONE_LOCATIONID_MAP[zone] == location_id
-            # Test that the zone name without ".Z." prefix also works
-            if zone.startswith(".Z."):
-                assert ZONE_LOCATIONID_MAP[zone.replace(".Z.", "")] == location_id
 
     @patch("gridstatus.isone_api.isone_api.requests.get")
     def test_make_api_call(self, mock_get):
@@ -127,12 +124,12 @@ class TestISONEAPI:
     ):
         mock_make_api_call.return_value = isone_realtime_hourly_demand_current
 
-        result = self.iso.get_realtime_hourly_demand_current(locations=["MAINE"])
+        result = self.iso.get_realtime_hourly_demand_current(locations=[".Z.MAINE"])
 
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
         assert list(result.columns) == ["Interval Start", "Location", "LocId", "Load"]
-        assert result["Location"].iloc[0] == "MAINE"
+        assert result["Location"].iloc[0] == ".Z.MAINE"
         assert result["LocId"].iloc[0] == 4001
         assert isinstance(result["Load"].iloc[0], (int, float))
 
@@ -144,11 +141,11 @@ class TestISONEAPI:
     ):
         mock_make_api_call.return_value = isone_dayahead_hourly_demand_current
 
-        result = self.iso.get_dayahead_hourly_demand_current(locations=["NEPOOL"])
+        result = self.iso.get_dayahead_hourly_demand_current(locations=["NEPOOL AREA"])
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
         assert list(result.columns) == ["Interval Start", "Location", "LocId", "Load"]
-        assert result["Location"].iloc[0] == "NEPOOL"
+        assert result["Location"].iloc[0] == "NEPOOL AREA"
         assert result["LocId"].iloc[0] == 32
         assert isinstance(result["Load"].iloc[0], np.number)
 
@@ -163,7 +160,7 @@ class TestISONEAPI:
         mock_make_api_call.return_value = {}
 
         with pytest.raises(KeyError) as exc_info:
-            self.iso.get_dayahead_hourly_demand_current(locations=["MAINE"])
+            self.iso.get_dayahead_hourly_demand_current(locations=[".Z.MAINE"])
 
         assert str(exc_info.value) == "'HourlyDaDemand'"
 
@@ -190,12 +187,12 @@ class TestISONEAPI:
         result = self.iso.get_realtime_hourly_demand_historical_range(
             date=date,
             end=end,
-            locations=["MAINE"],
+            locations=[".Z.MAINE"],
         )
         assert isinstance(result, pd.DataFrame)
         assert len(result) > 0
         assert list(result.columns) == ["Interval Start", "Location", "LocId", "Load"]
-        assert result["Location"].iloc[0] == "MAINE"
+        assert result["Location"].iloc[0] == ".Z.MAINE"
         assert result["LocId"].iloc[0] == 4001
         assert isinstance(result["Load"].iloc[0], (int, float))
 
@@ -218,11 +215,11 @@ class TestISONEAPI:
         result = self.iso.get_dayahead_hourly_demand_historical_range(
             date=date,
             end=end,
-            locations=["MAINE"],
+            locations=[".Z.MAINE"],
         )
         assert isinstance(result, pd.DataFrame)
         assert len(result) > 0
         assert list(result.columns) == ["Interval Start", "Location", "LocId", "Load"]
-        assert result["Location"].iloc[0] == "MAINE"
+        assert result["Location"].iloc[0] == ".Z.MAINE"
         assert result["LocId"].iloc[0] == 4001
         assert isinstance(result["Load"].iloc[0], (int, float))
