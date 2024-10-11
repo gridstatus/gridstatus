@@ -207,38 +207,10 @@ class ISONEAPI:
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         df["LocId"] = pd.to_numeric(df["LocId"], errors="coerce")
         df = df.rename(columns={"BeginDate": "Interval Start"})
-        return df[["Interval Start", "Location", "LocId", "Load"]]
+        df["Location ID"] = df["LocId"]
+        return df[["Interval Start", "Location", "Location ID", "Load"]]
 
-    def get_realtime_hourly_demand_current_static(self) -> pd.DataFrame:
-        """
-        Get the most recent real-time hourly demand data for default locations.
-
-        Returns:
-            pandas.DataFrame: A DataFrame containing the real-time hourly demand data for default locations.
-        """
-        url = f"{BASE_URL}/realtimehourlydemand/current"
-        response = self.make_api_call(url)
-
-        if (
-            "HourlyRtDemands" not in response
-            or "HourlyRtDemand" not in response["HourlyRtDemands"]
-        ):
-            raise NoDataFoundException("No real-time hourly demand data found.")
-
-        formatted_data = [
-            {
-                "BeginDate": entry["BeginDate"],
-                "Location": entry["Location"]["$"],
-                "LocId": entry["Location"]["@LocId"],
-                "Load": entry["Load"],
-            }
-            for entry in response["HourlyRtDemands"]["HourlyRtDemand"]
-        ]
-
-        df = pd.DataFrame(formatted_data)
-        return self._handle_demand(df)
-
-    def get_realtime_hourly_demand_current(
+    def get_realtime_hourly_demand_latest(
         self,
         locations: list[str] = None,
     ) -> pd.DataFrame:
@@ -326,36 +298,7 @@ class ISONEAPI:
         df = pd.DataFrame(all_data)
         return self._handle_demand(df)
 
-    def get_dayahead_hourly_demand_current_static(self) -> pd.DataFrame:
-        """
-        Get the most recent day-ahead hourly demand data for default locations.
-
-        Returns:
-            pandas.DataFrame: A DataFrame containing the day-ahead hourly demand data for default locations.
-        """
-        url = f"{BASE_URL}/dayaheadhourlydemand/current"
-        response = self.make_api_call(url)
-
-        if (
-            "HourlyDaDemands" not in response
-            or "HourlyDaDemand" not in response["HourlyDaDemands"]
-        ):
-            raise NoDataFoundException("No day-ahead hourly demand data found.")
-
-        formatted_data = [
-            {
-                "BeginDate": entry["BeginDate"],
-                "Location": entry["Location"]["$"],
-                "LocId": entry["Location"]["@LocId"],
-                "Load": entry["Load"],
-            }
-            for entry in response["HourlyDaDemands"]["HourlyDaDemand"]
-        ]
-
-        df = pd.DataFrame(formatted_data)
-        return self._handle_demand(df)
-
-    def get_dayahead_hourly_demand_current(
+    def get_dayahead_hourly_demand_latest(
         self,
         locations: list[str] = None,
     ) -> pd.DataFrame:
