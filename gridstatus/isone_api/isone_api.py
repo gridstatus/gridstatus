@@ -284,9 +284,7 @@ class ISONEAPI:
 
                     url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
-                    print(response)
                     data = response["HourlyRtDemands"]["HourlyRtDemand"]
-                    print(data)
                     if not data:
                         raise NoDataFoundException(
                             f"No data found for location: {location}. In favor of not returning incomplete data based on the request, no data has been returned. Please try again.",
