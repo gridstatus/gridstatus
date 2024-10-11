@@ -4,7 +4,6 @@ import time
 import pandas as pd
 import requests
 
-from gridstatus import utils
 from gridstatus.base import NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
@@ -64,32 +63,7 @@ class ISONEAPI:
         self.initial_delay = min(max(0.1, sleep_seconds), 60.0)
         self.max_retries = min(max(0, max_retries), 10)
 
-    def _handle_end_date(
-        self,
-        date: pd.Timestamp,
-        end: pd.Timestamp | None,
-        days_to_add_if_no_end: int,
-    ) -> pd.Timestamp:
-        """
-        Handles a provided end date by either
-
-        1. Using the provided end date converted to the default timezone
-        2. Adding the number of days to the date and converting to the default timezone
-        """
-        if end:
-            end = utils._handle_date(end, tz=self.default_timezone)
-        else:
-            # Have to convert to UTC to do addition, then convert back to local time
-            # to avoid DST issues
-            end = (
-                (date.tz_convert("UTC") + pd.DateOffset(days=days_to_add_if_no_end))
-                .normalize()
-                .tz_localize(None)
-                .tz_localize(self.default_timezone)
-            )
-
-        return end
-
+    # TODO(kladar) abstract this out to a base class since it is shared with ERCOT API logic
     def make_api_call(
         self,
         url: str,
@@ -208,7 +182,9 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: Processed DataFrame.
         """
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"])
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"]).dt.tz_convert(
+            self.default_timezone,
+        )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(
             minutes=interval_minutes,
         )
