@@ -15,6 +15,8 @@ BASE_URL = "https://webservices.iso-ne.com/api/v1.1"
 # Default page size for API requests
 DEFAULT_PAGE_SIZE = 1000
 
+
+# See more info here: https://www.iso-ne.com/participate/support/web-services-data#loadzone
 ZONE_LOCATIONID_MAP = {
     "NEPOOL AREA": 32,
     ".H.INTERNALHUB": 4000,
@@ -29,8 +31,8 @@ ZONE_LOCATIONID_MAP = {
 }
 
 EXCLUDE_FROM_REALTIME_HOURLY_DEMAND = [
-    "NEPOOL",
-    "INTERNALHUB",
+    "NEPOOL AREA",
+    ".H.INTERNALHUB",
 ]
 
 
