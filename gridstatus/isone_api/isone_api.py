@@ -334,13 +334,6 @@ class ISONEAPI:
                     all_data.extend(data)
 
             case _:
-                start_date = utils._handle_date(date, tz=self.default_timezone)
-                end_date = self._handle_end_date(
-                    start_date,
-                    end_date,
-                    days_to_add_if_no_end=1,
-                )
-
                 if not locations:
                     locations = list(ZONE_LOCATIONID_MAP.keys())
 
@@ -352,16 +345,13 @@ class ISONEAPI:
                         )
                         continue
 
-                    current_date = start_date
-                    while current_date <= end_date:
-                        url = f"{BASE_URL}/dayaheadhourlydemand/day/{current_date.strftime('%Y%m%d')}/location/{location_id}"
-                        response = self.make_api_call(url)
-                        data = response["HourlyDaDemand"]
-                        for item in data:
-                            item["Location"] = location
-                            item["Location Id"] = location_id
-                        all_data.extend(data)
-                        current_date += pd.Timedelta(days=1)
+                    url = f"{BASE_URL}/dayaheadhourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
+                    response = self.make_api_call(url)
+                    data = response["HourlyDaDemand"]
+                    for item in data:
+                        item["Location"] = location
+                        item["Location Id"] = location_id
+                    all_data.extend(data)
 
         if not all_data:
             raise NoDataFoundException(
