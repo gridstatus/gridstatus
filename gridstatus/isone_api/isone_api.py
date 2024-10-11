@@ -246,13 +246,16 @@ class ISONEAPI:
                 for location in locations:
                     location_id = ZONE_LOCATIONID_MAP.get(location)
                     if not location_id:
-                        log.warning(
+                        raise ValueError(
                             f"{location}: Not a known ISO NE Hub or Zone for this data",
                         )
-                        continue
                     url = f"{BASE_URL}/realtimehourlydemand/current/location/{location_id}"
                     response = self.make_api_call(url)
                     data = response["HourlyRtDemand"]
+                    if not data:
+                        raise NoDataFoundException(
+                            f"No data found for location: {location}",
+                        )
                     for item in data:
                         item["Location"] = location
                         item["Location Id"] = location_id
@@ -269,14 +272,17 @@ class ISONEAPI:
                 for location in locations:
                     location_id = ZONE_LOCATIONID_MAP.get(location)
                     if not location_id:
-                        log.warning(
+                        raise ValueError(
                             f"{location}: Not a known ISO NE Hub or Zone for this data",
                         )
-                        continue
 
                     url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
                     data = response["HourlyRtDemand"]
+                    if not data:
+                        raise NoDataFoundException(
+                            f"No data found for location: {location}. In favor of not returning incomplete data based on the request, no data has been returned. Please try again.",
+                        )
                     for item in data:
                         item["Location"] = location
                         item["Location Id"] = location_id
@@ -321,13 +327,16 @@ class ISONEAPI:
                 for location in locations:
                     location_id = ZONE_LOCATIONID_MAP.get(location)
                     if not location_id:
-                        log.warning(
+                        raise ValueError(
                             f"{location}: Not a known ISO NE Hub or Zone for this data",
                         )
-                        continue
                     url = f"{BASE_URL}/dayaheadhourlydemand/current/location/{location_id}"
                     response = self.make_api_call(url)
                     data = response["HourlyDaDemand"]
+                    if not data:
+                        raise NoDataFoundException(
+                            f"No data found for location: {location}. In favor of not returning incomplete data based on the request, no data has been returned. Please try again.",
+                        )
                     for item in data:
                         item["Location"] = location
                         item["Location Id"] = location_id
@@ -340,10 +349,9 @@ class ISONEAPI:
                 for location in locations:
                     location_id = ZONE_LOCATIONID_MAP.get(location)
                     if not location_id:
-                        log.warning(
+                        raise ValueError(
                             f"{location}: Not a known ISO NE Hub or Zone for this data",
                         )
-                        continue
 
                     url = f"{BASE_URL}/dayaheadhourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
