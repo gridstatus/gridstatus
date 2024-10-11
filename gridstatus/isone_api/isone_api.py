@@ -260,10 +260,9 @@ class ISONEAPI:
                         raise NoDataFoundException(
                             f"No data found for location: {location}",
                         )
-                    for item in data:
-                        item["Location"] = location
-                        item["LocId"] = location_id
-                    all_data.extend(data)
+                    data["Location"] = location
+                    data["LocId"] = location_id
+                    all_data.append(data)
 
             case _:
                 if not locations:
@@ -275,14 +274,19 @@ class ISONEAPI:
 
                 for location in locations:
                     location_id = ZONE_LOCATIONID_MAP.get(location)
-                    if not location_id:
+                    if (
+                        not location_id
+                        or location in EXCLUDE_FROM_REALTIME_HOURLY_DEMAND
+                    ):
                         raise ValueError(
                             f"{location}: Not a known ISO NE Hub or Zone for this data",
                         )
 
                     url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
-                    data = response["HourlyRtDemand"]
+                    print(response)
+                    data = response["HourlyRtDemands"]["HourlyRtDemand"]
+                    print(data)
                     if not data:
                         raise NoDataFoundException(
                             f"No data found for location: {location}. In favor of not returning incomplete data based on the request, no data has been returned. Please try again.",
@@ -344,10 +348,9 @@ class ISONEAPI:
                         raise NoDataFoundException(
                             f"No data found for location: {location}. In favor of not returning incomplete data based on the request, no data has been returned. Please try again.",
                         )
-                    for item in data:
-                        item["Location"] = location
-                        item["LocId"] = location_id
-                    all_data.extend(data)
+                    data["Location"] = location
+                    data["LocId"] = location_id
+                    all_data.append(data)
 
             case _:
                 if not locations:
@@ -362,7 +365,8 @@ class ISONEAPI:
 
                     url = f"{BASE_URL}/dayaheadhourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
-                    data = response["HourlyDaDemand"]
+
+                    data = response["HourlyDaDemands"]["HourlyDaDemand"]
                     for item in data:
                         item["Location"] = location
                         item["LocId"] = location_id
