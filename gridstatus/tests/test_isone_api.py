@@ -117,14 +117,17 @@ class TestISONEAPI:
         ]
 
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
-    def test_get_realtime_hourly_demand_current(
+    def test_get_realtime_hourly_demand_latest(
         self,
         mock_make_api_call,
-        isone_realtime_hourly_demand_current,
+        isone_realtime_hourly_demand_latest,
     ):
-        mock_make_api_call.return_value = isone_realtime_hourly_demand_current
+        mock_make_api_call.return_value = isone_realtime_hourly_demand_latest
 
-        result = self.iso.get_realtime_hourly_demand_current(locations=[".Z.MAINE"])
+        result = self.iso.get_realtime_hourly_demand(
+            locations=[".Z.MAINE"],
+            date="latest",
+        )
 
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
@@ -146,7 +149,7 @@ class TestISONEAPI:
     ):
         mock_make_api_call.return_value = isone_dayahead_hourly_demand_latest
 
-        result = self.iso.get_dayahead_hourly_demand_latest(locations=["NEPOOL AREA"])
+        result = self.iso.get_dayahead_hourly_demand(locations=["NEPOOL AREA"])
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
         assert list(result.columns) == [
@@ -163,14 +166,14 @@ class TestISONEAPI:
     # how to catch them.
     def test_get_dayahead_hourly_demand_invalid_location(self):
         with pytest.raises(NoDataFoundException):
-            self.iso.get_dayahead_hourly_demand_latest(locations=["INVALID_LOCATION"])
+            self.iso.get_dayahead_hourly_demand(locations=["INVALID_LOCATION"])
 
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
     def test_get_dayahead_hourly_demand_no_data(self, mock_make_api_call):
         mock_make_api_call.return_value = {}
 
         with pytest.raises(KeyError) as exc_info:
-            self.iso.get_dayahead_hourly_demand_latest(locations=[".Z.MAINE"])
+            self.iso.get_dayahead_hourly_demand(locations=[".Z.MAINE"])
 
         assert str(exc_info.value) == "'HourlyDaDemand'"
 
@@ -227,7 +230,7 @@ class TestISONEAPI:
     ):
         mock_make_api_call.return_value = isone_dayahead_hourly_demand_range
 
-        result = self.iso.get_dayahead_hourly_demand_historical_range(
+        result = self.iso.get_dayahead_hourly_demand(
             date=date,
             end=end,
             locations=[".Z.MAINE"],
