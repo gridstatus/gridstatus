@@ -211,9 +211,9 @@ class ISONEAPI:
         df["BeginDate"] = pd.to_datetime(df["BeginDate"])
         df["Interval End"] = df["BeginDate"] + pd.Timedelta(minutes=interval_minutes)
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["Location ID"] = pd.to_numeric(df["LocId"], errors="coerce")
+        df["Location Id"] = pd.to_numeric(df["Location Id"], errors="coerce")
         df = df.rename(columns={"BeginDate": "Interval Start"})
-        return df[["Interval Start", "Interval End", "Location", "Location ID", "Load"]]
+        return df[["Interval Start", "Interval End", "Location", "Location Id", "Load"]]
 
     @support_date_range("DAY_START")
     def get_realtime_hourly_demand(
@@ -255,17 +255,10 @@ class ISONEAPI:
                     data = response["HourlyRtDemand"]
                     for item in data:
                         item["Location"] = location
-                        item["Location ID"] = location_id
+                        item["Location Id"] = location_id
                     all_data.extend(data)
 
             case _:
-                start_date = utils._handle_date(date, tz=self.default_timezone)
-                end_date = self._handle_end_date(
-                    start_date,
-                    end_date,
-                    days_to_add_if_no_end=1,
-                )
-
                 if not locations:
                     locations = [
                         loc
@@ -281,16 +274,13 @@ class ISONEAPI:
                         )
                         continue
 
-                    current_date = start_date
-                    while current_date <= end_date:
-                        url = f"{BASE_URL}/realtimehourlydemand/day/{current_date.strftime('%Y%m%d')}/location/{location_id}"
-                        response = self.make_api_call(url)
-                        data = response["HourlyRtDemand"]
-                        for item in data:
-                            item["Location"] = location
-                            item["Location ID"] = location_id
-                        all_data.extend(data)
-                        current_date += pd.Timedelta(days=1)
+                    url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
+                    response = self.make_api_call(url)
+                    data = response["HourlyRtDemand"]
+                    for item in data:
+                        item["Location"] = location
+                        item["Location Id"] = location_id
+                    all_data.extend(data)
 
         if not all_data:
             raise NoDataFoundException(
@@ -340,7 +330,7 @@ class ISONEAPI:
                     data = response["HourlyDaDemand"]
                     for item in data:
                         item["Location"] = location
-                        item["LocId"] = location_id
+                        item["Location Id"] = location_id
                     all_data.extend(data)
 
             case _:
@@ -369,7 +359,7 @@ class ISONEAPI:
                         data = response["HourlyDaDemand"]
                         for item in data:
                             item["Location"] = location
-                            item["LocId"] = location_id
+                            item["Location Id"] = location_id
                         all_data.extend(data)
                         current_date += pd.Timedelta(days=1)
 
