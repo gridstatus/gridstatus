@@ -36,6 +36,8 @@ def date_range_maker(start, end, freq, inclusive="neither"):
     return dates
 
 
+# TODO(kladar): Add support for date or start to be in kwargs dict as well, since some APIs have
+# current or latest endpoints that are automatically handled
 class support_date_range:
     def __init__(self, frequency, update_dates=None):
         """Maximum frequency of ranges. if None, then no new ranges are created."""

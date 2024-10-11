@@ -6,6 +6,7 @@ import requests
 
 from gridstatus import utils
 from gridstatus.base import NoDataFoundException
+from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
 
 # API base URL
@@ -215,10 +216,10 @@ class ISONEAPI:
         df["Location Id"] = pd.to_numeric(df["LocId"], errors="coerce")
         return df[["Interval Start", "Interval End", "Location", "Location Id", "Load"]]
 
-    # @support_date_range("DAY_START")
+    @support_date_range("DAY_START")
     def get_realtime_hourly_demand(
         self,
-        date: str = "latest",
+        date,
         end_date: str | None = None,
         locations: list[str] = None,
     ) -> pd.DataFrame:
@@ -237,7 +238,7 @@ class ISONEAPI:
         all_data = []
 
         match (date, locations):
-            case ("latest", None) | (None, None):
+            case ("latest", None):
                 url = f"{BASE_URL}/realtimehourlydemand/current"
                 response = self.make_api_call(url)
                 df = pd.DataFrame(response["HourlyRtDemands"]["HourlyRtDemand"])
@@ -299,7 +300,7 @@ class ISONEAPI:
         df = pd.DataFrame(all_data)
         return self._handle_demand(df, interval_minutes=60)
 
-    # @support_date_range("DAY_START")
+    @support_date_range("DAY_START")
     def get_dayahead_hourly_demand(
         self,
         date: str = "latest",
