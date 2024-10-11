@@ -6,7 +6,6 @@ import requests
 
 from gridstatus import utils
 from gridstatus.base import NoDataFoundException
-from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
 
 # API base URL
@@ -208,14 +207,15 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: Processed DataFrame.
         """
-        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
-        df["Interval End"] = df["BeginDate"] + pd.Timedelta(minutes=interval_minutes)
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"])
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=interval_minutes,
+        )
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["Location Id"] = pd.to_numeric(df["Location Id"], errors="coerce")
-        df = df.rename(columns={"BeginDate": "Interval Start"})
+        df["Location Id"] = pd.to_numeric(df["LocId"], errors="coerce")
         return df[["Interval Start", "Interval End", "Location", "Location Id", "Load"]]
 
-    @support_date_range("DAY_START")
+    # @support_date_range("DAY_START")
     def get_realtime_hourly_demand(
         self,
         date: str = "latest",
@@ -240,7 +240,10 @@ class ISONEAPI:
             case ("latest", None) | (None, None):
                 url = f"{BASE_URL}/realtimehourlydemand/current"
                 response = self.make_api_call(url)
-                all_data.extend(response["HourlyRtDemands"]["HourlyRtDemand"])
+                df = pd.DataFrame(response["HourlyRtDemands"]["HourlyRtDemand"])
+                df["LocId"] = df["Location"].apply(lambda x: x["@LocId"])
+                df["Location"] = df["Location"].apply(lambda x: x["$"])
+                return self._handle_demand(df, interval_minutes=60)
 
             case ("latest", _):
                 for location in locations:
@@ -258,7 +261,7 @@ class ISONEAPI:
                         )
                     for item in data:
                         item["Location"] = location
-                        item["Location Id"] = location_id
+                        item["LocId"] = location_id
                     all_data.extend(data)
 
             case _:
@@ -285,7 +288,7 @@ class ISONEAPI:
                         )
                     for item in data:
                         item["Location"] = location
-                        item["Location Id"] = location_id
+                        item["LocId"] = location_id
                     all_data.extend(data)
 
         if not all_data:
@@ -296,7 +299,7 @@ class ISONEAPI:
         df = pd.DataFrame(all_data)
         return self._handle_demand(df, interval_minutes=60)
 
-    @support_date_range("DAY_START")
+    # @support_date_range("DAY_START")
     def get_dayahead_hourly_demand(
         self,
         date: str = "latest",
@@ -318,10 +321,13 @@ class ISONEAPI:
         all_data = []
 
         match (date, locations):
-            case ("latest", None) | (None, None):
+            case ("latest", None):
                 url = f"{BASE_URL}/dayaheadhourlydemand/current"
                 response = self.make_api_call(url)
-                all_data.extend(response["HourlyDaDemands"]["HourlyDaDemand"])
+                df = pd.DataFrame(response["HourlyDaDemands"]["HourlyDaDemand"])
+                df["LocId"] = df["Location"].apply(lambda x: x["@LocId"])
+                df["Location"] = df["Location"].apply(lambda x: x["$"])
+                return self._handle_demand(df, interval_minutes=60)
 
             case ("latest", _):
                 for location in locations:
@@ -339,7 +345,7 @@ class ISONEAPI:
                         )
                     for item in data:
                         item["Location"] = location
-                        item["Location Id"] = location_id
+                        item["LocId"] = location_id
                     all_data.extend(data)
 
             case _:
@@ -358,7 +364,7 @@ class ISONEAPI:
                     data = response["HourlyDaDemand"]
                     for item in data:
                         item["Location"] = location
-                        item["Location Id"] = location_id
+                        item["LocId"] = location_id
                     all_data.extend(data)
 
         if not all_data:

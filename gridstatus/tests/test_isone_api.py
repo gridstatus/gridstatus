@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gridstatus.base import NoDataFoundException
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 
 # Define the fixtures directory
@@ -133,6 +132,7 @@ class TestISONEAPI:
         assert len(result) == 1
         assert list(result.columns) == [
             "Interval Start",
+            "Interval End",
             "Location",
             "Location ID",
             "Load",
@@ -154,18 +154,19 @@ class TestISONEAPI:
         assert len(result) == 1
         assert list(result.columns) == [
             "Interval Start",
+            "Interval End",
             "Location",
             "Location ID",
             "Load",
         ]
-        assert result["Location"].iloc[0] == ".Z.NEPOOL AREA"
+        assert result["Location"].iloc[0] == "NEPOOL AREA"
         assert result["Location ID"].iloc[0] == 32
         assert isinstance(result["Load"].iloc[0], np.number)
 
     # NOTE(kladar): These two are not super useful as tests go, but starting to think about API failure modes and
     # how to catch them.
     def test_get_dayahead_hourly_demand_invalid_location(self):
-        with pytest.raises(NoDataFoundException):
+        with pytest.raises(ValueError):
             self.iso.get_dayahead_hourly_demand(locations=["INVALID_LOCATION"])
 
     @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
@@ -197,7 +198,7 @@ class TestISONEAPI:
     ):
         mock_make_api_call.return_value = isone_realtime_hourly_demand_range
 
-        result = self.iso.get_realtime_hourly_demand_historical_range(
+        result = self.iso.get_realtime_hourly_demand(
             date=date,
             end=end,
             locations=[".Z.MAINE"],
@@ -206,6 +207,7 @@ class TestISONEAPI:
         assert len(result) > 0
         assert list(result.columns) == [
             "Interval Start",
+            "Interval End",
             "Location",
             "Location ID",
             "Load",
@@ -239,6 +241,7 @@ class TestISONEAPI:
         assert len(result) > 0
         assert list(result.columns) == [
             "Interval Start",
+            "Interval End",
             "Location",
             "Location ID",
             "Load",
