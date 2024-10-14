@@ -28,6 +28,15 @@ def isone_realtime_hourly_demand_latest():
 
 
 @pytest.fixture
+def isone_realtime_hourly_demand_latest_multiple():
+    with open(
+        os.path.join(FIXTURES_DIR, "isone_realtime_hourly_demand_latest_multiple.json"),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+@pytest.fixture
 def isone_dayahead_hourly_demand_latest():
     with open(
         os.path.join(FIXTURES_DIR, "isone_dayahead_hourly_demand_latest.json"),
@@ -252,3 +261,37 @@ class TestISONEAPI:
         assert result["Location"].iloc[0] == ".Z.MAINE"
         assert result["Location Id"].iloc[0] == 4001
         assert isinstance(result["Load"].iloc[0], (int, float))
+
+    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
+    def test_get_realtime_hourly_demand_multiple_locations(
+        self,
+        mock_make_api_call,
+        isone_realtime_hourly_demand_latest,
+        isone_realtime_hourly_demand_latest_multiple,
+    ):
+        mock_make_api_call.side_effect = [
+            {"HourlyRtDemand": isone_realtime_hourly_demand_latest["HourlyRtDemand"]},
+            {
+                "HourlyRtDemand": isone_realtime_hourly_demand_latest_multiple[
+                    "HourlyRtDemand"
+                ],
+            },
+        ]
+
+        result = self.iso.get_realtime_hourly_demand(
+            date="latest",
+            locations=[".Z.MAINE", ".Z.NEWHAMPSHIRE"],
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 2
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ]
+        assert set(result["Location"]) == {".Z.MAINE", ".Z.NEWHAMPSHIRE"}
+        assert set(result["Location Id"]) == {4001, 4002}
+        assert all(isinstance(load, (int, float)) for load in result["Load"])

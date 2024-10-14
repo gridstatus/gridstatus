@@ -231,6 +231,9 @@ class ISONEAPI:
                         )
                     url = f"{BASE_URL}/realtimehourlydemand/current/location/{location_id}"
                     response = self.make_api_call(url)
+                    from pprint import pprint
+
+                    pprint(response)
                     data = response["HourlyRtDemand"]
                     if not data:
                         raise NoDataFoundException(
