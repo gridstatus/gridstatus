@@ -63,6 +63,92 @@ def isone_dayahead_hourly_demand_range():
         return json.load(f)
 
 
+# Add new fixtures for the new JSON files
+@pytest.fixture
+def isone_realtime_hourly_demand_maine_20241006():
+    with open(
+        os.path.join(
+            FIXTURES_DIR,
+            "isone_realtime_hourly_demand.Z.MAINE_2024-10-06.json",
+        ),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def isone_realtime_hourly_demand_maine_20241007():
+    with open(
+        os.path.join(
+            FIXTURES_DIR,
+            "isone_realtime_hourly_demand.Z.MAINE_2024-10-07.json",
+        ),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def isone_realtime_hourly_demand_newhampshire_20241006():
+    with open(
+        os.path.join(
+            FIXTURES_DIR,
+            "isone_realtime_hourly_demand.Z.NEWHAMPSHIRE_2024-10-06.json",
+        ),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def isone_realtime_hourly_demand_newhampshire_20241007():
+    with open(
+        os.path.join(
+            FIXTURES_DIR,
+            "isone_realtime_hourly_demand.Z.NEWHAMPSHIRE_2024-10-07.json",
+        ),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+# Add new fixtures for the day-ahead hourly demand JSON files
+@pytest.fixture
+def isone_dayahead_hourly_demand_location1_date1():
+    with open(
+        os.path.join(FIXTURES_DIR, "isone_dayahead_hourly_demand_location1_date1.json"),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def isone_dayahead_hourly_demand_location1_date2():
+    with open(
+        os.path.join(FIXTURES_DIR, "isone_dayahead_hourly_demand_location1_date2.json"),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def isone_dayahead_hourly_demand_location2_date1():
+    with open(
+        os.path.join(FIXTURES_DIR, "isone_dayahead_hourly_demand_location2_date1.json"),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def isone_dayahead_hourly_demand_location2_date2():
+    with open(
+        os.path.join(FIXTURES_DIR, "isone_dayahead_hourly_demand_location2_date2.json"),
+        "r",
+    ) as f:
+        return json.load(f)
+
+
 class TestISONEAPI:
     def setup_class(cls):
         cls.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
@@ -295,3 +381,98 @@ class TestISONEAPI:
         assert set(result["Location"]) == {".Z.MAINE", ".Z.NEWHAMPSHIRE"}
         assert set(result["Location Id"]) == {4001, 4002}
         assert all(isinstance(load, (int, float)) for load in result["Load"])
+
+    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
+    def test_get_realtime_hourly_demand_date_range(
+        self,
+        mock_make_api_call,
+        isone_realtime_hourly_demand_maine_20241006,
+        isone_realtime_hourly_demand_maine_20241007,
+        isone_realtime_hourly_demand_newhampshire_20241006,
+        isone_realtime_hourly_demand_newhampshire_20241007,
+    ):
+        mock_make_api_call.side_effect = [
+            isone_realtime_hourly_demand_maine_20241006,
+            isone_realtime_hourly_demand_maine_20241007,
+            isone_realtime_hourly_demand_newhampshire_20241006,
+            isone_realtime_hourly_demand_newhampshire_20241007,
+        ]
+
+        result = self.iso.get_realtime_hourly_demand(
+            date="2024-10-06",
+            end="2024-10-08",
+            locations=[".Z.MAINE", ".Z.NEWHAMPSHIRE"],
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 96  # 2 days * 24 hours * 2 locations = 96 rows
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ]
+        assert set(result["Location"]) == {".Z.MAINE", ".Z.NEWHAMPSHIRE"}
+        assert set(result["Location Id"]) == {4001, 4002}
+        assert all(isinstance(load, (int, float)) for load in result["Load"])
+
+        # Check that the date range is correct
+        assert min(result["Interval Start"]).date() == pd.Timestamp("2024-10-06").date()
+        assert max(result["Interval End"]).date() == pd.Timestamp("2024-10-07").date()
+
+        # Check that we have data for both locations
+        assert len(result[result["Location"] == ".Z.MAINE"]) == 48
+        assert len(result[result["Location"] == ".Z.NEWHAMPSHIRE"]) == 48
+
+        # Verify that the API was called the correct number of times
+        assert mock_make_api_call.call_count == 4
+
+    @patch("gridstatus.isone_api.isone_api.ISONEAPI.make_api_call")
+    def test_get_dayahead_hourly_demand_date_range(
+        self,
+        mock_make_api_call,
+        isone_dayahead_hourly_demand_location1_date1,
+        isone_dayahead_hourly_demand_location1_date2,
+        isone_dayahead_hourly_demand_location2_date1,
+        isone_dayahead_hourly_demand_location2_date2,
+    ):
+        mock_make_api_call.side_effect = [
+            isone_dayahead_hourly_demand_location1_date1,
+            isone_dayahead_hourly_demand_location1_date2,
+            isone_dayahead_hourly_demand_location2_date1,
+            isone_dayahead_hourly_demand_location2_date2,
+        ]
+
+        result = self.iso.get_dayahead_hourly_demand(
+            date="2024-10-06",
+            end="2024-10-08",
+            locations=[".Z.MAINE", ".Z.NEWHAMPSHIRE"],
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 96  # 2 days * 24 hours * 2 locations = 96 rows
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ]
+        assert set(result["Location"]) == {".Z.MAINE", ".Z.NEWHAMPSHIRE"}
+        assert set(result["Location Id"]) == {4001, 4002}
+        assert all(isinstance(load, (int, float)) for load in result["Load"])
+
+        # Check that the date range is correct
+        assert min(result["Interval Start"]).date() == pd.Timestamp("2024-10-06").date()
+        assert max(result["Interval End"]).date() == pd.Timestamp("2024-10-07").date()
+
+        # Check that we have data for both locations
+        assert len(result[result["Location"] == ".Z.MAINE"]) == 48
+        assert len(result[result["Location"] == ".Z.NEWHAMPSHIRE"]) == 48
+
+        # Verify that the API was called the correct number of times
+        assert mock_make_api_call.call_count == 4
+
+    # You can add more specific tests here if needed, such as checking specific values
+    # or testing edge cases for the date range functionality.
