@@ -198,6 +198,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         locations: list[str] = None,
+        verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get the real-time hourly demand data for specified locations and date range.
@@ -284,6 +285,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         locations: list[str] = None,
+        verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get the day-ahead hourly demand data for specified locations and date range.
