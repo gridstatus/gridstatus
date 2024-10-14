@@ -126,7 +126,7 @@ def extract_curve(df, curve_name):
 
     def combine_mw_price(row):
         return [
-            (mw, price)
+            [mw, price]
             for mw, price in zip(row[mw_cols], row[price_cols])
             if pd.notnull(mw) and pd.notnull(price)
         ]
