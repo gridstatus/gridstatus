@@ -260,6 +260,13 @@ class ISONEAPI:
 
                     url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
+                    import json
+
+                    with open(
+                        f"gridstatus/tests/fixtures/isone/response_{location}_{date}.json",
+                        "w",
+                    ) as f:
+                        json.dump(response, f, indent=4)
                     data = response["HourlyRtDemands"]["HourlyRtDemand"]
                     if not data:
                         raise NoDataFoundException(
