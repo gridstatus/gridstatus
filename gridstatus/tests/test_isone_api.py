@@ -63,56 +63,44 @@ def isone_dayahead_hourly_demand_range():
         return json.load(f)
 
 
-# Add new fixtures for the new JSON files
+# Update realtime fixtures
 @pytest.fixture
-def isone_realtime_hourly_demand_maine_20241006():
+def isone_realtime_hourly_demand_location1_date1():
     with open(
-        os.path.join(
-            FIXTURES_DIR,
-            "isone_realtime_hourly_demand.Z.MAINE_2024-10-06.json",
-        ),
+        os.path.join(FIXTURES_DIR, "isone_realtime_hourly_demand_location1_date1.json"),
         "r",
     ) as f:
         return json.load(f)
 
 
 @pytest.fixture
-def isone_realtime_hourly_demand_maine_20241007():
+def isone_realtime_hourly_demand_location1_date2():
     with open(
-        os.path.join(
-            FIXTURES_DIR,
-            "isone_realtime_hourly_demand.Z.MAINE_2024-10-07.json",
-        ),
+        os.path.join(FIXTURES_DIR, "isone_realtime_hourly_demand_location1_date2.json"),
         "r",
     ) as f:
         return json.load(f)
 
 
 @pytest.fixture
-def isone_realtime_hourly_demand_newhampshire_20241006():
+def isone_realtime_hourly_demand_location2_date1():
     with open(
-        os.path.join(
-            FIXTURES_DIR,
-            "isone_realtime_hourly_demand.Z.NEWHAMPSHIRE_2024-10-06.json",
-        ),
+        os.path.join(FIXTURES_DIR, "isone_realtime_hourly_demand_location2_date1.json"),
         "r",
     ) as f:
         return json.load(f)
 
 
 @pytest.fixture
-def isone_realtime_hourly_demand_newhampshire_20241007():
+def isone_realtime_hourly_demand_location2_date2():
     with open(
-        os.path.join(
-            FIXTURES_DIR,
-            "isone_realtime_hourly_demand.Z.NEWHAMPSHIRE_2024-10-07.json",
-        ),
+        os.path.join(FIXTURES_DIR, "isone_realtime_hourly_demand_location2_date2.json"),
         "r",
     ) as f:
         return json.load(f)
 
 
-# Add new fixtures for the day-ahead hourly demand JSON files
+# Day-ahead fixtures (as updated in the previous response)
 @pytest.fixture
 def isone_dayahead_hourly_demand_location1_date1():
     with open(
@@ -386,16 +374,16 @@ class TestISONEAPI:
     def test_get_realtime_hourly_demand_date_range(
         self,
         mock_make_api_call,
-        isone_realtime_hourly_demand_maine_20241006,
-        isone_realtime_hourly_demand_maine_20241007,
-        isone_realtime_hourly_demand_newhampshire_20241006,
-        isone_realtime_hourly_demand_newhampshire_20241007,
+        isone_realtime_hourly_demand_location1_date1,
+        isone_realtime_hourly_demand_location1_date2,
+        isone_realtime_hourly_demand_location2_date1,
+        isone_realtime_hourly_demand_location2_date2,
     ):
         mock_make_api_call.side_effect = [
-            isone_realtime_hourly_demand_maine_20241006,
-            isone_realtime_hourly_demand_maine_20241007,
-            isone_realtime_hourly_demand_newhampshire_20241006,
-            isone_realtime_hourly_demand_newhampshire_20241007,
+            isone_realtime_hourly_demand_location1_date1,
+            isone_realtime_hourly_demand_location1_date2,
+            isone_realtime_hourly_demand_location2_date1,
+            isone_realtime_hourly_demand_location2_date2,
         ]
 
         result = self.iso.get_realtime_hourly_demand(
