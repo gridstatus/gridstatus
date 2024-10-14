@@ -1,0 +1,11 @@
+
+{
+  "HourlyRtDemand": {
+    "BeginDate": "2024-10-09T23:00:00.000-04:00",
+    "Load": 990.486,
+    "Location": {
+      "$": ".Z.NEWHAMPSHIRE",
+      "@LocId": "4002"
+    }
+  }
+}

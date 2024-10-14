@@ -1,0 +1,10 @@
+{
+  "HourlyRtDemand": {
+    "BeginDate": "2024-10-06T23:00:00.000-04:00",
+    "Location": {
+      "@LocId": "4001",
+      "$": ".Z.MAINE"
+    },
+    "Load": 956.312
+  }
+}

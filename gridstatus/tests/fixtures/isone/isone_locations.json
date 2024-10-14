@@ -1,0 +1,120 @@
+{
+  "Locations": {
+    "Location": [
+      {
+        "LocationID": 4000,
+        "LocationType": "HUB",
+        "LocationName": ".H.INTERNAL_HUB",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 4001,
+        "LocationType": "LOAD ZONE",
+        "LocationName": ".Z.MAINE",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 4002,
+        "LocationType": "LOAD ZONE",
+        "LocationName": ".Z.NEWHAMPSHIRE",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 4003,
+        "LocationType": "LOAD ZONE",
+        "LocationName": ".Z.VERMONT",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 4004,
+        "LocationType": "LOAD ZONE",
+        "LocationName": ".Z.CONNECTICUT",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 4005,
+        "LocationType": "LOAD ZONE",
+        "LocationName": ".Z.RHODEISLAND",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 4006,
+        "LocationType": "LOAD ZONE",
+        "LocationName": ".Z.SEMASS",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 4007,
+        "LocationType": "LOAD ZONE",
+        "LocationName": ".Z.WCMASS",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 4008,
+        "LocationType": "LOAD ZONE",
+        "LocationName": ".Z.NEMASSBOST",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 4010,
+        "LocationType": "EXT. NODE",
+        "LocationName": ".I.SALBRYNB345 1",
+        "AreaType": "EXTERNAL"
+      },
+      {
+        "LocationID": 4011,
+        "LocationType": "EXT. NODE",
+        "LocationName": ".I.ROSETON 345 1",
+        "AreaType": "EXTERNAL"
+      },
+      {
+        "LocationID": 4012,
+        "LocationType": "EXT. NODE",
+        "LocationName": ".I.HQ_P1_P2345 5",
+        "AreaType": "EXTERNAL"
+      },
+      {
+        "LocationID": 4013,
+        "LocationType": "EXT. NODE",
+        "LocationName": ".I.HQHIGATE120 2",
+        "AreaType": "EXTERNAL"
+      },
+      {
+        "LocationID": 4014,
+        "LocationType": "EXT. NODE",
+        "LocationName": ".I.SHOREHAM138 99",
+        "AreaType": "EXTERNAL"
+      },
+      {
+        "LocationID": 4017,
+        "LocationType": "EXT. NODE",
+        "LocationName": ".I.NRTHPORT138 5",
+        "AreaType": "EXTERNAL"
+      },
+      {
+        "LocationID": 7000,
+        "LocationType": "SYSTEM",
+        "LocationName": "ROS",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 7001,
+        "LocationType": "RESERVE ZONE",
+        "LocationName": "SWCT",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 7002,
+        "LocationType": "RESERVE ZONE",
+        "LocationName": "CT",
+        "AreaType": "INTERNAL"
+      },
+      {
+        "LocationID": 7003,
+        "LocationType": "RESERVE ZONE",
+        "LocationName": "NEMABSTN",
+        "AreaType": "INTERNAL"
+      }
+    ]
+  }
+}
