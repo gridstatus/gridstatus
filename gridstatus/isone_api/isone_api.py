@@ -284,7 +284,7 @@ class ISONEAPI:
     def get_dayahead_hourly_demand(
         self,
         date: str = "latest",
-        end_date: str | None = None,
+        end: str | None = None,
         locations: list[str] = None,
     ) -> pd.DataFrame:
         """
