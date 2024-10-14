@@ -195,9 +195,10 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_realtime_hourly_demand(
         self,
-        date,
-        end_date: str | None = None,
+        date: str | pd.Timestamp,
+        end: str | None = None,
         locations: list[str] = None,
+        verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get the real-time hourly demand data for specified locations and date range.
@@ -231,9 +232,6 @@ class ISONEAPI:
                         )
                     url = f"{BASE_URL}/realtimehourlydemand/current/location/{location_id}"
                     response = self.make_api_call(url)
-                    from pprint import pprint
-
-                    pprint(response)
                     data = response["HourlyRtDemand"]
                     if not data:
                         raise NoDataFoundException(
@@ -263,6 +261,7 @@ class ISONEAPI:
 
                     url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
+                    print(response)
                     data = response["HourlyRtDemands"]["HourlyRtDemand"]
                     if not data:
                         raise NoDataFoundException(
