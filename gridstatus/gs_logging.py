@@ -1,7 +1,7 @@
 import logging
 
 
-def setup_gs_logger():
+def setup_gs_logger(param):
     logger = logging.getLogger("gs_etl")
     logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
