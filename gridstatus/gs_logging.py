@@ -1,11 +1,11 @@
 import logging
 
 
-def setup_gs_logger():
+def setup_gs_logger(level=logging.DEBUG):
     logger = logging.getLogger("gs_etl")
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
     handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
+    handler.setLevel(level)  # Set handler level to the same as logger
     handler.setFormatter(
         logging.Formatter(
             "%(asctime)s - %(levelname)s - %(message)s",

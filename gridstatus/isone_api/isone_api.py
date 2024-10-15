@@ -261,6 +261,10 @@ class ISONEAPI:
 
                     url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
+                    log.info(
+                        "This an an example INFO: I made a request to the endpoint",
+                    )
+                    log.debug(f"This an an example DEBUG: URL: {url}")
                     data = response["HourlyRtDemands"]["HourlyRtDemand"]
                     if not data:
                         raise NoDataFoundException(
