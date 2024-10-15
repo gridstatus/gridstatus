@@ -42,12 +42,12 @@ installdeps-docs:
 .PHONY: lint
 lint:
 	poetry run ruff check gridstatus/
-	poetry run black gridstatus/ --check
+	poetry run ruff format gridstatus/ --check
 
 .PHONY: lint-fix
 lint-fix:
 	poetry run ruff check gridstatus/ --fix
-	poetry run black gridstatus/
+	poetry run ruff format gridstatus/
 
 .PHONY: upgradepip
 upgradepip:

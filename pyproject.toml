@@ -51,7 +51,6 @@ pytest-xdist = "^3.0.2"
 pytest-rerunfailures = "^10.3"
 pytest-cov = "^4.0.0"
 ruff = "^0.3.4"
-black = { version = "^22.12.0", extras = ["jupyter"] }
 pre-commit = "^2.21.0"
 ipython = "^8.4.0"
 jupyter = "^1.0.0"
@@ -85,10 +84,6 @@ markers = [
     "integration: marks tests as integration tests that pull from an external API (deselect with '-m \"not integration\"')",
 ]
 
-[tool.black]
-line-length = 88
-target-version = ['py311']
-
 [tool.ruff]
 line-length = 88
 src = ["gridstatus"]
@@ -102,6 +97,9 @@ known-first-party = ["gridstatus"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "E402", "F403", "F405", "E501", "I001"]
+
+[tool.ruff.format]
+quote-style = "double"
 
 [tool.coverage.run]
 source = ["gridstatus"]
