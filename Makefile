@@ -47,7 +47,7 @@ lint:
 .PHONY: lint-fix
 lint-fix:
 	poetry run ruff check gridstatus/ --fix
-	poetry run ruff format gridstatus/ --fix
+	poetry run ruff format gridstatus/
 
 .PHONY: upgradepip
 upgradepip:
