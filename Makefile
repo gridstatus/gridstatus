@@ -68,3 +68,7 @@ package: upgradepip upgradebuild upgradesetuptools
 .PHONY: docs
 docs: clean
 	poetry run make -C docs/ -e "SPHINXOPTS=-j auto" clean html
+
+.PHONY: mypy-coverage
+mypy-coverage:
+	poetry run mypy --html-report mypy_report gridstatus/
