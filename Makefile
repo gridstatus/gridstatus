@@ -42,7 +42,7 @@ installdeps-docs:
 .PHONY: lint
 lint:
 	poetry run ruff check gridstatus/
-	poetry run ruff format gridstatus/
+	poetry run ruff format gridstatus/ --check
 
 .PHONY: lint-fix
 lint-fix:
