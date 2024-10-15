@@ -39,3 +39,4 @@ repos:
     rev: v1.8.0
     hooks:
       - id: mypy
+        args: ["--config-file=pyproject.toml"]
