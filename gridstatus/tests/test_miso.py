@@ -345,3 +345,83 @@ class TestMISO(BaseTestISO):
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
+
+    """get_outages_forecast"""
+
+    def _check_outages(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Region",
+            "Derated Outages MW",
+            "Forced Outages MW",
+            "Planned Outages MW",
+            "Unplanned Outages MW",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            "1d",
+        )
+
+        assert (df["Region"].unique() == ["Central", "MISO", "North", "South"]).all()
+
+    def test_get_outages_forecast_latest(self):
+        df = self.iso.get_outages_forecast("latest")
+
+        self._check_outages(df)
+
+        # Latest fetches the file published yesterday with the first forecast day today
+        expected_start_date = self.local_start_of_today()
+
+        assert df["Publish Time"].unique() == expected_start_date - pd.DateOffset(
+            days=1,
+        )
+        assert df["Interval Start"].min() == expected_start_date
+        assert df["Interval End"].max() == expected_start_date + pd.DateOffset(days=7)
+
+    def test_get_outages_forecast_historical_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=100)
+        end = start + pd.DateOffset(days=3)
+
+        df = self.iso.get_outages_forecast(start, end)
+
+        self._check_outages(df)
+
+        assert df["Interval Start"].min() == start + pd.DateOffset(days=1)
+
+        assert df["Interval End"].max() == end + pd.DateOffset(days=7)
+
+        assert df["Publish Time"].min() == start
+        assert df["Publish Time"].nunique() == 3
+
+    """get_outages_lookback"""
+
+    def test_get_outages_lookback_latest(self):
+        df = self.iso.get_outages_lookback("latest")
+
+        self._check_outages(df)
+
+        # Latest fetches the file published yesterday
+        expected_start_date = self.local_start_of_today() - pd.DateOffset(days=30)
+
+        assert df[
+            "Publish Time"
+        ].unique() == self.local_start_of_today() - pd.DateOffset(days=1)
+
+        assert df["Interval Start"].min() == expected_start_date
+        assert df["Interval End"].max() == self.local_start_of_today()
+
+    def test_get_outages_lookback_historical_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=100)
+        end = start + pd.DateOffset(days=3)
+
+        df = self.iso.get_outages_lookback(start, end)
+
+        self._check_outages(df)
+
+        assert df["Interval Start"].min() == start - pd.DateOffset(days=29)
+        assert df["Interval End"].max() == end
+
+        assert df["Publish Time"].min() == start
+        assert df["Publish Time"].nunique() == 3

@@ -1,4 +1,5 @@
 import json
+import re
 import urllib
 import warnings
 from typing import BinaryIO
@@ -580,6 +581,99 @@ class MISO(ISOBase):
         )
 
         return queue
+
+    @support_date_range(frequency="DAY_START")
+    def get_outages_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        """Get the forecasted outages published on the date for the next seven days."""
+        return self._get_outages_data(date, type="forecast", verbose=verbose)
+
+    @support_date_range(frequency="DAY_START")
+    def get_outages_lookback(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        """Get the estimated outages published on the date for the past 30 days.
+        NOTE: since these are estimates, they change with each file published.
+        """
+        return self._get_outages_data(date, type="actual", verbose=verbose)
+
+    def _get_outages_data(
+        self,
+        date: pd.Timestamp,
+        type: str = "forecast",
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            # Latest available file is for yesterday
+            date = pd.Timestamp.now(
+                tz=self.default_timezone,
+            ).normalize() - pd.DateOffset(days=1)
+
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
+
+        log(f"Downloading outages {type} data from {url}", verbose)
+
+        skiprows = 6
+        nrows = 17
+
+        if type == "actual":
+            skiprows = 26
+
+        # There's an unavoidable warning from openpyxl about styles so we suppress it
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                module=re.escape("openpyxl.styles.stylesheet"),
+            )
+            data = pd.read_excel(
+                url,
+                sheet_name="OUTAGE",
+                skiprows=skiprows,
+                nrows=nrows,
+            )
+
+        data.columns = [col.replace(" **", "").strip() for col in data.columns]
+        data.columns = ["Region", "Type"] + list(data.columns[2:])
+
+        data = data.melt(id_vars=["Region", "Type"], value_name="MW", var_name="Date")
+        data = data.pivot(index=["Region", "Date"], columns=["Type"])
+
+        data.columns = data.columns.droplevel(0)
+        data.columns.name = None
+
+        data = data.reset_index()
+
+        data["Interval Start"] = pd.to_datetime(
+            data["Date"],
+            format="mixed",
+        ).dt.tz_localize(self.default_timezone)
+
+        data["Interval End"] = data["Interval Start"] + pd.DateOffset(days=1)
+        data["Publish Time"] = date.tz_convert(self.default_timezone)
+
+        rename_dict = {
+            "Derated": "Derated Outages MW",
+            "Forced": "Forced Outages MW",
+            "Planned": "Planned Outages MW",
+            "Unplanned": "Unplanned Outages MW",
+        }
+
+        return (
+            data.rename(columns=rename_dict)[
+                ["Interval Start", "Interval End", "Publish Time", "Region"]
+                + list(rename_dict.values())
+            ]
+            .sort_values(["Interval Start", "Region"])
+            .reset_index(drop=True)
+        )
 
 
 def add_interval_end(df, duration_min):
