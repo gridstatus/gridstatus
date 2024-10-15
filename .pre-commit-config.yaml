@@ -30,3 +30,34 @@ repos:
         types_or: [ python, jupyter ]
         args:
           - --config=./pyproject.toml
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        args: ["--config-file=pyproject.toml"]
+        exclude: >
+          (?x)^(
+            docs/.*|
+            gridstatus/tests/.*|
+            scripts/.*|
+            examples/.*|
+            setup\.py|
+            gridstatus/__init__\.py|
+            gridstatus/base\.py|
+            gridstatus/caiso\.py|
+            gridstatus/decorators\.py|
+            gridstatus/eia\.py|
+            gridstatus/ercot\.py|
+            gridstatus/ercot_api/.*|
+            gridstatus/gs_logging\.py|
+            gridstatus/ieso\.py|
+            gridstatus/isone\.py|
+            gridstatus/lmp_config\.py|
+            gridstatus/miso\.py|
+            gridstatus/nyiso\.py|
+            gridstatus/pjm\.py|
+            gridstatus/spp\.py|
+            gridstatus/utils\.py|
+            gridstatus/version\.py|
+            gridstatus/viz\.py
+          )$
