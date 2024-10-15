@@ -32,7 +32,6 @@ REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
 
 
 def determine_lmp_frequency(args):
-
     """if querying all must use 1d frequency"""
     locations = args.get("locations", "")
     market = args.get("market", "")
@@ -654,7 +653,9 @@ class CAISO(ISOBase):
     def get_fuel_regions(self, verbose=False):
         """Retrieves the (mostly static) list of fuel regions with associated data.
         This file can be joined to the gas prices on Fuel Region Id"""
-        url = "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
+        url = (
+            "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
+        )
 
         log(f"Fetching {url}", verbose=verbose)
 
@@ -1454,7 +1455,6 @@ def _get_historical(
     column: str,
     verbose: bool = False,
 ) -> pd.DataFrame:
-
     """Get the historical data file from CAISO given a data series name, formats, and returns a pandas dataframe.
 
     Args:

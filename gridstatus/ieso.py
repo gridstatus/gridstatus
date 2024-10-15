@@ -357,8 +357,7 @@ class IESO(ISOBase):
         df["Interval Start"] = (
             # Need to subtract 1 from the DeliveryHour since that represents the
             # ending hour of the interval. (1 represents 00:00 - 01:00)
-            df["DeliveryDate"]
-            + pd.to_timedelta(df["DeliveryHour"] - 1, unit="h")
+            df["DeliveryDate"] + pd.to_timedelta(df["DeliveryHour"] - 1, unit="h")
         ).dt.tz_localize(self.default_timezone)
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=HOUR_INTERVAL)

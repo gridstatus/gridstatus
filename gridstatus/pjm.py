@@ -865,9 +865,9 @@ class PJM(ISOBase):
 
             if market_endpoint == "rt_fivemin_hrl_lmps":
                 market_endpoint = "rt_unverified_fivemin_lmps"
-                params[
-                    "fields"
-                ] = "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
+                params["fields"] = (
+                    "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
+                )
                 # remove this field because it's not supported in this endpoint
                 del params["row_is_current"]
 

@@ -11,6 +11,7 @@ from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 # Define the fixtures directory
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "isone")
 
+
 # Create fixtures for each JSON file in the fixtures directory
 @pytest.fixture
 def isone_locations():

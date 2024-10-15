@@ -38,7 +38,9 @@ HISTORICAL_DAYS_THRESHOLD = 90
 
 
 # This file is publicly available and contains the full list of endpoints and their parameters # noqa
-ENDPOINTS_MAP_URL = "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"  # noqa
+ENDPOINTS_MAP_URL = (
+    "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"  # noqa
+)
 
 # https://data.ercot.com/data-product-archive/NP4-188-CD
 AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
