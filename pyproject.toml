@@ -99,7 +99,6 @@ known-first-party = ["gridstatus"]
 "__init__.py" = ["F401", "E402", "F403", "F405", "E501", "I001"]
 
 [tool.ruff.format]
-line-length = 88
 quote-style = "double"
 
 [tool.coverage.run]
