@@ -126,12 +126,3 @@ exclude = [
     '^examples/',
     'setup\.py$',
 ]
-
-[[tool.mypy.overrides]]
-module = [
-    "docs.*",
-    "gridstatus.tests.*",
-    "scripts.*",
-    "examples.*",
-]
-ignore_errors = true
