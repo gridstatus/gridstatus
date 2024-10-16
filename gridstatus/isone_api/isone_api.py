@@ -185,7 +185,7 @@ class ISONEAPI:
             pd.DataFrame: Processed DataFrame.
         """
 
-        def parse_problematic_datetime(date_string):
+        def parse_problematic_datetime(date_string: str) -> pd.Timestamp:
             dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
             return dt.astimezone(eastern)
 

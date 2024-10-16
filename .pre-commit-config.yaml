@@ -52,6 +52,7 @@ repos:
             gridstatus/gs_logging\.py|
             gridstatus/ieso\.py|
             gridstatus/isone\.py|
+            gridstatus/isone_api/.*|
             gridstatus/lmp_config\.py|
             gridstatus/miso\.py|
             gridstatus/nyiso\.py|
