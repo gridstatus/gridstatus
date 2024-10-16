@@ -196,7 +196,9 @@ class ISONEAPI:
                 self.default_timezone,
             )
         except AttributeError:
-            # If that fails, use custom parsing
+            # NOTE(kladar) consistently the above logic fails for DST conversion days.
+            # This catches those and fixes it.
+            # Data coming out looks good, no missed intervals and no duplicates.
             log.warning("Standard datetime conversion failed. Using custom parsing.")
             eastern = pytz.timezone(self.default_timezone)
             df["Interval Start"] = df["BeginDate"].apply(parse_problematic_datetime)
