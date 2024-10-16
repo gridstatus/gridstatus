@@ -1,7 +1,9 @@
 import os
 import time
+from datetime import datetime
 
 import pandas as pd
+import pytz
 import requests
 
 from gridstatus.base import NoDataFoundException
@@ -48,7 +50,7 @@ class ISONEAPI:
 
     def __init__(
         self,
-        sleep_seconds: float = 0.2,
+        sleep_seconds: float = 5,
         max_retries: int = 3,
     ):
         self.username = os.getenv("ISONE_API_USERNAME")
@@ -60,7 +62,7 @@ class ISONEAPI:
             )
 
         self.sleep_seconds = sleep_seconds
-        self.initial_delay = min(max(0.1, sleep_seconds), 60.0)
+        self.initial_delay = min(sleep_seconds, 60.0)
         self.max_retries = min(max(0, max_retries), 10)
 
     # TODO(kladar) abstract this out to a base class since it is shared with ERCOT API logic
@@ -182,22 +184,45 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: Processed DataFrame.
         """
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"]).dt.tz_convert(
-            self.default_timezone,
-        )
+
+        def parse_problematic_datetime(date_string: str) -> pd.Timestamp:
+            dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
+            return dt.astimezone(eastern)
+
+        try:
+            # Try the standard pandas datetime conversion first
+            df["Interval Start"] = pd.to_datetime(df["BeginDate"])
+            df["Interval Start"] = df["Interval Start"].dt.tz_convert(
+                self.default_timezone,
+            )
+        except AttributeError:
+            # NOTE(kladar) consistently the above logic fails for DST conversion days.
+            # This catches those and fixes it.
+            # Data coming out looks good, no missed intervals and no duplicates.
+            log.warning("Standard datetime conversion failed. Using custom parsing.")
+            eastern = pytz.timezone(self.default_timezone)
+            df["Interval Start"] = df["BeginDate"].apply(parse_problematic_datetime)
+
+        df = df.sort_values("Interval Start")
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(
             minutes=interval_minutes,
         )
+
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         df["Location Id"] = pd.to_numeric(df["LocId"], errors="coerce")
+
+        log.info(
+            f"Processed demand data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
+        )
         return df[["Interval Start", "Interval End", "Location", "Location Id", "Load"]]
 
     @support_date_range("DAY_START")
     def get_realtime_hourly_demand(
         self,
-        date,
-        end_date: str | None = None,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
         locations: list[str] = None,
+        verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get the real-time hourly demand data for specified locations and date range.
@@ -231,9 +256,6 @@ class ISONEAPI:
                         )
                     url = f"{BASE_URL}/realtimehourlydemand/current/location/{location_id}"
                     response = self.make_api_call(url)
-                    from pprint import pprint
-
-                    pprint(response)
                     data = response["HourlyRtDemand"]
                     if not data:
                         raise NoDataFoundException(
@@ -284,9 +306,10 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_dayahead_hourly_demand(
         self,
-        date: str = "latest",
-        end_date: str | None = None,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
         locations: list[str] = None,
+        verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get the day-ahead hourly demand data for specified locations and date range.
@@ -342,7 +365,6 @@ class ISONEAPI:
 
                     url = f"{BASE_URL}/dayaheadhourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
-
                     data = response["HourlyDaDemands"]["HourlyDaDemand"]
                     for item in data:
                         item["Location"] = location
@@ -355,4 +377,8 @@ class ISONEAPI:
             )
 
         df = pd.DataFrame(all_data)
+        # NOTE(kladar): 2017-07-01 to 2018-06-01 causes an issue
+        # as there are duplicates of the .H.INTERNALHUB location. Deduping them here
+        df = df.drop_duplicates(subset=["BeginDate", "Location"], keep="first")
+
         return self._handle_demand(df, interval_minutes=60)
