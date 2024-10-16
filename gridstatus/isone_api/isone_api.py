@@ -1,7 +1,9 @@
 import os
 import time
+from datetime import datetime
 
 import pandas as pd
+import pytz
 import requests
 
 from gridstatus.base import NoDataFoundException
@@ -182,14 +184,34 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: Processed DataFrame.
         """
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"]).dt.tz_convert(
-            self.default_timezone,
-        )
+
+        def parse_problematic_datetime(date_string):
+            dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
+            return dt.astimezone(eastern)
+
+        try:
+            # Try the standard pandas datetime conversion first
+            df["Interval Start"] = pd.to_datetime(df["BeginDate"])
+            df["Interval Start"] = df["Interval Start"].dt.tz_convert(
+                self.default_timezone,
+            )
+        except AttributeError:
+            # If that fails, use custom parsing
+            log.warning("Standard datetime conversion failed. Using custom parsing.")
+            eastern = pytz.timezone(self.default_timezone)
+            df["Interval Start"] = df["BeginDate"].apply(parse_problematic_datetime)
+
+        df = df.sort_values("Interval Start")
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(
             minutes=interval_minutes,
         )
+
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         df["Location Id"] = pd.to_numeric(df["LocId"], errors="coerce")
+
+        log.info(
+            f"Processed demand data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
+        )
         return df[["Interval Start", "Interval End", "Location", "Location Id", "Load"]]
 
     @support_date_range("DAY_START")
