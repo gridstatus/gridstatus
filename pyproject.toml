@@ -51,7 +51,6 @@ pytest-xdist = "^3.0.2"
 pytest-rerunfailures = "^10.3"
 pytest-cov = "^4.0.0"
 ruff = "^0.3.4"
-black = { version = "^22.12.0", extras = ["jupyter"] }
 pre-commit = "^2.21.0"
 ipython = "^8.4.0"
 jupyter = "^1.0.0"
@@ -72,6 +71,7 @@ poetry-dotenv-plugin = "^0.2.0"
 # Below pins are for Dependabot security updates
 notebook = "^7.2.2"
 jupyterlab = "^4.2.5"
+mypy = "^1.8.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -83,10 +83,6 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests that pull from an external API (deselect with '-m \"not integration\"')",
 ]
-
-[tool.black]
-line-length = 88
-target-version = ['py311']
 
 [tool.ruff]
 line-length = 88
@@ -102,6 +98,9 @@ known-first-party = ["gridstatus"]
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "E402", "F403", "F405", "E501", "I001"]
 
+[tool.ruff.format]
+quote-style = "double"
+
 [tool.coverage.run]
 source = ["gridstatus"]
 
@@ -113,3 +112,7 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
 ]
+
+[tool.mypy]
+ignore_missing_imports = true
+strict = true

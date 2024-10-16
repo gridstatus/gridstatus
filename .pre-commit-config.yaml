@@ -21,17 +21,43 @@ repos:
     rev: v0.10.1
     hooks:
       - id: validate-pyproject
-  - repo: https://github.com/python/black
-    rev: 22.12.0
-    hooks:
-      - id: black
-        args:
-          - --target-version=py311
-          - --line-length=88
-        additional_dependencies: [".[jupyter]"]
-        types_or: [python, jupyter]
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.6.8
     hooks:
       - id: ruff
         args: ["--fix"]
+      - id: ruff-format
+        types_or: [ python, jupyter ]
+        args:
+          - --config=./pyproject.toml
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        args: ["--config-file=pyproject.toml"]
+        exclude: >
+          (?x)^(
+            docs/.*|
+            gridstatus/tests/.*|
+            scripts/.*|
+            examples/.*|
+            setup\.py|
+            gridstatus/__init__\.py|
+            gridstatus/base\.py|
+            gridstatus/caiso\.py|
+            gridstatus/decorators\.py|
+            gridstatus/eia\.py|
+            gridstatus/ercot\.py|
+            gridstatus/ercot_api/.*|
+            gridstatus/gs_logging\.py|
+            gridstatus/ieso\.py|
+            gridstatus/isone\.py|
+            gridstatus/lmp_config\.py|
+            gridstatus/miso\.py|
+            gridstatus/nyiso\.py|
+            gridstatus/pjm\.py|
+            gridstatus/spp\.py|
+            gridstatus/utils\.py|
+            gridstatus/version\.py|
+            gridstatus/viz\.py
+          )$

@@ -42,12 +42,12 @@ installdeps-docs:
 .PHONY: lint
 lint:
 	poetry run ruff check gridstatus/
-	poetry run black gridstatus/ --check
+	poetry run ruff format gridstatus/ --check
 
 .PHONY: lint-fix
 lint-fix:
 	poetry run ruff check gridstatus/ --fix
-	poetry run black gridstatus/
+	poetry run ruff format gridstatus/
 
 .PHONY: upgradepip
 upgradepip:
@@ -68,3 +68,7 @@ package: upgradepip upgradebuild upgradesetuptools
 .PHONY: docs
 docs: clean
 	poetry run make -C docs/ -e "SPHINXOPTS=-j auto" clean html
+
+.PHONY: mypy-coverage
+mypy-coverage:
+	poetry run mypy --html-report mypy_report gridstatus/
