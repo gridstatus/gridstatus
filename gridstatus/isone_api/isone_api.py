@@ -48,7 +48,7 @@ class ISONEAPI:
 
     def __init__(
         self,
-        sleep_seconds: float = 0.2,
+        sleep_seconds: float = 5,
         max_retries: int = 3,
     ):
         self.username = os.getenv("ISONE_API_USERNAME")
@@ -60,7 +60,7 @@ class ISONEAPI:
             )
 
         self.sleep_seconds = sleep_seconds
-        self.initial_delay = min(max(0.1, sleep_seconds), 60.0)
+        self.initial_delay = min(sleep_seconds, 60.0)
         self.max_retries = min(max(0, max_retries), 10)
 
     # TODO(kladar) abstract this out to a base class since it is shared with ERCOT API logic
