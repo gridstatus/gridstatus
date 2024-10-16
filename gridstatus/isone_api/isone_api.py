@@ -353,4 +353,8 @@ class ISONEAPI:
             )
 
         df = pd.DataFrame(all_data)
+        # NOTE(kladar): 2017-07-01 to 2018-06-01 causes an issue
+        # as there are duplicates of the .H.INTERNALHUB location. Deduping them here
+        df = df.drop_duplicates(subset=["BeginDate", "Location"], keep="first")
+
         return self._handle_demand(df, interval_minutes=60)
