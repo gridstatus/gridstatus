@@ -643,6 +643,9 @@ class MISO(ISOBase):
         data.columns = [col.replace(" **", "").strip() for col in data.columns]
         data.columns = ["Region", "Type"] + list(data.columns[2:])
 
+        # Some of the files have empty columns called "Unnamed x" that we need to drop
+        data = data.drop(columns=[col for col in data.columns if "Unnamed" in col])
+
         data = data.melt(id_vars=["Region", "Type"], value_name="MW", var_name="Date")
         data = data.pivot(index=["Region", "Date"], columns=["Type"])
 
