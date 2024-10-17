@@ -3,21 +3,11 @@ import pandas as pd
 import pytest
 
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
-from tests.vcr_utils import record_mode, setup_vcr
-
-# NOTE(Kladar): Since these support date ranges and make multiple API calls in a single get
-# request, vcr needs to combine them into a single cassette.
-DATE_RANGE_ENDPOINTS = [
-    "realtimehourlydemand",
-    "dayaheadhourlydemand",
-    "hourlyloadforecast",
-    "reliabilityregionloadforecast",
-]
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
     source="isone",
-    record_mode=record_mode,
-    date_range_endpoints=DATE_RANGE_ENDPOINTS,
+    record_mode=RECORD_MODE,
 )
 
 
