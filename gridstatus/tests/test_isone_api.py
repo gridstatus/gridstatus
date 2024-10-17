@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pandas as pd
 import pytest
+import vcr
 
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 
@@ -422,5 +423,40 @@ class TestISONEAPI:
             == len(locations) * (pd.Timestamp(end) - pd.Timestamp(date)).days
         )
 
-    # You can add more specific tests here if needed, such as checking specific values
-    # or testing edge cases for the date range functionality.
+    @vcr.use_cassette(
+        "gridstatus/tests/fixtures/vcr_cassettes/hourly_load_forecast.yaml",
+    )
+    def test_get_hourly_load_forecast(self):
+        result = self.iso.get_hourly_load_forecast(date="2023-05-01", end="2023-05-02")
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Load",
+            "Net Load",
+        ]
+        # Add more assertions as needed
+
+    @vcr.use_cassette(
+        "gridstatus/tests/fixtures/vcr_cassettes/reliability_region_load_forecast.yaml",
+    )
+    def test_get_reliability_region_load_forecast(self):
+        result = self.iso.get_reliability_region_load_forecast(
+            date="2023-05-01",
+            end="2023-05-02",
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Location",
+            "Load",
+            "Regional Percentage",
+        ]
+        # Add more assertions as needed

@@ -66,7 +66,10 @@ class ISONEAPI:
         self.initial_delay = min(sleep_seconds, 60.0)
         self.max_retries = min(max(0, max_retries), 10)
 
-    # TODO(kladar) abstract this out to a base class since it is shared with ERCOT API logic
+    def parse_problematic_datetime(self, date_string: str) -> pd.Timestamp:
+        dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
+        return dt.astimezone(pytz.timezone(self.default_timezone))
+
     def make_api_call(
         self,
         url: str,
@@ -185,11 +188,6 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: Processed DataFrame.
         """
-
-        def parse_problematic_datetime(date_string: str) -> pd.Timestamp:
-            dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
-            return dt.astimezone(pytz.timezone(self.default_timezone))
-
         try:
             # Try the standard pandas datetime conversion first
             df["Interval Start"] = pd.to_datetime(df["BeginDate"])
@@ -201,7 +199,9 @@ class ISONEAPI:
             # This catches those and fixes it.
             # Data coming out looks good, no missed intervals and no duplicates.
             log.warning("Standard datetime conversion failed. Using custom parsing.")
-            df["Interval Start"] = df["BeginDate"].apply(parse_problematic_datetime)
+            df["Interval Start"] = df["BeginDate"].apply(
+                self.parse_problematic_datetime,
+            )
 
         df = df.sort_values("Interval Start")
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(
@@ -398,11 +398,6 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: Processed DataFrame.
         """
-
-        def parse_problematic_datetime(date_string: str) -> pd.Timestamp:
-            dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
-            return dt.astimezone(pytz.timezone(self.default_timezone))
-
         try:
             # Try the standard pandas datetime conversion first
             date_columns = ["BeginDate", "CreationDate"]
@@ -416,11 +411,17 @@ class ISONEAPI:
             # This catches those and fixes it.
             # Data coming out looks good, no missed intervals and no duplicates.
             log.warning("Standard datetime conversion failed. Using custom parsing.")
-            df["BeginDate"] = df["BeginDate"].apply(parse_problematic_datetime)
-            df["CreationDate"] = df["CreationDate"].apply(parse_problematic_datetime)
+            df["BeginDate"] = df["BeginDate"].apply(self.parse_problematic_datetime)
+            df["CreationDate"] = df["CreationDate"].apply(
+                self.parse_problematic_datetime,
+            )
 
+        df["Interval End"] = df["BeginDate"] + pd.Timedelta(
+            minutes=interval_minutes,
+        )
         regional_cols = {
             "BeginDate": "Interval Start",
+            "Interval End": "Interval End",
             "CreationDate": "Publish Time",
             "ReliabilityRegion": "Location",
             "LoadMw": "Load",
@@ -428,6 +429,7 @@ class ISONEAPI:
         }
         system_cols = {
             "BeginDate": "Interval Start",
+            "Interval End": "Interval End",
             "CreationDate": "Publish Time",
             "LoadMw": "Load",
             "NetLoadMw": "Net Load",
@@ -443,9 +445,6 @@ class ISONEAPI:
             df["Net Load"] = pd.to_numeric(df["Net Load"], errors="coerce")
 
         df = df.sort_values(["Interval Start", "Publish Time"])
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_minutes,
-        )
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
 
         log.info(
@@ -454,7 +453,7 @@ class ISONEAPI:
         return df[
             list(
                 regional_cols.values()
-                if "ReliabilityRegion" in df.columns
+                if "Location" in df.columns
                 else system_cols.values(),
             )
         ]
@@ -480,21 +479,17 @@ class ISONEAPI:
         if date == "latest":
             url = f"{BASE_URL}/hourlyloadforecast/current"
             response = self.make_api_call(url)
-            from pprint import pprint
-
-            pprint(response)
             df = pd.DataFrame(response["HourlyLoadForecast"])
             return self._handle_load_forecast(df, interval_minutes=60)
+
         elif horizons == "all":
             url = f"{BASE_URL}/hourlyloadforecast/all/day/{date.strftime('%Y%m%d')}"
-            response = self.make_api_call(url)
-            df = pd.DataFrame(response["HourlyLoadForecasts"]["HourlyLoadForecast"])
-            return self._handle_load_forecast(df, interval_minutes=60)
         else:
             url = f"{BASE_URL}/hourlyloadforecast/day/{date.strftime('%Y%m%d')}"
-            response = self.make_api_call(url)
-            df = pd.DataFrame(response["HourlyLoadForecasts"]["HourlyLoadForecast"])
-            return self._handle_load_forecast(df, interval_minutes=60)
+
+        response = self.make_api_call(url)
+        df = pd.DataFrame(response["HourlyLoadForecasts"]["HourlyLoadForecast"])
+        return self._handle_load_forecast(df, interval_minutes=60)
 
     @support_date_range("DAY_START")
     def get_reliability_region_load_forecast(
@@ -518,32 +513,19 @@ class ISONEAPI:
 
         if date == "latest":
             url = f"{BASE_URL}/reliabilityregionloadforecast/current"
-            response = self.make_api_call(url)
-            df = pd.DataFrame(
-                response["ReliabilityRegionLoadForecasts"][
-                    "ReliabilityRegionLoadForecast"
-                ],
-            )
-            return self._handle_load_forecast(df, interval_minutes=60)
         elif horizons == "all":
             # NOTE(kladar) the "all" is all horizons available for a given interval.
             url = f"{BASE_URL}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}/all"
-            response = self.make_api_call(url)
-            df = pd.DataFrame(
-                response["ReliabilityRegionLoadForecasts"][
-                    "ReliabilityRegionLoadForecast"
-                ],
-            )
-            return self._handle_load_forecast(df, interval_minutes=60)
         else:
             # NOTE(kladar) horizon expands data by 10x-20x for historical data, since
             # there can be a forecast every half hour for several days leading up to an interval.
             # Giving the option for just the "latest" forecast (aka shortest horizon) for a given historical interval.
             url = f"{BASE_URL}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}"
-            response = self.make_api_call(url)
-            df = pd.DataFrame(
-                response["ReliabilityRegionLoadForecasts"][
-                    "ReliabilityRegionLoadForecast"
-                ],
-            )
-            return self._handle_load_forecast(df, interval_minutes=60)
+
+        response = self.make_api_call(url)
+        df = pd.DataFrame(
+            response["ReliabilityRegionLoadForecasts"]["ReliabilityRegionLoadForecast"],
+        )
+        print(f"df.columns: {df.columns}")
+        print(f"df.head(): {df.head()}")
+        return self._handle_load_forecast(df, interval_minutes=60)
