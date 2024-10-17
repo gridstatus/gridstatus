@@ -7,10 +7,12 @@ import vcr
 
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 
-# Handy https://vcrpy.readthedocs.io/en/latest/usage.html
+# NOTE(Kladar): Set VCR_RECORD_MODE to "all" to update the fixtures as an integration test,
+# say on a weekly or monthly job.
+record_mode = os.environ.get("VCR_RECORD_MODE", "once")
 vcr = vcr.VCR(
     cassette_library_dir=f"{os.path.dirname(__file__)}/fixtures/isone/vcr_cassettes",
-    record_mode="once",
+    record_mode=record_mode,
     match_on=["uri", "method"],
 )
 
