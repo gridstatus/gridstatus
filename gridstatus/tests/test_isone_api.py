@@ -7,11 +7,9 @@ import vcr
 
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 
-FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "isone")
-
-
+# Handy https://vcrpy.readthedocs.io/en/latest/usage.html
 vcr = vcr.VCR(
-    cassette_library_dir=os.path.join(FIXTURES_DIR, "vcr_cassettes"),
+    cassette_library_dir=f"{os.path.dirname(__file__)}/fixtures/isone/vcr_cassettes",
     record_mode="once",
     match_on=["uri", "method"],
 )
