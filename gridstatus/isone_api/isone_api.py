@@ -416,41 +416,85 @@ class ISONEAPI:
             # This catches those and fixes it.
             # Data coming out looks good, no missed intervals and no duplicates.
             log.warning("Standard datetime conversion failed. Using custom parsing.")
-            df["Interval Start"] = df["BeginDate"].apply(parse_problematic_datetime)
-            df["Publish Time"] = df["CreationDate"].apply(parse_problematic_datetime)
+            df["BeginDate"] = df["BeginDate"].apply(parse_problematic_datetime)
+            df["CreationDate"] = df["CreationDate"].apply(parse_problematic_datetime)
 
-        df = df.rename(
-            columns={
-                "BeginDate": "Interval Start",
-                "CreationDate": "Publish Time",
-                "ReliabilityRegion": "Location",
-                "LoadMw": "Load",
-                "ReliabilityRegionLoadPercentage": "Regional Percentage",
-            },
-        )
-        df = df.sort_values("Interval Start")
+        regional_cols = {
+            "BeginDate": "Interval Start",
+            "CreationDate": "Publish Time",
+            "ReliabilityRegion": "Location",
+            "LoadMw": "Load",
+            "ReliabilityRegionLoadPercentage": "Regional Percentage",
+        }
+        system_cols = {
+            "BeginDate": "Interval Start",
+            "CreationDate": "Publish Time",
+            "LoadMw": "Load",
+            "NetLoadMw": "Net Load",
+        }
+        if "ReliabilityRegion" in df.columns:
+            df = df.rename(columns=regional_cols)
+            df["Regional Percentage"] = pd.to_numeric(
+                df["Regional Percentage"],
+                errors="coerce",
+            )
+        else:
+            df = df.rename(columns=system_cols)
+            df["Net Load"] = pd.to_numeric(df["Net Load"], errors="coerce")
+
+        df = df.sort_values(["Interval Start", "Publish Time"])
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(
             minutes=interval_minutes,
         )
-
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["Regional Percentage"] = pd.to_numeric(
-            df["Regional Percentage"],
-            errors="coerce",
-        )
+
         log.info(
             f"Processed load forecast data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
         )
         return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Location",
-                "Load",
-                "Regional Percentage",
-            ]
+            list(
+                regional_cols.values()
+                if "ReliabilityRegion" in df.columns
+                else system_cols.values(),
+            )
         ]
+
+    @support_date_range("DAY_START")
+    def get_hourly_load_forecast(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        horizons: Literal["latest", "all"] = "all",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the hourly load forecast data for specified locations and date range.
+
+        Args:
+            date (str): The start date for the data request. Use "latest" for most recent data.
+            end_date (str | None): The end date for the data request. Only used if date is not "latest".
+            locations (list[str], optional): List of specific location names to request data for.
+                                             If None, data for all locations will be retrieved.
+        """
+
+        if date == "latest":
+            url = f"{BASE_URL}/hourlyloadforecast/current"
+            response = self.make_api_call(url)
+            from pprint import pprint
+
+            pprint(response)
+            df = pd.DataFrame(response["HourlyLoadForecast"])
+            return self._handle_load_forecast(df, interval_minutes=60)
+        elif horizons == "all":
+            url = f"{BASE_URL}/hourlyloadforecast/all/day/{date.strftime('%Y%m%d')}"
+            response = self.make_api_call(url)
+            df = pd.DataFrame(response["HourlyLoadForecasts"]["HourlyLoadForecast"])
+            return self._handle_load_forecast(df, interval_minutes=60)
+        else:
+            url = f"{BASE_URL}/hourlyloadforecast/day/{date.strftime('%Y%m%d')}"
+            response = self.make_api_call(url)
+            df = pd.DataFrame(response["HourlyLoadForecasts"]["HourlyLoadForecast"])
+            return self._handle_load_forecast(df, interval_minutes=60)
 
     @support_date_range("DAY_START")
     def get_reliability_region_load_forecast(
@@ -465,7 +509,7 @@ class ISONEAPI:
 
         Args:
             date (str): The start date for the data request. Use "latest" for most recent data.
-            end_date (str | None): The end date for the data request. Only used if date is not "latest".
+            end (str | None): The end date for the data request. Only used if date is not "latest".
             horizons (Literal["latest", "all"]): The horizon for the data request. Options are "latest" or "all".
 
         Returns:
@@ -503,22 +547,3 @@ class ISONEAPI:
                 ],
             )
             return self._handle_load_forecast(df, interval_minutes=60)
-
-    @support_date_range("DAY_START")
-    def get_hourly_load_forecast(
-        self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
-        locations: list[str] = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """
-        Get the hourly load forecast data for specified locations and date range.
-
-        Args:
-            date (str): The start date for the data request. Use "latest" for most recent data.
-            end_date (str | None): The end date for the data request. Only used if date is not "latest".
-            locations (list[str], optional): List of specific location names to request data for.
-                                             If None, data for all locations will be retrieved.
-        """
-        pass
