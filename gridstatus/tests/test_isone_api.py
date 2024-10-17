@@ -1,4 +1,6 @@
+import json
 import os
+from urllib.parse import parse_qs, urlparse
 
 import numpy as np
 import pandas as pd
@@ -7,13 +9,54 @@ import vcr
 
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 
+
+def combine_requests(requests: list[vcr.request.Request]) -> str:
+    combined = []
+    for request in requests:
+        combined.append(
+            {
+                "method": request.method,
+                "uri": request.uri,
+                "body": request.body,
+                "headers": dict(request.headers),
+            },
+        )
+    return json.dumps(combined)
+
+
+def before_record_callback(request: vcr.request.Request) -> vcr.request.Request:
+    parsed_url = urlparse(request.uri)
+    path_parts = parsed_url.path.split("/")
+    date_range_endpoints = [
+        "realtimehourlydemand",
+        "dayaheadhourlydemand",
+        "hourlyloadforecast",
+        "reliabilityregionloadforecast",
+    ]
+
+    if any(endpoint in path_parts for endpoint in date_range_endpoints):
+        query_params = parse_qs(parsed_url.query)
+        if "date" in query_params and "end" in query_params:
+            key = f"{query_params['date'][0]}_{query_params['end'][0]}"
+            if not hasattr(before_record_callback, "requests"):
+                before_record_callback.requests = {}
+            if key not in before_record_callback.requests:
+                before_record_callback.requests[key] = []
+            before_record_callback.requests[key].append(request)
+            combined_body = combine_requests(before_record_callback.requests[key])
+            request.body = combined_body.encode("utf-8")
+
+    return request
+
+
 # NOTE(Kladar): Set VCR_RECORD_MODE to "all" to update the fixtures as an integration test,
 # say on a weekly or monthly job.
 record_mode = os.environ.get("VCR_RECORD_MODE", "once")
-vcr = vcr.VCR(
+api_vcr = vcr.VCR(
     cassette_library_dir=f"{os.path.dirname(__file__)}/fixtures/isone/vcr_cassettes",
     record_mode=record_mode,
     match_on=["uri", "method"],
+    before_record=before_record_callback,
 )
 
 
@@ -31,7 +74,7 @@ class TestISONEAPI:
         for zone, location_id in ZONE_LOCATIONID_MAP.items():
             assert ZONE_LOCATIONID_MAP[zone] == location_id
 
-    @vcr.use_cassette("test_get_locations.yaml")
+    @api_vcr.use_cassette("test_get_locations.yaml")
     def test_get_locations(self):
         result = self.iso.get_locations()
         assert isinstance(result, pd.DataFrame)
@@ -42,9 +85,8 @@ class TestISONEAPI:
             "LocationName",
             "AreaType",
         ]
-        # Add more specific assertions as needed
 
-    @vcr.use_cassette("test_get_realtime_hourly_demand_latest.yaml")
+    @api_vcr.use_cassette("test_get_realtime_hourly_demand_latest.yaml")
     def test_get_realtime_hourly_demand_latest(self):
         result = self.iso.get_realtime_hourly_demand(
             date="latest",
@@ -64,7 +106,7 @@ class TestISONEAPI:
         assert result["Location Id"].iloc[0] == 4001
         assert isinstance(result["Load"].iloc[0], (int, float))
 
-    @vcr.use_cassette("test_get_dayahead_hourly_demand_latest.yaml")
+    @api_vcr.use_cassette("test_get_dayahead_hourly_demand_latest.yaml")
     def test_get_dayahead_hourly_demand_latest(self):
         result = self.iso.get_dayahead_hourly_demand(
             date="latest",
@@ -89,7 +131,7 @@ class TestISONEAPI:
         with pytest.raises(ValueError):
             self.iso.get_dayahead_hourly_demand(locations=["INVALID_LOCATION"])
 
-    @vcr.use_cassette("test_get_realtime_hourly_demand_multiple_locations.yaml")
+    @api_vcr.use_cassette("test_get_realtime_hourly_demand_multiple_locations.yaml")
     def test_get_realtime_hourly_demand_multiple_locations(self):
         result = self.iso.get_realtime_hourly_demand(
             date="latest",
@@ -121,7 +163,7 @@ class TestISONEAPI:
             ),
         ],
     )
-    @vcr.use_cassette("test_get_realtime_hourly_demand_date_range.yaml")
+    @api_vcr.use_cassette("test_get_realtime_hourly_demand_date_range.yaml")
     def test_get_realtime_hourly_demand_date_range(
         self,
         date,
@@ -167,7 +209,7 @@ class TestISONEAPI:
             ),
         ],
     )
-    @vcr.use_cassette("test_get_dayahead_hourly_demand_date_range.yaml")
+    @api_vcr.use_cassette("test_get_dayahead_hourly_demand_date_range.yaml")
     def test_get_dayahead_hourly_demand_date_range(
         self,
         date,
@@ -211,13 +253,25 @@ class TestISONEAPI:
             ),
         ],
     )
-    @vcr.use_cassette("test_get_hourly_load_forecast.yaml")
+    @api_vcr.use_cassette("test_get_hourly_load_forecast.yaml")
     def test_get_hourly_load_forecast(self, date, end, expected_columns):
         result = self.iso.get_hourly_load_forecast(date=date, end=end)
 
         assert isinstance(result, pd.DataFrame)
-        assert len(result) > 0
         assert list(result.columns) == expected_columns
+        assert (
+            min(result["Interval Start"]).date()
+            == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
+        )
+        assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Load"].dtype in [np.int64, np.float64]
+        assert result["Net Load"].dtype in [np.int64, np.float64]
+        assert (result["Load"] > 0).all()
+        assert (
+            (result["Interval End"] - result["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
 
     @pytest.mark.parametrize(
         "date,end,expected_columns",
@@ -236,10 +290,38 @@ class TestISONEAPI:
             ),
         ],
     )
-    @vcr.use_cassette("test_get_reliability_region_load_forecast.yaml")
+    @api_vcr.use_cassette("test_get_reliability_region_load_forecast.yaml")
     def test_get_reliability_region_load_forecast(self, date, end, expected_columns):
         result = self.iso.get_reliability_region_load_forecast(date=date, end=end)
 
         assert isinstance(result, pd.DataFrame)
-        assert len(result) > 0
         assert list(result.columns) == expected_columns
+        assert (
+            min(result["Interval Start"]).date()
+            == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
+        )
+        assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert (
+            (result["Interval End"] - result["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+        assert set(result["Location"].unique()) == {
+            ".Z.CONNECTICUT",
+            ".Z.MAINE",
+            ".Z.NEWHAMPSHIRE",
+            ".Z.RHODEISLAND",
+            ".Z.VERMONT",
+            ".Z.SEMASS",
+            ".Z.WCMASS",
+            ".Z.NEMASSBOST",
+        }
+        assert result["Load"].dtype in [np.int64, np.float64]
+        assert (result["Load"] > 0).all()
+        assert result["Regional Percentage"].dtype == np.float64
+        assert (
+            (result["Regional Percentage"] >= 0)
+            & (result["Regional Percentage"] <= 100)
+        ).all()
+        grouped = result.groupby(["Interval Start", "Publish Time"])
+        assert (grouped["Regional Percentage"].sum().between(99.9, 100.1)).all()
