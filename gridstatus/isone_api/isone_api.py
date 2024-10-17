@@ -412,9 +412,9 @@ class ISONEAPI:
         elif horizons == "all":
             url = f"{BASE_URL}/hourlyloadforecast/all/day/{date.strftime('%Y%m%d')}"
         else:
-            # NOTE(kladar) horizon expands data by 10x-20x for historical data, since
+            # NB(kladar) getting all horizons expands data by 10x-20x for historical data since
             # there can be a forecast every half hour for the several days leading up to an interval.
-            # Giving the option for just the "latest" forecast (aka shortest horizon aka most recent publish time)
+            # Giving the option for just the "latest" forecast (aka shortest horizon, aka most recent publish time)
             # for a given historical interval.
             url = f"{BASE_URL}/hourlyloadforecast/day/{date.strftime('%Y%m%d')}"
 
