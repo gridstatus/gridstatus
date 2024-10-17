@@ -201,34 +201,45 @@ class TestISONEAPI:
                 locations,
             )
 
+    @pytest.mark.parametrize(
+        "date,end,expected_columns",
+        [
+            (
+                "2023-05-01",
+                "2023-05-03",
+                ["Interval Start", "Interval End", "Publish Time", "Load", "Net Load"],
+            ),
+        ],
+    )
     @vcr.use_cassette("test_get_hourly_load_forecast.yaml")
-    def test_get_hourly_load_forecast(self):
-        result = self.iso.get_hourly_load_forecast(date="2023-05-01", end="2023-05-02")
+    def test_get_hourly_load_forecast(self, date, end, expected_columns):
+        result = self.iso.get_hourly_load_forecast(date=date, end=end)
 
         assert isinstance(result, pd.DataFrame)
         assert len(result) > 0
-        assert list(result.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Load",
-            "Net Load",
-        ]
+        assert list(result.columns) == expected_columns
 
+    @pytest.mark.parametrize(
+        "date,end,expected_columns",
+        [
+            (
+                "2023-05-01",
+                "2023-05-03",
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Location",
+                    "Load",
+                    "Regional Percentage",
+                ],
+            ),
+        ],
+    )
     @vcr.use_cassette("test_get_reliability_region_load_forecast.yaml")
-    def test_get_reliability_region_load_forecast(self):
-        result = self.iso.get_reliability_region_load_forecast(
-            date="2023-05-01",
-            end="2023-05-02",
-        )
+    def test_get_reliability_region_load_forecast(self, date, end, expected_columns):
+        result = self.iso.get_reliability_region_load_forecast(date=date, end=end)
 
         assert isinstance(result, pd.DataFrame)
         assert len(result) > 0
-        assert list(result.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Location",
-            "Load",
-            "Regional Percentage",
-        ]
+        assert list(result.columns) == expected_columns
