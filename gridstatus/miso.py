@@ -593,7 +593,7 @@ class MISO(ISOBase):
         return self._get_outages_data(date, type="forecast", verbose=verbose)
 
     @support_date_range(frequency="DAY_START")
-    def get_outages_lookback(
+    def get_outages_estimated(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,

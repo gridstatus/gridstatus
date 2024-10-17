@@ -395,10 +395,10 @@ class TestMISO(BaseTestISO):
         assert df["Publish Time"].min() == start
         assert df["Publish Time"].nunique() == 3
 
-    """get_outages_lookback"""
+    """get_outages_estimated"""
 
-    def test_get_outages_lookback_latest(self):
-        df = self.iso.get_outages_lookback("latest")
+    def test_get_outages_estimated_latest(self):
+        df = self.iso.get_outages_estimated("latest")
 
         self._check_outages(df)
 
@@ -412,11 +412,11 @@ class TestMISO(BaseTestISO):
         assert df["Interval Start"].min() == expected_start_date
         assert df["Interval End"].max() == self.local_start_of_today()
 
-    def test_get_outages_lookback_historical_date_range(self):
+    def test_get_outages_estimated_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=100)
         end = start + pd.DateOffset(days=3)
 
-        df = self.iso.get_outages_lookback(start, end)
+        df = self.iso.get_outages_estimated(start, end)
 
         self._check_outages(df)
 
