@@ -1,0 +1,124 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Authorization:
+      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://webservices.iso-ne.com/api/v1.1/realtimehourlydemand/current/location/4001
+  response:
+    body:
+      string: '{"HourlyRtDemand":{"BeginDate":"2024-10-14T23:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1052.746}}'
+    headers:
+      Cache-Control:
+      - private
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '131'
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 17 Oct 2024 19:55:14 GMT
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Server:
+      - ISO New England
+      Server-Timing:
+      - dtSInfo;desc="0", dtRpid;desc="-399512370"
+      Set-Cookie:
+      - dtCookie=v_4_srv_2_sn_282E196631494A82E38B0F4B64FCC583_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+        Path=/; Domain=.iso-ne.com
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Via:
+      - 1.1 73a725fa02f9ec8c532ae0d445890568.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - XOK3h7nITr1PlRI-zBGSFkpJFuKXhkjHF4WMvdUj--db2JtC7yusgw==
+      X-Amz-Cf-Pop:
+      - JFK50-P10
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Oneagent-Js-Injection:
+      - 'true'
+      X-Xss-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: ''
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Authorization:
+      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://webservices.iso-ne.com/api/v1.1/realtimehourlydemand/current/location/4002
+  response:
+    body:
+      string: '{"HourlyRtDemand":{"BeginDate":"2024-10-14T23:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1038.748}}'
+    headers:
+      Cache-Control:
+      - private
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '138'
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 17 Oct 2024 19:55:14 GMT
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Server:
+      - ISO New England
+      Server-Timing:
+      - dtSInfo;desc="0", dtRpid;desc="-1844316672"
+      Set-Cookie:
+      - dtCookie=v_4_srv_1_sn_31393D8B7F6CA6E24B08B90EED35DC35_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+        Path=/; Domain=.iso-ne.com
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Via:
+      - 1.1 8a7d8c5d00025d5082538e58b376bbb2.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - YUYHHm5SMXEw_adpC5lmhEVqqfJ7cAyH6_QLPkIqMsl2AoRxmkQlUw==
+      X-Amz-Cf-Pop:
+      - JFK50-P10
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Oneagent-Js-Injection:
+      - 'true'
+      X-Xss-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: ''
+version: 1
