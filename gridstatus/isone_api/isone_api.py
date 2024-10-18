@@ -66,7 +66,7 @@ class ISONEAPI:
         self.initial_delay = min(sleep_seconds, 60.0)
         self.max_retries = min(max(0, max_retries), 10)
 
-    def parse_problematic_datetime(self, date_string: str) -> pd.Timestamp:
+    def parse_problematic_datetime(self, date_string: str) -> datetime:
         dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
         return dt.astimezone(pytz.timezone(self.default_timezone))
 
