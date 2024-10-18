@@ -66,7 +66,9 @@ class ISONEAPI:
         self.initial_delay = min(sleep_seconds, 60.0)
         self.max_retries = min(max(0, max_retries), 10)
 
-    def parse_problematic_datetime(self, date_string: str) -> datetime:
+    def parse_problematic_datetime(self, date_string: str | pd.Timestamp) -> datetime:
+        if isinstance(date_string, pd.Timestamp):
+            date_string = date_string.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
         dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
         return dt.astimezone(pytz.timezone(self.default_timezone))
 
@@ -479,6 +481,7 @@ class ISONEAPI:
         """
         try:
             # Try the standard pandas datetime conversion first
+
             date_columns = ["BeginDate", "CreationDate"]
             df[date_columns] = df[date_columns].apply(pd.to_datetime)
             df[date_columns] = df[date_columns].apply(
