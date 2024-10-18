@@ -583,28 +583,29 @@ class MISO(ISOBase):
         return queue
 
     @support_date_range(frequency="DAY_START")
-    def get_outages_forecast(
+    def get_generation_outages_forecast(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
     ):
-        """Get the forecasted outages published on the date for the next seven days."""
-        return self._get_outages_data(date, type="forecast", verbose=verbose)
+        """Get the forecasted generation outages published on the date for the next
+        seven days."""
+        return self._get_generation_outages_data(date, type="forecast", verbose=verbose)
 
     @support_date_range(frequency="DAY_START")
-    def get_outages_estimated(
+    def get_generation_outages_estimated(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
     ):
-        """Get the estimated outages published on the date for the past 30 days.
-        NOTE: since these are estimates, they change with each file published.
+        """Get the estimated generation outages published on the date for the past 30
+        days. NOTE: since these are estimates, they change with each file published.
         """
-        return self._get_outages_data(date, type="actual", verbose=verbose)
+        return self._get_generation_outages_data(date, type="actual", verbose=verbose)
 
-    def _get_outages_data(
+    def _get_generation_outages_data(
         self,
         date: pd.Timestamp,
         type: str = "forecast",
