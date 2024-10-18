@@ -346,9 +346,9 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
-    """get_outages_forecast"""
+    """get_generation_outages_forecast"""
 
-    def _check_outages(self, df):
+    def _check_generation_outages(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -366,10 +366,10 @@ class TestMISO(BaseTestISO):
 
         assert (df["Region"].unique() == ["Central", "MISO", "North", "South"]).all()
 
-    def test_get_outages_forecast_latest(self):
-        df = self.iso.get_outages_forecast("latest")
+    def test_get_generation_outages_forecast_latest(self):
+        df = self.iso.get_generation_outages_forecast("latest")
 
-        self._check_outages(df)
+        self._check_generation_outages(df)
 
         # Latest fetches the file published yesterday with the first forecast day today
         expected_start_date = self.local_start_of_today()
@@ -380,13 +380,13 @@ class TestMISO(BaseTestISO):
         assert df["Interval Start"].min() == expected_start_date
         assert df["Interval End"].max() == expected_start_date + pd.DateOffset(days=7)
 
-    def test_get_outages_forecast_historical_date_range(self):
+    def test_get_generation_outages_forecast_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=100)
         end = start + pd.DateOffset(days=3)
 
-        df = self.iso.get_outages_forecast(start, end)
+        df = self.iso.get_generation_outages_forecast(start, end)
 
-        self._check_outages(df)
+        self._check_generation_outages(df)
 
         assert df["Interval Start"].min() == start + pd.DateOffset(days=1)
 
@@ -395,12 +395,12 @@ class TestMISO(BaseTestISO):
         assert df["Publish Time"].min() == start
         assert df["Publish Time"].nunique() == 3
 
-    """get_outages_estimated"""
+    """get_generation_outages_estimated"""
 
-    def test_get_outages_estimated_latest(self):
-        df = self.iso.get_outages_estimated("latest")
+    def test_get_generation_outages_estimated_latest(self):
+        df = self.iso.get_generation_outages_estimated("latest")
 
-        self._check_outages(df)
+        self._check_generation_outages(df)
 
         # Latest fetches the file published yesterday
         expected_start_date = self.local_start_of_today() - pd.DateOffset(days=30)
@@ -412,13 +412,13 @@ class TestMISO(BaseTestISO):
         assert df["Interval Start"].min() == expected_start_date
         assert df["Interval End"].max() == self.local_start_of_today()
 
-    def test_get_outages_estimated_historical_date_range(self):
+    def test_get_generation_outages_estimated_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=100)
         end = start + pd.DateOffset(days=3)
 
-        df = self.iso.get_outages_estimated(start, end)
+        df = self.iso.get_generation_outages_estimated(start, end)
 
-        self._check_outages(df)
+        self._check_generation_outages(df)
 
         assert df["Interval Start"].min() == start - pd.DateOffset(days=29)
         assert df["Interval End"].max() == end
