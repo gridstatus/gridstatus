@@ -16,7 +16,7 @@ interactions:
     uri: https://webservices.iso-ne.com/api/v1.1/realtimehourlydemand/current/location/4001
   response:
     body:
-      string: '{"HourlyRtDemand":{"BeginDate":"2024-10-14T23:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1052.746}}'
+      string: '{"HourlyRtDemand":{"BeginDate":"2024-10-15T23:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1077.614}}'
     headers:
       Cache-Control:
       - private
@@ -29,22 +29,22 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 17 Oct 2024 21:29:34 GMT
+      - Fri, 18 Oct 2024 21:48:48 GMT
       Referrer-Policy:
       - strict-origin-when-cross-origin
       Server:
       - ISO New England
       Server-Timing:
-      - dtSInfo;desc="0", dtRpid;desc="-1793489518"
+      - dtSInfo;desc="0", dtRpid;desc="118096755"
       Set-Cookie:
-      - dtCookie=v_4_srv_1_sn_F8B883155DA51EB3878D68E5BA75C477_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+      - dtCookie=v_4_srv_1_sn_2F918EE1C77A5F375D791BFAC1A84810_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
         Path=/; Domain=.iso-ne.com
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Via:
-      - 1.1 7b37381e47d980f37d78d200a26ac034.cloudfront.net (CloudFront)
+      - 1.1 a5aff17032e65d74ef5c955d5493c06e.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - XJyJUhk2pLp1GAPipoZprYHmUMixadhVBEHG64jwJ1dwfIBFbjyIxA==
+      - 2gSdevzyOEPz7BCnSEp1JNmcZACmxwjGHowlW2P0p1x0_elqEXbjig==
       X-Amz-Cf-Pop:
       - JFK50-P10
       X-Cache:

@@ -7,7 +7,7 @@ import vcr
 
 # NOTE(Kladar): Set VCR_RECORD_MODE to "all" to update the fixtures as an integration test,
 # say on a weekly or monthly job.
-RECORD_MODE = os.environ.get("VCR_RECORD_MODE", "all")
+RECORD_MODE = os.environ.get("VCR_RECORD_MODE", "once")
 
 # NOTE(Kladar): Since these methodssupport date ranges and make multiple API calls in a single get
 # request, vcr needs to combine them into a single cassette.
