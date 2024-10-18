@@ -370,7 +370,7 @@ class ISONEAPI:
                 self.parse_problematic_datetime,
             )
 
-        df = df.sort_values("Interval Start")
+        df = df.sort_values(["Interval Start", "Location"])
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(
             minutes=interval_minutes,
         )
