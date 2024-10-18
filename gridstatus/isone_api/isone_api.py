@@ -394,6 +394,17 @@ class ISONEAPI:
         """
         Get the hourly load forecast data for specified locations and date range.
 
+        NB: ISO NE publishes load forecasts roughly every 30 minutes for the next 48-72 future intervals.
+        Getting all forecasts (all "horizons") can be a lot of data, potentially thousands of rows for a single day.
+        Sometimes you may want this, and that's why ISO NE provides the option to get all horizons, but you may be most interested
+        in the most recent forecast for a given historical interval, essentially the shortest horizon, most
+        accurate forecast, which they also provide. All horizons is typically 5x to 20x more data than latest,
+        so it's something to consider when making a request.
+
+        Giving the option for just the "latest" forecast (aka shortest horizon, aka most recent publish time)
+        for a given historical interval avoids this large data pull and collation since ISO NE API
+        has done that work for you already.
+
         Args:
             date (str): The start date for the data request. Use "latest" for most recent data.
             end_date (str | None): The end date for the data request. Only used if date is not "latest".
@@ -412,10 +423,6 @@ class ISONEAPI:
         elif horizons == "all":
             url = f"{BASE_URL}/hourlyloadforecast/all/day/{date.strftime('%Y%m%d')}"
         else:
-            # NB(kladar) getting all horizons expands data by 10x-20x for historical data since
-            # there can be a forecast every half hour for the several days leading up to an interval.
-            # Giving the option for just the "latest" forecast (aka shortest horizon, aka most recent publish time)
-            # for a given historical interval.
             url = f"{BASE_URL}/hourlyloadforecast/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url)
