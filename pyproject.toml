@@ -116,3 +116,11 @@ exclude_lines = [
 [tool.mypy]
 ignore_missing_imports = true
 strict = true
+
+[project]
+name = "gridstatus"
+version = "0.28.0"
+readme = "README.md"
+description = "API to access energy data"
+
+[tool.uv]
