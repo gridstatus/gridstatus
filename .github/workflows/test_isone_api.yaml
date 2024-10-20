@@ -11,7 +11,7 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11"]
     env:
-      ISONE_API_USERNAME: ${{ secrets.ISONE_API_KEY }}
+      ISONE_API_USERNAME: ${{ secrets.ISONE_API_USERNAME }}
       ISONE_API_PASSWORD: ${{ secrets.ISONE_API_PASSWORD }}
     steps:
       - uses: actions/checkout@v3
