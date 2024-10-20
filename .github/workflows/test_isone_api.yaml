@@ -33,6 +33,12 @@ jobs:
         run: |
           uv pip install vcrpy
 
+      - name: Echo Environment Variables
+        run: |
+          echo "Checking if environment variables are set:"
+          if [ -n "$ISONE_API_USERNAME" ]; then echo "ISONE_API_USERNAME is set"; else echo "ISONE_API_USERNAME is not set"; fi
+          if [ -n "$ISONE_API_PASSWORD" ]; then echo "ISONE_API_PASSWORD is set"; else echo "ISONE_API_PASSWORD is not set"; fi
+
       - name: Run unit tests without coverage
         if: ${{ matrix.python-version != '3.11' }}
         run: |
