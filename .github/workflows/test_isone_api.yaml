@@ -26,7 +26,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install vcrpy
+          uv venv & uv pip install --system vcrpy
 
       - name: Echo Environment Variables
         run: |
