@@ -390,27 +390,27 @@ class ISONEAPI:
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
-        horizons: Literal["latest", "all"] = "all",
+        vintage: Literal["latest", "all"] = "all",
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get the hourly load forecast data for specified locations and date range.
 
         NB: ISO NE publishes load forecasts roughly every 30 minutes for the next 48-72 future intervals.
-        Getting all forecasts (all "horizons") can be a lot of data, potentially thousands of rows for a single day.
-        Sometimes you may want this, and that's why ISO NE provides the option to get all horizons, but you may be most interested
-        in the most recent forecast for a given historical interval, essentially the shortest horizon, most
-        accurate forecast, which they also provide. All horizons is typically 5x to 20x more data than latest,
+        Getting all forecasts (all "vintages") can be a lot of data, potentially thousands of rows for a single day.
+        Sometimes you may want this, and that's why ISO NE provides the option to get all vintages, but you may be most interested
+        in the most recent forecast for a given historical interval, essentially the shortest vintages, most
+        accurate forecast, which they also provide. All vintages is typically 5x to 20x more data than latest,
         so it's something to consider when making a request.
 
-        Giving the option for just the "latest" forecast (aka shortest horizon, aka most recent publish time)
+        Giving the option for just the "latest" forecast (aka shortest horizon, aka most recent publish time/vintage)
         for a given historical interval avoids this large data pull and collation since ISO NE API
         has done that work for you already.
 
         Args:
             date (str): The start date for the data request. Use "latest" for most recent data.
             end_date (str | None): The end date for the data request. Only used if date is not "latest".
-            horizons (Literal["latest", "all"]): The horizons for the data request. Options are "latest" or "all", defaults to "all".
+            vintage (Literal["latest", "all"]): The vintage for the data request. Options are "latest" or "all", defaults to "all".
 
         Returns:
             pandas.DataFrame: A DataFrame containing the hourly load forecast data for the system.
@@ -422,7 +422,7 @@ class ISONEAPI:
             df = pd.DataFrame(response["HourlyLoadForecast"])
             return self._handle_load_forecast(df, interval_minutes=60)
 
-        elif horizons == "all":
+        elif vintage == "all":
             url = f"{BASE_URL}/hourlyloadforecast/all/day/{date.strftime('%Y%m%d')}"
         else:
             url = f"{BASE_URL}/hourlyloadforecast/day/{date.strftime('%Y%m%d')}"
@@ -436,16 +436,16 @@ class ISONEAPI:
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
-        horizons: Literal["latest", "all"] = "all",
+        vintage: Literal["latest", "all"] = "all",
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Get the regional load forecast data for specified date range and horizons.
+        Get the regional load forecast data for specified date range and vintages.
 
         Args:
             date (str): The start date for the data request. Use "latest" for most recent data.
             end (str | None): The end date for the data request. Only used if date is not "latest".
-            horizons (Literal["latest", "all"]): The horizon for the data request. Options are "latest" or "all".
+            vintages (Literal["latest", "all"]): The vintage for the data request. Options are "latest" or "all".
 
         Returns:
             pandas.DataFrame: A DataFrame containing the regional load forecast data for all requested locations.
@@ -453,7 +453,7 @@ class ISONEAPI:
 
         if date == "latest":
             url = f"{BASE_URL}/reliabilityregionloadforecast/current"
-        elif horizons == "all":
+        elif vintage == "all":
             url = f"{BASE_URL}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}/all"
         else:
             url = f"{BASE_URL}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}"
