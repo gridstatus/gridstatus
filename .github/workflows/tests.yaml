@@ -16,6 +16,8 @@ jobs:
       ERCOT_API_USERNAME: ${{ secrets.ERCOT_API_USERNAME }}
       ERCOT_API_PASSWORD: ${{ secrets.ERCOT_API_PASSWORD }}
       ERCOT_API_SUBSCRIPTION_KEY: ${{ secrets.ERCOT_API_SUBSCRIPTION_KEY }}
+      ISONE_API_USERNAME: ${{ secrets.ISONE_API_USERNAME }}
+      ISONE_API_PASSWORD: ${{ secrets.ISONE_API_PASSWORD }}
     steps:
       - uses: actions/checkout@v3
 
@@ -30,6 +32,10 @@ jobs:
       - name: Install dependencies
         run: |
           poetry install
+
+      - name: Install test dependencies
+        run: |
+          poetry run pip install vcrpy
 
       - name: Run unit tests without coverage
         if: ${{ matrix.python-version != '3.11' }}

@@ -12,27 +12,33 @@ UNIT_ONLY := -m "not slow and not integration"
 
 .PHONY: test
 test:
+	pip install vcrpy
 	$(PYTEST_CMD) $(NOT_SLOW)
 
 .PHONY: test-cov
 test-cov:
+	pip install vcrpy
 	$(PYTEST_CMD) $(NOT_SLOW) --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
 
 .PHONY: test-slow
 test-slow:
+	pip install vcrpy
 	$(PYTEST_CMD) -m "slow"
 
 .PHONY: test-unit
 test-unit:
+	pip install vcrpy
 	$(PYTEST_CMD) $(UNIT_ONLY)
 
 .PHONY: installdeps-dev
 installdeps-dev:
 	poetry install --all-extras
+	pip install vcrpy
 	poetry run pre-commit install
 
 .PHONY: installdeps-test
 installdeps-test:
+	poetry run pip install vcrpy
 	poetry install --all-extras
 
 .PHONY: installdeps-docs

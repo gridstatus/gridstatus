@@ -1,6 +1,7 @@
 import os
 import time
 from datetime import datetime
+from typing import Literal
 
 import pandas as pd
 import pytz
@@ -65,7 +66,12 @@ class ISONEAPI:
         self.initial_delay = min(sleep_seconds, 60.0)
         self.max_retries = min(max(0, max_retries), 10)
 
-    # TODO(kladar) abstract this out to a base class since it is shared with ERCOT API logic
+    def parse_problematic_datetime(self, date_string: str | pd.Timestamp) -> datetime:
+        if isinstance(date_string, pd.Timestamp):
+            date_string = date_string.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+        dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
+        return dt.astimezone(pytz.timezone(self.default_timezone))
+
     def make_api_call(
         self,
         url: str,
@@ -168,53 +174,6 @@ class ISONEAPI:
         locations = response["Locations"]["Location"]
         df = pd.DataFrame(locations)
         return df
-
-    def _handle_demand(
-        self,
-        df: pd.DataFrame,
-        interval_minutes: int = 60,
-    ) -> pd.DataFrame:
-        """
-        Process demand DataFrame: convert types, rename columns, and add Interval End.
-
-        Args:
-            df (pd.DataFrame): Input DataFrame with demand data.
-            interval_minutes (int): Duration of each interval in minutes. Default is 60.
-
-        Returns:
-            pd.DataFrame: Processed DataFrame.
-        """
-
-        def parse_problematic_datetime(date_string: str) -> pd.Timestamp:
-            dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
-            return dt.astimezone(eastern)
-
-        try:
-            # Try the standard pandas datetime conversion first
-            df["Interval Start"] = pd.to_datetime(df["BeginDate"])
-            df["Interval Start"] = df["Interval Start"].dt.tz_convert(
-                self.default_timezone,
-            )
-        except AttributeError:
-            # NOTE(kladar) consistently the above logic fails for DST conversion days.
-            # This catches those and fixes it.
-            # Data coming out looks good, no missed intervals and no duplicates.
-            log.warning("Standard datetime conversion failed. Using custom parsing.")
-            eastern = pytz.timezone(self.default_timezone)
-            df["Interval Start"] = df["BeginDate"].apply(parse_problematic_datetime)
-
-        df = df.sort_values("Interval Start")
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_minutes,
-        )
-
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["Location Id"] = pd.to_numeric(df["LocId"], errors="coerce")
-
-        log.info(
-            f"Processed demand data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
-        )
-        return df[["Interval Start", "Interval End", "Location", "Location Id", "Load"]]
 
     @support_date_range("DAY_START")
     def get_realtime_hourly_demand(
@@ -382,3 +341,201 @@ class ISONEAPI:
         df = df.drop_duplicates(subset=["BeginDate", "Location"], keep="first")
 
         return self._handle_demand(df, interval_minutes=60)
+
+    def _handle_demand(
+        self,
+        df: pd.DataFrame,
+        interval_minutes: int = 60,
+    ) -> pd.DataFrame:
+        """
+        Process demand DataFrame: convert types, rename columns, and add Interval End.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame with demand data.
+            interval_minutes (int): Duration of each interval in minutes. Default is 60.
+
+        Returns:
+            pd.DataFrame: Processed DataFrame.
+        """
+        try:
+            # Try the standard pandas datetime conversion first
+            df["Interval Start"] = pd.to_datetime(df["BeginDate"])
+            df["Interval Start"] = df["Interval Start"].dt.tz_convert(
+                self.default_timezone,
+            )
+        except AttributeError:
+            # NOTE(kladar) consistently the above logic fails for DST conversion days.
+            # This catches those and fixes it.
+            # Data coming out looks good, no missed intervals and no duplicates.
+            log.warning("Standard datetime conversion failed. Using custom parsing.")
+            df["Interval Start"] = df["BeginDate"].apply(
+                self.parse_problematic_datetime,
+            )
+
+        df = df.sort_values(["Interval Start", "Location"])
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=interval_minutes,
+        )
+
+        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
+        df["Location Id"] = pd.to_numeric(df["LocId"], errors="coerce")
+
+        log.info(
+            f"Processed demand data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
+        )
+        return df[["Interval Start", "Interval End", "Location", "Location Id", "Load"]]
+
+    @support_date_range("DAY_START")
+    def get_hourly_load_forecast(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "all",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the hourly load forecast data for specified locations and date range.
+
+        NB: ISO NE publishes load forecasts roughly every 30 minutes for the next 48-72 future intervals.
+        Getting all forecasts (all "vintages") can be a lot of data, potentially thousands of rows for a single day.
+        Sometimes you may want this, and that's why ISO NE provides the option to get all vintages, but you may be most interested
+        in the most recent forecast for a given historical interval, essentially the shortest vintages, most
+        accurate forecast, which they also provide. All vintages is typically 5x to 20x more data than latest,
+        so it's something to consider when making a request.
+
+        Giving the option for just the "latest" forecast (aka shortest horizon, aka most recent publish time/vintage)
+        for a given historical interval avoids this large data pull and collation since ISO NE API
+        has done that work for you already.
+
+        Args:
+            date (str): The start date for the data request. Use "latest" for most recent data.
+            end_date (str | None): The end date for the data request. Only used if date is not "latest".
+            vintage (Literal["latest", "all"]): The vintage for the data request. Options are "latest" or "all", defaults to "all".
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the hourly load forecast data for the system.
+        """
+
+        if date == "latest":
+            url = f"{BASE_URL}/hourlyloadforecast/current"
+            response = self.make_api_call(url)
+            df = pd.DataFrame(response["HourlyLoadForecast"])
+            return self._handle_load_forecast(df, interval_minutes=60)
+
+        elif vintage == "all":
+            url = f"{BASE_URL}/hourlyloadforecast/all/day/{date.strftime('%Y%m%d')}"
+        else:
+            url = f"{BASE_URL}/hourlyloadforecast/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url)
+        df = pd.DataFrame(response["HourlyLoadForecasts"]["HourlyLoadForecast"])
+        return self._handle_load_forecast(df, interval_minutes=60)
+
+    @support_date_range("DAY_START")
+    def get_reliability_region_load_forecast(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "all",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the regional load forecast data for specified date range and vintages.
+
+        Args:
+            date (str): The start date for the data request. Use "latest" for most recent data.
+            end (str | None): The end date for the data request. Only used if date is not "latest".
+            vintages (Literal["latest", "all"]): The vintage for the data request. Options are "latest" or "all".
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the regional load forecast data for all requested locations.
+        """
+
+        if date == "latest":
+            url = f"{BASE_URL}/reliabilityregionloadforecast/current"
+        elif vintage == "all":
+            url = f"{BASE_URL}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}/all"
+        else:
+            url = f"{BASE_URL}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url)
+        df = pd.DataFrame(
+            response["ReliabilityRegionLoadForecasts"]["ReliabilityRegionLoadForecast"],
+        )
+        return self._handle_load_forecast(df, interval_minutes=60)
+
+    def _handle_load_forecast(
+        self,
+        df: pd.DataFrame,
+        interval_minutes: int = 60,
+    ) -> pd.DataFrame:
+        """
+        Process load forecast DataFrame: convert types, rename columns, and add Interval End.
+
+        Args:
+            df (pd.DataFrame): Input DataFrame with load forecast data.
+            interval_minutes (int): Duration of each interval in minutes. Default is 60.
+
+        Returns:
+            pd.DataFrame: Processed DataFrame.
+        """
+        try:
+            # Try the standard pandas datetime conversion first
+
+            date_columns = ["BeginDate", "CreationDate"]
+            df[date_columns] = df[date_columns].apply(pd.to_datetime)
+            df[date_columns] = df[date_columns].apply(
+                lambda x: x.dt.tz_convert(self.default_timezone),
+            )
+
+        except AttributeError:
+            # NOTE(kladar) consistently the above logic fails for DST conversion days.
+            # This catches those and fixes it.
+            # Data coming out looks good, no missed intervals and no duplicates.
+            log.warning("Standard datetime conversion failed. Using custom parsing.")
+            df["BeginDate"] = df["BeginDate"].apply(self.parse_problematic_datetime)
+            df["CreationDate"] = df["CreationDate"].apply(
+                self.parse_problematic_datetime,
+            )
+
+        df["Interval End"] = df["BeginDate"] + pd.Timedelta(
+            minutes=interval_minutes,
+        )
+        regional_cols = {
+            "BeginDate": "Interval Start",
+            "Interval End": "Interval End",
+            "CreationDate": "Publish Time",
+            "ReliabilityRegion": "Location",
+            "LoadMw": "Load",
+            "ReliabilityRegionLoadPercentage": "Regional Percentage",
+        }
+        system_cols = {
+            "BeginDate": "Interval Start",
+            "Interval End": "Interval End",
+            "CreationDate": "Publish Time",
+            "LoadMw": "Load",
+            "NetLoadMw": "Net Load",
+        }
+        if "ReliabilityRegion" in df.columns:
+            df = df.rename(columns=regional_cols)
+            df["Regional Percentage"] = pd.to_numeric(
+                df["Regional Percentage"],
+                errors="coerce",
+            )
+        else:
+            df = df.rename(columns=system_cols)
+            df["Net Load"] = pd.to_numeric(df["Net Load"], errors="coerce")
+
+        df = df.sort_values(["Interval Start", "Publish Time"])
+        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
+
+        log.info(
+            f"Processed load forecast data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
+        )
+        return df[
+            list(
+                regional_cols.values()
+                if "Location" in df.columns
+                else system_cols.values(),
+            )
+        ]
