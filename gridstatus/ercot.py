@@ -16,6 +16,7 @@ from gridstatus.base import (
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
+    NoDataFoundException,
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
@@ -2578,6 +2579,11 @@ class Ercot(ISOBase):
         return df
 
     def _handle_price_corrections(self, docs, verbose=False):
+        # When there are no price corrections, ERCOT does not publish a file
+        # We raise a legible error message in this case
+        if not docs:
+            raise NoDataFoundException("No price correction data found")
+
         df = self.read_docs(docs, verbose=verbose)
 
         df = self._handle_settlement_point_name_and_type(df)
