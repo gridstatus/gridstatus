@@ -3,8 +3,7 @@ from io import StringIO
 import pandas as pd
 import pytest
 
-import gridstatus
-from gridstatus import Markets, NotSupported
+from gridstatus import Markets, NoDataFoundException, NotSupported
 from gridstatus.ercot import (
     ELECTRICAL_BUS_LOCATION_TYPE,
     Ercot,
@@ -607,7 +606,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.skip(reason="takes too long to run")
     def test_get_spp_rtm_historical(self):
-        rtm = gridstatus.Ercot().get_rtm_spp(2020)
+        rtm = self.iso.get_rtm_spp(2020)
         assert isinstance(rtm, pd.DataFrame)
         assert len(rtm) > 0
 
@@ -1753,3 +1752,7 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == cols
 
         assert df["System Lambda"].dtype == float
+
+    def test_get_documents_raises_exception_when_no_docs(self):
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_load_forecast("2010-01-01")

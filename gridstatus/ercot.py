@@ -16,6 +16,7 @@ from gridstatus.base import (
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
+    NoDataFoundException,
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
@@ -2854,10 +2855,6 @@ class Ercot(ISOBase):
             extension=extension,
             verbose=verbose,
         )
-        if len(documents) == 0:
-            raise ValueError(
-                f"No document found for {report_type_id} on {date}",
-            )
 
         return max(documents, key=lambda x: x.publish_date)
 
@@ -2950,6 +2947,16 @@ class Ercot(ISOBase):
 
         if date == "latest":
             return [max(matches, key=lambda x: x.publish_date)]
+
+        if not matches:
+            params = {
+                k: v
+                for k, v in locals().items()
+                if k not in ["self", "msg", "url", "docs"]
+            }
+            raise NoDataFoundException(
+                f"No documents found with the given parameters: {params}",  # noqa
+            )
 
         return matches
 

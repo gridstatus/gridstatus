@@ -10,7 +10,7 @@ from gridstatus import tests
 import gridstatus.base
 import gridstatus.decorators
 
-from gridstatus.base import Markets, NotSupported
+from gridstatus.base import Markets, NotSupported, NoDataFoundException
 
 import gridstatus.utils
 
