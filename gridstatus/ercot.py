@@ -27,7 +27,7 @@ from gridstatus.ercot_60d_utils import (
     process_sced_gen,
     process_sced_load,
 )
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import log, logger
 from gridstatus.lmp_config import lmp_config
 
 LOCATION_TYPE_HUB = "Trading Hub"
@@ -2824,7 +2824,7 @@ class Ercot(ISOBase):
         # we will remove the duplicates here and adjust the times to be correct
         dst_transition_date = pd.Timestamp("2024-11-03")
         if dst_transition_date.date() in df["Interval Start"].dt.date.values:
-            log.info("Problematic DST transition detected, fixing duplicate hour")
+            logger.info("Problematic DST transition detected, fixing duplicate hour")
 
             # take half the duplicate rows and adjust them to 1:00 to fix missing interval
             duplicate_mask = df["Interval Start"] == pd.Timestamp(
