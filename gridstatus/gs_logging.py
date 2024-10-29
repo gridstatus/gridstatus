@@ -2,7 +2,7 @@ import logging
 
 
 def setup_gs_logger(level=logging.DEBUG):
-    logger = logging.getLogger("gs_etl")
+    logger = logging.getLogger("gridstatus")
     logger.setLevel(level)
     handler = logging.StreamHandler()
     handler.setLevel(level)  # Set handler level to the same as logger

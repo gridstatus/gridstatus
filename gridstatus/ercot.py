@@ -27,7 +27,7 @@ from gridstatus.ercot_60d_utils import (
     process_sced_gen,
     process_sced_load,
 )
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import log, logger
 from gridstatus.lmp_config import lmp_config
 
 LOCATION_TYPE_HUB = "Trading Hub"
@@ -2819,6 +2819,26 @@ class Ercot(ISOBase):
             ["Interval Start", "Interval End", "Publish Time"]
             + list(self._weather_zone_column_name_order()),
         )
+
+        # NOTE(kladar): ERCOT is currently publishing a duplicate for the Fall 2024 DST transition
+        # we will remove the duplicates here and adjust the times to be our best guess at what is correct
+        dst_transition_date = pd.Timestamp("2024-11-03")
+        if dst_transition_date.date() in df["Interval Start"].dt.date.values:
+            logger.info("Problematic DST transition detected, fixing duplicate hour")
+
+            # take half the duplicate rows and adjust them to 1:00 to fix missing interval
+            duplicate_mask = df["Interval Start"] == pd.Timestamp(
+                "2024-11-03 02:00:00-0600",
+            )
+            duplicate_indices = df[duplicate_mask].index
+            first_half_indices = duplicate_indices[: len(duplicate_indices) // 2]
+            df.loc[first_half_indices, "Interval Start"] = pd.Timestamp(
+                "2024-11-03 01:00:00-0600",
+            )
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+            # after the correction, the straight duplicate intervals remain, so we remove them
+            df = df.drop_duplicates(subset=["Interval Start", "Publish Time"])
 
         return df.sort_values("Interval Start")
 

@@ -1525,6 +1525,9 @@ class TestErcot(BaseTestISO):
             == self.local_start_of_today() + self.temperature_forecast_start_offset
         )
 
+        dst_transition_date = pd.Timestamp("2024-11-03")
+        if dst_transition_date.date() in df["Interval Start"].dt.date.values:
+            self.temperature_forecast_end_offset = pd.DateOffset(days=9, hours=0)
         assert (
             df["Interval End"].max()
             == self.local_start_of_today() + self.temperature_forecast_end_offset
