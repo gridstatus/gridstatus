@@ -2826,7 +2826,7 @@ class Ercot(ISOBase):
         if dst_transition_date.date() in df["Interval Start"].dt.date.values:
             log.info("Problematic DST transition detected, fixing duplicate hour")
 
-            # take half the duplicate rows and adjust them to 1:00
+            # take half the duplicate rows and adjust them to 1:00 to fix missing interval
             duplicate_mask = df["Interval Start"] == pd.Timestamp(
                 "2024-11-03 02:00:00-0600",
             )
@@ -2837,7 +2837,7 @@ class Ercot(ISOBase):
             )
             df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
-            # after the correction, some duplicates remain, so we remove them
+            # after the correction, the straight duplicate intervals remain, so we remove them
             df = df.drop_duplicates(subset=["Interval Start", "Publish Time"])
 
         return df.sort_values("Interval Start")
