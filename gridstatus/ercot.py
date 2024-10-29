@@ -2821,7 +2821,7 @@ class Ercot(ISOBase):
         )
 
         # NOTE(kladar): ERCOT is currently publishing a duplicate for the Fall 2024 DST transition
-        # we will remove the duplicates here and adjust the times to be correct
+        # we will remove the duplicates here and adjust the times to be our best guess at what is correct
         dst_transition_date = pd.Timestamp("2024-11-03")
         if dst_transition_date.date() in df["Interval Start"].dt.date.values:
             logger.info("Problematic DST transition detected, fixing duplicate hour")
