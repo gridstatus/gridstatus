@@ -325,16 +325,23 @@ def process_as_offer_curves(df):
             # Drop rows where all prices are NaN. This should leave us with only 1 row
             price_columns = [c for c in column_list if c.startswith("PRICE")]
 
-            subset = (
-                group[column_list]
-                .dropna(axis="rows", how="all", subset=price_columns)
-                .astype(float)
+            subset = group[column_list + block_columns].dropna(
+                axis="rows",
+                how="all",
+                subset=price_columns,
             )
 
             if len(subset) > 1:
                 raise ValueError(
                     f"More than one row found for {column_list} for {resource_name}",
                 )
+
+            # Only keep the number of block indicators that are non-null
+            keep_block_count = subset[block_columns].notna().sum().sum()
+            subset = subset.drop(columns=block_columns).loc[
+                :,
+                column_list[: keep_block_count * 2],
+            ]
 
             if subset.empty:
                 curve = None
