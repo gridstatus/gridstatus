@@ -1593,7 +1593,20 @@ class Ercot(ISOBase):
 
     @support_date_range("DAY_START")
     def get_60_day_dam_disclosure(self, date, end=None, process=False, verbose=False):
-        """Get 60 day DAM Disclosure data"""
+        """Get 60 day DAM Disclosure data. Returns a dict with keys
+
+        - "dam_gen_resource"
+        - "dam_gen_resource_as_offers"
+        - "dam_load_resource"
+        - "dam_load_resource_as_offers"
+        - "dam_energy_bids"
+        - "dam_energy_bid_awards"
+
+        and values as pandas.DataFrame objects
+
+        The date passed in should be the report date. Since reports are delayed by 60
+        days, the passed date should not be fewer than 60 days in the past.
+        """
 
         report_date = date + pd.DateOffset(days=60)
 

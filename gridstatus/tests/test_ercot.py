@@ -736,13 +736,6 @@ class TestErcot(BaseTestISO):
         dam_energy_bids = df_dict["dam_energy_bids"]
         dam_energy_bid_awards = df_dict["dam_energy_bid_awards"]
 
-        import IPython
-
-        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
-            "last_expr_or_assign"
-        )
-        IPython.embed()
-
         # Same for both generation and load
         as_offer_columns = [
             "Interval Start",

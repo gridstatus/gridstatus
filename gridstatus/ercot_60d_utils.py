@@ -269,7 +269,7 @@ def process_as_offer_curves(df):
     block_columns = [col for col in df.columns if col.startswith("BLOCK INDICATOR")]
     block_count = len(block_columns)
 
-    offer_curve_column_prefixes = [
+    as_offer_curve_column_prefixes = [
         "RRSPFR",
         "RRSFFR",
         "RRSUFR",
@@ -281,16 +281,16 @@ def process_as_offer_curves(df):
         "OFFLINE NONSPIN",
     ]
 
-    offer_curve_column_lists = []
+    as_offer_curve_column_lists = []
 
     # Construct a list of lists like [["PRICE1 RRSPFR", "QUANTITY MW1", "PRICE2
     # RRSPFR", "QUANTITY MW2"], ...] to iterate over them and extract offer curve data
-    for prefix in offer_curve_column_prefixes:
+    for prefix in as_offer_curve_column_prefixes:
         prefix_columns = []
         for i in range(1, block_count + 1):
             prefix_columns.extend([f"PRICE{i} {prefix}", f"QUANTITY MW{i}"])
 
-        offer_curve_column_lists.append(prefix_columns)
+        as_offer_curve_column_lists.append(prefix_columns)
 
     constructed_data = []
 
@@ -299,7 +299,8 @@ def process_as_offer_curves(df):
     for (interval_start, interval_end, resource_name, qse, dme), group in df.groupby(
         ["Interval Start", "Interval End", "Resource Name", "QSE", "DME"],
     ):
-        # Find the block list with the most non-null elements
+        # Find the block list with the most non-null elements which represents the
+        # number of blocks where the resource made an offer
         block_lists = (
             group[block_columns].dropna(axis="columns", how="all").values.tolist()
         )
@@ -319,7 +320,8 @@ def process_as_offer_curves(df):
             "Block Indicators": max_block_list,
         }
 
-        for column_list in offer_curve_column_lists:
+        # Iterate through each ancillary service and extract the offer curve data
+        for index, column_list in enumerate(as_offer_curve_column_lists):
             # Drop rows where all prices are NaN. This should leave us with only 1 row
             price_columns = [c for c in column_list if c.startswith("PRICE")]
 
@@ -337,16 +339,16 @@ def process_as_offer_curves(df):
             if subset.empty:
                 curve = None
             else:
-                # Convert the column values to a list of lists for [[price, quantity]]
-                # Iterate through 2 columns at a time to get the price and quantity
+                # Convert the column values to a list of lists like
+                # [[price1, quantity1], [price2, quantity2], ...]
                 subset_values = subset.replace({np.nan: 0}).values[0]
 
                 curve = []
                 for i in range(0, len(subset_values), 2):
+                    # Iterate through 2 columns at a time to get the price and quantity
                     curve.append(subset_values[i : i + 2].tolist())
 
-            curve_name = " ".join(column_list[0].split(" ")[1:]) + " Offer Curve"
-
+            curve_name = as_offer_curve_column_prefixes[index]
             group_data[curve_name] = curve
 
         constructed_data.append(group_data)
