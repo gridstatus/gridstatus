@@ -244,7 +244,7 @@ def process_dam_load(df):
     return df
 
 
-def process_dam_load_as_offers(df):
+def process_dam_or_gen_load_as_offers(df):
     if "QSE" not in df.columns:
         # after Interval End
         index = df.columns.tolist().index("Interval End") + 1
@@ -258,8 +258,109 @@ def process_dam_load_as_offers(df):
     df = df.rename(
         columns={
             "Load Resource Name": "Resource Name",
+            "Generation Resource Name": "Resource Name",
         },
     )
+
+    return process_as_offer_curves(df)
+
+
+def process_as_offer_curves(df):
+    block_columns = [col for col in df.columns if col.startswith("BLOCK INDICATOR")]
+    block_count = len(block_columns)
+
+    as_offer_curve_column_prefixes = [
+        "RRSPFR",
+        "RRSFFR",
+        "RRSUFR",
+        "ECRS",
+        "OFFEC",
+        "ONLINE NONSPIN",
+        "REGUP",
+        "REGDOWN",
+        "OFFLINE NONSPIN",
+    ]
+
+    as_offer_curve_column_lists = []
+
+    # Construct a list of lists like [["PRICE1 RRSPFR", "QUANTITY MW1", "PRICE2
+    # RRSPFR", "QUANTITY MW2"], ...] to iterate over them and extract offer curve data
+    for prefix in as_offer_curve_column_prefixes:
+        prefix_columns = []
+        for i in range(1, block_count + 1):
+            prefix_columns.extend([f"PRICE{i} {prefix}", f"QUANTITY MW{i}"])
+
+        as_offer_curve_column_lists.append(prefix_columns)
+
+    constructed_data = []
+
+    # Group by each interval and resource name because each resource can have multiple
+    # rows at one interval. These rows represent different AS products.
+    for (interval_start, interval_end, resource_name, qse, dme), group in df.groupby(
+        ["Interval Start", "Interval End", "Resource Name", "QSE", "DME"],
+    ):
+        # Find the block list with the most non-null elements which represents the
+        # number of blocks where the resource made an offer
+        block_lists = (
+            group[block_columns].dropna(axis="columns", how="all").values.tolist()
+        )
+
+        max_block_list = max(
+            block_lists,
+            key=lambda x: len([elem for elem in x if not pd.isnull(elem)]),
+        )
+
+        group_data = {
+            "Interval Start": interval_start,
+            "Interval End": interval_end,
+            "QSE": qse,
+            "DME": dme,
+            "Resource Name": resource_name,
+            "Multi-Hour Block Flag": group["Multi-Hour Block Flag"].iloc[0],
+            "Block Indicators": max_block_list,
+        }
+
+        # Iterate through each ancillary service and extract the offer curve data
+        for index, column_list in enumerate(as_offer_curve_column_lists):
+            # Drop rows where all prices are NaN. This should leave us with only 1 row
+            price_columns = [c for c in column_list if c.startswith("PRICE")]
+
+            subset = group[column_list + block_columns].dropna(
+                axis="rows",
+                how="all",
+                subset=price_columns,
+            )
+
+            if len(subset) > 1:
+                raise ValueError(
+                    f"More than one row found for {column_list} for {resource_name}",
+                )
+
+            # Only keep the number of block indicators that are non-null
+            keep_block_count = subset[block_columns].notna().sum().sum()
+            subset = subset.drop(columns=block_columns).loc[
+                :,
+                column_list[: keep_block_count * 2],
+            ]
+
+            if subset.empty:
+                curve = None
+            else:
+                # Convert the column values to a list of lists like
+                # [[price1, quantity1], [price2, quantity2], ...]
+                subset_values = subset.replace({np.nan: 0}).values[0]
+
+                curve = []
+                for i in range(0, len(subset_values), 2):
+                    # Iterate through 2 columns at a time to get the price and quantity
+                    curve.append(subset_values[i : i + 2].tolist())
+
+            curve_name = f"{as_offer_curve_column_prefixes[index]} Offer Curve"
+            group_data[curve_name] = curve
+
+        constructed_data.append(group_data)
+
+    df = pd.DataFrame(constructed_data).replace({None: pd.NA})
 
     return df
 

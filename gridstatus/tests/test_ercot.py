@@ -736,10 +736,39 @@ class TestErcot(BaseTestISO):
         dam_energy_bids = df_dict["dam_energy_bids"]
         dam_energy_bid_awards = df_dict["dam_energy_bid_awards"]
 
+        # Same for both generation and load
+        as_offer_columns = [
+            "Interval Start",
+            "Interval End",
+            "QSE",
+            "DME",
+            "Resource Name",
+            "Multi-Hour Block Flag",
+            "Block Indicators",
+            "RRSPFR Offer Curve",
+            "RRSFFR Offer Curve",
+            "RRSUFR Offer Curve",
+            "ECRS Offer Curve",
+            "OFFEC Offer Curve",
+            "ONLINE NONSPIN Offer Curve",
+            "REGUP Offer Curve",
+            "REGDOWN Offer Curve",
+            "OFFLINE NONSPIN Offer Curve",
+        ]
+
+        assert dam_gen_resource_as_offers.columns.tolist() == as_offer_columns
+        assert dam_load_resource_as_offers.columns.tolist() == as_offer_columns
+
+        assert not dam_gen_resource_as_offers.duplicated(
+            subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
+        ).any()
+
+        assert not dam_load_resource_as_offers.duplicated(
+            subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
+        ).any()
+
         assert dam_gen_resource.shape[1] == 29
-        assert dam_gen_resource_as_offers.shape[1] == 62
         assert dam_load_resource.shape[1] == 19
-        assert dam_load_resource_as_offers.shape[1] == 63
         assert dam_energy_bids.shape[1] == 28
         assert dam_energy_bid_awards.shape[1] == 8
 

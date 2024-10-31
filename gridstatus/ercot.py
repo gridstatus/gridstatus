@@ -23,7 +23,7 @@ from gridstatus.decorators import support_date_range
 from gridstatus.ercot_60d_utils import (
     process_dam_gen,
     process_dam_load,
-    process_dam_load_as_offers,
+    process_dam_or_gen_load_as_offers,
     process_sced_gen,
     process_sced_load,
 )
@@ -1593,7 +1593,20 @@ class Ercot(ISOBase):
 
     @support_date_range("DAY_START")
     def get_60_day_dam_disclosure(self, date, end=None, process=False, verbose=False):
-        """Get 60 day DAM Disclosure data"""
+        """Get 60 day DAM Disclosure data. Returns a dict with keys
+
+        - "dam_gen_resource"
+        - "dam_gen_resource_as_offers"
+        - "dam_load_resource"
+        - "dam_load_resource_as_offers"
+        - "dam_energy_bids"
+        - "dam_energy_bid_awards"
+
+        and values as pandas.DataFrame objects
+
+        The date passed in should be the report date. Since reports are delayed by 60
+        days, the passed date should not be fewer than 60 days in the past.
+        """
 
         report_date = date + pd.DateOffset(days=60)
 
@@ -1613,11 +1626,11 @@ class Ercot(ISOBase):
     def _handle_60_day_dam_disclosure(self, z, process=False, verbose=False):
         files_prefix = {
             "dam_gen_resource": "60d_DAM_Gen_Resource_Data-",
-            "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",  # noqa: E501
+            "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",
             "dam_load_resource": "60d_DAM_Load_Resource_Data-",
-            "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",  # noqa: E501
+            "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
             "dam_energy_bids": "60d_DAM_EnergyBids-",
-            "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",  # noqa: E501
+            "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",
         }
 
         files = {}
@@ -1648,8 +1661,12 @@ class Ercot(ISOBase):
                 data["dam_load_resource"],
             )
 
-            data["dam_load_resource_as_offers"] = process_dam_load_as_offers(
+            data["dam_load_resource_as_offers"] = process_dam_or_gen_load_as_offers(
                 data["dam_load_resource_as_offers"],
+            )
+
+            data["dam_gen_resource_as_offers"] = process_dam_or_gen_load_as_offers(
+                data["dam_gen_resource_as_offers"],
             )
 
         return data
