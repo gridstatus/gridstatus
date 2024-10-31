@@ -360,7 +360,9 @@ def process_as_offer_curves(df):
 
         constructed_data.append(group_data)
 
-    return pd.DataFrame(constructed_data)
+    df = pd.DataFrame(constructed_data).replace({None: pd.NA})
+
+    return df
 
 
 def process_sced_gen(df):
