@@ -12,7 +12,7 @@ from gridstatus.gs_logging import log
 """LOAD CONSTANTS"""
 # Load hourly files go back 30 days
 MAXIMUM_DAYS_IN_PAST_FOR_LOAD = 30
-LOAD_INDEX_URL = "http://reports.ieso.ca/public/RealtimeConstTotals"
+LOAD_INDEX_URL = "https://reports-public.ieso.ca/public/RealtimeConstTotals"
 
 # Each load file covers one hour. We have to use the xml instead of the csv because
 # the csv does not have demand for Ontario.
@@ -27,7 +27,7 @@ LOAD_FORECAST_URL = (
 )
 
 """ZONAL LOAD FORECAST CONSTANTS"""
-ZONAL_LOAD_FORECAST_INDEX_URL = "http://reports.ieso.ca/public/OntarioZonalDemand"
+ZONAL_LOAD_FORECAST_INDEX_URL = "https://reports-public.ieso.ca/public/OntarioZonalDemand"
 
 # Each forecast file contains data from the day in the filename going forward for
 # 34 days. The most recent file does not have a date in the filename.
@@ -42,7 +42,7 @@ MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST = 90
 MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST = 34
 
 """REAL TIME FUEL MIX CONSTANTS"""
-FUEL_MIX_INDEX_URL = "http://reports.ieso.ca/public/GenOutputCapability/"
+FUEL_MIX_INDEX_URL = "https://reports-public.ieso.ca/public/GenOutputCapability/"
 
 # Updated every hour and each file has data for one day.
 # The most recent version does not have the date in the filename.
@@ -53,7 +53,7 @@ FUEL_MIX_TEMPLATE_URL = f"{FUEL_MIX_INDEX_URL}/PUB_GenOutputCapability_YYYYMMDD.
 MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT = 90
 
 """HISTORICAL FUEL MIX CONSTANTS"""
-HISTORICAL_FUEL_MIX_INDEX_URL = "http://reports.ieso.ca/public/GenOutputbyFuelHourly/"
+HISTORICAL_FUEL_MIX_INDEX_URL = "https://reports-public.ieso.ca/public/GenOutputbyFuelHourly/"
 
 # Updated once a day and each file contains data for an entire year.
 HISTORICAL_FUEL_MIX_TEMPLATE_URL = (
