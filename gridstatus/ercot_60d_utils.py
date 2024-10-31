@@ -355,7 +355,7 @@ def process_as_offer_curves(df):
                     # Iterate through 2 columns at a time to get the price and quantity
                     curve.append(subset_values[i : i + 2].tolist())
 
-            curve_name = as_offer_curve_column_prefixes[index]
+            curve_name = f"{as_offer_curve_column_prefixes[index]} Offer Curve"
             group_data[curve_name] = curve
 
         constructed_data.append(group_data)
