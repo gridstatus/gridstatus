@@ -821,7 +821,7 @@ class IESO(ISOBase):
         sleep = 5
 
         while retry_num < max_retries:
-            r = requests.get(url)
+            r = requests.get(url, verify=False)
 
             if r.ok:
                 break
