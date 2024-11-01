@@ -3,6 +3,7 @@ import os
 import random
 import time
 from typing import Optional
+from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
@@ -88,6 +89,14 @@ SETTLEMENT_POINT_PRICE_REAL_TIME_15_MIN = "/np6-905-cd/spp_node_zone_hub"
 # Day ahead settlement point prices
 # https://data.ercot.com/data-product-archive/NP4-190-CD
 SPP_DAY_AHEAD_HOURLY = "/np4-190-cd/dam_stlmnt_pnt_prices"
+
+# DAM 60 Day Load Resource AS Offers
+# https://data.ercot.com/data-product-archive/NP3-966-ER
+DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_load_res_as_offers"
+
+# DAM 60 Day Gen Resource AS Offers
+# https://data.ercot.com/data-product-archive/NP3-966-ER
+DAM_60_DAY_GEN_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_gen_res_as_offers"
 
 
 class ErcotAPI:
@@ -977,6 +986,62 @@ class ErcotAPI:
         )
 
         return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_dam_load_60_day_resources_as_offers(self, date, end=None, verbose=False):
+        data_bytes = self.get_historical_data(
+            # Any of the endpoints for the files that are in the zipfile will work. They
+            # all return the same zipfile.
+            endpoint=DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            read_as_csv=False,
+        )
+
+        dfs = []
+
+        for bytes in data_bytes:
+            processed_files = Ercot()._handle_60_day_dam_disclosure(
+                z=ZipFile(bytes),
+                process=True,
+                verbose=verbose,
+                files_prefix={
+                    "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
+                },
+            )
+
+            dfs.append(processed_files["dam_load_resource_as_offers"])
+
+        return pd.concat(dfs).sort_values(["Interval Start", "Resource Name"])
+
+    @support_date_range(frequency=None)
+    def get_dam_gen_60_day_resources_as_offers(self, date, end=None, verbose=False):
+        data_bytes = self.get_historical_data(
+            # Any of the endpoints for the files that are in the zipfile will work. They
+            # all return the same zipfile.
+            endpoint=DAM_60_DAY_GEN_RESOURCES_AS_OFFERS_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            read_as_csv=False,
+        )
+
+        dfs = []
+
+        for bytes in data_bytes:
+            processed_files = Ercot()._handle_60_day_dam_disclosure(
+                z=ZipFile(bytes),
+                process=True,
+                verbose=verbose,
+                files_prefix={
+                    "dam_gen_resource_as_offers": "60d_DAM_Gen_Resource_ASOffers-",
+                },
+            )
+
+            dfs.append(processed_files["dam_load_resource_as_offers"])
+
+        return pd.concat(dfs).sort_values(["Interval Start", "Resource Name"])
 
     def get_historical_data(
         self,

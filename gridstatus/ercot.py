@@ -1634,15 +1634,22 @@ class Ercot(ISOBase):
 
         return data
 
-    def _handle_60_day_dam_disclosure(self, z, process=False, verbose=False):
-        files_prefix = {
-            "dam_gen_resource": "60d_DAM_Gen_Resource_Data-",
-            "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",
-            "dam_load_resource": "60d_DAM_Load_Resource_Data-",
-            "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
-            "dam_energy_bids": "60d_DAM_EnergyBids-",
-            "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",
-        }
+    def _handle_60_day_dam_disclosure(
+        self,
+        z,
+        process=False,
+        verbose=False,
+        files_prefix: dict = None,
+    ):
+        if not files_prefix:
+            files_prefix = {
+                "dam_gen_resource": "60d_DAM_Gen_Resource_Data-",
+                "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",
+                "dam_load_resource": "60d_DAM_Load_Resource_Data-",
+                "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
+                "dam_energy_bids": "60d_DAM_EnergyBids-",
+                "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",
+            }
 
         files = {}
 
@@ -1664,21 +1671,25 @@ class Ercot(ISOBase):
             data[key] = self.parse_doc(doc)
 
         if process:
-            data["dam_gen_resource"] = process_dam_gen(
-                data["dam_gen_resource"],
-            )
+            if "dam_gen_resource" in data:
+                data["dam_gen_resource"] = process_dam_gen(
+                    data["dam_gen_resource"],
+                )
 
-            data["dam_load_resource"] = process_dam_load(
-                data["dam_load_resource"],
-            )
+            if "dam_load_resource" in data:
+                data["dam_load_resource"] = process_dam_load(
+                    data["dam_load_resource"],
+                )
 
-            data["dam_load_resource_as_offers"] = process_dam_or_gen_load_as_offers(
-                data["dam_load_resource_as_offers"],
-            )
+            if "dam_load_resource_as_offers" in data:
+                data["dam_load_resource_as_offers"] = process_dam_or_gen_load_as_offers(
+                    data["dam_load_resource_as_offers"],
+                )
 
-            data["dam_gen_resource_as_offers"] = process_dam_or_gen_load_as_offers(
-                data["dam_gen_resource_as_offers"],
-            )
+            if "dam_gen_resource_as_offers" in data:
+                data["dam_gen_resource_as_offers"] = process_dam_or_gen_load_as_offers(
+                    data["dam_gen_resource_as_offers"],
+                )
 
         return data
 
