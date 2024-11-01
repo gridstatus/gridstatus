@@ -1007,31 +1007,25 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
-    """get_dam_gen_60_day_resources_as_offers"""
+    """get_dam_load_and_gen_60_day_resources_as_offers"""
 
-    def test_get_dam_gen_60_day_resources_as_offers_historical_date_range(self):
+    def test_get_dam_load_and_gen_60_day_resources_as_offers(self):
         start_date = self.local_start_of_today() - pd.DateOffset(days=3000)
 
         end_date = start_date + pd.DateOffset(days=2)
 
-        df = ErcotAPI().get_dam_gen_60_day_resources_as_offers(start_date, end_date)
+        df_dict = ErcotAPI().get_dam_load_and_gen_60_day_resources_as_offers(
+            start_date,
+            end_date,
+        )
 
-        assert df.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
-        assert df["Interval Start"].min() == start_date
-        assert df["Interval End"].max() == end_date
+        df_load = df_dict["dam_load_resource_as_offers"]
+        df_gen = df_dict["dam_gen_resource_as_offers"]
 
-    """get_dam_load_60_day_resources_as_offers"""
-
-    def test_get_dam_load_60_day_resources_as_offers_historical_date_range(self):
-        start_date = self.local_start_of_today() - pd.DateOffset(days=2500)
-
-        end_date = start_date + pd.DateOffset(days=2)
-
-        df = ErcotAPI().get_dam_load_60_day_resources_as_offers(start_date, end_date)
-
-        assert df.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
-        assert df["Interval Start"].min() == start_date
-        assert df["Interval End"].max() == end_date
+        for df in [df_load, df_gen]:
+            assert df.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
+            assert df["Interval Start"].min() == start_date
+            assert df["Interval End"].max() == end_date
 
     """get_historical_data"""
 
