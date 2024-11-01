@@ -311,7 +311,9 @@ def process_as_offer_curves(df):
     # Group by each interval and resource name because each resource can have multiple
     # rows at one interval. These rows represent different AS products.
     for (interval_start, interval_end, resource_name, qse, dme), group in df.groupby(
+        # We must use dropna=False because QSE and DME may be all null
         ["Interval Start", "Interval End", "Resource Name", "QSE", "DME"],
+        dropna=False,
     ):
         # Find the block list with the most non-null elements which represents the
         # number of blocks where the resource made an offer

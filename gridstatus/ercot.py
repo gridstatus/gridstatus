@@ -1671,21 +1671,16 @@ class Ercot(ISOBase):
             data[key] = self.parse_doc(doc)
 
         if process:
-            if "dam_gen_resource" in data:
-                data["dam_gen_resource"] = process_dam_gen(data["dam_gen_resource"])
+            file_to_function = {
+                "dam_gen_resource": process_dam_gen,
+                "dam_load_resource": process_dam_load,
+                "dam_gen_resource_as_offers": process_dam_or_gen_load_as_offers,
+                "dam_load_resource_as_offers": process_dam_or_gen_load_as_offers,
+            }
 
-            if "dam_load_resource" in data:
-                data["dam_load_resource"] = process_dam_load(data["dam_load_resource"])
-
-            if "dam_load_resource_as_offers" in data:
-                data["dam_load_resource_as_offers"] = process_dam_or_gen_load_as_offers(
-                    data["dam_load_resource_as_offers"],
-                )
-
-            if "dam_gen_resource_as_offers" in data:
-                data["dam_gen_resource_as_offers"] = process_dam_or_gen_load_as_offers(
-                    data["dam_gen_resource_as_offers"],
-                )
+            for file_name, process_func in file_to_function.items():
+                if file_name in data:
+                    data[file_name] = process_func(data[file_name])
 
         return data
 
