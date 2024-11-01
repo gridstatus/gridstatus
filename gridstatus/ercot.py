@@ -1668,7 +1668,7 @@ class Ercot(ISOBase):
             # weird that these files dont have this column like all other eroct files
             # add so we can parse
             doc["DSTFlag"] = "N"
-            data[key] = self.parse_doc(doc)
+            data[key] = self.parse_doc(doc, verbose=verbose)
 
         if process:
             file_to_function = {

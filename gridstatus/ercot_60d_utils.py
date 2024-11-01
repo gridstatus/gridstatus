@@ -282,17 +282,22 @@ def process_as_offer_curves(df):
         "OFFLINE NONSPIN",
     ]
 
+    # Correct ordering of ancillary services columns
+    as_offer_curve_column_names = [
+        f"{service} Offer Curve" for service in all_ancillary_services
+    ]
+
     # Check for which ancillary services are present in the file
-    ancillary_services = [
+    ancillary_services_in_file = [
         col.split(" ")[1] for col in df.columns if col.startswith("PRICE1")
     ]
 
     present_ancillary_services = [
-        prefix for prefix in all_ancillary_services if prefix in ancillary_services
+        s for s in all_ancillary_services if s in ancillary_services_in_file
     ]
 
     missing_ancillary_services = list(
-        set(all_ancillary_services) - set(ancillary_services),
+        set(all_ancillary_services) - set(present_ancillary_services),
     )
 
     ancillary_services_column_lists = []
@@ -379,7 +384,18 @@ def process_as_offer_curves(df):
 
         constructed_data.append(group_data)
 
-    df = pd.DataFrame(constructed_data).replace({None: pd.NA})
+    df = pd.DataFrame(constructed_data).replace({None: pd.NA})[
+        [
+            "Interval Start",
+            "Interval End",
+            "QSE",
+            "DME",
+            "Resource Name",
+            "Multi-Hour Block Flag",
+            "Block Indicators",
+        ]
+        + as_offer_curve_column_names
+    ]
 
     return df
 

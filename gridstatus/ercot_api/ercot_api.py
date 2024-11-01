@@ -992,6 +992,15 @@ class ErcotAPI:
 
     @support_date_range(frequency=None)
     def get_dam_load_60_day_resources_as_offers(self, date, end=None, verbose=False):
+        # Reports are delayed by 60 days
+        date = date + pd.DateOffset(days=60)
+
+        # End is required so set a default end date
+        if end:
+            end = end + pd.DateOffset(days=60)
+        else:
+            end = date + pd.DateOffset(days=1)
+
         data_bytes = self.get_historical_data(
             # Any of the endpoints for the files that are in the zipfile will work. They
             # all return the same zipfile.
@@ -1020,6 +1029,15 @@ class ErcotAPI:
 
     @support_date_range(frequency=None)
     def get_dam_gen_60_day_resources_as_offers(self, date, end=None, verbose=False):
+        # Reports are delayed by 60 days
+        date = date + pd.DateOffset(days=60)
+
+        # End is required so set a default end date
+        if end:
+            end = end + pd.DateOffset(days=60)
+        else:
+            end = date + pd.DateOffset(days=1)
+
         data_bytes = self.get_historical_data(
             # Any of the endpoints for the files that are in the zipfile will work. They
             # all return the same zipfile.

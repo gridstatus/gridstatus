@@ -1010,7 +1010,7 @@ class TestErcotAPI(TestHelperMixin):
     """get_dam_gen_60_day_resources_as_offers"""
 
     def test_get_dam_gen_60_day_resources_as_offers_historical_date_range(self):
-        start_date = self.local_today() - pd.DateOffset(days=100)
+        start_date = self.local_start_of_today() - pd.DateOffset(days=3000)
 
         end_date = start_date + pd.DateOffset(days=2)
 
@@ -1023,7 +1023,7 @@ class TestErcotAPI(TestHelperMixin):
     """get_dam_load_60_day_resources_as_offers"""
 
     def test_get_dam_load_60_day_resources_as_offers_historical_date_range(self):
-        start_date = self.local_today() - pd.DateOffset(days=100)
+        start_date = self.local_start_of_today() - pd.DateOffset(days=2500)
 
         end_date = start_date + pd.DateOffset(days=2)
 
