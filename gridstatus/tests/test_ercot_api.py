@@ -8,6 +8,7 @@ from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
 from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES
 from gridstatus.ercot_api.ercot_api import HISTORICAL_DAYS_THRESHOLD, ErcotAPI
 from gridstatus.tests.base_test_iso import TestHelperMixin
+from gridstatus.tests.test_ercot import RESOURCE_AS_OFFERS_COLUMNS
 
 
 class TestErcotAPI(TestHelperMixin):
@@ -1005,6 +1006,32 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() == self.local_start_of_day(end_date)
+
+    """get_dam_gen_60_day_resources_as_offers"""
+
+    def test_get_dam_gen_60_day_resources_as_offers_historical_date_range(self):
+        start_date = self.local_today() - pd.DateOffset(days=100)
+
+        end_date = start_date + pd.DateOffset(days=2)
+
+        df = ErcotAPI().get_dam_gen_60_day_resources_as_offers(start_date, end_date)
+
+        assert df.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
+        assert df["Interval Start"].min() == start_date
+        assert df["Interval End"].max() == end_date
+
+    """get_dam_load_60_day_resources_as_offers"""
+
+    def test_get_dam_load_60_day_resources_as_offers_historical_date_range(self):
+        start_date = self.local_today() - pd.DateOffset(days=100)
+
+        end_date = start_date + pd.DateOffset(days=2)
+
+        df = ErcotAPI().get_dam_load_60_day_resources_as_offers(start_date, end_date)
+
+        assert df.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
+        assert df["Interval Start"].min() == start_date
+        assert df["Interval End"].max() == end_date
 
     """get_historical_data"""
 
