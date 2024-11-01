@@ -269,7 +269,8 @@ def process_as_offer_curves(df):
     block_columns = [col for col in df.columns if col.startswith("BLOCK INDICATOR")]
     block_count = len(block_columns)
 
-    as_offer_curve_column_prefixes = [
+    # Older files will not have all of these ancillary services
+    all_ancillary_services = [
         "RRSPFR",
         "RRSFFR",
         "RRSUFR",
@@ -281,16 +282,29 @@ def process_as_offer_curves(df):
         "OFFLINE NONSPIN",
     ]
 
-    as_offer_curve_column_lists = []
+    # Check for which ancillary services are present in the file
+    ancillary_services = [
+        col.split(" ")[1] for col in df.columns if col.startswith("PRICE1")
+    ]
+
+    present_ancillary_services = [
+        prefix for prefix in all_ancillary_services if prefix in ancillary_services
+    ]
+
+    missing_ancillary_services = list(
+        set(all_ancillary_services) - set(ancillary_services),
+    )
+
+    ancillary_services_column_lists = []
 
     # Construct a list of lists like [["PRICE1 RRSPFR", "QUANTITY MW1", "PRICE2
     # RRSPFR", "QUANTITY MW2"], ...] to iterate over them and extract offer curve data
-    for prefix in as_offer_curve_column_prefixes:
-        prefix_columns = []
+    for service in present_ancillary_services:
+        service_columns = []
         for i in range(1, block_count + 1):
-            prefix_columns.extend([f"PRICE{i} {prefix}", f"QUANTITY MW{i}"])
+            service_columns.extend([f"PRICE{i} {service}", f"QUANTITY MW{i}"])
 
-        as_offer_curve_column_lists.append(prefix_columns)
+        ancillary_services_column_lists.append(service_columns)
 
     constructed_data = []
 
@@ -321,7 +335,7 @@ def process_as_offer_curves(df):
         }
 
         # Iterate through each ancillary service and extract the offer curve data
-        for index, column_list in enumerate(as_offer_curve_column_lists):
+        for index, column_list in enumerate(ancillary_services_column_lists):
             # Drop rows where all prices are NaN. This should leave us with only 1 row
             price_columns = [c for c in column_list if c.startswith("PRICE")]
 
@@ -355,8 +369,11 @@ def process_as_offer_curves(df):
                     # Iterate through 2 columns at a time to get the price and quantity
                     curve.append(subset_values[i : i + 2].tolist())
 
-            curve_name = f"{as_offer_curve_column_prefixes[index]} Offer Curve"
+            curve_name = f"{present_ancillary_services[index]} Offer Curve"
             group_data[curve_name] = curve
+
+            for service in missing_ancillary_services:
+                group_data[f"{service} Offer Curve"] = None
 
         constructed_data.append(group_data)
 

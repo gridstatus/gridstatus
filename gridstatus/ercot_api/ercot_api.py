@@ -90,6 +90,9 @@ SETTLEMENT_POINT_PRICE_REAL_TIME_15_MIN = "/np6-905-cd/spp_node_zone_hub"
 # https://data.ercot.com/data-product-archive/NP4-190-CD
 SPP_DAY_AHEAD_HOURLY = "/np4-190-cd/dam_stlmnt_pnt_prices"
 
+
+# For the disclosure files, any of the files that are in the zipfile will return
+# the same zipfile.
 # DAM 60 Day Load Resource AS Offers
 # https://data.ercot.com/data-product-archive/NP3-966-ER
 DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_load_res_as_offers"
@@ -1035,11 +1038,11 @@ class ErcotAPI:
                 process=True,
                 verbose=verbose,
                 files_prefix={
-                    "dam_gen_resource_as_offers": "60d_DAM_Gen_Resource_ASOffers-",
+                    "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",  # noqa
                 },
             )
 
-            dfs.append(processed_files["dam_load_resource_as_offers"])
+            dfs.append(processed_files["dam_gen_resource_as_offers"])
 
         return pd.concat(dfs).sort_values(["Interval Start", "Resource Name"])
 

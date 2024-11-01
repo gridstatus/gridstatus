@@ -1672,14 +1672,10 @@ class Ercot(ISOBase):
 
         if process:
             if "dam_gen_resource" in data:
-                data["dam_gen_resource"] = process_dam_gen(
-                    data["dam_gen_resource"],
-                )
+                data["dam_gen_resource"] = process_dam_gen(data["dam_gen_resource"])
 
             if "dam_load_resource" in data:
-                data["dam_load_resource"] = process_dam_load(
-                    data["dam_load_resource"],
-                )
+                data["dam_load_resource"] = process_dam_load(data["dam_load_resource"])
 
             if "dam_load_resource_as_offers" in data:
                 data["dam_load_resource_as_offers"] = process_dam_or_gen_load_as_offers(
