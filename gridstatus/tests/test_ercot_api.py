@@ -704,6 +704,37 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == past_date.normalize()
         assert df["Interval End"].max() == past_end_date.normalize()
 
+    def test_get_lmp_by_bus_dam_dst_end(self):
+        date = "2024-11-03"
+
+        df = self.iso.get_lmp_by_bus_dam(date)
+
+        assert not df[["Interval Start", "Location"]].duplicated().any()
+
+        # Check that 01:00 local time is duplicated
+        unique_interval_strings = df["Interval Start"].astype(str).unique()
+        assert len(unique_interval_strings) == 25
+
+        assert "2024-11-03 01:00:00-05:00" in unique_interval_strings
+        assert "2024-11-03 01:00:00-06:00" in unique_interval_strings
+
+    def test_get_lmp_by_bus_dam_dst_start(self):
+        date = "2024-03-10"
+
+        df = self.iso.get_lmp_by_bus_dam(date)
+
+        assert not df[["Interval Start", "Location"]].duplicated().any()
+
+        # Check that there is a gap at 02:00 local time
+        unique_interval_strings = df["Interval Start"].astype(str).unique()
+
+        assert len(unique_interval_strings) == 23
+
+        assert "2024-03-10 01:00:00-06:00" in unique_interval_strings
+        # This hour does not exist
+        assert "2024-03-10 02:00:00-06:00" not in unique_interval_strings
+        assert "2024-03-10 03:00:00-05:00" in unique_interval_strings
+
     """shadow_prices_dam"""
 
     expected_shadow_prices_dam_columns = [

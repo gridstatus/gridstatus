@@ -3171,7 +3171,11 @@ class Ercot(ISOBase):
                 # So, it's N during DST And Y during Standard Time
                 # Pandas wants True for DST and False for Standard Time
                 # during ambiguous times
-                ambiguous = doc["DSTFlag"] == "N"
+                # Some ERCOT datasets use a boolean, some use a string
+                if doc["DSTFlag"].dtype == bool:
+                    ambiguous = ~doc["DSTFlag"]
+                else:
+                    ambiguous = doc["DSTFlag"] == "N"
 
             try:
                 doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
