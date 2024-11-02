@@ -3121,6 +3121,23 @@ class Ercot(ISOBase):
 
         ending_time_col_name = "HourEnding"
 
+        def ambiguous_based_on_dstflag(df):
+            # DST Flag is Y during the repeated hour so it's N during DST And Y during
+            # Standard Time
+            # For the ambiguous arg, Pandas wants True for DST and False for Standard
+            # Time during ambiguous times
+            # Some ERCOT datasets use a boolean, some use a string
+            if df["DSTFlag"].dtype == bool:
+                return ~df["DSTFlag"]
+            # Assume that if the DSTFlag column is a string, it's "Y" or "N"
+            else:
+                assert set(df["DSTFlag"].unique()).issubset({"Y", "N"})
+                return df["DSTFlag"] == "N"
+
+        ambiguous = dst_ambiguous_default
+        if "DSTFlag" in doc.columns:
+            ambiguous = ambiguous_based_on_dstflag(doc)
+
         # i think DeliveryInterval only shows up
         # in 15 minute data along with DeliveryHour
         if "DeliveryInterval" in original_cols:
@@ -3144,7 +3161,7 @@ class Ercot(ISOBase):
             )
             doc["Interval End"] = doc["Interval End"].dt.tz_localize(
                 "US/Central",
-                ambiguous=doc["DSTFlag"] == "N",
+                ambiguous=ambiguous,
             )
             doc["Interval Start"] = doc["Interval End"] - interval_length
 
@@ -3165,18 +3182,6 @@ class Ercot(ISOBase):
             ].astype("timedelta64[h]")
 
         if "TimeEnding" not in original_cols:
-            ambiguous = dst_ambiguous_default
-            if "DSTFlag" in doc.columns:
-                # DST Flag is Y during the repeated hour
-                # So, it's N during DST And Y during Standard Time
-                # Pandas wants True for DST and False for Standard Time
-                # during ambiguous times
-                # Some ERCOT datasets use a boolean, some use a string
-                if doc["DSTFlag"].dtype == bool:
-                    ambiguous = ~doc["DSTFlag"]
-                else:
-                    ambiguous = doc["DSTFlag"] == "N"
-
             try:
                 doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
                     self.default_timezone,
