@@ -1068,7 +1068,7 @@ class ErcotAPI:
                     break  # Exit the loop if the operation is successful
 
                 except Exception as e:
-                    if "Rate limit is exceeded" in response.decode("utf-8"):
+                    if "429 Client Error" in str(e):
                         # Rate limited, so sleep for a longer time
                         log(
                             f"Rate limited. Sleeping {self.sleep_seconds * 10} seconds",

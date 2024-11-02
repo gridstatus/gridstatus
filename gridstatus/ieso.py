@@ -27,7 +27,9 @@ LOAD_FORECAST_URL = (
 )
 
 """ZONAL LOAD FORECAST CONSTANTS"""
-ZONAL_LOAD_FORECAST_INDEX_URL = "https://reports-public.ieso.ca/public/OntarioZonalDemand"
+ZONAL_LOAD_FORECAST_INDEX_URL = (
+    "https://reports-public.ieso.ca/public/OntarioZonalDemand"
+)
 
 # Each forecast file contains data from the day in the filename going forward for
 # 34 days. The most recent file does not have a date in the filename.
@@ -53,7 +55,9 @@ FUEL_MIX_TEMPLATE_URL = f"{FUEL_MIX_INDEX_URL}/PUB_GenOutputCapability_YYYYMMDD.
 MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT = 90
 
 """HISTORICAL FUEL MIX CONSTANTS"""
-HISTORICAL_FUEL_MIX_INDEX_URL = "https://reports-public.ieso.ca/public/GenOutputbyFuelHourly/"
+HISTORICAL_FUEL_MIX_INDEX_URL = (
+    "https://reports-public.ieso.ca/public/GenOutputbyFuelHourly/"
+)
 
 # Updated once a day and each file contains data for an entire year.
 HISTORICAL_FUEL_MIX_TEMPLATE_URL = (

@@ -464,13 +464,17 @@ class TestErcot(BaseTestISO):
             "Load Forecast",
         ]
 
-        assert df["Interval Start"].min() == self.local_start_of_today() + pd.Timedelta(
+        # Use DateOffset for comparisons because it takes into account DST
+        assert df[
+            "Interval Start"
+        ].min() == self.local_start_of_today() + pd.DateOffset(
             days=1,
         )
-        assert df["Interval End"].max() == self.local_start_of_today() + pd.Timedelta(
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
             days=7,
         )
 
+        # This can use a timedelta because it doesn't span a day
         assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
             hours=1,
         )
