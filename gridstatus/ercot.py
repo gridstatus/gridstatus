@@ -1864,9 +1864,10 @@ class Ercot(ISOBase):
 
         now = pd.Timestamp.now(tz=self.default_timezone)
 
-        # Determine if during the repeated DST hour. Pandas wants ambiguous=True if
-        # it is during the repeated hour. US/Central is UTC-6 during standard time
-        # and UTC-5 during DST.
+        # Determine if during the repeated DST hour. Pandas wants ambiguous=True if the
+        # time is DST during the repeated hour. US/Central is UTC-6 during standard time
+        # and UTC-5 during DST. Outside the repeated hour, Pandas doesn't care about
+        # ambiguous=True or ambiguous=False.
         ambiguous = (now.utcoffset().total_seconds() / 3600) == -5.0
 
         df.insert(
