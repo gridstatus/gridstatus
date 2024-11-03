@@ -1862,10 +1862,20 @@ class Ercot(ISOBase):
             1
         ]  # Split the string on ': ' to get just the time part
 
+        now = pd.Timestamp.now(tz=self.default_timezone)
+
+        # Determine if during the repeated DST hour. Pandas wants ambiguous=True if
+        # it is during the repeated hour. US/Central is UTC-6 during standard time
+        # and UTC-5 during DST.
+        ambiguous = (now.utcoffset().total_seconds() / 3600) == -5.0
+
         df.insert(
             0,
             "Time",
-            pd.to_datetime(time_text).tz_localize(self.default_timezone),
+            pd.to_datetime(time_text).tz_localize(
+                self.default_timezone,
+                ambiguous=ambiguous,
+            ),
         )
 
         return df
