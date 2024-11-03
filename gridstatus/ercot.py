@@ -2961,13 +2961,29 @@ class Ercot(ISOBase):
             except Exception:
                 friendly_name_timestamp = None
 
+            friendly_name = doc["Document"]["FriendlyName"]
+
+            # ERCOT adds xhr to the file name during the repeated hour that occurs
+            # during DST end. However, ERCOT may get the timezone offset wrong.
+            # Therefore, we remove the ERCOT provided timezone offset then re-add the
+            # offset taking into account the repeated hour.
+            publish_date = (
+                pd.Timestamp(doc["Document"]["PublishDate"])
+                .tz_localize(None)
+                .tz_localize(
+                    self.default_timezone,
+                    # Pandas wants ambiguous to be True when DST is True during the
+                    # repeated hour (doesn't care otherwise). The "xhr" file occurs
+                    # after the clock has been set back an hour so is not in DST.
+                    ambiguous="xhr" not in friendly_name,
+                )
+            )
+
             doc_obj = Document(
                 url=doc_url,
-                publish_date=pd.Timestamp(doc["Document"]["PublishDate"]).tz_convert(
-                    self.default_timezone,
-                ),
+                publish_date=publish_date,
                 constructed_name=doc["Document"]["ConstructedName"],
-                friendly_name=doc["Document"]["FriendlyName"],
+                friendly_name=friendly_name,
                 friendly_name_timestamp=friendly_name_timestamp,
             )
 
