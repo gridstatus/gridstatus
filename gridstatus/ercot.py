@@ -303,6 +303,18 @@ class Ercot(ISOBase):
 
         df = pd.DataFrame(data["previousDay"]["data"] + data["currentDay"]["data"])
 
+        # todo(kanter): fix this for future DST dates
+        if "2024-11-03 02:00:00-0600" in df["timestamp"].values:
+            # ERCOT publishes two intervals with 2am timestamp
+            # during CDT to CST transition
+            # but skips the repeated 1am timestamp
+            # let's manually fix this before further timestamp parsing
+            df.loc[
+                (df["timestamp"] == "2024-11-03 02:00:00-0600")
+                & (df["dstFlag"] == "N"),
+                "timestamp",
+            ] = "2024-11-03 01:00:00-0600"
+
         df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
 
         # need to use apply since there can be mixed
@@ -323,7 +335,6 @@ class Ercot(ISOBase):
         )
 
         df = df.sort_values("Time").reset_index(drop=True)
-
         return df
 
     def get_fuel_mix(self, date, verbose=False):
