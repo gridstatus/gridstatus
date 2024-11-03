@@ -335,10 +335,6 @@ class Ercot(ISOBase):
         )
 
         df = df.sort_values("Time").reset_index(drop=True)
-        import pdb
-
-        pdb.set_trace()
-
         return df
 
     def get_fuel_mix(self, date, verbose=False):
