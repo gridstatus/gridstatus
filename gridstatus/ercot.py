@@ -2963,17 +2963,18 @@ class Ercot(ISOBase):
 
             friendly_name = doc["Document"]["FriendlyName"]
 
-            # ERCOT adds xhr to the file name during the repeated hour that occurs
-            # during DST end. However, ERCOT may get the timezone offset wrong.
-            # Therefore, we remove the ERCOT provided timezone offset then re-add the
-            # offset taking into account the repeated hour.
+            # ERCOT adds xhr to the second set of file names during the repeated hour
+            # for DST end. However, ERCOT may get the timezone offset wrong in the
+            # PublishDate. Therefore, we remove the ERCOT provided timezone offset then
+            # re-add the offset accounting for the repeated hour.
+            # https://lists.ercot.com/cgi-bin/wa?A3=1111&L=NOTICE_TRAINING&E=quoted-printable&P=4519&B=--_000_B117FDA9B7BC68479362C1197F77D8790950ADCPW0005ercotcom_&T=text%2Fhtml;%20charset=us-ascii&XSS=3&header=1
             publish_date = (
                 pd.Timestamp(doc["Document"]["PublishDate"])
                 .tz_localize(None)
                 .tz_localize(
                     self.default_timezone,
-                    # Pandas wants ambiguous to be True when DST is True during the
-                    # repeated hour (doesn't care otherwise). The "xhr" file occurs
+                    # Pandas wants ambiguous to be True when DST is True (Pandas only
+                    # uses ambiguous during the repeated hour) The "xhr" file occurs
                     # after the clock has been set back an hour so is not in DST.
                     ambiguous="xhr" not in friendly_name,
                 )
@@ -3160,10 +3161,12 @@ class Ercot(ISOBase):
         ending_time_col_name = "HourEnding"
 
         def ambiguous_based_on_dstflag(df):
-            # DST Flag is Y during the repeated hour so it's N during DST And Y during
-            # Standard Time
-            # For the ambiguous arg, Pandas wants True for DST and False for Standard
-            # Time during ambiguous times
+            # DSTFlag is Y during the repeated hour (after the clock has been set back)
+            # so it's False/N during DST And True/Y during Standard Time.
+            # For ambiguous, Pandas wants True for DST and False for Standard Time
+            # during repeated hours. Therefore, ambgiuous should be True when
+            # DSTFlag is False/N
+
             # Some ERCOT datasets use a boolean, some use a string
             if df["DSTFlag"].dtype == bool:
                 return ~df["DSTFlag"]
