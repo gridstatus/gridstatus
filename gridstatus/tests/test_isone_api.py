@@ -276,3 +276,43 @@ class TestISONEAPI:
         ).all()
         grouped = result.groupby(["Interval Start", "Publish Time"])
         assert (grouped["Regional Percentage"].sum().between(99.9, 100.1)).all()
+
+    @api_vcr.use_cassette("test_get_fuel_mix_latest.yaml")
+    def test_get_fuel_mix_latest(self):
+        result = self.iso.get_fuel_mix(date="latest")
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert "Time" in result.columns
+
+        assert isinstance(result["Time"].iloc[0], pd.Timestamp)
+        numeric_cols = [col for col in result.columns if col != "Time"]
+        for col in numeric_cols:
+            assert result[col].dtype in [np.int64, np.float64]
+            assert (result[col] >= 0).all()
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            ("2024-01-01", "2024-01-03"),
+        ],
+    )
+    @api_vcr.use_cassette("test_get_fuel_mix_date_range.yaml")
+    def test_get_fuel_mix_date_range(self, date, end):
+        result = self.iso.get_fuel_mix(date=date, end=end)
+
+        assert isinstance(result, pd.DataFrame)
+        assert "Time" in result.columns
+
+        assert min(result["Time"]).date() == pd.Timestamp(date).date()
+        assert max(result["Time"]).date() == pd.Timestamp(end).date() - pd.Timedelta(
+            days=1,
+        )
+
+        assert all(isinstance(t, pd.Timestamp) for t in result["Time"])
+        numeric_cols = [col for col in result.columns if col != "Time"]
+        for col in numeric_cols:
+            assert result[col].dtype in [np.int64, np.float64]
+            assert (result[col] >= 0).all()
+
+        assert (result[numeric_cols].sum(axis=1) > 0).all()

@@ -7,6 +7,7 @@ import pandas as pd
 import pytz
 import requests
 
+from gridstatus import utils
 from gridstatus.base import NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
@@ -174,6 +175,46 @@ class ISONEAPI:
         locations = response["Locations"]["Location"]
         df = pd.DataFrame(locations)
         return df
+
+    @support_date_range("DAY_START")
+    def get_fuel_mix(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return fuel mix data for the specified date range
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: DataFrame containing fuel mix data with timestamps and generation by fuel type
+        """
+        if date == "latest":
+            url = f"{BASE_URL}/genfuelmix/current"
+        else:
+            url = f"{BASE_URL}/genfuelmix/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url)
+        df = pd.DataFrame(response["GenFuelMixes"]["GenFuelMix"])
+
+        mix_df = df.pivot_table(
+            index="BeginDate",
+            columns="FuelCategory",
+            values="GenMw",
+            aggfunc="first",
+        ).reset_index()
+        mix_df.columns.name = None
+
+        mix_df = mix_df.rename(columns={"BeginDate": "Time"})
+        mix_df["Time"] = mix_df["Time"].apply(self.parse_problematic_datetime)
+        mix_df = mix_df.fillna(0)
+        mix_df = utils.move_cols_to_front(mix_df, ["Time"])
+
+        return mix_df
 
     @support_date_range("DAY_START")
     def get_realtime_hourly_demand(

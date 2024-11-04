@@ -106,6 +106,7 @@ class ISONE(ISOBase):
     #     mix_df.columns.name = None
     #     return mix_df
 
+    # NOTE(Kladar): This is a deprecated in favor of the ISONEAPI method.
     @support_date_range(frequency="DAY_START")
     def get_fuel_mix(self, date, end=None, verbose=False):
         """Return fuel mix at a previous date
