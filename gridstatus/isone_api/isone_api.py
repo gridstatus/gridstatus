@@ -210,10 +210,10 @@ class ISONEAPI:
         mix_df.columns.name = None
 
         mix_df = mix_df.rename(columns={"BeginDate": "Time"})
-        mix_df["Time"] = mix_df["Time"].apply(self.parse_problematic_datetime)
         mix_df["Time"] = mix_df["Time"].dt.strftime(
             "%Y-%m-%d %H:%M:%S%z",
         )
+        mix_df["Time"] = mix_df["Time"].apply(self.parse_problematic_datetime)
         mix_df = mix_df.fillna(0)
         mix_df = utils.move_cols_to_front(mix_df, ["Time"])
 
