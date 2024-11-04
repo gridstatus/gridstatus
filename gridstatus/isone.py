@@ -171,7 +171,6 @@ class ISONE(ISOBase):
             lambda x: self._assign_dst_aware_time(x, transition_idx),
         )
 
-        df.to_csv(f"fuel_mix_{date.strftime('%Y-%m-%d')}_dst_aware.csv")
         mix_df = df.pivot_table(
             index="Date",
             columns="Fuel Category",
