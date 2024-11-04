@@ -14,7 +14,7 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import log, logger
 from gridstatus.lmp_config import lmp_config
 
 
@@ -106,8 +106,25 @@ class ISONE(ISOBase):
     #     mix_df.columns.name = None
     #     return mix_df
 
+    def _assign_dst_aware_time(
+        self,
+        series: pd.Series,
+        transition_idx: int | None,
+    ) -> pd.Series:
+        if transition_idx is None:
+            return series.dt.tz_localize("US/Eastern", ambiguous="infer")
+
+        dates = pd.Series(index=series.index, dtype="datetime64[ns, US/Eastern]")
+        dates[series.index < transition_idx] = series[
+            series.index < transition_idx
+        ].dt.tz_localize("US/Eastern", ambiguous=True)
+        dates[series.index >= transition_idx] = series[
+            series.index >= transition_idx
+        ].dt.tz_localize("US/Eastern", ambiguous=False)
+        return dates
+
     @support_date_range(frequency="DAY_START")
-    def get_fuel_mix(self, date, end=None, verbose=False):
+    def get_fuel_mix(self, date: str, end=None, verbose=False):
         """Return fuel mix at a previous date
 
         Provided at frequent, but irregular intervals by ISONE
@@ -125,16 +142,32 @@ class ISONE(ISOBase):
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
+        df.to_csv(f"raw_fuel_mix_{date.strftime('%Y-%m-%d')}.csv")
         df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
 
-        # groupby FuelCategory to make it possible to infer DST changes
+        logger.debug(f"Looking for DST transition on {date}...")
+        is_dst_transition = (
+            df["Date"].dt.date == pd.Timestamp("2024-11-03").date()
+        ) & (df["Date"].dt.hour == 1)
+        transition_idx = None
+
+        if is_dst_transition.any():
+            logger.debug(
+                "Found DST transition. Looking for fallback transition time...",
+            )
+            time_diffs = df["Date"].diff()
+            negative_diffs = time_diffs[time_diffs < pd.Timedelta(minutes=-30)]
+            if len(negative_diffs) > 0:
+                logger.debug(
+                    f"Found last timestamp before fallback transition: {df["Date"].iloc[negative_diffs.index[0]-1]}",
+                )
+                transition_idx = negative_diffs.index[0] - 1
+
         df["Date"] = df.groupby("Fuel Category", group_keys=False)["Date"].apply(
-            lambda x: x.dt.tz_localize(
-                self.default_timezone,
-                ambiguous="infer",
-            ),
+            lambda x: self._assign_dst_aware_time(x, transition_idx),
         )
 
+        df.to_csv(f"fuel_mix_{date.strftime('%Y-%m-%d')}_dst_aware.csv")
         mix_df = df.pivot_table(
             index="Date",
             columns="Fuel Category",
@@ -145,7 +178,6 @@ class ISONE(ISOBase):
 
         # assume instant in time, unclear if this is correct
         mix_df = mix_df.rename(columns={"Date": "Time"})
-
         mix_df = mix_df.fillna(0)
 
         # move time columns front
