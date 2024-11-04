@@ -159,7 +159,7 @@ class ISONE(ISOBase):
             negative_diffs = time_diffs[time_diffs < pd.Timedelta(minutes=-30)]
             if len(negative_diffs) > 0:
                 logger.debug(
-                    f"Found last timestamp before fallback transition: {df["Date"].iloc[negative_diffs.index[0]-1]}",
+                    f"Found last timestamp before fallback transition: {df['Date'].iloc[negative_diffs.index[0]-1]}",
                 )
                 transition_idx = negative_diffs.index[0] - 1
 
