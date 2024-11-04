@@ -231,18 +231,18 @@ class TestISONE(BaseTestISO):
 
     def test_get_solar_forecast_today(self):
         df = self.iso.get_solar_forecast(date="today", verbose=VERBOSE)
-        today = pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
+        now = pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
 
         forecast_length = df["Interval Start"].max() - df["Interval Start"].min()
         assert forecast_length >= WIND_OR_SOLAR_FORECAST_LENGTH
 
-        if today.date() == pd.Timestamp("2024-11-03").date():
+        if now.date() == pd.Timestamp("2024-11-03").date():
             # NOTE(kladar): We should break this out into a fixture and test it correctly, IMO,
             # since currently only testable on the actual day of the DST transition.
             pass
         else:
-            assert df["Publish Time"].unique() == today + pd.Timedelta(hours=10)
-            assert df["Interval Start"].min() == today + pd.Timedelta(hours=10)
+            assert df["Publish Time"].unique() == now + pd.Timedelta(hours=10)
+            assert df["Interval Start"].min() == now + pd.Timedelta(hours=10)
 
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
