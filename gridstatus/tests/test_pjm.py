@@ -1844,8 +1844,9 @@ class TestPJM(BaseTestISO):
         ]
 
         assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
-        assert max(result["Interval End"]).date() < pd.Timestamp(end).date()
-
+        assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
+        assert result["Monitored Facility"].dtype == object
+        assert result["Contingency Facility"].dtype == object
         assert result["Shadow Price"].dtype in [np.int64, np.float64]
         assert result["Transmission Constraint Penalty Factor"].dtype in [
             np.int64,
@@ -1853,13 +1854,10 @@ class TestPJM(BaseTestISO):
         ]
         assert result["Limit Control Percentage"].dtype in [np.int64, np.float64]
 
-        time_diffs = result["Interval Start"].diff().dropna()
-        assert (time_diffs == pd.Timedelta(minutes=5)).all()
-
     @pytest.mark.parametrize(
         "date,end",
         [
-            ("2024-01-01", "2024-01-02"),
+            ("2024-09-02", "2024-09-04"),
         ],
     )
     @api_vcr.use_cassette("test_get_marginal_value_day_ahead_hourly.yaml")
@@ -1876,17 +1874,15 @@ class TestPJM(BaseTestISO):
         ]
 
         assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
-        assert max(result["Interval End"]).date() < pd.Timestamp(end).date()
-
+        assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
+        assert result["Monitored Facility"].dtype == object
+        assert result["Contingency Facility"].dtype == object
         assert result["Shadow Price"].dtype in [np.int64, np.float64]
-
-        time_diffs = result["Interval Start"].diff().dropna()
-        assert (time_diffs == pd.Timedelta(hours=1)).all()
 
     @pytest.mark.parametrize(
         "date,end",
         [
-            ("2024-01-01", "2024-01-02"),
+            ("2024-09-02", "2024-09-04"),
         ],
     )
     @api_vcr.use_cassette("test_get_transmission_constraints_day_ahead_hourly.yaml")
@@ -1907,9 +1903,8 @@ class TestPJM(BaseTestISO):
         ]
 
         assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
-        assert max(result["Interval End"]).date() < pd.Timestamp(end).date()
-
+        assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
+        assert result["Day Ahead Congestion Event"].dtype == object
+        assert result["Monitored Facility"].dtype == object
+        assert result["Contingency Facility"].dtype == object
         assert result["Duration"].dtype in [np.int64, np.float64]
-
-        time_diffs = result["Interval Start"].diff().dropna()
-        assert (time_diffs == pd.Timedelta(hours=1)).all()

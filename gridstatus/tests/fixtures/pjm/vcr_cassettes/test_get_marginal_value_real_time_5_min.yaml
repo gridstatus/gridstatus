@@ -1,0 +1,996 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Ocp-Apim-Subscription-Key:
+      - 7d70f087f35c4f55b9af9553333c107e
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://api.pjm.com/api/v1/rt_marginal_value?fields=datetime_beginning_utc%2C+datetime_ending_utc%2C+monitored_facility%2C+contingency_facility%2C+transmission_constraint_penalty_factor%2C+limit_control_percentage%2C+shadow_price&startRow=1&rowCount=50000&datetime_beginning_ept=09%2F02%2F2024+00%3A00to09%2F04%2F2024+00%3A00
+  response:
+    body:
+      string: '{"links":[{"rel":"self","href":"https://api.pjm.com/api/v1/rt_marginal_value?RowCount=50000&Order=Asc&StartRow=1&IsActiveMetadata=True&Fields=datetime_beginning_utc%2Cdatetime_ending_utc%2Cmonitored_facility%2Ccontingency_facility%2Ctransmission_constraint_penalty_factor%2Climit_control_percentage%2Cshadow_price&datetime_beginning_ept=09%2F02%2F2024%2000%3A00to09%2F04%2F2024%2000%3A00"},{"rel":"metadata","href":"https://api.pjm.com/api/v1/rt_marginal_value/metadata"}],"items":[{"datetime_beginning_utc":"2024-09-03T03:55:00","datetime_ending_utc":"2024-09-03T04:00:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-4.21},{"datetime_beginning_utc":"2024-09-03T03:55:00","datetime_ending_utc":"2024-09-03T04:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-459.63},{"datetime_beginning_utc":"2024-09-03T03:55:00","datetime_ending_utc":"2024-09-03T04:00:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":101.3,"limit_control_percentage":100.0,"shadow_price":-101.33},{"datetime_beginning_utc":"2024-09-03T03:50:00","datetime_ending_utc":"2024-09-03T03:55:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-52.50},{"datetime_beginning_utc":"2024-09-03T03:50:00","datetime_ending_utc":"2024-09-03T03:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-495.03},{"datetime_beginning_utc":"2024-09-03T03:45:00","datetime_ending_utc":"2024-09-03T03:50:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-66.88},{"datetime_beginning_utc":"2024-09-03T03:45:00","datetime_ending_utc":"2024-09-03T03:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-294.82},{"datetime_beginning_utc":"2024-09-03T03:45:00","datetime_ending_utc":"2024-09-03T03:50:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":105.3,"limit_control_percentage":100.0,"shadow_price":-105.37},{"datetime_beginning_utc":"2024-09-03T03:40:00","datetime_ending_utc":"2024-09-03T03:45:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-164.22},{"datetime_beginning_utc":"2024-09-03T03:40:00","datetime_ending_utc":"2024-09-03T03:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-507.06},{"datetime_beginning_utc":"2024-09-03T03:40:00","datetime_ending_utc":"2024-09-03T03:45:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":105.4,"limit_control_percentage":100.0,"shadow_price":-105.48},{"datetime_beginning_utc":"2024-09-03T03:35:00","datetime_ending_utc":"2024-09-03T03:40:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-0.18},{"datetime_beginning_utc":"2024-09-03T03:35:00","datetime_ending_utc":"2024-09-03T03:40:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":96.0,"shadow_price":-2.36},{"datetime_beginning_utc":"2024-09-03T03:35:00","datetime_ending_utc":"2024-09-03T03:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-361.76},{"datetime_beginning_utc":"2024-09-03T03:35:00","datetime_ending_utc":"2024-09-03T03:40:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":106.8,"limit_control_percentage":100.0,"shadow_price":-106.85},{"datetime_beginning_utc":"2024-09-03T03:30:00","datetime_ending_utc":"2024-09-03T03:35:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.14},{"datetime_beginning_utc":"2024-09-03T03:30:00","datetime_ending_utc":"2024-09-03T03:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-310.37},{"datetime_beginning_utc":"2024-09-03T03:25:00","datetime_ending_utc":"2024-09-03T03:30:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.35},{"datetime_beginning_utc":"2024-09-03T03:25:00","datetime_ending_utc":"2024-09-03T03:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-181.64},{"datetime_beginning_utc":"2024-09-03T03:20:00","datetime_ending_utc":"2024-09-03T03:25:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.16},{"datetime_beginning_utc":"2024-09-03T03:20:00","datetime_ending_utc":"2024-09-03T03:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-288.49},{"datetime_beginning_utc":"2024-09-03T03:15:00","datetime_ending_utc":"2024-09-03T03:20:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.19},{"datetime_beginning_utc":"2024-09-03T03:15:00","datetime_ending_utc":"2024-09-03T03:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-352.86},{"datetime_beginning_utc":"2024-09-03T03:10:00","datetime_ending_utc":"2024-09-03T03:15:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.58},{"datetime_beginning_utc":"2024-09-03T03:10:00","datetime_ending_utc":"2024-09-03T03:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-57.83},{"datetime_beginning_utc":"2024-09-03T03:05:00","datetime_ending_utc":"2024-09-03T03:10:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.18},{"datetime_beginning_utc":"2024-09-03T03:05:00","datetime_ending_utc":"2024-09-03T03:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-55.62},{"datetime_beginning_utc":"2024-09-03T03:00:00","datetime_ending_utc":"2024-09-03T03:05:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1.96},{"datetime_beginning_utc":"2024-09-03T03:00:00","datetime_ending_utc":"2024-09-03T03:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-40.60},{"datetime_beginning_utc":"2024-09-03T02:55:00","datetime_ending_utc":"2024-09-03T03:00:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-0.06},{"datetime_beginning_utc":"2024-09-03T02:55:00","datetime_ending_utc":"2024-09-03T03:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-94.47},{"datetime_beginning_utc":"2024-09-03T02:50:00","datetime_ending_utc":"2024-09-03T02:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-64.23},{"datetime_beginning_utc":"2024-09-03T02:45:00","datetime_ending_utc":"2024-09-03T02:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-58.85},{"datetime_beginning_utc":"2024-09-03T02:40:00","datetime_ending_utc":"2024-09-03T02:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-64.27},{"datetime_beginning_utc":"2024-09-03T02:35:00","datetime_ending_utc":"2024-09-03T02:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-58.40},{"datetime_beginning_utc":"2024-09-03T02:30:00","datetime_ending_utc":"2024-09-03T02:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-67.10},{"datetime_beginning_utc":"2024-09-03T02:25:00","datetime_ending_utc":"2024-09-03T02:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-64.48},{"datetime_beginning_utc":"2024-09-03T02:20:00","datetime_ending_utc":"2024-09-03T02:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-125.61},{"datetime_beginning_utc":"2024-09-03T02:15:00","datetime_ending_utc":"2024-09-03T02:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-77.47},{"datetime_beginning_utc":"2024-09-03T02:10:00","datetime_ending_utc":"2024-09-03T02:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-65.78},{"datetime_beginning_utc":"2024-09-03T02:05:00","datetime_ending_utc":"2024-09-03T02:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-72.98},{"datetime_beginning_utc":"2024-09-03T02:00:00","datetime_ending_utc":"2024-09-03T02:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-70.40},{"datetime_beginning_utc":"2024-09-03T01:55:00","datetime_ending_utc":"2024-09-03T02:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-56.88},{"datetime_beginning_utc":"2024-09-03T01:50:00","datetime_ending_utc":"2024-09-03T01:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-56.73},{"datetime_beginning_utc":"2024-09-03T01:45:00","datetime_ending_utc":"2024-09-03T01:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-136.37},{"datetime_beginning_utc":"2024-09-03T01:40:00","datetime_ending_utc":"2024-09-03T01:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-119.85},{"datetime_beginning_utc":"2024-09-03T01:35:00","datetime_ending_utc":"2024-09-03T01:40:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-56.52},{"datetime_beginning_utc":"2024-09-03T01:35:00","datetime_ending_utc":"2024-09-03T01:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-128.73},{"datetime_beginning_utc":"2024-09-03T01:30:00","datetime_ending_utc":"2024-09-03T01:35:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-69.52},{"datetime_beginning_utc":"2024-09-03T01:30:00","datetime_ending_utc":"2024-09-03T01:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-139.09},{"datetime_beginning_utc":"2024-09-03T01:25:00","datetime_ending_utc":"2024-09-03T01:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-106.82},{"datetime_beginning_utc":"2024-09-03T01:20:00","datetime_ending_utc":"2024-09-03T01:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-172.93},{"datetime_beginning_utc":"2024-09-03T01:15:00","datetime_ending_utc":"2024-09-03T01:20:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-197.75},{"datetime_beginning_utc":"2024-09-03T01:15:00","datetime_ending_utc":"2024-09-03T01:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-181.63},{"datetime_beginning_utc":"2024-09-03T01:10:00","datetime_ending_utc":"2024-09-03T01:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-150.92},{"datetime_beginning_utc":"2024-09-03T01:05:00","datetime_ending_utc":"2024-09-03T01:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-107.58},{"datetime_beginning_utc":"2024-09-03T01:00:00","datetime_ending_utc":"2024-09-03T01:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-122.97},{"datetime_beginning_utc":"2024-09-03T00:55:00","datetime_ending_utc":"2024-09-03T01:00:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-86.19},{"datetime_beginning_utc":"2024-09-03T00:50:00","datetime_ending_utc":"2024-09-03T00:55:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-164.07},{"datetime_beginning_utc":"2024-09-03T00:50:00","datetime_ending_utc":"2024-09-03T00:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-163.66},{"datetime_beginning_utc":"2024-09-03T00:45:00","datetime_ending_utc":"2024-09-03T00:50:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-161.49},{"datetime_beginning_utc":"2024-09-03T00:45:00","datetime_ending_utc":"2024-09-03T00:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-151.40},{"datetime_beginning_utc":"2024-09-03T00:40:00","datetime_ending_utc":"2024-09-03T00:45:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-152.89},{"datetime_beginning_utc":"2024-09-03T00:40:00","datetime_ending_utc":"2024-09-03T00:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-149.83},{"datetime_beginning_utc":"2024-09-03T00:35:00","datetime_ending_utc":"2024-09-03T00:40:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-163.91},{"datetime_beginning_utc":"2024-09-03T00:35:00","datetime_ending_utc":"2024-09-03T00:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-166.76},{"datetime_beginning_utc":"2024-09-03T00:30:00","datetime_ending_utc":"2024-09-03T00:35:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-71.52},{"datetime_beginning_utc":"2024-09-03T00:25:00","datetime_ending_utc":"2024-09-03T00:30:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-133.43},{"datetime_beginning_utc":"2024-09-03T00:25:00","datetime_ending_utc":"2024-09-03T00:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-163.38},{"datetime_beginning_utc":"2024-09-03T00:20:00","datetime_ending_utc":"2024-09-03T00:25:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-135.16},{"datetime_beginning_utc":"2024-09-03T00:20:00","datetime_ending_utc":"2024-09-03T00:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-534.56},{"datetime_beginning_utc":"2024-09-03T00:15:00","datetime_ending_utc":"2024-09-03T00:20:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-175.18},{"datetime_beginning_utc":"2024-09-03T00:15:00","datetime_ending_utc":"2024-09-03T00:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-719.61},{"datetime_beginning_utc":"2024-09-03T00:10:00","datetime_ending_utc":"2024-09-03T00:15:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-168.40},{"datetime_beginning_utc":"2024-09-03T00:05:00","datetime_ending_utc":"2024-09-03T00:10:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-225.01},{"datetime_beginning_utc":"2024-09-03T00:00:00","datetime_ending_utc":"2024-09-03T00:05:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-124.93},{"datetime_beginning_utc":"2024-09-02T23:55:00","datetime_ending_utc":"2024-09-03T00:00:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-329.94},{"datetime_beginning_utc":"2024-09-02T23:55:00","datetime_ending_utc":"2024-09-03T00:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-681.37},{"datetime_beginning_utc":"2024-09-02T23:50:00","datetime_ending_utc":"2024-09-02T23:55:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-190.12},{"datetime_beginning_utc":"2024-09-02T23:45:00","datetime_ending_utc":"2024-09-02T23:50:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-157.93},{"datetime_beginning_utc":"2024-09-02T23:40:00","datetime_ending_utc":"2024-09-02T23:45:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-180.69},{"datetime_beginning_utc":"2024-09-02T23:35:00","datetime_ending_utc":"2024-09-02T23:40:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-184.72},{"datetime_beginning_utc":"2024-09-02T23:30:00","datetime_ending_utc":"2024-09-02T23:35:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-155.14},{"datetime_beginning_utc":"2024-09-02T23:25:00","datetime_ending_utc":"2024-09-02T23:30:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-150.67},{"datetime_beginning_utc":"2024-09-02T23:25:00","datetime_ending_utc":"2024-09-02T23:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-113.94},{"datetime_beginning_utc":"2024-09-02T23:20:00","datetime_ending_utc":"2024-09-02T23:25:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-155.23},{"datetime_beginning_utc":"2024-09-02T23:15:00","datetime_ending_utc":"2024-09-02T23:20:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-143.65},{"datetime_beginning_utc":"2024-09-02T23:10:00","datetime_ending_utc":"2024-09-02T23:15:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-202.53},{"datetime_beginning_utc":"2024-09-02T23:05:00","datetime_ending_utc":"2024-09-02T23:10:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-220.35},{"datetime_beginning_utc":"2024-09-02T23:00:00","datetime_ending_utc":"2024-09-02T23:05:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-271.80},{"datetime_beginning_utc":"2024-09-02T22:55:00","datetime_ending_utc":"2024-09-02T23:00:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-343.82},{"datetime_beginning_utc":"2024-09-02T22:50:00","datetime_ending_utc":"2024-09-02T22:55:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-198.45},{"datetime_beginning_utc":"2024-09-02T22:45:00","datetime_ending_utc":"2024-09-02T22:50:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-195.82},{"datetime_beginning_utc":"2024-09-02T22:40:00","datetime_ending_utc":"2024-09-02T22:45:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-225.77},{"datetime_beginning_utc":"2024-09-02T22:35:00","datetime_ending_utc":"2024-09-02T22:40:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-237.08},{"datetime_beginning_utc":"2024-09-02T22:30:00","datetime_ending_utc":"2024-09-02T22:35:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-272.79},{"datetime_beginning_utc":"2024-09-02T22:25:00","datetime_ending_utc":"2024-09-02T22:30:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-278.63},{"datetime_beginning_utc":"2024-09-02T22:20:00","datetime_ending_utc":"2024-09-02T22:25:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-228.80},{"datetime_beginning_utc":"2024-09-02T22:20:00","datetime_ending_utc":"2024-09-02T22:25:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T22:15:00","datetime_ending_utc":"2024-09-02T22:20:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-172.86},{"datetime_beginning_utc":"2024-09-02T22:15:00","datetime_ending_utc":"2024-09-02T22:20:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T22:10:00","datetime_ending_utc":"2024-09-02T22:15:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-170.03},{"datetime_beginning_utc":"2024-09-02T22:10:00","datetime_ending_utc":"2024-09-02T22:15:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T22:05:00","datetime_ending_utc":"2024-09-02T22:10:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-145.82},{"datetime_beginning_utc":"2024-09-02T22:05:00","datetime_ending_utc":"2024-09-02T22:10:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T22:00:00","datetime_ending_utc":"2024-09-02T22:05:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-159.45},{"datetime_beginning_utc":"2024-09-02T22:00:00","datetime_ending_utc":"2024-09-02T22:05:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:55:00","datetime_ending_utc":"2024-09-02T22:00:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-160.59},{"datetime_beginning_utc":"2024-09-02T21:55:00","datetime_ending_utc":"2024-09-02T22:00:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:50:00","datetime_ending_utc":"2024-09-02T21:55:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-162.97},{"datetime_beginning_utc":"2024-09-02T21:50:00","datetime_ending_utc":"2024-09-02T21:55:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:45:00","datetime_ending_utc":"2024-09-02T21:50:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-173.39},{"datetime_beginning_utc":"2024-09-02T21:45:00","datetime_ending_utc":"2024-09-02T21:50:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:40:00","datetime_ending_utc":"2024-09-02T21:45:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-202.33},{"datetime_beginning_utc":"2024-09-02T21:40:00","datetime_ending_utc":"2024-09-02T21:45:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:35:00","datetime_ending_utc":"2024-09-02T21:40:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-174.30},{"datetime_beginning_utc":"2024-09-02T21:35:00","datetime_ending_utc":"2024-09-02T21:40:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:30:00","datetime_ending_utc":"2024-09-02T21:35:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-163.15},{"datetime_beginning_utc":"2024-09-02T21:30:00","datetime_ending_utc":"2024-09-02T21:35:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:25:00","datetime_ending_utc":"2024-09-02T21:30:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-183.59},{"datetime_beginning_utc":"2024-09-02T21:25:00","datetime_ending_utc":"2024-09-02T21:30:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:20:00","datetime_ending_utc":"2024-09-02T21:25:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-99.61},{"datetime_beginning_utc":"2024-09-02T21:20:00","datetime_ending_utc":"2024-09-02T21:25:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:15:00","datetime_ending_utc":"2024-09-02T21:20:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-103.39},{"datetime_beginning_utc":"2024-09-02T21:15:00","datetime_ending_utc":"2024-09-02T21:20:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T21:10:00","datetime_ending_utc":"2024-09-02T21:15:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-110.07},{"datetime_beginning_utc":"2024-09-02T21:10:00","datetime_ending_utc":"2024-09-02T21:15:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-476.95},{"datetime_beginning_utc":"2024-09-02T21:05:00","datetime_ending_utc":"2024-09-02T21:10:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-110.61},{"datetime_beginning_utc":"2024-09-02T21:05:00","datetime_ending_utc":"2024-09-02T21:10:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-421.15},{"datetime_beginning_utc":"2024-09-02T21:00:00","datetime_ending_utc":"2024-09-02T21:05:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-114.56},{"datetime_beginning_utc":"2024-09-02T21:00:00","datetime_ending_utc":"2024-09-02T21:05:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-164.47},{"datetime_beginning_utc":"2024-09-02T20:55:00","datetime_ending_utc":"2024-09-02T21:00:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-110.37},{"datetime_beginning_utc":"2024-09-02T20:55:00","datetime_ending_utc":"2024-09-02T21:00:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-90.12},{"datetime_beginning_utc":"2024-09-02T20:50:00","datetime_ending_utc":"2024-09-02T20:55:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-124.58},{"datetime_beginning_utc":"2024-09-02T20:50:00","datetime_ending_utc":"2024-09-02T20:55:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-86.50},{"datetime_beginning_utc":"2024-09-02T20:45:00","datetime_ending_utc":"2024-09-02T20:50:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-120.27},{"datetime_beginning_utc":"2024-09-02T20:40:00","datetime_ending_utc":"2024-09-02T20:45:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-136.43},{"datetime_beginning_utc":"2024-09-02T20:40:00","datetime_ending_utc":"2024-09-02T20:45:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-653.18},{"datetime_beginning_utc":"2024-09-02T20:35:00","datetime_ending_utc":"2024-09-02T20:40:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-120.44},{"datetime_beginning_utc":"2024-09-02T20:30:00","datetime_ending_utc":"2024-09-02T20:35:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-127.58},{"datetime_beginning_utc":"2024-09-02T20:30:00","datetime_ending_utc":"2024-09-02T20:35:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T20:25:00","datetime_ending_utc":"2024-09-02T20:30:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-122.24},{"datetime_beginning_utc":"2024-09-02T20:25:00","datetime_ending_utc":"2024-09-02T20:30:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T20:20:00","datetime_ending_utc":"2024-09-02T20:25:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-125.62},{"datetime_beginning_utc":"2024-09-02T20:20:00","datetime_ending_utc":"2024-09-02T20:25:00","monitored_facility":"LAKENELS-MIDDLESE
+        I-1023-3  B  230 KV","contingency_facility":"L230.Smithburg-Larrabee.H2008+500/230.Smithburg.T4","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T20:20:00","datetime_ending_utc":"2024-09-02T20:25:00","monitored_facility":"LARRABEE-SMITHBUR
+        H2008     A  230 KV","contingency_facility":"L230.Cookstown-Lumberton.T2246","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":92.0,"shadow_price":-1294.75},{"datetime_beginning_utc":"2024-09-02T20:15:00","datetime_ending_utc":"2024-09-02T20:20:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-96.64},{"datetime_beginning_utc":"2024-09-02T20:10:00","datetime_ending_utc":"2024-09-02T20:15:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-106.57},{"datetime_beginning_utc":"2024-09-02T20:05:00","datetime_ending_utc":"2024-09-02T20:10:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-93.09},{"datetime_beginning_utc":"2024-09-02T20:00:00","datetime_ending_utc":"2024-09-02T20:05:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-95.75},{"datetime_beginning_utc":"2024-09-02T19:55:00","datetime_ending_utc":"2024-09-02T20:00:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-110.22},{"datetime_beginning_utc":"2024-09-02T19:45:00","datetime_ending_utc":"2024-09-02T19:50:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-14.61},{"datetime_beginning_utc":"2024-09-02T19:40:00","datetime_ending_utc":"2024-09-02T19:45:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-25.69},{"datetime_beginning_utc":"2024-09-02T19:20:00","datetime_ending_utc":"2024-09-02T19:25:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-25.06},{"datetime_beginning_utc":"2024-09-02T19:15:00","datetime_ending_utc":"2024-09-02T19:20:00","monitored_facility":"12
+        DRESDEN  45TR83 CT       H  345 KV","contingency_facility":"345/138.1Lasalle.TR81
+        R","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-15.11},{"datetime_beginning_utc":"2024-09-02T13:10:00","datetime_ending_utc":"2024-09-02T13:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-12.80},{"datetime_beginning_utc":"2024-09-02T13:05:00","datetime_ending_utc":"2024-09-02T13:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.96},{"datetime_beginning_utc":"2024-09-02T13:00:00","datetime_ending_utc":"2024-09-02T13:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.63},{"datetime_beginning_utc":"2024-09-02T12:50:00","datetime_ending_utc":"2024-09-02T12:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-16.17},{"datetime_beginning_utc":"2024-09-02T12:45:00","datetime_ending_utc":"2024-09-02T12:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-44.61},{"datetime_beginning_utc":"2024-09-02T12:35:00","datetime_ending_utc":"2024-09-02T12:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-46.46},{"datetime_beginning_utc":"2024-09-02T12:30:00","datetime_ending_utc":"2024-09-02T12:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-49.80},{"datetime_beginning_utc":"2024-09-02T12:25:00","datetime_ending_utc":"2024-09-02T12:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-49.30},{"datetime_beginning_utc":"2024-09-02T12:20:00","datetime_ending_utc":"2024-09-02T12:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-111.14},{"datetime_beginning_utc":"2024-09-02T12:15:00","datetime_ending_utc":"2024-09-02T12:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-47.57},{"datetime_beginning_utc":"2024-09-02T12:10:00","datetime_ending_utc":"2024-09-02T12:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-454.49},{"datetime_beginning_utc":"2024-09-02T12:05:00","datetime_ending_utc":"2024-09-02T12:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-122.06},{"datetime_beginning_utc":"2024-09-02T12:00:00","datetime_ending_utc":"2024-09-02T12:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-393.32},{"datetime_beginning_utc":"2024-09-02T11:55:00","datetime_ending_utc":"2024-09-02T12:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-18.53},{"datetime_beginning_utc":"2024-09-02T11:50:00","datetime_ending_utc":"2024-09-02T11:55:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1.20},{"datetime_beginning_utc":"2024-09-02T11:50:00","datetime_ending_utc":"2024-09-02T11:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-395.30},{"datetime_beginning_utc":"2024-09-02T11:45:00","datetime_ending_utc":"2024-09-02T11:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-220.68},{"datetime_beginning_utc":"2024-09-02T11:40:00","datetime_ending_utc":"2024-09-02T11:45:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.44},{"datetime_beginning_utc":"2024-09-02T11:40:00","datetime_ending_utc":"2024-09-02T11:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-742.61},{"datetime_beginning_utc":"2024-09-02T11:35:00","datetime_ending_utc":"2024-09-02T11:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-715.39},{"datetime_beginning_utc":"2024-09-02T11:30:00","datetime_ending_utc":"2024-09-02T11:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-758.40},{"datetime_beginning_utc":"2024-09-02T11:25:00","datetime_ending_utc":"2024-09-02T11:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-877.73},{"datetime_beginning_utc":"2024-09-02T11:20:00","datetime_ending_utc":"2024-09-02T11:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-837.49},{"datetime_beginning_utc":"2024-09-02T11:15:00","datetime_ending_utc":"2024-09-02T11:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-02T11:10:00","datetime_ending_utc":"2024-09-02T11:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-78.73},{"datetime_beginning_utc":"2024-09-02T11:05:00","datetime_ending_utc":"2024-09-02T11:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-223.04},{"datetime_beginning_utc":"2024-09-02T11:00:00","datetime_ending_utc":"2024-09-02T11:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-99.95},{"datetime_beginning_utc":"2024-09-02T10:55:00","datetime_ending_utc":"2024-09-02T11:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-219.05},{"datetime_beginning_utc":"2024-09-02T10:50:00","datetime_ending_utc":"2024-09-02T10:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-82.05},{"datetime_beginning_utc":"2024-09-02T10:45:00","datetime_ending_utc":"2024-09-02T10:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-95.92},{"datetime_beginning_utc":"2024-09-02T10:40:00","datetime_ending_utc":"2024-09-02T10:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-279.94},{"datetime_beginning_utc":"2024-09-02T10:35:00","datetime_ending_utc":"2024-09-02T10:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-141.45},{"datetime_beginning_utc":"2024-09-02T10:30:00","datetime_ending_utc":"2024-09-02T10:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-413.23},{"datetime_beginning_utc":"2024-09-02T10:25:00","datetime_ending_utc":"2024-09-02T10:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-82.28},{"datetime_beginning_utc":"2024-09-02T10:20:00","datetime_ending_utc":"2024-09-02T10:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-93.02},{"datetime_beginning_utc":"2024-09-02T10:15:00","datetime_ending_utc":"2024-09-02T10:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-164.28},{"datetime_beginning_utc":"2024-09-02T10:10:00","datetime_ending_utc":"2024-09-02T10:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-188.01},{"datetime_beginning_utc":"2024-09-02T10:05:00","datetime_ending_utc":"2024-09-02T10:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-90.14},{"datetime_beginning_utc":"2024-09-02T10:00:00","datetime_ending_utc":"2024-09-02T10:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-227.84},{"datetime_beginning_utc":"2024-09-02T09:55:00","datetime_ending_utc":"2024-09-02T10:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-77.93},{"datetime_beginning_utc":"2024-09-02T09:50:00","datetime_ending_utc":"2024-09-02T09:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-319.07},{"datetime_beginning_utc":"2024-09-02T09:45:00","datetime_ending_utc":"2024-09-02T09:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-430.41},{"datetime_beginning_utc":"2024-09-02T09:40:00","datetime_ending_utc":"2024-09-02T09:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-275.24},{"datetime_beginning_utc":"2024-09-02T09:35:00","datetime_ending_utc":"2024-09-02T09:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-319.68},{"datetime_beginning_utc":"2024-09-02T09:30:00","datetime_ending_utc":"2024-09-02T09:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-310.90},{"datetime_beginning_utc":"2024-09-02T09:25:00","datetime_ending_utc":"2024-09-02T09:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-273.71},{"datetime_beginning_utc":"2024-09-02T09:20:00","datetime_ending_utc":"2024-09-02T09:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-350.02},{"datetime_beginning_utc":"2024-09-02T09:15:00","datetime_ending_utc":"2024-09-02T09:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-230.27},{"datetime_beginning_utc":"2024-09-02T09:10:00","datetime_ending_utc":"2024-09-02T09:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-646.50},{"datetime_beginning_utc":"2024-09-02T09:05:00","datetime_ending_utc":"2024-09-02T09:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-224.78},{"datetime_beginning_utc":"2024-09-02T09:00:00","datetime_ending_utc":"2024-09-02T09:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-417.08},{"datetime_beginning_utc":"2024-09-02T08:55:00","datetime_ending_utc":"2024-09-02T09:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-134.08},{"datetime_beginning_utc":"2024-09-02T08:50:00","datetime_ending_utc":"2024-09-02T08:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-273.28},{"datetime_beginning_utc":"2024-09-02T08:45:00","datetime_ending_utc":"2024-09-02T08:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-230.93},{"datetime_beginning_utc":"2024-09-02T08:40:00","datetime_ending_utc":"2024-09-02T08:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-244.59},{"datetime_beginning_utc":"2024-09-02T08:35:00","datetime_ending_utc":"2024-09-02T08:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-231.21},{"datetime_beginning_utc":"2024-09-02T08:30:00","datetime_ending_utc":"2024-09-02T08:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-230.17},{"datetime_beginning_utc":"2024-09-02T08:25:00","datetime_ending_utc":"2024-09-02T08:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-331.76},{"datetime_beginning_utc":"2024-09-02T08:20:00","datetime_ending_utc":"2024-09-02T08:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-233.47},{"datetime_beginning_utc":"2024-09-02T08:15:00","datetime_ending_utc":"2024-09-02T08:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-411.30},{"datetime_beginning_utc":"2024-09-02T08:10:00","datetime_ending_utc":"2024-09-02T08:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-82.31},{"datetime_beginning_utc":"2024-09-02T08:05:00","datetime_ending_utc":"2024-09-02T08:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-171.02},{"datetime_beginning_utc":"2024-09-02T08:00:00","datetime_ending_utc":"2024-09-02T08:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-29.99},{"datetime_beginning_utc":"2024-09-02T07:55:00","datetime_ending_utc":"2024-09-02T08:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-123.81},{"datetime_beginning_utc":"2024-09-02T07:50:00","datetime_ending_utc":"2024-09-02T07:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-159.45},{"datetime_beginning_utc":"2024-09-02T07:45:00","datetime_ending_utc":"2024-09-02T07:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-219.47},{"datetime_beginning_utc":"2024-09-02T07:40:00","datetime_ending_utc":"2024-09-02T07:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-134.30},{"datetime_beginning_utc":"2024-09-02T07:35:00","datetime_ending_utc":"2024-09-02T07:40:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-0.82},{"datetime_beginning_utc":"2024-09-02T07:35:00","datetime_ending_utc":"2024-09-02T07:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-236.84},{"datetime_beginning_utc":"2024-09-02T07:30:00","datetime_ending_utc":"2024-09-02T07:35:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-0.59},{"datetime_beginning_utc":"2024-09-02T07:30:00","datetime_ending_utc":"2024-09-02T07:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-148.13},{"datetime_beginning_utc":"2024-09-02T07:25:00","datetime_ending_utc":"2024-09-02T07:30:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2.41},{"datetime_beginning_utc":"2024-09-02T07:25:00","datetime_ending_utc":"2024-09-02T07:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-234.06},{"datetime_beginning_utc":"2024-09-02T07:20:00","datetime_ending_utc":"2024-09-02T07:25:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2.82},{"datetime_beginning_utc":"2024-09-02T07:20:00","datetime_ending_utc":"2024-09-02T07:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-192.38},{"datetime_beginning_utc":"2024-09-02T07:15:00","datetime_ending_utc":"2024-09-02T07:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-405.41},{"datetime_beginning_utc":"2024-09-02T07:10:00","datetime_ending_utc":"2024-09-02T07:15:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1.50},{"datetime_beginning_utc":"2024-09-02T07:10:00","datetime_ending_utc":"2024-09-02T07:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-39.46},{"datetime_beginning_utc":"2024-09-02T07:05:00","datetime_ending_utc":"2024-09-02T07:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-88.96},{"datetime_beginning_utc":"2024-09-02T07:00:00","datetime_ending_utc":"2024-09-02T07:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-85.38},{"datetime_beginning_utc":"2024-09-02T06:55:00","datetime_ending_utc":"2024-09-02T07:00:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2.31},{"datetime_beginning_utc":"2024-09-02T06:55:00","datetime_ending_utc":"2024-09-02T07:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-598.41},{"datetime_beginning_utc":"2024-09-02T06:50:00","datetime_ending_utc":"2024-09-02T06:55:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-13.10},{"datetime_beginning_utc":"2024-09-02T06:50:00","datetime_ending_utc":"2024-09-02T06:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-838.20},{"datetime_beginning_utc":"2024-09-02T06:45:00","datetime_ending_utc":"2024-09-02T06:50:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.94},{"datetime_beginning_utc":"2024-09-02T06:45:00","datetime_ending_utc":"2024-09-02T06:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-582.92},{"datetime_beginning_utc":"2024-09-02T06:40:00","datetime_ending_utc":"2024-09-02T06:45:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.92},{"datetime_beginning_utc":"2024-09-02T06:40:00","datetime_ending_utc":"2024-09-02T06:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-512.50},{"datetime_beginning_utc":"2024-09-02T06:35:00","datetime_ending_utc":"2024-09-02T06:40:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.07},{"datetime_beginning_utc":"2024-09-02T06:35:00","datetime_ending_utc":"2024-09-02T06:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-456.70},{"datetime_beginning_utc":"2024-09-02T06:30:00","datetime_ending_utc":"2024-09-02T06:35:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.01},{"datetime_beginning_utc":"2024-09-02T06:30:00","datetime_ending_utc":"2024-09-02T06:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-663.86},{"datetime_beginning_utc":"2024-09-02T06:25:00","datetime_ending_utc":"2024-09-02T06:30:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.04},{"datetime_beginning_utc":"2024-09-02T06:25:00","datetime_ending_utc":"2024-09-02T06:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-522.57},{"datetime_beginning_utc":"2024-09-02T06:20:00","datetime_ending_utc":"2024-09-02T06:25:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.86},{"datetime_beginning_utc":"2024-09-02T06:20:00","datetime_ending_utc":"2024-09-02T06:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-412.09},{"datetime_beginning_utc":"2024-09-02T06:15:00","datetime_ending_utc":"2024-09-02T06:20:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.44},{"datetime_beginning_utc":"2024-09-02T06:15:00","datetime_ending_utc":"2024-09-02T06:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-299.81},{"datetime_beginning_utc":"2024-09-02T06:10:00","datetime_ending_utc":"2024-09-02T06:15:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.11},{"datetime_beginning_utc":"2024-09-02T06:10:00","datetime_ending_utc":"2024-09-02T06:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-572.37},{"datetime_beginning_utc":"2024-09-02T06:05:00","datetime_ending_utc":"2024-09-02T06:10:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.00},{"datetime_beginning_utc":"2024-09-02T06:05:00","datetime_ending_utc":"2024-09-02T06:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-289.17},{"datetime_beginning_utc":"2024-09-02T06:00:00","datetime_ending_utc":"2024-09-02T06:05:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.77},{"datetime_beginning_utc":"2024-09-02T06:00:00","datetime_ending_utc":"2024-09-02T06:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-319.87},{"datetime_beginning_utc":"2024-09-02T05:55:00","datetime_ending_utc":"2024-09-02T06:00:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.17},{"datetime_beginning_utc":"2024-09-02T05:55:00","datetime_ending_utc":"2024-09-02T06:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-278.75},{"datetime_beginning_utc":"2024-09-02T05:50:00","datetime_ending_utc":"2024-09-02T05:55:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.15},{"datetime_beginning_utc":"2024-09-02T05:50:00","datetime_ending_utc":"2024-09-02T05:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-177.15},{"datetime_beginning_utc":"2024-09-02T05:45:00","datetime_ending_utc":"2024-09-02T05:50:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1.57},{"datetime_beginning_utc":"2024-09-02T05:45:00","datetime_ending_utc":"2024-09-02T05:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-91.88},{"datetime_beginning_utc":"2024-09-02T05:40:00","datetime_ending_utc":"2024-09-02T05:45:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2.31},{"datetime_beginning_utc":"2024-09-02T05:40:00","datetime_ending_utc":"2024-09-02T05:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-52.70},{"datetime_beginning_utc":"2024-09-02T05:35:00","datetime_ending_utc":"2024-09-02T05:40:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.79},{"datetime_beginning_utc":"2024-09-02T05:35:00","datetime_ending_utc":"2024-09-02T05:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-61.83},{"datetime_beginning_utc":"2024-09-02T05:30:00","datetime_ending_utc":"2024-09-02T05:35:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2.27},{"datetime_beginning_utc":"2024-09-02T05:30:00","datetime_ending_utc":"2024-09-02T05:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-52.48},{"datetime_beginning_utc":"2024-09-02T05:25:00","datetime_ending_utc":"2024-09-02T05:30:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.71},{"datetime_beginning_utc":"2024-09-02T05:25:00","datetime_ending_utc":"2024-09-02T05:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-68.79},{"datetime_beginning_utc":"2024-09-02T05:20:00","datetime_ending_utc":"2024-09-02T05:25:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.31},{"datetime_beginning_utc":"2024-09-02T05:20:00","datetime_ending_utc":"2024-09-02T05:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-72.90},{"datetime_beginning_utc":"2024-09-02T05:15:00","datetime_ending_utc":"2024-09-02T05:20:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.25},{"datetime_beginning_utc":"2024-09-02T05:15:00","datetime_ending_utc":"2024-09-02T05:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-97.28},{"datetime_beginning_utc":"2024-09-02T05:10:00","datetime_ending_utc":"2024-09-02T05:15:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-13.90},{"datetime_beginning_utc":"2024-09-02T05:10:00","datetime_ending_utc":"2024-09-02T05:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-129.33},{"datetime_beginning_utc":"2024-09-02T05:05:00","datetime_ending_utc":"2024-09-02T05:10:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.83},{"datetime_beginning_utc":"2024-09-02T05:05:00","datetime_ending_utc":"2024-09-02T05:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-66.83},{"datetime_beginning_utc":"2024-09-02T05:00:00","datetime_ending_utc":"2024-09-02T05:05:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.58},{"datetime_beginning_utc":"2024-09-02T05:00:00","datetime_ending_utc":"2024-09-02T05:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-73.67},{"datetime_beginning_utc":"2024-09-02T04:55:00","datetime_ending_utc":"2024-09-02T05:00:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.23},{"datetime_beginning_utc":"2024-09-02T04:55:00","datetime_ending_utc":"2024-09-02T05:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-58.34},{"datetime_beginning_utc":"2024-09-02T04:50:00","datetime_ending_utc":"2024-09-02T04:55:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.55},{"datetime_beginning_utc":"2024-09-02T04:50:00","datetime_ending_utc":"2024-09-02T04:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-83.43},{"datetime_beginning_utc":"2024-09-02T04:45:00","datetime_ending_utc":"2024-09-02T04:50:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.64},{"datetime_beginning_utc":"2024-09-02T04:45:00","datetime_ending_utc":"2024-09-02T04:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-109.51},{"datetime_beginning_utc":"2024-09-02T04:40:00","datetime_ending_utc":"2024-09-02T04:45:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.82},{"datetime_beginning_utc":"2024-09-02T04:40:00","datetime_ending_utc":"2024-09-02T04:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-91.21},{"datetime_beginning_utc":"2024-09-02T04:35:00","datetime_ending_utc":"2024-09-02T04:40:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.27},{"datetime_beginning_utc":"2024-09-02T04:35:00","datetime_ending_utc":"2024-09-02T04:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-88.26},{"datetime_beginning_utc":"2024-09-02T04:30:00","datetime_ending_utc":"2024-09-02T04:35:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-15.85},{"datetime_beginning_utc":"2024-09-02T04:30:00","datetime_ending_utc":"2024-09-02T04:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-146.74},{"datetime_beginning_utc":"2024-09-02T04:25:00","datetime_ending_utc":"2024-09-02T04:30:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-26.48},{"datetime_beginning_utc":"2024-09-02T04:25:00","datetime_ending_utc":"2024-09-02T04:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-214.33},{"datetime_beginning_utc":"2024-09-02T04:20:00","datetime_ending_utc":"2024-09-02T04:25:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-40.19},{"datetime_beginning_utc":"2024-09-02T04:20:00","datetime_ending_utc":"2024-09-02T04:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-305.83},{"datetime_beginning_utc":"2024-09-02T04:15:00","datetime_ending_utc":"2024-09-02T04:20:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-45.27},{"datetime_beginning_utc":"2024-09-02T04:15:00","datetime_ending_utc":"2024-09-02T04:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1084.60},{"datetime_beginning_utc":"2024-09-02T04:10:00","datetime_ending_utc":"2024-09-02T04:15:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-15.81},{"datetime_beginning_utc":"2024-09-02T04:05:00","datetime_ending_utc":"2024-09-02T04:10:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-17.59},{"datetime_beginning_utc":"2024-09-02T04:05:00","datetime_ending_utc":"2024-09-02T04:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-151.46},{"datetime_beginning_utc":"2024-09-02T04:00:00","datetime_ending_utc":"2024-09-02T04:05:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.05},{"datetime_beginning_utc":"2024-09-04T01:55:00","datetime_ending_utc":"2024-09-04T02:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-4.19},{"datetime_beginning_utc":"2024-09-04T01:50:00","datetime_ending_utc":"2024-09-04T01:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-10.90},{"datetime_beginning_utc":"2024-09-04T01:45:00","datetime_ending_utc":"2024-09-04T01:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-9.94},{"datetime_beginning_utc":"2024-09-04T01:40:00","datetime_ending_utc":"2024-09-04T01:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-10.02},{"datetime_beginning_utc":"2024-09-04T01:35:00","datetime_ending_utc":"2024-09-04T01:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-11.37},{"datetime_beginning_utc":"2024-09-04T01:30:00","datetime_ending_utc":"2024-09-04T01:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-11.59},{"datetime_beginning_utc":"2024-09-04T01:25:00","datetime_ending_utc":"2024-09-04T01:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-11.53},{"datetime_beginning_utc":"2024-09-04T01:20:00","datetime_ending_utc":"2024-09-04T01:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-14.65},{"datetime_beginning_utc":"2024-09-04T01:15:00","datetime_ending_utc":"2024-09-04T01:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-22.86},{"datetime_beginning_utc":"2024-09-04T01:10:00","datetime_ending_utc":"2024-09-04T01:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-90.96},{"datetime_beginning_utc":"2024-09-04T01:05:00","datetime_ending_utc":"2024-09-04T01:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-13.76},{"datetime_beginning_utc":"2024-09-04T01:00:00","datetime_ending_utc":"2024-09-04T01:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-11.30},{"datetime_beginning_utc":"2024-09-04T00:55:00","datetime_ending_utc":"2024-09-04T01:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-17.11},{"datetime_beginning_utc":"2024-09-04T00:50:00","datetime_ending_utc":"2024-09-04T00:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-11.22},{"datetime_beginning_utc":"2024-09-04T00:45:00","datetime_ending_utc":"2024-09-04T00:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-12.80},{"datetime_beginning_utc":"2024-09-04T00:40:00","datetime_ending_utc":"2024-09-04T00:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-18.04},{"datetime_beginning_utc":"2024-09-04T00:35:00","datetime_ending_utc":"2024-09-04T00:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-37.04},{"datetime_beginning_utc":"2024-09-04T00:30:00","datetime_ending_utc":"2024-09-04T00:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-24.19},{"datetime_beginning_utc":"2024-09-04T00:25:00","datetime_ending_utc":"2024-09-04T00:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-17.72},{"datetime_beginning_utc":"2024-09-04T00:20:00","datetime_ending_utc":"2024-09-04T00:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-20.46},{"datetime_beginning_utc":"2024-09-04T00:15:00","datetime_ending_utc":"2024-09-04T00:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-24.39},{"datetime_beginning_utc":"2024-09-04T00:10:00","datetime_ending_utc":"2024-09-04T00:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-20.21},{"datetime_beginning_utc":"2024-09-04T00:05:00","datetime_ending_utc":"2024-09-04T00:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-16.95},{"datetime_beginning_utc":"2024-09-04T00:00:00","datetime_ending_utc":"2024-09-04T00:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-17.96},{"datetime_beginning_utc":"2024-09-03T23:55:00","datetime_ending_utc":"2024-09-04T00:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-19.89},{"datetime_beginning_utc":"2024-09-03T23:50:00","datetime_ending_utc":"2024-09-03T23:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-12.48},{"datetime_beginning_utc":"2024-09-03T23:45:00","datetime_ending_utc":"2024-09-03T23:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-12.85},{"datetime_beginning_utc":"2024-09-03T23:40:00","datetime_ending_utc":"2024-09-03T23:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-12.72},{"datetime_beginning_utc":"2024-09-03T23:35:00","datetime_ending_utc":"2024-09-03T23:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-12.47},{"datetime_beginning_utc":"2024-09-03T23:30:00","datetime_ending_utc":"2024-09-03T23:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-11.69},{"datetime_beginning_utc":"2024-09-03T23:25:00","datetime_ending_utc":"2024-09-03T23:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-11.84},{"datetime_beginning_utc":"2024-09-03T23:20:00","datetime_ending_utc":"2024-09-03T23:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-12.66},{"datetime_beginning_utc":"2024-09-03T23:15:00","datetime_ending_utc":"2024-09-03T23:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":98.0,"shadow_price":-12.63},{"datetime_beginning_utc":"2024-09-03T23:10:00","datetime_ending_utc":"2024-09-03T23:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-12.28},{"datetime_beginning_utc":"2024-09-03T23:05:00","datetime_ending_utc":"2024-09-03T23:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-12.94},{"datetime_beginning_utc":"2024-09-03T23:00:00","datetime_ending_utc":"2024-09-03T23:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-14.37},{"datetime_beginning_utc":"2024-09-03T22:55:00","datetime_ending_utc":"2024-09-03T23:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-44.56},{"datetime_beginning_utc":"2024-09-03T22:50:00","datetime_ending_utc":"2024-09-03T22:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-44.69},{"datetime_beginning_utc":"2024-09-03T22:45:00","datetime_ending_utc":"2024-09-03T22:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-20.46},{"datetime_beginning_utc":"2024-09-03T22:40:00","datetime_ending_utc":"2024-09-03T22:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-25.21},{"datetime_beginning_utc":"2024-09-03T22:35:00","datetime_ending_utc":"2024-09-03T22:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-144.31},{"datetime_beginning_utc":"2024-09-03T22:30:00","datetime_ending_utc":"2024-09-03T22:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-144.56},{"datetime_beginning_utc":"2024-09-03T22:25:00","datetime_ending_utc":"2024-09-03T22:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-44.85},{"datetime_beginning_utc":"2024-09-03T22:20:00","datetime_ending_utc":"2024-09-03T22:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-23.06},{"datetime_beginning_utc":"2024-09-03T22:15:00","datetime_ending_utc":"2024-09-03T22:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-22.01},{"datetime_beginning_utc":"2024-09-03T22:10:00","datetime_ending_utc":"2024-09-03T22:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-24.76},{"datetime_beginning_utc":"2024-09-03T22:05:00","datetime_ending_utc":"2024-09-03T22:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-23.93},{"datetime_beginning_utc":"2024-09-03T22:00:00","datetime_ending_utc":"2024-09-03T22:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":97.0,"shadow_price":-24.71},{"datetime_beginning_utc":"2024-09-03T21:55:00","datetime_ending_utc":"2024-09-03T22:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-25.07},{"datetime_beginning_utc":"2024-09-03T21:50:00","datetime_ending_utc":"2024-09-03T21:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-24.52},{"datetime_beginning_utc":"2024-09-03T21:45:00","datetime_ending_utc":"2024-09-03T21:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-26.15},{"datetime_beginning_utc":"2024-09-03T21:40:00","datetime_ending_utc":"2024-09-03T21:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-66.97},{"datetime_beginning_utc":"2024-09-03T21:35:00","datetime_ending_utc":"2024-09-03T21:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-15.37},{"datetime_beginning_utc":"2024-09-03T21:30:00","datetime_ending_utc":"2024-09-03T21:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-15.40},{"datetime_beginning_utc":"2024-09-03T21:25:00","datetime_ending_utc":"2024-09-03T21:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-18.70},{"datetime_beginning_utc":"2024-09-03T21:20:00","datetime_ending_utc":"2024-09-03T21:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-12.66},{"datetime_beginning_utc":"2024-09-03T21:15:00","datetime_ending_utc":"2024-09-03T21:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-13.44},{"datetime_beginning_utc":"2024-09-03T21:10:00","datetime_ending_utc":"2024-09-03T21:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-12.90},{"datetime_beginning_utc":"2024-09-03T21:05:00","datetime_ending_utc":"2024-09-03T21:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.95},{"datetime_beginning_utc":"2024-09-03T21:00:00","datetime_ending_utc":"2024-09-03T21:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.25},{"datetime_beginning_utc":"2024-09-03T20:55:00","datetime_ending_utc":"2024-09-03T21:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-12.36},{"datetime_beginning_utc":"2024-09-03T20:50:00","datetime_ending_utc":"2024-09-03T20:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-12.67},{"datetime_beginning_utc":"2024-09-03T20:45:00","datetime_ending_utc":"2024-09-03T20:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-12.93},{"datetime_beginning_utc":"2024-09-03T20:40:00","datetime_ending_utc":"2024-09-03T20:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-14.63},{"datetime_beginning_utc":"2024-09-03T20:35:00","datetime_ending_utc":"2024-09-03T20:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-12.09},{"datetime_beginning_utc":"2024-09-03T20:30:00","datetime_ending_utc":"2024-09-03T20:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.58},{"datetime_beginning_utc":"2024-09-03T20:25:00","datetime_ending_utc":"2024-09-03T20:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.58},{"datetime_beginning_utc":"2024-09-03T20:20:00","datetime_ending_utc":"2024-09-03T20:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.90},{"datetime_beginning_utc":"2024-09-03T20:15:00","datetime_ending_utc":"2024-09-03T20:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.66},{"datetime_beginning_utc":"2024-09-03T20:10:00","datetime_ending_utc":"2024-09-03T20:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.52},{"datetime_beginning_utc":"2024-09-03T20:05:00","datetime_ending_utc":"2024-09-03T20:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.27},{"datetime_beginning_utc":"2024-09-03T20:00:00","datetime_ending_utc":"2024-09-03T20:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.38},{"datetime_beginning_utc":"2024-09-03T19:55:00","datetime_ending_utc":"2024-09-03T20:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.16},{"datetime_beginning_utc":"2024-09-03T19:50:00","datetime_ending_utc":"2024-09-03T19:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-13.18},{"datetime_beginning_utc":"2024-09-03T19:45:00","datetime_ending_utc":"2024-09-03T19:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-14.62},{"datetime_beginning_utc":"2024-09-03T19:40:00","datetime_ending_utc":"2024-09-03T19:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.73},{"datetime_beginning_utc":"2024-09-03T19:35:00","datetime_ending_utc":"2024-09-03T19:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.04},{"datetime_beginning_utc":"2024-09-03T19:30:00","datetime_ending_utc":"2024-09-03T19:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.48},{"datetime_beginning_utc":"2024-09-03T19:25:00","datetime_ending_utc":"2024-09-03T19:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.67},{"datetime_beginning_utc":"2024-09-03T19:20:00","datetime_ending_utc":"2024-09-03T19:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.24},{"datetime_beginning_utc":"2024-09-03T19:15:00","datetime_ending_utc":"2024-09-03T19:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.29},{"datetime_beginning_utc":"2024-09-03T19:10:00","datetime_ending_utc":"2024-09-03T19:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.66},{"datetime_beginning_utc":"2024-09-03T19:05:00","datetime_ending_utc":"2024-09-03T19:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.77},{"datetime_beginning_utc":"2024-09-03T19:00:00","datetime_ending_utc":"2024-09-03T19:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.21},{"datetime_beginning_utc":"2024-09-03T18:55:00","datetime_ending_utc":"2024-09-03T19:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.43},{"datetime_beginning_utc":"2024-09-03T18:50:00","datetime_ending_utc":"2024-09-03T18:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-16.01},{"datetime_beginning_utc":"2024-09-03T18:45:00","datetime_ending_utc":"2024-09-03T18:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.76},{"datetime_beginning_utc":"2024-09-03T18:40:00","datetime_ending_utc":"2024-09-03T18:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.93},{"datetime_beginning_utc":"2024-09-03T18:35:00","datetime_ending_utc":"2024-09-03T18:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.89},{"datetime_beginning_utc":"2024-09-03T18:30:00","datetime_ending_utc":"2024-09-03T18:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.87},{"datetime_beginning_utc":"2024-09-03T18:25:00","datetime_ending_utc":"2024-09-03T18:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.43},{"datetime_beginning_utc":"2024-09-03T18:20:00","datetime_ending_utc":"2024-09-03T18:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.42},{"datetime_beginning_utc":"2024-09-03T18:15:00","datetime_ending_utc":"2024-09-03T18:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.26},{"datetime_beginning_utc":"2024-09-03T18:10:00","datetime_ending_utc":"2024-09-03T18:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.48},{"datetime_beginning_utc":"2024-09-03T18:05:00","datetime_ending_utc":"2024-09-03T18:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.65},{"datetime_beginning_utc":"2024-09-03T18:00:00","datetime_ending_utc":"2024-09-03T18:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.09},{"datetime_beginning_utc":"2024-09-03T17:55:00","datetime_ending_utc":"2024-09-03T18:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2.95},{"datetime_beginning_utc":"2024-09-03T17:50:00","datetime_ending_utc":"2024-09-03T17:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.76},{"datetime_beginning_utc":"2024-09-03T17:45:00","datetime_ending_utc":"2024-09-03T17:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.92},{"datetime_beginning_utc":"2024-09-03T17:40:00","datetime_ending_utc":"2024-09-03T17:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.99},{"datetime_beginning_utc":"2024-09-03T17:35:00","datetime_ending_utc":"2024-09-03T17:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-12.26},{"datetime_beginning_utc":"2024-09-03T17:30:00","datetime_ending_utc":"2024-09-03T17:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.96},{"datetime_beginning_utc":"2024-09-03T17:25:00","datetime_ending_utc":"2024-09-03T17:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.78},{"datetime_beginning_utc":"2024-09-03T17:20:00","datetime_ending_utc":"2024-09-03T17:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.54},{"datetime_beginning_utc":"2024-09-03T17:15:00","datetime_ending_utc":"2024-09-03T17:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.72},{"datetime_beginning_utc":"2024-09-03T17:10:00","datetime_ending_utc":"2024-09-03T17:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.57},{"datetime_beginning_utc":"2024-09-03T17:05:00","datetime_ending_utc":"2024-09-03T17:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.63},{"datetime_beginning_utc":"2024-09-03T17:00:00","datetime_ending_utc":"2024-09-03T17:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.86},{"datetime_beginning_utc":"2024-09-03T16:55:00","datetime_ending_utc":"2024-09-03T17:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.90},{"datetime_beginning_utc":"2024-09-03T16:50:00","datetime_ending_utc":"2024-09-03T16:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.47},{"datetime_beginning_utc":"2024-09-03T16:45:00","datetime_ending_utc":"2024-09-03T16:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.49},{"datetime_beginning_utc":"2024-09-03T16:40:00","datetime_ending_utc":"2024-09-03T16:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-13.69},{"datetime_beginning_utc":"2024-09-03T16:35:00","datetime_ending_utc":"2024-09-03T16:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.48},{"datetime_beginning_utc":"2024-09-03T16:30:00","datetime_ending_utc":"2024-09-03T16:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.50},{"datetime_beginning_utc":"2024-09-03T16:25:00","datetime_ending_utc":"2024-09-03T16:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.89},{"datetime_beginning_utc":"2024-09-03T16:20:00","datetime_ending_utc":"2024-09-03T16:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.40},{"datetime_beginning_utc":"2024-09-03T16:15:00","datetime_ending_utc":"2024-09-03T16:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.69},{"datetime_beginning_utc":"2024-09-03T16:10:00","datetime_ending_utc":"2024-09-03T16:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.68},{"datetime_beginning_utc":"2024-09-03T16:05:00","datetime_ending_utc":"2024-09-03T16:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.52},{"datetime_beginning_utc":"2024-09-03T16:00:00","datetime_ending_utc":"2024-09-03T16:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.45},{"datetime_beginning_utc":"2024-09-03T15:55:00","datetime_ending_utc":"2024-09-03T16:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.74},{"datetime_beginning_utc":"2024-09-03T15:50:00","datetime_ending_utc":"2024-09-03T15:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.25},{"datetime_beginning_utc":"2024-09-03T15:45:00","datetime_ending_utc":"2024-09-03T15:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.99},{"datetime_beginning_utc":"2024-09-03T15:40:00","datetime_ending_utc":"2024-09-03T15:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.84},{"datetime_beginning_utc":"2024-09-03T15:35:00","datetime_ending_utc":"2024-09-03T15:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.59},{"datetime_beginning_utc":"2024-09-03T15:30:00","datetime_ending_utc":"2024-09-03T15:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.05},{"datetime_beginning_utc":"2024-09-03T15:25:00","datetime_ending_utc":"2024-09-03T15:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-6.60},{"datetime_beginning_utc":"2024-09-03T15:20:00","datetime_ending_utc":"2024-09-03T15:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.13},{"datetime_beginning_utc":"2024-09-03T15:15:00","datetime_ending_utc":"2024-09-03T15:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.33},{"datetime_beginning_utc":"2024-09-03T15:10:00","datetime_ending_utc":"2024-09-03T15:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.98},{"datetime_beginning_utc":"2024-09-03T15:05:00","datetime_ending_utc":"2024-09-03T15:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.37},{"datetime_beginning_utc":"2024-09-03T15:00:00","datetime_ending_utc":"2024-09-03T15:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.36},{"datetime_beginning_utc":"2024-09-03T14:55:00","datetime_ending_utc":"2024-09-03T15:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.61},{"datetime_beginning_utc":"2024-09-03T14:50:00","datetime_ending_utc":"2024-09-03T14:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.57},{"datetime_beginning_utc":"2024-09-03T14:45:00","datetime_ending_utc":"2024-09-03T14:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.73},{"datetime_beginning_utc":"2024-09-03T14:40:00","datetime_ending_utc":"2024-09-03T14:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.39},{"datetime_beginning_utc":"2024-09-03T14:35:00","datetime_ending_utc":"2024-09-03T14:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.62},{"datetime_beginning_utc":"2024-09-03T14:30:00","datetime_ending_utc":"2024-09-03T14:35:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.31},{"datetime_beginning_utc":"2024-09-03T14:25:00","datetime_ending_utc":"2024-09-03T14:30:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.68},{"datetime_beginning_utc":"2024-09-03T14:20:00","datetime_ending_utc":"2024-09-03T14:25:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"L500.Hosensack-SteelCity.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.73},{"datetime_beginning_utc":"2024-09-03T14:15:00","datetime_ending_utc":"2024-09-03T14:20:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"DBL:L230.Quarry-StlCty1+L500.Hosesck-StlCty.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.73},{"datetime_beginning_utc":"2024-09-03T14:10:00","datetime_ending_utc":"2024-09-03T14:15:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"DBL:L230.Quarry-StlCty1+L500.Hosesck-StlCty.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.61},{"datetime_beginning_utc":"2024-09-03T14:05:00","datetime_ending_utc":"2024-09-03T14:10:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"DBL:L230.Quarry-StlCty1+L500.Hosesck-StlCty.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.96},{"datetime_beginning_utc":"2024-09-03T14:00:00","datetime_ending_utc":"2024-09-03T14:05:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"DBL:L230.Quarry-StlCty1+L500.Hosesck-StlCty.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.19},{"datetime_beginning_utc":"2024-09-03T13:55:00","datetime_ending_utc":"2024-09-03T14:00:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"DBL:L230.Quarry-StlCty1+L500.Hosesck-StlCty.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.93},{"datetime_beginning_utc":"2024-09-03T13:50:00","datetime_ending_utc":"2024-09-03T13:55:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"DBL:L230.Quarry-StlCty1+L500.Hosesck-StlCty.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-03T13:45:00","datetime_ending_utc":"2024-09-03T13:50:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"DBL:L230.Quarry-StlCty1+L500.Hosesck-StlCty.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.42},{"datetime_beginning_utc":"2024-09-03T13:40:00","datetime_ending_utc":"2024-09-03T13:45:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"DBL:L230.Quarry-StlCty1+L500.Hosesck-StlCty.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.22},{"datetime_beginning_utc":"2024-09-03T13:35:00","datetime_ending_utc":"2024-09-03T13:40:00","monitored_facility":"QUARRY-STEELCITY
+        230 KV 2   B  230 KV","contingency_facility":"DBL:L230.Quarry-StlCty1+L500.Hosesck-StlCty.5032","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-4.22},{"datetime_beginning_utc":"2024-09-03T12:00:00","datetime_ending_utc":"2024-09-03T12:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-36.82},{"datetime_beginning_utc":"2024-09-03T11:50:00","datetime_ending_utc":"2024-09-03T11:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-33.88},{"datetime_beginning_utc":"2024-09-03T11:40:00","datetime_ending_utc":"2024-09-03T11:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-84.96},{"datetime_beginning_utc":"2024-09-03T11:35:00","datetime_ending_utc":"2024-09-03T11:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-98.75},{"datetime_beginning_utc":"2024-09-03T11:30:00","datetime_ending_utc":"2024-09-03T11:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-56.83},{"datetime_beginning_utc":"2024-09-03T11:25:00","datetime_ending_utc":"2024-09-03T11:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-139.12},{"datetime_beginning_utc":"2024-09-03T11:20:00","datetime_ending_utc":"2024-09-03T11:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-97.13},{"datetime_beginning_utc":"2024-09-03T11:15:00","datetime_ending_utc":"2024-09-03T11:20:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-94.00},{"datetime_beginning_utc":"2024-09-03T11:15:00","datetime_ending_utc":"2024-09-03T11:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-131.21},{"datetime_beginning_utc":"2024-09-03T11:10:00","datetime_ending_utc":"2024-09-03T11:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-333.71},{"datetime_beginning_utc":"2024-09-03T11:05:00","datetime_ending_utc":"2024-09-03T11:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-451.37},{"datetime_beginning_utc":"2024-09-03T11:00:00","datetime_ending_utc":"2024-09-03T11:05:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-428.33},{"datetime_beginning_utc":"2024-09-03T11:00:00","datetime_ending_utc":"2024-09-03T11:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-308.74},{"datetime_beginning_utc":"2024-09-03T10:55:00","datetime_ending_utc":"2024-09-03T11:00:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-158.15},{"datetime_beginning_utc":"2024-09-03T10:55:00","datetime_ending_utc":"2024-09-03T11:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-114.36},{"datetime_beginning_utc":"2024-09-03T10:50:00","datetime_ending_utc":"2024-09-03T10:55:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-445.58},{"datetime_beginning_utc":"2024-09-03T10:50:00","datetime_ending_utc":"2024-09-03T10:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1111.59},{"datetime_beginning_utc":"2024-09-03T10:45:00","datetime_ending_utc":"2024-09-03T10:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-507.77},{"datetime_beginning_utc":"2024-09-03T10:40:00","datetime_ending_utc":"2024-09-03T10:45:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-351.87},{"datetime_beginning_utc":"2024-09-03T10:40:00","datetime_ending_utc":"2024-09-03T10:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-493.04},{"datetime_beginning_utc":"2024-09-03T10:35:00","datetime_ending_utc":"2024-09-03T10:40:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-670.41},{"datetime_beginning_utc":"2024-09-03T10:35:00","datetime_ending_utc":"2024-09-03T10:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1029.42},{"datetime_beginning_utc":"2024-09-03T10:30:00","datetime_ending_utc":"2024-09-03T10:35:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-1024.45},{"datetime_beginning_utc":"2024-09-03T10:30:00","datetime_ending_utc":"2024-09-03T10:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-843.58},{"datetime_beginning_utc":"2024-09-03T10:25:00","datetime_ending_utc":"2024-09-03T10:30:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-2000.00},{"datetime_beginning_utc":"2024-09-03T10:25:00","datetime_ending_utc":"2024-09-03T10:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1261.44},{"datetime_beginning_utc":"2024-09-03T10:20:00","datetime_ending_utc":"2024-09-03T10:25:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-562.03},{"datetime_beginning_utc":"2024-09-03T10:20:00","datetime_ending_utc":"2024-09-03T10:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1048.61},{"datetime_beginning_utc":"2024-09-03T10:15:00","datetime_ending_utc":"2024-09-03T10:20:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-313.84},{"datetime_beginning_utc":"2024-09-03T10:15:00","datetime_ending_utc":"2024-09-03T10:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-425.44},{"datetime_beginning_utc":"2024-09-03T10:10:00","datetime_ending_utc":"2024-09-03T10:15:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-6.34},{"datetime_beginning_utc":"2024-09-03T10:10:00","datetime_ending_utc":"2024-09-03T10:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-196.07},{"datetime_beginning_utc":"2024-09-03T10:05:00","datetime_ending_utc":"2024-09-03T10:10:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-152.75},{"datetime_beginning_utc":"2024-09-03T10:05:00","datetime_ending_utc":"2024-09-03T10:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-108.92},{"datetime_beginning_utc":"2024-09-03T10:00:00","datetime_ending_utc":"2024-09-03T10:05:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-105.33},{"datetime_beginning_utc":"2024-09-03T10:00:00","datetime_ending_utc":"2024-09-03T10:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-187.05},{"datetime_beginning_utc":"2024-09-03T09:55:00","datetime_ending_utc":"2024-09-03T10:00:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-558.54},{"datetime_beginning_utc":"2024-09-03T09:55:00","datetime_ending_utc":"2024-09-03T10:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-286.41},{"datetime_beginning_utc":"2024-09-03T09:50:00","datetime_ending_utc":"2024-09-03T09:55:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-145.24},{"datetime_beginning_utc":"2024-09-03T09:50:00","datetime_ending_utc":"2024-09-03T09:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-181.89},{"datetime_beginning_utc":"2024-09-03T09:45:00","datetime_ending_utc":"2024-09-03T09:50:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-147.49},{"datetime_beginning_utc":"2024-09-03T09:45:00","datetime_ending_utc":"2024-09-03T09:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-200.53},{"datetime_beginning_utc":"2024-09-03T09:40:00","datetime_ending_utc":"2024-09-03T09:45:00","monitored_facility":"DUNEACRE-MICHIGA2
+        13839     A  138 KV","contingency_facility":"L765.Dumont-WiltonCenter.11215","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":90.0,"shadow_price":-425.24},{"datetime_beginning_utc":"2024-09-03T09:40:00","datetime_ending_utc":"2024-09-03T09:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-188.20},{"datetime_beginning_utc":"2024-09-03T09:35:00","datetime_ending_utc":"2024-09-03T09:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-82.45},{"datetime_beginning_utc":"2024-09-03T09:30:00","datetime_ending_utc":"2024-09-03T09:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-73.98},{"datetime_beginning_utc":"2024-09-03T09:25:00","datetime_ending_utc":"2024-09-03T09:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-82.20},{"datetime_beginning_utc":"2024-09-03T09:20:00","datetime_ending_utc":"2024-09-03T09:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-95.99},{"datetime_beginning_utc":"2024-09-03T09:15:00","datetime_ending_utc":"2024-09-03T09:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-82.53},{"datetime_beginning_utc":"2024-09-03T09:10:00","datetime_ending_utc":"2024-09-03T09:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-68.76},{"datetime_beginning_utc":"2024-09-03T09:05:00","datetime_ending_utc":"2024-09-03T09:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-39.15},{"datetime_beginning_utc":"2024-09-03T09:00:00","datetime_ending_utc":"2024-09-03T09:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-41.43},{"datetime_beginning_utc":"2024-09-03T08:55:00","datetime_ending_utc":"2024-09-03T09:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-38.93},{"datetime_beginning_utc":"2024-09-03T08:50:00","datetime_ending_utc":"2024-09-03T08:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-34.80},{"datetime_beginning_utc":"2024-09-03T08:45:00","datetime_ending_utc":"2024-09-03T08:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-37.28},{"datetime_beginning_utc":"2024-09-03T08:40:00","datetime_ending_utc":"2024-09-03T08:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-11.54},{"datetime_beginning_utc":"2024-09-03T08:35:00","datetime_ending_utc":"2024-09-03T08:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.37},{"datetime_beginning_utc":"2024-09-03T08:30:00","datetime_ending_utc":"2024-09-03T08:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.95},{"datetime_beginning_utc":"2024-09-03T08:30:00","datetime_ending_utc":"2024-09-03T08:35:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":101.2,"limit_control_percentage":100.0,"shadow_price":-101.22},{"datetime_beginning_utc":"2024-09-03T08:25:00","datetime_ending_utc":"2024-09-03T08:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-8.31},{"datetime_beginning_utc":"2024-09-03T08:25:00","datetime_ending_utc":"2024-09-03T08:30:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":93.9,"limit_control_percentage":100.0,"shadow_price":-93.95},{"datetime_beginning_utc":"2024-09-03T08:20:00","datetime_ending_utc":"2024-09-03T08:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-0.97},{"datetime_beginning_utc":"2024-09-03T08:15:00","datetime_ending_utc":"2024-09-03T08:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-3.62},{"datetime_beginning_utc":"2024-09-03T08:10:00","datetime_ending_utc":"2024-09-03T08:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-1.72},{"datetime_beginning_utc":"2024-09-03T08:05:00","datetime_ending_utc":"2024-09-03T08:10:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":103.2,"limit_control_percentage":100.0,"shadow_price":-103.20},{"datetime_beginning_utc":"2024-09-03T08:00:00","datetime_ending_utc":"2024-09-03T08:05:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":104.7,"limit_control_percentage":100.0,"shadow_price":-104.71},{"datetime_beginning_utc":"2024-09-03T07:55:00","datetime_ending_utc":"2024-09-03T08:00:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":101.2,"limit_control_percentage":100.0,"shadow_price":-101.29},{"datetime_beginning_utc":"2024-09-03T07:50:00","datetime_ending_utc":"2024-09-03T07:55:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":99.2,"limit_control_percentage":100.0,"shadow_price":-99.27},{"datetime_beginning_utc":"2024-09-03T07:45:00","datetime_ending_utc":"2024-09-03T07:50:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":95.0,"limit_control_percentage":100.0,"shadow_price":-95.09},{"datetime_beginning_utc":"2024-09-03T07:25:00","datetime_ending_utc":"2024-09-03T07:30:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":102.0,"limit_control_percentage":100.0,"shadow_price":-102.08},{"datetime_beginning_utc":"2024-09-03T07:20:00","datetime_ending_utc":"2024-09-03T07:25:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":99.9,"limit_control_percentage":100.0,"shadow_price":-99.96},{"datetime_beginning_utc":"2024-09-03T07:15:00","datetime_ending_utc":"2024-09-03T07:20:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":99.9,"limit_control_percentage":100.0,"shadow_price":-99.96},{"datetime_beginning_utc":"2024-09-03T06:55:00","datetime_ending_utc":"2024-09-03T07:00:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":93.6,"limit_control_percentage":100.0,"shadow_price":-93.67},{"datetime_beginning_utc":"2024-09-03T06:10:00","datetime_ending_utc":"2024-09-03T06:15:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":92.4,"limit_control_percentage":100.0,"shadow_price":-92.47},{"datetime_beginning_utc":"2024-09-03T06:05:00","datetime_ending_utc":"2024-09-03T06:10:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":107.8,"limit_control_percentage":100.0,"shadow_price":-107.88},{"datetime_beginning_utc":"2024-09-03T06:00:00","datetime_ending_utc":"2024-09-03T06:05:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":104.3,"limit_control_percentage":100.0,"shadow_price":-104.33},{"datetime_beginning_utc":"2024-09-03T05:55:00","datetime_ending_utc":"2024-09-03T06:00:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":107.7,"limit_control_percentage":100.0,"shadow_price":-107.77},{"datetime_beginning_utc":"2024-09-03T05:50:00","datetime_ending_utc":"2024-09-03T05:55:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":72.2,"limit_control_percentage":100.0,"shadow_price":-72.27},{"datetime_beginning_utc":"2024-09-03T05:40:00","datetime_ending_utc":"2024-09-03T05:45:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":92.1,"limit_control_percentage":100.0,"shadow_price":-92.13},{"datetime_beginning_utc":"2024-09-03T05:35:00","datetime_ending_utc":"2024-09-03T05:40:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-56.87},{"datetime_beginning_utc":"2024-09-03T05:35:00","datetime_ending_utc":"2024-09-03T05:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-5.49},{"datetime_beginning_utc":"2024-09-03T05:35:00","datetime_ending_utc":"2024-09-03T05:40:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":100.5,"limit_control_percentage":100.0,"shadow_price":-100.51},{"datetime_beginning_utc":"2024-09-03T05:30:00","datetime_ending_utc":"2024-09-03T05:35:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-64.04},{"datetime_beginning_utc":"2024-09-03T05:30:00","datetime_ending_utc":"2024-09-03T05:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.77},{"datetime_beginning_utc":"2024-09-03T05:30:00","datetime_ending_utc":"2024-09-03T05:35:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":99.7,"limit_control_percentage":100.0,"shadow_price":-99.74},{"datetime_beginning_utc":"2024-09-03T05:25:00","datetime_ending_utc":"2024-09-03T05:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.47},{"datetime_beginning_utc":"2024-09-03T05:25:00","datetime_ending_utc":"2024-09-03T05:30:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":101.2,"limit_control_percentage":100.0,"shadow_price":-101.28},{"datetime_beginning_utc":"2024-09-03T05:20:00","datetime_ending_utc":"2024-09-03T05:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-13.30},{"datetime_beginning_utc":"2024-09-03T05:20:00","datetime_ending_utc":"2024-09-03T05:25:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":99.4,"limit_control_percentage":100.0,"shadow_price":-99.43},{"datetime_beginning_utc":"2024-09-03T05:15:00","datetime_ending_utc":"2024-09-03T05:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.41},{"datetime_beginning_utc":"2024-09-03T05:15:00","datetime_ending_utc":"2024-09-03T05:20:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":34.3,"limit_control_percentage":100.0,"shadow_price":-34.31},{"datetime_beginning_utc":"2024-09-03T05:10:00","datetime_ending_utc":"2024-09-03T05:15:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-14.28},{"datetime_beginning_utc":"2024-09-03T05:10:00","datetime_ending_utc":"2024-09-03T05:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-29.11},{"datetime_beginning_utc":"2024-09-03T05:10:00","datetime_ending_utc":"2024-09-03T05:15:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":41.3,"limit_control_percentage":100.0,"shadow_price":-41.34},{"datetime_beginning_utc":"2024-09-03T05:05:00","datetime_ending_utc":"2024-09-03T05:10:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-10.74},{"datetime_beginning_utc":"2024-09-03T05:05:00","datetime_ending_utc":"2024-09-03T05:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-7.14},{"datetime_beginning_utc":"2024-09-03T05:00:00","datetime_ending_utc":"2024-09-03T05:05:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-12.82},{"datetime_beginning_utc":"2024-09-03T05:00:00","datetime_ending_utc":"2024-09-03T05:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-9.60},{"datetime_beginning_utc":"2024-09-03T04:55:00","datetime_ending_utc":"2024-09-03T05:00:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-12.64},{"datetime_beginning_utc":"2024-09-03T04:55:00","datetime_ending_utc":"2024-09-03T05:00:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.00},{"datetime_beginning_utc":"2024-09-03T04:50:00","datetime_ending_utc":"2024-09-03T04:55:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-84.09},{"datetime_beginning_utc":"2024-09-03T04:50:00","datetime_ending_utc":"2024-09-03T04:55:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-10.22},{"datetime_beginning_utc":"2024-09-03T04:45:00","datetime_ending_utc":"2024-09-03T04:50:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-70.24},{"datetime_beginning_utc":"2024-09-03T04:45:00","datetime_ending_utc":"2024-09-03T04:50:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-40.48},{"datetime_beginning_utc":"2024-09-03T04:45:00","datetime_ending_utc":"2024-09-03T04:50:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":99.2,"limit_control_percentage":100.0,"shadow_price":-99.28},{"datetime_beginning_utc":"2024-09-03T04:40:00","datetime_ending_utc":"2024-09-03T04:45:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-209.81},{"datetime_beginning_utc":"2024-09-03T04:40:00","datetime_ending_utc":"2024-09-03T04:45:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-106.03},{"datetime_beginning_utc":"2024-09-03T04:35:00","datetime_ending_utc":"2024-09-03T04:40:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-30.60},{"datetime_beginning_utc":"2024-09-03T04:35:00","datetime_ending_utc":"2024-09-03T04:40:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-89.59},{"datetime_beginning_utc":"2024-09-03T04:30:00","datetime_ending_utc":"2024-09-03T04:35:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-26.35},{"datetime_beginning_utc":"2024-09-03T04:30:00","datetime_ending_utc":"2024-09-03T04:35:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-87.44},{"datetime_beginning_utc":"2024-09-03T04:25:00","datetime_ending_utc":"2024-09-03T04:30:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-5.20},{"datetime_beginning_utc":"2024-09-03T04:25:00","datetime_ending_utc":"2024-09-03T04:30:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-87.56},{"datetime_beginning_utc":"2024-09-03T04:25:00","datetime_ending_utc":"2024-09-03T04:30:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":98.4,"limit_control_percentage":100.0,"shadow_price":-98.45},{"datetime_beginning_utc":"2024-09-03T04:20:00","datetime_ending_utc":"2024-09-03T04:25:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-85.88},{"datetime_beginning_utc":"2024-09-03T04:20:00","datetime_ending_utc":"2024-09-03T04:25:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-106.14},{"datetime_beginning_utc":"2024-09-03T04:20:00","datetime_ending_utc":"2024-09-03T04:25:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":98.5,"limit_control_percentage":100.0,"shadow_price":-98.50},{"datetime_beginning_utc":"2024-09-03T04:15:00","datetime_ending_utc":"2024-09-03T04:20:00","monitored_facility":"CRETSTJO-STJOHNS
+        94507      B  345 KV","contingency_facility":"BASE","transmission_constraint_penalty_factor":1000.0,"limit_control_percentage":92.0,"shadow_price":-4.94},{"datetime_beginning_utc":"2024-09-03T04:15:00","datetime_ending_utc":"2024-09-03T04:20:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-116.03},{"datetime_beginning_utc":"2024-09-03T04:15:00","datetime_ending_utc":"2024-09-03T04:20:00","monitored_facility":"Mahomet
+        - OCB 1303 138 kV l/o Leghorn - Goose Creek 345 kV","contingency_facility":"Leghorn
+        - Goose Creek 345 kV","transmission_constraint_penalty_factor":59.5,"limit_control_percentage":100.0,"shadow_price":-59.52},{"datetime_beginning_utc":"2024-09-03T04:10:00","datetime_ending_utc":"2024-09-03T04:15:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-41.34},{"datetime_beginning_utc":"2024-09-03T04:05:00","datetime_ending_utc":"2024-09-03T04:10:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-97.11},{"datetime_beginning_utc":"2024-09-03T04:00:00","datetime_ending_utc":"2024-09-03T04:05:00","monitored_facility":"12
+        DRESD-935 KEND 93505_1   A  345 KV","contingency_facility":"L345.12 Dresden-900
+        Elwood.1222","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":93.0,"shadow_price":-3.41},{"datetime_beginning_utc":"2024-09-03T04:00:00","datetime_ending_utc":"2024-09-03T04:05:00","monitored_facility":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","contingency_facility":"L230.ETowanda-Hillside.2002
+        [NYISO]","transmission_constraint_penalty_factor":2000.0,"limit_control_percentage":95.0,"shadow_price":-91.89}],"searchSpecification":{"rowCount":50000,"order":"Asc","startRow":1,"isActiveMetadata":true,"fields":["datetime_beginning_utc","datetime_ending_utc","monitored_facility","contingency_facility","transmission_constraint_penalty_factor","limit_control_percentage","shadow_price"],"filters":[{"datetime_beginning_ept":"09/02/2024
+        00:00to09/04/2024 00:00"}]},"totalRows":578}'
+    headers:
+      Access-Control-Expose-Headers:
+      - Request-Context
+      Cache-Control:
+      - public, must-revalidate, max-age=20
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 04 Nov 2024 23:28:59 GMT
+      Expires:
+      - Mon, 04 Nov 2024 23:29:20 GMT
+      Last-Modified:
+      - Mon, 04 Nov 2024 23:29:00 GMT
+      Request-Context:
+      - appId=cid-v1:2aa2d631-5670-434a-9034-e8b4ff1aaf97
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept,Accept-Charset
+      X-AspNet-Version:
+      - 4.0.30319
+      X-Powered-By:
+      - ASP.NET
+    status:
+      code: 200
+      message: OK
+version: 1
