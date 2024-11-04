@@ -14,7 +14,7 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
-from gridstatus.gs_logging import log, logger
+from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
 
@@ -125,12 +125,7 @@ class ISONE(ISOBase):
 
     # NOTE(Kladar): This is a deprecated in favor of the ISONEAPI method.
     @support_date_range(frequency="DAY_START")
-    def get_fuel_mix(
-        self,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp = None,
-        verbose: bool = False,
-    ):
+    def get_fuel_mix(self, date, end=None, verbose=False):
         """Return fuel mix at a previous date
 
         Provided at frequent, but irregular intervals by ISONE
@@ -150,26 +145,12 @@ class ISONE(ISOBase):
 
         df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
 
-        logger.debug(f"Looking for DST transition on {date}...")
-        is_dst_transition = (
-            df["Date"].dt.date == pd.Timestamp("2024-11-03").date()
-        ) & (df["Date"].dt.hour == 1)
-        transition_idx = None
-
-        if is_dst_transition.any():
-            logger.debug(
-                "Found DST transition. Looking for fallback transition time...",
-            )
-            time_diffs = df["Date"].diff()
-            negative_diffs = time_diffs[time_diffs < pd.Timedelta(minutes=-30)]
-            if len(negative_diffs) > 0:
-                logger.debug(
-                    f"Found last timestamp before fallback transition: {df['Date'].iloc[negative_diffs.index[0]-1]}",
-                )
-                transition_idx = negative_diffs.index[0]
-
+        # groupby FuelCategory to make it possible to infer DST changes
         df["Date"] = df.groupby("Fuel Category", group_keys=False)["Date"].apply(
-            lambda x: self._assign_dst_aware_time(x, transition_idx),
+            lambda x: x.dt.tz_localize(
+                self.default_timezone,
+                ambiguous="infer",
+            ),
         )
 
         mix_df = df.pivot_table(
@@ -182,6 +163,7 @@ class ISONE(ISOBase):
 
         # assume instant in time, unclear if this is correct
         mix_df = mix_df.rename(columns={"Date": "Time"})
+
         mix_df = mix_df.fillna(0)
 
         # move time columns front
