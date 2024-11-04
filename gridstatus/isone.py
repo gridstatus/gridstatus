@@ -124,7 +124,12 @@ class ISONE(ISOBase):
         return dates
 
     @support_date_range(frequency="DAY_START")
-    def get_fuel_mix(self, date: str, end=None, verbose=False):
+    def get_fuel_mix(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
         """Return fuel mix at a previous date
 
         Provided at frequent, but irregular intervals by ISONE
@@ -142,7 +147,6 @@ class ISONE(ISOBase):
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
-        df.to_csv(f"raw_fuel_mix_{date.strftime('%Y-%m-%d')}.csv")
         df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
 
         logger.debug(f"Looking for DST transition on {date}...")
@@ -161,7 +165,7 @@ class ISONE(ISOBase):
                 logger.debug(
                     f"Found last timestamp before fallback transition: {df['Date'].iloc[negative_diffs.index[0]-1]}",
                 )
-                transition_idx = negative_diffs.index[0] - 1
+                transition_idx = negative_diffs.index[0]
 
         df["Date"] = df.groupby("Fuel Category", group_keys=False)["Date"].apply(
             lambda x: self._assign_dst_aware_time(x, transition_idx),
