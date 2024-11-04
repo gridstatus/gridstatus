@@ -112,15 +112,15 @@ class ISONE(ISOBase):
         transition_idx: int | None,
     ) -> pd.Series:
         if transition_idx is None:
-            return series.dt.tz_localize("US/Eastern", ambiguous="infer")
+            return series.dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         dates = pd.Series(index=series.index, dtype="datetime64[ns, US/Eastern]")
         dates[series.index < transition_idx] = series[
             series.index < transition_idx
-        ].dt.tz_localize("US/Eastern", ambiguous=True)
+        ].dt.tz_localize(self.default_timezone, ambiguous=True)
         dates[series.index >= transition_idx] = series[
             series.index >= transition_idx
-        ].dt.tz_localize("US/Eastern", ambiguous=False)
+        ].dt.tz_localize(self.default_timezone, ambiguous=False)
         return dates
 
     @support_date_range(frequency="DAY_START")
