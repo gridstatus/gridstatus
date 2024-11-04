@@ -3,6 +3,7 @@ import os
 import random
 import time
 from typing import Optional
+from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
@@ -88,6 +89,17 @@ SETTLEMENT_POINT_PRICE_REAL_TIME_15_MIN = "/np6-905-cd/spp_node_zone_hub"
 # Day ahead settlement point prices
 # https://data.ercot.com/data-product-archive/NP4-190-CD
 SPP_DAY_AHEAD_HOURLY = "/np4-190-cd/dam_stlmnt_pnt_prices"
+
+
+# For the disclosure files, any of the files that are in the zipfile will return
+# the same zipfile.
+# DAM 60 Day Load Resource AS Offers
+# https://data.ercot.com/data-product-archive/NP3-966-ER
+DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_load_res_as_offers"
+
+# DAM 60 Day Gen Resource AS Offers
+# https://data.ercot.com/data-product-archive/NP3-966-ER
+DAM_60_DAY_GEN_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_gen_res_as_offers"
 
 
 class ErcotAPI:
@@ -977,6 +989,81 @@ class ErcotAPI:
         )
 
         return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_dam_load_and_gen_60_day_resources_as_offers(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """
+        Get both load and generation resource ancillary services offers from the
+        Day-Ahead Market from the 60-day disclosure reports.
+
+        Args:
+            date (datetime-like): Start date for the query
+            end (datetime-like, optional): End date for the query.
+                Defaults to date + 1 day
+            verbose (bool, optional): Whether to print progress messages. Defaults to
+                False
+
+        Returns:
+            dict: Dictionary containing two dataframes with keys:
+                - 'dam_load_resource_as_offers'
+                - 'dam_gen_resource_as_offers'
+
+        NOTE: because data is delayed by 60 days, requesting data in the past 60 days
+        will return no data.
+        """
+        # Reports are delayed by 60 days
+        date = date + pd.DateOffset(days=60)
+
+        # End is required so set a default end date
+        if end:
+            end = end + pd.DateOffset(days=60)
+        else:
+            end = date + pd.DateOffset(days=1)
+
+        # Initialize empty lists for both types of dataframes
+        load_dfs = []
+        gen_dfs = []
+
+        # Get data once since both endpoints return the same zipfile
+        data_bytes = self.get_historical_data(
+            endpoint=DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            read_as_csv=False,
+        )
+
+        # Process both load and gen resources from each zipfile
+        for bytes in data_bytes:
+            zip_file = ZipFile(bytes)
+
+            # Process load resources
+            processed_files = Ercot()._handle_60_day_dam_disclosure(
+                z=zip_file,
+                process=True,
+                verbose=verbose,
+                files_prefix={
+                    "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
+                    "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",
+                },
+            )
+            load_dfs.append(processed_files["dam_load_resource_as_offers"])
+            gen_dfs.append(processed_files["dam_gen_resource_as_offers"])
+
+        # Combine the results into a dictionary with sorted dataframes
+        return {
+            "dam_load_resource_as_offers": pd.concat(load_dfs).sort_values(
+                ["Interval Start", "Resource Name"],
+            ),
+            "dam_gen_resource_as_offers": pd.concat(gen_dfs).sort_values(
+                ["Interval Start", "Resource Name"],
+            ),
+        }
 
     def get_historical_data(
         self,

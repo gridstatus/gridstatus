@@ -15,6 +15,27 @@ from gridstatus.tests.base_test_iso import BaseTestISO
 INTERVALS_PER_HOUR_AT_FIVE_MINUTE_RESOLUTION = 12
 
 
+# Same for both generation and load
+RESOURCE_AS_OFFERS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "QSE",
+    "DME",
+    "Resource Name",
+    "Multi-Hour Block Flag",
+    "Block Indicators",
+    "RRSPFR Offer Curve",
+    "RRSFFR Offer Curve",
+    "RRSUFR Offer Curve",
+    "ECRS Offer Curve",
+    "OFFEC Offer Curve",
+    "ONLINE NONSPIN Offer Curve",
+    "REGUP Offer Curve",
+    "REGDOWN Offer Curve",
+    "OFFLINE NONSPIN Offer Curve",
+]
+
+
 class TestErcot(BaseTestISO):
     iso = Ercot()
 
@@ -740,28 +761,10 @@ class TestErcot(BaseTestISO):
         dam_energy_bids = df_dict["dam_energy_bids"]
         dam_energy_bid_awards = df_dict["dam_energy_bid_awards"]
 
-        # Same for both generation and load
-        as_offer_columns = [
-            "Interval Start",
-            "Interval End",
-            "QSE",
-            "DME",
-            "Resource Name",
-            "Multi-Hour Block Flag",
-            "Block Indicators",
-            "RRSPFR Offer Curve",
-            "RRSFFR Offer Curve",
-            "RRSUFR Offer Curve",
-            "ECRS Offer Curve",
-            "OFFEC Offer Curve",
-            "ONLINE NONSPIN Offer Curve",
-            "REGUP Offer Curve",
-            "REGDOWN Offer Curve",
-            "OFFLINE NONSPIN Offer Curve",
-        ]
-
-        assert dam_gen_resource_as_offers.columns.tolist() == as_offer_columns
-        assert dam_load_resource_as_offers.columns.tolist() == as_offer_columns
+        assert dam_gen_resource_as_offers.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
+        assert (
+            dam_load_resource_as_offers.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
+        )
 
         assert not dam_gen_resource_as_offers.duplicated(
             subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],

@@ -1634,15 +1634,22 @@ class Ercot(ISOBase):
 
         return data
 
-    def _handle_60_day_dam_disclosure(self, z, process=False, verbose=False):
-        files_prefix = {
-            "dam_gen_resource": "60d_DAM_Gen_Resource_Data-",
-            "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",
-            "dam_load_resource": "60d_DAM_Load_Resource_Data-",
-            "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
-            "dam_energy_bids": "60d_DAM_EnergyBids-",
-            "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",
-        }
+    def _handle_60_day_dam_disclosure(
+        self,
+        z,
+        process=False,
+        verbose=False,
+        files_prefix: dict = None,
+    ):
+        if not files_prefix:
+            files_prefix = {
+                "dam_gen_resource": "60d_DAM_Gen_Resource_Data-",
+                "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",
+                "dam_load_resource": "60d_DAM_Load_Resource_Data-",
+                "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
+                "dam_energy_bids": "60d_DAM_EnergyBids-",
+                "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",
+            }
 
         files = {}
 
@@ -1661,24 +1668,19 @@ class Ercot(ISOBase):
             # weird that these files dont have this column like all other eroct files
             # add so we can parse
             doc["DSTFlag"] = "N"
-            data[key] = self.parse_doc(doc)
+            data[key] = self.parse_doc(doc, verbose=verbose)
 
         if process:
-            data["dam_gen_resource"] = process_dam_gen(
-                data["dam_gen_resource"],
-            )
+            file_to_function = {
+                "dam_gen_resource": process_dam_gen,
+                "dam_load_resource": process_dam_load,
+                "dam_gen_resource_as_offers": process_dam_or_gen_load_as_offers,
+                "dam_load_resource_as_offers": process_dam_or_gen_load_as_offers,
+            }
 
-            data["dam_load_resource"] = process_dam_load(
-                data["dam_load_resource"],
-            )
-
-            data["dam_load_resource_as_offers"] = process_dam_or_gen_load_as_offers(
-                data["dam_load_resource_as_offers"],
-            )
-
-            data["dam_gen_resource_as_offers"] = process_dam_or_gen_load_as_offers(
-                data["dam_gen_resource_as_offers"],
-            )
+            for file_name, process_func in file_to_function.items():
+                if file_name in data:
+                    data[file_name] = process_func(data[file_name])
 
         return data
 
