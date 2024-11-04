@@ -123,6 +123,7 @@ class ISONE(ISOBase):
         ].dt.tz_localize(self.default_timezone, ambiguous=False)
         return dates
 
+    # NOTE(Kladar): This is a deprecated in favor of the ISONEAPI method.
     @support_date_range(frequency="DAY_START")
     def get_fuel_mix(
         self,
