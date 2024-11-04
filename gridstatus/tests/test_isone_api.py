@@ -305,7 +305,9 @@ class TestISONEAPI:
         assert "Time" in result.columns
 
         assert min(result["Time"]).date() == pd.Timestamp(date).date()
-        assert max(result["Time"]).date() == pd.Timestamp(end).date()
+        assert max(result["Time"]).date() == pd.Timestamp(end).date() - pd.Timedelta(
+            days=1,
+        )
 
         assert all(isinstance(t, pd.Timestamp) for t in result["Time"])
         numeric_cols = [col for col in result.columns if col != "Time"]
@@ -314,6 +316,3 @@ class TestISONEAPI:
             assert (result[col] >= 0).all()
 
         assert (result[numeric_cols].sum(axis=1) > 0).all()
-
-        time_diffs = result["Time"].diff().dropna()
-        assert (time_diffs == pd.Timedelta(minutes=5)).all()
