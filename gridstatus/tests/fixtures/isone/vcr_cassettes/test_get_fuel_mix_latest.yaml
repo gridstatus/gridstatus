@@ -1,0 +1,65 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Authorization:
+      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://webservices.iso-ne.com/api/v1.1/genfuelmix/current
+  response:
+    body:
+      string: '{"GenFuelMixes":{"GenFuelMix":[{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":261,"FuelCategoryRollup":"Hydro","FuelCategory":"Hydro","MarginalFlag":"N"},{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":9248,"FuelCategoryRollup":"Natural
+        Gas","FuelCategory":"Natural Gas","MarginalFlag":"Y"},{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":1232,"FuelCategoryRollup":"Nuclear","FuelCategory":"Nuclear","MarginalFlag":"N"},{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":1,"FuelCategoryRollup":"Oil","FuelCategory":"Oil","MarginalFlag":"N"},{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":2,"FuelCategoryRollup":"Other","FuelCategory":"Other","MarginalFlag":"N"},{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":2,"FuelCategoryRollup":"Renewables","FuelCategory":"Landfill
+        Gas","MarginalFlag":"N"},{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":311,"FuelCategoryRollup":"Renewables","FuelCategory":"Refuse","MarginalFlag":"N"},{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":108,"FuelCategoryRollup":"Renewables","FuelCategory":"Solar","MarginalFlag":"N"},{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":194,"FuelCategoryRollup":"Renewables","FuelCategory":"Wind","MarginalFlag":"Y"},{"BeginDate":"2024-11-04T15:05:14.000-05:00","GenMw":204,"FuelCategoryRollup":"Renewables","FuelCategory":"Wood","MarginalFlag":"N"}]}}'
+    headers:
+      Cache-Control:
+      - private
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '282'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 04 Nov 2024 20:11:27 GMT
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Server:
+      - ISO New England
+      Server-Timing:
+      - dtSInfo;desc="0", dtRpid;desc="577175369"
+      Set-Cookie:
+      - dtCookie=v_4_srv_1_sn_8A3677269EA7B33D5F6D21066A4CC173_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+        Path=/; Domain=.iso-ne.com
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Via:
+      - 1.1 d2610666ad934f0664cd719e5472324a.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - OKCnKP0XHnx5LWL6Kavj1C0JNoNf8l6lI9vbzx4CpYZKOci0ozTrWQ==
+      X-Amz-Cf-Pop:
+      - SFO53-P5
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Oneagent-Js-Injection:
+      - 'true'
+      X-Xss-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: ''
+version: 1

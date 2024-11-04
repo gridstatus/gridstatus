@@ -13,6 +13,7 @@ RECORD_MODE = os.environ.get("VCR_RECORD_MODE", "once")
 # request, vcr needs to combine them into a single cassette.
 # TODO(Kladar): Figure out the best place to put these in a source-specific manner.
 DATE_RANGE_METHODS = [
+    "genfuelmix",
     "realtimehourlydemand",
     "dayaheadhourlydemand",
     "hourlyloadforecast",
