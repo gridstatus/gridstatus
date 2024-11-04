@@ -106,23 +106,6 @@ class ISONE(ISOBase):
     #     mix_df.columns.name = None
     #     return mix_df
 
-    def _assign_dst_aware_time(
-        self,
-        series: pd.Series,
-        transition_idx: int | None,
-    ) -> pd.Series:
-        if transition_idx is None:
-            return series.dt.tz_localize(self.default_timezone, ambiguous="infer")
-
-        dates = pd.Series(index=series.index, dtype="datetime64[ns, US/Eastern]")
-        dates[series.index < transition_idx] = series[
-            series.index < transition_idx
-        ].dt.tz_localize(self.default_timezone, ambiguous=True)
-        dates[series.index >= transition_idx] = series[
-            series.index >= transition_idx
-        ].dt.tz_localize(self.default_timezone, ambiguous=False)
-        return dates
-
     # NOTE(Kladar): This is a deprecated in favor of the ISONEAPI method.
     @support_date_range(frequency="DAY_START")
     def get_fuel_mix(self, date, end=None, verbose=False):
