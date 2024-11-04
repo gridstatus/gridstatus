@@ -164,9 +164,8 @@ class TestISONE(BaseTestISO):
         forecast_length = df["Interval Start"].max() - df["Interval Start"].min()
         assert forecast_length >= WIND_OR_SOLAR_FORECAST_LENGTH
 
-        # NOTE(kladar) During DST fallback, allow for an extra hour
         if now.date() == pd.Timestamp("2024-11-03").date():
-            # NOTE(kladar): We should break this out into a fixture and test it correctly, IMO,
+            # TODO(kladar): We should break this out into a fixture and test it correctly, IMO,
             # since currently only testable on the actual day of the DST transition.
             pass
         else:
@@ -237,7 +236,7 @@ class TestISONE(BaseTestISO):
         assert forecast_length >= WIND_OR_SOLAR_FORECAST_LENGTH
 
         if now.date() == pd.Timestamp("2024-11-03").date():
-            # NOTE(kladar): We should break this out into a fixture and test it correctly, IMO,
+            # TODO(kladar): We should break this out into a fixture and test it correctly, IMO,
             # since currently only testable on the actual day of the DST transition.
             pass
         else:
