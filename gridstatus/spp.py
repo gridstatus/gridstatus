@@ -1,11 +1,18 @@
 from typing import BinaryIO
+from urllib.error import HTTPError
 
 import pandas as pd
 import requests
 import tqdm
 
 from gridstatus import utils
-from gridstatus.base import InterconnectionQueueStatus, ISOBase, Markets, NotSupported
+from gridstatus.base import (
+    InterconnectionQueueStatus,
+    ISOBase,
+    Markets,
+    NoDataFoundException,
+    NotSupported,
+)
 from gridstatus.decorators import FiveMinOffset, support_date_range
 from gridstatus.gs_logging import log
 
@@ -580,7 +587,7 @@ class SPP(ISOBase):
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{year}/{year}.zip"  # noqa
 
         def process_csv(df, file_name):
-            # infe date from '2020/01/Capacity-Gen-Outage-20200101.csv'
+            # infer date from '2020/01/Capacity-Gen-Outage-20200101.csv'
 
             publish_time_str = file_name.split(".")[0].split("-")[-1]
             publish_time = pd.to_datetime(publish_time_str).tz_localize(
@@ -871,7 +878,13 @@ class SPP(ISOBase):
 
         log(f"Getting data for {date} from {url}", verbose=verbose)
 
-        df = pd.read_csv(url)
+        try:
+            df = pd.read_csv(url)
+        except HTTPError:
+            url = url.split(".csv")[0] + "d.csv"
+            log(f"Trying {url}", verbose=verbose)
+
+            df = pd.read_csv(url)
 
         return df
 
@@ -1206,7 +1219,11 @@ class SPP(ISOBase):
         # 2024-06-30 23:55:00 to 2024-07-01 00:00:00 is in the folder
         # 2024/06/By_Interval/30/
 
-        end = start + FiveMinOffset() if end is None else end.ceil("5min")
+        if end is None:
+            end = start + FiveMinOffset()
+        else:
+            # To deal with DST, convert to UTC before ceil
+            end = end.tz_convert("UTC").ceil("5min").tz_convert(self.default_timezone)
 
         folder_year = start.strftime("%Y")
         folder_month = start.strftime("%m")
@@ -1214,7 +1231,24 @@ class SPP(ISOBase):
 
         interval_str = "/By_Interval" if include_interval else ""
 
-        return f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}{interval_str}/{folder_day}/{file_prefix}-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}{interval_str}/{folder_day}/{file_prefix}-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+
+        status_code = requests.head(url).status_code
+
+        if status_code == 200:
+            return url
+
+        # During DST end, the files have a "d" suffix. However, this is not predictable
+        # because SPP will also miss intervals
+
+        url = url.split(".csv")[0] + "d.csv"
+
+        status_code = requests.head(url).status_code
+
+        if status_code == 200:
+            return url
+        else:
+            raise NoDataFoundException(f"No data found for {url}")
 
     def _get_location_list(self, location_type, verbose=False):
         if location_type == LOCATION_TYPE_HUB:

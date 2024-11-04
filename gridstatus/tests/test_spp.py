@@ -188,6 +188,28 @@ class TestSPP(BaseTestISO):
 
         self._check_lmp_real_time_5_min_by_location(df, location_types=[location_type])
 
+    def test_get_lmp_real_time_5_min_by_location_dst_end(self):
+        df = self.iso.get_lmp_real_time_5_min_by_location(
+            pd.Timestamp("2024-11-03 00:55:00-05:00"),
+            pd.Timestamp("2024-11-03 01:25:00-06:00"),
+        )
+
+        # Note the missing files between '2024-11-03 01:05:00-05:00' and
+        # '2024-11-03 01:10:00-06:00'
+        assert all(
+            df["Interval End"].unique()
+            == pd.to_datetime(
+                [
+                    "2024-11-03 01:00:00-05:00",
+                    "2024-11-03 01:05:00-05:00",
+                    "2024-11-03 01:10:00-06:00",
+                    "2024-11-03 01:15:00-06:00",
+                    "2024-11-03 01:20:00-06:00",
+                    "2024-11-03 01:25:00-06:00",
+                ],
+            ),
+        )
+
     """get_lmp_real_time_5_min_by_bus"""
 
     def _check_lmp_real_time_5_min_by_bus(self, df):
@@ -270,6 +292,28 @@ class TestSPP(BaseTestISO):
 
         assert df["Interval Start"].min() == two_days_ago_2355
         assert df["Interval End"].max() == two_days_ago_2355 + pd.DateOffset(minutes=5)
+
+    def test_get_lmp_real_time_5_min_by_bus_dst_end(self):
+        df = self.iso.get_lmp_real_time_5_min_by_bus(
+            pd.Timestamp("2024-11-03 00:55:00-05:00"),
+            pd.Timestamp("2024-11-03 01:25:00-06:00"),
+        )
+
+        # Note the missing files between '2024-11-03 01:05:00-05:00' and
+        # '2024-11-03 01:10:00-06:00'
+        assert all(
+            df["Interval End"].unique()
+            == pd.to_datetime(
+                [
+                    "2024-11-03 01:00:00-05:00",
+                    "2024-11-03 01:05:00-05:00",
+                    "2024-11-03 01:10:00-06:00",
+                    "2024-11-03 01:15:00-06:00",
+                    "2024-11-03 01:20:00-06:00",
+                    "2024-11-03 01:25:00-06:00",
+                ],
+            ),
+        )
 
     """get_lmp_day_ahead_hourly"""
 
@@ -432,6 +476,28 @@ class TestSPP(BaseTestISO):
         assert df["Interval End"].max() == two_days_ago_2355 + pd.Timedelta(minutes=5)
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
+    def test_get_operating_reserves_dst_end(self):
+        df = self.iso.get_operating_reserves(
+            pd.Timestamp("2024-11-03 00:55:00-05:00"),
+            pd.Timestamp("2024-11-03 01:25:00-06:00"),
+        )
+
+        # Note the missing files between '2024-11-03 01:05:00-05:00' and
+        # '2024-11-03 01:10:00-06:00'
+        assert all(
+            df["Interval End"].unique()
+            == pd.to_datetime(
+                [
+                    "2024-11-03 01:00:00-05:00",
+                    "2024-11-03 01:05:00-05:00",
+                    "2024-11-03 01:10:00-06:00",
+                    "2024-11-03 01:15:00-06:00",
+                    "2024-11-03 01:20:00-06:00",
+                    "2024-11-03 01:25:00-06:00",
+                ],
+            ),
+        )
+
     DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS = [
         "Interval Start",
         "Interval End",
@@ -556,6 +622,28 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == two_days_ago_2355
         assert df["Interval End"].max() == two_days_ago_2355 + pd.Timedelta(minutes=5)
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+
+    def test_get_lmp_real_time_weis_dst_end(self):
+        df = self.iso.get_lmp_real_time_weis(
+            pd.Timestamp("2024-11-03 00:55:00-05:00"),
+            pd.Timestamp("2024-11-03 01:25:00-06:00"),
+        )
+
+        # Note the missing files between '2024-11-03 01:05:00-05:00' and
+        # '2024-11-03 01:10:00-06:00'
+        assert all(
+            df["Interval End"].unique()
+            == pd.to_datetime(
+                [
+                    "2024-11-03 01:00:00-05:00",
+                    "2024-11-03 01:05:00-05:00",
+                    "2024-11-03 01:10:00-06:00",
+                    "2024-11-03 01:15:00-06:00",
+                    "2024-11-03 01:20:00-06:00",
+                    "2024-11-03 01:25:00-06:00",
+                ],
+            ),
+        )
 
     """get_load"""
 
