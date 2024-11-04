@@ -9,25 +9,31 @@ import vcr
 # say on a weekly or monthly job.
 RECORD_MODE = os.environ.get("VCR_RECORD_MODE", "once")
 
-# NOTE(Kladar): Since these methodssupport date ranges and make multiple API calls in a single get
-# request, vcr needs to combine them into a single cassette.
-# TODO(Kladar): Figure out the best place to put these in a source-specific manner.
-DATE_RANGE_METHODS = [
-    "genfuelmix",
-    "realtimehourlydemand",
-    "dayaheadhourlydemand",
-    "hourlyloadforecast",
-    "reliabilityregionloadforecast",
-]
+# Map of ISO -> endpoint patterns that require date range handling
+DATE_RANGE_METHODS = {
+    "isone": [
+        "genfuelmix",
+        "realtimehourlydemand",
+        "dayaheadhourlydemand",
+        "hourlyloadforecast",
+        "reliabilityregionloadforecast",
+    ],
+    "pjm": [
+        "marginal_value_real_time_5_min",
+        "marginal_value_day_ahead_hourly",
+        "transmission_constraints_day_ahead_hourly",
+    ],
+}
 
 
 def before_record_callback(
     request: vcr.request.Request,
+    source: str,
 ) -> vcr.request.Request:
     parsed_url = urlparse(request.uri)
     path_parts = parsed_url.path.split("/")
 
-    if any(endpoint in path_parts for endpoint in DATE_RANGE_METHODS):
+    if any(endpoint in path_parts for endpoint in DATE_RANGE_METHODS.get(source, [])):
         query_params = parse_qs(parsed_url.query)
         if "date" in query_params and "end" in query_params:
             key = f"{query_params['date'][0]}_{query_params['end'][0]}"
@@ -74,5 +80,5 @@ def setup_vcr(
         cassette_library_dir=cassette_dir,
         record_mode=record_mode,
         match_on=["uri", "method"],
-        before_record=before_record_callback,
+        before_record=lambda request: before_record_callback(request, source),
     )
