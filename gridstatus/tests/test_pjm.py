@@ -13,10 +13,21 @@ from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import _get_pjm_archive_date
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+api_vcr = setup_vcr(
+    source="pjm",
+    record_mode=RECORD_MODE,
+)
 
 
 class TestPJM(BaseTestISO):
     iso = PJM()
+
+    test_dates = [
+        ("2023-11-05", "2023-11-07"),
+        ("2024-09-02", "2024-09-04"),
+    ]
 
     @mock.patch.dict(os.environ, {"PJM_API_KEY": "test_env"})
     def test_api_key_from_env(self):
@@ -1815,3 +1826,89 @@ class TestPJM(BaseTestISO):
         assert (
             df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
         ).all()
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_marginal_value_real_time_5_min(self, date, end):
+        cassette_name = f"test_get_marginal_value_real_time_5_min_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_marginal_value_real_time_5_min(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Monitored Facility",
+                "Contingency Facility",
+                "Transmission Constraint Penalty Factor",
+                "Limit Control Percentage",
+                "Shadow Price",
+            ]
+
+            assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
+            assert result["Monitored Facility"].dtype == object
+            assert result["Contingency Facility"].dtype == object
+            assert result["Shadow Price"].dtype in [np.int64, np.float64]
+            assert result["Transmission Constraint Penalty Factor"].dtype in [
+                np.int64,
+                np.float64,
+            ]
+            assert result["Limit Control Percentage"].dtype in [np.int64, np.float64]
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_marginal_value_day_ahead_hourly(self, date, end):
+        cassette_name = f"test_get_marginal_value_day_ahead_hourly_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_marginal_value_day_ahead_hourly(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Monitored Facility",
+                "Contingency Facility",
+                "Shadow Price",
+            ]
+
+            assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
+            assert result["Monitored Facility"].dtype == object
+            assert result["Contingency Facility"].dtype == object
+            assert result["Shadow Price"].dtype in [np.int64, np.float64]
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_transmission_constraints_day_ahead_hourly(self, date, end):
+        cassette_name = (
+            f"test_get_transmission_constraints_day_ahead_hourly_{date}_{end}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_transmission_constraints_day_ahead_hourly(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Duration",
+                "Day Ahead Congestion Event",
+                "Monitored Facility",
+                "Contingency Facility",
+            ]
+
+            assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
+            assert result["Day Ahead Congestion Event"].dtype == object
+            assert result["Monitored Facility"].dtype == object
+            assert result["Contingency Facility"].dtype == object
+            assert result["Duration"].dtype in [np.int64, np.float64]

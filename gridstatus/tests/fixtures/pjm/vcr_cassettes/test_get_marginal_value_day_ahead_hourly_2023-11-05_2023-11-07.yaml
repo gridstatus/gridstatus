@@ -1,0 +1,468 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Ocp-Apim-Subscription-Key:
+      - 7d70f087f35c4f55b9af9553333c107e
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://api.pjm.com/api/v1/da_marginal_value?fields=datetime_beginning_utc%2C+datetime_ending_utc%2C+monitored_facility%2C+contingency_facility%2C+shadow_price&startRow=1&rowCount=50000&datetime_beginning_ept=11%2F05%2F2023+00%3A00to11%2F07%2F2023+00%3A00
+  response:
+    body:
+      string: '{"links":[{"rel":"self","href":"https://api.pjm.com/api/v1/da_marginal_value?RowCount=50000&Order=Asc&StartRow=1&IsActiveMetadata=True&Fields=datetime_beginning_utc%2Cdatetime_ending_utc%2Cmonitored_facility%2Ccontingency_facility%2Cshadow_price&datetime_beginning_ept=11%2F05%2F2023%2000%3A00to11%2F07%2F2023%2000%3A00"},{"rel":"metadata","href":"https://api.pjm.com/api/v1/da_marginal_value/metadata"}],"items":[{"datetime_beginning_utc":"2023-11-05T04:00:00","datetime_ending_utc":"2023-11-05T05:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-14.01},{"datetime_beginning_utc":"2023-11-05T04:00:00","datetime_ending_utc":"2023-11-05T05:00:00","monitored_facility":"CRANBERY138
+        KV  CRA-HOY","contingency_facility":"ACTUAL","shadow_price":-1.72},{"datetime_beginning_utc":"2023-11-05T04:00:00","datetime_ending_utc":"2023-11-05T05:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-20.97},{"datetime_beginning_utc":"2023-11-05T04:00:00","datetime_ending_utc":"2023-11-05T05:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-30.73},{"datetime_beginning_utc":"2023-11-05T05:00:00","datetime_ending_utc":"2023-11-05T06:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-0.45},{"datetime_beginning_utc":"2023-11-05T05:00:00","datetime_ending_utc":"2023-11-05T06:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-38.60},{"datetime_beginning_utc":"2023-11-05T06:00:00","datetime_ending_utc":"2023-11-05T07:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-10.87},{"datetime_beginning_utc":"2023-11-05T06:00:00","datetime_ending_utc":"2023-11-05T07:00:00","monitored_facility":"CRANBERY138
+        KV  CRA-HOY","contingency_facility":"ACTUAL","shadow_price":-5.92},{"datetime_beginning_utc":"2023-11-05T06:00:00","datetime_ending_utc":"2023-11-05T07:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-40.73},{"datetime_beginning_utc":"2023-11-05T07:00:00","datetime_ending_utc":"2023-11-05T08:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-13.56},{"datetime_beginning_utc":"2023-11-05T07:00:00","datetime_ending_utc":"2023-11-05T08:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-15.08},{"datetime_beginning_utc":"2023-11-05T07:00:00","datetime_ending_utc":"2023-11-05T08:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-42.75},{"datetime_beginning_utc":"2023-11-05T08:00:00","datetime_ending_utc":"2023-11-05T09:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-13.46},{"datetime_beginning_utc":"2023-11-05T08:00:00","datetime_ending_utc":"2023-11-05T09:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-14.54},{"datetime_beginning_utc":"2023-11-05T08:00:00","datetime_ending_utc":"2023-11-05T09:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-48.55},{"datetime_beginning_utc":"2023-11-05T09:00:00","datetime_ending_utc":"2023-11-05T10:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-14.12},{"datetime_beginning_utc":"2023-11-05T09:00:00","datetime_ending_utc":"2023-11-05T10:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-22.48},{"datetime_beginning_utc":"2023-11-05T09:00:00","datetime_ending_utc":"2023-11-05T10:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-56.55},{"datetime_beginning_utc":"2023-11-05T10:00:00","datetime_ending_utc":"2023-11-05T11:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-19.57},{"datetime_beginning_utc":"2023-11-05T10:00:00","datetime_ending_utc":"2023-11-05T11:00:00","monitored_facility":"CRANBERY138
+        KV  CRA-HOY","contingency_facility":"ACTUAL","shadow_price":-0.45},{"datetime_beginning_utc":"2023-11-05T10:00:00","datetime_ending_utc":"2023-11-05T11:00:00","monitored_facility":"CRES
+        DUQ345 KV  T1","contingency_facility":"Clinton (DUQ) 345/138 KV TRANSFORMER","shadow_price":-0.24},{"datetime_beginning_utc":"2023-11-05T10:00:00","datetime_ending_utc":"2023-11-05T11:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-16.37},{"datetime_beginning_utc":"2023-11-05T10:00:00","datetime_ending_utc":"2023-11-05T11:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-34.51},{"datetime_beginning_utc":"2023-11-05T10:00:00","datetime_ending_utc":"2023-11-05T11:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-39.06},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T12:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-1.90},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T12:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-31.31},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T12:00:00","monitored_facility":"CRANBERY138
+        KV  CRA-HOY","contingency_facility":"ACTUAL","shadow_price":-16.87},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T12:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-20.06},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T12:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-55.36},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T12:00:00","monitored_facility":"MOUN
+        UGI230 KV  2","contingency_facility":"230/66.Mountain.T1 (Sctnlz)","shadow_price":-0.36},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T12:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-65.22},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T12:00:00","monitored_facility":"POSSUMP4230
+        KV  2078Z","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-0.55},{"datetime_beginning_utc":"2023-11-05T12:00:00","datetime_ending_utc":"2023-11-05T13:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-3.31},{"datetime_beginning_utc":"2023-11-05T12:00:00","datetime_ending_utc":"2023-11-05T13:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-33.44},{"datetime_beginning_utc":"2023-11-05T12:00:00","datetime_ending_utc":"2023-11-05T13:00:00","monitored_facility":"CRANBERY138
+        KV  CRA-HOY","contingency_facility":"ACTUAL","shadow_price":-6.46},{"datetime_beginning_utc":"2023-11-05T12:00:00","datetime_ending_utc":"2023-11-05T13:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-18.00},{"datetime_beginning_utc":"2023-11-05T12:00:00","datetime_ending_utc":"2023-11-05T13:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-64.33},{"datetime_beginning_utc":"2023-11-05T12:00:00","datetime_ending_utc":"2023-11-05T13:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-108.44},{"datetime_beginning_utc":"2023-11-05T12:00:00","datetime_ending_utc":"2023-11-05T13:00:00","monitored_facility":"POSSUMP4230
+        KV  2078Z","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-6.66},{"datetime_beginning_utc":"2023-11-05T13:00:00","datetime_ending_utc":"2023-11-05T14:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-5.92},{"datetime_beginning_utc":"2023-11-05T13:00:00","datetime_ending_utc":"2023-11-05T14:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-17.97},{"datetime_beginning_utc":"2023-11-05T13:00:00","datetime_ending_utc":"2023-11-05T14:00:00","monitored_facility":"CRES
+        DUQ345 KV  T1","contingency_facility":"Clinton (DUQ) 345/138 KV TRANSFORMER","shadow_price":-11.79},{"datetime_beginning_utc":"2023-11-05T13:00:00","datetime_ending_utc":"2023-11-05T14:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-33.53},{"datetime_beginning_utc":"2023-11-05T13:00:00","datetime_ending_utc":"2023-11-05T14:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-110.78},{"datetime_beginning_utc":"2023-11-05T13:00:00","datetime_ending_utc":"2023-11-05T14:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-21.81},{"datetime_beginning_utc":"2023-11-05T14:00:00","datetime_ending_utc":"2023-11-05T15:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-4.63},{"datetime_beginning_utc":"2023-11-05T14:00:00","datetime_ending_utc":"2023-11-05T15:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-9.14},{"datetime_beginning_utc":"2023-11-05T14:00:00","datetime_ending_utc":"2023-11-05T15:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-31.14},{"datetime_beginning_utc":"2023-11-05T14:00:00","datetime_ending_utc":"2023-11-05T15:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-107.62},{"datetime_beginning_utc":"2023-11-05T14:00:00","datetime_ending_utc":"2023-11-05T15:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-18.27},{"datetime_beginning_utc":"2023-11-05T14:00:00","datetime_ending_utc":"2023-11-05T15:00:00","monitored_facility":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345","shadow_price":-28.14},{"datetime_beginning_utc":"2023-11-05T15:00:00","datetime_ending_utc":"2023-11-05T16:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-10.95},{"datetime_beginning_utc":"2023-11-05T15:00:00","datetime_ending_utc":"2023-11-05T16:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-6.46},{"datetime_beginning_utc":"2023-11-05T15:00:00","datetime_ending_utc":"2023-11-05T16:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-20.34},{"datetime_beginning_utc":"2023-11-05T15:00:00","datetime_ending_utc":"2023-11-05T16:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-85.57},{"datetime_beginning_utc":"2023-11-05T15:00:00","datetime_ending_utc":"2023-11-05T16:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-28.01},{"datetime_beginning_utc":"2023-11-05T16:00:00","datetime_ending_utc":"2023-11-05T17:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-14.95},{"datetime_beginning_utc":"2023-11-05T16:00:00","datetime_ending_utc":"2023-11-05T17:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-5.96},{"datetime_beginning_utc":"2023-11-05T16:00:00","datetime_ending_utc":"2023-11-05T17:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-27.62},{"datetime_beginning_utc":"2023-11-05T16:00:00","datetime_ending_utc":"2023-11-05T17:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-78.97},{"datetime_beginning_utc":"2023-11-05T16:00:00","datetime_ending_utc":"2023-11-05T17:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-17.97},{"datetime_beginning_utc":"2023-11-05T17:00:00","datetime_ending_utc":"2023-11-05T18:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-16.98},{"datetime_beginning_utc":"2023-11-05T17:00:00","datetime_ending_utc":"2023-11-05T18:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-6.92},{"datetime_beginning_utc":"2023-11-05T17:00:00","datetime_ending_utc":"2023-11-05T18:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-25.91},{"datetime_beginning_utc":"2023-11-05T17:00:00","datetime_ending_utc":"2023-11-05T18:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-65.45},{"datetime_beginning_utc":"2023-11-05T17:00:00","datetime_ending_utc":"2023-11-05T18:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-15.70},{"datetime_beginning_utc":"2023-11-05T18:00:00","datetime_ending_utc":"2023-11-05T19:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-22.35},{"datetime_beginning_utc":"2023-11-05T18:00:00","datetime_ending_utc":"2023-11-05T19:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-5.62},{"datetime_beginning_utc":"2023-11-05T18:00:00","datetime_ending_utc":"2023-11-05T19:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-47.86},{"datetime_beginning_utc":"2023-11-05T18:00:00","datetime_ending_utc":"2023-11-05T19:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-59.90},{"datetime_beginning_utc":"2023-11-05T18:00:00","datetime_ending_utc":"2023-11-05T19:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-17.81},{"datetime_beginning_utc":"2023-11-05T19:00:00","datetime_ending_utc":"2023-11-05T20:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-27.40},{"datetime_beginning_utc":"2023-11-05T19:00:00","datetime_ending_utc":"2023-11-05T20:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-3.63},{"datetime_beginning_utc":"2023-11-05T19:00:00","datetime_ending_utc":"2023-11-05T20:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-5.71},{"datetime_beginning_utc":"2023-11-05T19:00:00","datetime_ending_utc":"2023-11-05T20:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-62.76},{"datetime_beginning_utc":"2023-11-05T19:00:00","datetime_ending_utc":"2023-11-05T20:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-47.86},{"datetime_beginning_utc":"2023-11-05T19:00:00","datetime_ending_utc":"2023-11-05T20:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-14.08},{"datetime_beginning_utc":"2023-11-05T19:00:00","datetime_ending_utc":"2023-11-05T20:00:00","monitored_facility":"SAYRECON230
+        KV  SAY-SAY","contingency_facility":"ACTUAL","shadow_price":-0.99},{"datetime_beginning_utc":"2023-11-05T20:00:00","datetime_ending_utc":"2023-11-05T21:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-29.97},{"datetime_beginning_utc":"2023-11-05T20:00:00","datetime_ending_utc":"2023-11-05T21:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-11.25},{"datetime_beginning_utc":"2023-11-05T20:00:00","datetime_ending_utc":"2023-11-05T21:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-8.12},{"datetime_beginning_utc":"2023-11-05T20:00:00","datetime_ending_utc":"2023-11-05T21:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-84.78},{"datetime_beginning_utc":"2023-11-05T20:00:00","datetime_ending_utc":"2023-11-05T21:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-52.20},{"datetime_beginning_utc":"2023-11-05T20:00:00","datetime_ending_utc":"2023-11-05T21:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-19.88},{"datetime_beginning_utc":"2023-11-05T20:00:00","datetime_ending_utc":"2023-11-05T21:00:00","monitored_facility":"SAYRECON230
+        KV  SAY-SAY","contingency_facility":"ACTUAL","shadow_price":-0.59},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-05T22:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-37.06},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-05T22:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-32.16},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-05T22:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-128.09},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-05T22:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-13.15},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-05T22:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-81.64},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-05T22:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-83.52},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-05T22:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-77.64},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-05T22:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-30.71},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-05T23:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-39.69},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-05T23:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"ACTUAL","shadow_price":-16.95},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-05T23:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-193.76},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-05T23:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-22.67},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-05T23:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-143.87},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-05T23:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-111.19},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-05T23:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-590.70},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-05T23:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-38.01},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-05T23:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-65.77},{"datetime_beginning_utc":"2023-11-05T23:00:00","datetime_ending_utc":"2023-11-06T00:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-33.44},{"datetime_beginning_utc":"2023-11-05T23:00:00","datetime_ending_utc":"2023-11-06T00:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"ACTUAL","shadow_price":-11.75},{"datetime_beginning_utc":"2023-11-05T23:00:00","datetime_ending_utc":"2023-11-06T00:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-218.04},{"datetime_beginning_utc":"2023-11-05T23:00:00","datetime_ending_utc":"2023-11-06T00:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-12.28},{"datetime_beginning_utc":"2023-11-05T23:00:00","datetime_ending_utc":"2023-11-06T00:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-87.38},{"datetime_beginning_utc":"2023-11-05T23:00:00","datetime_ending_utc":"2023-11-06T00:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-149.44},{"datetime_beginning_utc":"2023-11-05T23:00:00","datetime_ending_utc":"2023-11-06T00:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-666.26},{"datetime_beginning_utc":"2023-11-05T23:00:00","datetime_ending_utc":"2023-11-06T00:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-33.55},{"datetime_beginning_utc":"2023-11-05T23:00:00","datetime_ending_utc":"2023-11-06T00:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-54.50},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-34.88},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"ACTUAL","shadow_price":-6.13},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-210.03},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-21.52},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-50.94},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-153.38},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-645.00},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-28.40},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-562.69},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T01:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-33.24},{"datetime_beginning_utc":"2023-11-06T01:00:00","datetime_ending_utc":"2023-11-06T02:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-28.48},{"datetime_beginning_utc":"2023-11-06T01:00:00","datetime_ending_utc":"2023-11-06T02:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-163.50},{"datetime_beginning_utc":"2023-11-06T01:00:00","datetime_ending_utc":"2023-11-06T02:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-48.16},{"datetime_beginning_utc":"2023-11-06T01:00:00","datetime_ending_utc":"2023-11-06T02:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-108.84},{"datetime_beginning_utc":"2023-11-06T01:00:00","datetime_ending_utc":"2023-11-06T02:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-639.81},{"datetime_beginning_utc":"2023-11-06T01:00:00","datetime_ending_utc":"2023-11-06T02:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-9.61},{"datetime_beginning_utc":"2023-11-06T01:00:00","datetime_ending_utc":"2023-11-06T02:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-573.08},{"datetime_beginning_utc":"2023-11-06T01:00:00","datetime_ending_utc":"2023-11-06T02:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-27.30},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T03:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-26.41},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T03:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-2.39},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T03:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-102.13},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T03:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-12.97},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T03:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-46.54},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T03:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-579.34},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T03:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-3.82},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T03:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-569.17},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T03:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-21.15},{"datetime_beginning_utc":"2023-11-06T03:00:00","datetime_ending_utc":"2023-11-06T04:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-29.66},{"datetime_beginning_utc":"2023-11-06T03:00:00","datetime_ending_utc":"2023-11-06T04:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-5.86},{"datetime_beginning_utc":"2023-11-06T03:00:00","datetime_ending_utc":"2023-11-06T04:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-86.14},{"datetime_beginning_utc":"2023-11-06T03:00:00","datetime_ending_utc":"2023-11-06T04:00:00","monitored_facility":"GRACETON230
+        KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-13.46},{"datetime_beginning_utc":"2023-11-06T03:00:00","datetime_ending_utc":"2023-11-06T04:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-28.89},{"datetime_beginning_utc":"2023-11-06T03:00:00","datetime_ending_utc":"2023-11-06T04:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-564.31},{"datetime_beginning_utc":"2023-11-06T03:00:00","datetime_ending_utc":"2023-11-06T04:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-601.44},{"datetime_beginning_utc":"2023-11-06T03:00:00","datetime_ending_utc":"2023-11-06T04:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-21.57},{"datetime_beginning_utc":"2023-11-06T04:00:00","datetime_ending_utc":"2023-11-06T05:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-36.23},{"datetime_beginning_utc":"2023-11-06T04:00:00","datetime_ending_utc":"2023-11-06T05:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-3.08},{"datetime_beginning_utc":"2023-11-06T04:00:00","datetime_ending_utc":"2023-11-06T05:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans Ferry.Z-52","shadow_price":-13.98},{"datetime_beginning_utc":"2023-11-06T04:00:00","datetime_ending_utc":"2023-11-06T05:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-44.41},{"datetime_beginning_utc":"2023-11-06T04:00:00","datetime_ending_utc":"2023-11-06T05:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-566.24},{"datetime_beginning_utc":"2023-11-06T04:00:00","datetime_ending_utc":"2023-11-06T05:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-194.75},{"datetime_beginning_utc":"2023-11-06T04:00:00","datetime_ending_utc":"2023-11-06T05:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-46.54},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-29.47},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-0.19},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-0.88},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","monitored_facility":"CRES
+        DUQ345 KV  T1","contingency_facility":"Clinton (DUQ) 345/138 KV TRANSFORMER","shadow_price":-20.91},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","monitored_facility":"DEQUINE
+        345 KV  DEQ-FOWJ","contingency_facility":"ACTUAL","shadow_price":-4.06},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","monitored_facility":"Duneacre
+        - Michigan City 13843 138 kv l/o Wilton Center - Dumont 765 kv","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-373.26},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-2.50},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-198.43},{"datetime_beginning_utc":"2023-11-06T06:00:00","datetime_ending_utc":"2023-11-06T07:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-28.69},{"datetime_beginning_utc":"2023-11-06T06:00:00","datetime_ending_utc":"2023-11-06T07:00:00","monitored_facility":"CRES
+        DUQ345 KV  T1","contingency_facility":"Clinton (DUQ) 345/138 KV TRANSFORMER","shadow_price":-29.24},{"datetime_beginning_utc":"2023-11-06T06:00:00","datetime_ending_utc":"2023-11-06T07:00:00","monitored_facility":"DEQUINE
+        345 KV  DEQ-FOWJ","contingency_facility":"ACTUAL","shadow_price":-7.49},{"datetime_beginning_utc":"2023-11-06T06:00:00","datetime_ending_utc":"2023-11-06T07:00:00","monitored_facility":"Duneacre
+        - Michigan City 13843 138 kv l/o Wilton Center - Dumont 765 kv","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-399.98},{"datetime_beginning_utc":"2023-11-06T06:00:00","datetime_ending_utc":"2023-11-06T07:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-19.86},{"datetime_beginning_utc":"2023-11-06T06:00:00","datetime_ending_utc":"2023-11-06T07:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-27.88},{"datetime_beginning_utc":"2023-11-06T06:00:00","datetime_ending_utc":"2023-11-06T07:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-175.21},{"datetime_beginning_utc":"2023-11-06T07:00:00","datetime_ending_utc":"2023-11-06T08:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-27.92},{"datetime_beginning_utc":"2023-11-06T07:00:00","datetime_ending_utc":"2023-11-06T08:00:00","monitored_facility":"BIGPINET138
+        KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity","shadow_price":-6.32},{"datetime_beginning_utc":"2023-11-06T07:00:00","datetime_ending_utc":"2023-11-06T08:00:00","monitored_facility":"CRES
+        DUQ345 KV  T1","contingency_facility":"Clinton (DUQ) 345/138 KV TRANSFORMER","shadow_price":-23.42},{"datetime_beginning_utc":"2023-11-06T07:00:00","datetime_ending_utc":"2023-11-06T08:00:00","monitored_facility":"DEQUINE
+        345 KV  DEQ-FOWJ","contingency_facility":"ACTUAL","shadow_price":-6.35},{"datetime_beginning_utc":"2023-11-06T07:00:00","datetime_ending_utc":"2023-11-06T08:00:00","monitored_facility":"Duneacre
+        - Michigan City 13843 138 kv l/o Wilton Center - Dumont 765 kv","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-371.30},{"datetime_beginning_utc":"2023-11-06T07:00:00","datetime_ending_utc":"2023-11-06T08:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-34.24},{"datetime_beginning_utc":"2023-11-06T07:00:00","datetime_ending_utc":"2023-11-06T08:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-221.40},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T09:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-28.23},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T09:00:00","monitored_facility":"BIGPINET138
+        KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity","shadow_price":-2.99},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T09:00:00","monitored_facility":"CRES
+        DUQ345 KV  T1","contingency_facility":"Clinton (DUQ) 345/138 KV TRANSFORMER","shadow_price":-20.35},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T09:00:00","monitored_facility":"DEQUINE
+        345 KV  DEQ-FOWJ","contingency_facility":"ACTUAL","shadow_price":-0.43},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T09:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-36.46},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T09:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-68.83},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T09:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-153.41},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T09:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-64.36},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T10:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-34.28},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T10:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-2.96},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T10:00:00","monitored_facility":"CRES
+        DUQ345 KV  T1","contingency_facility":"Clinton (DUQ) 345/138 KV TRANSFORMER","shadow_price":-19.86},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T10:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-27.56},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T10:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-52.13},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T10:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-148.84},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T10:00:00","monitored_facility":"Prest
+        Tibb 138 kV l/o Prairie State Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345","shadow_price":-235.15},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T10:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-52.55},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-38.57},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-4.90},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-4.44},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"CRES
+        DUQ345 KV  T1","contingency_facility":"Clinton (DUQ) 345/138 KV TRANSFORMER","shadow_price":-40.20},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-125.83},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-89.53},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-257.74},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"PLEASNTV-ASHBURN
+        274D","contingency_facility":"L230.EvergreenMills-Brableton.2172","shadow_price":-33.96},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"Prest
+        Tibb 138 kV l/o Prairie State Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345","shadow_price":-198.53},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T11:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-68.29},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-43.75},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-12.57},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"BEAVER   TR1      XFORMER   H  345
+        KV","contingency_facility":"L345.Beaver-LakeAvenue.1","shadow_price":-3.13},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-26.72},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-8.13},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-315.82},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-434.05},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"PLEASNTV-ASHBURN
+        274D","contingency_facility":"L230.EvergreenMills-Brableton.2172","shadow_price":-110.02},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"Prest
+        Tibb 138 kV l/o Prairie State Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345","shadow_price":-410.48},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T12:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-99.85},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-31.27},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-10.86},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"BEAVER   TR1      XFORMER   H  345
+        KV","contingency_facility":"L345.Beaver-LakeAvenue.1","shadow_price":-88.35},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-22.28},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-2.18},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-8.33},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-209.42},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-329.25},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"PLEASNTV-ASHBURN
+        274D","contingency_facility":"L230.EvergreenMills-Brableton.2172","shadow_price":-134.82},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon
+        - SMNY 138kV","shadow_price":-357.80},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-60.22},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-19.45},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-7.61},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"BEAVER   TR1      XFORMER   H  345
+        KV","contingency_facility":"L345.Beaver-LakeAvenue.1","shadow_price":-5.33},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"BIGPINET138
+        KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity","shadow_price":-131.23},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","contingency_facility":"L345.FostoriaCentral-Lallendorf","shadow_price":-44.38},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-28.65},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-4.09},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-2.26},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-155.41},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-0.54},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-260.96},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"PLEASNTV-ASHBURN
+        274D","contingency_facility":"L230.EvergreenMills-Brableton.2172","shadow_price":-76.29},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-55.97},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","monitored_facility":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345","shadow_price":-45.10},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-24.52},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-11.23},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"BIGPINET138
+        KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity","shadow_price":-114.21},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-20.91},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-1.70},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.52},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-28.44},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-0.54},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-243.85},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"PLEASNTV-ASHBURN
+        274D","contingency_facility":"L230.EvergreenMills-Brableton.2172","shadow_price":-67.98},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-35.59},{"datetime_beginning_utc":"2023-11-06T14:00:00","datetime_ending_utc":"2023-11-06T15:00:00","monitored_facility":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345","shadow_price":-54.11},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-33.34},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-16.80},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"ACTUAL","shadow_price":-6.62},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-3.81},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.39},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-0.20},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-215.29},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-52.30},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"RAMAPO  138
+        KV  RAM-SMA","contingency_facility":"345/138.SouthMahwah.BK258","shadow_price":-1.69},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-26.30},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-30.25},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-16.61},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"BIGPINET138
+        KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity","shadow_price":-28.84},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-8.60},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-1.53},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.15},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"MOUN
+        UGI230 KV  2","contingency_facility":"230/66.Mountain.T1 (Sctnlz)","shadow_price":-1.85},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-202.48},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-54.25},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"RAMAPO  138
+        KV  RAM-SMA","contingency_facility":"345/138.SouthMahwah.BK258","shadow_price":-1.57},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T17:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-25.92},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-31.13},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-10.00},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"BIGPINET138
+        KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity","shadow_price":-40.93},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-8.75},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.10},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-0.19},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"MOUN
+        UGI230 KV  2","contingency_facility":"230/66.Mountain.T1 (Sctnlz)","shadow_price":-1.73},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-194.85},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-59.38},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"RAMAPO  138
+        KV  RAM-SMA","contingency_facility":"345/138.SouthMahwah.BK258","shadow_price":-1.61},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-06T18:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-27.35},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-31.80},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"94
+        HAURD138 KV  96101","contingency_facility":"ACTUAL","shadow_price":-7.53},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"BIGPINET138
+        KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity","shadow_price":-51.64},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-8.88},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.11},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-0.20},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"MOUN
+        UGI230 KV  2","contingency_facility":"230/66.Mountain.T1 (Sctnlz)","shadow_price":-0.95},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-188.55},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-62.41},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"RAMAPO  138
+        KV  RAM-SMA","contingency_facility":"345/138.SouthMahwah.BK258","shadow_price":-1.17},{"datetime_beginning_utc":"2023-11-06T18:00:00","datetime_ending_utc":"2023-11-06T19:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-25.48},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-32.25},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"BIGPINET138
+        KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity","shadow_price":-32.75},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-5.86},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.09},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-48.50},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-0.17},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"MOUN
+        UGI230 KV  2","contingency_facility":"230/66.Mountain.T1 (Sctnlz)","shadow_price":-3.60},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-108.71},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-51.05},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"RAMAPO  138
+        KV  RAM-SMA","contingency_facility":"345/138.SouthMahwah.BK258","shadow_price":-2.00},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T20:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-18.74},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-26.44},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"BIGPINET138
+        KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity","shadow_price":-29.56},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21","shadow_price":-5.67},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-1.56},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.11},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-50.74},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-0.47},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"MOUN
+        UGI230 KV  2","contingency_facility":"230/66.Mountain.T1 (Sctnlz)","shadow_price":-3.29},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-31.85},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-45.98},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"RAMAPO  138
+        KV  RAM-SMA","contingency_facility":"345/138.SouthMahwah.BK258","shadow_price":-1.90},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","monitored_facility":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215","shadow_price":-20.20},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-15.13},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-41.25},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","contingency_facility":"L345.FostoriaCentral-Lallendorf","shadow_price":-90.52},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-168.00},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"DAUPHIN
+        230 KV  DAU-JUN","contingency_facility":"500/230.TMI.T1","shadow_price":-33.07},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.47},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-99.25},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-2.58},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-101.76},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-68.06},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T22:00:00","monitored_facility":"RAMAPO  138
+        KV  RAM-SMA","contingency_facility":"345/138.SouthMahwah.BK258","shadow_price":-0.90},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-6.81},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-61.86},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","contingency_facility":"L345.FostoriaCentral-Lallendorf","shadow_price":-148.71},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-310.96},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"DAUPHIN
+        230 KV  DAU-JUN","contingency_facility":"500/230.TMI.T1","shadow_price":-155.84},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"DUPSEAFD69
+        KV   DUP-LAU","contingency_facility":"L69.CoolSprings-Harbeson.6753","shadow_price":-18.48},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-1.43},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"MAHANSLA138
+        KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge","shadow_price":-214.53},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-6.42},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-161.36},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594","shadow_price":-105.02},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-06T23:00:00","monitored_facility":"RAMAPO  138
+        KV  RAM-SMA","contingency_facility":"345/138.SouthMahwah.BK258","shadow_price":-1.78},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-5.95},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","contingency_facility":"L345.FostoriaCentral-Lallendorf","shadow_price":-114.88},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-18.57},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-268.09},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"DAUPHIN
+        230 KV  DAU-JUN","contingency_facility":"500/230.TMI.T1","shadow_price":-34.58},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"DUPSEAFD69
+        KV   DUP-LAU","contingency_facility":"L69.CoolSprings-Harbeson.6753","shadow_price":-59.06},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-5.03},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-5.61},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"MOUN
+        UGI230 KV  2","contingency_facility":"230/66.Mountain.T1 (Sctnlz)","shadow_price":-3.20},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T00:00:00","monitored_facility":"PLEASNTV-ASHBURN
+        274D","contingency_facility":"L230.EvergreenMills-Brableton.2172","shadow_price":-202.31},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"23
+        COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins - Plano.2315","shadow_price":-0.72},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","contingency_facility":"L345.FostoriaCentral-Lallendorf","shadow_price":-78.03},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-15.69},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-180.15},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"DAUPHIN
+        230 KV  DAU-JUN","contingency_facility":"500/230.TMI.T1","shadow_price":-24.99},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"DUPSEAFD69
+        KV   DUP-LAU","contingency_facility":"L69.CoolSprings-Harbeson.6753","shadow_price":-67.17},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-4.58},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-12.28},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"MOUN
+        UGI230 KV  2","contingency_facility":"230/66.Mountain.T1 (Sctnlz)","shadow_price":-3.85},{"datetime_beginning_utc":"2023-11-07T00:00:00","datetime_ending_utc":"2023-11-07T01:00:00","monitored_facility":"PLEASNTV-ASHBURN
+        274D","contingency_facility":"L230.EvergreenMills-Brableton.2172","shadow_price":-132.55},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","monitored_facility":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","contingency_facility":"L345.FostoriaCentral-Lallendorf","shadow_price":-58.73},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"ACTUAL","shadow_price":-3.33},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-121.27},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-2.62},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-9.00},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","monitored_facility":"NOTTINGH230
+        KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012","shadow_price":-108.75},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","monitored_facility":"PLEASNTV-ASHBURN
+        274D","contingency_facility":"L230.EvergreenMills-Brableton.2172","shadow_price":-65.10},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","monitored_facility":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345","shadow_price":-3.47},{"datetime_beginning_utc":"2023-11-07T02:00:00","datetime_ending_utc":"2023-11-07T03:00:00","monitored_facility":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","contingency_facility":"L345.FostoriaCentral-Lallendorf","shadow_price":-2.77},{"datetime_beginning_utc":"2023-11-07T02:00:00","datetime_ending_utc":"2023-11-07T03:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"ACTUAL","shadow_price":-2.57},{"datetime_beginning_utc":"2023-11-07T02:00:00","datetime_ending_utc":"2023-11-07T03:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-10.89},{"datetime_beginning_utc":"2023-11-07T02:00:00","datetime_ending_utc":"2023-11-07T03:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-52.36},{"datetime_beginning_utc":"2023-11-07T02:00:00","datetime_ending_utc":"2023-11-07T03:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-2.67},{"datetime_beginning_utc":"2023-11-07T02:00:00","datetime_ending_utc":"2023-11-07T03:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-3.20},{"datetime_beginning_utc":"2023-11-07T02:00:00","datetime_ending_utc":"2023-11-07T03:00:00","monitored_facility":"POSSUMP4500
+        KV  TX1","contingency_facility":"ACTUAL","shadow_price":-7.26},{"datetime_beginning_utc":"2023-11-07T03:00:00","datetime_ending_utc":"2023-11-07T04:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"ACTUAL","shadow_price":-2.45},{"datetime_beginning_utc":"2023-11-07T03:00:00","datetime_ending_utc":"2023-11-07T04:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-6.05},{"datetime_beginning_utc":"2023-11-07T03:00:00","datetime_ending_utc":"2023-11-07T04:00:00","monitored_facility":"CRESCENT-NORTH
+        Z-21         A  138 KV","contingency_facility":"Collier - Clinton (DUQ) 345
+        KV LINE","shadow_price":-37.14},{"datetime_beginning_utc":"2023-11-07T03:00:00","datetime_ending_utc":"2023-11-07T04:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-1.72},{"datetime_beginning_utc":"2023-11-07T03:00:00","datetime_ending_utc":"2023-11-07T04:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-1.20},{"datetime_beginning_utc":"2023-11-07T04:00:00","datetime_ending_utc":"2023-11-07T05:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"ACTUAL","shadow_price":-7.30},{"datetime_beginning_utc":"2023-11-07T04:00:00","datetime_ending_utc":"2023-11-07T05:00:00","monitored_facility":"CONASTON500
+        KV  CNS-PEA","contingency_facility":"ACTUAL","shadow_price":-2.02},{"datetime_beginning_utc":"2023-11-07T04:00:00","datetime_ending_utc":"2023-11-07T05:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.90},{"datetime_beginning_utc":"2023-11-07T04:00:00","datetime_ending_utc":"2023-11-07T05:00:00","monitored_facility":"MONR
+        AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB","shadow_price":-1.20},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T06:00:00","monitored_facility":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411","shadow_price":-4.88},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T06:00:00","monitored_facility":"BRIGHTON230
+        KV  BRI-MTZ3","contingency_facility":"ACTUAL","shadow_price":-0.96},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T06:00:00","monitored_facility":"CHESWICK138
+        KV  CHE-SPR","contingency_facility":"ACTUAL","shadow_price":-6.07},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T06:00:00","monitored_facility":"EASTON  69
+        KV   EAS-EMU","contingency_facility":"ACTUAL","shadow_price":-0.20},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T06:00:00","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello","shadow_price":-231.45},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T06:00:00","monitored_facility":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345","shadow_price":-58.78}],"searchSpecification":{"rowCount":50000,"order":"Asc","startRow":1,"isActiveMetadata":true,"fields":["datetime_beginning_utc","datetime_ending_utc","monitored_facility","contingency_facility","shadow_price"],"filters":[{"datetime_beginning_ept":"11/05/2023
+        00:00to11/07/2023 00:00"}]},"totalRows":387}'
+    headers:
+      Access-Control-Expose-Headers:
+      - Request-Context
+      Cache-Control:
+      - public, must-revalidate, max-age=20
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 05 Nov 2024 19:37:47 GMT
+      Expires:
+      - Tue, 05 Nov 2024 19:38:08 GMT
+      Last-Modified:
+      - Tue, 05 Nov 2024 19:37:48 GMT
+      Request-Context:
+      - appId=cid-v1:2aa2d631-5670-434a-9034-e8b4ff1aaf97
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept,Accept-Charset
+      X-AspNet-Version:
+      - 4.0.30319
+      X-Powered-By:
+      - ASP.NET
+    status:
+      code: 200
+      message: OK
+version: 1

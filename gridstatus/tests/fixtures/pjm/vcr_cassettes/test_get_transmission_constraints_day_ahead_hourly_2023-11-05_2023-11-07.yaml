@@ -1,0 +1,171 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Ocp-Apim-Subscription-Key:
+      - 7d70f087f35c4f55b9af9553333c107e
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://api.pjm.com/api/v1/da_transconstraints?fields=datetime_beginning_utc%2Cdatetime_ending_utc%2Cduration%2C+day_ahead_congestion_event%2C+monitored_facility%2C+contingency_facility&startRow=1&rowCount=50000&datetime_beginning_ept=11%2F05%2F2023+00%3A00to11%2F07%2F2023+00%3A00
+  response:
+    body:
+      string: '{"links":[{"rel":"self","href":"https://api.pjm.com/api/v1/da_transconstraints?RowCount=50000&Order=Asc&StartRow=1&IsActiveMetadata=True&Fields=datetime_beginning_utc%2Cdatetime_ending_utc%2Cduration%2Cday_ahead_congestion_event%2Cmonitored_facility%2Ccontingency_facility&datetime_beginning_ept=11%2F05%2F2023%2000%3A00to11%2F07%2F2023%2000%3A00"},{"rel":"metadata","href":"https://api.pjm.com/api/v1/da_transconstraints/metadata"}],"items":[{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T22:00:00","duration":11,"day_ahead_congestion_event":"23
+        COLLI345 KV  TR92CT-S","monitored_facility":"23 COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins
+        - Plano.2315"},{"datetime_beginning_utc":"2023-11-05T20:00:00","datetime_ending_utc":"2023-11-06T05:00:00","duration":9,"day_ahead_congestion_event":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","monitored_facility":"3 POWERT-TWRL POW-TWRL      A  138
+        KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411"},{"datetime_beginning_utc":"2023-11-06T02:00:00","datetime_ending_utc":"2023-11-06T05:00:00","duration":3,"day_ahead_congestion_event":"94
+        HAURD138 KV  96101","monitored_facility":"94 HAURD138 KV  96101","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-05T04:00:00","datetime_ending_utc":"2023-11-05T15:00:00","duration":11,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-LF53","monitored_facility":"CHESWICK138 KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans
+        Ferry.Z-52"},{"datetime_beginning_utc":"2023-11-05T19:00:00","datetime_ending_utc":"2023-11-05T20:00:00","duration":1,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-LF53","monitored_facility":"CHESWICK138 KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans
+        Ferry.Z-52"},{"datetime_beginning_utc":"2023-11-06T04:00:00","datetime_ending_utc":"2023-11-06T05:00:00","duration":1,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-LF53","monitored_facility":"CHESWICK138 KV  CHE-LF53","contingency_facility":"138.Cheswick-Logans
+        Ferry.Z-52"},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-06T01:00:00","duration":3,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-SPR","monitored_facility":"CHESWICK138 KV  CHE-SPR","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-05T15:00:00","datetime_ending_utc":"2023-11-05T21:00:00","duration":6,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-SPR","monitored_facility":"CHESWICK138 KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21"},{"datetime_beginning_utc":"2023-11-05T04:00:00","datetime_ending_utc":"2023-11-05T05:00:00","duration":1,"day_ahead_congestion_event":"CRANBERY138
+        KV  CRA-HOY","monitored_facility":"CRANBERY138 KV  CRA-HOY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-05T06:00:00","datetime_ending_utc":"2023-11-05T07:00:00","duration":1,"day_ahead_congestion_event":"CRANBERY138
+        KV  CRA-HOY","monitored_facility":"CRANBERY138 KV  CRA-HOY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-05T10:00:00","datetime_ending_utc":"2023-11-05T13:00:00","duration":3,"day_ahead_congestion_event":"CRANBERY138
+        KV  CRA-HOY","monitored_facility":"CRANBERY138 KV  CRA-HOY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-05T10:00:00","datetime_ending_utc":"2023-11-05T11:00:00","duration":1,"day_ahead_congestion_event":"CRES
+        DUQ345 KV  T1","monitored_facility":"CRES DUQ345 KV  T1","contingency_facility":"Clinton
+        (DUQ) 345/138 KV TRANSFORMER"},{"datetime_beginning_utc":"2023-11-05T13:00:00","datetime_ending_utc":"2023-11-05T14:00:00","duration":1,"day_ahead_congestion_event":"CRES
+        DUQ345 KV  T1","monitored_facility":"CRES DUQ345 KV  T1","contingency_facility":"Clinton
+        (DUQ) 345/138 KV TRANSFORMER"},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-06T04:00:00","duration":7,"day_ahead_congestion_event":"CRESCENT-NORTH
+        Z-21         A  138 KV","monitored_facility":"CRESCENT-NORTH Z-21         A  138
+        KV","contingency_facility":"Collier - Clinton (DUQ) 345 KV LINE"},{"datetime_beginning_utc":"2023-11-05T10:00:00","datetime_ending_utc":"2023-11-05T13:00:00","duration":3,"day_ahead_congestion_event":"GRACETON230
+        KV  GRA-SAF","monitored_facility":"GRACETON230 KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-06T04:00:00","duration":7,"day_ahead_congestion_event":"GRACETON230
+        KV  GRA-SAF","monitored_facility":"GRACETON230 KV  GRA-SAF","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2023-11-05T04:00:00","datetime_ending_utc":"2023-11-05T05:00:00","duration":1,"day_ahead_congestion_event":"MAHANSLA138
+        KV  MAH-TID","monitored_facility":"MAHANSLA138 KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge"},{"datetime_beginning_utc":"2023-11-05T07:00:00","datetime_ending_utc":"2023-11-06T01:00:00","duration":18,"day_ahead_congestion_event":"MAHANSLA138
+        KV  MAH-TID","monitored_facility":"MAHANSLA138 KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge"},{"datetime_beginning_utc":"2023-11-06T04:00:00","datetime_ending_utc":"2023-11-06T05:00:00","duration":1,"day_ahead_congestion_event":"MAHANSLA138
+        KV  MAH-TID","monitored_facility":"MAHANSLA138 KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge"},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T12:00:00","duration":1,"day_ahead_congestion_event":"MOUN
+        UGI230 KV  2","monitored_facility":"MOUN UGI230 KV  2","contingency_facility":"230/66.Mountain.T1
+        (Sctnlz)"},{"datetime_beginning_utc":"2023-11-05T04:00:00","datetime_ending_utc":"2023-11-06T04:00:00","duration":24,"day_ahead_congestion_event":"NOTTINGH230
+        KV  2-3","monitored_facility":"NOTTINGH230 KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2023-11-05T21:00:00","datetime_ending_utc":"2023-11-06T05:00:00","duration":8,"day_ahead_congestion_event":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello"},{"datetime_beginning_utc":"2023-11-05T11:00:00","datetime_ending_utc":"2023-11-05T13:00:00","duration":2,"day_ahead_congestion_event":"POSSUMP4230
+        KV  2078Z","monitored_facility":"POSSUMP4230 KV  2078Z","contingency_facility":"L500.Morrisville-Spotsylvania.594"},{"datetime_beginning_utc":"2023-11-05T13:00:00","datetime_ending_utc":"2023-11-06T03:00:00","duration":14,"day_ahead_congestion_event":"POSSUMP4500
+        KV  TX1","monitored_facility":"POSSUMP4500 KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594"},{"datetime_beginning_utc":"2023-11-06T00:00:00","datetime_ending_utc":"2023-11-06T05:00:00","duration":5,"day_ahead_congestion_event":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","monitored_facility":"Pres - Tibbs
+        138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon - SMNY
+        138kV"},{"datetime_beginning_utc":"2023-11-05T19:00:00","datetime_ending_utc":"2023-11-05T21:00:00","duration":2,"day_ahead_congestion_event":"SAYRECON230
+        KV  SAY-SAY","monitored_facility":"SAYRECON230 KV  SAY-SAY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-05T22:00:00","datetime_ending_utc":"2023-11-06T05:00:00","duration":7,"day_ahead_congestion_event":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","monitored_facility":"Stillwell-Dumont 345
+        l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215"},{"datetime_beginning_utc":"2023-11-05T14:00:00","datetime_ending_utc":"2023-11-05T15:00:00","duration":1,"day_ahead_congestion_event":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","monitored_facility":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345"},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-07T01:00:00","duration":4,"day_ahead_congestion_event":"23
+        COLLI345 KV  TR92CT-S","monitored_facility":"23 COLLI345 KV  TR92CT-S","contingency_facility":"L765.Collins
+        - Plano.2315"},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T23:00:00","duration":18,"day_ahead_congestion_event":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","monitored_facility":"3 POWERT-TWRL POW-TWRL      A  138
+        KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411"},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","duration":1,"day_ahead_congestion_event":"94
+        HAURD138 KV  96101","monitored_facility":"94 HAURD138 KV  96101","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T19:00:00","duration":10,"day_ahead_congestion_event":"94
+        HAURD138 KV  96101","monitored_facility":"94 HAURD138 KV  96101","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-06T14:00:00","duration":3,"day_ahead_congestion_event":"BEAVER   TR1      XFORMER   H  345
+        KV","monitored_facility":"BEAVER   TR1      XFORMER   H  345 KV","contingency_facility":"L345.Beaver-LakeAvenue.1"},{"datetime_beginning_utc":"2023-11-06T07:00:00","datetime_ending_utc":"2023-11-06T09:00:00","duration":2,"day_ahead_congestion_event":"BIGPINET138
+        KV  BIG-KIS","monitored_facility":"BIGPINET138 KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity"},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T15:00:00","duration":2,"day_ahead_congestion_event":"BIGPINET138
+        KV  BIG-KIS","monitored_facility":"BIGPINET138 KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity"},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T21:00:00","duration":5,"day_ahead_congestion_event":"BIGPINET138
+        KV  BIG-KIS","monitored_facility":"BIGPINET138 KV  BIG-KIS","contingency_facility":"L345.Armstrong-HomerCity"},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T14:00:00","duration":1,"day_ahead_congestion_event":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","monitored_facility":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","contingency_facility":"L345.FostoriaCentral-Lallendorf"},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-07T03:00:00","duration":6,"day_ahead_congestion_event":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","monitored_facility":"BayShore
+        TR1 345/138 kV l/o FostoriaCentral-Lallendorf 345 kV","contingency_facility":"L345.FostoriaCentral-Lallendorf"},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T16:00:00","duration":1,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-SPR","monitored_facility":"CHESWICK138 KV  CHE-SPR","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T05:00:00","duration":4,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-SPR","monitored_facility":"CHESWICK138 KV  CHE-SPR","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T06:00:00","duration":1,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-SPR","monitored_facility":"CHESWICK138 KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21"},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T15:00:00","duration":5,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-SPR","monitored_facility":"CHESWICK138 KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21"},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T21:00:00","duration":5,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-SPR","monitored_facility":"CHESWICK138 KV  CHE-SPR","contingency_facility":"L138.Crescent-North.Z-21"},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T17:00:00","duration":5,"day_ahead_congestion_event":"CONASTON500
+        KV  CNS-PEA","monitored_facility":"CONASTON500 KV  CNS-PEA","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-06T20:00:00","datetime_ending_utc":"2023-11-06T21:00:00","duration":1,"day_ahead_congestion_event":"CONASTON500
+        KV  CNS-PEA","monitored_facility":"CONASTON500 KV  CNS-PEA","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T01:00:00","duration":2,"day_ahead_congestion_event":"CONASTON500
+        KV  CNS-PEA","monitored_facility":"CONASTON500 KV  CNS-PEA","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-07T02:00:00","datetime_ending_utc":"2023-11-07T05:00:00","duration":3,"day_ahead_congestion_event":"CONASTON500
+        KV  CNS-PEA","monitored_facility":"CONASTON500 KV  CNS-PEA","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T11:00:00","duration":6,"day_ahead_congestion_event":"CRES
+        DUQ345 KV  T1","monitored_facility":"CRES DUQ345 KV  T1","contingency_facility":"Clinton
+        (DUQ) 345/138 KV TRANSFORMER"},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-07T04:00:00","duration":7,"day_ahead_congestion_event":"CRESCENT-NORTH
+        Z-21         A  138 KV","monitored_facility":"CRESCENT-NORTH Z-21         A  138
+        KV","contingency_facility":"Collier - Clinton (DUQ) 345 KV LINE"},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-07T01:00:00","duration":4,"day_ahead_congestion_event":"DAUPHIN
+        230 KV  DAU-JUN","monitored_facility":"DAUPHIN 230 KV  DAU-JUN","contingency_facility":"500/230.TMI.T1"},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T09:00:00","duration":4,"day_ahead_congestion_event":"DEQUINE
+        345 KV  DEQ-FOWJ","monitored_facility":"DEQUINE 345 KV  DEQ-FOWJ","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-06T22:00:00","datetime_ending_utc":"2023-11-07T01:00:00","duration":3,"day_ahead_congestion_event":"DUPSEAFD69
+        KV   DUP-LAU","monitored_facility":"DUPSEAFD69 KV   DUP-LAU","contingency_facility":"L69.CoolSprings-Harbeson.6753"},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T08:00:00","duration":3,"day_ahead_congestion_event":"Duneacre
+        - Michigan City 13843 138 kv l/o Wilton Center - Dumont 765 kv","monitored_facility":"Duneacre
+        - Michigan City 13843 138 kv l/o Wilton Center - Dumont 765 kv","contingency_facility":"L765.Dumont-WiltonCenter.11215"},{"datetime_beginning_utc":"2023-11-06T11:00:00","datetime_ending_utc":"2023-11-07T05:00:00","duration":18,"day_ahead_congestion_event":"EASTON  69
+        KV   EAS-EMU","monitored_facility":"EASTON  69 KV   EAS-EMU","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T07:00:00","duration":2,"day_ahead_congestion_event":"MAHANSLA138
+        KV  MAH-TID","monitored_facility":"MAHANSLA138 KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge"},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T15:00:00","duration":6,"day_ahead_congestion_event":"MAHANSLA138
+        KV  MAH-TID","monitored_facility":"MAHANSLA138 KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge"},{"datetime_beginning_utc":"2023-11-06T19:00:00","datetime_ending_utc":"2023-11-06T23:00:00","duration":4,"day_ahead_congestion_event":"MAHANSLA138
+        KV  MAH-TID","monitored_facility":"MAHANSLA138 KV  MAH-TID","contingency_facility":"L345.Tidd-WylieRidge"},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T16:00:00","duration":3,"day_ahead_congestion_event":"MONR
+        AE 69 KV   MON-VINE","monitored_facility":"MONR AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB"},{"datetime_beginning_utc":"2023-11-06T17:00:00","datetime_ending_utc":"2023-11-07T05:00:00","duration":12,"day_ahead_congestion_event":"MONR
+        AE 69 KV   MON-VINE","monitored_facility":"MONR AE 69 KV   MON-VINE","contingency_facility":"138/23.England.TXB"},{"datetime_beginning_utc":"2023-11-06T16:00:00","datetime_ending_utc":"2023-11-06T21:00:00","duration":5,"day_ahead_congestion_event":"MOUN
+        UGI230 KV  2","monitored_facility":"MOUN UGI230 KV  2","contingency_facility":"230/66.Mountain.T1
+        (Sctnlz)"},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T01:00:00","duration":2,"day_ahead_congestion_event":"MOUN
+        UGI230 KV  2","monitored_facility":"MOUN UGI230 KV  2","contingency_facility":"230/66.Mountain.T1
+        (Sctnlz)"},{"datetime_beginning_utc":"2023-11-06T06:00:00","datetime_ending_utc":"2023-11-06T11:00:00","duration":5,"day_ahead_congestion_event":"NOTTINGH230
+        KV  2-3","monitored_facility":"NOTTINGH230 KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2023-11-06T21:00:00","datetime_ending_utc":"2023-11-06T23:00:00","duration":2,"day_ahead_congestion_event":"NOTTINGH230
+        KV  2-3","monitored_facility":"NOTTINGH230 KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","duration":1,"day_ahead_congestion_event":"NOTTINGH230
+        KV  2-3","monitored_facility":"NOTTINGH230 KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T21:00:00","duration":13,"day_ahead_congestion_event":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello"},{"datetime_beginning_utc":"2023-11-06T10:00:00","datetime_ending_utc":"2023-11-06T15:00:00","duration":5,"day_ahead_congestion_event":"PLEASNTV-ASHBURN
+        274D","monitored_facility":"PLEASNTV-ASHBURN 274D","contingency_facility":"L230.EvergreenMills-Brableton.2172"},{"datetime_beginning_utc":"2023-11-06T23:00:00","datetime_ending_utc":"2023-11-07T02:00:00","duration":3,"day_ahead_congestion_event":"PLEASNTV-ASHBURN
+        274D","monitored_facility":"PLEASNTV-ASHBURN 274D","contingency_facility":"L230.EvergreenMills-Brableton.2172"},{"datetime_beginning_utc":"2023-11-07T02:00:00","datetime_ending_utc":"2023-11-07T03:00:00","duration":1,"day_ahead_congestion_event":"POSSUMP4500
+        KV  TX1","monitored_facility":"POSSUMP4500 KV  TX1","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T23:00:00","duration":8,"day_ahead_congestion_event":"POSSUMP4500
+        KV  TX1","monitored_facility":"POSSUMP4500 KV  TX1","contingency_facility":"L500.Morrisville-Spotsylvania.594"},{"datetime_beginning_utc":"2023-11-06T05:00:00","datetime_ending_utc":"2023-11-06T09:00:00","duration":4,"day_ahead_congestion_event":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","monitored_facility":"Pres - Tibbs
+        138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon - SMNY
+        138kV"},{"datetime_beginning_utc":"2023-11-06T12:00:00","datetime_ending_utc":"2023-11-06T13:00:00","duration":1,"day_ahead_congestion_event":"Pres
+        - Tibbs 138kV l/o NewBourbon - SMNY 138kV","monitored_facility":"Pres - Tibbs
+        138kV l/o NewBourbon - SMNY 138kV","contingency_facility":"NewBourbon - SMNY
+        138kV"},{"datetime_beginning_utc":"2023-11-06T09:00:00","datetime_ending_utc":"2023-11-06T12:00:00","duration":3,"day_ahead_congestion_event":"Prest
+        Tibb 138 kV l/o Prairie State Mt Vernon 345 kV","monitored_facility":"Prest
+        Tibb 138 kV l/o Prairie State Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345"},{"datetime_beginning_utc":"2023-11-06T15:00:00","datetime_ending_utc":"2023-11-06T23:00:00","duration":8,"day_ahead_congestion_event":"RAMAPO  138
+        KV  RAM-SMA","monitored_facility":"RAMAPO  138 KV  RAM-SMA","contingency_facility":"345/138.SouthMahwah.BK258"},{"datetime_beginning_utc":"2023-11-06T08:00:00","datetime_ending_utc":"2023-11-06T21:00:00","duration":13,"day_ahead_congestion_event":"Stillwell-Dumont
+        345 l/o Wilton Center-Dumont 765","monitored_facility":"Stillwell-Dumont 345
+        l/o Wilton Center-Dumont 765","contingency_facility":"L765.Dumont-WiltonCenter.11215"},{"datetime_beginning_utc":"2023-11-06T13:00:00","datetime_ending_utc":"2023-11-06T15:00:00","duration":2,"day_ahead_congestion_event":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","monitored_facility":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345"},{"datetime_beginning_utc":"2023-11-07T01:00:00","datetime_ending_utc":"2023-11-07T02:00:00","duration":1,"day_ahead_congestion_event":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","monitored_facility":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345"},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T11:00:00","duration":6,"day_ahead_congestion_event":"3
+        POWERT-TWRL POW-TWRL      A  138 KV","monitored_facility":"3 POWERT-TWRL POW-TWRL      A  138
+        KV","contingency_facility":"L138.Keemin(MISO/Ameren)-Kewanee.7411"},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T14:00:00","duration":9,"day_ahead_congestion_event":"BRIGHTON230
+        KV  BRI-MTZ3","monitored_facility":"BRIGHTON230 KV  BRI-MTZ3","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-08T03:00:00","duration":22,"day_ahead_congestion_event":"CHESWICK138
+        KV  CHE-SPR","monitored_facility":"CHESWICK138 KV  CHE-SPR","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T06:00:00","duration":1,"day_ahead_congestion_event":"EASTON  69
+        KV   EAS-EMU","monitored_facility":"EASTON  69 KV   EAS-EMU","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T09:00:00","duration":4,"day_ahead_congestion_event":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","monitored_facility":"NorthWest
+        Tap - West Lafayette 138kV l/o Springboro - Monticello 138kV","contingency_facility":"L138.Springboro-Monticello"},{"datetime_beginning_utc":"2023-11-07T05:00:00","datetime_ending_utc":"2023-11-07T15:00:00","duration":10,"day_ahead_congestion_event":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","monitored_facility":"Turkey
+        Hill-Hilgard 138 kV l/o Prairie State-Mt Vernon 345 kV","contingency_facility":"Prairie
+        State-W Mt. Vernon 345"}],"searchSpecification":{"rowCount":50000,"order":"Asc","startRow":1,"isActiveMetadata":true,"fields":["datetime_beginning_utc","datetime_ending_utc","duration","day_ahead_congestion_event","monitored_facility","contingency_facility"],"filters":[{"datetime_beginning_ept":"11/05/2023
+        00:00to11/07/2023 00:00"}]},"totalRows":82}'
+    headers:
+      Access-Control-Expose-Headers:
+      - Request-Context
+      Cache-Control:
+      - public, must-revalidate, max-age=20
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 05 Nov 2024 19:38:06 GMT
+      Expires:
+      - Tue, 05 Nov 2024 19:38:26 GMT
+      Last-Modified:
+      - Tue, 05 Nov 2024 19:38:06 GMT
+      Request-Context:
+      - appId=cid-v1:2aa2d631-5670-434a-9034-e8b4ff1aaf97
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept,Accept-Charset
+      X-AspNet-Version:
+      - 4.0.30319
+      X-Powered-By:
+      - ASP.NET
+    status:
+      code: 200
+      message: OK
+version: 1

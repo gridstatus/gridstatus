@@ -1,0 +1,132 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Ocp-Apim-Subscription-Key:
+      - 7d70f087f35c4f55b9af9553333c107e
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://api.pjm.com/api/v1/da_transconstraints?fields=datetime_beginning_utc%2Cdatetime_ending_utc%2Cduration%2C+day_ahead_congestion_event%2C+monitored_facility%2C+contingency_facility&startRow=1&rowCount=50000&datetime_beginning_ept=09%2F02%2F2024+00%3A00to09%2F04%2F2024+00%3A00
+  response:
+    body:
+      string: '{"links":[{"rel":"self","href":"https://api.pjm.com/api/v1/da_transconstraints?RowCount=50000&Order=Asc&StartRow=1&IsActiveMetadata=True&Fields=datetime_beginning_utc%2Cdatetime_ending_utc%2Cduration%2Cday_ahead_congestion_event%2Cmonitored_facility%2Ccontingency_facility&datetime_beginning_ept=09%2F02%2F2024%2000%3A00to09%2F04%2F2024%2000%3A00"},{"rel":"metadata","href":"https://api.pjm.com/api/v1/da_transconstraints/metadata"}],"items":[{"datetime_beginning_utc":"2024-09-02T16:00:00","datetime_ending_utc":"2024-09-02T17:00:00","duration":1,"day_ahead_congestion_event":"12
+        DRESDEN  45TR81 CT       H  345 KV","monitored_facility":"12 DRESDEN  45TR81
+        CT       H  345 KV","contingency_facility":"L345.Lockport-Kendall.10805"},{"datetime_beginning_utc":"2024-09-02T18:00:00","datetime_ending_utc":"2024-09-03T01:00:00","duration":7,"day_ahead_congestion_event":"12
+        DRESDEN  45TR81 CT       H  345 KV","monitored_facility":"12 DRESDEN  45TR81
+        CT       H  345 KV","contingency_facility":"L345.Lockport-Kendall.10805"},{"datetime_beginning_utc":"2024-09-02T04:00:00","datetime_ending_utc":"2024-09-02T08:00:00","duration":4,"day_ahead_congestion_event":"BERGEN  230
+        KV  BER-HUD","monitored_facility":"BERGEN  230 KV  BER-HUD","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-02T09:00:00","datetime_ending_utc":"2024-09-02T12:00:00","duration":3,"day_ahead_congestion_event":"Crete-St
+        Johns 345 kV","monitored_facility":"Crete-St Johns 345 kV","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-02T12:00:00","datetime_ending_utc":"2024-09-02T14:00:00","duration":2,"day_ahead_congestion_event":"EASTON  69
+        KV   EAS-EMU","monitored_facility":"EASTON  69 KV   EAS-EMU","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-02T20:00:00","datetime_ending_utc":"2024-09-02T23:00:00","duration":3,"day_ahead_congestion_event":"LAKENELS230
+        KV  LAK-MID","monitored_facility":"LAKENELS230 KV  LAK-MID","contingency_facility":"L230.Sayreville-Kilmer-LakeNelson.W-1037"},{"datetime_beginning_utc":"2024-09-02T04:00:00","datetime_ending_utc":"2024-09-02T14:00:00","duration":10,"day_ahead_congestion_event":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","monitored_facility":"LENOX-NMESHOPP NML 1090     B  115
+        KV","contingency_facility":"L230.ETowanda-Hillside.2002 [NYISO]"},{"datetime_beginning_utc":"2024-09-03T03:00:00","datetime_ending_utc":"2024-09-03T04:00:00","duration":1,"day_ahead_congestion_event":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","monitored_facility":"LENOX-NMESHOPP NML 1090     B  115
+        KV","contingency_facility":"L230.ETowanda-Hillside.2002 [NYISO]"},{"datetime_beginning_utc":"2024-09-02T20:00:00","datetime_ending_utc":"2024-09-03T01:00:00","duration":5,"day_ahead_congestion_event":"MALISZEW
+        1        XFORMER   H  765 KV","monitored_facility":"MALISZEW 1        XFORMER   H  765
+        KV","contingency_facility":"765/345.Vassell.T1"},{"datetime_beginning_utc":"2024-09-02T07:00:00","datetime_ending_utc":"2024-09-02T11:00:00","duration":4,"day_ahead_congestion_event":"MEHOOPAN115
+        KV  MEH-NME1","monitored_facility":"MEHOOPAN115 KV  MEH-NME1","contingency_facility":"North
+        Meshoppen - Mehoopany2 115 kV line"},{"datetime_beginning_utc":"2024-09-02T22:00:00","datetime_ending_utc":"2024-09-03T01:00:00","duration":3,"day_ahead_congestion_event":"MEHOOPAN115
+        KV  MEH-NME1","monitored_facility":"MEHOOPAN115 KV  MEH-NME1","contingency_facility":"North
+        Meshoppen - Mehoopany2 115 kV line"},{"datetime_beginning_utc":"2024-09-03T02:00:00","datetime_ending_utc":"2024-09-03T04:00:00","duration":2,"day_ahead_congestion_event":"MEHOOPAN115
+        KV  MEH-NME1","monitored_facility":"MEHOOPAN115 KV  MEH-NME1","contingency_facility":"North
+        Meshoppen - Mehoopany2 115 kV line"},{"datetime_beginning_utc":"2024-09-02T07:00:00","datetime_ending_utc":"2024-09-02T08:00:00","duration":1,"day_ahead_congestion_event":"MOUN
+        UGI230 KV  2","monitored_facility":"MOUN UGI230 KV  2","contingency_facility":"230/66.Mountain.T1
+        (Sctnlz)"},{"datetime_beginning_utc":"2024-09-02T20:00:00","datetime_ending_utc":"2024-09-03T04:00:00","duration":8,"day_ahead_congestion_event":"MOUN
+        UGI230 KV  2","monitored_facility":"MOUN UGI230 KV  2","contingency_facility":"230/66.Mountain.T1
+        (Sctnlz)"},{"datetime_beginning_utc":"2024-09-02T16:00:00","datetime_ending_utc":"2024-09-02T20:00:00","duration":4,"day_ahead_congestion_event":"NOTTINGH230
+        KV  2-3","monitored_facility":"NOTTINGH230 KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2024-09-03T01:00:00","datetime_ending_utc":"2024-09-03T04:00:00","duration":3,"day_ahead_congestion_event":"NOTTINGH230
+        KV  2-3","monitored_facility":"NOTTINGH230 KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2024-09-02T17:00:00","datetime_ending_utc":"2024-09-02T23:00:00","duration":6,"day_ahead_congestion_event":"REMNTNCT230
+        KV  299A","monitored_facility":"REMNTNCT230 KV  299A","contingency_facility":"L230.Remington-RemingtonCT.2077"},{"datetime_beginning_utc":"2024-09-02T04:00:00","datetime_ending_utc":"2024-09-02T06:00:00","duration":2,"day_ahead_congestion_event":"SAYRECON230
+        KV  SAY-SAY","monitored_facility":"SAYRECON230 KV  SAY-SAY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-02T17:00:00","datetime_ending_utc":"2024-09-02T20:00:00","duration":3,"day_ahead_congestion_event":"SAYRECON230
+        KV  SAY-SAY","monitored_facility":"SAYRECON230 KV  SAY-SAY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-02T15:00:00","datetime_ending_utc":"2024-09-02T16:00:00","duration":1,"day_ahead_congestion_event":"YORKANA
+        B43 CB","monitored_facility":"YORKANA B43 CB","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2024-09-03T05:00:00","datetime_ending_utc":"2024-09-03T09:00:00","duration":4,"day_ahead_congestion_event":"112
+        WILT765 KV  TR93CT-P","monitored_facility":"112 WILT765 KV  TR93CT-P","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-04T03:00:00","datetime_ending_utc":"2024-09-04T04:00:00","duration":1,"day_ahead_congestion_event":"112
+        WILT765 KV  TR93CT-P","monitored_facility":"112 WILT765 KV  TR93CT-P","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-04T00:00:00","datetime_ending_utc":"2024-09-04T02:00:00","duration":2,"day_ahead_congestion_event":"12
+        DRESDEN  45TR81 CT       H  345 KV","monitored_facility":"12 DRESDEN  45TR81
+        CT       H  345 KV","contingency_facility":"L345.Lockport-Kendall.10805"},{"datetime_beginning_utc":"2024-09-03T14:00:00","datetime_ending_utc":"2024-09-03T19:00:00","duration":5,"day_ahead_congestion_event":"ALTAVSTA138
+        KV  TX3","monitored_facility":"ALTAVSTA138 KV  TX3","contingency_facility":"138/115.Altavista.T4"},{"datetime_beginning_utc":"2024-09-04T01:00:00","datetime_ending_utc":"2024-09-04T04:00:00","duration":3,"day_ahead_congestion_event":"BENTONHA138
+        KV  BEN-WES1","monitored_facility":"BENTONHA138 KV  BEN-WES1","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T19:00:00","datetime_ending_utc":"2024-09-03T20:00:00","duration":1,"day_ahead_congestion_event":"Butler-Bluemound
+        138kV 5061 l/o Arcadian-Granvil 345kV","monitored_facility":"Butler-Bluemound
+        138kV 5061 l/o Arcadian-Granvil 345kV","contingency_facility":"Arcadian-Granvil
+        345"},{"datetime_beginning_utc":"2024-09-03T22:00:00","datetime_ending_utc":"2024-09-03T23:00:00","duration":1,"day_ahead_congestion_event":"CHURCH  69
+        KV   CHU-NME","monitored_facility":"CHURCH  69 KV   CHU-NME","contingency_facility":"L230.CedarCreek-SilverRun.23030"},{"datetime_beginning_utc":"2024-09-03T09:00:00","datetime_ending_utc":"2024-09-03T13:00:00","duration":4,"day_ahead_congestion_event":"Crete-St
+        Johns 345 kV","monitored_facility":"Crete-St Johns 345 kV","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T20:00:00","datetime_ending_utc":"2024-09-03T22:00:00","duration":2,"day_ahead_congestion_event":"EWINDSOR230
+        KV  EWI-SMI","monitored_facility":"EWINDSOR230 KV  EWI-SMI","contingency_facility":"L230.Cedar-OysterCreek"},{"datetime_beginning_utc":"2024-09-03T12:00:00","datetime_ending_utc":"2024-09-03T17:00:00","duration":5,"day_ahead_congestion_event":"HANOVER
+        69 KV   HAN-PAR","monitored_facility":"HANOVER 69 KV   HAN-PAR","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T18:00:00","datetime_ending_utc":"2024-09-04T04:00:00","duration":10,"day_ahead_congestion_event":"HANOVER
+        69 KV   HAN-PAR","monitored_facility":"HANOVER 69 KV   HAN-PAR","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T12:00:00","datetime_ending_utc":"2024-09-03T18:00:00","duration":6,"day_ahead_congestion_event":"HOMERCIT230
+        KV  HOM-SHE","monitored_facility":"HOMERCIT230 KV  HOM-SHE","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T23:00:00","datetime_ending_utc":"2024-09-04T01:00:00","duration":2,"day_ahead_congestion_event":"HOOPERDP115
+        KV  1007A","monitored_facility":"HOOPERDP115 KV  1007A","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T16:00:00","datetime_ending_utc":"2024-09-03T18:00:00","duration":2,"day_ahead_congestion_event":"HOPEWEL4230
+        KV  211A","monitored_facility":"HOPEWEL4230 KV  211A","contingency_facility":"L230.Chesterfield-Hopewell.228"},{"datetime_beginning_utc":"2024-09-03T15:00:00","datetime_ending_utc":"2024-09-03T16:00:00","duration":1,"day_ahead_congestion_event":"HOPEWEL4230
+        KV  228A","monitored_facility":"HOPEWEL4230 KV  228A","contingency_facility":"L230.Chesterfield-Hopewell.211"},{"datetime_beginning_utc":"2024-09-03T13:00:00","datetime_ending_utc":"2024-09-03T14:00:00","duration":1,"day_ahead_congestion_event":"JUNIATA
+        230 KV  JUN-LEW","monitored_facility":"JUNIATA 230 KV  JUN-LEW","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T16:00:00","datetime_ending_utc":"2024-09-03T19:00:00","duration":3,"day_ahead_congestion_event":"JUNIATA
+        230 KV  JUN-LEW","monitored_facility":"JUNIATA 230 KV  JUN-LEW","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T23:00:00","datetime_ending_utc":"2024-09-04T04:00:00","duration":5,"day_ahead_congestion_event":"JUNIATA
+        230 KV  JUN-LEW","monitored_facility":"JUNIATA 230 KV  JUN-LEW","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T17:00:00","datetime_ending_utc":"2024-09-03T20:00:00","duration":3,"day_ahead_congestion_event":"LAKENELS230
+        KV  LAK-MID","monitored_facility":"LAKENELS230 KV  LAK-MID","contingency_facility":"L230.Sayreville-Kilmer-LakeNelson.W-1037"},{"datetime_beginning_utc":"2024-09-03T19:00:00","datetime_ending_utc":"2024-09-03T20:00:00","duration":1,"day_ahead_congestion_event":"LARRABEE230
+        KV  LAR-SMID","monitored_facility":"LARRABEE230 KV  LAR-SMID","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T19:00:00","datetime_ending_utc":"2024-09-03T20:00:00","duration":1,"day_ahead_congestion_event":"LARRABEE230
+        KV  LAR-SMID","monitored_facility":"LARRABEE230 KV  LAR-SMID","contingency_facility":"L230.Cedar-OysterCreek"},{"datetime_beginning_utc":"2024-09-03T04:00:00","datetime_ending_utc":"2024-09-03T20:00:00","duration":16,"day_ahead_congestion_event":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","monitored_facility":"LENOX-NMESHOPP NML 1090     B  115
+        KV","contingency_facility":"L230.ETowanda-Hillside.2002 [NYISO]"},{"datetime_beginning_utc":"2024-09-03T22:00:00","datetime_ending_utc":"2024-09-04T04:00:00","duration":6,"day_ahead_congestion_event":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","monitored_facility":"LENOX-NMESHOPP NML 1090     B  115
+        KV","contingency_facility":"L230.ETowanda-Hillside.2002 [NYISO]"},{"datetime_beginning_utc":"2024-09-03T19:00:00","datetime_ending_utc":"2024-09-03T20:00:00","duration":1,"day_ahead_congestion_event":"MALISZEW
+        1        XFORMER   H  765 KV","monitored_facility":"MALISZEW 1        XFORMER   H  765
+        KV","contingency_facility":"765/345.Vassell.T1"},{"datetime_beginning_utc":"2024-09-03T21:00:00","datetime_ending_utc":"2024-09-03T23:00:00","duration":2,"day_ahead_congestion_event":"MALISZEW
+        1        XFORMER   H  765 KV","monitored_facility":"MALISZEW 1        XFORMER   H  765
+        KV","contingency_facility":"765/345.Vassell.T1"},{"datetime_beginning_utc":"2024-09-03T16:00:00","datetime_ending_utc":"2024-09-03T20:00:00","duration":4,"day_ahead_congestion_event":"MapleSt
+        - Chrysler 138 kV l/o HighlandPark - NewLondon 230 kV","monitored_facility":"MapleSt
+        - Chrysler 138 kV l/o HighlandPark - NewLondon 230 kV","contingency_facility":"L230.NewLondon-KokomoHighlandPark"},{"datetime_beginning_utc":"2024-09-03T17:00:00","datetime_ending_utc":"2024-09-03T18:00:00","duration":1,"day_ahead_congestion_event":"NOTTINGH230
+        KV  2-3","monitored_facility":"NOTTINGH230 KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2024-09-03T19:00:00","datetime_ending_utc":"2024-09-04T00:00:00","duration":5,"day_ahead_congestion_event":"NOTTINGH230
+        KV  2-3","monitored_facility":"NOTTINGH230 KV  2-3","contingency_facility":"L500.Conastone-PeachBottom.5012"},{"datetime_beginning_utc":"2024-09-03T12:00:00","datetime_ending_utc":"2024-09-04T02:00:00","duration":14,"day_ahead_congestion_event":"QUARRY  230
+        KV  QUA-STE2","monitored_facility":"QUARRY  230 KV  QUA-STE2","contingency_facility":"L500.Hosensack-SteelCity.5032"},{"datetime_beginning_utc":"2024-09-03T17:00:00","datetime_ending_utc":"2024-09-03T22:00:00","duration":5,"day_ahead_congestion_event":"REMNTNCT230
+        KV  299A","monitored_facility":"REMNTNCT230 KV  299A","contingency_facility":"L230.Remington-RemingtonCT.2077"},{"datetime_beginning_utc":"2024-09-03T04:00:00","datetime_ending_utc":"2024-09-03T05:00:00","duration":1,"day_ahead_congestion_event":"SAYRECON230
+        KV  SAY-SAY","monitored_facility":"SAYRECON230 KV  SAY-SAY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T10:00:00","datetime_ending_utc":"2024-09-03T14:00:00","duration":4,"day_ahead_congestion_event":"SAYRECON230
+        KV  SAY-SAY","monitored_facility":"SAYRECON230 KV  SAY-SAY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T16:00:00","datetime_ending_utc":"2024-09-03T17:00:00","duration":1,"day_ahead_congestion_event":"SAYRECON230
+        KV  SAY-SAY","monitored_facility":"SAYRECON230 KV  SAY-SAY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T20:00:00","datetime_ending_utc":"2024-09-04T02:00:00","duration":6,"day_ahead_congestion_event":"SAYRECON230
+        KV  SAY-SAY","monitored_facility":"SAYRECON230 KV  SAY-SAY","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-03T16:00:00","datetime_ending_utc":"2024-09-03T17:00:00","duration":1,"day_ahead_congestion_event":"WHITAKER115
+        KV  1001B","monitored_facility":"WHITAKER115 KV  1001B","contingency_facility":"L500.BrunswickSwitchingStationHeritage-Wake.570"},{"datetime_beginning_utc":"2024-09-04T04:00:00","datetime_ending_utc":"2024-09-04T05:00:00","duration":1,"day_ahead_congestion_event":"HANOVER
+        69 KV   HAN-PAR","monitored_facility":"HANOVER 69 KV   HAN-PAR","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-04T04:00:00","datetime_ending_utc":"2024-09-04T06:00:00","duration":2,"day_ahead_congestion_event":"HOMERCIT230
+        KV  HOM-SHE","monitored_facility":"HOMERCIT230 KV  HOM-SHE","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-04T04:00:00","datetime_ending_utc":"2024-09-04T18:00:00","duration":14,"day_ahead_congestion_event":"JUNIATA
+        230 KV  JUN-LEW","monitored_facility":"JUNIATA 230 KV  JUN-LEW","contingency_facility":"ACTUAL"},{"datetime_beginning_utc":"2024-09-04T04:00:00","datetime_ending_utc":"2024-09-05T04:00:00","duration":24,"day_ahead_congestion_event":"LENOX-NMESHOPP
+        NML 1090     B  115 KV","monitored_facility":"LENOX-NMESHOPP NML 1090     B  115
+        KV","contingency_facility":"L230.ETowanda-Hillside.2002 [NYISO]"},{"datetime_beginning_utc":"2024-09-04T04:00:00","datetime_ending_utc":"2024-09-04T09:00:00","duration":5,"day_ahead_congestion_event":"Mahomet
+        - OCB 1303 138 kv l/o Leghorn-Goose Creek 345 kv","monitored_facility":"Mahomet
+        - OCB 1303 138 kv l/o Leghorn-Goose Creek 345 kv","contingency_facility":"L345.GooseCreek-LegHorn
+        [ILL_EQ]"},{"datetime_beginning_utc":"2024-09-04T04:00:00","datetime_ending_utc":"2024-09-04T07:00:00","duration":3,"day_ahead_congestion_event":"QUARRY  230
+        KV  QUA-STE2","monitored_facility":"QUARRY  230 KV  QUA-STE2","contingency_facility":"L500.Hosensack-SteelCity.5032"},{"datetime_beginning_utc":"2024-09-04T04:00:00","datetime_ending_utc":"2024-09-05T04:00:00","duration":24,"day_ahead_congestion_event":"SAYRECON230
+        KV  SAY-SAY","monitored_facility":"SAYRECON230 KV  SAY-SAY","contingency_facility":"ACTUAL"}],"searchSpecification":{"rowCount":50000,"order":"Asc","startRow":1,"isActiveMetadata":true,"fields":["datetime_beginning_utc","datetime_ending_utc","duration","day_ahead_congestion_event","monitored_facility","contingency_facility"],"filters":[{"datetime_beginning_ept":"09/02/2024
+        00:00to09/04/2024 00:00"}]},"totalRows":62}'
+    headers:
+      Access-Control-Expose-Headers:
+      - Request-Context
+      Cache-Control:
+      - public, must-revalidate, max-age=20
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 05 Nov 2024 19:38:07 GMT
+      Expires:
+      - Tue, 05 Nov 2024 19:38:28 GMT
+      Last-Modified:
+      - Tue, 05 Nov 2024 19:38:08 GMT
+      Request-Context:
+      - appId=cid-v1:2aa2d631-5670-434a-9034-e8b4ff1aaf97
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept,Accept-Charset
+      X-AspNet-Version:
+      - 4.0.30319
+      X-Powered-By:
+      - ASP.NET
+    status:
+      code: 200
+      message: OK
+version: 1

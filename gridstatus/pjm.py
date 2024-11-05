@@ -1014,15 +1014,15 @@ class PJM(ISOBase):
 
     def _get_pjm_json(
         self,
-        endpoint,
-        start,
-        params,
-        end=None,
-        start_row=1,
-        row_count=50000,
-        interval_duration_min=None,
-        filter_timestamp_name="datetime_beginning",
-        verbose=False,
+        endpoint: str,
+        start: str | pd.Timestamp,
+        params: dict,
+        end: str | pd.Timestamp | None = None,
+        start_row: int = 1,
+        row_count: int = 50000,
+        interval_duration_min: int | None = None,
+        filter_timestamp_name: str = "datetime_beginning",
+        verbose: bool = False,
     ):
         default_params = {
             "startRow": start_row,
@@ -2331,3 +2331,131 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_marginal_value_real_time_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        """
+        Retrieves the marginal value data from:
+        https://dataminer2.pjm.com/feed/rt_marginal_value/definition
+        """
+        df = self._get_pjm_json(
+            "rt_marginal_value",
+            start=date,
+            params={
+                "fields": "datetime_beginning_utc, datetime_ending_utc, monitored_facility, contingency_facility, transmission_constraint_penalty_factor, limit_control_percentage, shadow_price",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "monitored_facility": "Monitored Facility",
+                "contingency_facility": "Contingency Facility",
+                "transmission_constraint_penalty_factor": "Transmission Constraint Penalty Factor",
+                "limit_control_percentage": "Limit Control Percentage",
+                "shadow_price": "Shadow Price",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Monitored Facility",
+                "Contingency Facility",
+                "Transmission Constraint Penalty Factor",
+                "Limit Control Percentage",
+                "Shadow Price",
+            ]
+        ]
+        return df
+
+    @support_date_range(frequency=None)
+    def get_marginal_value_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        """
+        Retrieves the marginal value data from:
+        https://dataminer2.pjm.com/feed/da_marginal_value/definition
+        """
+        df = self._get_pjm_json(
+            "da_marginal_value",
+            start=date,
+            params={
+                "fields": "datetime_beginning_utc, datetime_ending_utc, monitored_facility, contingency_facility, shadow_price",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        df = df.rename(
+            columns={
+                "monitored_facility": "Monitored Facility",
+                "contingency_facility": "Contingency Facility",
+                "shadow_price": "Shadow Price",
+            },
+        )
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Monitored Facility",
+                "Contingency Facility",
+                "Shadow Price",
+            ]
+        ]
+        return df
+
+    @support_date_range(frequency=None)
+    def get_transmission_constraints_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        """
+        Retrieves the transmission constraints data from:
+        https://dataminer2.pjm.com/feed/da_transconstraints/definition
+        """
+        df = self._get_pjm_json(
+            "da_transconstraints",
+            start=date,
+            params={
+                "fields": "datetime_beginning_utc,datetime_ending_utc,duration, day_ahead_congestion_event, monitored_facility, contingency_facility",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        df = df.rename(
+            columns={
+                "duration": "Duration",
+                "day_ahead_congestion_event": "Day Ahead Congestion Event",
+                "monitored_facility": "Monitored Facility",
+                "contingency_facility": "Contingency Facility",
+            },
+        )
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Duration",
+                "Day Ahead Congestion Event",
+                "Monitored Facility",
+                "Contingency Facility",
+            ]
+        ]
+        return df
