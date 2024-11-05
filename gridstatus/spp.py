@@ -1,5 +1,4 @@
 from typing import BinaryIO
-from urllib.error import HTTPError
 
 import pandas as pd
 import requests
@@ -878,13 +877,7 @@ class SPP(ISOBase):
 
         log(f"Getting data for {date} from {url}", verbose=verbose)
 
-        try:
-            df = pd.read_csv(url)
-        except HTTPError:
-            url = url.split(".csv")[0] + "d.csv"
-            log(f"Trying {url}", verbose=verbose)
-
-            df = pd.read_csv(url)
+        df = pd.read_csv(url)
 
         return df
 
@@ -1233,15 +1226,12 @@ class SPP(ISOBase):
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}{interval_str}/{folder_day}/{file_prefix}-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
 
-        status_code = requests.head(url).status_code
-
-        if status_code == 200:
-            return url
-
-        # During DST end, the files have a "d" suffix. However, this is not predictable
-        # because SPP will also miss intervals
-
-        url = url.split(".csv")[0] + "d.csv"
+        # Intervals that occur after DST end during the repeated hour have a "d" suffix
+        # Identify these intervals by the offset of the end time. Since CDT is UTC-5 and
+        # CST is UTC-6, if the UTC offset is larger than the offset of the hour before,
+        # it's a repeated hour in CST.
+        if abs(end.utcoffset()) > abs((end - pd.Timedelta(hours=1)).utcoffset()):
+            url = url.split(".csv")[0] + "d.csv"
 
         status_code = requests.head(url).status_code
 
