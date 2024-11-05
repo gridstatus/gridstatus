@@ -1882,29 +1882,34 @@ class TestPJM(BaseTestISO):
     @pytest.mark.parametrize(
         "date,end",
         [
+            ("2023-11-05", "2023-11-07"),
             ("2024-09-02", "2024-09-04"),
         ],
     )
     @api_vcr.use_cassette("test_get_transmission_constraints_day_ahead_hourly.yaml")
     def test_get_transmission_constraints_day_ahead_hourly(self, date, end):
-        result = self.iso.get_transmission_constraints_day_ahead_hourly(
-            date=date,
-            end=end,
+        cassette_name = (
+            f"test_get_transmission_constraints_day_ahead_hourly_{date}_{end}.yaml"
         )
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_transmission_constraints_day_ahead_hourly(
+                date=date,
+                end=end,
+            )
 
-        assert isinstance(result, pd.DataFrame)
-        assert list(result.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Duration",
-            "Day Ahead Congestion Event",
-            "Monitored Facility",
-            "Contingency Facility",
-        ]
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Duration",
+                "Day Ahead Congestion Event",
+                "Monitored Facility",
+                "Contingency Facility",
+            ]
 
-        assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
-        assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
-        assert result["Day Ahead Congestion Event"].dtype == object
-        assert result["Monitored Facility"].dtype == object
-        assert result["Contingency Facility"].dtype == object
-        assert result["Duration"].dtype in [np.int64, np.float64]
+            assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
+            assert result["Day Ahead Congestion Event"].dtype == object
+            assert result["Monitored Facility"].dtype == object
+            assert result["Contingency Facility"].dtype == object
+            assert result["Duration"].dtype in [np.int64, np.float64]
