@@ -1072,6 +1072,37 @@ class TestErcotAPI(TestHelperMixin):
             assert df["Interval Start"].min() == start_date
             assert df["Interval End"].max() == end_date
 
+            assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
+
+    def test_get_dam_load_and_gen_60_day_resources_as_offers_repeated_offers(self):
+        """Tests a problematic date where one resource has repeated offers for a
+        single service on a single interval"""
+        # This is the resource. We expect to still have the data for this resource
+        resource_name = "CANYONRO_LD1"
+        date_with_issue = pd.Timestamp("2024-09-04", tz="US/Central")
+
+        df_dict = ErcotAPI().get_dam_load_and_gen_60_day_resources_as_offers(
+            date_with_issue,
+        )
+
+        df_load = df_dict["dam_load_resource_as_offers"]
+        df_gen = df_dict["dam_gen_resource_as_offers"]
+
+        # The resource only occurs in the load data
+        assert df_load[df_load["Resource Name"] == resource_name].shape[0] == 24
+
+        for df in [df_load, df_gen]:
+            assert df.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
+
+            assert df["Interval Start"].min() == pd.Timestamp(date_with_issue)
+            assert df["Interval End"].max() == pd.Timestamp(
+                date_with_issue,
+            ) + pd.DateOffset(
+                days=1,
+            )
+
+            assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
+
     """get_historical_data"""
 
     def test_get_historical_data(self):
