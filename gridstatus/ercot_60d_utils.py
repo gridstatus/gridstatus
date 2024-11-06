@@ -360,7 +360,7 @@ def process_as_offer_curves(df):
                 # quantity. This is a temporary fix until we can figure out why this
                 # is happening.
                 if resource_name == "CANYONRO_LD1":
-                    subset = subset.sort_values("QUANTITY MW1").iloc[0]
+                    subset = subset.sort_values("QUANTITY MW1").head(1)
                 else:
                     raise ValueError(
                         f"More than one row found for {column_list} for {resource_name}",  # noqa
