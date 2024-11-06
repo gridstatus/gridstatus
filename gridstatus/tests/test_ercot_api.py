@@ -9,6 +9,12 @@ from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES
 from gridstatus.ercot_api.ercot_api import HISTORICAL_DAYS_THRESHOLD, ErcotAPI
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.test_ercot import RESOURCE_AS_OFFERS_COLUMNS
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+api_vcr = setup_vcr(
+    source="isone",
+    record_mode=RECORD_MODE,
+)
 
 
 class TestErcotAPI(TestHelperMixin):
@@ -259,6 +265,64 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_as_reports"""
 
+    def _check_as_reports(self, df, before_full_columns=False):
+        shared_columns = [
+            "Interval Start",
+            "Interval End",
+            "Total Cleared AS - RegUp",
+            "Total Cleared AS - RegDown",
+            "Total Cleared AS - NonSpin",
+            "Total Self-Arranged AS - RegUp",
+            "Total Self-Arranged AS - RegDown",
+            "Total Self-Arranged AS - NonSpin",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
+        ]
+
+        if before_full_columns:
+            assert df.columns.tolist() == shared_columns
+        else:
+            full_columns = [
+                "Interval Start",
+                "Interval End",
+                "Total Cleared AS - RRSPFR",
+                "Total Cleared AS - RRSUFR",
+                "Total Cleared AS - RRSFFR",
+                "Total Cleared AS - ECRSM",
+                "Total Cleared AS - ECRSS",
+                "Total Cleared AS - RegUp",
+                "Total Cleared AS - RegDown",
+                "Total Cleared AS - NonSpin",
+                "Total Self-Arranged AS - RRSPFR",
+                "Total Self-Arranged AS - RRSUFR",
+                "Total Self-Arranged AS - RRSFFR",
+                "Total Self-Arranged AS - ECRSM",
+                "Total Self-Arranged AS - ECRSS",
+                "Total Self-Arranged AS - RegUp",
+                "Total Self-Arranged AS - RegDown",
+                "Total Self-Arranged AS - NonSpin",
+                "Total Self-Arranged AS - NSPNM",
+                "Bid Curve - RRSPFR",
+                "Bid Curve - RRSUFR",
+                "Bid Curve - RRSFFR",
+                "Bid Curve - ECRSM",
+                "Bid Curve - ECRSS",
+                "Bid Curve - REGUP",
+                "Bid Curve - REGDN",
+                "Bid Curve - ONNS",
+                "Bid Curve - OFFNS",
+            ]
+
+            assert df.columns.tolist() == full_columns
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
     def test_get_as_reports_today_or_latest_raises_error(self):
         with pytest.raises(ValueError) as error:
             self.iso.get_as_reports("today")
@@ -272,26 +336,7 @@ class TestErcotAPI(TestHelperMixin):
         historical_date = datetime.date(2021, 1, 1)
         df = self.iso.get_as_reports(historical_date, verbose=True)
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Total Cleared AS - RegUp",
-            "Total Cleared AS - RegDown",
-            "Total Cleared AS - NonSpin",
-            "Total Self-Arranged AS - RegUp",
-            "Total Self-Arranged AS - RegDown",
-            "Total Self-Arranged AS - NonSpin",
-            "Bid Curve - REGUP",
-            "Bid Curve - REGDN",
-            "Bid Curve - ONNS",
-            "Bid Curve - OFFNS",
-        ]
-
-        self._check_time_columns(
-            df,
-            instant_or_interval="interval",
-            skip_column_named_time=True,
-        )
+        self._check_as_reports(df, before_full_columns=True)
 
         assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
         assert df["Interval End"].max() == self.local_start_of_day(
@@ -305,31 +350,31 @@ class TestErcotAPI(TestHelperMixin):
         end_date = datetime.date(2021, 1, 3)
         df = self.iso.get_as_reports(start_date, end_date, verbose=True)
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Total Cleared AS - RegUp",
-            "Total Cleared AS - RegDown",
-            "Total Cleared AS - NonSpin",
-            "Total Self-Arranged AS - RegUp",
-            "Total Self-Arranged AS - RegDown",
-            "Total Self-Arranged AS - NonSpin",
-            "Bid Curve - REGUP",
-            "Bid Curve - REGDN",
-            "Bid Curve - ONNS",
-            "Bid Curve - OFFNS",
-        ]
-
-        self._check_time_columns(
-            df,
-            instant_or_interval="interval",
-            skip_column_named_time=True,
-        )
-
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         # Not inclusive of the end date
         assert df["Interval End"].max() == self.local_start_of_day(
             end_date,
+        )
+
+        self._check_as_reports(df, before_full_columns=True)
+
+    @api_vcr.use_cassette("test_get_as_reports_full_columns.yaml")
+    def test_get_as_reports_full_columns(self):
+        df = self.iso.get_as_reports(
+            self.local_start_of_today() - pd.DateOffset(days=21),
+        )
+
+        self._check_as_reports(df)
+
+    @api_vcr.use_cassette("test_get_as_reports_dst_end.yaml")
+    def test_get_as_reports_dst_end(self):
+        df = self.iso.get_as_reports("2024-11-03")
+
+        self._check_as_reports(df)
+
+        # Check for the repeated hour
+        assert {"2024-11-03 01:00:00-05:00", "2024-11-03 01:00:00-06:00"}.issubset(
+            set(df["Interval Start"].astype(str).unique()),
         )
 
     """get_as_plan"""

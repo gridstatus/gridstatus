@@ -5,6 +5,7 @@ from enum import Enum
 from zipfile import ZipFile
 
 import pandas as pd
+import pytz
 import requests
 import tqdm
 from bs4 import BeautifulSoup
@@ -3240,6 +3241,21 @@ class Ercot(ISOBase):
                     self.default_timezone,
                     ambiguous=ambiguous,
                 ) - pd.Timedelta(hours=1)
+            except pytz.AmbiguousTimeError:
+                # Sometimes ERCOT handles DST end by putting 25 hours in HourEnding
+                # which makes IntervalStart where HourEnding >= 3 an hour later than
+                # they should be. We correct this by subtracting an hour.
+                doc.loc[doc["HourEnding"] >= 3, "Interval Start"] = doc.loc[
+                    doc["HourEnding"] >= 3,
+                    "Interval Start",
+                ] - pd.Timedelta(hours=1)
+
+                # Not there will be a repeated hour and Pandas can infer
+                # the ambiguous value
+                doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous="infer",
+                )
 
             doc["Interval End"] = doc["Interval Start"] + interval_length
 
