@@ -12,7 +12,7 @@ from gridstatus.tests.test_ercot import RESOURCE_AS_OFFERS_COLUMNS
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
-    source="isone",
+    source="ercot_api",
     record_mode=RECORD_MODE,
 )
 
@@ -358,7 +358,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_as_reports(df, before_full_columns=True)
 
-    @api_vcr.use_cassette("test_get_as_reports_full_columns.yaml")
+    @api_vcr.use_cassette("test_get_as_reports_full_columns_21_days_ago.yaml")
     def test_get_as_reports_full_columns(self):
         df = self.iso.get_as_reports(
             self.local_start_of_today() - pd.DateOffset(days=21),
@@ -366,7 +366,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_as_reports(df)
 
-    @api_vcr.use_cassette("test_get_as_reports_dst_end.yaml")
+    @api_vcr.use_cassette("test_get_as_reports_dst_end_2024_11_03.yaml")
     def test_get_as_reports_dst_end(self):
         df = self.iso.get_as_reports("2024-11-03")
 

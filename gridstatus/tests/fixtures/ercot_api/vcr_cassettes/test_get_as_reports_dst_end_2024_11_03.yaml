@@ -1,58 +1,5 @@
 interactions:
 - request:
-    body: grant_type=password&username=will%2Btestgs%40gridstatus.io&password=MsCaHdqjxy7QRhzsq6GT97reWcP9jxgo&response_type=id_token&scope=openid+fec253ea-0d06-4272-a5e6-b478baeecd70+offline_access&client_id=fec253ea-0d06-4272-a5e6-b478baeecd70
-    headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '235'
-      Content-Type:
-      - application/x-www-form-urlencoded
-      User-Agent:
-      - python-requests/2.32.3
-    method: POST
-    uri: https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token
-  response:
-    body:
-      string: '{"access_token":"eyJhbGciOiJSUzI1NiIsImtpZCI6Ilg1ZVhrNHh5b2pORnVtMWtsMll0djhkbE5QNC1jNTdkTzZRR1RWQndhTmsiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJmZWMyNTNlYS0wZDA2LTQyNzItYTVlNi1iNDc4YmFlZWNkNzAiLCJpc3MiOiJodHRwczovL2VyY290YjJjLmIyY2xvZ2luLmNvbS82ZGYxN2FmYS0xYjM2LTQ5OWEtODNmNy01Njc3OWFkMGI5YTYvdjIuMC8iLCJleHAiOjE3MzA5MjA2NTQsIm5iZiI6MTczMDkxNzA1NCwiaWRwIjoiTG9jYWxBY2NvdW50Iiwib2lkIjoiYzBmZjVjOGItZTkxOS00YWZhLWIzMzYtZTMzZDcyMWM5MjlmIiwic3ViIjoiYzBmZjVjOGItZTkxOS00YWZhLWIzMzYtZTMzZDcyMWM5MjlmIiwiZ2l2ZW5fbmFtZSI6IldpbGxpYW0iLCJmYW1pbHlfbmFtZSI6IktvZWhyc2VuIiwiZW1haWxzIjpbIndpbGwrdGVzdGdzQGdyaWRzdGF0dXMuaW8iXSwidGZwIjoiQjJDXzFfUFVCQVBJLVJPUEMtRkxPVyIsImF6cCI6ImZlYzI1M2VhLTBkMDYtNDI3Mi1hNWU2LWI0NzhiYWVlY2Q3MCIsInZlciI6IjEuMCIsImlhdCI6MTczMDkxNzA1NH0.iq61xC-9nJnlXdBxIicWW5CRM9Y-Njnu76-6IlrCdSfWhjZk_7wZVfsCS9KB69MLzs2685bRIYPtMl2fn-fbte0cqPcLcV3CkR3hH6ErK-kGzCx_EPU9QvPP8WAg4ShZJIaJP7p_EzOHni4jajDCGFrXEPPVqAy0ovI9dRvs9ZAA3ND8deNyRmI0UxpnyJBsLCypAIzbuRPjLPkzasaJ2rqXZjaq7sdmdl3n7Jd39lbKf9CAlv_8QruTN6I52C1WEAGw4ktAzauZ2TSrTMNOFxB3rLql1VEGkvhYpsoH4x57My8_GCJCfXsuZU7W30vF7w2xRzvuHgvxuJCGWy2pog","token_type":"Bearer","expires_in":"3600","refresh_token":"eyJraWQiOiJjcGltY29yZV8wOTI1MjAxNSIsInZlciI6IjEuMCIsInppcCI6IkRlZmxhdGUiLCJzZXIiOiIxLjAifQ..zCf2I494w6pYE1dU.zoSRdyg7rwxbUpReMMGslojn15AsZNQNifTqilmoDTOPqrjokDTD9j5fiGs0x6s__r9ZD5lbFt097WQN0KmhibhJgWQ04fpNo6cJ3Q4T7y_A9wBS68wDJ0aNQRLRt2NgDE-JWo-a-Wkb-cFa-57okxEVeZP_iTP8yRsri9jPBZ8mPh4zJg_0eFfSdoq6i3JFyiGLaIYIjMlFVEW_QMXImKATw1K5pThIFsvh6a2a1YQMPXZtYmALUdHGPhAmxRFFlL-gtakqHpFKsTUmGQBWuhs17HGXwLhT4AAVAObw5rZyitZc_DKAzK-DLkJV6vbOw7wDGPbrR6JgUWIJwmlULhAptg8q6v1NKQpR7UKeexVGUqk0zz11VHotvyrjt8hN9XsonMCl_DBd33U0atuYthXCsl85h-PiRFTbSyxnSuE8NIoWNSgF0_ByuMhK0zgt09gbsIjaf_w15xHm56sWaV31Bgej9Ht7dyhpwK9TsmndOciHhRb08Ey2aCxb2xNgGmekCQfE30SkT88c2Q3nW4gWykUjNNK69iNvBDZGzt3aK3toZwGwWcsJymXJXziFUy1junt3VlHJ6f-tZrBJYSXxvP4xovbLnoXJ_HpGPGLxRWQs90t6HFz7nT0YzXh96H-Oc6-PzaS8veQWcElGKfTumOG_BBQ4tjI2GVXFmSOFseW7XR0bGFWfxk6Aj5WF2BG7RVmmRNfp8QXgEA4uZWUjRZ09uQ.yC6NeZliP1dsij80H7seAA","id_token":"eyJhbGciOiJSUzI1NiIsImtpZCI6Ilg1ZVhrNHh5b2pORnVtMWtsMll0djhkbE5QNC1jNTdkTzZRR1RWQndhTmsiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE3MzA5MjA2NTQsIm5iZiI6MTczMDkxNzA1NCwidmVyIjoiMS4wIiwiaXNzIjoiaHR0cHM6Ly9lcmNvdGIyYy5iMmNsb2dpbi5jb20vNmRmMTdhZmEtMWIzNi00OTlhLTgzZjctNTY3NzlhZDBiOWE2L3YyLjAvIiwic3ViIjoiYzBmZjVjOGItZTkxOS00YWZhLWIzMzYtZTMzZDcyMWM5MjlmIiwiYXVkIjoiZmVjMjUzZWEtMGQwNi00MjcyLWE1ZTYtYjQ3OGJhZWVjZDcwIiwiaWF0IjoxNzMwOTE3MDU0LCJhdXRoX3RpbWUiOjE3MzA5MTcwNTQsImlkcCI6IkxvY2FsQWNjb3VudCIsIm9pZCI6ImMwZmY1YzhiLWU5MTktNGFmYS1iMzM2LWUzM2Q3MjFjOTI5ZiIsImdpdmVuX25hbWUiOiJXaWxsaWFtIiwiZmFtaWx5X25hbWUiOiJLb2VocnNlbiIsImVtYWlscyI6WyJ3aWxsK3Rlc3Rnc0Bncmlkc3RhdHVzLmlvIl0sInRmcCI6IkIyQ18xX1BVQkFQSS1ST1BDLUZMT1ciLCJhdF9oYXNoIjoiZVl0czJKRTZ2Sl95NFVwQXBhOUxudyJ9.EYbHp4o4TUHZvOPMhrIZWPade7782iBRri-7Ai07dX0piUnS550wCiaggfVNz8jgpbiqYKDbnDH90HDL9ZZk31DyOMfGZexL7FJT1CxLMJLj9XUlkY3jsNEpnuIKgE-2kv0VoZxR5Lx9cjFU-lwRfltROkrQaxeYz7cEJLeudtmQqw3szgFA8WDhWVpONNRT2xp9i8Jn_D3_-ISQsMZgfBIc455sWq3dc1FG3HUXsqY5GJBOXkhRVzz-l6lgqLxp5TYHxo7AWtzjGl-ssMaPtMfBhsL2wYpKICnrvKbMp_9XJ7ferqdNLX1mrHH3hhO_kmP2yZHuIlndsBGkVUDiog"}'
-    headers:
-      Allow:
-      - OPTIONS
-      - TRACE
-      - GET
-      - HEAD
-      - POST
-      Cache-Control:
-      - no-store, must-revalidate, no-cache
-      Content-Length:
-      - '3115'
-      Content-Type:
-      - application/json; charset=utf-8
-      Date:
-      - Wed, 06 Nov 2024 18:17:34 GMT
-      Public:
-      - OPTIONS,TRACE,GET,HEAD,POST
-      Set-Cookie:
-      - x-ms-cpim-trans=; domain=ercotb2c.b2clogin.com; expires=Thu, 06-Nov-2014 18:17:34
-        GMT; path=/; SameSite=None; secure; HttpOnly
-      Strict-Transport-Security:
-      - max-age=31536000; includeSubDomains
-      X-Content-Type-Options:
-      - nosniff
-      X-Frame-Options:
-      - DENY
-      X-XSS-Protection:
-      - 1; mode=block
-      x-ms-gateway-requestid:
-      - afc68c5a-0d18-48b7-92b1-6c455dbffbaf
-    status:
-      code: 200
-      message: OK
-- request:
     body: null
     headers:
       Accept:
@@ -60,7 +7,7 @@ interactions:
       Accept-Encoding:
       - gzip, deflate
       Authorization:
-      - Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ilg1ZVhrNHh5b2pORnVtMWtsMll0djhkbE5QNC1jNTdkTzZRR1RWQndhTmsiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE3MzA5MjA2NTQsIm5iZiI6MTczMDkxNzA1NCwidmVyIjoiMS4wIiwiaXNzIjoiaHR0cHM6Ly9lcmNvdGIyYy5iMmNsb2dpbi5jb20vNmRmMTdhZmEtMWIzNi00OTlhLTgzZjctNTY3NzlhZDBiOWE2L3YyLjAvIiwic3ViIjoiYzBmZjVjOGItZTkxOS00YWZhLWIzMzYtZTMzZDcyMWM5MjlmIiwiYXVkIjoiZmVjMjUzZWEtMGQwNi00MjcyLWE1ZTYtYjQ3OGJhZWVjZDcwIiwiaWF0IjoxNzMwOTE3MDU0LCJhdXRoX3RpbWUiOjE3MzA5MTcwNTQsImlkcCI6IkxvY2FsQWNjb3VudCIsIm9pZCI6ImMwZmY1YzhiLWU5MTktNGFmYS1iMzM2LWUzM2Q3MjFjOTI5ZiIsImdpdmVuX25hbWUiOiJXaWxsaWFtIiwiZmFtaWx5X25hbWUiOiJLb2VocnNlbiIsImVtYWlscyI6WyJ3aWxsK3Rlc3Rnc0Bncmlkc3RhdHVzLmlvIl0sInRmcCI6IkIyQ18xX1BVQkFQSS1ST1BDLUZMT1ciLCJhdF9oYXNoIjoiZVl0czJKRTZ2Sl95NFVwQXBhOUxudyJ9.EYbHp4o4TUHZvOPMhrIZWPade7782iBRri-7Ai07dX0piUnS550wCiaggfVNz8jgpbiqYKDbnDH90HDL9ZZk31DyOMfGZexL7FJT1CxLMJLj9XUlkY3jsNEpnuIKgE-2kv0VoZxR5Lx9cjFU-lwRfltROkrQaxeYz7cEJLeudtmQqw3szgFA8WDhWVpONNRT2xp9i8Jn_D3_-ISQsMZgfBIc455sWq3dc1FG3HUXsqY5GJBOXkhRVzz-l6lgqLxp5TYHxo7AWtzjGl-ssMaPtMfBhsL2wYpKICnrvKbMp_9XJ7ferqdNLX1mrHH3hhO_kmP2yZHuIlndsBGkVUDiog
+      - Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ilg1ZVhrNHh5b2pORnVtMWtsMll0djhkbE5QNC1jNTdkTzZRR1RWQndhTmsiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE3MzA5MjM4NDQsIm5iZiI6MTczMDkyMDI0NCwidmVyIjoiMS4wIiwiaXNzIjoiaHR0cHM6Ly9lcmNvdGIyYy5iMmNsb2dpbi5jb20vNmRmMTdhZmEtMWIzNi00OTlhLTgzZjctNTY3NzlhZDBiOWE2L3YyLjAvIiwic3ViIjoiYzBmZjVjOGItZTkxOS00YWZhLWIzMzYtZTMzZDcyMWM5MjlmIiwiYXVkIjoiZmVjMjUzZWEtMGQwNi00MjcyLWE1ZTYtYjQ3OGJhZWVjZDcwIiwiaWF0IjoxNzMwOTIwMjQ0LCJhdXRoX3RpbWUiOjE3MzA5MjAyNDQsImlkcCI6IkxvY2FsQWNjb3VudCIsIm9pZCI6ImMwZmY1YzhiLWU5MTktNGFmYS1iMzM2LWUzM2Q3MjFjOTI5ZiIsImdpdmVuX25hbWUiOiJXaWxsaWFtIiwiZmFtaWx5X25hbWUiOiJLb2VocnNlbiIsImVtYWlscyI6WyJ3aWxsK3Rlc3Rnc0Bncmlkc3RhdHVzLmlvIl0sInRmcCI6IkIyQ18xX1BVQkFQSS1ST1BDLUZMT1ciLCJhdF9oYXNoIjoiTFhoMUYzQ0FpcGF1NnhkVDNhUWpJZyJ9.LRLLpWjOnCXqLu88xuPxLDT3hLhWA7aZgOQUKB36edi3XhBzw2tw-TIYiMwPiLrhzlbyaa-Pk_JRhl91r2HLkqFfiAbNJl_FGRi3avm3M34zE8B3VgFiGcba3CuwhCjCXKG9USeSeZfcHx2QcpzIOrXHAB5enuzvAiWbLRWJkZ51tBKy-SNuqKfRVfLm6P5FwqdJP37-rpCXZdNkyzdPw5XH2dkbNTbUcXi_PdMugVFMT38tUi7PRd-XZZmTUzKmaWlekMuqYsctRemenyvTctTaIMlyC3uCFIACcLtcVNHnvSUH9uNleLQUyhIG7vJLgrqyz5xT7F8DqhsAhBUnmw
       Connection:
       - keep-alive
       Ocp-Apim-Subscription-Key:
@@ -82,16 +29,16 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Wed, 06 Nov 2024 18:17:34 GMT
+      - Wed, 06 Nov 2024 19:10:49 GMT
       Request-Context:
       - appId=cid-v1:99d3da51-eefb-49dd-bae3-23b7784421d5
       Set-Cookie:
-      - visid_incap_3031165=GFqUbBnBSLmWCbYG7SoHhkeyK2cAAAAAQUIPAAAAAACBEB5pklh3Ex9Ycn+/uG18;
-        expires=Thu, 06 Nov 2025 06:19:33 GMT; HttpOnly; path=/; Domain=.ercot.com;
+      - visid_incap_3031165=C02IN94GT3aBblhyp4GXwDe/K2cAAAAAQUIPAAAAAACs9UYEni5hHhVBxMFhtl2H;
+        expires=Thu, 06 Nov 2025 06:19:35 GMT; HttpOnly; path=/; Domain=.ercot.com;
         Secure; SameSite=None
-      - nlbi_3031165=AVSAb+vd4hwaUf4+YHvhKwAAAAA1TEuhShsPCpQ5efc8Xd7c; HttpOnly; path=/;
+      - nlbi_3031165=joTEMD3QP0FlKpFLYHvhKwAAAABgxsvu0Rnva6E1eHMQP3ds; HttpOnly; path=/;
         Domain=.ercot.com; Secure; SameSite=None
-      - incap_ses_326_3031165=B4ZROpifAlxuvtELgC+GBL6yK2cAAAAAfxABwhwGQJ+1JXCeiomlew==;
+      - incap_ses_326_3031165=b7lrFxQoegp6Kd4LgC+GBDi/K2cAAAAAfalS78/ItPBTVrmkMP+XNA==;
         path=/; Domain=.ercot.com; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000
@@ -100,8 +47,8 @@ interactions:
       X-CDN:
       - Imperva
       X-Iinfo:
-      - 16-15139514-15139521 NNYY CT(36 96 0) RT(1730917054799 35) q(0 0 0 1) r(0
-        0) U16
+      - 5-1419888-1419889 NNYY CT(38 94 0) RT(1730920248767 35) q(0 0 0 1) r(0 0)
+        U16
       x-ms-middleware-request-id:
       - 00000000-0000-0000-0000-000000000000
     status:
@@ -115,7 +62,7 @@ interactions:
       Accept-Encoding:
       - gzip, deflate
       Authorization:
-      - Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ilg1ZVhrNHh5b2pORnVtMWtsMll0djhkbE5QNC1jNTdkTzZRR1RWQndhTmsiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE3MzA5MjA2NTQsIm5iZiI6MTczMDkxNzA1NCwidmVyIjoiMS4wIiwiaXNzIjoiaHR0cHM6Ly9lcmNvdGIyYy5iMmNsb2dpbi5jb20vNmRmMTdhZmEtMWIzNi00OTlhLTgzZjctNTY3NzlhZDBiOWE2L3YyLjAvIiwic3ViIjoiYzBmZjVjOGItZTkxOS00YWZhLWIzMzYtZTMzZDcyMWM5MjlmIiwiYXVkIjoiZmVjMjUzZWEtMGQwNi00MjcyLWE1ZTYtYjQ3OGJhZWVjZDcwIiwiaWF0IjoxNzMwOTE3MDU0LCJhdXRoX3RpbWUiOjE3MzA5MTcwNTQsImlkcCI6IkxvY2FsQWNjb3VudCIsIm9pZCI6ImMwZmY1YzhiLWU5MTktNGFmYS1iMzM2LWUzM2Q3MjFjOTI5ZiIsImdpdmVuX25hbWUiOiJXaWxsaWFtIiwiZmFtaWx5X25hbWUiOiJLb2VocnNlbiIsImVtYWlscyI6WyJ3aWxsK3Rlc3Rnc0Bncmlkc3RhdHVzLmlvIl0sInRmcCI6IkIyQ18xX1BVQkFQSS1ST1BDLUZMT1ciLCJhdF9oYXNoIjoiZVl0czJKRTZ2Sl95NFVwQXBhOUxudyJ9.EYbHp4o4TUHZvOPMhrIZWPade7782iBRri-7Ai07dX0piUnS550wCiaggfVNz8jgpbiqYKDbnDH90HDL9ZZk31DyOMfGZexL7FJT1CxLMJLj9XUlkY3jsNEpnuIKgE-2kv0VoZxR5Lx9cjFU-lwRfltROkrQaxeYz7cEJLeudtmQqw3szgFA8WDhWVpONNRT2xp9i8Jn_D3_-ISQsMZgfBIc455sWq3dc1FG3HUXsqY5GJBOXkhRVzz-l6lgqLxp5TYHxo7AWtzjGl-ssMaPtMfBhsL2wYpKICnrvKbMp_9XJ7ferqdNLX1mrHH3hhO_kmP2yZHuIlndsBGkVUDiog
+      - Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ilg1ZVhrNHh5b2pORnVtMWtsMll0djhkbE5QNC1jNTdkTzZRR1RWQndhTmsiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE3MzA5MjM4NDQsIm5iZiI6MTczMDkyMDI0NCwidmVyIjoiMS4wIiwiaXNzIjoiaHR0cHM6Ly9lcmNvdGIyYy5iMmNsb2dpbi5jb20vNmRmMTdhZmEtMWIzNi00OTlhLTgzZjctNTY3NzlhZDBiOWE2L3YyLjAvIiwic3ViIjoiYzBmZjVjOGItZTkxOS00YWZhLWIzMzYtZTMzZDcyMWM5MjlmIiwiYXVkIjoiZmVjMjUzZWEtMGQwNi00MjcyLWE1ZTYtYjQ3OGJhZWVjZDcwIiwiaWF0IjoxNzMwOTIwMjQ0LCJhdXRoX3RpbWUiOjE3MzA5MjAyNDQsImlkcCI6IkxvY2FsQWNjb3VudCIsIm9pZCI6ImMwZmY1YzhiLWU5MTktNGFmYS1iMzM2LWUzM2Q3MjFjOTI5ZiIsImdpdmVuX25hbWUiOiJXaWxsaWFtIiwiZmFtaWx5X25hbWUiOiJLb2VocnNlbiIsImVtYWlscyI6WyJ3aWxsK3Rlc3Rnc0Bncmlkc3RhdHVzLmlvIl0sInRmcCI6IkIyQ18xX1BVQkFQSS1ST1BDLUZMT1ciLCJhdF9oYXNoIjoiTFhoMUYzQ0FpcGF1NnhkVDNhUWpJZyJ9.LRLLpWjOnCXqLu88xuPxLDT3hLhWA7aZgOQUKB36edi3XhBzw2tw-TIYiMwPiLrhzlbyaa-Pk_JRhl91r2HLkqFfiAbNJl_FGRi3avm3M34zE8B3VgFiGcba3CuwhCjCXKG9USeSeZfcHx2QcpzIOrXHAB5enuzvAiWbLRWJkZ51tBKy-SNuqKfRVfLm6P5FwqdJP37-rpCXZdNkyzdPw5XH2dkbNTbUcXi_PdMugVFMT38tUi7PRd-XZZmTUzKmaWlekMuqYsctRemenyvTctTaIMlyC3uCFIACcLtcVNHnvSUH9uNleLQUyhIG7vJLgrqyz5xT7F8DqhsAhBUnmw
       Connection:
       - keep-alive
       Ocp-Apim-Subscription-Key:
@@ -1514,24 +1461,23 @@ interactions:
       Content-Type:
       - application/zip
       Date:
-      - Wed, 06 Nov 2024 18:17:35 GMT
+      - Wed, 06 Nov 2024 19:10:48 GMT
       Request-Context:
       - appId=cid-v1:99d3da51-eefb-49dd-bae3-23b7784421d5
       Set-Cookie:
-      - visid_incap_3031165=wjsXgZkuT7aZqNl7cwVJ07+yK2cAAAAAQUIPAAAAAAAwMQHAkPEsRDBEkCJYJTe9;
+      - visid_incap_3031165=C02IN94GT3aBblhyp4GXwDe/K2cAAAAAQUIPAAAAAACs9UYEni5hHhVBxMFhtl2H;
         expires=Thu, 06 Nov 2025 06:19:33 GMT; HttpOnly; path=/; Domain=.ercot.com;
         Secure; SameSite=None
-      - nlbi_3031165=V+b5KC9tbQMApaBOYHvhKwAAAACn3WsDHde5kZ0E+m6nQKNP; HttpOnly; path=/;
+      - nlbi_3031165=A5zpIvU/71LylEggYHvhKwAAAADPVb/pmLgWpw+dEbfEzmUM; HttpOnly; path=/;
         Domain=.ercot.com; Secure; SameSite=None
-      - incap_ses_326_3031165=+USbdy0nCjbXKdILgC+GBL+yK2cAAAAAQtf/m1cuNoCtAloSG4WjNA==;
+      - incap_ses_326_3031165=wLNmDZuMUld6Kd4LgC+GBDm/K2cAAAAARhqQmnBpMNdaKaUdGOCk5A==;
         path=/; Domain=.ercot.com; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000
       X-CDN:
       - Imperva
       X-Iinfo:
-      - 17-18349662-18349668 NNNY CT(36 94 0) RT(1730917054980 37) q(0 0 0 -1) r(0
-        0) U16
+      - 16-15483683-15483501 PNNy RT(1730920248924 70) q(0 1 1 10) r(1 1) U16
       x-ms-middleware-request-id:
       - 00000000-0000-0000-0000-000000000000
     status:
