@@ -429,12 +429,16 @@ class EIA:
                             df_petrol.loc[len(df_petrol)] = (
                                 text,
                                 s2_elements[i].text,
-                                float(d1_elements[i].text)
-                                if d1_elements[i].text != "NA"
-                                else np.nan,
-                                float(direction_elements[i].text)
-                                if direction_elements[i].text != "NA"
-                                else np.nan,
+                                (
+                                    float(d1_elements[i].text)
+                                    if d1_elements[i].text != "NA"
+                                    else np.nan
+                                ),
+                                (
+                                    float(direction_elements[i].text)
+                                    if direction_elements[i].text != "NA"
+                                    else np.nan
+                                ),
                             )
 
                     rowspan_sum += rowspan
@@ -460,21 +464,31 @@ class EIA:
                 direction_siblings = s1.find_next_siblings("td", class_=directions)
                 df_ng.loc[len(df_ng)] = (
                     s1.text,
-                    float(price_siblings[0].text)
-                    if price_siblings[0].text != "NA"
-                    else np.nan,
-                    float(direction_siblings[0].text)
-                    if direction_siblings[0].text != "NA"
-                    else np.nan,
-                    float(price_siblings[1].text)
-                    if price_siblings[1].text != "NA"
-                    else np.nan,
-                    float(direction_siblings[1].text)
-                    if direction_siblings[1].text != "NA"
-                    else np.nan,
-                    float(price_siblings[2].text)
-                    if price_siblings[2].text != "NA"
-                    else np.nan,
+                    (
+                        float(price_siblings[0].text)
+                        if price_siblings[0].text != "NA"
+                        else np.nan
+                    ),
+                    (
+                        float(direction_siblings[0].text)
+                        if direction_siblings[0].text != "NA"
+                        else np.nan
+                    ),
+                    (
+                        float(price_siblings[1].text)
+                        if price_siblings[1].text != "NA"
+                        else np.nan
+                    ),
+                    (
+                        float(direction_siblings[1].text)
+                        if direction_siblings[1].text != "NA"
+                        else np.nan
+                    ),
+                    (
+                        float(price_siblings[2].text)
+                        if price_siblings[2].text != "NA"
+                        else np.nan
+                    ),
                 )
 
         df_ng["date"] = pd.to_datetime(close_date)
@@ -741,13 +755,48 @@ def _handle_fuel_type_data(df):
         values="MW",
     ).reset_index()
 
+    # Handle case-insensitive column duplicates (e.g. "Pumped Storage","Pumped storage")
+    df.columns = df.columns.str.lower()
+    for col in df.columns[df.columns.duplicated()]:
+        total = df[col].sum(axis="columns")
+        df = df.drop(columns=col)
+        df[col] = total
+
+    df.columns = df.columns.str.title()
+
+    possible_fuel_mix_columns = [
+        "Battery",
+        "Battery Storage",
+        "Coal",
+        "Hydro",
+        "Natural Gas",
+        "Nuclear",
+        "Other",
+        "Petroleum",
+        "Pumped Storage",
+        "Solar",
+        "Solar Battery",
+        "Solar With Integrated Battery Storage",
+        "Unknown Energy",
+        "Unknown Energy Storage",
+        "Wind",
+    ]
+
+    for col in possible_fuel_mix_columns:
+        if col not in df.columns:
+            # This has to be np.nan not pd.NA because we are converting to float
+            df[col] = np.nan
+
     fuel_mix_cols = df.columns[4:]
 
-    # nans after pivot because not
-    # all respondents have all fuel types
+    # nans after pivot because not all respondents have all fuel types
+    # Why are we filling these with 0? A value of 0 means something different than NaN
     df[fuel_mix_cols] = df[fuel_mix_cols].astype(float).fillna(0)
-
     df.columns.name = None
+
+    # Set final column order with title case
+    fixed_cols = ["Interval Start", "Interval End", "Respondent", "Respondent Name"]
+    df = df[fixed_cols + sorted(col for col in df.columns if col not in fixed_cols)]
 
     df = df.sort_values(["Interval Start", "Respondent"])
 
