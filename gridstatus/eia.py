@@ -753,25 +753,26 @@ def _handle_fuel_type_data(df):
 
     df["MW"] = df["MW"].astype(float)
 
+    # The raw data will sometimes have case-insensitive duplicates
+    # (e.g. "Pumped Storage","Pumped storage"). We can handle that through the pivot
+    # table by summing the duplicates.
+    df["type-name"] = df["type-name"].str.lower()
+
     # pivot on type
     df = df.pivot_table(
         index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
         columns="type-name",
         values="MW",
+        aggfunc="sum",
     ).reset_index()
 
-    # Handle case-insensitive column duplicates (e.g. "Pumped Storage","Pumped storage")
-    df.columns = df.columns.str.lower()
-    for col in df.columns[df.columns.duplicated()]:
-        total = df[col].sum(axis="columns")
-        df = df.drop(columns=col)
-        df[col] = total
+    df.columns.name = None
 
     df.columns = df.columns.str.title()
 
-    # These are the known columns as of 2024-11-08
-    # If EIA adds new columns, we still want to keep them, but we also want to be
-    # notified of them
+    # These are the known columns as of 2024-11-08. EIA has a habit of adding
+    # new columns to this dataset and if new columns are added, we want to be
+    # notified of them.
     known_fuel_mix_columns = [
         "Battery",
         "Battery Storage",
@@ -795,18 +796,15 @@ def _handle_fuel_type_data(df):
             # This has to be np.nan not pd.NA because we are converting to float
             df[col] = np.nan
 
-    fuel_mix_cols = df.columns[4:]
+    fixed_cols = ["Interval Start", "Interval End", "Respondent", "Respondent Name"]
+    fuel_mix_cols = [col for col in df.columns if col not in fixed_cols]
 
-    # nans after pivot because not all respondents have all fuel types
-    # Why are we filling these with 0? A value of 0 means something different than NaN
-    df[fuel_mix_cols] = df[fuel_mix_cols].astype(float).fillna(0)
-    df.columns.name = None
+    df[fuel_mix_cols] = df[fuel_mix_cols].astype(float)
 
     # Set final column order with title case
-    fixed_cols = ["Interval Start", "Interval End", "Respondent", "Respondent Name"]
-    df = df[fixed_cols + sorted(col for col in df.columns if col not in fixed_cols)]
+    df = df[fixed_cols + sorted(fuel_mix_cols)]
 
-    # Find any unknown columns
+    # Find any unknown columns and log them
     unknown_columns = set(df.columns) - set(known_fuel_mix_columns) - set(fixed_cols)
 
     if unknown_columns:
