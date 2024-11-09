@@ -14,7 +14,9 @@ from tqdm import tqdm
 
 import gridstatus
 from gridstatus import utils
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import setup_gs_logger
+
+logger = setup_gs_logger()
 
 HENRY_HUB_NATURAL_GAS_SPOT_PRICES_PATH = "natural-gas/pri/fut"
 # Physical location of Henry Hub is Louisiana
@@ -172,12 +174,10 @@ class EIA:
             "X-Params": json.dumps(params),
         }
 
-        log(f"Fetching data from {url}", verbose=verbose)
-        log(f"Params: {params}", verbose=verbose)
-        log(
-            f"Concurrent workers: {n_workers}",
-            verbose=verbose,
-        )
+        if verbose:
+            logger.info(f"Fetching data from {url}")
+            logger.info(f"Params: {params}")
+            logger.info(f"Concurrent workers: {n_workers}")
 
         raw_df, total_records = self._fetch_page(url, headers)
 
@@ -275,7 +275,8 @@ class EIA:
 
         def fetch_grid_monitor(grid_monitor):
             url = grid_monitor["URL"]
-            log(f"Fetching data from {url}", verbose=verbose)
+            if verbose:
+                logger.info(f"Fetching data from {url}")
             df = pd.read_excel(url, sheet_name="Published Hourly Data")
 
             rename = {
@@ -384,7 +385,9 @@ class EIA:
         def contains_wholesale_petroleum(text):
             return text and "Wholesale Spot Petroleum Prices" in text
 
-        log(f"Downloading {url}", verbose)
+        if verbose:
+            logger.info(f"Downloading {url}", verbose)
+
         with requests.get(url) as response:
             content = response.content
             soup = BeautifulSoup(content, "html.parser")
@@ -538,7 +541,9 @@ class EIA:
         coal_exports = {key: [] for key in coal_export_keys}
         coke_exports = {key: [] for key in coke_export_keys}
 
-        log(f"Downloading {url}", verbose)
+        if verbose:
+            logger.info(f"Downloading {url}")
+
         with requests.get(url) as r:
             json = r.json()
 
@@ -764,7 +769,10 @@ def _handle_fuel_type_data(df):
 
     df.columns = df.columns.str.title()
 
-    possible_fuel_mix_columns = [
+    # These are the known columns as of 2024-11-08
+    # If EIA adds new columns, we still want to keep them, but we also want to be
+    # notified of them
+    known_fuel_mix_columns = [
         "Battery",
         "Battery Storage",
         "Coal",
@@ -782,7 +790,7 @@ def _handle_fuel_type_data(df):
         "Wind",
     ]
 
-    for col in possible_fuel_mix_columns:
+    for col in known_fuel_mix_columns:
         if col not in df.columns:
             # This has to be np.nan not pd.NA because we are converting to float
             df[col] = np.nan
@@ -797,6 +805,12 @@ def _handle_fuel_type_data(df):
     # Set final column order with title case
     fixed_cols = ["Interval Start", "Interval End", "Respondent", "Respondent Name"]
     df = df[fixed_cols + sorted(col for col in df.columns if col not in fixed_cols)]
+
+    # Find any unknown columns
+    unknown_columns = set(df.columns) - set(known_fuel_mix_columns) - set(fixed_cols)
+
+    if unknown_columns:
+        logger.warning(f"Unknown columns found in fuel type data: {unknown_columns}")
 
     df = df.sort_values(["Interval Start", "Respondent"])
 
