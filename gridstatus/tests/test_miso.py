@@ -448,13 +448,14 @@ class TestMISO(BaseTestISO):
             f"test_get_miso_binding_constraints_supplemental_{date}_{end}.yaml"
         )
         with api_vcr.use_cassette(cassette_name):
-            result = self.iso.get_miso_binding_constraints_supplemental(
+            df = self.iso.get_miso_binding_constraints_supplemental(
                 date=date,
                 end=end,
             )
+            df.to_csv(f"supplemental_{date}_{end}.csv")
 
-            assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
                 "Market Date",
                 "Publish Date",
                 "Constraint ID",
@@ -475,24 +476,25 @@ class TestMISO(BaseTestISO):
                 "To KV",
             ]
 
-            assert min(result["Market Date"]).date() == pd.Timestamp(date).date()
-            assert max(result["Market Date"]).date() <= pd.Timestamp(end).date()
-            assert result["Constraint ID"].dtype == np.int64
-            assert result["Constraint Name"].dtype == object
-            assert result["Contingency Name"].dtype == object
-            assert result["Constraint Type"].dtype == object
-            assert result["Flowgate Name"].dtype == object
-            assert result["Device Type"].dtype == object
-            assert result["Key1"].dtype == object
-            assert result["Key2"].dtype == object
-            assert result["Key3"].dtype == object
-            assert result["Direction"].dtype == object
-            assert result["From Area"].dtype == object
-            assert result["To Area"].dtype == object
-            assert result["From Station"].dtype == object
-            assert result["To Station"].dtype == object
-            assert result["From KV"].dtype in [np.int64, np.float64]
-            assert result["To KV"].dtype in [np.int64, np.float64]
+            query_date = pd.to_datetime(date) + pd.Timedelta("1D")
+            assert min(df["Market Date"]).date() == query_date.date()
+            assert max(df["Market Date"]).date() <= pd.Timestamp(end).date()
+            assert df["Constraint ID"].dtype == np.int64
+            assert df["Constraint Name"].dtype == object
+            assert df["Contingency Name"].dtype == object
+            assert df["Constraint Type"].dtype == object
+            assert df["Flowgate Name"].dtype == object
+            assert df["Device Type"].dtype == object
+            assert df["Key1"].dtype == object
+            assert df["Key2"].dtype == object
+            assert df["Key3"].dtype == object
+            assert df["Direction"].dtype == np.int64
+            assert df["From Area"].dtype == object
+            assert df["To Area"].dtype == object
+            assert df["From Station"].dtype == object
+            assert df["To Station"].dtype == object
+            assert df["From KV"].dtype in [np.int64, np.float64]
+            assert df["To KV"].dtype in [np.int64, np.float64]
 
     @pytest.mark.parametrize(
         "date,end",
@@ -503,13 +505,13 @@ class TestMISO(BaseTestISO):
             f"test_get_miso_binding_constraints_day_ahead_hourly_{date}_{end}.yaml"
         )
         with api_vcr.use_cassette(cassette_name):
-            result = self.iso.get_miso_binding_constraints_day_ahead_hourly(
+            df = self.iso.get_miso_binding_constraints_day_ahead_hourly(
                 date=date,
                 end=end,
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Publish Date",
@@ -529,21 +531,21 @@ class TestMISO(BaseTestISO):
                 "Reason",
             ]
 
-            assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
-            assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
-            assert result["Constraint_ID"].dtype == np.int64
-            assert result["Constraint Name"].dtype == object
-            assert result["Branch Name"].dtype == object
-            assert result["Contingency Description"].dtype == object
-            assert result["Shadow Price"].dtype in [np.float64, np.int64]
-            assert result["Constraint Description"].dtype == object
-            assert result["Override"].dtype == object
-            assert result["Curve Type"].dtype == object
-            assert result["BP1"].dtype in [np.float64, np.int64]
-            assert result["PC1"].dtype in [np.float64, np.int64]
-            assert result["BP2"].dtype in [np.float64, np.int64]
-            assert result["PC2"].dtype in [np.float64, np.int64]
-            assert result["Reason"].dtype == object
+            assert min(df["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            assert df["Constraint_ID"].dtype == np.int64
+            assert df["Constraint Name"].dtype == object
+            assert df["Branch Name"].dtype == object
+            assert df["Contingency Description"].dtype == object
+            assert df["Shadow Price"].dtype in [np.float64, np.int64]
+            assert df["Constraint Description"].dtype == object
+            assert df["Override"].dtype == object
+            assert df["Curve Type"].dtype == object
+            assert df["BP1"].dtype in [np.float64, np.int64]
+            assert df["PC1"].dtype in [np.float64, np.int64]
+            assert df["BP2"].dtype in [np.float64, np.int64]
+            assert df["PC2"].dtype in [np.float64, np.int64]
+            assert df["Reason"].dtype == object
 
     @pytest.mark.parametrize(
         "date,end",
@@ -556,13 +558,13 @@ class TestMISO(BaseTestISO):
     ):
         cassette_name = f"test_get_miso_binding_subregional_power_balance_constraints_day_ahead_hourly_{date}_{end}.yaml"
         with api_vcr.use_cassette(cassette_name):
-            result = self.iso.get_miso_binding_subregional_power_balance_constraints_day_ahead_hourly(
+            df = self.iso.get_miso_binding_subregional_power_balance_constraints_day_ahead_hourly(
                 date=date,
                 end=end,
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "CONSTRAINT_NAME",
@@ -580,18 +582,19 @@ class TestMISO(BaseTestISO):
                 "REASON",
             ]
 
-            assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
-            assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
-            assert result["CONSTRAINT_NAME"].dtype == object
-            assert result["PRELIMINARY_SHADOW_PRICE"].dtype in [np.float64, np.int64]
-            assert result["CURVETYPE"].dtype == object
-            assert result["BP1"].dtype in [np.float64, np.int64]
-            assert result["PC1"].dtype in [np.float64, np.int64]
-            assert result["BP2"].dtype in [np.float64, np.int64]
-            assert result["PC2"].dtype in [np.float64, np.int64]
-            assert result["BP3"].dtype in [np.float64, np.int64]
-            assert result["PC3"].dtype in [np.float64, np.int64]
-            assert result["BP4"].dtype in [np.float64, np.int64]
-            assert result["PC4"].dtype in [np.float64, np.int64]
-            assert result["OVERRIDE"].dtype == object
-            assert result["REASON"].dtype == object
+            query_date = date - pd.Timedelta("1D")
+            assert min(df["Interval Start"]).date() == query_date.date()
+            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            assert df["CONSTRAINT_NAME"].dtype == object
+            assert df["PRELIMINARY_SHADOW_PRICE"].dtype in [np.float64, np.int64]
+            assert df["CURVETYPE"].dtype == object
+            assert df["BP1"].dtype in [np.float64, np.int64]
+            assert df["PC1"].dtype in [np.float64, np.int64]
+            assert df["BP2"].dtype in [np.float64, np.int64]
+            assert df["PC2"].dtype in [np.float64, np.int64]
+            assert df["BP3"].dtype in [np.float64, np.int64]
+            assert df["PC3"].dtype in [np.float64, np.int64]
+            assert df["BP4"].dtype in [np.float64, np.int64]
+            assert df["PC4"].dtype in [np.float64, np.int64]
+            assert df["OVERRIDE"].dtype == object
+            assert df["REASON"].dtype == object

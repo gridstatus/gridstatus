@@ -61,6 +61,7 @@ coverage.xml
 .pytest_cache/
 cover/
 mypy_report/
+gridstatus/tests/fixtures/miso/vcr_cassettes
 
 # Translations
 *.mo
