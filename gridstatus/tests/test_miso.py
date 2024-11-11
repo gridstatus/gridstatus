@@ -24,7 +24,7 @@ class TestMISO(BaseTestISO):
     ]
 
     # NOTE(kladar): Some constraint datasets are sparse, so make sure we have data for these tests
-    real_time_constraint_dates = [
+    constraint_dates = [
         ("2024-11-08", "2024-11-10"),
     ]
 
@@ -593,7 +593,7 @@ class TestMISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date,end",
-        test_dates,
+        constraint_dates,
     )
     def test_get_miso_reserve_product_binding_constraints_day_ahead_hourly(
         self,
@@ -694,7 +694,7 @@ class TestMISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date,end",
-        real_time_constraint_dates,
+        constraint_dates,
     )
     def test_get_miso_binding_constraint_overrides_real_time_5_min(self, date, end):
         cassette_name = f"test_get_miso_binding_constraint_overrides_real_time_5_min_{date}_{end}.yaml"
@@ -723,12 +723,17 @@ class TestMISO(BaseTestISO):
                 "Reason",
             ]
 
+            if df.empty:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
+
             assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
             assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
 
     @pytest.mark.parametrize(
         "date,end",
-        real_time_constraint_dates,
+        constraint_dates,
     )
     def test_get_miso_binding_subregional_power_balance_constraints_real_time_5_min(
         self,
@@ -761,12 +766,17 @@ class TestMISO(BaseTestISO):
                 "REASON",
             ]
 
+            if df.empty:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
+
             assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
             assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
 
     @pytest.mark.parametrize(
         "date,end",
-        real_time_constraint_dates,
+        constraint_dates,
     )
     def test_get_miso_reserve_product_binding_constraints_real_time_5_min(
         self,
