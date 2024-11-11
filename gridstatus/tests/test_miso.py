@@ -476,8 +476,7 @@ class TestMISO(BaseTestISO):
                 "To KV",
             ]
 
-            query_date = pd.to_datetime(date) + pd.Timedelta("1D")
-            assert min(df["Market Date"]).date() == query_date.date()
+            assert min(df["Market Date"]).date() == pd.to_datetime(date).date()
             assert max(df["Market Date"]).date() <= pd.Timestamp(end).date()
             assert df["Constraint ID"].dtype == np.int64
             assert df["Constraint Name"].dtype == object
