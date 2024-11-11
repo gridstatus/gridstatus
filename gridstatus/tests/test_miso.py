@@ -456,7 +456,6 @@ class TestMISO(BaseTestISO):
             assert isinstance(df, pd.DataFrame)
             assert list(df.columns) == [
                 "Market Date",
-                "Publish Date",
                 "Constraint ID",
                 "Constraint Name",
                 "Contingency Name",
@@ -685,7 +684,7 @@ class TestMISO(BaseTestISO):
                 "PC2",
             ]
 
-            assert min(df["Interval Start"]).year == year
+            assert min(df["Interval End"]).year == year
             assert max(df["Interval End"]).year == year
 
     @pytest.mark.parametrize(
