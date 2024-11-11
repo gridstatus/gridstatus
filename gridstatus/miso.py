@@ -1232,6 +1232,17 @@ class MISO(ISOBase):
         # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
         # in the column names, so we clean it all up.
         data = data.iloc[:-1]
+        if data.empty:
+            return pd.DataFrame(
+                columns=[
+                    "Interval Start",
+                    "Interval End",
+                    "Constraint Name",
+                    "Shadow Price",
+                    "Constraint Description",
+                ],
+            )
+
         data["Interval End"] = pd.to_datetime(data["Time of Occurence"]).dt.tz_localize(
             self.default_timezone,
         )  # NOTE(kladar) sic, this is a persistent typo from MISO
