@@ -732,7 +732,7 @@ class MISO(ISOBase):
         ]
 
     @support_date_range(frequency="DAY_START")
-    def get_miso_binding_constraints_day_ahead_hourly(
+    def get_binding_constraints_day_ahead_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
@@ -789,7 +789,7 @@ class MISO(ISOBase):
         ]
 
     # NOTE(kladar): Mostly this method is used for efficient backfilling
-    def get_miso_binding_constraints_day_ahead_yearly_historical(
+    def get_binding_constraints_day_ahead_yearly_historical(
         self,
         year: int,
         verbose: bool = False,
@@ -845,7 +845,7 @@ class MISO(ISOBase):
         ]
 
     @support_date_range(frequency="DAY_START")
-    def get_miso_binding_subregional_power_balance_constraints_day_ahead_hourly(
+    def get_subregional_power_balance_constraints_day_ahead_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
@@ -922,7 +922,7 @@ class MISO(ISOBase):
         ]
 
     @support_date_range(frequency="DAY_START")
-    def get_miso_reserve_product_binding_constraints_day_ahead_hourly(
+    def get_reserve_product_binding_constraints_day_ahead_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
@@ -962,7 +962,7 @@ class MISO(ISOBase):
         ]
 
     @support_date_range(frequency="DAY_START")
-    def get_miso_binding_constraints_real_time_5_min(
+    def get_binding_constraints_real_time_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
@@ -1022,7 +1022,7 @@ class MISO(ISOBase):
         ]
 
     # NOTE(kladar): Mostly this method is used for efficient backfilling
-    def get_miso_binding_constraints_real_time_yearly_historical(
+    def get_binding_constraints_real_time_yearly_historical(
         self,
         year: int,
         verbose: bool = False,
@@ -1089,7 +1089,7 @@ class MISO(ISOBase):
         ]
 
     @support_date_range(frequency="DAY_START")
-    def get_miso_binding_constraint_overrides_real_time_5_min(
+    def get_binding_constraint_overrides_real_time_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
@@ -1150,7 +1150,7 @@ class MISO(ISOBase):
         ]
 
     @support_date_range(frequency="DAY_START")
-    def get_miso_binding_subregional_power_balance_constraints_real_time_5_min(
+    def get_subregional_power_balance_constraints_real_time_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
@@ -1215,7 +1215,7 @@ class MISO(ISOBase):
         ]
 
     @support_date_range(frequency="DAY_START")
-    def get_miso_reserve_product_binding_constraints_real_time_5_min(
+    def get_reserve_product_binding_constraints_real_time_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
