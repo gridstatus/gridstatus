@@ -596,3 +596,199 @@ class TestMISO(BaseTestISO):
             assert df["PC4"].dtype in [np.float64, np.int64]
             assert df["OVERRIDE"].dtype == object
             assert df["REASON"].dtype == object
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_miso_reserve_product_binding_constraints_day_ahead_hourly(
+        self,
+        date,
+        end,
+    ):
+        cassette_name = f"test_get_miso_reserve_product_binding_constraints_day_ahead_hourly_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_miso_reserve_product_binding_constraints_day_ahead_hourly(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Shadow Price",
+                "Constraint Description",
+            ]
+
+            assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_miso_binding_constraints_real_time_5_min(self, date, end):
+        cassette_name = (
+            f"test_get_miso_binding_constraints_real_time_5_min_{date}_{end}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_miso_binding_constraints_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Preliminary Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+            ]
+
+            assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+
+    def test_get_miso_binding_constraints_real_time_yearly_historical(self):
+        year = 2023
+        cassette_name = (
+            f"test_get_miso_binding_constraints_real_time_yearly_historical_{year}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_miso_binding_constraints_real_time_yearly_historical(
+                year=year,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Preliminary Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+            ]
+
+            assert min(df["Interval Start"]).year == year
+            assert max(df["Interval End"]).year == year
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_miso_binding_constraint_overrides_real_time_5_min(self, date, end):
+        cassette_name = f"test_get_miso_binding_constraint_overrides_real_time_5_min_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_miso_binding_constraint_overrides_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Preliminary Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "Reason",
+            ]
+
+            assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_miso_binding_subregional_power_balance_constraints_real_time_5_min(
+        self,
+        date,
+        end,
+    ):
+        cassette_name = f"test_get_miso_binding_subregional_power_balance_constraints_real_time_5_min_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_miso_binding_subregional_power_balance_constraints_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "CONSTRAINT_NAME",
+                "PRELIMINARY_SHADOW_PRICE",
+                "CURVETYPE",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "BP3",
+                "PC3",
+                "BP4",
+                "PC4",
+                "OVERRIDE",
+                "REASON",
+            ]
+
+            assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_miso_reserve_product_binding_constraints_real_time_5_min(
+        self,
+        date,
+        end,
+    ):
+        cassette_name = f"test_get_miso_reserve_product_binding_constraints_real_time_5_min_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_miso_reserve_product_binding_constraints_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Shadow Price",
+                "Constraint Description",
+            ]
+
+            assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
