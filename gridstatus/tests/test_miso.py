@@ -740,7 +740,7 @@ class TestMISO(BaseTestISO):
         date,
         end,
     ):
-        cassette_name = f"test_get_miso_binding_subregional_power_balance_constraints_real_time_5_min_{date}_{end}.yaml"
+        cassette_name = f"test_get_subregional_power_balance_constraints_real_time_5_min_{date}_{end}.yaml"
         with api_vcr.use_cassette(cassette_name):
             df = self.iso.get_subregional_power_balance_constraints_real_time_5_min(
                 date=date,
@@ -783,7 +783,7 @@ class TestMISO(BaseTestISO):
         date,
         end,
     ):
-        cassette_name = f"test_get_miso_reserve_product_binding_constraints_real_time_5_min_{date}_{end}.yaml"
+        cassette_name = f"test_get_reserve_product_binding_constraints_real_time_5_min_{date}_{end}.yaml"
         with api_vcr.use_cassette(cassette_name):
             df = self.iso.get_reserve_product_binding_constraints_real_time_5_min(
                 date=date,
