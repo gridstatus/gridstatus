@@ -452,7 +452,6 @@ class TestMISO(BaseTestISO):
                 date=date,
                 end=end,
             )
-            df.to_csv(f"supplemental_{date}_{end}.csv")
 
             assert isinstance(df, pd.DataFrame)
             assert list(df.columns) == [
