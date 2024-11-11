@@ -976,7 +976,13 @@ class MISO(ISOBase):
         market_date, publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )
-        data = pd.read_excel(excel_file, skiprows=3)
+        data = pd.read_excel(
+            excel_file,
+            skiprows=3,
+            dtype={
+                "Constraint Description": object,
+            },
+        )
 
         data["Interval End"] = pd.to_datetime(
             market_date.strftime("%Y-%m-%d")
@@ -1033,7 +1039,13 @@ class MISO(ISOBase):
         url = f"https://docs.misoenergy.org/marketreports/{year}_rt_bc_HIST.csv"
         logger.info(f"Downloading real-time binding constraints data from {url}")
 
-        data = pd.read_csv(url, skiprows=2)
+        data = pd.read_csv(
+            url,
+            skiprows=2,
+            dtype={
+                "Constraint Description": object,
+            },
+        )
         data = data.iloc[
             :-2
         ]  # NOTE(kladar): The last two rows are report descriptions and disclaimers
@@ -1093,7 +1105,14 @@ class MISO(ISOBase):
         market_date, publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )
-        data = pd.read_excel(excel_file, skiprows=3)
+        data = pd.read_excel(
+            excel_file,
+            skiprows=3,
+            dtype={
+                "Constraint Description": object,
+                "Reason": object,
+            },
+        )
 
         data["Interval End"] = pd.to_datetime(
             market_date.strftime("%Y-%m-%d")
