@@ -513,7 +513,7 @@ class TestMISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Flowgate NERC ID",
-                "Constraint_ID",
+                "Constraint ID",
                 "Constraint Name",
                 "Branch Name",
                 "Contingency Description",
@@ -530,13 +530,13 @@ class TestMISO(BaseTestISO):
 
             assert min(df["Interval Start"]).date() == pd.Timestamp(date).date()
             assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
-            assert df["Constraint_ID"].dtype == np.int64
+            assert df["Constraint ID"].dtype == np.int64
             assert df["Constraint Name"].dtype == object
             assert df["Branch Name"].dtype == object
             assert df["Contingency Description"].dtype == object
             assert df["Shadow Price"].dtype in [np.float64, np.int64]
             assert df["Constraint Description"].dtype == object
-            assert df["Override"].dtype == object
+            assert df["Override"].dtype == np.int64
             assert df["Curve Type"].dtype == object
             assert df["BP1"].dtype in [np.float64, np.int64]
             assert df["PC1"].dtype in [np.float64, np.int64]

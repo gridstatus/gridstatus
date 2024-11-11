@@ -746,7 +746,14 @@ class MISO(ISOBase):
         market_date, publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )
-        data = pd.read_excel(excel_file, skiprows=3)
+        data = pd.read_excel(
+            excel_file,
+            skiprows=3,
+            dtype={
+                "Constraint Description": object,
+                "Reason": object,
+            },
+        )
 
         data["Interval End"] = market_date + pd.to_timedelta(
             data["Hour of Occurrence"],
