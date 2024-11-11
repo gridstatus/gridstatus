@@ -707,11 +707,11 @@ class MISO(ISOBase):
             excel_file,
         )
         data = pd.read_excel(excel_file, skiprows=3)
-        data["Market Date"] = market_date
+        data["Date"] = market_date
 
         return data[
             [
-                "Market Date",
+                "Date",
                 "Constraint ID",
                 "Constraint Name",
                 "Contingency Name",
