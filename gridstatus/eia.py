@@ -758,6 +758,16 @@ def _handle_fuel_type_data(df):
     # table by summing the duplicates.
     df["type-name"] = df["type-name"].str.lower()
 
+    # These columns are grouped together by EIA as confirmed by inspection of the EIA
+    # fuel mix graphs
+    df["type-name"] = df["type-name"].replace(
+        {
+            "battery": "battery storage",
+            "solar battery": "solar with integrated battery storage",
+            "unknown energy": "unknown energy storage",
+        },
+    )
+
     # pivot on type
     df = df.pivot_table(
         index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
@@ -770,11 +780,10 @@ def _handle_fuel_type_data(df):
 
     df.columns = df.columns.str.title()
 
-    # These are the known columns as of 2024-11-08. EIA has a habit of adding
+    # These are the known columns as of 2024-11-11. EIA has a habit of adding
     # new columns to this dataset and if new columns are added, we want to be
     # notified of them.
     known_fuel_mix_columns = [
-        "Battery",
         "Battery Storage",
         "Coal",
         "Hydro",
@@ -784,9 +793,7 @@ def _handle_fuel_type_data(df):
         "Petroleum",
         "Pumped Storage",
         "Solar",
-        "Solar Battery",
         "Solar With Integrated Battery Storage",
-        "Unknown Energy",
         "Unknown Energy Storage",
         "Wind",
     ]

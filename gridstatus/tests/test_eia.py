@@ -64,7 +64,6 @@ def _check_fuel_type(df):
         "Interval End",
         "Respondent",
         "Respondent Name",
-        "Battery",
         "Battery Storage",
         "Coal",
         "Hydro",
@@ -74,9 +73,7 @@ def _check_fuel_type(df):
         "Petroleum",
         "Pumped Storage",
         "Solar",
-        "Solar Battery",
         "Solar With Integrated Battery Storage",
-        "Unknown Energy",
         "Unknown Energy Storage",
         "Wind",
     ]
