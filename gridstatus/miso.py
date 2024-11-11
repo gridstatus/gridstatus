@@ -680,7 +680,7 @@ class MISO(ISOBase):
         )
 
     @support_date_range(frequency="DAY_START")
-    def get_miso_binding_constraints_supplemental(
+    def get_binding_constraints_supplemental(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
