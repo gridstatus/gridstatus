@@ -512,7 +512,6 @@ class TestMISO(BaseTestISO):
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
-                "Publish Date",
                 "Flowgate NERC ID",
                 "Constraint_ID",
                 "Constraint Name",
