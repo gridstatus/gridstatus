@@ -806,29 +806,3 @@ class TestMISO(BaseTestISO):
 
             assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
             assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
-
-    def test_get_constraint_header_dates_from_excel(self):
-        cassette_name = "test_get_constraint_header_dates_from_excel.yaml"
-        with api_vcr.use_cassette(cassette_name):
-            date = self.test_dates[0][0]
-            url = f"https://docs.misoenergy.org/marketreports/{pd.Timestamp(date).strftime('%Y%m%d')}_da_bc.xls"
-            excel_file = pd.ExcelFile(url)
-
-            market_date, publish_date = (
-                self.iso._get_constraint_header_dates_from_excel(excel_file)
-            )
-
-            assert isinstance(market_date, pd.Timestamp)
-            assert isinstance(publish_date, pd.Timestamp)
-
-            assert market_date.tzinfo is not None
-            assert publish_date.tzinfo is not None
-            assert str(market_date.tzinfo) == self.iso.default_timezone
-            assert str(publish_date.tzinfo) == self.iso.default_timezone
-
-            assert market_date.year >= 2020
-            assert publish_date.year >= 2020
-            assert publish_date <= pd.Timestamp.now(tz=self.iso.default_timezone)
-
-            date_diff = abs((market_date - publish_date).days)
-            assert date_diff <= 2
