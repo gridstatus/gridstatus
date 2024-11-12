@@ -753,6 +753,10 @@ class MISO(ISOBase):
                 "Constraint Description": object,
                 "Reason": object,
                 "Shadow Price": float,
+                "BP1": float,
+                "PC1": float,
+                "BP2": float,
+                "PC2": float,
             },
         )
 
