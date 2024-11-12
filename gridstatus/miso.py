@@ -752,6 +752,7 @@ class MISO(ISOBase):
             dtype={
                 "Constraint Description": object,
                 "Reason": object,
+                "Shadow Price": float,
             },
         )
 
