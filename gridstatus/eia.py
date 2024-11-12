@@ -753,13 +753,13 @@ def _handle_fuel_type_data(df):
 
     df["MW"] = df["MW"].astype(float)
 
-    # The raw data will sometimes have case-insensitive duplicates
+    # The raw data will sometimes have case-sensitive duplicates
     # (e.g. "Pumped Storage","Pumped storage"). We can handle that through the pivot
-    # table by summing the duplicates.
+    # table by summing the duplicates across case-insensitive names.
     df["type-name"] = df["type-name"].str.lower()
 
     # These columns are grouped together by EIA as confirmed by inspection of the EIA
-    # fuel mix graphs
+    # fuel mix graphs. https://www.eia.gov/electricity/gridmonitor/expanded-view/electric_overview/US48/US48/GenerationByEnergySource-4/edit # noqa
     df["type-name"] = df["type-name"].replace(
         {
             "battery": "battery storage",
@@ -768,7 +768,7 @@ def _handle_fuel_type_data(df):
         },
     )
 
-    # pivot on type
+    # Pivot on fuel type
     df = df.pivot_table(
         index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
         columns="type-name",
@@ -780,9 +780,8 @@ def _handle_fuel_type_data(df):
 
     df.columns = df.columns.str.title()
 
-    # These are the known columns as of 2024-11-11. EIA has a habit of adding
-    # new columns to this dataset and if new columns are added, we want to be
-    # notified of them.
+    # These are the known columns as of 2024-11-11. EIA has an observed trend of adding
+    # new columns to this dataset.
     known_fuel_mix_columns = [
         "Battery Storage",
         "Coal",
