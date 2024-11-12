@@ -581,11 +581,6 @@ class TestMISO(BaseTestISO):
                 "REASON",
             ]
 
-            if df.empty:
-                pytest.skip(
-                    "No data available for this date range, so skipping data-comparison assertions",
-                )
-
             assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
             assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
 
@@ -649,11 +644,6 @@ class TestMISO(BaseTestISO):
                 "BP2",
                 "PC2",
             ]
-
-            if df.empty:
-                pytest.skip(
-                    "No data available for this date range, so skipping data-comparison assertions",
-                )
 
             assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
             assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
@@ -723,11 +713,6 @@ class TestMISO(BaseTestISO):
                 "Reason",
             ]
 
-            if df.empty:
-                pytest.skip(
-                    "No data available for this date range, so skipping data-comparison assertions",
-                )
-
             assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
             assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
 
@@ -766,11 +751,6 @@ class TestMISO(BaseTestISO):
                 "REASON",
             ]
 
-            if df.empty:
-                pytest.skip(
-                    "No data available for this date range, so skipping data-comparison assertions",
-                )
-
             assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
             assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
 
@@ -798,11 +778,6 @@ class TestMISO(BaseTestISO):
                 "Shadow Price",
                 "Constraint Description",
             ]
-
-            if df.empty:
-                pytest.skip(
-                    "No data available for this date range, so skipping data-comparison assertions",
-                )
 
             assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
             assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
