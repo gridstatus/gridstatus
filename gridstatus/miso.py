@@ -855,26 +855,30 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Get the day-ahead subregional power balance constraints data from MISO.
-
-        Source URL: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ADay-Ahead%2FMarketReportName%3ASubregional%20Power%20Balance%20Constraints%20(csv)&t=10&p=0&s=MarketReportPublished&sd=desc
-
-        Args:
-            date (str | pd.Timestamp): Start date
-            end (str | pd.Timestamp, optional): End date. Defaults to None.
-            verbose (bool, optional): Verbosity. Defaults to False.
-
-        Returns:
-            pandas.DataFrame: Day-ahead subregional power balance constraints data
-        """
+    ):
         query_date = date - pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_pbc.csv"
         logger.info(
             f"Downloading day-ahead subregional power balance constraints data from {url}",
         )
 
-        data = pd.read_csv(url, skiprows=3, index_col=False)
+        data = pd.read_csv(
+            url,
+            skiprows=3,
+            index_col=False,
+            dtype={
+                "PRELIMINARY_SHADOW_PRICE": float,
+                "BP1": float,
+                "PC1": float,
+                "BP2": float,
+                "PC2": float,
+                "BP3": float,
+                "PC3": float,
+                "BP4": float,
+                "PC4": float,
+                "REASON": object,
+            },
+        )
 
         # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
         # in the column names, so we clean it all up.
@@ -1172,7 +1176,23 @@ class MISO(ISOBase):
             f"Downloading real-time subregional power balance constraints data from {url}",
         )
 
-        data = pd.read_csv(url, skiprows=3, index_col=False)
+        data = pd.read_csv(
+            url,
+            skiprows=3,
+            index_col=False,
+            dtype={
+                "PRELIMINARY_SHADOW_PRICE": float,
+                "BP1": float,
+                "PC1": float,
+                "BP2": float,
+                "PC2": float,
+                "BP3": float,
+                "PC3": float,
+                "BP4": float,
+                "PC4": float,
+                "REASON": object,
+            },
+        )
 
         # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
         # in the column names, so we clean it all up.
