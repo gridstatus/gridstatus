@@ -885,25 +885,7 @@ class MISO(ISOBase):
         data = data.iloc[:-1]
         data.columns = data.columns.str.strip()
         if data.empty:
-            return pd.DataFrame(
-                columns=[
-                    "Interval Start",
-                    "Interval End",
-                    "CONSTRAINT_NAME",
-                    "PRELIMINARY_SHADOW_PRICE",
-                    "CURVETYPE",
-                    "BP1",
-                    "PC1",
-                    "BP2",
-                    "PC2",
-                    "BP3",
-                    "PC3",
-                    "BP4",
-                    "PC4",
-                    "OVERRIDE",
-                    "REASON",
-                ],
-            )
+            return NoDataFoundException
 
         data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
             self.default_timezone,
@@ -1006,7 +988,7 @@ class MISO(ISOBase):
             ],  # NOTE(kladar): sic, there are two spaces between "Hour of" and "Occurrence"
         ).dt.tz_localize(
             self.default_timezone,
-        )  # TODO Confirm that these are hour_ending times
+        )
 
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
         data = data.rename(
@@ -1067,7 +1049,7 @@ class MISO(ISOBase):
             data["Market Date"] + " " + data["Hour of Occurrence"],
         ).dt.tz_localize(
             self.default_timezone,
-        )  # TODO Confirm that these are hour_ending times
+        )
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
 
         data = data.rename(
@@ -1199,25 +1181,7 @@ class MISO(ISOBase):
         data = data.iloc[:-1]
         data.columns = data.columns.str.strip()
         if data.empty:
-            return pd.DataFrame(
-                columns=[
-                    "Interval Start",
-                    "Interval End",
-                    "CONSTRAINT_NAME",
-                    "PRELIMINARY_SHADOW_PRICE",
-                    "CURVETYPE",
-                    "BP1",
-                    "PC1",
-                    "BP2",
-                    "PC2",
-                    "BP3",
-                    "PC3",
-                    "BP4",
-                    "PC4",
-                    "OVERRIDE",
-                    "REASON",
-                ],
-            )
+            return NoDataFoundException
 
         data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
             self.default_timezone,
@@ -1263,15 +1227,7 @@ class MISO(ISOBase):
         # in the column names, so we clean it all up.
         data = data.iloc[:-1]
         if data.empty:
-            return pd.DataFrame(
-                columns=[
-                    "Interval Start",
-                    "Interval End",
-                    "Constraint Name",
-                    "Shadow Price",
-                    "Constraint Description",
-                ],
-            )
+            return NoDataFoundException
 
         data["Interval End"] = pd.to_datetime(data["Time of Occurence"]).dt.tz_localize(
             self.default_timezone,
