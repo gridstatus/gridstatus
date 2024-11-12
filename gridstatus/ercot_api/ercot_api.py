@@ -41,7 +41,9 @@ HISTORICAL_DAYS_THRESHOLD = 90
 
 # This file contains the full list of endpoints and their parameters
 # "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"
-ENDPOINTS_MAP_FILE = "./gridstatus/ercot_api/pubapi-apim-api.json"
+# Get the directory containing the current file (ercot_api.py)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+ENDPOINTS_MAP_FILE = os.path.join(CURRENT_DIR, "pubapi-apim-api.json")
 
 # https://data.ercot.com/data-product-archive/NP4-188-CD
 AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
