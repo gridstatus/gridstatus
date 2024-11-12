@@ -39,9 +39,9 @@ DEFAULT_PAGE_SIZE = 100_000
 HISTORICAL_DAYS_THRESHOLD = 90
 
 
-# This file is publicly available and contains the full list of endpoints and their parameters
+# This file contains the full list of endpoints and their parameters
 # "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"
-ENDPOINTS_MAP_FILE = "gridstatus/ercot_api/pubapi-apim-api.json"
+ENDPOINTS_MAP_FILE = "./gridstatus/ercot_api/pubapi-apim-api.json"
 
 # https://data.ercot.com/data-product-archive/NP4-188-CD
 AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
