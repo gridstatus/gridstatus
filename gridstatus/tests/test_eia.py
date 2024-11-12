@@ -58,32 +58,30 @@ def _check_region_subba_data(df):
     assert df.columns.tolist() == columns
 
 
-def _check_fuel_type(df, subset=False):
+def _check_fuel_type(df):
     columns = [
         "Interval Start",
         "Interval End",
         "Respondent",
         "Respondent Name",
+        "Battery Storage",
         "Coal",
         "Hydro",
         "Natural Gas",
         "Nuclear",
         "Other",
         "Petroleum",
+        "Pumped Storage",
         "Solar",
+        "Solar With Integrated Battery Storage",
+        "Unknown Energy Storage",
         "Wind",
     ]
 
     assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
     assert df["Interval End"].dtype == "datetime64[ns, UTC]"
     assert df.shape[0] > 0
-    if subset is False:
-        assert df.columns.tolist() == columns
-
-    # for balancing areas that don't have all forms of generation
-    else:
-        for column in df.columns.tolist():
-            assert column in columns
+    assert df.columns.tolist() == columns
 
 
 def test_list_routes():
@@ -165,7 +163,7 @@ def test_rto_region_subba_data():
 def test_fuel_type():
     eia = gridstatus.EIA()
 
-    start = pd.Timestamp.now() - pd.Timedelta(days=7)
+    start = (pd.Timestamp.utcnow() - pd.Timedelta(days=7)).normalize()
     end = start + pd.Timedelta(days=3)
 
     # dataset that doesnt have a handler yet
@@ -175,7 +173,9 @@ def test_fuel_type():
         end=end,
         verbose=True,
     )
-    assert df.isnull().sum().sum() == 0
+
+    assert df["Interval End"].min() == start
+    assert df["Interval End"].max() == end
 
     _check_fuel_type(df)
 
@@ -194,13 +194,10 @@ def test_facets():
         verbose=True,
         facets={"respondent": ["PACE"]},
     )
-    assert df.isnull().sum().sum() == 0
-    assert all(
-        respondent_name == "PacifiCorp East"
-        for respondent_name in df["Respondent Name"]
-    )
 
-    _check_fuel_type(df, subset=True)
+    assert (df["Respondent Name"] == "PacifiCorp East").all()
+
+    _check_fuel_type(df)
 
 
 def test_daily_spots_and_futures():

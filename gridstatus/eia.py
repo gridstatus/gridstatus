@@ -14,7 +14,9 @@ from tqdm import tqdm
 
 import gridstatus
 from gridstatus import utils
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import setup_gs_logger
+
+logger = setup_gs_logger()
 
 HENRY_HUB_NATURAL_GAS_SPOT_PRICES_PATH = "natural-gas/pri/fut"
 # Physical location of Henry Hub is Louisiana
@@ -172,12 +174,10 @@ class EIA:
             "X-Params": json.dumps(params),
         }
 
-        log(f"Fetching data from {url}", verbose=verbose)
-        log(f"Params: {params}", verbose=verbose)
-        log(
-            f"Concurrent workers: {n_workers}",
-            verbose=verbose,
-        )
+        if verbose:
+            logger.info(f"Fetching data from {url}")
+            logger.info(f"Params: {params}")
+            logger.info(f"Concurrent workers: {n_workers}")
 
         raw_df, total_records = self._fetch_page(url, headers)
 
@@ -275,7 +275,8 @@ class EIA:
 
         def fetch_grid_monitor(grid_monitor):
             url = grid_monitor["URL"]
-            log(f"Fetching data from {url}", verbose=verbose)
+            if verbose:
+                logger.info(f"Fetching data from {url}")
             df = pd.read_excel(url, sheet_name="Published Hourly Data")
 
             rename = {
@@ -384,7 +385,9 @@ class EIA:
         def contains_wholesale_petroleum(text):
             return text and "Wholesale Spot Petroleum Prices" in text
 
-        log(f"Downloading {url}", verbose)
+        if verbose:
+            logger.info(f"Downloading {url}", verbose)
+
         with requests.get(url) as response:
             content = response.content
             soup = BeautifulSoup(content, "html.parser")
@@ -429,12 +432,16 @@ class EIA:
                             df_petrol.loc[len(df_petrol)] = (
                                 text,
                                 s2_elements[i].text,
-                                float(d1_elements[i].text)
-                                if d1_elements[i].text != "NA"
-                                else np.nan,
-                                float(direction_elements[i].text)
-                                if direction_elements[i].text != "NA"
-                                else np.nan,
+                                (
+                                    float(d1_elements[i].text)
+                                    if d1_elements[i].text != "NA"
+                                    else np.nan
+                                ),
+                                (
+                                    float(direction_elements[i].text)
+                                    if direction_elements[i].text != "NA"
+                                    else np.nan
+                                ),
                             )
 
                     rowspan_sum += rowspan
@@ -460,21 +467,31 @@ class EIA:
                 direction_siblings = s1.find_next_siblings("td", class_=directions)
                 df_ng.loc[len(df_ng)] = (
                     s1.text,
-                    float(price_siblings[0].text)
-                    if price_siblings[0].text != "NA"
-                    else np.nan,
-                    float(direction_siblings[0].text)
-                    if direction_siblings[0].text != "NA"
-                    else np.nan,
-                    float(price_siblings[1].text)
-                    if price_siblings[1].text != "NA"
-                    else np.nan,
-                    float(direction_siblings[1].text)
-                    if direction_siblings[1].text != "NA"
-                    else np.nan,
-                    float(price_siblings[2].text)
-                    if price_siblings[2].text != "NA"
-                    else np.nan,
+                    (
+                        float(price_siblings[0].text)
+                        if price_siblings[0].text != "NA"
+                        else np.nan
+                    ),
+                    (
+                        float(direction_siblings[0].text)
+                        if direction_siblings[0].text != "NA"
+                        else np.nan
+                    ),
+                    (
+                        float(price_siblings[1].text)
+                        if price_siblings[1].text != "NA"
+                        else np.nan
+                    ),
+                    (
+                        float(direction_siblings[1].text)
+                        if direction_siblings[1].text != "NA"
+                        else np.nan
+                    ),
+                    (
+                        float(price_siblings[2].text)
+                        if price_siblings[2].text != "NA"
+                        else np.nan
+                    ),
                 )
 
         df_ng["date"] = pd.to_datetime(close_date)
@@ -524,7 +541,9 @@ class EIA:
         coal_exports = {key: [] for key in coal_export_keys}
         coke_exports = {key: [] for key in coke_export_keys}
 
-        log(f"Downloading {url}", verbose)
+        if verbose:
+            logger.info(f"Downloading {url}")
+
         with requests.get(url) as r:
             json = r.json()
 
@@ -734,20 +753,68 @@ def _handle_fuel_type_data(df):
 
     df["MW"] = df["MW"].astype(float)
 
-    # pivot on type
+    # The raw data will sometimes have case-sensitive duplicates
+    # (e.g. "Pumped Storage","Pumped storage"). We can handle that through the pivot
+    # table by summing the duplicates across case-insensitive names.
+    df["type-name"] = df["type-name"].str.lower()
+
+    # These columns are grouped together by EIA as confirmed by inspection of the EIA
+    # fuel mix graphs. https://www.eia.gov/electricity/gridmonitor/expanded-view/electric_overview/US48/US48/GenerationByEnergySource-4/edit # noqa
+    df["type-name"] = df["type-name"].replace(
+        {
+            "battery": "battery storage",
+            "solar battery": "solar with integrated battery storage",
+            "unknown energy": "unknown energy storage",
+        },
+    )
+
+    # Pivot on fuel type
     df = df.pivot_table(
         index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
         columns="type-name",
         values="MW",
+        aggfunc="sum",
     ).reset_index()
 
-    fuel_mix_cols = df.columns[4:]
-
-    # nans after pivot because not
-    # all respondents have all fuel types
-    df[fuel_mix_cols] = df[fuel_mix_cols].astype(float).fillna(0)
-
     df.columns.name = None
+
+    df.columns = df.columns.str.title()
+
+    # These are the known columns as of 2024-11-11. EIA has an observed trend of adding
+    # new columns to this dataset.
+    known_fuel_mix_columns = [
+        "Battery Storage",
+        "Coal",
+        "Hydro",
+        "Natural Gas",
+        "Nuclear",
+        "Other",
+        "Petroleum",
+        "Pumped Storage",
+        "Solar",
+        "Solar With Integrated Battery Storage",
+        "Unknown Energy Storage",
+        "Wind",
+    ]
+
+    for col in known_fuel_mix_columns:
+        if col not in df.columns:
+            # This has to be np.nan not pd.NA because we are converting to float
+            df[col] = np.nan
+
+    fixed_cols = ["Interval Start", "Interval End", "Respondent", "Respondent Name"]
+    fuel_mix_cols = [col for col in df.columns if col not in fixed_cols]
+
+    df[fuel_mix_cols] = df[fuel_mix_cols].astype(float)
+
+    # Set final column order with title case
+    df = df[fixed_cols + sorted(fuel_mix_cols)]
+
+    # Find any unknown columns and log them
+    unknown_columns = set(df.columns) - set(known_fuel_mix_columns) - set(fixed_cols)
+
+    if unknown_columns:
+        logger.warning(f"Unknown columns found in fuel type data: {unknown_columns}")
 
     df = df.sort_values(["Interval Start", "Respondent"])
 
