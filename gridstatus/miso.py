@@ -1106,6 +1106,10 @@ class MISO(ISOBase):
             skiprows=3,
             dtype={
                 "Constraint Description": object,
+                "BP1": float,
+                "PC1": float,
+                "BP2": float,
+                "PC2": float,
                 "Reason": object,
             },
         )
