@@ -446,7 +446,7 @@ class TestMISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date,end",
-        test_dates,
+        constraint_dates,
     )
     def test_get_binding_constraints_supplemental(self, date, end):
         cassette_name = f"test_get_binding_constraints_supplemental_{date}_{end}.yaml"
@@ -458,7 +458,7 @@ class TestMISO(BaseTestISO):
 
             assert isinstance(df, pd.DataFrame)
             assert list(df.columns) == [
-                "Market Date",
+                "Date",
                 "Constraint ID",
                 "Constraint Name",
                 "Contingency Name",
@@ -477,8 +477,8 @@ class TestMISO(BaseTestISO):
                 "To KV",
             ]
 
-            assert min(df["Market Date"]).date() == pd.to_datetime(date).date()
-            assert max(df["Market Date"]).date() <= pd.Timestamp(end).date()
+            assert min(df["Date"]).date() == pd.to_datetime(date).date()
+            assert max(df["Date"]).date() <= pd.Timestamp(end).date()
             assert df["Constraint ID"].dtype == np.int64
             assert df["Constraint Name"].dtype == object
             assert df["Contingency Name"].dtype == object
@@ -498,7 +498,7 @@ class TestMISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date,end",
-        test_dates,
+        constraint_dates,
     )
     def test_get_binding_constraints_day_ahead_hourly(self, date, end):
         cassette_name = (
@@ -548,7 +548,7 @@ class TestMISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date,end",
-        test_dates,
+        constraint_dates,
     )
     def test_get_subregional_power_balance_constraints_day_ahead_hourly(
         self,
@@ -614,7 +614,7 @@ class TestMISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date,end",
-        test_dates,
+        constraint_dates,
     )
     def test_get_binding_constraints_real_time_5_min(self, date, end):
         cassette_name = (
