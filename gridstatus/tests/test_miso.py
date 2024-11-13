@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -5,10 +6,27 @@ from gridstatus import MISO, NotSupported
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+api_vcr = setup_vcr(
+    source="miso",
+    record_mode=RECORD_MODE,
+)
 
 
 class TestMISO(BaseTestISO):
     iso = MISO()
+
+    test_dates = [
+        ("2023-11-05", "2023-11-07"),
+        ("2024-02-15", "2024-02-17"),
+        ("2024-03-01", "2024-03-04"),
+    ]
+
+    # NOTE(kladar): Some constraint datasets are sparse, so make sure we have data for these tests
+    constraint_dates = [
+        ("2024-11-08", "2024-11-10"),
+    ]
 
     """get_fuel_mix"""
 
@@ -425,3 +443,376 @@ class TestMISO(BaseTestISO):
 
         assert df["Publish Time"].min() == start
         assert df["Publish Time"].nunique() == 3
+
+    @pytest.mark.parametrize(
+        "date,end",
+        constraint_dates,
+    )
+    def test_get_binding_constraints_supplemental(self, date, end):
+        cassette_name = f"test_get_binding_constraints_supplemental_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_supplemental(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Date",
+                "Constraint ID",
+                "Constraint Name",
+                "Contingency Name",
+                "Constraint Type",
+                "Flowgate Name",
+                "Device Type",
+                "Key1",
+                "Key2",
+                "Key3",
+                "Direction",
+                "From Area",
+                "To Area",
+                "From Station",
+                "To Station",
+                "From KV",
+                "To KV",
+            ]
+
+            assert min(df["Date"]).date() == pd.to_datetime(date).date()
+            assert max(df["Date"]).date() <= pd.Timestamp(end).date()
+            assert df["Constraint ID"].dtype == np.int64
+            assert df["Constraint Name"].dtype == object
+            assert df["Contingency Name"].dtype == object
+            assert df["Constraint Type"].dtype == object
+            assert df["Flowgate Name"].dtype == object
+            assert df["Device Type"].dtype == object
+            assert df["Key1"].dtype == object
+            assert df["Key2"].dtype == object
+            assert df["Key3"].dtype == object
+            assert df["Direction"].dtype == np.int64
+            assert df["From Area"].dtype == object
+            assert df["To Area"].dtype == object
+            assert df["From Station"].dtype == object
+            assert df["To Station"].dtype == object
+            assert df["From KV"].dtype in [np.int64, np.float64]
+            assert df["To KV"].dtype in [np.int64, np.float64]
+
+    @pytest.mark.parametrize(
+        "date,end",
+        constraint_dates,
+    )
+    def test_get_binding_constraints_day_ahead_hourly(self, date, end):
+        cassette_name = (
+            f"test_get_binding_constraints_day_ahead_hourly_{date}_{end}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_day_ahead_hourly(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "Reason",
+            ]
+
+            assert min(df["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            assert df["Constraint ID"].dtype == np.int64
+            assert df["Constraint Name"].dtype == object
+            assert df["Branch Name"].dtype == object
+            assert df["Contingency Description"].dtype == object
+            assert df["Shadow Price"].dtype in [np.float64, np.int64]
+            assert df["Constraint Description"].dtype == object
+            assert df["Override"].dtype == np.int64
+            assert df["Curve Type"].dtype == object
+            assert df["BP1"].dtype in [np.float64, np.int64]
+            assert df["PC1"].dtype in [np.float64, np.int64]
+            assert df["BP2"].dtype in [np.float64, np.int64]
+            assert df["PC2"].dtype in [np.float64, np.int64]
+            assert df["Reason"].dtype == object
+
+    @pytest.mark.parametrize(
+        "date,end",
+        constraint_dates,
+    )
+    def test_get_subregional_power_balance_constraints_day_ahead_hourly(
+        self,
+        date,
+        end,
+    ):
+        cassette_name = f"test_get_subregional_power_balance_constraints_day_ahead_hourly_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_subregional_power_balance_constraints_day_ahead_hourly(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "CONSTRAINT_NAME",
+                "PRELIMINARY_SHADOW_PRICE",
+                "CURVETYPE",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "BP3",
+                "PC3",
+                "BP4",
+                "PC4",
+                "OVERRIDE",
+                "REASON",
+            ]
+
+            if not df.empty:
+                assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        constraint_dates,
+    )
+    def test_get_reserve_product_binding_constraints_day_ahead_hourly(
+        self,
+        date,
+        end,
+    ):
+        cassette_name = f"test_get_reserve_product_binding_constraints_day_ahead_hourly_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_reserve_product_binding_constraints_day_ahead_hourly(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Shadow Price",
+                "Constraint Description",
+            ]
+
+            if not df.empty:
+                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        constraint_dates,
+    )
+    def test_get_binding_constraints_real_time_5_min(self, date, end):
+        cassette_name = (
+            f"test_get_binding_constraints_real_time_5_min_{date}_{end}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Preliminary Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+            ]
+
+            if not df.empty:
+                assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
+
+    def test_get_binding_constraints_real_time_yearly_historical(self):
+        year = 2023
+        cassette_name = (
+            f"test_get_binding_constraints_real_time_yearly_historical_{year}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_real_time_yearly_historical(
+                year=year,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Preliminary Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+            ]
+
+            if not df.empty:
+                assert min(df["Interval End"]).year == year
+                assert max(df["Interval End"]).year == year
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        constraint_dates,
+    )
+    def test_get_binding_constraint_overrides_real_time_5_min(self, date, end):
+        cassette_name = (
+            f"test_get_binding_constraint_overrides_real_time_5_min_{date}_{end}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraint_overrides_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Preliminary Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "Reason",
+            ]
+
+            if not df.empty:
+                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        constraint_dates,
+    )
+    def test_get_subregional_power_balance_constraints_real_time_5_min(
+        self,
+        date,
+        end,
+    ):
+        cassette_name = f"test_get_subregional_power_balance_constraints_real_time_5_min_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_subregional_power_balance_constraints_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "CONSTRAINT_NAME",
+                "PRELIMINARY_SHADOW_PRICE",
+                "CURVETYPE",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "BP3",
+                "PC3",
+                "BP4",
+                "PC4",
+                "OVERRIDE",
+                "REASON",
+            ]
+
+            if not df.empty:
+                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        constraint_dates,
+    )
+    def test_get_reserve_product_binding_constraints_real_time_5_min(
+        self,
+        date,
+        end,
+    ):
+        cassette_name = f"test_get_reserve_product_binding_constraints_real_time_5_min_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_reserve_product_binding_constraints_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Shadow Price",
+                "Constraint Description",
+            ]
+
+            if not df.empty:
+                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )

@@ -10,7 +10,7 @@ import requests
 from gridstatus import utils
 from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import log, logger
 from gridstatus.lmp_config import lmp_config
 
 
@@ -679,8 +679,645 @@ class MISO(ISOBase):
             .reset_index(drop=True)
         )
 
+    @support_date_range(frequency="DAY_START")
+    def get_binding_constraints_supplemental(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the supplemental binding constraints data from MISO.
 
-def add_interval_end(df, duration_min):
+        Source URL: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ADay-Ahead%2FMarketReportName%3ABinding Constraints Supplemental (xls)&t=10&p=0&s=MarketReportPublished&sd=desc
+
+        Args:
+            date (str | pd.Timestamp): Start date
+            end (str | pd.Timestamp, optional): End date. Defaults to None.
+            verbose (bool, optional): Verbosity. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: Supplemental binding constraints data
+        """
+        query_date = date - pd.Timedelta("1D")
+        url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_bcsf.xls"
+        logger.info(f"Downloading supplemental binding constraints data from {url}")
+
+        excel_file = pd.ExcelFile(url)
+        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+            excel_file,
+        )
+        data = pd.read_excel(excel_file, skiprows=3)
+        data["Date"] = market_date
+
+        return data[
+            [
+                "Date",
+                "Constraint ID",
+                "Constraint Name",
+                "Contingency Name",
+                "Constraint Type",
+                "Flowgate Name",
+                "Device Type",
+                "Key1",
+                "Key2",
+                "Key3",
+                "Direction",
+                "From Area",
+                "To Area",
+                "From Station",
+                "To Station",
+                "From KV",
+                "To KV",
+            ]
+        ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_binding_constraints_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        query_date = date - pd.Timedelta("1D")
+        url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_bc.xls"
+        logger.info(f"Downloading day-ahead binding constraints data from {url}")
+
+        excel_file = pd.ExcelFile(url)
+        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+            excel_file,
+        )
+        data = pd.read_excel(
+            excel_file,
+            skiprows=3,
+            dtype={
+                "Constraint Description": object,
+                "Reason": object,
+                "Shadow Price": float,
+                "BP1": float,
+                "PC1": float,
+                "BP2": float,
+                "PC2": float,
+            },
+        )
+
+        data["Interval End"] = market_date + pd.to_timedelta(
+            data["Hour of Occurrence"],
+            unit="h",
+        )
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+        data = data.rename(
+            columns={
+                "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
+                "Constraint_ID": "Constraint ID",
+            },
+        )
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "Reason",
+            ]
+        ]
+
+    # NOTE(kladar): Mostly this method is used for efficient backfilling
+    def get_binding_constraints_day_ahead_yearly_historical(
+        self,
+        year: int,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the day-ahead binding constraints data from MISO for a given year.
+
+        Args:
+            year (int): Year
+            verbose (bool, optional): Verbosity. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: Historical day-ahead binding constraints data
+        """
+        url = f"https://docs.misoenergy.org/marketreports/{year}_da_bc_HIST.csv"
+        logger.info(f"Downloading day-ahead binding constraints data from {url}")
+
+        data = pd.read_csv(url)
+        data["Interval End"] = pd.to_datetime(data["Market Date"]).dt.tz_localize(
+            self.default_timezone,
+        ) + pd.to_timedelta(data["Hour of Occurrence"], unit="h")
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+
+        data = data.rename(
+            columns={
+                "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
+            },
+        )
+        data = data.rename(
+            columns={
+                "Constraint_ID": "Constraint ID",
+            },
+        )
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "Reason",
+            ]
+        ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_subregional_power_balance_constraints_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        query_date = date - pd.Timedelta("1D")
+        url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_pbc.csv"
+        logger.info(
+            f"Downloading day-ahead subregional power balance constraints data from {url}",
+        )
+
+        data = pd.read_csv(
+            url,
+            skiprows=3,
+            index_col=False,
+            dtype={
+                "PRELIMINARY_SHADOW_PRICE": float,
+                "BP1": float,
+                "PC1": float,
+                "BP2": float,
+                "PC2": float,
+                "BP3": float,
+                "PC3": float,
+                "BP4": float,
+                "PC4": float,
+                "REASON": object,
+            },
+        )
+
+        # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
+        # in the column names, so we clean it all up.
+        data = data.iloc[:-1]
+        data.columns = data.columns.str.strip()
+        if data.empty:
+            return data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "CONSTRAINT_NAME",
+                    "PRELIMINARY_SHADOW_PRICE",
+                    "CURVETYPE",
+                    "BP1",
+                    "PC1",
+                    "BP2",
+                    "PC2",
+                    "BP3",
+                    "PC3",
+                    "BP4",
+                    "PC4",
+                    "OVERRIDE",
+                    "REASON",
+                ]
+            ]
+
+        data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "CONSTRAINT_NAME",
+                "PRELIMINARY_SHADOW_PRICE",
+                "CURVETYPE",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "BP3",
+                "PC3",
+                "BP4",
+                "PC4",
+                "OVERRIDE",
+                "REASON",
+            ]
+        ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_reserve_product_binding_constraints_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        query_date = date - pd.Timedelta("1D")
+        url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_rpe.xls"
+        logger.info(
+            f"Downloading day-ahead reserve product binding constraints data from {url}",
+        )
+
+        excel_file = pd.ExcelFile(url)
+        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+            excel_file,
+        )
+        data = pd.read_excel(excel_file, skiprows=3)
+        data = data.iloc[:-1]
+        print(data)
+        print(market_date)
+        data["Interval End"] = market_date + pd.to_timedelta(
+            data[
+                "Hour of Occurence"
+            ],  # NOTE(kladar): sic, this is a persistent typo in the header from MISO
+            unit="h",
+        )
+
+        if data.empty:
+            return data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Constraint Name",
+                    "Shadow Price",
+                    "Constraint Description",
+                ]
+            ]
+
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Shadow Price",
+                "Constraint Description",
+            ]
+        ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_binding_constraints_real_time_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        query_date = date + pd.Timedelta("1D")
+        url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_bc.xls"
+        logger.info(f"Downloading real-time binding constraints data from {url}")
+
+        excel_file = pd.ExcelFile(url)
+        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+            excel_file,
+        )
+        data = pd.read_excel(
+            excel_file,
+            skiprows=3,
+            dtype={
+                "Constraint Description": object,
+                "Preliminary Shadow Price": float,
+                "BP1": float,
+                "PC1": float,
+                "BP2": float,
+                "PC2": float,
+            },
+        )
+
+        data["Interval End"] = pd.to_datetime(
+            market_date.strftime("%Y-%m-%d")
+            + " "
+            + data[
+                "Hour of  Occurrence"
+            ],  # NOTE(kladar): sic, there are two spaces between "Hour of" and "Occurrence"
+        ).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+        data = data.rename(
+            columns={
+                "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
+            },
+        )
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Preliminary Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+            ]
+        ]
+
+    # NOTE(kladar): Mostly this method is used for efficient backfilling
+    def get_binding_constraints_real_time_yearly_historical(
+        self,
+        year: int,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the real-time binding constraints data from MISO for a given year.
+
+        Args:
+            year (int): Year
+            verbose (bool, optional): Verbosity. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: Historical real-time binding constraints data
+        """
+        url = f"https://docs.misoenergy.org/marketreports/{year}_rt_bc_HIST.csv"
+        logger.info(f"Downloading real-time binding constraints data from {url}")
+
+        data = pd.read_csv(
+            url,
+            skiprows=2,
+            dtype={
+                "Constraint Description": object,
+            },
+        )
+        data = data.iloc[
+            :-2
+        ]  # NOTE(kladar): The last two rows are report descriptions and disclaimers
+        data["Interval End"] = pd.to_datetime(
+            data["Market Date"] + " " + data["Hour of Occurrence"],
+        ).dt.tz_localize(
+            self.default_timezone,
+        )
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+
+        data = data.rename(
+            columns={
+                "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
+            },
+        )
+        data = data.rename(
+            columns={
+                "Flowgate NERCID": "Flowgate NERC ID",
+                "Constraint_ID": "Constraint ID",
+            },
+        )
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Preliminary Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+            ]
+        ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_binding_constraint_overrides_real_time_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        query_date = date + pd.Timedelta("1D")
+        url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_or.xls"
+        logger.info(
+            f"Downloading real-time binding constraint overrides data from {url}",
+        )
+
+        excel_file = pd.ExcelFile(url)
+        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+            excel_file,
+        )
+        data = pd.read_excel(
+            excel_file,
+            skiprows=3,
+            dtype={
+                "Constraint Description": object,
+                "BP1": float,
+                "PC1": float,
+                "BP2": float,
+                "PC2": float,
+                "Reason": object,
+            },
+        )
+
+        data["Interval End"] = pd.to_datetime(
+            market_date.strftime("%Y-%m-%d")
+            + " "
+            + data[
+                "Hour of  Occurrence"
+            ],  # NOTE(kladar): sic, there are two spaces between "Hour of" and "Occurrence"
+        ).dt.tz_localize(self.default_timezone)
+
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+
+        data = data.rename(
+            columns={
+                "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
+            },
+        )
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Flowgate NERC ID",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Preliminary Shadow Price",
+                "Constraint Description",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "Reason",
+            ]
+        ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_subregional_power_balance_constraints_real_time_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        query_date = date + pd.Timedelta("1D")
+        url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_pbc.csv"
+        logger.info(
+            f"Downloading real-time subregional power balance constraints data from {url}",
+        )
+
+        data = pd.read_csv(
+            url,
+            skiprows=3,
+            index_col=False,
+            dtype={
+                "PRELIMINARY_SHADOW_PRICE": float,
+                "BP1": float,
+                "PC1": float,
+                "BP2": float,
+                "PC2": float,
+                "BP3": float,
+                "PC3": float,
+                "BP4": float,
+                "PC4": float,
+                "REASON": object,
+            },
+        )
+
+        # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
+        # in the column names, so we clean it all up.
+        data = data.iloc[:-1]
+        data.columns = data.columns.str.strip()
+        if data.empty:
+            return data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "CONSTRAINT_NAME",
+                    "PRELIMINARY_SHADOW_PRICE",
+                    "CURVETYPE",
+                    "BP1",
+                    "PC1",
+                    "BP2",
+                    "PC2",
+                    "BP3",
+                    "PC3",
+                    "BP4",
+                    "PC4",
+                    "OVERRIDE",
+                    "REASON",
+                ]
+            ]
+
+        data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "CONSTRAINT_NAME",
+                "PRELIMINARY_SHADOW_PRICE",
+                "CURVETYPE",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "BP3",
+                "PC3",
+                "BP4",
+                "PC4",
+                "OVERRIDE",
+                "REASON",
+            ]
+        ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_reserve_product_binding_constraints_real_time_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        query_date = date + pd.Timedelta("1D")
+        url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_rpe.xls"
+        logger.info(
+            f"Downloading real-time reserve product binding constraints data from {url}",
+        )
+
+        data = pd.read_excel(url, skiprows=3)
+
+        # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
+        # in the column names, so we clean it all up.
+        data = data.iloc[:-1]
+        if data.empty:
+            return data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Constraint Name",
+                    "Shadow Price",
+                    "Constraint Description",
+                ]
+            ]
+
+        data["Interval End"] = pd.to_datetime(data["Time of Occurence"]).dt.tz_localize(
+            self.default_timezone,
+        )  # NOTE(kladar) sic, this is a persistent typo from MISO
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Shadow Price",
+                "Constraint Description",
+            ]
+        ]
+
+    def _get_constraint_header_dates_from_excel(
+        self,
+        file: pd.ExcelFile,
+    ) -> tuple[pd.Timestamp, pd.Timestamp]:
+        header = pd.read_excel(file, nrows=2, usecols=[0])
+        market_date = pd.to_datetime(header.iloc[0, 0].split(": ")[1]).tz_localize(
+            self.default_timezone,
+        )
+        publish_date = pd.to_datetime(header.iloc[1, 0].split(": ")[1]).tz_localize(
+            self.default_timezone,
+        )
+        return market_date, publish_date
+
+
+def add_interval_end(df: pd.DataFrame, duration_min: int) -> pd.DataFrame:
     """Add an interval end column to a dataframe
 
     Args:
