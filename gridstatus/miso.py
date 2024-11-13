@@ -885,7 +885,25 @@ class MISO(ISOBase):
         data = data.iloc[:-1]
         data.columns = data.columns.str.strip()
         if data.empty:
-            return NoDataFoundException
+            return data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "CONSTRAINT_NAME",
+                    "PRELIMINARY_SHADOW_PRICE",
+                    "CURVETYPE",
+                    "BP1",
+                    "PC1",
+                    "BP2",
+                    "PC2",
+                    "BP3",
+                    "PC3",
+                    "BP4",
+                    "PC4",
+                    "OVERRIDE",
+                    "REASON",
+                ]
+            ]
 
         data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
             self.default_timezone,
@@ -930,13 +948,27 @@ class MISO(ISOBase):
             excel_file,
         )
         data = pd.read_excel(excel_file, skiprows=3)
+        data = data.iloc[:-1]
+        print(data)
+        print(market_date)
         data["Interval End"] = market_date + pd.to_timedelta(
             data[
                 "Hour of Occurence"
             ],  # NOTE(kladar): sic, this is a persistent typo in the header from MISO
             unit="h",
         )
-        data = data.iloc[:-1]
+
+        if data.empty:
+            return data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Constraint Name",
+                    "Shadow Price",
+                    "Constraint Description",
+                ]
+            ]
+
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
 
         return data[
@@ -1182,7 +1214,25 @@ class MISO(ISOBase):
         data = data.iloc[:-1]
         data.columns = data.columns.str.strip()
         if data.empty:
-            return NoDataFoundException
+            return data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "CONSTRAINT_NAME",
+                    "PRELIMINARY_SHADOW_PRICE",
+                    "CURVETYPE",
+                    "BP1",
+                    "PC1",
+                    "BP2",
+                    "PC2",
+                    "BP3",
+                    "PC3",
+                    "BP4",
+                    "PC4",
+                    "OVERRIDE",
+                    "REASON",
+                ]
+            ]
 
         data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
             self.default_timezone,
@@ -1228,7 +1278,15 @@ class MISO(ISOBase):
         # in the column names, so we clean it all up.
         data = data.iloc[:-1]
         if data.empty:
-            return NoDataFoundException
+            return data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Constraint Name",
+                    "Shadow Price",
+                    "Constraint Description",
+                ]
+            ]
 
         data["Interval End"] = pd.to_datetime(data["Time of Occurence"]).dt.tz_localize(
             self.default_timezone,

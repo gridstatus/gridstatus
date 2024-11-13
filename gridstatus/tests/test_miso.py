@@ -581,8 +581,13 @@ class TestMISO(BaseTestISO):
                 "REASON",
             ]
 
-            assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
-            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.empty:
+                assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
 
     @pytest.mark.parametrize(
         "date,end",
@@ -609,8 +614,13 @@ class TestMISO(BaseTestISO):
                 "Constraint Description",
             ]
 
-            assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
-            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.empty:
+                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
 
     @pytest.mark.parametrize(
         "date,end",
@@ -645,8 +655,13 @@ class TestMISO(BaseTestISO):
                 "PC2",
             ]
 
-            assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
-            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.empty:
+                assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
 
     def test_get_binding_constraints_real_time_yearly_historical(self):
         year = 2023
@@ -677,8 +692,13 @@ class TestMISO(BaseTestISO):
                 "PC2",
             ]
 
-            assert min(df["Interval End"]).year == year
-            assert max(df["Interval End"]).year == year
+            if not df.empty:
+                assert min(df["Interval End"]).year == year
+                assert max(df["Interval End"]).year == year
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
 
     @pytest.mark.parametrize(
         "date,end",
@@ -713,8 +733,13 @@ class TestMISO(BaseTestISO):
                 "Reason",
             ]
 
-            assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
-            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.empty:
+                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
 
     @pytest.mark.parametrize(
         "date,end",
@@ -751,8 +776,13 @@ class TestMISO(BaseTestISO):
                 "REASON",
             ]
 
-            assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
-            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.empty:
+                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
 
     @pytest.mark.parametrize(
         "date,end",
@@ -779,5 +809,10 @@ class TestMISO(BaseTestISO):
                 "Constraint Description",
             ]
 
-            assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
-            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.empty:
+                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
+                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            else:
+                pytest.skip(
+                    "No data available for this date range, so skipping data-comparison assertions",
+                )
