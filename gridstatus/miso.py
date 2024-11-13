@@ -865,6 +865,7 @@ class MISO(ISOBase):
         data = pd.read_csv(
             url,
             skiprows=3,
+            skipfooter=1,
             index_col=False,
             dtype={
                 "PRELIMINARY_SHADOW_PRICE": float,
@@ -882,7 +883,6 @@ class MISO(ISOBase):
 
         # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
         # in the column names, so we clean it all up.
-        data = data.iloc[:-1]
         data.columns = data.columns.str.strip()
         if data.empty:
             return NoDataFoundException
@@ -929,11 +929,7 @@ class MISO(ISOBase):
         market_date, publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )
-        data = pd.read_excel(excel_file, skiprows=3)
-
-        # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
-        # in the column names, so we clean it all up.
-        data = data.iloc[:-1]
+        data = pd.read_excel(excel_file, skiprows=3, skipfooter=1)
         data["Interval End"] = market_date + pd.to_timedelta(
             data[
                 "Hour of Occurence"
