@@ -8,7 +8,7 @@ from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
 from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES
 from gridstatus.ercot_api.ercot_api import HISTORICAL_DAYS_THRESHOLD, ErcotAPI
 from gridstatus.tests.base_test_iso import TestHelperMixin
-from gridstatus.tests.test_ercot import RESOURCE_AS_OFFERS_COLUMNS
+from gridstatus.tests.source_specific.test_ercot import RESOURCE_AS_OFFERS_COLUMNS
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(

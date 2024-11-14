@@ -15,6 +15,11 @@ test:
 	pip install vcrpy
 	$(PYTEST_CMD) $(NOT_SLOW)
 
+.PHONY: test-ercot
+test-ercot:
+	pip install vcrpy
+	$(PYTEST_CMD) -m "not slow and not integration"
+
 .PHONY: test-cov
 test-cov:
 	pip install vcrpy

@@ -9,7 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"]
+        electricity_market: ["CAISO", "ERCOT", "ISONE", "MISO", "NYISO", "PJM", "SPP"]
+        python-version: ["3.11"]
     env:
       EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
       PJM_API_KEY: ${{ secrets.PJM_API_KEY }}
@@ -38,7 +39,6 @@ jobs:
           poetry run pip install vcrpy
 
       - name: Run unit tests without coverage
-        if: ${{ matrix.python-version != '3.11' }}
         run: |
           make test
 
