@@ -40,15 +40,23 @@ test-nyiso:
 .PHONY: test-pjm
 test-pjm:
 	pip install vcrpy
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_pjm.py
+	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_pjm.py
 
 .PHONY: test-spp
 test-spp:
 	$(PYTEST_CMD) gridstatus/tests/source_specific/test_spp.py
 
+.PHONY: test-eia
+test-eia:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_eia.py
+
+.PHONY: test-ieso
+test-ieso:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_ieso.py
+
 .PHONY: test-cov
 test-cov:
-	pip install vcrpy
+	pip install vcrpy pytest-cov
 	$(PYTEST_CMD) $(NOT_SLOW) --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
 
 .PHONY: test-slow

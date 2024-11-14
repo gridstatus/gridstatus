@@ -1,5 +1,5 @@
 name: Tests
-on: # Run on all pushes and pull requests
+on: # Run on all pushes and pull requests. Eventually can run certain jobs on commit.
   push:
     branches:
       - main

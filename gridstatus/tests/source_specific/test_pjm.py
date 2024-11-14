@@ -549,7 +549,7 @@ class TestPJM(BaseTestISO):
     )
     def sample_forecast_data(self, request):
         filename = request.param
-        current_dir = os.path.dirname(os.path.abspath(__file__))
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         file_path = os.path.join(current_dir, "fixtures", "pjm", filename)
         with open(file_path, "r") as f:
             return json.load(f)
