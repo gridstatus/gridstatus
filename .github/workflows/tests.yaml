@@ -48,6 +48,8 @@ jobs:
         uses: snok/install-poetry@v1
       - name: Install dependencies
         run: poetry install
+      - name: Install vcrpy
+        run: pip install vcrpy
       - name: Run ISO tests
         run: make test-${{ matrix.iso }}
 
