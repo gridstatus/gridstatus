@@ -50,6 +50,10 @@ test-eia:
 test-ieso:
 	$(PYTEST_CMD) gridstatus/tests/source_specific/test_ieso.py
 
+.PHONY: test-misc
+test-misc:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_gridstatus.py gridstatus/tests/source_specific/test_lmp_config.py
+
 .PHONY: test-cov
 test-cov:
 	$(PYTEST_CMD) $(NOT_SLOW) --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml

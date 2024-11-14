@@ -30,7 +30,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11"]
-        iso: [caiso, ercot, isone, miso, nyiso, pjm, spp]
+        iso: [caiso, ercot, isone, miso, nyiso, pjm, spp, ieso, eia, misc]
     env:
       EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
       PJM_API_KEY: ${{ secrets.PJM_API_KEY }}
