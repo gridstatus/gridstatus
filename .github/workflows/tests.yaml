@@ -50,7 +50,7 @@ jobs:
       - name: Install dependencies
         run: poetry install
       - name: Install vcrpy
-        run: poetry run pip install --no-deps vcrpy
+        run: poetry run pip install vcrpy
       - name: Run ISO tests
         run: make test-${{ matrix.iso }}
 
