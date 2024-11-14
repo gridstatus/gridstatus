@@ -20,17 +20,14 @@ test-caiso:
 
 .PHONY: test-ercot
 test-ercot:
-	pip install vcrpy
 	$(PYTEST_CMD) gridstatus/tests/source_specific/test_ercot.py gridstatus/tests/source_specific/test_ercot_api.py
 
 .PHONY: test-isone
 test-isone:
-	pip install vcrpy
 	$(PYTEST_CMD) gridstatus/tests/source_specific/test_isone.py
 
 .PHONY: test-miso
 test-miso:
-	pip install vcrpy
 	$(PYTEST_CMD) gridstatus/tests/source_specific/test_miso.py
 
 .PHONY: test-nyiso
@@ -39,7 +36,6 @@ test-nyiso:
 
 .PHONY: test-pjm
 test-pjm:
-	pip install vcrpy
 	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_pjm.py
 
 .PHONY: test-spp
@@ -56,7 +52,6 @@ test-ieso:
 
 .PHONY: test-cov
 test-cov:
-	pip install vcrpy pytest-cov
 	$(PYTEST_CMD) $(NOT_SLOW) --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
 
 .PHONY: test-slow

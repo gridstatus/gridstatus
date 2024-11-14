@@ -50,7 +50,7 @@ jobs:
       - name: Install dependencies
         run: poetry install
       - name: Install vcrpy
-        run: pip install vcrpy
+        run: poetry run pip install --no-deps vcrpy
       - name: Run ISO tests
         run: make test-${{ matrix.iso }}
 
@@ -77,7 +77,7 @@ jobs:
       - name: Install dependencies
         run: poetry install
       - name: Install vcrpy
-        run: pip install vcrpy
+        run: poetry run pip install --no-deps vcrpy pytest-cov
       - name: Run all tests with coverage
         run: make test-cov
       - name: Upload coverage
