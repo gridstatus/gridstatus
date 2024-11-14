@@ -25,6 +25,7 @@ jobs:
         run: make test-base
 
   test-iso:
+    needs: [test-base]
     runs-on: ubuntu-latest
     strategy:
       matrix:
