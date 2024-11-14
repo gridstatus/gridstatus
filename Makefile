@@ -6,45 +6,45 @@ clean:
 	find . -name '*~' -delete
 	find . -name '.coverage.*' -delete
 
-PYTEST_CMD := poetry run pytest -s -vv gridstatus/ -n auto --reruns 5 --reruns-delay 3 --durations=25
+PYTEST_CMD := poetry run pytest -s -vv -n auto --reruns 5 --reruns-delay 3 --durations=25
 NOT_SLOW := -m "not slow"
 UNIT_ONLY := -m "not slow and not integration"
 
 .PHONY: test-base
 test-base:
-	$(PYTEST_CMD) gridstatus/tests/test_*.py
+	$(PYTEST_CMD) gridstatus/tests/test_*.py --ignore=gridstatus/tests/source_specific/
 
 .PHONY: test-caiso
 test-caiso:
-	$(PYTEST_CMD) gridstatus/tests/test_caiso.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_caiso.py
 
 .PHONY: test-ercot
 test-ercot:
 	pip install vcrpy
-	$(PYTEST_CMD) gridstatus/tests/test_ercot.py gridstatus/tests/test_ercot_api.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_ercot.py gridstatus/tests/source_specific/test_ercot_api.py
 
 .PHONY: test-isone
 test-isone:
 	pip install vcrpy
-	$(PYTEST_CMD) gridstatus/tests/test_isone.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_isone.py
 
 .PHONY: test-miso
 test-miso:
 	pip install vcrpy
-	$(PYTEST_CMD) gridstatus/tests/test_miso.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_miso.py
 
 .PHONY: test-nyiso
 test-nyiso:
-	$(PYTEST_CMD) gridstatus/tests/test_nyiso.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_nyiso.py
 
 .PHONY: test-pjm
 test-pjm:
 	pip install vcrpy
-	$(PYTEST_CMD) gridstatus/tests/test_pjm.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_pjm.py
 
 .PHONY: test-spp
 test-spp:
-	$(PYTEST_CMD) gridstatus/tests/test_spp.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_spp.py
 
 .PHONY: test-cov
 test-cov:
