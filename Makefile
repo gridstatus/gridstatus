@@ -20,7 +20,7 @@ test-caiso:
 
 .PHONY: test-ercot
 test-ercot:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_ercot.py gridstatus/tests/source_specific/test_ercot_api.py
+	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_ercot.py gridstatus/tests/source_specific/test_ercot_api.py
 
 .PHONY: test-isone
 test-isone:
