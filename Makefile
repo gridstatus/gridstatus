@@ -24,7 +24,7 @@ test-ercot:
 
 .PHONY: test-isone
 test-isone:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_isone.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_isone.py gridstatus/tests/source_specific/test_isone_api.py
 
 .PHONY: test-miso
 test-miso:
