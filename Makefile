@@ -6,18 +6,56 @@ clean:
 	find . -name '*~' -delete
 	find . -name '.coverage.*' -delete
 
-PYTEST_CMD := poetry run pytest -s -vv gridstatus/ -n auto --reruns 5 --reruns-delay 3 --durations=25
+PYTEST_CMD := poetry run pytest -s -vv -n auto --reruns 5 --reruns-delay 3 --durations=25
 NOT_SLOW := -m "not slow"
 UNIT_ONLY := -m "not slow and not integration"
 
-.PHONY: test
-test:
-	pip install vcrpy
-	$(PYTEST_CMD) $(NOT_SLOW)
+.PHONY: test-base
+test-base:
+	$(PYTEST_CMD) gridstatus/tests/test_*.py --ignore=gridstatus/tests/source_specific/
+
+.PHONY: test-caiso
+test-caiso:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_caiso.py
+
+.PHONY: test-ercot
+test-ercot:
+	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_ercot.py gridstatus/tests/source_specific/test_ercot_api.py
+
+.PHONY: test-isone
+test-isone:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_isone.py gridstatus/tests/source_specific/test_isone_api.py
+
+.PHONY: test-miso
+test-miso:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_miso.py
+
+.PHONY: test-nyiso
+test-nyiso:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_nyiso.py
+
+.PHONY: test-pjm
+test-pjm:
+	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_pjm.py
+
+.PHONY: test-spp
+test-spp:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_spp.py
+
+.PHONY: test-eia
+test-eia:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_eia.py
+
+.PHONY: test-ieso
+test-ieso:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_ieso.py
+
+.PHONY: test-misc
+test-misc:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_gridstatus.py gridstatus/tests/source_specific/test_lmp_config.py
 
 .PHONY: test-cov
 test-cov:
-	pip install vcrpy
 	$(PYTEST_CMD) $(NOT_SLOW) --cov=gridstatus --cov-config=./pyproject.toml --cov-report=xml:./coverage.xml
 
 .PHONY: test-slow
