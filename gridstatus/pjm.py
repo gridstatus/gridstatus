@@ -1485,7 +1485,7 @@ class PJM(ISOBase):
                 "unscheduled_steam_capacity",
             },
             end=end,
-            filter_timestamp_name="projected_peak_datetime",
+            filter_timestamp_name="generated_at",
             verbose=verbose,
         )
 
@@ -1542,7 +1542,7 @@ class PJM(ISOBase):
                 "projected_peak_datetime_utc,unscheduled_steam_capacity",
             },
             end=end,
-            filter_timestamp_name="projected_peak_datetime",
+            filter_timestamp_name="generated_at",
             verbose=verbose,
         )
 
