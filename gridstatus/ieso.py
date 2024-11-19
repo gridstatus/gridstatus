@@ -879,11 +879,18 @@ class IESO(ISOBase):
         retry_num = 0
         sleep = 5
 
+        # NOTE(Kladar): Silences the TLS warning for the report URLs, skips for the media files. We could get
+        # certificate from the IESO site for those URLs, but probably more hassle than it's worth
+        if "media/Files" in url:
+            tls_verify = False
+        else:
+            tls_verify = certifi.where()
+
         while retry_num < max_retries:
             r = requests.get(
                 url,
-                verify=certifi.where(),
-            )  # Silences the TLS warning, we'll see if it works broadly
+                verify=tls_verify,
+            )
 
             if r.ok:
                 break
