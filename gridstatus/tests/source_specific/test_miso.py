@@ -149,6 +149,7 @@ class TestMISO(BaseTestISO):
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
 
+    @api_vcr.use_cassette("test_get_lmp_real_time_5_min_yesterday.yaml")
     def test_get_lmp_real_time_5_min_yesterday(self):
         date = self.local_today() - pd.DateOffset(days=1)
 
