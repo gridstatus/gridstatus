@@ -37,6 +37,8 @@ lxml = "^4.9.1"
 plotly = "^5.11.0"
 termcolor = "^2.2.0"
 xlrd = "^2.0.1"
+xmltodict = "^0.14.2"
+
 # Below pins are for Dependabot security updates
 zipp = "^3.19.1"
 certifi = "^2024.7.4"
@@ -44,7 +46,7 @@ setuptools = "^70.0.0"
 cryptography = "^43.0.1"
 urllib3 = "^2.2.2"
 tornado = "^6.4.1"
-xmltodict = "^0.14.2"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.1.2"

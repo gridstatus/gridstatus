@@ -2,6 +2,7 @@ import datetime
 import time
 import xml.etree.ElementTree as ET
 
+import certifi
 import pandas as pd
 import requests
 import xmltodict
@@ -879,7 +880,10 @@ class IESO(ISOBase):
         sleep = 5
 
         while retry_num < max_retries:
-            r = requests.get(url, verify=False)
+            r = requests.get(
+                url,
+                verify=certifi.where(),
+            )  # Silences the TLS warning, we'll see if it works broadly
 
             if r.ok:
                 break
@@ -889,7 +893,6 @@ class IESO(ISOBase):
 
             time.sleep(sleep)
 
-            # Exponential backoff
             sleep *= 2
 
         if not r.ok:
@@ -935,10 +938,41 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: Basic parsed data from the report
         """
-        df = pd.DataFrame(json_data)
-        df = df.apply(pd.to_numeric, errors="ignore")
+        publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
 
-        return df
+        document_body = json_data["Document"]["DocBody"]
+        delivery_date = pd.to_datetime(document_body["DeliveryDate"])
+        forecast_supply = document_body["ForecastSupply"]
+
+        capacity_data = forecast_supply["Capacities"]["Capacity"]
+        energy_data = forecast_supply["Energies"]["Energy"]
+
+        df = pd.DataFrame(capacity_data)
+        df["publish_time"] = publish_time
+        df["DeliveryHour"] = pd.to_numeric(df["DeliveryHour"])
+        df["Forecast Supply Capacity (MW)"] = pd.to_numeric(df["EnergyMW"])
+
+        df_energy = pd.DataFrame(energy_data)
+        df_energy["DeliveryHour"] = pd.to_numeric(df_energy["DeliveryHour"])
+        df_energy["Forecast Supply Energy (MWhr)"] = pd.to_numeric(
+            df_energy["EnergyMWhr"],
+        )
+
+        df = df.merge(df_energy, on="DeliveryHour")
+
+        df["interval_start"] = delivery_date + pd.to_timedelta(
+            df["DeliveryHour"] - 1,
+            unit="h",
+        )
+
+        return df[
+            [
+                "interval_start",
+                "publish_time",
+                "Forecast Supply Capacity (MW)",
+                "Forecast Supply Energy (MWhr)",
+            ]
+        ]
 
     def get_resource_adequacy_report(
         self,
