@@ -94,8 +94,13 @@ class TestMISO(BaseTestISO):
 
     def test_get_lmp_weekly_historical_date_range(self):
         start = self.local_today() - pd.Timedelta(days=100)
+        # Set start to a Wednesday to check logic
+        start = start - pd.DateOffset(days=start.weekday() - 2)
+
+        assert start.weekday() == 2
+
         # Make sure to span a week
-        end = start + pd.Timedelta(days=12)
+        end = start + pd.Timedelta(days=7)
         df = self.iso.get_lmp_weekly(start, end)
 
         most_recent_monday = self.local_start_of_day(start) - pd.DateOffset(
