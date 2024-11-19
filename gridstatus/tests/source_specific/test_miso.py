@@ -149,6 +149,26 @@ class TestMISO(BaseTestISO):
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
 
+    def test_get_lmp_real_time_5_min_yesterday(self):
+        date = self.local_today() - pd.DateOffset(days=1)
+
+        df = self.iso.get_lmp(
+            date=date,
+            market=Markets.REAL_TIME_5_MIN,
+        )
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date,
+        ) + pd.DateOffset(days=1)
+
+        assert sorted(list(df["Location Type"].unique())) == [
+            "Gennode",
+            "Hub",
+            "Interface",
+            "Loadzone",
+        ]
+
     def test_get_lmp_locations(self):
         data = self.iso.get_lmp(
             date="latest",
