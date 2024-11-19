@@ -80,7 +80,6 @@ class TestMISO(BaseTestISO):
             self.iso.get_lmp_real_time_5_min_final("today")
 
     def test_get_lmp_real_time_5_min_final_historical_date_range(self):
-
         start = self.local_today() - pd.Timedelta(days=100)
         # Set start to a Wednesday to check logic
         start = start - pd.DateOffset(days=start.weekday() - 2)
