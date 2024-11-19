@@ -1,8 +1,10 @@
+import datetime
 import time
 import xml.etree.ElementTree as ET
 
 import pandas as pd
 import requests
+import xmltodict
 
 from gridstatus import utils
 from gridstatus.base import ISOBase, NotSupported
@@ -87,7 +89,12 @@ class IESO(ISOBase):
     status_homepage = "https://www.ieso.ca/en/Power-Data"
 
     @support_date_range(frequency="HOUR_START")
-    def get_load(self, date, end=None, verbose=False):
+    def get_load(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
         """
         Get 5-minute load for the Market and Ontario for a given date or from
         date to end date.
@@ -143,7 +150,12 @@ class IESO(ISOBase):
             drop=True,
         )
 
-    def _retrieve_5_minute_load(self, date, end=None, verbose=False):
+    def _retrieve_5_minute_load(
+        self,
+        date: datetime.datetime,
+        end: datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
         # We have to add 1 to the hour to get the file because the filename with
         # hour x contains data for hour x-1. For example, to get data for
         # 9:00 - 9:55, we need to request the file for hour 10.
@@ -192,7 +204,7 @@ class IESO(ISOBase):
 
         return df
 
-    def get_load_forecast(self, date, verbose=False):
+    def get_load_forecast(self, date: str, verbose: bool = False):
         """
         Get forecasted load for Ontario. Supports only "latest" and "today" because
         there is only one load forecast.
@@ -261,7 +273,12 @@ class IESO(ISOBase):
         )
 
     @support_date_range(frequency="DAY_START")
-    def get_zonal_load_forecast(self, date, end=None, verbose=False):
+    def get_zonal_load_forecast(
+        self,
+        date: str | datetime.date | tuple[datetime.date, datetime.date],
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
         """
         Get forecasted load by forecast zone (Ontario, East, West) for a given date
         or from date to end date. This method supports future dates.
@@ -412,7 +429,12 @@ class IESO(ISOBase):
             (pivot_df["Publish Time"] >= date) & (pivot_df["Publish Time"] <= end_date)
         ]
 
-    def get_fuel_mix(self, date, end=None, verbose=False):
+    def get_fuel_mix(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
         """
         Hourly output and capability for each fuel type (summed over all generators)
         for a given date or from date to end. Variable generators (solar and wind)
@@ -496,7 +518,12 @@ class IESO(ISOBase):
 
         return data[data["Interval Start"] >= date].reset_index(drop=True)
 
-    def get_generator_report_hourly(self, date, end=None, verbose=False):
+    def get_generator_report_hourly(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
         """
         Hourly output for each generator for a given date or from date to end.
         Variable generators (solar and wind) have a forecast and available capacity.
@@ -566,7 +593,26 @@ class IESO(ISOBase):
         return data[data["Interval Start"] >= date].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
-    def _retrieve_fuel_mix(self, date, end=None, verbose=False):
+    def _retrieve_fuel_mix(
+        self,
+        date: str
+        | datetime.date
+        | datetime.datetime
+        | tuple[datetime.date, datetime.date],
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
+        """Retrieve fuel mix data for a given date or date range.
+
+            date (str | date | datetime | tuple[date, date]): The date or date range
+                to retrieve fuel mix data for.
+            end (date | datetime | None, optional): The end date of the date range.
+                Defaults to None.
+            verbose (bool, optional): Whether to print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: Fuel mix data
+        """
         url = FUEL_MIX_TEMPLATE_URL.replace(
             "_YYYYMMDD",
             date.strftime("_%Y%m%d") if date != "latest" else "",
@@ -686,7 +732,15 @@ class IESO(ISOBase):
         return df.drop(columns=["Date", "Hour"])
 
     @support_date_range(frequency="YEAR_START")
-    def _retrieve_historical_fuel_mix(self, date, end=None, verbose=False):
+    def _retrieve_historical_fuel_mix(
+        self,
+        date: str
+        | datetime.date
+        | datetime.datetime
+        | tuple[datetime.date, datetime.date],
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
         date = utils._handle_date(date, tz=self.default_timezone)
 
         url = HISTORICAL_FUEL_MIX_TEMPLATE_URL.replace(
@@ -779,8 +833,8 @@ class IESO(ISOBase):
     # Function to extract data for a specific Market Quantity considering namespace
     def _extract_load_in_market_quantity(
         self,
-        market_quantity_element,
-        market_quantity_name,
+        market_quantity_element: ET.Element,
+        market_quantity_name: str,
     ):
         for mq in market_quantity_element.findall("MQ", NAMESPACES_FOR_XML):
             market_quantity = mq.find("MarketQuantity", NAMESPACES_FOR_XML).text
@@ -792,7 +846,7 @@ class IESO(ISOBase):
 
     # Function to find all triples of 'Interval', 'Market Total Load', and
     # 'Ontario Load' in the XML file
-    def _find_loads_at_each_interval_from_xml(self, root_element):
+    def _find_loads_at_each_interval_from_xml(self, root_element: ET.Element):
         interval_load_demand_triples = []
 
         for interval_energy in root_element.findall(
@@ -816,7 +870,7 @@ class IESO(ISOBase):
 
         return interval_load_demand_triples
 
-    def _request(self, url, verbose):
+    def _request(self, url: str, verbose: bool):
         msg = f"Fetching URL: {url}"
         log(msg, verbose)
 
@@ -844,3 +898,71 @@ class IESO(ISOBase):
             )
 
         return r
+
+    # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
+    def _get_resource_adequacy_json(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        verbose: bool = False,
+    ) -> dict:
+        """Retrieve the Resource Adequacy Report for a given date and convert to JSON."""
+        base_url = "https://reports-public.ieso.ca/public/Adequacy2"
+
+        if isinstance(date, (datetime.datetime, datetime.date)):
+            date_str = date.strftime("%Y%m%d")
+        else:
+            date_str = date.replace("-", "")
+
+        url = f"{base_url}/PUB_Adequacy2_{date_str}_v125.xml"  # TODO: handle version number
+
+        r = self._request(url, verbose)
+        json_data = xmltodict.parse(r.text)
+
+        if verbose:
+            import json
+
+            print("XML Structure:")
+            print(json.dumps(json_data, indent=2))
+
+        return json_data
+
+    def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
+        """Parse the Resource Adequacy Report JSON into a DataFrame.
+
+        Args:
+            json_data (dict): The JSON data from the XML report
+
+        Returns:
+            pd.DataFrame: Basic parsed data from the report
+        """
+        # Extract the hourly data from the nested structure
+        hourly_data = json_data["IMO"]["DocBody"]["Forecasts"]["Forecast"]["HourlyData"]
+
+        # Convert to DataFrame
+        df = pd.DataFrame(hourly_data)
+
+        # Convert columns to appropriate types where possible
+        for col in df.columns:
+            try:
+                df[col] = pd.to_numeric(df[col])
+            except ValueError:
+                pass
+
+        return df
+
+    def get_resource_adequacy_report(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Retrieve and parse the Resource Adequacy Report for a given date.
+
+        Args:
+            date (str | datetime.date | datetime.datetime): The date for which to get the report
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: The Resource Adequacy Report df for the given date
+        """
+        json_data = self._get_resource_adequacy_json(date, verbose)
+        return self._parse_resource_adequacy_report(json_data)

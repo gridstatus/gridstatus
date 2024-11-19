@@ -6,6 +6,7 @@ docs/generated/*
 .vscode/settings.json
 
 *.csv
+*.json
 scripts/*
 
 # Byte-compiled / optimized / DLL files
