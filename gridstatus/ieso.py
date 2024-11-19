@@ -935,18 +935,8 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: Basic parsed data from the report
         """
-        # Extract the hourly data from the nested structure
-        hourly_data = json_data["IMO"]["DocBody"]["Forecasts"]["Forecast"]["HourlyData"]
-
-        # Convert to DataFrame
-        df = pd.DataFrame(hourly_data)
-
-        # Convert columns to appropriate types where possible
-        for col in df.columns:
-            try:
-                df[col] = pd.to_numeric(df[col])
-            except ValueError:
-                pass
+        df = pd.DataFrame(json_data)
+        df = df.apply(pd.to_numeric, errors="ignore")
 
         return df
 
