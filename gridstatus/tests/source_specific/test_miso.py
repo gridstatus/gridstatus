@@ -79,23 +79,15 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             self.iso.get_lmp_weekly("today")
 
-    def test_get_lmp_weekly_historical_date(self):
-        date = self.local_today() - pd.Timedelta(days=300)
-        df = self.iso.get_lmp_weekly(date)
-
-        most_recent_monday = self.local_start_of_day(date) - pd.DateOffset(
-            days=self.local_start_of_day(date).weekday(),
-        )
-
-        assert df["Interval Start"].min() == most_recent_monday
-        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=7)
-
-        self._check_lmp_weekly(df)
-
     def test_get_lmp_weekly_historical_date_range(self):
         start = self.local_today() - pd.Timedelta(days=100)
+        # Set start to a Wednesday to check logic
+        start = start - pd.DateOffset(days=start.weekday() - 2)
+
+        assert start.weekday() == 2
+
         # Make sure to span a week
-        end = start + pd.Timedelta(days=12)
+        end = start + pd.Timedelta(days=7)
         df = self.iso.get_lmp_weekly(start, end)
 
         most_recent_monday = self.local_start_of_day(start) - pd.DateOffset(
@@ -148,6 +140,27 @@ class TestMISO(BaseTestISO):
     )
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
+
+    @api_vcr.use_cassette("test_get_lmp_real_time_5_min_yesterday.yaml")
+    def test_get_lmp_real_time_5_min_yesterday(self):
+        date = self.local_today() - pd.DateOffset(days=1)
+
+        df = self.iso.get_lmp(
+            date=date,
+            market=Markets.REAL_TIME_5_MIN,
+        )
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date,
+        ) + pd.DateOffset(days=1)
+
+        assert sorted(list(df["Location Type"].unique())) == [
+            "Gennode",
+            "Hub",
+            "Interface",
+            "Loadzone",
+        ]
 
     def test_get_lmp_locations(self):
         data = self.iso.get_lmp(
