@@ -937,7 +937,8 @@ class IESO(ISOBase):
         return json_data
 
     def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
-        """Parse the Resource Adequacy Report JSON into a DataFrame.
+        """Parse the Resource Adequacy Report JSON into DataFrames. Includes supply: energy, capacity,
+        internal resources, imports; demand: Ontario demand, exports, generation reserves; and Net Totals
 
         Args:
             json_data (dict): The JSON data from the XML report
@@ -949,15 +950,18 @@ class IESO(ISOBase):
 
         document_body = json_data["Document"]["DocBody"]
         delivery_date = pd.to_datetime(document_body["DeliveryDate"])
-        forecast_supply = document_body["ForecastSupply"]
 
+        # Supply
+        forecast_supply = document_body["ForecastSupply"]
         capacity_data = forecast_supply["Capacities"]["Capacity"]
         energy_data = forecast_supply["Energies"]["Energy"]
 
-        df = pd.DataFrame(capacity_data)
-        df["publish_time"] = publish_time
-        df["DeliveryHour"] = pd.to_numeric(df["DeliveryHour"])
-        df["Forecast Supply Capacity (MW)"] = pd.to_numeric(df["EnergyMW"])
+        df_capacity = pd.DataFrame(capacity_data)
+        df_capacity["Publish Time"] = publish_time
+        df_capacity["DeliveryHour"] = pd.to_numeric(df_capacity["DeliveryHour"])
+        df_capacity["Forecast Supply Capacity (MW)"] = pd.to_numeric(
+            df_capacity["EnergyMW"],
+        )
 
         df_energy = pd.DataFrame(energy_data)
         df_energy["DeliveryHour"] = pd.to_numeric(df_energy["DeliveryHour"])
@@ -965,21 +969,147 @@ class IESO(ISOBase):
             df_energy["EnergyMWhr"],
         )
 
-        df = df.merge(df_energy, on="DeliveryHour")
+        internal_resources_fuel_type_designation_map = {
+            "Nuclear": ["Capacity", "Outages", "Offered", "Scheduled"],
+            "Gas": ["Capacity", "Outages", "Offered", "Scheduled"],
+            "Hydro": [
+                "Capacity",
+                "Outages",
+                "Forecasted (MWhr)" "Offered",
+                "Scheduled",
+            ],
+            "Wind": ["Capacity", "Outages", "Forecasted", "Scheduled"],
+            "Solar": ["Capacity", "Outages", "Forecasted", "Scheduled"],
+            "Biofuel": ["Capacity", "Outages", "Offered/Forecasted", "Scheduled"],
+            "Other": ["Capacity", "Outages", "Offered/Forecasted", "Scheduled"],
+            "Total": ["Outages", "Offered/Forecasted", "Scheduled"],
+        }
 
-        df["interval_start"] = delivery_date + pd.to_timedelta(
-            df["DeliveryHour"] - 1,
+        internal_resources = forecast_supply["InternalResources"]["InternalResource"]
+        internal_data = []
+
+        # Map of container keys to their corresponding item keys and value key
+        container_item_map = {
+            "Capacity": ("Capacities", "Capacity", "EnergyMW"),
+            "Outages": ("Outages", "Outage", "EnergyMW"),
+            "Scheduled": ("Schedules", "Schedule", "EnergyMW"),
+            "Forecasted": ("Forecasts", "Forecast", "EnergyMW"),
+            "Offered": ("Offers", "Offer", "EnergyMW"),
+            "Forecasted (MWhr)": ("ForecastEnergies", "ForecastEnergy", "EnergyMWhr"),
+            "Offered/Forecasted": ("Offers", "Offer", "EnergyMW"),
+        }
+
+        def _extract_hourly_values(
+            resource_data: dict,
+            container_key: str,
+            item_key: str,
+            fuel_type: str,
+            designation: str,
+            internal_data: list,
+            value_key: str = "EnergyMW",
+        ) -> None:
+            if container_key not in resource_data:
+                return
+
+            for item in resource_data[container_key][item_key]:
+                hour = int(item["DeliveryHour"])
+                row = next(
+                    (r for r in internal_data if r["DeliveryHour"] == hour),
+                    {"DeliveryHour": hour},
+                )
+                row[f"{fuel_type} {designation}"] = float(item[value_key])
+                if row not in internal_data:
+                    internal_data.append(row)
+
+        for resource in internal_resources:
+            fuel_type = resource["FuelType"]
+            designations = internal_resources_fuel_type_designation_map[fuel_type]
+
+            for designation in designations:
+                if designation in container_item_map:
+                    container_key, item_key, value_key = container_item_map[designation]
+                    _extract_hourly_values(
+                        resource,
+                        container_key,
+                        item_key,
+                        fuel_type,
+                        designation,
+                        internal_data,
+                        value_key,
+                    )
+
+        df_internal = pd.DataFrame(internal_data)
+        df_internal["Interval Start"] = delivery_date + pd.to_timedelta(
+            df_internal["DeliveryHour"] - 1,
             unit="h",
+        )
+        df_internal["Interval End"] = df_internal["Interval Start"] + pd.Timedelta(
+            hours=1,
+        )
+        df_internal["Publish Time"] = publish_time
+
+        # Standardize the time columns for all dataframes
+        for df in [df_capacity, df_energy, df_internal]:
+            df["Interval Start"] = delivery_date + pd.to_timedelta(
+                df["DeliveryHour"] - 1,
+                unit="h",
+            )
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+            df["Publish Time"] = publish_time
+            df.drop(columns=["DeliveryHour"], inplace=True)
+
+        # Merge all dataframes
+        df = df_capacity.merge(
+            df_energy,
+            on=["Interval Start", "Interval End", "Publish Time"],
+            how="outer",
+        ).merge(
+            df_internal,
+            on=["Interval Start", "Interval End", "Publish Time"],
+            how="outer",
         )
 
         return df[
             [
-                "interval_start",
-                "publish_time",
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
                 "Forecast Supply Capacity (MW)",
                 "Forecast Supply Energy (MWhr)",
+                "Nuclear Capacity",
+                "Nuclear Outages",
+                "Nuclear Offered",
+                "Nuclear Scheduled",
+                "Gas Capacity",
+                "Gas Outages",
+                "Gas Offered",
+                "Gas Scheduled",
+                "Hydro Capacity",
+                "Hydro Outages",
+                "Hydro Forecasted (MWhr)",
+                "Hydro Offered",
+                "Hydro Scheduled",
+                "Wind Capacity",
+                "Wind Outages",
+                "Wind Forecasted",
+                "Wind Scheduled",
+                "Solar Capacity",
+                "Solar Outages",
+                "Solar Forecasted",
+                "Solar Scheduled",
+                "Biofuel Capacity",
+                "Biofuel Outages",
+                "Biofuel Offered/Forecasted",
+                "Biofuel Scheduled",
+                "Other Capacity",
+                "Other Outages",
+                "Other Offered/Forecasted",
+                "Other Scheduled",
+                "Total Outages",
+                "Total Offered/Forecasted",
+                "Total Scheduled",
             ]
-        ]
+        ].sort_values(["Interval Start", "Publish Time"])
 
     def get_resource_adequacy_report(
         self,
