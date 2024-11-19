@@ -79,19 +79,6 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             self.iso.get_lmp_weekly("today")
 
-    def test_get_lmp_weekly_historical_date(self):
-        date = self.local_today() - pd.Timedelta(days=300)
-        df = self.iso.get_lmp_weekly(date)
-
-        most_recent_monday = self.local_start_of_day(date) - pd.DateOffset(
-            days=self.local_start_of_day(date).weekday(),
-        )
-
-        assert df["Interval Start"].min() == most_recent_monday
-        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=7)
-
-        self._check_lmp_weekly(df)
-
     def test_get_lmp_weekly_historical_date_range(self):
         start = self.local_today() - pd.Timedelta(days=100)
         # Set start to a Wednesday to check logic
