@@ -276,7 +276,7 @@ class MISO(ISOBase):
         Data from: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3AHistorical%20LMP%2FMarketReportName%3AWeekly%20Real-Time%205-Min%20LMP%20(zip)&t=10&p=0&s=MarketReportPublished&sd=desc
         """
         if date == "latest" or utils.is_today(date, tz=self.default_timezone):
-            raise NotSupported("Only historical data is available for weekly LMPs")
+            raise NotSupported("Only historical data is available for final LMPs")
 
         if not date.weekday() == 0:
             log("Weekly LMP data is only available for Mondays", verbose)

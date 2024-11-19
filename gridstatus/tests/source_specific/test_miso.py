@@ -89,7 +89,7 @@ class TestMISO(BaseTestISO):
         # Make sure to span a week
 
         end = start + pd.Timedelta(days=7)
-        df = self.iso.get_lmp_weekly(start, end)
+        df = self.iso.get_lmp_real_time_5_min_final(start, end)
 
         most_recent_monday = self.local_start_of_day(start) - pd.DateOffset(
             days=self.local_start_of_day(start).weekday(),
