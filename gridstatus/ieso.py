@@ -951,54 +951,70 @@ class IESO(ISOBase):
         document_body = json_data["Document"]["DocBody"]
         delivery_date = pd.to_datetime(document_body["DeliveryDate"])
 
-        # Supply
+        # Top Level
         forecast_supply = document_body["ForecastSupply"]
+        forecast_demand = document_body["ForecastDemand"]
+
         capacity_data = forecast_supply["Capacities"]["Capacity"]
         energy_data = forecast_supply["Energies"]["Energy"]
+        bottled_capacity_data = forecast_supply["BottledCapacities"]["Capacity"]
+        regulation_data = forecast_supply["Regulations"]["Regulation"]
+        total_supplies_data = forecast_supply["TotalSupplies"]["Supply"]
+        ramp_status_data = forecast_demand["RampStatuses"]["RampStatus"]
+        total_requirement_data = forecast_demand["TotalRequirements"]["Requirement"]
+        excess_capacity_data = forecast_demand["ExcessCapacities"]["Capacity"]
+        excess_energy_data = forecast_demand["ExcessEnergies"]["Energy"]
+        excess_offered_capacity_data = forecast_demand["ExcessOfferedCapacities"][
+            "Capacity"
+        ]
+        unscheduled_resources_data = forecast_demand["UnscheduledResources"][
+            "UnscheduledResource"
+        ]
+        unscheduled_import_data = forecast_demand["UnscheduledImports"][
+            "UnscheduledImport"
+        ]
 
-        df_capacity = pd.DataFrame(capacity_data)
-        df_capacity["Publish Time"] = publish_time
-        df_capacity["DeliveryHour"] = pd.to_numeric(df_capacity["DeliveryHour"])
-        df_capacity["Forecast Supply Capacity (MW)"] = pd.to_numeric(
-            df_capacity["EnergyMW"],
-        )
+        data_configs = [
+            (capacity_data, "Forecast Supply Capacity (MW)", "EnergyMW"),
+            (energy_data, "Forecast Supply Energy (MWhr)", "EnergyMWhr"),
+            (
+                bottled_capacity_data,
+                "Forecast Supply Bottled Capacity (MW)",
+                "EnergyMW",
+            ),
+            (regulation_data, "Forecast Supply Regulation (MW)", "EnergyMW"),
+            (total_supplies_data, "Forecast Supply Total Supplies (MW)", "EnergyMW"),
+            (ramp_status_data, "Ramp Status", "EnergyMW"),
+            (total_requirement_data, "Total Requirement", "EnergyMW"),
+            (excess_capacity_data, "Excess Capacity", "EnergyMW"),
+            (excess_energy_data, "Excess Energy", "EnergyMWhr"),
+            (excess_offered_capacity_data, "Excess Offered Capacity", "EnergyMW"),
+            (unscheduled_resources_data, "Unscheduled Resources", "EnergyMW"),
+            (unscheduled_import_data, "Unscheduled Imports", "EnergyMW"),
+        ]
 
-        df_energy = pd.DataFrame(energy_data)
-        df_energy["DeliveryHour"] = pd.to_numeric(df_energy["DeliveryHour"])
-        df_energy["Forecast Supply Energy (MWhr)"] = pd.to_numeric(
-            df_energy["EnergyMWhr"],
-        )
+        top_level_dfs = {}
+        for data, col_name, value_type in data_configs:
+            df = pd.DataFrame(data)
+            df["Publish Time"] = publish_time
+            df["DeliveryHour"] = pd.to_numeric(df["DeliveryHour"])
+            df[col_name] = pd.to_numeric(df[value_type])
+            top_level_dfs[col_name] = df
 
-        internal_resources_fuel_type_designation_map = {
-            "Nuclear": ["Capacity", "Outages", "Offered", "Scheduled"],
-            "Gas": ["Capacity", "Outages", "Offered", "Scheduled"],
-            "Hydro": [
-                "Capacity",
-                "Outages",
-                "Forecasted (MWhr)" "Offered",
-                "Scheduled",
-            ],
-            "Wind": ["Capacity", "Outages", "Forecasted", "Scheduled"],
-            "Solar": ["Capacity", "Outages", "Forecasted", "Scheduled"],
-            "Biofuel": ["Capacity", "Outages", "Offered/Forecasted", "Scheduled"],
-            "Other": ["Capacity", "Outages", "Offered/Forecasted", "Scheduled"],
-            "Total": ["Outages", "Offered/Forecasted", "Scheduled"],
-        }
+        df_capacity = top_level_dfs["Forecast Supply Capacity (MW)"]
+        df_energy = top_level_dfs["Forecast Supply Energy (MWhr)"]
+        df_bottled_capacity = top_level_dfs["Forecast Supply Bottled Capacity (MW)"]
+        df_regulation = top_level_dfs["Forecast Supply Regulation (MW)"]
+        df_total_supplies = top_level_dfs["Forecast Supply Total Supplies (MW)"]
+        # df_ramp_status = top_level_dfs["Ramp Status"]
+        # df_total_requirement = top_level_dfs["Total Requirement"]
+        # df_excess_capacity = top_level_dfs["Excess Capacity"]
+        # df_excess_energy = top_level_dfs["Excess Energy"]
+        # df_excess_offered_capacity = top_level_dfs["Excess Offered Capacity"]
+        # df_unscheduled_resources = top_level_dfs["Unscheduled Resources"]
+        # df_unscheduled_import = top_level_dfs["Unscheduled Imports"]
 
-        internal_resources = forecast_supply["InternalResources"]["InternalResource"]
-        internal_data = []
-
-        # Map of container keys to their corresponding item keys and value key
-        container_item_map = {
-            "Capacity": ("Capacities", "Capacity", "EnergyMW"),
-            "Outages": ("Outages", "Outage", "EnergyMW"),
-            "Scheduled": ("Schedules", "Schedule", "EnergyMW"),
-            "Forecasted": ("Forecasts", "Forecast", "EnergyMW"),
-            "Offered": ("Offers", "Offer", "EnergyMW"),
-            "Forecasted (MWhr)": ("ForecastEnergies", "ForecastEnergy", "EnergyMWhr"),
-            "Offered/Forecasted": ("Offers", "Offer", "EnergyMW"),
-        }
-
+        # Nested Data
         def _extract_hourly_values(
             resource_data: dict,
             container_key: str,
@@ -1021,6 +1037,56 @@ class IESO(ISOBase):
                 if row not in internal_data:
                     internal_data.append(row)
 
+        internal_resources = forecast_supply["InternalResources"]["InternalResource"]
+        total_resources = forecast_supply["InternalResources"]["TotalInternalResources"]
+        zonal_imports = forecast_supply["ZonalImports"]["ZonalImport"]
+        total_imports = forecast_supply["ZonalImports"]["TotalImports"]
+        ontario_demand = forecast_demand["OntarioDemand"]
+        dispatchable_load = ontario_demand["DispatchableLoad"]
+        zonal_exports = forecast_demand["ZonalExports"]["ZonalExport"]
+
+        internal_resources_fuel_type_designation_map = {
+            "Nuclear": ["Capacity", "Outages", "Offered", "Scheduled"],
+            "Gas": ["Capacity", "Outages", "Offered", "Scheduled"],
+            "Hydro": [
+                "Capacity",
+                "Outages",
+                "Forecasted (MWhr)",
+                "Offered",
+                "Scheduled",
+            ],
+            "Wind": ["Capacity", "Outages", "Forecasted", "Scheduled"],
+            "Solar": ["Capacity", "Outages", "Forecasted", "Scheduled"],
+            "Biofuel": ["Capacity", "Outages", "Offered", "Scheduled"],
+            "Other": ["Capacity", "Outages", "Offered/Forecasted", "Scheduled"],
+        }
+
+        # ontario_demand_designation_map = {
+        #     "ForecastOntDemand": None,
+        #     "PeakDemand": None,
+        #     "AverageDemand": None,
+        #     "WindEmbedded": None,
+        #     "SolarEmbedded": None,
+        #     "Dispatchable Load": [
+        #         "Capacity",
+        #         "Bid/Forecasted",
+        #         "Scheduled ON",
+        #         "Scheduled OFF",
+        #     ],
+        #     "Hourly Demand Response": ["Bid/Forecasted", "Scheduled", "Curtailed"],
+        # }
+
+        container_item_map = {
+            "Capacity": ("Capacities", "Capacity", "EnergyMW"),
+            "Outages": ("Outages", "Outage", "EnergyMW"),
+            "Scheduled": ("Schedules", "Schedule", "EnergyMW"),
+            "Forecasted": ("Forecasts", "Forecast", "EnergyMW"),
+            "Offered": ("Offers", "Offer", "EnergyMW"),
+            "Forecasted (MWhr)": ("ForecastEnergies", "ForecastEnergy", "EnergyMWhr"),
+            "Offered/Forecasted": ("OfferForecasts", "OfferForecast", "EnergyMW"),
+        }
+
+        internal_data = []
         for resource in internal_resources:
             fuel_type = resource["FuelType"]
             designations = internal_resources_fuel_type_designation_map[fuel_type]
@@ -1038,6 +1104,175 @@ class IESO(ISOBase):
                         value_key,
                     )
 
+        # Process total internal resources
+        _extract_hourly_values(
+            total_resources,
+            "Outages",
+            "Outage",
+            "Total Internal Resources",
+            "Outages",
+            internal_data,
+        )
+        _extract_hourly_values(
+            total_resources,
+            "OfferForecasts",
+            "OfferForecast",
+            "Total Internal Resources",
+            "Offered/Forecasted",
+            internal_data,
+        )
+        _extract_hourly_values(
+            total_resources,
+            "Schedules",
+            "Schedule",
+            "Total Internal Resources",
+            "Scheduled",
+            internal_data,
+        )
+
+        for zone in zonal_imports:
+            zone_name = zone["ZoneName"]
+
+            if "Offers" in zone:
+                _extract_hourly_values(
+                    zone,
+                    "Offers",
+                    "Offer",
+                    zone_name,
+                    "Offered",
+                    internal_data,
+                )
+
+            if "Schedules" in zone:
+                _extract_hourly_values(
+                    zone,
+                    "Schedules",
+                    "Schedule",
+                    zone_name,
+                    "Scheduled",
+                    internal_data,
+                )
+        for zone in zonal_exports:
+            _extract_hourly_values(
+                zone,
+                "Bids",
+                "Bid",
+                zone_name,
+                "Bid",
+                internal_data,
+            )
+
+            _extract_hourly_values(
+                zone,
+                "Schedules",
+                "Schedule",
+                zone_name,
+                "Scheduled",
+                internal_data,
+            )
+
+            if zone == "Total":
+                _extract_hourly_values(
+                    zone,
+                    "Capacity Exports",
+                    "Capacity Export",
+                    zone_name,
+                    "Capacity",
+                    internal_data,
+                )
+
+        _extract_hourly_values(
+            total_imports,
+            "Offers",
+            "Offer",
+            "Total Imports",
+            "Offered",
+            internal_data,
+        )
+
+        _extract_hourly_values(
+            total_imports,
+            "Schedules",
+            "Schedule",
+            "Total Imports",
+            "Scheduled",
+            internal_data,
+        )
+
+        _extract_hourly_values(
+            total_imports,
+            "Estimates",
+            "Estimate",
+            "Total Imports",
+            "Estimated",
+            internal_data,
+        )
+
+        _extract_hourly_values(
+            total_imports,
+            "Capacities",
+            "Capacity",
+            "Total Imports",
+            "Capacity",
+            internal_data,
+        )
+
+        _extract_hourly_values(
+            ontario_demand,
+            "ForecastOntDemand",
+            "Demand",
+            "Ontario Demand",
+            "Forecasted",
+            internal_data,
+        )
+
+        _extract_hourly_values(
+            dispatchable_load,
+            "Capacities",
+            "Capacity",
+            "Dispatchable Load",
+            "Capacity",
+            internal_data,
+        )
+        _extract_hourly_values(
+            dispatchable_load,
+            "BidForecasts",
+            "BidForecast",
+            "Dispatchable Load",
+            "Bid/Forecasted",
+            internal_data,
+        )
+        _extract_hourly_values(
+            dispatchable_load,
+            "ScheduledON",
+            "Schedule",
+            "Dispatchable Load",
+            "Scheduled ON",
+            internal_data,
+        )
+
+        # Extract Generation Reserve data
+        generation_reserve = document_body["ForecastDemand"][
+            "GenerationReserveHoldback"
+        ]
+        _extract_hourly_values(
+            generation_reserve["TotalORReserve"],
+            "ORReserve",
+            "ORReserve",
+            "Total Operating Reserve",
+            "Reserve",
+            internal_data,
+        )
+        _extract_hourly_values(
+            generation_reserve["Min10MinOR"],
+            "Min10OR",
+            "Min10OR",
+            "10 Minute Operating Reserve",
+            "Minimum",
+            internal_data,
+        )
+
+        # Final df creation
         df_internal = pd.DataFrame(internal_data)
         df_internal["Interval Start"] = delivery_date + pd.to_timedelta(
             df_internal["DeliveryHour"] - 1,
@@ -1048,27 +1283,51 @@ class IESO(ISOBase):
         )
         df_internal["Publish Time"] = publish_time
 
-        # Standardize the time columns for all dataframes
-        for df in [df_capacity, df_energy, df_internal]:
+        for df in [
+            df_capacity,
+            df_energy,
+            df_bottled_capacity,
+            df_regulation,
+            df_total_supplies,
+            df_internal,
+        ]:
             df["Interval Start"] = delivery_date + pd.to_timedelta(
                 df["DeliveryHour"] - 1,
                 unit="h",
             )
             df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
             df["Publish Time"] = publish_time
-            df.drop(columns=["DeliveryHour"], inplace=True)
+            if "EnergyMW" in df.columns:
+                df.drop(columns=["DeliveryHour", "EnergyMW"], inplace=True)
+            elif "EnergyMWhr" in df.columns:
+                df.drop(columns=["DeliveryHour", "EnergyMWhr"], inplace=True)
 
-        # Merge all dataframes
-        df = df_capacity.merge(
+        dfs_to_merge = [
+            df_capacity,
             df_energy,
-            on=["Interval Start", "Interval End", "Publish Time"],
-            how="outer",
-        ).merge(
+            df_bottled_capacity,
+            df_regulation,
+            df_total_supplies,
             df_internal,
-            on=["Interval Start", "Interval End", "Publish Time"],
-            how="outer",
-        )
+        ]
+        merge_columns = ["Interval Start", "Interval End", "Publish Time"]
+        for df_to_merge in dfs_to_merge:
+            print(df_to_merge.columns)
+            print(df_to_merge.head())
 
+        df = dfs_to_merge[0]
+        for df_to_merge in dfs_to_merge[1:]:
+            df = pd.merge(
+                df,
+                df_to_merge,
+                on=merge_columns,
+                how="outer",
+            )
+
+        column_renames = {
+            "Hydro Forecasted": "Hydro Forecasted (MWhr)",
+        }
+        df.rename(columns=column_renames, inplace=True)
         return df[
             [
                 "Interval Start",
@@ -1099,15 +1358,37 @@ class IESO(ISOBase):
                 "Solar Scheduled",
                 "Biofuel Capacity",
                 "Biofuel Outages",
-                "Biofuel Offered/Forecasted",
+                "Biofuel Offered",
                 "Biofuel Scheduled",
                 "Other Capacity",
                 "Other Outages",
                 "Other Offered/Forecasted",
                 "Other Scheduled",
-                "Total Outages",
-                "Total Offered/Forecasted",
-                "Total Scheduled",
+                "Total Internal Resources Outages",
+                "Total Internal Resources Offered/Forecasted",
+                "Total Internal Resources Scheduled",
+                "Manitoba Offered",
+                "Manitoba Scheduled",
+                "Michigan Offered",
+                "Michigan Scheduled",
+                "Minnesota Offered",
+                "Minnesota Scheduled",
+                "New York Offered",
+                "New York Scheduled",
+                "Quebec Offered",
+                "Quebec Scheduled",
+                "Total Imports Offered",
+                "Total Imports Scheduled",
+                "Total Imports Estimated",
+                "Total Imports Capacity",
+                "Forecast Supply Bottled Capacity (MW)",
+                "Forecast Supply Regulation (MW)",
+                "Forecast Supply Total Supplies (MW)",
+                "Dispatchable Load Capacity",
+                "Dispatchable Load Bid/Forecasted",
+                "Dispatchable Load Scheduled ON",
+                "Total Operating Reserve Reserve",
+                "10 Minute Operating Reserve Minimum",
             ]
         ].sort_values(["Interval Start", "Publish Time"])
 
