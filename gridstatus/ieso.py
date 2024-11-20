@@ -1,6 +1,8 @@
 import datetime
+import re
 import time
 import xml.etree.ElementTree as ET
+from pprint import pformat
 
 import certifi
 import pandas as pd
@@ -10,7 +12,7 @@ import xmltodict
 from gridstatus import utils
 from gridstatus.base import ISOBase, NotSupported
 from gridstatus.decorators import support_date_range
-from gridstatus.gs_logging import log, logger
+from gridstatus.gs_logging import logger
 
 """LOAD CONSTANTS"""
 # Load hourly files go back 30 days
@@ -871,9 +873,8 @@ class IESO(ISOBase):
 
         return interval_load_demand_triples
 
-    def _request(self, url: str, verbose: bool):
-        msg = f"Fetching URL: {url}"
-        log(msg, verbose)
+    def _request(self, url: str, verbose: bool = False):
+        logger.info(f"Fetching URL: {url}")
 
         max_retries = 3
         retry_num = 0
@@ -896,7 +897,7 @@ class IESO(ISOBase):
                 break
 
             retry_num += 1
-            print(f"Request failed. Error: {r.reason}. Retrying {retry_num}...")
+            logger.info(f"Request failed. Error: {r.reason}. Retrying {retry_num}...")
 
             time.sleep(sleep)
 
@@ -912,7 +913,6 @@ class IESO(ISOBase):
     def get_resource_adequacy_report(
         self,
         date: str | datetime.date | datetime.datetime,
-        verbose: bool = False,
     ) -> pd.DataFrame:
         """Retrieve and parse the Resource Adequacy Report for a given date.
 
@@ -923,14 +923,13 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: The Resource Adequacy Report df for the given date
         """
-        json_data = self._get_resource_adequacy_json(date, verbose)
+        json_data = self._get_resource_adequacy_json(date)
         return self._parse_resource_adequacy_report(json_data)
 
     # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
     def _get_resource_adequacy_json(
         self,
         date: str | datetime.date | datetime.datetime,
-        verbose: bool = False,
     ) -> dict:
         """Retrieve the Resource Adequacy Report for a given date and convert to JSON."""
         base_url = "https://reports-public.ieso.ca/public/Adequacy2"
@@ -940,23 +939,31 @@ class IESO(ISOBase):
         else:
             date_str = date.replace("-", "")
 
-        url = f"{base_url}/PUB_Adequacy2_{date_str}_v125.xml"  # TODO: handle version number
+        file_prefix = f"PUB_Adequacy2_{date_str}"
 
-        r = self._request(url, verbose)
+        r = self._request(base_url)
+        files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
+        logger.debug(f"Files retrieved for {date_str}: {pformat(files)}")
+        if not files:
+            raise FileNotFoundError(
+                f"No resource adequacy files found for date {date_str}",
+            )
+
+        latest_file = max(
+            files,
+            key=lambda x: int(x.split("_v")[-1].replace(".xml", ""))
+            if "_v" in x
+            else 0,
+        )
+        logger.debug(f"Latest file: {latest_file}")
+        url = f"{base_url}/{latest_file}"
+        r = self._request(url)
         json_data = xmltodict.parse(r.text)
-
-        if verbose:
-            import json
-
-            logger.debug("XML Structure:")
-            logger.debug(json.dumps(json_data, indent=2))
 
         return json_data
 
     def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
         """Parse the Resource Adequacy Report JSON into DataFrames."""
-        from pprint import pformat
-
         publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
         document_body = json_data["Document"]["DocBody"]
         delivery_date = pd.to_datetime(document_body["DeliveryDate"])
@@ -965,8 +972,6 @@ class IESO(ISOBase):
 
         report_data = []
         data_map = self._get_resource_adequacy_data_structure_map()
-
-        logger.debug("=== Processing Data Map Sections ===")
 
         for section_name, section_data in data_map.items():
             logger.debug(f"--- Processing Section: {section_name} ---")
@@ -1172,6 +1177,8 @@ class IESO(ISOBase):
                             report_data=report_data,
                         )
 
+        # NOTE(kladar): This is the first place where pandas is truly invoked, leaving it open for more modern
+        # dataframe libraries to be swapped in in the future
         df = pd.DataFrame(report_data)
         df["Interval Start"] = delivery_date + pd.to_timedelta(
             df["DeliveryHour"] - 1,
