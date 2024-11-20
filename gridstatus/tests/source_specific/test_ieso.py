@@ -10,8 +10,14 @@ from gridstatus.ieso import (
     MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 TIME_COLUMN = "Interval Start"
+
+api_vcr = setup_vcr(
+    source="ieso",
+    record_mode=RECORD_MODE,
+)
 
 
 class TestIESO(BaseTestISO):
@@ -28,14 +34,17 @@ class TestIESO(BaseTestISO):
     def test_get_fuel_mix_date_or_start(self):
         pass
 
+    @pytest.mark.integration
     def test_get_fuel_mix_historical(self):
         super().test_get_fuel_mix_historical(time_column=TIME_COLUMN)
 
+    @pytest.mark.integration
     def test_get_fuel_mix_historical_with_date_range(self):
         super().test_get_fuel_mix_historical_with_date_range(
             time_column=TIME_COLUMN,
         )
 
+    @pytest.mark.integration
     def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
         yesterday = utils._handle_date(
             "today",
@@ -53,6 +62,7 @@ class TestIESO(BaseTestISO):
         )
         assert df[TIME_COLUMN].min() <= start
 
+    @pytest.mark.integration
     def test_get_fuel_mix_start_end_same_day(self):
         yesterday = utils._handle_date(
             "today",
@@ -67,9 +77,11 @@ class TestIESO(BaseTestISO):
         ]
         self._check_fuel_mix(df)
 
+    @pytest.mark.integration
     def test_get_fuel_mix_latest(self):
         super().test_get_fuel_mix_latest(time_column=TIME_COLUMN)
 
+    @pytest.mark.integration
     def test_get_fuel_mix_in_future_raises_error(self):
         with pytest.raises(NotSupported):
             self.iso.get_fuel_mix(
@@ -79,6 +91,7 @@ class TestIESO(BaseTestISO):
 
     """get_generator_report_hourly"""
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_historical(self):
         # date string works
         date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=10)
@@ -110,6 +123,7 @@ class TestIESO(BaseTestISO):
         assert df.loc[0][TIME_COLUMN].tz is not None
         self._check_get_generator_report_hourly(df)
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_historical_with_date_range(self):
         # range not inclusive, add one to include today
         num_days = 7
@@ -127,6 +141,7 @@ class TestIESO(BaseTestISO):
         # make sure right number of days are returned
         assert df[TIME_COLUMN].dt.day.nunique() == num_days
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_range_two_days_with_end(self):
         yesterday = utils._handle_date(
             "today",
@@ -149,6 +164,7 @@ class TestIESO(BaseTestISO):
 
         self._check_get_generator_report_hourly(df)
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_start_end_same_day(self):
         yesterday = utils._handle_date(
             "today",
@@ -163,6 +179,7 @@ class TestIESO(BaseTestISO):
         ]
         self._check_get_generator_report_hourly(df)
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_latest(self):
         df = self.iso.get_generator_report_hourly("latest")
         self._check_get_generator_report_hourly(df)
@@ -176,10 +193,12 @@ class TestIESO(BaseTestISO):
             # Account for data not immediately available
         ).floor("h") - pd.Timedelta(hours=2)
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_today(self):
         df = self.iso.get_generator_report_hourly("today")
         assert df.equals(self.iso.get_generator_report_hourly("latest"))
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_too_far_in_past_raises_error(self):
         with pytest.raises(NotSupported):
             self.iso.get_generator_report_hourly(
@@ -189,6 +208,7 @@ class TestIESO(BaseTestISO):
                 ),
             )
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_in_future_raises_error(self):
         with pytest.raises(NotSupported):
             self.iso.get_generator_report_hourly(
@@ -222,6 +242,7 @@ class TestIESO(BaseTestISO):
 
     """get_load"""
 
+    @pytest.mark.integration
     def test_get_load_today(self):
         df = self.iso.get_load("today")
         self._check_load(df)
@@ -234,6 +255,7 @@ class TestIESO(BaseTestISO):
 
         assert (df[TIME_COLUMN].dt.date == today.date()).all()
 
+    @pytest.mark.integration
     def test_get_load_latest(self):
         df = self.iso.get_load("latest")
 
@@ -244,6 +266,7 @@ class TestIESO(BaseTestISO):
 
         assert df.shape[0] <= 12
 
+    @pytest.mark.integration
     def test_get_load_yesterday_full_day(self):
         date = (
             pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=1)
@@ -262,6 +285,7 @@ class TestIESO(BaseTestISO):
         end_of_date = beginning_of_date + pd.Timedelta(days=1)
         assert df["Interval End"].max() == end_of_date
 
+    @pytest.mark.integration
     def test_get_load_historical_with_date_range(self):
         num_days = 2
         end = pd.Timestamp.now(
@@ -278,6 +302,7 @@ class TestIESO(BaseTestISO):
 
         assert data_tuple.equals(data)
 
+    @pytest.mark.integration
     def test_get_load_historical(self):
         # pick a test date 2 weeks back
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=14)).date()
@@ -303,6 +328,7 @@ class TestIESO(BaseTestISO):
             "%Y%m%d",
         ) == test_date.strftime("%Y%m%d")
 
+    @pytest.mark.integration
     def test_get_load_tomorrow_raises_error(self):
         with pytest.raises(NotSupported):
             self.iso.get_load(
@@ -319,6 +345,7 @@ class TestIESO(BaseTestISO):
 
     """get_load_forecast"""
 
+    @pytest.mark.integration
     def test_get_load_forecast_today(self):
         forecast = self.iso.get_load_forecast("today")
         self._check_load_forecast(forecast)
@@ -347,11 +374,13 @@ class TestIESO(BaseTestISO):
 
     """get_zonal_load_forecast"""
 
+    @pytest.mark.integration
     def test_get_zonal_load_forecast_historical(self):
         test_date = (pd.Timestamp.now() - pd.Timedelta(days=3)).date()
         forecast = self.iso.get_zonal_load_forecast(date=test_date)
         self._check_zonal_load_forecast(forecast)
 
+    @pytest.mark.integration
     def test_get_zonal_load_forecast_historical_with_date_range(self):
         end = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
         start = (end - pd.Timedelta(days=2)).date()
@@ -361,6 +390,7 @@ class TestIESO(BaseTestISO):
         )
         self._check_zonal_load_forecast(forecast)
 
+    @pytest.mark.integration
     def test_get_zonal_load_forecast_today(self):
         forecast = self.iso.get_zonal_load_forecast("today")
 
@@ -390,6 +420,7 @@ class TestIESO(BaseTestISO):
 
     """get_status"""
 
+    @pytest.mark.integration
     def test_get_status_latest(self):
         # ensure there is a homepage if gridstatus can retrieve a status
         assert isinstance(self.iso.status_homepage, str)
@@ -509,3 +540,105 @@ class TestIESO(BaseTestISO):
             "SOLAR",
             "WIND",
         ]
+
+    """get_resource_adequacy_report"""
+
+    @api_vcr.use_cassette("test_get_resource_adequacy_report.yaml")
+    def test_get_resource_adequacy_report(self):
+        date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=1)
+        df = self.iso.get_resource_adequacy_report(date)
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape[0] == 24  # One row per hour
+
+        # Check required columns exist
+        required_cols = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Ontario Demand Forecast",
+            "Nuclear Capacity",
+            "Gas Capacity",
+            "Hydro Capacity",
+            "Wind Capacity",
+            "Solar Capacity",
+            "Biofuel Capacity",
+        ]
+        for col in required_cols:
+            assert col in df.columns
+
+        # Check time columns
+        assert pd.api.types.is_datetime64_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_dtype(df["Interval End"])
+        assert pd.api.types.is_datetime64_dtype(df["Publish Time"])
+
+        # Check all intervals are 1 hour
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+        # Check numeric columns contain valid values
+        numeric_cols = [c for c in df.columns if "Capacity" in c or "Forecast" in c]
+        for col in numeric_cols:
+            assert pd.api.types.is_numeric_dtype(df[col])
+            assert not df[col].isna().any()
+            assert (df[col] >= 0).all()
+
+    @api_vcr.use_cassette("test_get_resource_adequacy_json.yaml")
+    def test_get_resource_adequacy_json(self):
+        date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=1)
+        json_data = self.iso._get_resource_adequacy_json(date, verbose=False)
+
+        assert isinstance(json_data, dict)
+        assert "Document" in json_data
+        assert "DocHeader" in json_data["Document"]
+        assert "DocBody" in json_data["Document"]
+
+        doc_body = json_data["Document"]["DocBody"]
+        assert "ForecastSupply" in doc_body
+        assert "ForecastDemand" in doc_body
+        assert "DeliveryDate" in doc_body
+
+    def test_get_resource_adequacy_data_structure_map(self):
+        data_map = self.iso._get_resource_adequacy_data_structure_map()
+
+        assert isinstance(data_map, dict)
+        assert "Supply" in data_map
+        assert "Demand" in data_map
+
+        supply = data_map["Supply"]
+        assert "Hourly" in supply
+        assert "Fuel_Type_Hourly" in supply
+        assert "Total_Internal_Resources" in supply
+        assert "Zonal_Import_Hourly" in supply
+
+        demand = data_map["Demand"]
+        assert "Ontario_Demand" in demand
+        assert "Zonal_Export_Hourly" in demand
+        assert "Total_Exports" in demand
+        assert "Reserves" in demand
+
+    def test_extract_hourly_values(self):
+        test_data = {
+            "Capacities": {
+                "Capacity": [
+                    {"DeliveryHour": "1", "EnergyMW": "100"},
+                    {"DeliveryHour": "2", "EnergyMW": "200"},
+                ],
+            },
+        }
+
+        report_data = []
+        self.iso._extract_hourly_values(
+            data=test_data,
+            path=["Capacities", "Capacity"],
+            column_name="Test Capacity",
+            value_key="EnergyMW",
+            report_data=report_data,
+        )
+
+        assert len(report_data) == 2
+        assert report_data[0]["DeliveryHour"] == 1
+        assert report_data[0]["Test Capacity"] == 100.0
+        assert report_data[1]["DeliveryHour"] == 2
+        assert report_data[1]["Test Capacity"] == 200.0

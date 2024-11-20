@@ -62,8 +62,9 @@ coverage.xml
 .pytest_cache/
 cover/
 mypy_report/
-# VCR cassettes for binary files, for now until we can figure out how to handle them
+# VCR cassettes for large and binary files, for now until we can get them to and from s3
 gridstatus/tests/fixtures/miso/vcr_cassettes
+gridstatus/tests/fixtures/ieso/vcr_cassettes
 
 # Translations
 *.mo
