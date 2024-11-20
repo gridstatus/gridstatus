@@ -955,6 +955,7 @@ class IESO(ISOBase):
 
     def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
         """Parse the Resource Adequacy Report JSON into DataFrames."""
+        from pprint import pformat
 
         publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
         document_body = json_data["Document"]["DocBody"]
@@ -970,9 +971,9 @@ class IESO(ISOBase):
         for section_name, section_data in data_map.items():
             logger.debug(f"--- Processing Section: {section_name} ---")
 
-            if "direct_hourly" in section_data:
+            if "Hourly" in section_data:
                 logger.debug("Processing Direct Hourly Data...")
-                for metric_name, config in section_data["direct_hourly"].items():
+                for metric_name, config in section_data["Hourly"].items():
                     self._extract_hourly_values(
                         data=document_body,
                         path=config["path"],
@@ -981,10 +982,10 @@ class IESO(ISOBase):
                         report_data=report_data,
                     )
 
-            # For fuel type hourly data
-            if "fuel_type_hourly" in section_data:
+            # For fuel type hourly data and zonal imports data
+            if "Fuel_Type_Hourly" in section_data:
                 logger.debug("Processing Fuel Type Hourly Data...")
-                fuel_type_config = section_data["fuel_type_hourly"]
+                fuel_type_config = section_data["Fuel_Type_Hourly"]
 
                 current_data = document_body
                 for path_part in fuel_type_config["path"][:-1]:
@@ -993,8 +994,6 @@ class IESO(ISOBase):
                 resources = current_data[fuel_type_config["path"][-1]]
                 if not isinstance(resources, list):
                     resources = [resources]
-
-                # logger.debug(f"Found Resources:\n{pformat(resources)}")
 
                 for resource in resources:
                     fuel_type = resource.get(fuel_type_config["key_field"])
@@ -1008,7 +1007,6 @@ class IESO(ISOBase):
                                 metric
                             ]
                             logger.debug(f"Extracting {fuel_type} {metric}")
-                            logger.debug(f"Path Parts: {path_parts}")
                             self._extract_hourly_values(
                                 data=resource,
                                 path=path_parts[:2],
@@ -1018,29 +1016,105 @@ class IESO(ISOBase):
                             )
 
             # For zonal data
-            for zonal_key in ["zonal_imports", "zonal_exports"]:
-                if zonal_key in section_data:
-                    logger.debug(f"Processing {zonal_key}...")
-                    zonal_config = section_data[zonal_key]
-                    current_data = document_body
-                    for path_part in zonal_config["path"][:-1]:
-                        current_data = current_data[path_part]
+            if "Zonal_Import_Hourly" in section_data:
+                logger.debug("Processing Zonal Import Data...")
+                zonal_config = section_data["Zonal_Import_Hourly"]
+                current_data = document_body
+                for path_part in zonal_config["path"][:-1]:
+                    current_data = current_data[path_part]
 
-                    zones = current_data[zonal_config["path"][-1]]
-                    if not isinstance(zones, list):
-                        zones = [zones]
+                zones = current_data[zonal_config["path"][-1]]
 
-                    for zone in zones:
-                        zone_name = zone[zonal_config["key_field"]]
-                        logger.debug(f"Processing Zone: {zone_name}")
-                        for metric in zonal_config["metrics"]:
-                            self._extract_hourly_values(
-                                data=zone,
-                                path=[f"{metric}s", metric],
-                                column_name=f"{zone_name} {metric}",
-                                value_key="EnergyMW",
-                                report_data=report_data,
-                            )
+                for zone in zones:
+                    zone_name = zone[zonal_config["key_field"]]
+                    logger.debug(f"Processing Zone: {zone_name}")
+                    metrics = zonal_config["zones"][zone_name]
+
+                    for metric in metrics:
+                        path_parts = zonal_config["zones"][zone_name][metric]
+                        logger.debug(f"Extracting {zone_name} {metric}")
+                        self._extract_hourly_values(
+                            data=zone,
+                            path=path_parts[:2],
+                            column_name=f"{zone_name} {metric}",
+                            value_key=path_parts[2],
+                            report_data=report_data,
+                        )
+
+            if "Total_Imports" in section_data:
+                logger.debug("Processing Total Imports Data...")
+                total_imports_config = section_data["Total_Imports"]
+                logger.debug(f"Total Imports Config: {total_imports_config}")
+
+                # Navigate to TotalImports section
+                current_data = document_body
+                for path_part in ["ForecastSupply", "ZonalImports", "TotalImports"]:
+                    current_data = current_data[path_part]
+
+                metrics = total_imports_config["metrics"]
+
+                for metric in metrics:
+                    path_parts = total_imports_config["metrics"][metric]
+                    logger.debug(f"Extracting Total Imports {metric}")
+                    logger.debug(f"Path Parts: {path_parts}")
+
+                    self._extract_hourly_values(
+                        data=current_data,  # Use the nested data instead of document_body
+                        path=path_parts[:2],
+                        column_name=f"Total Imports {metric}",
+                        value_key=path_parts[2],
+                        report_data=report_data,
+                    )
+
+            if "Zonal_Export_Hourly" in section_data:
+                logger.debug("Processing Zonal Export Data...")
+                zonal_export_config = section_data["Zonal_Export_Hourly"]
+                current_data = document_body
+                for path_part in zonal_export_config["path"][:-1]:
+                    current_data = current_data[path_part]
+
+                zones = current_data[zonal_export_config["path"][-1]]
+
+                for zone in zones:
+                    zone_name = zone[zonal_export_config["key_field"]]
+                    logger.debug(f"Processing Zone: {zone_name}")
+                    metrics = zonal_export_config["zones"][zone_name]
+
+                    for metric in metrics:
+                        path_parts = zonal_export_config["zones"][zone_name][metric]
+                        logger.debug(f"Extracting {zone_name} {metric}")
+                        self._extract_hourly_values(
+                            data=zone,
+                            path=path_parts[:2],
+                            column_name=f"{zone_name} {metric}",
+                            value_key=path_parts[2],
+                            report_data=report_data,
+                        )
+
+            if "Total_Exports" in section_data:
+                logger.debug("Processing Total Exports Data...")
+                total_exports_config = section_data["Total_Exports"]
+                logger.debug(f"Total Exports Config: {total_exports_config}")
+
+                # Navigate to TotalExports section
+                current_data = document_body
+                for path_part in ["ForecastDemand", "TotalExports"]:
+                    current_data = current_data[path_part]
+
+                metrics = total_exports_config["metrics"]
+
+                for metric in metrics:
+                    path_parts = total_exports_config["metrics"][metric]
+                    logger.debug(f"Extracting Total Exports {metric}")
+                    logger.debug(f"Path Parts: {path_parts}")
+
+                    self._extract_hourly_values(
+                        data=current_data,  # Use the nested data instead of document_body
+                        path=path_parts[:2],
+                        column_name=f"Total Exports {metric}",
+                        value_key=path_parts[2],
+                        report_data=report_data,
+                    )
 
         df = pd.DataFrame(report_data)
         df["Interval Start"] = delivery_date + pd.to_timedelta(
@@ -1060,14 +1134,15 @@ class IESO(ISOBase):
                 "Publish Time",
             ],
         )
-
+        logger.debug(f"DataFrame Shape: {df.shape}")
+        logger.debug(f"Columns:\n{pformat(df.columns.tolist())}")
         return df.sort_values(["Interval Start", "Publish Time"])
 
     def _get_resource_adequacy_data_structure_map(self) -> dict:
         """Define mapping of hourly data locations and extraction rules"""
         return {
-            "supply": {
-                "direct_hourly": {
+            "Supply": {
+                "Hourly": {
                     "Forecast Supply Capacity": {
                         "path": ["ForecastSupply", "Capacities", "Capacity"],
                         "value_key": "EnergyMW",
@@ -1094,67 +1169,102 @@ class IESO(ISOBase):
                         "unit": "MW",
                     },
                 },
-                "fuel_type_hourly": {
+                "Fuel_Type_Hourly": {
                     "path": ["ForecastSupply", "InternalResources", "InternalResource"],
                     "key_field": "FuelType",
                     "resources": {
                         "Nuclear": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offered", "Offer", "EnergyMW"],
-                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                            "Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Gas": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offered", "Offer", "EnergyMW"],
-                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                            "Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Hydro": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offered", "Offer", "EnergyMW"],
-                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                            "Forecasted (MWhr)": [
+                                "ForecastEnergies",
+                                "ForecastEnergy",
+                                "EnergyMWhr",
+                            ],
+                            "Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Wind": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offered", "Offer", "EnergyMW"],
-                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                            "Forecasted": ["Forecasts", "Forecast", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Solar": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offered", "Offer", "EnergyMW"],
-                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                            "Forecasted": ["Forecasts", "Forecast", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Biofuel": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offered", "Offer", "EnergyMW"],
-                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                            "Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Other": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offered", "Offer", "EnergyMW"],
-                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                            "Offered/Forecasted": [
+                                "OfferForecasts",
+                                "OfferForecast",
+                                "EnergyMW",
+                            ],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                     },
                 },
-                "zonal_imports": {
+                "Zonal_Import_Hourly": {
                     "path": ["ForecastSupply", "ZonalImports", "ZonalImport"],
                     "key_field": "ZoneName",
-                    "metrics": ["Offered", "Scheduled"],
+                    "zones": {
+                        "Manitoba": {
+                            "Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                        "Minnesota": {
+                            "Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                        "Michigan": {
+                            "Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                        "New York": {
+                            "Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                        "Quebec": {
+                            "Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                    },
                 },
-                "total_imports": {
-                    "path": ["ForecastSupply", "ZonalImports", "TotalImports"],
-                    "prefix": "Total Imports",
-                    "metrics": ["Offered", "Scheduled", "Estimated", "Capacity"],
+                "Total_Imports": {
+                    "path": ["ForecastSupply", "TotalImports"],
+                    "key_field": "TotalImports",
+                    "metrics": {
+                        "Offers": ["Offers", "Offer", "EnergyMW"],
+                        "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        "Estimated": ["Estimates", "Estimate", "EnergyMW"],
+                        "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                    },
                 },
             },
-            "demand": {
-                "ontario_demand": {
+            "Demand": {
+                "Ontario_Demand": {
                     "path": [
                         "ForecastDemand",
                         "OntarioDemand",
@@ -1169,10 +1279,41 @@ class IESO(ISOBase):
                     "prefix": "Dispatchable Load",
                     "metrics": ["Capacity", "Bid/Forecasted", "Scheduled ON"],
                 },
-                "zonal_exports": {
+                "Zonal_Export_Hourly": {
                     "path": ["ForecastDemand", "ZonalExports", "ZonalExport"],
                     "key_field": "ZoneName",
-                    "metrics": ["Bid", "Scheduled"],
+                    "zones": {
+                        "Manitoba": {
+                            "Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                        "Minnesota": {
+                            "Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                        "Michigan": {
+                            "Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                        "New York": {
+                            "Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                        "Quebec": {
+                            "Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        },
+                    },
+                },
+                "Total_Exports": {
+                    "path": ["ForecastDemand", "TotalExports"],
+                    "key_field": "TotalExports",
+                    "metrics": {
+                        "Bids": ["Bids", "Bid", "EnergyMW"],
+                        "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                        "Estimated": ["Estimates", "Estimate", "EnergyMW"],
+                        "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                    },
                 },
                 "reserves": {
                     "path": ["ForecastDemand", "GenerationReserveHoldback"],
