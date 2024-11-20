@@ -1547,20 +1547,55 @@ class IESO(ISOBase):
             value_key: Key containing the value to extract (e.g. "EnergyMW")
             report_data: List to store extracted hourly data rows
         """
-        # Navigate to the data location
+
         current = data
         for key in path[:-1]:
             if key not in current:
+                logger.debug(f"Path segment '{key}' not found in data structure")
                 return
             current = current[key]
+            logger.debug(f"Found path segment: {key}")
 
-        # Extract hourly values
-        for item in current[path[-1]]:
+        items = current.get(path[-1], [])
+        if items is None:
+            logger.debug(f"Final path segment '{path[-1]}' returned None")
+            items = []
+        elif not isinstance(items, list):
+            logger.debug(f"Converting single item to list for '{path[-1]}'")
+            items = [items]
+
+        existing_hours = {row["DeliveryHour"] for row in report_data}
+        missing_hours = set(range(1, 25)) - existing_hours
+        if missing_hours:
+            logger.debug(f"Creating placeholder rows for hours: {missing_hours}")
+        for hour in range(1, 25):
+            if hour not in existing_hours:
+                report_data.append({"DeliveryHour": hour})
+
+        hours_with_values = set()
+
+        for item in items:
+            if item is None:
+                logger.debug("Skipping None item")
+                continue
+
             hour = int(item["DeliveryHour"])
-            row = next(
-                (r for r in report_data if r["DeliveryHour"] == hour),
-                {"DeliveryHour": hour},
+            hours_with_values.add(hour)
+
+            row = next(r for r in report_data if r["DeliveryHour"] == hour)
+            try:
+                value = item.get(value_key)
+                row[column_name] = float(value) if value is not None else None
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Error converting value for hour {hour}: {e}")
+                row[column_name] = None
+
+        missing_value_hours = set(range(1, 25)) - hours_with_values
+        if missing_value_hours:
+            logger.debug(
+                f"Detected {len(missing_value_hours)} hours without values for column {column_name}. Filling in with None.",
             )
-            row[column_name] = float(item[value_key])
-            if row not in report_data:
-                report_data.append(row)
+        for hour in range(1, 25):
+            if hour not in hours_with_values:
+                row = next(r for r in report_data if r["DeliveryHour"] == hour)
+                row[column_name] = None

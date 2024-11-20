@@ -1,3 +1,5 @@
+import datetime
+
 import pandas as pd
 import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
@@ -336,6 +338,7 @@ class TestIESO(BaseTestISO):
                 + pd.Timedelta(days=1),
             )
 
+    @pytest.mark.integration
     def test_get_load_too_far_in_past_raises_error(self):
         with pytest.raises(NotSupported):
             self.iso.get_load(
@@ -359,6 +362,7 @@ class TestIESO(BaseTestISO):
             tz=self.default_timezone,
         ).normalize() + pd.Timedelta(days=2)
 
+    @pytest.mark.integration
     def test_get_load_forecast_latest(self):
         assert self.iso.get_load_forecast("latest").equals(
             self.iso.get_load_forecast("today"),
@@ -413,6 +417,7 @@ class TestIESO(BaseTestISO):
 
         self._check_zonal_load_forecast(forecast)
 
+    @pytest.mark.integration
     def test_get_zonal_load_forecast_latest(self):
         assert self.iso.get_zonal_load_forecast("latest").equals(
             self.iso.get_zonal_load_forecast("today"),
@@ -543,51 +548,138 @@ class TestIESO(BaseTestISO):
 
     """get_resource_adequacy_report"""
 
-    @api_vcr.use_cassette("test_get_resource_adequacy_report.yaml")
-    def test_get_resource_adequacy_report(self):
-        date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=1)
-        df = self.iso.get_resource_adequacy_report(date)
+    @pytest.mark.parametrize(
+        "date",
+        [
+            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=119)).strftime(
+                "%Y-%m-%d",
+            ),  # NOTE(kladar): we will see how historical data rolls off
+            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=1)).strftime(
+                "%Y-%m-%d",
+            ),  # yesterday
+            (pd.Timestamp.now(tz=default_timezone)).strftime("%Y-%m-%d"),
+            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=1)).strftime(
+                "%Y-%m-%d",
+            ),  # tomorrow
+            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=30)).strftime(
+                "%Y-%m-%d",
+            ),  # NOTE(kladar): we will see how future data rolls in
+        ],
+    )
+    def test_get_resource_adequacy_report(self, date: str | datetime.date):
+        with api_vcr.use_cassette(f"test_get_resource_adequacy_report_{date}.yaml"):
+            df = self.iso.get_resource_adequacy_report(date)
 
         assert isinstance(df, pd.DataFrame)
-        assert df.shape[0] == 24  # One row per hour
+        assert df.shape == (24, 90)  # 24 rows and 90 columns for each file
 
-        # Check required columns exist
         required_cols = [
             "Interval Start",
             "Interval End",
             "Publish Time",
-            "Ontario Demand Forecast",
+            "Forecast Supply Capacity MW",
+            "Forecast Supply Energy MWhr",
+            "Forecast Supply Bottled Capacity MW",
+            "Forecast Supply Regulation MW",
+            "Total Forecast Supply MW",
+            "Total Requirement MW",
+            "Capacity Excess / Shortfall MW",
+            "Energy Excess / Shortfall MWhr",
+            "Offered Capacity Excess / Shortfall MW",
+            "Resources Not Scheduled MW",
+            "Imports Not Scheduled MW",
             "Nuclear Capacity",
+            "Nuclear Outages",
+            "Nuclear Offered",
+            "Nuclear Scheduled",
             "Gas Capacity",
+            "Gas Outages",
+            "Gas Offered",
+            "Gas Scheduled",
             "Hydro Capacity",
+            "Hydro Outages",
+            "Hydro Forecasted (MWhr)",
+            "Hydro Offered",
+            "Hydro Scheduled",
             "Wind Capacity",
+            "Wind Outages",
+            "Wind Forecasted",
+            "Wind Scheduled",
             "Solar Capacity",
+            "Solar Outages",
+            "Solar Forecasted",
+            "Solar Scheduled",
             "Biofuel Capacity",
+            "Biofuel Outages",
+            "Biofuel Offered",
+            "Biofuel Scheduled",
+            "Other Capacity",
+            "Other Outages",
+            "Other Offered/Forecasted",
+            "Other Scheduled",
+            "Manitoba Imports Offered",
+            "Manitoba Imports Scheduled",
+            "Minnesota Imports Offered",
+            "Minnesota Imports Scheduled",
+            "Michigan Imports Offered",
+            "Michigan Imports Scheduled",
+            "New York Imports Offered",
+            "New York Imports Scheduled",
+            "Quebec Imports Offered",
+            "Quebec Imports Scheduled",
+            "Total Internal Resources Outages",
+            "Total Internal Resources Offered/Forecasted",
+            "Total Internal Resources Scheduled",
+            "Total Imports Offers",
+            "Total Imports Scheduled",
+            "Total Imports Estimated",
+            "Total Imports Capacity",
+            "Manitoba Exports Offered",
+            "Manitoba Exports Scheduled",
+            "Minnesota Exports Offered",
+            "Minnesota Exports Scheduled",
+            "Michigan Exports Offered",
+            "Michigan Exports Scheduled",
+            "New York Exports Offered",
+            "New York Exports Scheduled",
+            "Quebec Exports Offered",
+            "Quebec Exports Scheduled",
+            "Total Exports Bids",
+            "Total Exports Scheduled",
+            "Total Exports Capacity",
+            "Total Operating Reserve",
+            "Minimum 10 Minute Operating Reserve",
+            "Minimum 10 Minute Spin OR",
+            "Load Forecast Uncertainties",
+            "Additional Contingency Allowances",
+            "Ontario Demand Forecast",
+            "Ontario Peak Demand",
+            "Ontario Average Demand",
+            "Ontario Wind Embedded Forecast",
+            "Ontario Solar Embedded Forecast",
+            "Ontario Dispatchable Load Capacity",
+            "Ontario Dispatchable Load Bid / Forecasted",
+            "Ontario Dispatchable Load Scheduled ON",
+            "Ontario Dispatchable Load Scheduled OFF",
+            "Ontario Hourly Demand Response Bid/Forecasted",
+            "Ontario Hourly Demand Response Scheduled",
+            "Ontario Hourly Demand Response Curtailed",
         ]
         for col in required_cols:
             assert col in df.columns
 
-        # Check time columns
-        assert pd.api.types.is_datetime64_dtype(df["Interval Start"])
-        assert pd.api.types.is_datetime64_dtype(df["Interval End"])
-        assert pd.api.types.is_datetime64_dtype(df["Publish Time"])
-
-        # Check all intervals are 1 hour
+        assert self._check_is_datetime_type(df["Interval Start"])
+        assert self._check_is_datetime_type(df["Interval End"])
+        assert self._check_is_datetime_type(df["Publish Time"])
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
-        # Check numeric columns contain valid values
-        numeric_cols = [c for c in df.columns if "Capacity" in c or "Forecast" in c]
-        for col in numeric_cols:
-            assert pd.api.types.is_numeric_dtype(df[col])
-            assert not df[col].isna().any()
-            assert (df[col] >= 0).all()
-
+    # TODO(kladar): eventually don't record this each time
     @api_vcr.use_cassette("test_get_resource_adequacy_json.yaml")
     def test_get_resource_adequacy_json(self):
-        date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=1)
-        json_data = self.iso._get_resource_adequacy_json(date, verbose=False)
+        date = pd.Timestamp.now(tz=self.default_timezone)
+        json_data = self.iso._get_resource_adequacy_json(date)
 
         assert isinstance(json_data, dict)
         assert "Document" in json_data
@@ -624,6 +716,28 @@ class TestIESO(BaseTestISO):
                 "Capacity": [
                     {"DeliveryHour": "1", "EnergyMW": "100"},
                     {"DeliveryHour": "2", "EnergyMW": "200"},
+                    {"DeliveryHour": "3", "EnergyMW": "300"},
+                    {"DeliveryHour": "4", "EnergyMW": "400"},
+                    {"DeliveryHour": "5", "EnergyMW": "500"},
+                    {"DeliveryHour": "6", "EnergyMW": "600"},
+                    {"DeliveryHour": "7", "EnergyMW": "700"},
+                    {"DeliveryHour": "8", "EnergyMW": "800"},
+                    {"DeliveryHour": "9", "EnergyMW": "900"},
+                    {"DeliveryHour": "10", "EnergyMW": "1000"},
+                    {"DeliveryHour": "11", "EnergyMW": "1100"},
+                    {"DeliveryHour": "12", "EnergyMW": "1200"},
+                    {"DeliveryHour": "13", "EnergyMW": "1300"},
+                    {"DeliveryHour": "14", "EnergyMW": "1400"},
+                    {"DeliveryHour": "15", "EnergyMW": "1500"},
+                    {"DeliveryHour": "16", "EnergyMW": "1600"},
+                    {"DeliveryHour": "17", "EnergyMW": "1700"},
+                    {"DeliveryHour": "18", "EnergyMW": "1800"},
+                    {"DeliveryHour": "19", "EnergyMW": "1900"},
+                    {"DeliveryHour": "20", "EnergyMW": "2000"},
+                    {"DeliveryHour": "21", "EnergyMW": "2100"},
+                    {"DeliveryHour": "22", "EnergyMW": "2200"},
+                    {"DeliveryHour": "23", "EnergyMW": "2300"},
+                    {"DeliveryHour": "24", "EnergyMW": "2400"},
                 ],
             },
         }
@@ -637,7 +751,7 @@ class TestIESO(BaseTestISO):
             report_data=report_data,
         )
 
-        assert len(report_data) == 2
+        assert len(report_data) == 24
         assert report_data[0]["DeliveryHour"] == 1
         assert report_data[0]["Test Capacity"] == 100.0
         assert report_data[1]["DeliveryHour"] == 2
