@@ -1,5 +1,4 @@
 import datetime
-import logging
 import time
 import xml.etree.ElementTree as ET
 
@@ -12,8 +11,6 @@ from gridstatus import utils
 from gridstatus.base import ISOBase, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log, logger
-
-logger.setLevel(logging.DEBUG)
 
 """LOAD CONSTANTS"""
 # Load hourly files go back 30 days
@@ -951,52 +948,43 @@ class IESO(ISOBase):
         if verbose:
             import json
 
-            print("XML Structure:")
-            print(json.dumps(json_data, indent=2))
+            logger.debug("XML Structure:")
+            logger.debug(json.dumps(json_data, indent=2))
 
         return json_data
 
     def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
         """Parse the Resource Adequacy Report JSON into DataFrames."""
-        from pprint import pformat
 
-        logger.debug("=== Starting Report Parse ===")
-
-        logger.debug("Publish Time and Delivery Date:")
         publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
         document_body = json_data["Document"]["DocBody"]
         delivery_date = pd.to_datetime(document_body["DeliveryDate"])
         logger.debug(f"Publish Time: {publish_time}")
         logger.debug(f"Delivery Date: {delivery_date}")
 
-        internal_data = []
-        data_map = self._get_data_structure_map()
+        report_data = []
+        data_map = self._get_resource_adequacy_data_structure_map()
 
         logger.debug("=== Processing Data Map Sections ===")
-        # For each section in the data map (supply/demand)
+
         for section_name, section_data in data_map.items():
             logger.debug(f"--- Processing Section: {section_name} ---")
-            logger.debug(f"Section Data Structure:\n{pformat(section_data)}")
 
-            # For direct hourly data
             if "direct_hourly" in section_data:
-                logger.debug("Processing Direct Hourly Data:")
+                logger.debug("Processing Direct Hourly Data...")
                 for metric_name, config in section_data["direct_hourly"].items():
-                    logger.debug(f"Metric: {metric_name}")
-                    logger.debug(f"Config:\n{pformat(config)}")
                     self._extract_hourly_values(
                         data=document_body,
                         path=config["path"],
                         column_name=f"{metric_name} {config['unit']}",  # noqa
                         value_key=config["value_key"],
-                        internal_data=internal_data,
+                        report_data=report_data,
                     )
 
             # For fuel type hourly data
             if "fuel_type_hourly" in section_data:
-                logger.debug("Processing Fuel Type Hourly Data:")
+                logger.debug("Processing Fuel Type Hourly Data...")
                 fuel_type_config = section_data["fuel_type_hourly"]
-                logger.debug(f"Fuel Type Config:\n{pformat(fuel_type_config)}")
 
                 current_data = document_body
                 for path_part in fuel_type_config["path"][:-1]:
@@ -1006,7 +994,7 @@ class IESO(ISOBase):
                 if not isinstance(resources, list):
                     resources = [resources]
 
-                logger.debug(f"Found Resources:\n{pformat(resources)}")
+                # logger.debug(f"Found Resources:\n{pformat(resources)}")
 
                 for resource in resources:
                     fuel_type = resource.get(fuel_type_config["key_field"])
@@ -1014,7 +1002,6 @@ class IESO(ISOBase):
 
                     if fuel_type in fuel_type_config["resources"]:
                         metrics = fuel_type_config["resources"][fuel_type]
-                        logger.debug(f"Available Metrics:\n{pformat(metrics)}")
 
                         for metric in metrics:
                             path_parts = fuel_type_config["resources"][fuel_type][
@@ -1027,16 +1014,14 @@ class IESO(ISOBase):
                                 path=path_parts[:2],
                                 column_name=f"{fuel_type} {metric}",
                                 value_key=path_parts[2],
-                                internal_data=internal_data,
+                                report_data=report_data,
                             )
 
             # For zonal data
             for zonal_key in ["zonal_imports", "zonal_exports"]:
                 if zonal_key in section_data:
-                    logger.debug(f"Processing {zonal_key}:")
+                    logger.debug(f"Processing {zonal_key}...")
                     zonal_config = section_data[zonal_key]
-                    logger.debug(f"Zonal Config:\n{pformat(zonal_config)}")
-
                     current_data = document_body
                     for path_part in zonal_config["path"][:-1]:
                         current_data = current_data[path_part]
@@ -1045,27 +1030,19 @@ class IESO(ISOBase):
                     if not isinstance(zones, list):
                         zones = [zones]
 
-                    logger.debug(f"Found Zones:\n{pformat(zones)}")
-
                     for zone in zones:
                         zone_name = zone[zonal_config["key_field"]]
                         logger.debug(f"Processing Zone: {zone_name}")
                         for metric in zonal_config["metrics"]:
-                            logger.debug(f"Processing Metric: {metric}")
                             self._extract_hourly_values(
                                 data=zone,
                                 path=[f"{metric}s", metric],
                                 column_name=f"{zone_name} {metric}",
                                 value_key="EnergyMW",
-                                internal_data=internal_data,
+                                report_data=report_data,
                             )
 
-        logger.debug("=== Creating DataFrame ===")
-        logger.debug(f"Total rows collected: {len(internal_data)}")
-        logger.debug(f"Sample of internal_data:\n{pformat(internal_data[:2])}")
-
-        # Create DataFrame and add time columns
-        df = pd.DataFrame(internal_data)
+        df = pd.DataFrame(report_data)
         df["Interval Start"] = delivery_date + pd.to_timedelta(
             df["DeliveryHour"] - 1,
             unit="h",
@@ -1084,13 +1061,9 @@ class IESO(ISOBase):
             ],
         )
 
-        logger.debug("=== Final DataFrame Info ===")
-        logger.debug(f"DataFrame Shape: {df.shape}")
-        logger.debug(f"Columns:\n{pformat(df.columns.tolist())}")
-
         return df.sort_values(["Interval Start", "Publish Time"])
 
-    def _get_data_structure_map(self) -> dict:
+    def _get_resource_adequacy_data_structure_map(self) -> dict:
         """Define mapping of hourly data locations and extraction rules"""
         return {
             "supply": {
@@ -1225,16 +1198,16 @@ class IESO(ISOBase):
         path: list[str],
         column_name: str,
         value_key: str,
-        internal_data: list[dict],
+        report_data: list[dict],
     ) -> None:
-        """Extract hourly values from nested XML data into internal_data list.
+        """Extract hourly values from nested XML data into report_data list.
 
         Args:
             data: Source data dictionary
             path: List of keys to traverse to reach hourly data (e.g. ["Capacities", "Capacity"])
             column_name: Name for the extracted data column
             value_key: Key containing the value to extract (e.g. "EnergyMW")
-            internal_data: List to store extracted hourly data rows
+            report_data: List to store extracted hourly data rows
         """
         # Navigate to the data location
         current = data
@@ -1247,9 +1220,9 @@ class IESO(ISOBase):
         for item in current[path[-1]]:
             hour = int(item["DeliveryHour"])
             row = next(
-                (r for r in internal_data if r["DeliveryHour"] == hour),
+                (r for r in report_data if r["DeliveryHour"] == hour),
                 {"DeliveryHour": hour},
             )
             row[column_name] = float(item[value_key])
-            if row not in internal_data:
-                internal_data.append(row)
+            if row not in report_data:
+                report_data.append(row)
