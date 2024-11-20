@@ -1,4 +1,5 @@
 import datetime
+import logging
 import time
 import xml.etree.ElementTree as ET
 
@@ -10,7 +11,9 @@ import xmltodict
 from gridstatus import utils
 from gridstatus.base import ISOBase, NotSupported
 from gridstatus.decorators import support_date_range
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import log, logger
+
+logger.setLevel(logging.DEBUG)
 
 """LOAD CONSTANTS"""
 # Load hourly files go back 30 days
@@ -909,6 +912,23 @@ class IESO(ISOBase):
 
         return r
 
+    def get_resource_adequacy_report(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Retrieve and parse the Resource Adequacy Report for a given date.
+
+        Args:
+            date (str | datetime.date | datetime.datetime): The date for which to get the report
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: The Resource Adequacy Report df for the given date
+        """
+        json_data = self._get_resource_adequacy_json(date, verbose)
+        return self._parse_resource_adequacy_report(json_data)
+
     # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
     def _get_resource_adequacy_json(
         self,
@@ -937,474 +957,299 @@ class IESO(ISOBase):
         return json_data
 
     def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
-        """Parse the Resource Adequacy Report JSON into DataFrames. Includes supply: energy, capacity,
-        internal resources, imports; demand: Ontario demand, exports, generation reserves; and Net Totals
+        """Parse the Resource Adequacy Report JSON into DataFrames."""
+        from pprint import pformat
 
-        Args:
-            json_data (dict): The JSON data from the XML report
+        logger.debug("=== Starting Report Parse ===")
 
-        Returns:
-            pd.DataFrame: Basic parsed data from the report
-        """
+        logger.debug("Publish Time and Delivery Date:")
         publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
-
         document_body = json_data["Document"]["DocBody"]
         delivery_date = pd.to_datetime(document_body["DeliveryDate"])
-
-        # Top Level
-        forecast_supply = document_body["ForecastSupply"]
-        forecast_demand = document_body["ForecastDemand"]
-
-        capacity_data = forecast_supply["Capacities"]["Capacity"]
-        energy_data = forecast_supply["Energies"]["Energy"]
-        bottled_capacity_data = forecast_supply["BottledCapacities"]["Capacity"]
-        regulation_data = forecast_supply["Regulations"]["Regulation"]
-        total_supplies_data = forecast_supply["TotalSupplies"]["Supply"]
-        ramp_status_data = forecast_demand["RampStatuses"]["RampStatus"]
-        total_requirement_data = forecast_demand["TotalRequirements"]["Requirement"]
-        excess_capacity_data = forecast_demand["ExcessCapacities"]["Capacity"]
-        excess_energy_data = forecast_demand["ExcessEnergies"]["Energy"]
-        excess_offered_capacity_data = forecast_demand["ExcessOfferedCapacities"][
-            "Capacity"
-        ]
-        unscheduled_resources_data = forecast_demand["UnscheduledResources"][
-            "UnscheduledResource"
-        ]
-        unscheduled_import_data = forecast_demand["UnscheduledImports"][
-            "UnscheduledImport"
-        ]
-
-        data_configs = [
-            (capacity_data, "Forecast Supply Capacity (MW)", "EnergyMW"),
-            (energy_data, "Forecast Supply Energy (MWhr)", "EnergyMWhr"),
-            (
-                bottled_capacity_data,
-                "Forecast Supply Bottled Capacity (MW)",
-                "EnergyMW",
-            ),
-            (regulation_data, "Forecast Supply Regulation (MW)", "EnergyMW"),
-            (total_supplies_data, "Forecast Supply Total Supplies (MW)", "EnergyMW"),
-            (ramp_status_data, "Ramp Status", "EnergyMW"),
-            (total_requirement_data, "Total Requirement", "EnergyMW"),
-            (excess_capacity_data, "Excess Capacity", "EnergyMW"),
-            (excess_energy_data, "Excess Energy", "EnergyMWhr"),
-            (excess_offered_capacity_data, "Excess Offered Capacity", "EnergyMW"),
-            (unscheduled_resources_data, "Unscheduled Resources", "EnergyMW"),
-            (unscheduled_import_data, "Unscheduled Imports", "EnergyMW"),
-        ]
-
-        top_level_dfs = {}
-        for data, col_name, value_type in data_configs:
-            df = pd.DataFrame(data)
-            df["Publish Time"] = publish_time
-            df["DeliveryHour"] = pd.to_numeric(df["DeliveryHour"])
-            df[col_name] = pd.to_numeric(df[value_type])
-            top_level_dfs[col_name] = df
-
-        df_capacity = top_level_dfs["Forecast Supply Capacity (MW)"]
-        df_energy = top_level_dfs["Forecast Supply Energy (MWhr)"]
-        df_bottled_capacity = top_level_dfs["Forecast Supply Bottled Capacity (MW)"]
-        df_regulation = top_level_dfs["Forecast Supply Regulation (MW)"]
-        df_total_supplies = top_level_dfs["Forecast Supply Total Supplies (MW)"]
-        # df_ramp_status = top_level_dfs["Ramp Status"]
-        # df_total_requirement = top_level_dfs["Total Requirement"]
-        # df_excess_capacity = top_level_dfs["Excess Capacity"]
-        # df_excess_energy = top_level_dfs["Excess Energy"]
-        # df_excess_offered_capacity = top_level_dfs["Excess Offered Capacity"]
-        # df_unscheduled_resources = top_level_dfs["Unscheduled Resources"]
-        # df_unscheduled_import = top_level_dfs["Unscheduled Imports"]
-
-        # Nested Data
-        def _extract_hourly_values(
-            resource_data: dict,
-            container_key: str,
-            item_key: str,
-            fuel_type: str,
-            designation: str,
-            internal_data: list,
-            value_key: str = "EnergyMW",
-        ) -> None:
-            if container_key not in resource_data:
-                return
-
-            for item in resource_data[container_key][item_key]:
-                hour = int(item["DeliveryHour"])
-                row = next(
-                    (r for r in internal_data if r["DeliveryHour"] == hour),
-                    {"DeliveryHour": hour},
-                )
-                row[f"{fuel_type} {designation}"] = float(item[value_key])
-                if row not in internal_data:
-                    internal_data.append(row)
-
-        internal_resources = forecast_supply["InternalResources"]["InternalResource"]
-        total_resources = forecast_supply["InternalResources"]["TotalInternalResources"]
-        zonal_imports = forecast_supply["ZonalImports"]["ZonalImport"]
-        total_imports = forecast_supply["ZonalImports"]["TotalImports"]
-        ontario_demand = forecast_demand["OntarioDemand"]
-        dispatchable_load = ontario_demand["DispatchableLoad"]
-        zonal_exports = forecast_demand["ZonalExports"]["ZonalExport"]
-
-        internal_resources_fuel_type_designation_map = {
-            "Nuclear": ["Capacity", "Outages", "Offered", "Scheduled"],
-            "Gas": ["Capacity", "Outages", "Offered", "Scheduled"],
-            "Hydro": [
-                "Capacity",
-                "Outages",
-                "Forecasted (MWhr)",
-                "Offered",
-                "Scheduled",
-            ],
-            "Wind": ["Capacity", "Outages", "Forecasted", "Scheduled"],
-            "Solar": ["Capacity", "Outages", "Forecasted", "Scheduled"],
-            "Biofuel": ["Capacity", "Outages", "Offered", "Scheduled"],
-            "Other": ["Capacity", "Outages", "Offered/Forecasted", "Scheduled"],
-        }
-
-        # ontario_demand_designation_map = {
-        #     "ForecastOntDemand": None,
-        #     "PeakDemand": None,
-        #     "AverageDemand": None,
-        #     "WindEmbedded": None,
-        #     "SolarEmbedded": None,
-        #     "Dispatchable Load": [
-        #         "Capacity",
-        #         "Bid/Forecasted",
-        #         "Scheduled ON",
-        #         "Scheduled OFF",
-        #     ],
-        #     "Hourly Demand Response": ["Bid/Forecasted", "Scheduled", "Curtailed"],
-        # }
-
-        container_item_map = {
-            "Capacity": ("Capacities", "Capacity", "EnergyMW"),
-            "Outages": ("Outages", "Outage", "EnergyMW"),
-            "Scheduled": ("Schedules", "Schedule", "EnergyMW"),
-            "Forecasted": ("Forecasts", "Forecast", "EnergyMW"),
-            "Offered": ("Offers", "Offer", "EnergyMW"),
-            "Forecasted (MWhr)": ("ForecastEnergies", "ForecastEnergy", "EnergyMWhr"),
-            "Offered/Forecasted": ("OfferForecasts", "OfferForecast", "EnergyMW"),
-        }
+        logger.debug(f"Publish Time: {publish_time}")
+        logger.debug(f"Delivery Date: {delivery_date}")
 
         internal_data = []
-        for resource in internal_resources:
-            fuel_type = resource["FuelType"]
-            designations = internal_resources_fuel_type_designation_map[fuel_type]
+        data_map = self._get_data_structure_map()
 
-            for designation in designations:
-                if designation in container_item_map:
-                    container_key, item_key, value_key = container_item_map[designation]
-                    _extract_hourly_values(
-                        resource,
-                        container_key,
-                        item_key,
-                        fuel_type,
-                        designation,
-                        internal_data,
-                        value_key,
+        logger.debug("=== Processing Data Map Sections ===")
+        # For each section in the data map (supply/demand)
+        for section_name, section_data in data_map.items():
+            logger.debug(f"--- Processing Section: {section_name} ---")
+            logger.debug(f"Section Data Structure:\n{pformat(section_data)}")
+
+            # For direct hourly data
+            if "direct_hourly" in section_data:
+                logger.debug("Processing Direct Hourly Data:")
+                for metric_name, config in section_data["direct_hourly"].items():
+                    logger.debug(f"Metric: {metric_name}")
+                    logger.debug(f"Config:\n{pformat(config)}")
+                    self._extract_hourly_values(
+                        data=document_body,
+                        path=config["path"],
+                        column_name=f"{metric_name} {config['unit']}",  # noqa
+                        value_key=config["value_key"],
+                        internal_data=internal_data,
                     )
 
-        # Process total internal resources
-        _extract_hourly_values(
-            total_resources,
-            "Outages",
-            "Outage",
-            "Total Internal Resources",
-            "Outages",
-            internal_data,
-        )
-        _extract_hourly_values(
-            total_resources,
-            "OfferForecasts",
-            "OfferForecast",
-            "Total Internal Resources",
-            "Offered/Forecasted",
-            internal_data,
-        )
-        _extract_hourly_values(
-            total_resources,
-            "Schedules",
-            "Schedule",
-            "Total Internal Resources",
-            "Scheduled",
-            internal_data,
-        )
+            # For fuel type hourly data
+            if "fuel_type_hourly" in section_data:
+                logger.debug("Processing Fuel Type Hourly Data:")
+                fuel_type_config = section_data["fuel_type_hourly"]
+                logger.debug(f"Fuel Type Config:\n{pformat(fuel_type_config)}")
 
-        for zone in zonal_imports:
-            zone_name = zone["ZoneName"]
+                current_data = document_body
+                for path_part in fuel_type_config["path"][:-1]:
+                    current_data = current_data[path_part]
 
-            if "Offers" in zone:
-                _extract_hourly_values(
-                    zone,
-                    "Offers",
-                    "Offer",
-                    zone_name,
-                    "Offered",
-                    internal_data,
-                )
+                resources = current_data[fuel_type_config["path"][-1]]
+                if not isinstance(resources, list):
+                    resources = [resources]
 
-            if "Schedules" in zone:
-                _extract_hourly_values(
-                    zone,
-                    "Schedules",
-                    "Schedule",
-                    zone_name,
-                    "Scheduled",
-                    internal_data,
-                )
-        for zone in zonal_exports:
-            _extract_hourly_values(
-                zone,
-                "Bids",
-                "Bid",
-                zone_name,
-                "Bid",
-                internal_data,
-            )
+                logger.debug(f"Found Resources:\n{pformat(resources)}")
 
-            _extract_hourly_values(
-                zone,
-                "Schedules",
-                "Schedule",
-                zone_name,
-                "Scheduled",
-                internal_data,
-            )
+                for resource in resources:
+                    fuel_type = resource.get(fuel_type_config["key_field"])
+                    logger.debug(f"Processing Fuel Type: {fuel_type}")
 
-            if zone == "Total":
-                _extract_hourly_values(
-                    zone,
-                    "Capacity Exports",
-                    "Capacity Export",
-                    zone_name,
-                    "Capacity",
-                    internal_data,
-                )
+                    if fuel_type in fuel_type_config["resources"]:
+                        metrics = fuel_type_config["resources"][fuel_type]
+                        logger.debug(f"Available Metrics:\n{pformat(metrics)}")
 
-        _extract_hourly_values(
-            total_imports,
-            "Offers",
-            "Offer",
-            "Total Imports",
-            "Offered",
-            internal_data,
-        )
+                        for metric in metrics:
+                            path_parts = fuel_type_config["resources"][fuel_type][
+                                metric
+                            ]
+                            logger.debug(f"Extracting {fuel_type} {metric}")
+                            logger.debug(f"Path Parts: {path_parts}")
+                            self._extract_hourly_values(
+                                data=resource,
+                                path=path_parts[:2],
+                                column_name=f"{fuel_type} {metric}",
+                                value_key=path_parts[2],
+                                internal_data=internal_data,
+                            )
 
-        _extract_hourly_values(
-            total_imports,
-            "Schedules",
-            "Schedule",
-            "Total Imports",
-            "Scheduled",
-            internal_data,
-        )
+            # For zonal data
+            for zonal_key in ["zonal_imports", "zonal_exports"]:
+                if zonal_key in section_data:
+                    logger.debug(f"Processing {zonal_key}:")
+                    zonal_config = section_data[zonal_key]
+                    logger.debug(f"Zonal Config:\n{pformat(zonal_config)}")
 
-        _extract_hourly_values(
-            total_imports,
-            "Estimates",
-            "Estimate",
-            "Total Imports",
-            "Estimated",
-            internal_data,
-        )
+                    current_data = document_body
+                    for path_part in zonal_config["path"][:-1]:
+                        current_data = current_data[path_part]
 
-        _extract_hourly_values(
-            total_imports,
-            "Capacities",
-            "Capacity",
-            "Total Imports",
-            "Capacity",
-            internal_data,
-        )
+                    zones = current_data[zonal_config["path"][-1]]
+                    if not isinstance(zones, list):
+                        zones = [zones]
 
-        _extract_hourly_values(
-            ontario_demand,
-            "ForecastOntDemand",
-            "Demand",
-            "Ontario Demand",
-            "Forecasted",
-            internal_data,
-        )
+                    logger.debug(f"Found Zones:\n{pformat(zones)}")
 
-        _extract_hourly_values(
-            dispatchable_load,
-            "Capacities",
-            "Capacity",
-            "Dispatchable Load",
-            "Capacity",
-            internal_data,
-        )
-        _extract_hourly_values(
-            dispatchable_load,
-            "BidForecasts",
-            "BidForecast",
-            "Dispatchable Load",
-            "Bid/Forecasted",
-            internal_data,
-        )
-        _extract_hourly_values(
-            dispatchable_load,
-            "ScheduledON",
-            "Schedule",
-            "Dispatchable Load",
-            "Scheduled ON",
-            internal_data,
-        )
+                    for zone in zones:
+                        zone_name = zone[zonal_config["key_field"]]
+                        logger.debug(f"Processing Zone: {zone_name}")
+                        for metric in zonal_config["metrics"]:
+                            logger.debug(f"Processing Metric: {metric}")
+                            self._extract_hourly_values(
+                                data=zone,
+                                path=[f"{metric}s", metric],
+                                column_name=f"{zone_name} {metric}",
+                                value_key="EnergyMW",
+                                internal_data=internal_data,
+                            )
 
-        # Extract Generation Reserve data
-        generation_reserve = document_body["ForecastDemand"][
-            "GenerationReserveHoldback"
-        ]
-        _extract_hourly_values(
-            generation_reserve["TotalORReserve"],
-            "ORReserve",
-            "ORReserve",
-            "Total Operating Reserve",
-            "Reserve",
-            internal_data,
-        )
-        _extract_hourly_values(
-            generation_reserve["Min10MinOR"],
-            "Min10OR",
-            "Min10OR",
-            "10 Minute Operating Reserve",
-            "Minimum",
-            internal_data,
-        )
+        logger.debug("=== Creating DataFrame ===")
+        logger.debug(f"Total rows collected: {len(internal_data)}")
+        logger.debug(f"Sample of internal_data:\n{pformat(internal_data[:2])}")
 
-        # Final df creation
-        df_internal = pd.DataFrame(internal_data)
-        df_internal["Interval Start"] = delivery_date + pd.to_timedelta(
-            df_internal["DeliveryHour"] - 1,
+        # Create DataFrame and add time columns
+        df = pd.DataFrame(internal_data)
+        df["Interval Start"] = delivery_date + pd.to_timedelta(
+            df["DeliveryHour"] - 1,
             unit="h",
         )
-        df_internal["Interval End"] = df_internal["Interval Start"] + pd.Timedelta(
-            hours=1,
-        )
-        df_internal["Publish Time"] = publish_time
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df["Publish Time"] = publish_time
 
-        for df in [
-            df_capacity,
-            df_energy,
-            df_bottled_capacity,
-            df_regulation,
-            df_total_supplies,
-            df_internal,
-        ]:
-            df["Interval Start"] = delivery_date + pd.to_timedelta(
-                df["DeliveryHour"] - 1,
-                unit="h",
-            )
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-            df["Publish Time"] = publish_time
-            if "EnergyMW" in df.columns:
-                df.drop(columns=["DeliveryHour", "EnergyMW"], inplace=True)
-            elif "EnergyMWhr" in df.columns:
-                df.drop(columns=["DeliveryHour", "EnergyMWhr"], inplace=True)
+        df = df.drop(columns=["DeliveryHour"])
 
-        dfs_to_merge = [
-            df_capacity,
-            df_energy,
-            df_bottled_capacity,
-            df_regulation,
-            df_total_supplies,
-            df_internal,
-        ]
-        merge_columns = ["Interval Start", "Interval End", "Publish Time"]
-        for df_to_merge in dfs_to_merge:
-            print(df_to_merge.columns)
-            print(df_to_merge.head())
-
-        df = dfs_to_merge[0]
-        for df_to_merge in dfs_to_merge[1:]:
-            df = pd.merge(
-                df,
-                df_to_merge,
-                on=merge_columns,
-                how="outer",
-            )
-
-        column_renames = {
-            "Hydro Forecasted": "Hydro Forecasted (MWhr)",
-        }
-        df.rename(columns=column_renames, inplace=True)
-        return df[
+        df = utils.move_cols_to_front(
+            df,
             [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
-                "Forecast Supply Capacity (MW)",
-                "Forecast Supply Energy (MWhr)",
-                "Nuclear Capacity",
-                "Nuclear Outages",
-                "Nuclear Offered",
-                "Nuclear Scheduled",
-                "Gas Capacity",
-                "Gas Outages",
-                "Gas Offered",
-                "Gas Scheduled",
-                "Hydro Capacity",
-                "Hydro Outages",
-                "Hydro Forecasted (MWhr)",
-                "Hydro Offered",
-                "Hydro Scheduled",
-                "Wind Capacity",
-                "Wind Outages",
-                "Wind Forecasted",
-                "Wind Scheduled",
-                "Solar Capacity",
-                "Solar Outages",
-                "Solar Forecasted",
-                "Solar Scheduled",
-                "Biofuel Capacity",
-                "Biofuel Outages",
-                "Biofuel Offered",
-                "Biofuel Scheduled",
-                "Other Capacity",
-                "Other Outages",
-                "Other Offered/Forecasted",
-                "Other Scheduled",
-                "Total Internal Resources Outages",
-                "Total Internal Resources Offered/Forecasted",
-                "Total Internal Resources Scheduled",
-                "Manitoba Offered",
-                "Manitoba Scheduled",
-                "Michigan Offered",
-                "Michigan Scheduled",
-                "Minnesota Offered",
-                "Minnesota Scheduled",
-                "New York Offered",
-                "New York Scheduled",
-                "Quebec Offered",
-                "Quebec Scheduled",
-                "Total Imports Offered",
-                "Total Imports Scheduled",
-                "Total Imports Estimated",
-                "Total Imports Capacity",
-                "Forecast Supply Bottled Capacity (MW)",
-                "Forecast Supply Regulation (MW)",
-                "Forecast Supply Total Supplies (MW)",
-                "Dispatchable Load Capacity",
-                "Dispatchable Load Bid/Forecasted",
-                "Dispatchable Load Scheduled ON",
-                "Total Operating Reserve Reserve",
-                "10 Minute Operating Reserve Minimum",
-            ]
-        ].sort_values(["Interval Start", "Publish Time"])
+            ],
+        )
 
-    def get_resource_adequacy_report(
+        logger.debug("=== Final DataFrame Info ===")
+        logger.debug(f"DataFrame Shape: {df.shape}")
+        logger.debug(f"Columns:\n{pformat(df.columns.tolist())}")
+
+        return df.sort_values(["Interval Start", "Publish Time"])
+
+    def _get_data_structure_map(self) -> dict:
+        """Define mapping of hourly data locations and extraction rules"""
+        return {
+            "supply": {
+                "direct_hourly": {
+                    "Forecast Supply Capacity": {
+                        "path": ["ForecastSupply", "Capacities", "Capacity"],
+                        "value_key": "EnergyMW",
+                        "unit": "MW",
+                    },
+                    "Forecast Supply Energy": {
+                        "path": ["ForecastSupply", "Energies", "Energy"],
+                        "value_key": "EnergyMWhr",
+                        "unit": "MWhr",
+                    },
+                    "Forecast Supply Bottled Capacity": {
+                        "path": ["ForecastSupply", "BottledCapacities", "Capacity"],
+                        "value_key": "EnergyMW",
+                        "unit": "MW",
+                    },
+                    "Forecast Supply Regulation": {
+                        "path": ["ForecastSupply", "Regulations", "Regulation"],
+                        "value_key": "EnergyMW",
+                        "unit": "MW",
+                    },
+                    "Forecast Supply Total Supplies": {
+                        "path": ["ForecastSupply", "TotalSupplies", "Supply"],
+                        "value_key": "EnergyMW",
+                        "unit": "MW",
+                    },
+                },
+                "fuel_type_hourly": {
+                    "path": ["ForecastSupply", "InternalResources", "InternalResource"],
+                    "key_field": "FuelType",
+                    "resources": {
+                        "Nuclear": {
+                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                            "Outages": ["Outages", "Outage", "EnergyMW"],
+                            "Offered": ["Offered", "Offer", "EnergyMW"],
+                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                        },
+                        "Gas": {
+                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                            "Outages": ["Outages", "Outage", "EnergyMW"],
+                            "Offered": ["Offered", "Offer", "EnergyMW"],
+                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                        },
+                        "Hydro": {
+                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                            "Outages": ["Outages", "Outage", "EnergyMW"],
+                            "Offered": ["Offered", "Offer", "EnergyMW"],
+                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                        },
+                        "Wind": {
+                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                            "Outages": ["Outages", "Outage", "EnergyMW"],
+                            "Offered": ["Offered", "Offer", "EnergyMW"],
+                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                        },
+                        "Solar": {
+                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                            "Outages": ["Outages", "Outage", "EnergyMW"],
+                            "Offered": ["Offered", "Offer", "EnergyMW"],
+                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                        },
+                        "Biofuel": {
+                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                            "Outages": ["Outages", "Outage", "EnergyMW"],
+                            "Offered": ["Offered", "Offer", "EnergyMW"],
+                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                        },
+                        "Other": {
+                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                            "Outages": ["Outages", "Outage", "EnergyMW"],
+                            "Offered": ["Offered", "Offer", "EnergyMW"],
+                            "Scheduled": ["Scheduled", "Schedule", "EnergyMW"],
+                        },
+                    },
+                },
+                "zonal_imports": {
+                    "path": ["ForecastSupply", "ZonalImports", "ZonalImport"],
+                    "key_field": "ZoneName",
+                    "metrics": ["Offered", "Scheduled"],
+                },
+                "total_imports": {
+                    "path": ["ForecastSupply", "ZonalImports", "TotalImports"],
+                    "prefix": "Total Imports",
+                    "metrics": ["Offered", "Scheduled", "Estimated", "Capacity"],
+                },
+            },
+            "demand": {
+                "ontario_demand": {
+                    "path": [
+                        "ForecastDemand",
+                        "OntarioDemand",
+                        "ForecastOntDemand",
+                        "Demand",
+                    ],
+                    "value_key": "EnergyMW",
+                    "column": "Ontario Demand Forecasted",
+                },
+                "dispatchable_load": {
+                    "path": ["ForecastDemand", "OntarioDemand", "DispatchableLoad"],
+                    "prefix": "Dispatchable Load",
+                    "metrics": ["Capacity", "Bid/Forecasted", "Scheduled ON"],
+                },
+                "zonal_exports": {
+                    "path": ["ForecastDemand", "ZonalExports", "ZonalExport"],
+                    "key_field": "ZoneName",
+                    "metrics": ["Bid", "Scheduled"],
+                },
+                "reserves": {
+                    "path": ["ForecastDemand", "GenerationReserveHoldback"],
+                    "sections": {
+                        "Total Operating Reserve": {
+                            "container": "TotalORReserve",
+                            "item_key": "ORReserve",
+                            "metric": "Reserve",
+                        },
+                        "10 Minute Operating Reserve": {
+                            "container": "Min10MinOR",
+                            "item_key": "Min10OR",
+                            "metric": "Minimum",
+                        },
+                    },
+                },
+            },
+        }
+
+    def _extract_hourly_values(
         self,
-        date: str | datetime.date | datetime.datetime,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Retrieve and parse the Resource Adequacy Report for a given date.
+        data: dict,
+        path: list[str],
+        column_name: str,
+        value_key: str,
+        internal_data: list[dict],
+    ) -> None:
+        """Extract hourly values from nested XML data into internal_data list.
 
         Args:
-            date (str | datetime.date | datetime.datetime): The date for which to get the report
-            verbose (bool, optional): Print verbose output. Defaults to False.
-
-        Returns:
-            pd.DataFrame: The Resource Adequacy Report df for the given date
+            data: Source data dictionary
+            path: List of keys to traverse to reach hourly data (e.g. ["Capacities", "Capacity"])
+            column_name: Name for the extracted data column
+            value_key: Key containing the value to extract (e.g. "EnergyMW")
+            internal_data: List to store extracted hourly data rows
         """
-        json_data = self._get_resource_adequacy_json(date, verbose)
-        return self._parse_resource_adequacy_report(json_data)
+        # Navigate to the data location
+        current = data
+        for key in path[:-1]:
+            if key not in current:
+                return
+            current = current[key]
+
+        # Extract hourly values
+        for item in current[path[-1]]:
+            hour = int(item["DeliveryHour"])
+            row = next(
+                (r for r in internal_data if r["DeliveryHour"] == hour),
+                {"DeliveryHour": hour},
+            )
+            row[column_name] = float(item[value_key])
+            if row not in internal_data:
+                internal_data.append(row)
