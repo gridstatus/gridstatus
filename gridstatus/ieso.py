@@ -1059,7 +1059,7 @@ class IESO(ISOBase):
                     logger.debug(f"Path Parts: {path_parts}")
 
                     self._extract_hourly_values(
-                        data=current_data,  # Use the nested data instead of document_body
+                        data=current_data,
                         path=path_parts[:2],
                         column_name=f"Total Imports {metric}",
                         value_key=path_parts[2],
@@ -1398,12 +1398,27 @@ class IESO(ISOBase):
                         "Total Operating Reserve": {
                             "container": "TotalORReserve",
                             "item_key": "ORReserve",
-                            "metric": "Reserve",
+                            "metric": "EnergyMW",
                         },
-                        "10 Minute Operating Reserve": {
+                        "Minimum 10 Minute Operating Reserve": {
                             "container": "Min10MinOR",
                             "item_key": "Min10OR",
-                            "metric": "Minimum",
+                            "metric": "EnergyMW",
+                        },
+                        "Minimum 10 Minute Spin OR": {
+                            "container": "Min10SpinOR",
+                            "item_key": "Min10SpinOR",
+                            "metric": "EnergyMW",
+                        },
+                        "Load Forecast Uncertainties": {
+                            "container": "LoadForecastUncertainties",
+                            "item_key": "Uncertainty",
+                            "metric": "EnergyMW",
+                        },
+                        "Additional Contingency Allowances": {
+                            "container": "ContingencyAllowances",
+                            "item_key": "Allowance",
+                            "metric": "EnergyMW",
                         },
                     },
                 },
