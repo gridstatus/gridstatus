@@ -1015,10 +1015,10 @@ class IESO(ISOBase):
                                 report_data=report_data,
                             )
 
-            # For zonal data
-            if "Zonal_Import_Hourly" in section_data:
-                logger.debug("Processing Zonal Import Data...")
-                zonal_config = section_data["Zonal_Import_Hourly"]
+            for zonal_section in ["Zonal_Import_Hourly", "Zonal_Export_Hourly"]:
+                if zonal_section in section_data:
+                    logger.debug(f"Processing {zonal_section} Data...")
+                    zonal_config = section_data[zonal_section]
                 current_data = document_body
                 for path_part in zonal_config["path"][:-1]:
                     current_data = current_data[path_part]
@@ -1040,6 +1040,31 @@ class IESO(ISOBase):
                             value_key=path_parts[2],
                             report_data=report_data,
                         )
+
+            if "Total_Internal_Resources" in section_data:
+                logger.debug("Processing Total Internal Resources Data...")
+                total_internal_resources_config = section_data[
+                    "Total_Internal_Resources"
+                ]
+
+                current_data = document_body
+                for path_part in total_internal_resources_config["path"][:-1]:
+                    current_data = current_data[path_part]
+
+                total_resources = current_data[
+                    total_internal_resources_config["path"][-1]
+                ]
+
+                for section_name, section_config in total_internal_resources_config[
+                    "sections"
+                ].items():
+                    self._extract_hourly_values(
+                        data=total_resources,
+                        path=[section_config["container"], section_config["item_key"]],
+                        column_name=section_name,
+                        value_key=section_config["value_key"],
+                        report_data=report_data,
+                    )
 
             if "Total_Imports" in section_data:
                 logger.debug("Processing Total Imports Data...")
@@ -1065,48 +1090,6 @@ class IESO(ISOBase):
                         value_key=path_parts[2],
                         report_data=report_data,
                     )
-
-            if "Ontario_Demand" in section_data:
-                logger.debug("Processing Ontario Demand Data...")
-                ontario_demand_config = section_data["Ontario_Demand"]
-
-                current_data = document_body
-                for path_part in ontario_demand_config["path"][:-1]:
-                    current_data = current_data[path_part]
-
-                self._extract_hourly_values(
-                    data=current_data,
-                    path=[ontario_demand_config["path"][-1]],
-                    column_name=ontario_demand_config["column"],
-                    value_key=ontario_demand_config["value_key"],
-                    report_data=report_data,
-                )
-
-            if "Zonal_Export_Hourly" in section_data:
-                logger.debug("Processing Zonal Export Data...")
-                zonal_export_config = section_data["Zonal_Export_Hourly"]
-                current_data = document_body
-                for path_part in zonal_export_config["path"][:-1]:
-                    current_data = current_data[path_part]
-
-                zones = current_data[zonal_export_config["path"][-1]]
-
-                for zone in zones:
-                    zone_name = zone[zonal_export_config["key_field"]]
-                    logger.debug(f"Processing Zone: {zone_name}")
-                    metrics = zonal_export_config["zones"][zone_name]
-
-                    for metric in metrics:
-                        path_parts = zonal_export_config["zones"][zone_name][metric]
-                        logger.debug(f"Extracting {zone_name} {metric}")
-                        self._extract_hourly_values(
-                            data=zone,
-                            path=path_parts[:2],
-                            column_name=f"{zone_name} {metric}",
-                            value_key=path_parts[2],
-                            report_data=report_data,
-                        )
-
             if "Total_Exports" in section_data:
                 logger.debug("Processing Total Exports Data...")
                 total_exports_config = section_data["Total_Exports"]
@@ -1139,22 +1122,55 @@ class IESO(ISOBase):
                     current_data = current_data[path_part]
 
                 for section_name, section_config in reserves_config["sections"].items():
-                    container = current_data[section_config["container"]]
-                    items = container[section_config["item_key"]]
-                    if not isinstance(items, list):
-                        items = [items]
+                    self._extract_hourly_values(
+                        data=current_data,
+                        path=[section_config["container"], section_config["item_key"]],
+                        column_name=section_name,
+                        value_key="EnergyMW",
+                        report_data=report_data,
+                    )
 
-                    for item in items:
-                        hour = int(item["DeliveryHour"])
-                        row = next(
-                            (r for r in report_data if r["DeliveryHour"] == hour),
-                            {"DeliveryHour": hour},
+            if "Ontario_Demand" in section_data:
+                logger.debug("Processing Ontario Demand Data...")
+                ontario_demand_config = section_data["Ontario_Demand"]
+
+                current_data = document_body
+                for path_part in ontario_demand_config["path"]:
+                    current_data = current_data[path_part]
+
+                for section_name, section_config in ontario_demand_config[
+                    "sections"
+                ].items():
+                    if "sections" in section_config:
+                        continue
+
+                    section_data = current_data
+                    self._extract_hourly_values(
+                        data=section_data,
+                        path=section_config["path"],
+                        column_name=section_name,
+                        value_key=section_config["value_key"],
+                        report_data=report_data,
+                    )
+
+                for ontario_demand_btm in [
+                    "Dispatchable Load",
+                    "Hourly Demand Response",
+                ]:
+                    btm_config = ontario_demand_config["sections"][ontario_demand_btm]
+                    btm_data = current_data[ontario_demand_btm.replace(" ", "")]
+
+                    for section_name, section_config in btm_config["sections"].items():
+                        self._extract_hourly_values(
+                            data=btm_data,
+                            path=[
+                                section_config["container"],
+                                section_config["item_key"],
+                            ],
+                            column_name=section_name,
+                            value_key=section_config["value_key"],
+                            report_data=report_data,
                         )
-                        row[f"{section_name} {section_config['metric']}"] = float(
-                            item["EnergyMW"],
-                        )
-                        if row not in report_data:
-                            report_data.append(row)
 
         df = pd.DataFrame(report_data)
         df["Interval Start"] = delivery_date + pd.to_timedelta(
@@ -1203,8 +1219,13 @@ class IESO(ISOBase):
                         "value_key": "EnergyMW",
                         "unit": "MW",
                     },
-                    "Forecast Supply Total Supplies": {
+                    "Total Forecast Supply": {
                         "path": ["ForecastSupply", "TotalSupplies", "Supply"],
+                        "value_key": "EnergyMW",
+                        "unit": "MW",
+                    },
+                    "Total Requirement": {
+                        "path": ["ForecastDemand", "TotalRequirements", "Requirement"],
                         "value_key": "EnergyMW",
                         "unit": "MW",
                     },
@@ -1229,7 +1250,7 @@ class IESO(ISOBase):
                     },
                     "Resources Not Scheduled": {
                         "path": [
-                            "ForecastSupply",
+                            "ForecastDemand",
                             "UnscheduledResources",
                             "UnscheduledResource",
                         ],
@@ -1238,7 +1259,7 @@ class IESO(ISOBase):
                     },
                     "Imports Not Scheduled": {
                         "path": [
-                            "ForecastSupply",
+                            "ForecastDemand",
                             "UnscheduledImports",
                             "UnscheduledImport",
                         ],
@@ -1303,29 +1324,53 @@ class IESO(ISOBase):
                         },
                     },
                 },
+                "Total_Internal_Resources": {
+                    "path": [
+                        "ForecastSupply",
+                        "InternalResources",
+                        "TotalInternalResources",
+                    ],
+                    "sections": {
+                        "Total Internal Resources Outages": {
+                            "container": "Outages",
+                            "item_key": "Outage",
+                            "value_key": "EnergyMW",
+                        },
+                        "Total Internal Resources Offered/Forecasted": {
+                            "container": "OfferForecasts",
+                            "item_key": "OfferForecast",
+                            "value_key": "EnergyMW",
+                        },
+                        "Total Internal Resources Scheduled": {
+                            "container": "Schedules",
+                            "item_key": "Schedule",
+                            "value_key": "EnergyMW",
+                        },
+                    },
+                },
                 "Zonal_Import_Hourly": {
                     "path": ["ForecastSupply", "ZonalImports", "ZonalImport"],
                     "key_field": "ZoneName",
                     "zones": {
                         "Manitoba": {
-                            "Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Minnesota": {
-                            "Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Michigan": {
-                            "Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "New York": {
-                            "Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Quebec": {
-                            "Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
+                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                     },
                 },
@@ -1342,43 +1387,96 @@ class IESO(ISOBase):
             },
             "Demand": {
                 "Ontario_Demand": {
-                    "path": [
-                        "ForecastDemand",
-                        "OntarioDemand",
-                        "ForecastOntDemand",
-                        "Demand",
-                    ],
-                    "value_key": "EnergyMW",
-                    "column": "Ontario Demand Forecasted",
-                },
-                "Dispatchable_Load": {
-                    "path": ["ForecastDemand", "OntarioDemand", "DispatchableLoad"],
-                    "prefix": "Dispatchable Load",
-                    "metrics": ["Capacity", "Bid/Forecasted", "Scheduled ON"],
+                    "path": ["ForecastDemand", "OntarioDemand"],
+                    "sections": {
+                        "Ontario Demand Forecast": {
+                            "path": ["ForecastOntDemand", "Demand"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Ontario Peak Demand": {
+                            "path": ["PeakDemand", "Demand"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Ontario Average Demand": {
+                            "path": ["AverageDemand", "Demand"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Ontario Wind Embedded Forecast": {
+                            "path": ["WindEmbedded", "Embedded"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Ontario Solar Embedded Forecast": {
+                            "path": ["SolarEmbedded", "Embedded"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Dispatchable Load": {
+                            "sections": {
+                                "Ontario Dispatchable Load Capacity": {
+                                    "container": "Capacities",
+                                    "item_key": "Capacity",
+                                    "value_key": "EnergyMW",
+                                },
+                                "Ontario Dispatchable Load Bid / Forecasted": {
+                                    "container": "BidForecasts",
+                                    "item_key": "BidForecast",
+                                    "value_key": "EnergyMW",
+                                },
+                                "Ontario Dispatchable Load Scheduled ON": {
+                                    "container": "ScheduledON",
+                                    "item_key": "Schedule",
+                                    "value_key": "EnergyMW",
+                                },
+                                "Ontario Dispatchable Load Scheduled OFF": {
+                                    "container": "ScheduledOFF",
+                                    "item_key": "Schedule",
+                                    "value_key": "EnergyMW",
+                                },
+                            },
+                        },
+                        "Hourly Demand Response": {
+                            "sections": {
+                                "Ontario Hourly Demand Response Bid/Forecasted": {
+                                    "container": "Bids",
+                                    "item_key": "Bid",
+                                    "value_key": "EnergyMW",
+                                },
+                                "Ontario Hourly Demand Response Scheduled": {
+                                    "container": "Schedules",
+                                    "item_key": "Schedule",
+                                    "value_key": "EnergyMW",
+                                },
+                                "Ontario Hourly Demand Response Curtailed": {
+                                    "container": "Curtailed",
+                                    "item_key": "Curtail",
+                                    "value_key": "EnergyMW",
+                                },
+                            },
+                        },
+                    },
                 },
                 "Zonal_Export_Hourly": {
                     "path": ["ForecastDemand", "ZonalExports", "ZonalExport"],
                     "key_field": "ZoneName",
                     "zones": {
                         "Manitoba": {
-                            "Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Minnesota": {
-                            "Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Michigan": {
-                            "Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "New York": {
-                            "Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                         "Quebec": {
-                            "Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
+                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
                         },
                     },
                 },
@@ -1406,7 +1504,7 @@ class IESO(ISOBase):
                             "metric": "EnergyMW",
                         },
                         "Minimum 10 Minute Spin OR": {
-                            "container": "Min10SpinOR",
+                            "container": "Min10MinSpinOR",
                             "item_key": "Min10SpinOR",
                             "metric": "EnergyMW",
                         },
