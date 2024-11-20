@@ -1066,6 +1066,22 @@ class IESO(ISOBase):
                         report_data=report_data,
                     )
 
+            if "Ontario_Demand" in section_data:
+                logger.debug("Processing Ontario Demand Data...")
+                ontario_demand_config = section_data["Ontario_Demand"]
+
+                current_data = document_body
+                for path_part in ontario_demand_config["path"][:-1]:
+                    current_data = current_data[path_part]
+
+                self._extract_hourly_values(
+                    data=current_data,
+                    path=[ontario_demand_config["path"][-1]],
+                    column_name=ontario_demand_config["column"],
+                    value_key=ontario_demand_config["value_key"],
+                    report_data=report_data,
+                )
+
             if "Zonal_Export_Hourly" in section_data:
                 logger.debug("Processing Zonal Export Data...")
                 zonal_export_config = section_data["Zonal_Export_Hourly"]
@@ -1096,9 +1112,8 @@ class IESO(ISOBase):
                 total_exports_config = section_data["Total_Exports"]
                 logger.debug(f"Total Exports Config: {total_exports_config}")
 
-                # Navigate to TotalExports section
                 current_data = document_body
-                for path_part in ["ForecastDemand", "TotalExports"]:
+                for path_part in ["ForecastDemand", "ZonalExports", "TotalExports"]:
                     current_data = current_data[path_part]
 
                 metrics = total_exports_config["metrics"]
@@ -1106,7 +1121,6 @@ class IESO(ISOBase):
                 for metric in metrics:
                     path_parts = total_exports_config["metrics"][metric]
                     logger.debug(f"Extracting Total Exports {metric}")
-                    logger.debug(f"Path Parts: {path_parts}")
 
                     self._extract_hourly_values(
                         data=current_data,  # Use the nested data instead of document_body
@@ -1115,6 +1129,32 @@ class IESO(ISOBase):
                         value_key=path_parts[2],
                         report_data=report_data,
                     )
+
+            if "Reserves" in section_data:
+                logger.debug("Processing Generation Reserve Holdback Data...")
+                reserves_config = section_data["Reserves"]
+
+                current_data = document_body
+                for path_part in reserves_config["path"]:
+                    current_data = current_data[path_part]
+
+                for section_name, section_config in reserves_config["sections"].items():
+                    container = current_data[section_config["container"]]
+                    items = container[section_config["item_key"]]
+                    if not isinstance(items, list):
+                        items = [items]
+
+                    for item in items:
+                        hour = int(item["DeliveryHour"])
+                        row = next(
+                            (r for r in report_data if r["DeliveryHour"] == hour),
+                            {"DeliveryHour": hour},
+                        )
+                        row[f"{section_name} {section_config['metric']}"] = float(
+                            item["EnergyMW"],
+                        )
+                        if row not in report_data:
+                            report_data.append(row)
 
         df = pd.DataFrame(report_data)
         df["Interval Start"] = delivery_date + pd.to_timedelta(
@@ -1165,6 +1205,43 @@ class IESO(ISOBase):
                     },
                     "Forecast Supply Total Supplies": {
                         "path": ["ForecastSupply", "TotalSupplies", "Supply"],
+                        "value_key": "EnergyMW",
+                        "unit": "MW",
+                    },
+                    "Capacity Excess / Shortfall": {
+                        "path": ["ForecastDemand", "ExcessCapacities", "Capacity"],
+                        "value_key": "EnergyMW",
+                        "unit": "MW",
+                    },
+                    "Energy Excess / Shortfall": {
+                        "path": ["ForecastDemand", "ExcessEnergies", "Energy"],
+                        "value_key": "EnergyMWhr",
+                        "unit": "MWhr",
+                    },
+                    "Offered Capacity Excess / Shortfall": {
+                        "path": [
+                            "ForecastDemand",
+                            "ExcessOfferedCapacities",
+                            "Capacity",
+                        ],
+                        "value_key": "EnergyMW",
+                        "unit": "MW",
+                    },
+                    "Resources Not Scheduled": {
+                        "path": [
+                            "ForecastSupply",
+                            "UnscheduledResources",
+                            "UnscheduledResource",
+                        ],
+                        "value_key": "EnergyMW",
+                        "unit": "MW",
+                    },
+                    "Imports Not Scheduled": {
+                        "path": [
+                            "ForecastSupply",
+                            "UnscheduledImports",
+                            "UnscheduledImport",
+                        ],
                         "value_key": "EnergyMW",
                         "unit": "MW",
                     },
@@ -1274,7 +1351,7 @@ class IESO(ISOBase):
                     "value_key": "EnergyMW",
                     "column": "Ontario Demand Forecasted",
                 },
-                "dispatchable_load": {
+                "Dispatchable_Load": {
                     "path": ["ForecastDemand", "OntarioDemand", "DispatchableLoad"],
                     "prefix": "Dispatchable Load",
                     "metrics": ["Capacity", "Bid/Forecasted", "Scheduled ON"],
@@ -1315,7 +1392,7 @@ class IESO(ISOBase):
                         "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                     },
                 },
-                "reserves": {
+                "Reserves": {
                     "path": ["ForecastDemand", "GenerationReserveHoldback"],
                     "sections": {
                         "Total Operating Reserve": {
