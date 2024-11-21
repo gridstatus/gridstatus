@@ -967,7 +967,7 @@ class IESO(ISOBase):
 
         r = self._request(base_url)
         files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
-        logger.debug(f"Files retrieved for {date_str}: {pformat(files)}")
+        logger.debug(f"Retrieved {len(files)} files for {date_str}")
         if not files:
             raise FileNotFoundError(
                 f"No resource adequacy files found for date {date_str}",
@@ -1029,8 +1029,6 @@ class IESO(ISOBase):
                 f"No resource adequacy files found for date {date_str}",
             )
 
-        logger.debug(f"All files matching date {date_str}: {pformat(files)}")
-
         json_data = []
         with ThreadPoolExecutor(max_workers=min(10, len(files))) as executor:
             future_to_file = {
@@ -1057,8 +1055,6 @@ class IESO(ISOBase):
         # linecount, but it works for now. I kind of move around the report JSON to where I want
         # to extract data and then extract it, and that movement could be abstracted away
         for section_name, section_data in data_map.items():
-            logger.debug(f"--- Processing Section: {section_name} ---")
-
             if "hourly" in section_data:
                 logger.debug("Processing Direct Hourly Data...")
                 for metric_name, config in section_data["hourly"].items():
@@ -1156,7 +1152,6 @@ class IESO(ISOBase):
             if "total_imports" in section_data:
                 logger.debug("Processing Total Imports Data...")
                 total_imports_config = section_data["total_imports"]
-                logger.debug(f"Total Imports Config: {total_imports_config}")
                 current_data = document_body
                 for path_part in ["ForecastSupply", "ZonalImports", "TotalImports"]:
                     current_data = current_data[path_part]
@@ -1165,9 +1160,6 @@ class IESO(ISOBase):
 
                 for metric in metrics:
                     path_parts = total_imports_config["metrics"][metric]
-                    logger.debug(f"Extracting Total Imports {metric}")
-                    logger.debug(f"Path Parts: {path_parts}")
-
                     self._extract_hourly_values(
                         data=current_data,
                         path=path_parts[:2],
@@ -1179,7 +1171,6 @@ class IESO(ISOBase):
             if "total_exports" in section_data:
                 logger.debug("Processing Total Exports Data...")
                 total_exports_config = section_data["total_exports"]
-                logger.debug(f"Total Exports Config: {total_exports_config}")
 
                 current_data = document_body
                 for path_part in ["ForecastDemand", "ZonalExports", "TotalExports"]:
@@ -1189,10 +1180,8 @@ class IESO(ISOBase):
 
                 for metric in metrics:
                     path_parts = total_exports_config["metrics"][metric]
-                    logger.debug(f"Extracting Total Exports {metric}")
-
                     self._extract_hourly_values(
-                        data=current_data,  # Use the nested data instead of document_body
+                        data=current_data,
                         path=path_parts[:2],
                         column_name=f"Total Exports {metric}",
                         value_key=path_parts[2],
@@ -1290,7 +1279,6 @@ class IESO(ISOBase):
             ],
         )
         logger.debug(f"DataFrame Shape: {df.shape}")
-        logger.debug(f"Columns:\n{pformat(df.columns.tolist())}")
         return df.sort_values(["Interval Start", "Publish Time"])
 
     # TODO(Kladar): this could likely be developed from the XML structure, but this works for now
@@ -1648,20 +1636,16 @@ class IESO(ISOBase):
                 logger.debug(f"Path segment '{key}' not found in data structure")
                 return
             current = current[key]
-            logger.debug(f"Found path segment: {key}")
 
         items = current.get(path[-1], [])
         if items is None:
             logger.debug(f"Final path segment '{path[-1]}' returned None")
             items = []
         elif not isinstance(items, list):
-            logger.debug(f"Converting single item to list for '{path[-1]}'")
             items = [items]
 
         existing_hours = {row["DeliveryHour"] for row in report_data}
-        missing_hours = set(range(1, 25)) - existing_hours
-        if missing_hours:
-            logger.debug(f"Creating placeholder rows for hours: {missing_hours}")
+
         for hour in range(1, 25):
             if hour not in existing_hours:
                 report_data.append({"DeliveryHour": hour})
@@ -1670,7 +1654,6 @@ class IESO(ISOBase):
 
         for item in items:
             if item is None:
-                logger.debug("Skipping None item")
                 continue
 
             hour = int(item["DeliveryHour"])
