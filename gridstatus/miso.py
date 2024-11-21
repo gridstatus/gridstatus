@@ -33,7 +33,7 @@ class MISO(ISOBase):
 
     markets = [
         Markets.REAL_TIME_5_MIN,
-        Markets.REAL_TIME_5_MIN_WEEKLY,
+        Markets.REAL_TIME_5_MIN_FINAL,
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_HOURLY_FINAL,
         Markets.REAL_TIME_HOURLY_PRELIM,
@@ -269,14 +269,14 @@ class MISO(ISOBase):
         return df[self.solar_and_wind_forecast_cols]
 
     @support_date_range(frequency="W-MON")
-    def get_lmp_weekly(self, date, end=None, verbose=False):
-        """Retrieves weekly lmp data that includes price corrections to the real time
-        data.
+    def get_lmp_real_time_5_min_final(self, date, end=None, verbose=False):
+        """Retrieves real time final lmp data that includes price corrections to the
+        preliminary real time data.
 
         Data from: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3AHistorical%20LMP%2FMarketReportName%3AWeekly%20Real-Time%205-Min%20LMP%20(zip)&t=10&p=0&s=MarketReportPublished&sd=desc
         """
         if date == "latest" or utils.is_today(date, tz=self.default_timezone):
-            raise NotSupported("Only historical data is available for weekly LMPs")
+            raise NotSupported("Only historical data is available for final LMPs")
 
         if not date.weekday() == 0:
             log("Weekly LMP data is only available for Mondays", verbose)
@@ -302,9 +302,9 @@ class MISO(ISOBase):
         except urllib.error.HTTPError:
             raise NoDataFoundException(f"No LMP data found for {date}")
 
-        return self._handle_lmp_weekly(df, verbose)
+        return self._handle_lmp_real_time_5_min_final(df, verbose)
 
-    def _handle_lmp_weekly(self, df, verbose=False):
+    def _handle_lmp_real_time_5_min_final(self, df, verbose=False):
         df["Interval Start"] = pd.to_datetime(df["MKTHOUR_EST"]).dt.tz_localize(
             self.default_timezone,
         )
@@ -327,7 +327,7 @@ class MISO(ISOBase):
         )
 
         df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
-        df["Market"] = Markets.REAL_TIME_5_MIN_WEEKLY.value
+        df["Market"] = Markets.REAL_TIME_5_MIN_FINAL.value
 
         df = utils.move_cols_to_front(
             df,
@@ -348,7 +348,7 @@ class MISO(ISOBase):
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_5_MIN: ["latest", "today"],
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
             Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
             Markets.REAL_TIME_HOURLY_FINAL: ["historical"],
             Markets.REAL_TIME_HOURLY_PRELIM: ["historical"],
@@ -365,20 +365,27 @@ class MISO(ISOBase):
     ):
         """
         Supported Markets:
-            - ``REAL_TIME_5_MIN`` - (FiveMinLMP)
-            - ``DAY_AHEAD_HOURLY`` - (DayAheadExPostLMP)
-            - ``REAL_TIME_HOURLY_FINAL`` - (RealTimeFinalLMP)
-            - ``REAL_TIME_HOURLY_PRELIM`` - (RealTimePrelimLMP) Only 4 days of data
-                available, with the most recent being yesterday.
+            - ``REAL_TIME_5_MIN`` - (Prelim ExPost 5 Minute)
+            - ``DAY_AHEAD_HOURLY`` - (ExPost Day Ahead Hourly)
+            - ``REAL_TIME_HOURLY_FINAL`` - (Final ExPost Real Time Hourly)
+            - ``REAL_TIME_HOURLY_PRELIM`` - (Prelim ExPost Real Time Hourly)
+                Only 4 days of data available, with the most recent being yesterday.
         """
         if market == Markets.REAL_TIME_5_MIN:
             latest_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=currentinterval&returnType=csv"  # noqa
             today_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=rollingmarketday&returnType=csv"  # noqa
+            yesterday_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=previousmarketday&returnType=csv"  # noqa
 
             if date == "latest":
                 url = latest_url
             elif utils.is_today(date, tz=self.default_timezone):
                 url = today_url
+            elif utils.is_yesterday(date, tz=self.default_timezone):
+                url = yesterday_url
+            else:
+                raise NotSupported(
+                    "Only today, yesterday, and latest are supported for 5 min LMPs",
+                )
 
             log(f"Downloading LMP data from {url}", verbose)
             data = pd.read_csv(url)

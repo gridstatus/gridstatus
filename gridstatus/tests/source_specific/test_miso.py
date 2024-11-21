@@ -54,9 +54,9 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
 
-    """get_lmp_weekly"""
+    """get_lmp_real_time_5_min_final"""
 
-    def _check_lmp_weekly(self, df):
+    def _check_lmp_real_time_5_min_final(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -73,30 +73,23 @@ class TestMISO(BaseTestISO):
             "5min",
         )
 
-        assert df["Market"].unique().tolist() == [Markets.REAL_TIME_5_MIN_WEEKLY.value]
+        assert df["Market"].unique().tolist() == [Markets.REAL_TIME_5_MIN_FINAL.value]
 
-    def test_get_lmp_weekly_today_or_latest_raises(self):
+    def test_get_lmp_real_time_5_min_final_today_or_latest_raises(self):
         with pytest.raises(NotSupported):
-            self.iso.get_lmp_weekly("today")
+            self.iso.get_lmp_real_time_5_min_final("today")
 
-    def test_get_lmp_weekly_historical_date(self):
-        date = self.local_today() - pd.Timedelta(days=300)
-        df = self.iso.get_lmp_weekly(date)
-
-        most_recent_monday = self.local_start_of_day(date) - pd.DateOffset(
-            days=self.local_start_of_day(date).weekday(),
-        )
-
-        assert df["Interval Start"].min() == most_recent_monday
-        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=7)
-
-        self._check_lmp_weekly(df)
-
-    def test_get_lmp_weekly_historical_date_range(self):
+    def test_get_lmp_real_time_5_min_final_historical_date_range(self):
         start = self.local_today() - pd.Timedelta(days=100)
+        # Set start to a Wednesday to check logic
+        start = start - pd.DateOffset(days=start.weekday() - 2)
+
+        assert start.weekday() == 2
+
         # Make sure to span a week
-        end = start + pd.Timedelta(days=12)
-        df = self.iso.get_lmp_weekly(start, end)
+
+        end = start + pd.Timedelta(days=7)
+        df = self.iso.get_lmp_real_time_5_min_final(start, end)
 
         most_recent_monday = self.local_start_of_day(start) - pd.DateOffset(
             days=self.local_start_of_day(start).weekday(),
@@ -105,13 +98,13 @@ class TestMISO(BaseTestISO):
         assert df["Interval Start"].min() == most_recent_monday
         assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=14)
 
-        self._check_lmp_weekly(df)
+        self._check_lmp_real_time_5_min_final(df)
 
-    def test_get_lmp_weekly_raises_error_if_no_data(self):
+    def test_get_lmp_real_time_5_min_final_raises_error_if_no_data(self):
         date = self.local_today() - pd.DateOffset(days=5)
 
         with pytest.raises(NoDataFoundException):
-            self.iso.get_lmp_weekly(date)
+            self.iso.get_lmp_real_time_5_min_final(date)
 
     """get_lmp"""
 
@@ -148,6 +141,27 @@ class TestMISO(BaseTestISO):
     )
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
+
+    @api_vcr.use_cassette("test_get_lmp_real_time_5_min_yesterday.yaml")
+    def test_get_lmp_real_time_5_min_yesterday(self):
+        date = self.local_today() - pd.DateOffset(days=1)
+
+        df = self.iso.get_lmp(
+            date=date,
+            market=Markets.REAL_TIME_5_MIN,
+        )
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date,
+        ) + pd.DateOffset(days=1)
+
+        assert sorted(list(df["Location Type"].unique())) == [
+            "Gennode",
+            "Hub",
+            "Interface",
+            "Loadzone",
+        ]
 
     def test_get_lmp_locations(self):
         data = self.iso.get_lmp(
