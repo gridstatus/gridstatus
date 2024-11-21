@@ -987,9 +987,9 @@ class IESO(ISOBase):
         for section_name, section_data in data_map.items():
             logger.debug(f"--- Processing Section: {section_name} ---")
 
-            if "Hourly" in section_data:
+            if "hourly" in section_data:
                 logger.debug("Processing Direct Hourly Data...")
-                for metric_name, config in section_data["Hourly"].items():
+                for metric_name, config in section_data["hourly"].items():
                     self._extract_hourly_values(
                         data=document_body,
                         path=config["path"],
@@ -998,9 +998,9 @@ class IESO(ISOBase):
                         report_data=report_data,
                     )
 
-            if "Fuel_Type_Hourly" in section_data:
+            if "fuel_type_hourly" in section_data:
                 logger.debug("Processing Fuel Type Hourly Data...")
-                fuel_type_config = section_data["Fuel_Type_Hourly"]
+                fuel_type_config = section_data["fuel_type_hourly"]
 
                 current_data = document_body
                 for path_part in fuel_type_config["path"][:-1]:
@@ -1030,7 +1030,7 @@ class IESO(ISOBase):
                                 report_data=report_data,
                             )
 
-            for zonal_section in ["Zonal_Import_Hourly", "Zonal_Export_Hourly"]:
+            for zonal_section in ["zonal_import_hourly", "zonal_export_hourly"]:
                 if zonal_section in section_data:
                     logger.debug(f"Processing {zonal_section} Data...")
                     zonal_config = section_data[zonal_section]
@@ -1056,10 +1056,10 @@ class IESO(ISOBase):
                             report_data=report_data,
                         )
 
-            if "Total_Internal_Resources" in section_data:
+            if "total_internal_resources" in section_data:
                 logger.debug("Processing Total Internal Resources Data...")
                 total_internal_resources_config = section_data[
-                    "Total_Internal_Resources"
+                    "total_internal_resources"
                 ]
 
                 current_data = document_body
@@ -1081,9 +1081,9 @@ class IESO(ISOBase):
                         report_data=report_data,
                     )
 
-            if "Total_Imports" in section_data:
+            if "total_imports" in section_data:
                 logger.debug("Processing Total Imports Data...")
-                total_imports_config = section_data["Total_Imports"]
+                total_imports_config = section_data["total_imports"]
                 logger.debug(f"Total Imports Config: {total_imports_config}")
                 current_data = document_body
                 for path_part in ["ForecastSupply", "ZonalImports", "TotalImports"]:
@@ -1104,9 +1104,9 @@ class IESO(ISOBase):
                         report_data=report_data,
                     )
 
-            if "Total_Exports" in section_data:
+            if "total_exports" in section_data:
                 logger.debug("Processing Total Exports Data...")
-                total_exports_config = section_data["Total_Exports"]
+                total_exports_config = section_data["total_exports"]
                 logger.debug(f"Total Exports Config: {total_exports_config}")
 
                 current_data = document_body
@@ -1127,9 +1127,9 @@ class IESO(ISOBase):
                         report_data=report_data,
                     )
 
-            if "Reserves" in section_data:
+            if "reserves" in section_data:
                 logger.debug("Processing Generation Reserve Holdback Data...")
-                reserves_config = section_data["Reserves"]
+                reserves_config = section_data["reserves"]
 
                 current_data = document_body
                 for path_part in reserves_config["path"]:
@@ -1144,9 +1144,9 @@ class IESO(ISOBase):
                         report_data=report_data,
                     )
 
-            if "Ontario_Demand" in section_data:
+            if "ontario_demand" in section_data:
                 logger.debug("Processing Ontario Demand Data...")
-                ontario_demand_config = section_data["Ontario_Demand"]
+                ontario_demand_config = section_data["ontario_demand"]
 
                 current_data = document_body
                 for path_part in ontario_demand_config["path"]:
@@ -1215,8 +1215,8 @@ class IESO(ISOBase):
     def _get_resource_adequacy_data_structure_map(self) -> dict:
         """Define mapping of hourly data locations and extraction rules"""
         return {
-            "Supply": {
-                "Hourly": {
+            "supply": {
+                "hourly": {
                     "Forecast Supply Capacity": {
                         "path": ["ForecastSupply", "Capacities", "Capacity"],
                         "value_key": "EnergyMW",
@@ -1285,7 +1285,7 @@ class IESO(ISOBase):
                         "unit": "MW",
                     },
                 },
-                "Fuel_Type_Hourly": {
+                "fuel_type_hourly": {
                     "path": ["ForecastSupply", "InternalResources", "InternalResource"],
                     "key_field": "FuelType",
                     "resources": {
@@ -1342,7 +1342,7 @@ class IESO(ISOBase):
                         },
                     },
                 },
-                "Total_Internal_Resources": {
+                "total_internal_resources": {
                     "path": [
                         "ForecastSupply",
                         "InternalResources",
@@ -1366,7 +1366,7 @@ class IESO(ISOBase):
                         },
                     },
                 },
-                "Zonal_Import_Hourly": {
+                "zonal_import_hourly": {
                     "path": ["ForecastSupply", "ZonalImports", "ZonalImport"],
                     "key_field": "ZoneName",
                     "zones": {
@@ -1392,7 +1392,7 @@ class IESO(ISOBase):
                         },
                     },
                 },
-                "Total_Imports": {
+                "total_imports": {
                     "path": ["ForecastSupply", "TotalImports"],
                     "key_field": "TotalImports",
                     "metrics": {
@@ -1403,8 +1403,8 @@ class IESO(ISOBase):
                     },
                 },
             },
-            "Demand": {
-                "Ontario_Demand": {
+            "demand": {
+                "ontario_demand": {
                     "path": ["ForecastDemand", "OntarioDemand"],
                     "sections": {
                         "Ontario Demand Forecast": {
@@ -1472,7 +1472,7 @@ class IESO(ISOBase):
                         },
                     },
                 },
-                "Zonal_Export_Hourly": {
+                "zonal_export_hourly": {
                     "path": ["ForecastDemand", "ZonalExports", "ZonalExport"],
                     "key_field": "ZoneName",
                     "zones": {
@@ -1498,7 +1498,7 @@ class IESO(ISOBase):
                         },
                     },
                 },
-                "Total_Exports": {
+                "total_exports": {
                     "path": ["ForecastDemand", "TotalExports"],
                     "key_field": "TotalExports",
                     "metrics": {
@@ -1508,7 +1508,7 @@ class IESO(ISOBase):
                         "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                     },
                 },
-                "Reserves": {
+                "reserves": {
                     "path": ["ForecastDemand", "GenerationReserveHoldback"],
                     "sections": {
                         "Total Operating Reserve": {
