@@ -548,23 +548,144 @@ class TestIESO(BaseTestISO):
 
     """get_resource_adequacy_report"""
 
-    @pytest.mark.parametrize(
-        "date",
-        [
+    # NOTE(kladar): we will see how future data rolls in and historical rolls off
+    RESOURCE_ADEQUACY_TEST_DATES = [
+        (
             (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=119)).strftime(
                 "%Y-%m-%d",
-            ),  # NOTE(kladar): we will see how historical data rolls off
+            ),
+            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=115)).strftime(
+                "%Y-%m-%d",
+            ),
+        ),
+        (
+            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=3)).strftime(
+                "%Y-%m-%d",
+            ),
             (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=1)).strftime(
                 "%Y-%m-%d",
-            ),  # yesterday
+            ),
+        ),
+        (
             (pd.Timestamp.now(tz=default_timezone)).strftime("%Y-%m-%d"),
+            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=2)).strftime(
+                "%Y-%m-%d",
+            ),
+        ),
+        (
             (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=1)).strftime(
                 "%Y-%m-%d",
-            ),  # tomorrow
+            ),
+            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=3)).strftime(
+                "%Y-%m-%d",
+            ),
+        ),
+        (
+            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=28)).strftime(
+                "%Y-%m-%d",
+            ),
             (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=30)).strftime(
                 "%Y-%m-%d",
-            ),  # NOTE(kladar): we will see how future data rolls in
-        ],
+            ),
+        ),
+    ]
+
+    REQUIRED_RESOURCE_ADEQUACY_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Forecast Supply Capacity MW",
+        "Forecast Supply Energy MWhr",
+        "Forecast Supply Bottled Capacity MW",
+        "Forecast Supply Regulation MW",
+        "Total Forecast Supply MW",
+        "Total Requirement MW",
+        "Capacity Excess / Shortfall MW",
+        "Energy Excess / Shortfall MWhr",
+        "Offered Capacity Excess / Shortfall MW",
+        "Resources Not Scheduled MW",
+        "Imports Not Scheduled MW",
+        "Nuclear Capacity",
+        "Nuclear Outages",
+        "Nuclear Offered",
+        "Nuclear Scheduled",
+        "Gas Capacity",
+        "Gas Outages",
+        "Gas Offered",
+        "Gas Scheduled",
+        "Hydro Capacity",
+        "Hydro Outages",
+        "Hydro Forecasted (MWhr)",
+        "Hydro Offered",
+        "Hydro Scheduled",
+        "Wind Capacity",
+        "Wind Outages",
+        "Wind Forecasted",
+        "Wind Scheduled",
+        "Solar Capacity",
+        "Solar Outages",
+        "Solar Forecasted",
+        "Solar Scheduled",
+        "Biofuel Capacity",
+        "Biofuel Outages",
+        "Biofuel Offered",
+        "Biofuel Scheduled",
+        "Other Capacity",
+        "Other Outages",
+        "Other Offered/Forecasted",
+        "Other Scheduled",
+        "Manitoba Imports Offered",
+        "Manitoba Imports Scheduled",
+        "Minnesota Imports Offered",
+        "Minnesota Imports Scheduled",
+        "Michigan Imports Offered",
+        "Michigan Imports Scheduled",
+        "New York Imports Offered",
+        "New York Imports Scheduled",
+        "Quebec Imports Offered",
+        "Quebec Imports Scheduled",
+        "Total Internal Resources Outages",
+        "Total Internal Resources Offered/Forecasted",
+        "Total Internal Resources Scheduled",
+        "Total Imports Offers",
+        "Total Imports Scheduled",
+        "Total Imports Estimated",
+        "Total Imports Capacity",
+        "Manitoba Exports Offered",
+        "Manitoba Exports Scheduled",
+        "Minnesota Exports Offered",
+        "Minnesota Exports Scheduled",
+        "Michigan Exports Offered",
+        "Michigan Exports Scheduled",
+        "New York Exports Offered",
+        "New York Exports Scheduled",
+        "Quebec Exports Offered",
+        "Quebec Exports Scheduled",
+        "Total Exports Bids",
+        "Total Exports Scheduled",
+        "Total Exports Capacity",
+        "Total Operating Reserve",
+        "Minimum 10 Minute Operating Reserve",
+        "Minimum 10 Minute Spin OR",
+        "Load Forecast Uncertainties",
+        "Additional Contingency Allowances",
+        "Ontario Demand Forecast",
+        "Ontario Peak Demand",
+        "Ontario Average Demand",
+        "Ontario Wind Embedded Forecast",
+        "Ontario Solar Embedded Forecast",
+        "Ontario Dispatchable Load Capacity",
+        "Ontario Dispatchable Load Bid / Forecasted",
+        "Ontario Dispatchable Load Scheduled ON",
+        "Ontario Dispatchable Load Scheduled OFF",
+        "Ontario Hourly Demand Response Bid/Forecasted",
+        "Ontario Hourly Demand Response Scheduled",
+        "Ontario Hourly Demand Response Curtailed",
+    ]
+
+    @pytest.mark.parametrize(
+        "date",
+        [date[0] for date in RESOURCE_ADEQUACY_TEST_DATES],
     )
     def test_get_resource_adequacy_report_single_date_latest_report(
         self,
@@ -575,100 +696,7 @@ class TestIESO(BaseTestISO):
 
         assert isinstance(df, pd.DataFrame)
         assert df.shape == (24, 90)  # 24 rows and 90 columns for each file
-
-        required_cols = [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Forecast Supply Capacity MW",
-            "Forecast Supply Energy MWhr",
-            "Forecast Supply Bottled Capacity MW",
-            "Forecast Supply Regulation MW",
-            "Total Forecast Supply MW",
-            "Total Requirement MW",
-            "Capacity Excess / Shortfall MW",
-            "Energy Excess / Shortfall MWhr",
-            "Offered Capacity Excess / Shortfall MW",
-            "Resources Not Scheduled MW",
-            "Imports Not Scheduled MW",
-            "Nuclear Capacity",
-            "Nuclear Outages",
-            "Nuclear Offered",
-            "Nuclear Scheduled",
-            "Gas Capacity",
-            "Gas Outages",
-            "Gas Offered",
-            "Gas Scheduled",
-            "Hydro Capacity",
-            "Hydro Outages",
-            "Hydro Forecasted (MWhr)",
-            "Hydro Offered",
-            "Hydro Scheduled",
-            "Wind Capacity",
-            "Wind Outages",
-            "Wind Forecasted",
-            "Wind Scheduled",
-            "Solar Capacity",
-            "Solar Outages",
-            "Solar Forecasted",
-            "Solar Scheduled",
-            "Biofuel Capacity",
-            "Biofuel Outages",
-            "Biofuel Offered",
-            "Biofuel Scheduled",
-            "Other Capacity",
-            "Other Outages",
-            "Other Offered/Forecasted",
-            "Other Scheduled",
-            "Manitoba Imports Offered",
-            "Manitoba Imports Scheduled",
-            "Minnesota Imports Offered",
-            "Minnesota Imports Scheduled",
-            "Michigan Imports Offered",
-            "Michigan Imports Scheduled",
-            "New York Imports Offered",
-            "New York Imports Scheduled",
-            "Quebec Imports Offered",
-            "Quebec Imports Scheduled",
-            "Total Internal Resources Outages",
-            "Total Internal Resources Offered/Forecasted",
-            "Total Internal Resources Scheduled",
-            "Total Imports Offers",
-            "Total Imports Scheduled",
-            "Total Imports Estimated",
-            "Total Imports Capacity",
-            "Manitoba Exports Offered",
-            "Manitoba Exports Scheduled",
-            "Minnesota Exports Offered",
-            "Minnesota Exports Scheduled",
-            "Michigan Exports Offered",
-            "Michigan Exports Scheduled",
-            "New York Exports Offered",
-            "New York Exports Scheduled",
-            "Quebec Exports Offered",
-            "Quebec Exports Scheduled",
-            "Total Exports Bids",
-            "Total Exports Scheduled",
-            "Total Exports Capacity",
-            "Total Operating Reserve",
-            "Minimum 10 Minute Operating Reserve",
-            "Minimum 10 Minute Spin OR",
-            "Load Forecast Uncertainties",
-            "Additional Contingency Allowances",
-            "Ontario Demand Forecast",
-            "Ontario Peak Demand",
-            "Ontario Average Demand",
-            "Ontario Wind Embedded Forecast",
-            "Ontario Solar Embedded Forecast",
-            "Ontario Dispatchable Load Capacity",
-            "Ontario Dispatchable Load Bid / Forecasted",
-            "Ontario Dispatchable Load Scheduled ON",
-            "Ontario Dispatchable Load Scheduled OFF",
-            "Ontario Hourly Demand Response Bid/Forecasted",
-            "Ontario Hourly Demand Response Scheduled",
-            "Ontario Hourly Demand Response Curtailed",
-        ]
-        for col in required_cols:
+        for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
 
         assert self._check_is_datetime_type(df["Interval Start"])
@@ -680,46 +708,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date, end",
-        [
-            (
-                (
-                    pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=119)
-                ).strftime("%Y-%m-%d"),
-                (
-                    pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=115)
-                ).strftime("%Y-%m-%d"),
-            ),
-            (
-                (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=3)).strftime(
-                    "%Y-%m-%d",
-                ),
-                (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=1)).strftime(
-                    "%Y-%m-%d",
-                ),
-            ),
-            (
-                (pd.Timestamp.now(tz=default_timezone)).strftime("%Y-%m-%d"),
-                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=2)).strftime(
-                    "%Y-%m-%d",
-                ),
-            ),
-            (
-                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=1)).strftime(
-                    "%Y-%m-%d",
-                ),
-                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=3)).strftime(
-                    "%Y-%m-%d",
-                ),
-            ),
-            (
-                (
-                    pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=28)
-                ).strftime("%Y-%m-%d"),
-                (
-                    pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=30)
-                ).strftime("%Y-%m-%d"),
-            ),
-        ],
+        RESOURCE_ADEQUACY_TEST_DATES,
     )
     def test_get_latest_resource_adequacy_report_date_range(self, date: str, end: str):
         with file_vcr.use_cassette(
@@ -729,52 +718,14 @@ class TestIESO(BaseTestISO):
 
         assert isinstance(df, pd.DataFrame)
         assert df.shape[1] == 90
-
+        for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
+            assert col in df.columns
         expected_rows = ((pd.Timestamp(end) - pd.Timestamp(date)).days) * 24
         assert df.shape[0] == expected_rows
 
     @pytest.mark.parametrize(
         "date, end",
-        [
-            (
-                (
-                    pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=119)
-                ).strftime("%Y-%m-%d"),
-                (
-                    pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=115)
-                ).strftime("%Y-%m-%d"),
-            ),
-            (
-                (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=3)).strftime(
-                    "%Y-%m-%d",
-                ),
-                (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=1)).strftime(
-                    "%Y-%m-%d",
-                ),
-            ),
-            (
-                (pd.Timestamp.now(tz=default_timezone)).strftime("%Y-%m-%d"),
-                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=2)).strftime(
-                    "%Y-%m-%d",
-                ),
-            ),
-            (
-                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=1)).strftime(
-                    "%Y-%m-%d",
-                ),
-                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=3)).strftime(
-                    "%Y-%m-%d",
-                ),
-            ),
-            (
-                (
-                    pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=28)
-                ).strftime("%Y-%m-%d"),
-                (
-                    pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=30)
-                ).strftime("%Y-%m-%d"),
-            ),
-        ],
+        RESOURCE_ADEQUACY_TEST_DATES,
     )
     def test_get_all_resource_adequacy_report_date_range(self, date: str, end: str):
         with file_vcr.use_cassette(
@@ -784,6 +735,8 @@ class TestIESO(BaseTestISO):
 
         assert isinstance(df, pd.DataFrame)
         assert df.shape[1] == 90
+        for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
+            assert col in df.columns
 
     # TODO(kladar): eventually don't record this each time
     @file_vcr.use_cassette("test_get_latest_resource_adequacy_json.yaml")
