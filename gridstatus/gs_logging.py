@@ -1,7 +1,7 @@
 import logging
 
 
-def setup_gs_logger(level=logging.DEBUG) -> logging.Logger:
+def setup_gs_logger(level: int = logging.DEBUG) -> logging.Logger:
     logger = logging.getLogger("gridstatus")
 
     if not logger.handlers:
