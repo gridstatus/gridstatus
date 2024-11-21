@@ -1210,6 +1210,8 @@ class IESO(ISOBase):
         logger.debug(f"Columns:\n{pformat(df.columns.tolist())}")
         return df.sort_values(["Interval Start", "Publish Time"])
 
+    # TODO(Kladar): this could likely be developed from the XML structure, but this works for now
+    # and is easier to modify and quite legible
     def _get_resource_adequacy_data_structure_map(self) -> dict:
         """Define mapping of hourly data locations and extraction rules"""
         return {
@@ -1547,7 +1549,7 @@ class IESO(ISOBase):
         value_key: str,
         report_data: list[dict],
     ) -> None:
-        """Extract hourly values from nested XML data into report_data list.
+        """Extract hourly values from nested json data into report_data list, which becomes a dataframe later.
 
         Args:
             data: Source data dictionary
