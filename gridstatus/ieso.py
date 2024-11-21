@@ -918,7 +918,6 @@ class IESO(ISOBase):
 
         Args:
             date (str | datetime.date | datetime.datetime): The date for which to get the report
-            verbose (bool, optional): Print verbose output. Defaults to False.
 
         Returns:
             pd.DataFrame: The Resource Adequacy Report df for the given date
@@ -931,7 +930,16 @@ class IESO(ISOBase):
         self,
         date: str | datetime.date | datetime.datetime,
     ) -> dict:
-        """Retrieve the Resource Adequacy Report for a given date and convert to JSON."""
+        """Retrieve the Resource Adequacy Report for a given date and convert to JSON. There are often many
+        files for a given date, so this function will return the file with the highest version number. It does
+        not retrieve arbitrary files of lower version numbers.
+
+        Args:
+            date (str | datetime.date | datetime.datetime): The date for which to get the report
+
+        Returns:
+            dict: The Resource Adequacy Report JSON for the given date
+        """
         base_url = "https://reports-public.ieso.ca/public/Adequacy2"
 
         if isinstance(date, (datetime.datetime, datetime.date)):
@@ -973,6 +981,9 @@ class IESO(ISOBase):
         report_data = []
         data_map = self._get_resource_adequacy_data_structure_map()
 
+        # TODO(Kladar): this is a bit clunky and could definitely be generalized to reduce
+        # linecount, but it works for now. I kind of move around the file to where I want
+        # to extract data and then extract it, and the movement could be abstracted away
         for section_name, section_data in data_map.items():
             logger.debug(f"--- Processing Section: {section_name} ---")
 
@@ -987,7 +998,6 @@ class IESO(ISOBase):
                         report_data=report_data,
                     )
 
-            # For fuel type hourly data and zonal imports data
             if "Fuel_Type_Hourly" in section_data:
                 logger.debug("Processing Fuel Type Hourly Data...")
                 fuel_type_config = section_data["Fuel_Type_Hourly"]
@@ -1075,8 +1085,6 @@ class IESO(ISOBase):
                 logger.debug("Processing Total Imports Data...")
                 total_imports_config = section_data["Total_Imports"]
                 logger.debug(f"Total Imports Config: {total_imports_config}")
-
-                # Navigate to TotalImports section
                 current_data = document_body
                 for path_part in ["ForecastSupply", "ZonalImports", "TotalImports"]:
                     current_data = current_data[path_part]
@@ -1095,6 +1103,7 @@ class IESO(ISOBase):
                         value_key=path_parts[2],
                         report_data=report_data,
                     )
+
             if "Total_Exports" in section_data:
                 logger.debug("Processing Total Exports Data...")
                 total_exports_config = section_data["Total_Exports"]
