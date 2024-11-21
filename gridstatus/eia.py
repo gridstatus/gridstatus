@@ -280,10 +280,9 @@ class EIA:
             df = pd.read_excel(url, sheet_name="Published Hourly Data")
 
             rename = {
-                "NG": "Net Generation",
-                "D": "Demand",
-                "TI": "Total Interchange",
-                "DF": "Demand Forecast",
+                "Demand forecast": "Demand Forecast",
+                "Net generation": "Net Generation",
+                "Total interchange": "Total Interchange",
             }
 
             df = df.rename(columns=rename)
