@@ -912,15 +912,19 @@ class IESO(ISOBase):
 
         return r
 
+    @support_date_range(frequency="DAY_START")
     def get_resource_adequacy_report(
         self,
         date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
         vintages: Literal["all", "latest"] = "latest",
     ) -> pd.DataFrame:
         """Retrieve and parse the Resource Adequacy Report for a given date.
 
         Args:
             date (str | datetime.date | datetime.datetime): The date for which to get the report
+            end (datetime.date | datetime.datetime | None): The end date for the range of reports to get
+            vintages (Literal["all", "latest"]): The version of the report to get
 
         Returns:
             pd.DataFrame: The Resource Adequacy Report df for the given date

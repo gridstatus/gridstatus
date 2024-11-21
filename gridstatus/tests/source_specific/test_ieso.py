@@ -566,9 +566,12 @@ class TestIESO(BaseTestISO):
             ),  # NOTE(kladar): we will see how future data rolls in
         ],
     )
-    def test_get_resource_adequacy_report(self, date: str | datetime.date):
+    def test_get_resource_adequacy_report_single_date_latest_report(
+        self,
+        date: str | datetime.date,
+    ):
         with file_vcr.use_cassette(f"test_get_resource_adequacy_report_{date}.yaml"):
-            df = self.iso.get_resource_adequacy_report(date)
+            df = self.iso.get_resource_adequacy_report(date, vintages="latest")
 
         assert isinstance(df, pd.DataFrame)
         assert df.shape == (24, 90)  # 24 rows and 90 columns for each file
@@ -674,6 +677,113 @@ class TestIESO(BaseTestISO):
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                (
+                    pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=119)
+                ).strftime("%Y-%m-%d"),
+                (
+                    pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=115)
+                ).strftime("%Y-%m-%d"),
+            ),
+            (
+                (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=3)).strftime(
+                    "%Y-%m-%d",
+                ),
+                (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=1)).strftime(
+                    "%Y-%m-%d",
+                ),
+            ),
+            (
+                (pd.Timestamp.now(tz=default_timezone)).strftime("%Y-%m-%d"),
+                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=2)).strftime(
+                    "%Y-%m-%d",
+                ),
+            ),
+            (
+                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=1)).strftime(
+                    "%Y-%m-%d",
+                ),
+                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=3)).strftime(
+                    "%Y-%m-%d",
+                ),
+            ),
+            (
+                (
+                    pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=28)
+                ).strftime("%Y-%m-%d"),
+                (
+                    pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=30)
+                ).strftime("%Y-%m-%d"),
+            ),
+        ],
+    )
+    def test_get_latest_resource_adequacy_report_date_range(self, date: str, end: str):
+        with file_vcr.use_cassette(
+            f"test_get_latest_resource_adequacy_report_{date}_to_{end}.yaml",
+        ):
+            df = self.iso.get_resource_adequacy_report(date, end=end, vintages="latest")
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape[1] == 90
+
+        expected_rows = ((pd.Timestamp(end) - pd.Timestamp(date)).days) * 24
+        assert df.shape[0] == expected_rows
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                (
+                    pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=119)
+                ).strftime("%Y-%m-%d"),
+                (
+                    pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=115)
+                ).strftime("%Y-%m-%d"),
+            ),
+            (
+                (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=3)).strftime(
+                    "%Y-%m-%d",
+                ),
+                (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=1)).strftime(
+                    "%Y-%m-%d",
+                ),
+            ),
+            (
+                (pd.Timestamp.now(tz=default_timezone)).strftime("%Y-%m-%d"),
+                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=2)).strftime(
+                    "%Y-%m-%d",
+                ),
+            ),
+            (
+                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=1)).strftime(
+                    "%Y-%m-%d",
+                ),
+                (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=3)).strftime(
+                    "%Y-%m-%d",
+                ),
+            ),
+            (
+                (
+                    pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=28)
+                ).strftime("%Y-%m-%d"),
+                (
+                    pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=30)
+                ).strftime("%Y-%m-%d"),
+            ),
+        ],
+    )
+    def test_get_all_resource_adequacy_report_date_range(self, date: str, end: str):
+        with file_vcr.use_cassette(
+            f"test_get_all_resource_adequacy_report_{date}_to_{end}.yaml",
+        ):
+            df = self.iso.get_resource_adequacy_report(date, end=end, vintages="all")
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape[1] == 90
 
     # TODO(kladar): eventually don't record this each time
     @file_vcr.use_cassette("test_get_latest_resource_adequacy_json.yaml")
