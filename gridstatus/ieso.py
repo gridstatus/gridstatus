@@ -3,7 +3,6 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pprint import pformat
 from typing import Literal
 
 import certifi
@@ -967,7 +966,7 @@ class IESO(ISOBase):
 
         r = self._request(base_url)
         files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
-        logger.debug(f"Retrieved {len(files)} files for {date_str}")
+        logger.info(f"Retrieved {len(files)} files for {date_str}")
         if not files:
             raise FileNotFoundError(
                 f"No resource adequacy files found for date {date_str}",
@@ -986,7 +985,7 @@ class IESO(ISOBase):
                 key=lambda x: int(x.split("_v")[-1].replace(".xml", "")),
             )
         )
-        logger.debug(f"Latest file: {latest_file}")
+        logger.info(f"Latest file: {latest_file}")
         url = f"{base_url}/{latest_file}"
         r = self._request(url)
         json_data = xmltodict.parse(r.text)
@@ -1023,7 +1022,7 @@ class IESO(ISOBase):
 
         r = self._request(base_url)
         files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
-        logger.debug(f"Files retrieved for {date_str}: {pformat(files)}")
+        logger.info(f"Retrieved {len(files)} files for {date_str}")
         if not files:
             raise FileNotFoundError(
                 f"No resource adequacy files found for date {date_str}",
