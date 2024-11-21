@@ -1049,12 +1049,7 @@ class IESO(ISOBase):
 
     def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
         """Parse the Resource Adequacy Report JSON into DataFrames."""
-        publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
         document_body = json_data["Document"]["DocBody"]
-        delivery_date = pd.to_datetime(document_body["DeliveryDate"])
-        logger.debug(f"Publish Time: {publish_time}")
-        logger.debug(f"Delivery Date: {delivery_date}")
-
         report_data = []
         data_map = self._get_resource_adequacy_data_structure_map()
 
@@ -1266,6 +1261,17 @@ class IESO(ISOBase):
         # NOTE(kladar): This is the first place where pandas is truly invoked, leaving it open for more modern
         # dataframe libraries to be swapped in in the future
         df = pd.DataFrame(report_data)
+
+        publish_time = pd.Timestamp(
+            json_data["Document"]["DocHeader"]["CreatedAt"],
+            tz=self.default_timezone,
+        )
+        delivery_date = pd.Timestamp(
+            document_body["DeliveryDate"],
+            tz=self.default_timezone,
+        )
+        logger.debug(f"Publish Time: {publish_time}")
+        logger.debug(f"Delivery Date: {delivery_date}")
         df["Interval Start"] = delivery_date + pd.to_timedelta(
             df["DeliveryHour"] - 1,
             unit="h",
