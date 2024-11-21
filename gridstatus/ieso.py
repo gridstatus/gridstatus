@@ -969,11 +969,18 @@ class IESO(ISOBase):
                 f"No resource adequacy files found for date {date_str}",
             )
 
-        latest_file = max(
-            files,
-            key=lambda x: int(x.split("_v")[-1].replace(".xml", ""))
-            if "_v" in x
-            else 0,
+        unversioned_file = next(
+            (f for f in files if "_v" not in f),
+            None,
+        )
+
+        latest_file = (
+            unversioned_file
+            if unversioned_file
+            else max(
+                files,
+                key=lambda x: int(x.split("_v")[-1].replace(".xml", "")),
+            )
         )
         logger.debug(f"Latest file: {latest_file}")
         url = f"{base_url}/{latest_file}"

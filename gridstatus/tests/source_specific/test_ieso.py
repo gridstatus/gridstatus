@@ -16,7 +16,7 @@ from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 TIME_COLUMN = "Interval Start"
 
-api_vcr = setup_vcr(
+file_vcr = setup_vcr(
     source="ieso",
     record_mode=RECORD_MODE,
 )
@@ -567,7 +567,7 @@ class TestIESO(BaseTestISO):
         ],
     )
     def test_get_resource_adequacy_report(self, date: str | datetime.date):
-        with api_vcr.use_cassette(f"test_get_resource_adequacy_report_{date}.yaml"):
+        with file_vcr.use_cassette(f"test_get_resource_adequacy_report_{date}.yaml"):
             df = self.iso.get_resource_adequacy_report(date)
 
         assert isinstance(df, pd.DataFrame)
@@ -676,10 +676,10 @@ class TestIESO(BaseTestISO):
         ).all()
 
     # TODO(kladar): eventually don't record this each time
-    @api_vcr.use_cassette("test_get_resource_adequacy_json.yaml")
-    def test_get_resource_adequacy_json(self):
+    @file_vcr.use_cassette("test_get_latest_resource_adequacy_json.yaml")
+    def test_get_latest_resource_adequacy_json(self):
         date = pd.Timestamp.now(tz=self.default_timezone)
-        json_data = self.iso._get_resource_adequacy_json(date)
+        json_data = self.iso._get_latest_resource_adequacy_json(date)
 
         assert isinstance(json_data, dict)
         assert "Document" in json_data
@@ -691,24 +691,41 @@ class TestIESO(BaseTestISO):
         assert "ForecastDemand" in doc_body
         assert "DeliveryDate" in doc_body
 
+    @file_vcr.use_cassette("test_get_all_resource_adequacy_json.yaml")
+    def test_get_all_resource_adequacy_json(self):
+        date = pd.Timestamp.now(tz=self.default_timezone)
+        json_data = self.iso._get_all_resource_adequacy_jsons(date)
+
+        assert isinstance(json_data, list)
+        for json_item in json_data:
+            assert isinstance(json_item, dict)
+            assert "Document" in json_item
+            assert "DocHeader" in json_item["Document"]
+            assert "DocBody" in json_item["Document"]
+
+            doc_body = json_item["Document"]["DocBody"]
+            assert "ForecastSupply" in doc_body
+            assert "ForecastDemand" in doc_body
+            assert "DeliveryDate" in doc_body
+
     def test_get_resource_adequacy_data_structure_map(self):
         data_map = self.iso._get_resource_adequacy_data_structure_map()
 
         assert isinstance(data_map, dict)
-        assert "Supply" in data_map
-        assert "Demand" in data_map
+        assert "supply" in data_map
+        assert "demand" in data_map
 
-        supply = data_map["Supply"]
-        assert "Hourly" in supply
-        assert "Fuel_Type_Hourly" in supply
-        assert "Total_Internal_Resources" in supply
-        assert "Zonal_Import_Hourly" in supply
+        supply = data_map["supply"]
+        assert "hourly" in supply
+        assert "fuel_type_hourly" in supply
+        assert "total_internal_resources" in supply
+        assert "zonal_import_hourly" in supply
 
-        demand = data_map["Demand"]
-        assert "Ontario_Demand" in demand
-        assert "Zonal_Export_Hourly" in demand
-        assert "Total_Exports" in demand
-        assert "Reserves" in demand
+        demand = data_map["demand"]
+        assert "ontario_demand" in demand
+        assert "zonal_export_hourly" in demand
+        assert "total_exports" in demand
+        assert "reserves" in demand
 
     def test_extract_hourly_values(self):
         test_data = {
