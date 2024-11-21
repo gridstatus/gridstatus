@@ -2,7 +2,9 @@ import datetime
 import re
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pprint import pformat
+from typing import Literal
 
 import certifi
 import pandas as pd
@@ -913,6 +915,7 @@ class IESO(ISOBase):
     def get_resource_adequacy_report(
         self,
         date: str | datetime.date | datetime.datetime,
+        vintages: Literal["all", "latest"] = "latest",
     ) -> pd.DataFrame:
         """Retrieve and parse the Resource Adequacy Report for a given date.
 
@@ -922,11 +925,20 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: The Resource Adequacy Report df for the given date
         """
-        json_data = self._get_resource_adequacy_json(date)
-        return self._parse_resource_adequacy_report(json_data)
+        if vintages == "latest":
+            json_data = self._get_latest_resource_adequacy_json(date)
+            return self._parse_resource_adequacy_report(json_data)
+        elif vintages == "all":
+            json_data = self._get_all_resource_adequacy_jsons(date)
+            dfs = []
+            for json_data in json_data:
+                dfs.append(self._parse_resource_adequacy_report(json_data))
+            return pd.concat(dfs)
+        else:
+            raise ValueError(f"Invalid value for vintages: {vintages}")
 
     # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
-    def _get_resource_adequacy_json(
+    def _get_latest_resource_adequacy_json(
         self,
         date: str | datetime.date | datetime.datetime,
     ) -> dict:
@@ -967,6 +979,60 @@ class IESO(ISOBase):
         url = f"{base_url}/{latest_file}"
         r = self._request(url)
         json_data = xmltodict.parse(r.text)
+
+        return json_data
+
+    def _fetch_and_parse_file(self, base_url: str, file: str) -> dict:
+        url = f"{base_url}/{file}"
+        r = self._request(url)
+        return xmltodict.parse(r.text)
+
+    def _get_all_resource_adequacy_jsons(
+        self,
+        date: str | datetime.date | datetime.datetime,
+    ) -> list[dict]:
+        """Retrieve all Resource Adequacy Report JSONs for a given date. There are often many
+        files for a given date, so this function will return all files, the data of which may be separated
+        by publish time.
+
+        Args:
+            date (str | datetime.date | datetime.datetime): The date for which to get the report
+
+        Returns:
+            dict: The Resource Adequacy Report JSON for the given date
+        """
+        base_url = "https://reports-public.ieso.ca/public/Adequacy2"
+
+        if isinstance(date, (datetime.datetime, datetime.date)):
+            date_str = date.strftime("%Y%m%d")
+        else:
+            date_str = date.replace("-", "")
+
+        file_prefix = f"PUB_Adequacy2_{date_str}"
+
+        r = self._request(base_url)
+        files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
+        logger.debug(f"Files retrieved for {date_str}: {pformat(files)}")
+        if not files:
+            raise FileNotFoundError(
+                f"No resource adequacy files found for date {date_str}",
+            )
+
+        logger.debug(f"All files matching date {date_str}: {pformat(files)}")
+
+        json_data = []
+        with ThreadPoolExecutor(max_workers=min(10, len(files))) as executor:
+            future_to_file = {
+                executor.submit(self._fetch_and_parse_file, base_url, file): file
+                for file in files
+            }
+
+            for future in as_completed(future_to_file):
+                file = future_to_file[future]
+                try:
+                    json_data.append(future.result())
+                except Exception as e:
+                    logger.error(f"Error processing file {file}: {str(e)}")
 
         return json_data
 
@@ -1611,7 +1677,61 @@ class IESO(ISOBase):
                 row = next(r for r in report_data if r["DeliveryHour"] == hour)
                 row[column_name] = None
 
+    # TODO(Kladar): Remove this once we've confirmed the new method is a fine enough approach
     # def _parse_resource_adequacy_report_alt(self, json_data: dict) -> pd.DataFrame:
+    #     """Parse the Resource Adequacy Report JSON into DataFrame using pandas json normalization."""
+    #     doc_body = json_data["Document"]["DocBody"]
+    #     publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
+    #     delivery_date = pd.to_datetime(doc_body["DeliveryDate"])
+
+    #     # Create base dataframe with hours 1-24
+    #     df = pd.DataFrame({"DeliveryHour": range(1, 25)})
+
+    #     # Helper function to extract hourly data
+    #     def extract_hourly_data(path: list[str], name: str) -> pd.Series:
+    #         data = doc_body
+    #         for p in path[:-1]:
+    #             data = data.get(p, {})
+
+    #         hourly_data = data.get(path[-1], [])
+    #         if not isinstance(hourly_data, list):
+    #             hourly_data = [hourly_data]
+
+    #         return pd.DataFrame(hourly_data).set_index("DeliveryHour")["EnergyMW"].astype(float)
+
+    #     # Supply metrics
+    #     supply_paths = {
+    #         "Supply Capacity": ["ForecastSupply", "Capacities", "Capacity"],
+    #         "Supply Energy": ["ForecastSupply", "Energies", "Energy"],
+    #         "Supply Bottled Capacity": ["ForecastSupply", "BottledCapacities", "Capacity"],
+    #         "Supply Regulation": ["ForecastSupply", "Regulations", "Regulation"],
+    #         "Total Supply": ["ForecastSupply", "TotalSupplies", "Supply"]
+    #     }
+
+    #     # Demand metrics
+    #     demand_paths = {
+    #         "Total Requirement": ["ForecastDemand", "TotalRequirements", "Requirement"],
+    #         "Capacity Excess Shortfall": ["ForecastDemand", "ExcessCapacities", "Capacity"],
+    #         "Energy Excess Shortfall": ["ForecastDemand", "ExcessEnergies", "Energy"],
+    #         "Resources Not Scheduled": ["ForecastDemand", "UnscheduledResources", "UnscheduledResource"]
+    #     }
+
+    #     # Extract all metrics
+    #     for name, path in {**supply_paths, **demand_paths}.items():
+    #         df[name] = df["DeliveryHour"].map(
+    #             extract_hourly_data(path, name)
+    #         )
+
+    #     # Add datetime columns
+    #     df["Interval Start"] = delivery_date + pd.to_timedelta(df["DeliveryHour"] - 1, unit="h")
+    #     df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+    #     df["Publish Time"] = publish_time
+
+    #     return utils.move_cols_to_front(
+    #         df,
+    #         ["Interval Start", "Interval End", "Publish Time"]
+    #     ).sort_values(["Interval Start", "Publish Time"])
+
     #     """Parse the Resource Adequacy Report JSON into DataFrame using pandas json normalization."""
     #     doc_body = json_data["Document"]["DocBody"]
     #     publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
