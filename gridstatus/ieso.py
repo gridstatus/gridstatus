@@ -1085,7 +1085,6 @@ class IESO(ISOBase):
                             path_parts = fuel_type_config["resources"][fuel_type][
                                 metric
                             ]
-                            logger.debug(f"Extracting {fuel_type} {metric}")
                             self._extract_hourly_values(
                                 data=resource,
                                 path=path_parts[:2],
