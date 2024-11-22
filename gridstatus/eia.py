@@ -658,8 +658,10 @@ def _handle_region_data(df):
 
     df["MW"] = df["MW"].astype(float)
 
-    # pivot on type
-    df = df.pivot_table(
+    df = df[df["Type"].notna()]
+
+    # pivot on Type
+    df = df.pivot(
         index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
         columns="Type",
         values="MW",
