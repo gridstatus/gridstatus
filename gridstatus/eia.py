@@ -663,6 +663,7 @@ def _handle_region_data(df):
         index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
         columns="Type",
         values="MW",
+        dropna=False,
     ).reset_index()
 
     df.columns.name = None
