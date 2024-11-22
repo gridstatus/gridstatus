@@ -1055,7 +1055,6 @@ class IESO(ISOBase):
         # to extract data and then extract it, and that movement could be abstracted away
         for section_name, section_data in data_map.items():
             if "hourly" in section_data:
-                logger.debug("Processing Direct Hourly Data...")
                 for metric_name, config in section_data["hourly"].items():
                     self._extract_hourly_values(
                         data=document_body,
@@ -1066,7 +1065,6 @@ class IESO(ISOBase):
                     )
 
             if "fuel_type_hourly" in section_data:
-                logger.debug("Processing Fuel Type Hourly Data...")
                 fuel_type_config = section_data["fuel_type_hourly"]
 
                 current_data = document_body
@@ -1079,7 +1077,6 @@ class IESO(ISOBase):
 
                 for resource in resources:
                     fuel_type = resource.get(fuel_type_config["key_field"])
-                    logger.debug(f"Processing Fuel Type: {fuel_type}")
 
                     if fuel_type in fuel_type_config["resources"]:
                         metrics = fuel_type_config["resources"][fuel_type]
@@ -1099,7 +1096,6 @@ class IESO(ISOBase):
 
             for zonal_section in ["zonal_import_hourly", "zonal_export_hourly"]:
                 if zonal_section in section_data:
-                    logger.debug(f"Processing {zonal_section} Data...")
                     zonal_config = section_data[zonal_section]
                 current_data = document_body
                 for path_part in zonal_config["path"][:-1]:
@@ -1109,12 +1105,10 @@ class IESO(ISOBase):
 
                 for zone in zones:
                     zone_name = zone[zonal_config["key_field"]]
-                    logger.debug(f"Processing Zone: {zone_name}")
                     metrics = zonal_config["zones"][zone_name]
 
                     for metric in metrics:
                         path_parts = zonal_config["zones"][zone_name][metric]
-                        logger.debug(f"Extracting {zone_name} {metric}")
                         self._extract_hourly_values(
                             data=zone,
                             path=path_parts[:2],
@@ -1124,7 +1118,6 @@ class IESO(ISOBase):
                         )
 
             if "total_internal_resources" in section_data:
-                logger.debug("Processing Total Internal Resources Data...")
                 total_internal_resources_config = section_data[
                     "total_internal_resources"
                 ]
@@ -1149,7 +1142,6 @@ class IESO(ISOBase):
                     )
 
             if "total_imports" in section_data:
-                logger.debug("Processing Total Imports Data...")
                 total_imports_config = section_data["total_imports"]
                 current_data = document_body
                 for path_part in ["ForecastSupply", "ZonalImports", "TotalImports"]:
@@ -1168,7 +1160,6 @@ class IESO(ISOBase):
                     )
 
             if "total_exports" in section_data:
-                logger.debug("Processing Total Exports Data...")
                 total_exports_config = section_data["total_exports"]
 
                 current_data = document_body
@@ -1188,7 +1179,6 @@ class IESO(ISOBase):
                     )
 
             if "reserves" in section_data:
-                logger.debug("Processing Generation Reserve Holdback Data...")
                 reserves_config = section_data["reserves"]
 
                 current_data = document_body
@@ -1205,7 +1195,6 @@ class IESO(ISOBase):
                     )
 
             if "ontario_demand" in section_data:
-                logger.debug("Processing Ontario Demand Data...")
                 ontario_demand_config = section_data["ontario_demand"]
 
                 current_data = document_body
@@ -1638,7 +1627,6 @@ class IESO(ISOBase):
 
         items = current.get(path[-1], [])
         if items is None:
-            logger.debug(f"Final path segment '{path[-1]}' returned None")
             items = []
         elif not isinstance(items, list):
             items = [items]
@@ -1662,8 +1650,7 @@ class IESO(ISOBase):
             try:
                 value = item.get(value_key)
                 row[column_name] = float(value) if value is not None else None
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Error converting value for hour {hour}: {e}")
+            except (ValueError, TypeError):
                 row[column_name] = None
 
         missing_value_hours = set(range(1, 25)) - hours_with_values
@@ -1675,111 +1662,3 @@ class IESO(ISOBase):
             if hour not in hours_with_values:
                 row = next(r for r in report_data if r["DeliveryHour"] == hour)
                 row[column_name] = None
-
-    # TODO(Kladar): Remove this once we've confirmed the new method is a fine enough approach
-    # def _parse_resource_adequacy_report_alt(self, json_data: dict) -> pd.DataFrame:
-    #     """Parse the Resource Adequacy Report JSON into DataFrame using pandas json normalization."""
-    #     doc_body = json_data["Document"]["DocBody"]
-    #     publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
-    #     delivery_date = pd.to_datetime(doc_body["DeliveryDate"])
-
-    #     # Create base dataframe with hours 1-24
-    #     df = pd.DataFrame({"DeliveryHour": range(1, 25)})
-
-    #     # Helper function to extract hourly data
-    #     def extract_hourly_data(path: list[str], name: str) -> pd.Series:
-    #         data = doc_body
-    #         for p in path[:-1]:
-    #             data = data.get(p, {})
-
-    #         hourly_data = data.get(path[-1], [])
-    #         if not isinstance(hourly_data, list):
-    #             hourly_data = [hourly_data]
-
-    #         return pd.DataFrame(hourly_data).set_index("DeliveryHour")["EnergyMW"].astype(float)
-
-    #     # Supply metrics
-    #     supply_paths = {
-    #         "Supply Capacity": ["ForecastSupply", "Capacities", "Capacity"],
-    #         "Supply Energy": ["ForecastSupply", "Energies", "Energy"],
-    #         "Supply Bottled Capacity": ["ForecastSupply", "BottledCapacities", "Capacity"],
-    #         "Supply Regulation": ["ForecastSupply", "Regulations", "Regulation"],
-    #         "Total Supply": ["ForecastSupply", "TotalSupplies", "Supply"]
-    #     }
-
-    #     # Demand metrics
-    #     demand_paths = {
-    #         "Total Requirement": ["ForecastDemand", "TotalRequirements", "Requirement"],
-    #         "Capacity Excess Shortfall": ["ForecastDemand", "ExcessCapacities", "Capacity"],
-    #         "Energy Excess Shortfall": ["ForecastDemand", "ExcessEnergies", "Energy"],
-    #         "Resources Not Scheduled": ["ForecastDemand", "UnscheduledResources", "UnscheduledResource"]
-    #     }
-
-    #     # Extract all metrics
-    #     for name, path in {**supply_paths, **demand_paths}.items():
-    #         df[name] = df["DeliveryHour"].map(
-    #             extract_hourly_data(path, name)
-    #         )
-
-    #     # Add datetime columns
-    #     df["Interval Start"] = delivery_date + pd.to_timedelta(df["DeliveryHour"] - 1, unit="h")
-    #     df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-    #     df["Publish Time"] = publish_time
-
-    #     return utils.move_cols_to_front(
-    #         df,
-    #         ["Interval Start", "Interval End", "Publish Time"]
-    #     ).sort_values(["Interval Start", "Publish Time"])
-
-    #     """Parse the Resource Adequacy Report JSON into DataFrame using pandas json normalization."""
-    #     doc_body = json_data["Document"]["DocBody"]
-    #     publish_time = pd.to_datetime(json_data["Document"]["DocHeader"]["CreatedAt"])
-    #     delivery_date = pd.to_datetime(doc_body["DeliveryDate"])
-
-    #     # Create base dataframe with hours 1-24
-    #     df = pd.DataFrame({"DeliveryHour": range(1, 25)})
-
-    #     # Helper function to extract hourly data
-    #     def extract_hourly_data(path: list[str], name: str) -> pd.Series:
-    #         data = doc_body
-    #         for p in path[:-1]:
-    #             data = data.get(p, {})
-
-    #         hourly_data = data.get(path[-1], [])
-    #         if not isinstance(hourly_data, list):
-    #             hourly_data = [hourly_data]
-
-    #         return pd.DataFrame(hourly_data).set_index("DeliveryHour")["EnergyMW"].astype(float)
-
-    #     # Supply metrics
-    #     supply_paths = {
-    #         "Supply Capacity": ["ForecastSupply", "Capacities", "Capacity"],
-    #         "Supply Energy": ["ForecastSupply", "Energies", "Energy"],
-    #         "Supply Bottled Capacity": ["ForecastSupply", "BottledCapacities", "Capacity"],
-    #         "Supply Regulation": ["ForecastSupply", "Regulations", "Regulation"],
-    #         "Total Supply": ["ForecastSupply", "TotalSupplies", "Supply"]
-    #     }
-
-    #     # Demand metrics
-    #     demand_paths = {
-    #         "Total Requirement": ["ForecastDemand", "TotalRequirements", "Requirement"],
-    #         "Capacity Excess Shortfall": ["ForecastDemand", "ExcessCapacities", "Capacity"],
-    #         "Energy Excess Shortfall": ["ForecastDemand", "ExcessEnergies", "Energy"],
-    #         "Resources Not Scheduled": ["ForecastDemand", "UnscheduledResources", "UnscheduledResource"]
-    #     }
-
-    #     # Extract all metrics
-    #     for name, path in {**supply_paths, **demand_paths}.items():
-    #         df[name] = df["DeliveryHour"].map(
-    #             extract_hourly_data(path, name)
-    #         )
-
-    #     # Add datetime columns
-    #     df["Interval Start"] = delivery_date + pd.to_timedelta(df["DeliveryHour"] - 1, unit="h")
-    #     df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-    #     df["Publish Time"] = publish_time
-
-    #     return utils.move_cols_to_front(
-    #         df,
-    #         ["Interval Start", "Interval End", "Publish Time"]
-    #     ).sort_values(["Interval Start", "Publish Time"])
