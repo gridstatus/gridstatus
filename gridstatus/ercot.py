@@ -2893,6 +2893,8 @@ class Ercot(ISOBase):
         constructed_name_contains=None,
         extension=None,
         verbose=False,
+        base_url="www.ercot.com",
+        request_kwargs=None,
     ) -> Document:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -2916,6 +2918,8 @@ class Ercot(ISOBase):
             constructed_name_contains=constructed_name_contains,
             extension=extension,
             verbose=verbose,
+            base_url=base_url,
+            request_kwargs=request_kwargs,
         )
 
         return max(documents, key=lambda x: x.publish_date)
@@ -2931,6 +2935,8 @@ class Ercot(ISOBase):
         constructed_name_contains=None,
         extension=None,
         verbose=False,
+        base_url="www.ercot.com",
+        request_kwargs=None,
     ) -> list:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -2938,7 +2944,7 @@ class Ercot(ISOBase):
             list of Document with URL and Publish Date
         """
         # Include a cache buster to ensure we get the latest data
-        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}&_{int(time.time())}"  # noqa
+        url = f"https://{base_url}/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}&_{int(time.time())}"  # noqa
 
         msg = f"Fetching document {url}"
         log(msg, verbose)
@@ -2948,12 +2954,15 @@ class Ercot(ISOBase):
         if published_before == "latest":
             published_before = None
 
-        docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
+        docs = self._get_json(url, verbose=verbose, **(request_kwargs or {}))[
+            "ListDocsByRptTypeRes"
+        ]["DocumentList"]
+
         matches = []
         for doc in docs:
             match = True
 
-            doc_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc['Document']['DocID']}"  # noqa
+            doc_url = f"https://{base_url}/misdownload/servlets/mirDownload?doclookupId={doc['Document']['DocID']}"  # noqa
 
             # make sure to handle retry files
             # e.g SPPHLZNP6905_retry_20230608_1545_csv
@@ -3113,20 +3122,43 @@ class Ercot(ISOBase):
         df = pd.read_csv(z.open(settlement_points_file))
         return df
 
-    def read_doc(self, doc, parse=True, verbose=False):
+    def read_doc(
+        self,
+        doc,
+        parse=True,
+        verbose=False,
+        request_kwargs=None,
+    ):
         log(f"Reading {doc.url}", verbose)
-        df = pd.read_csv(doc.url, compression="zip")
+
+        response = requests.get(doc.url, **(request_kwargs or {})).content
+        df = pd.read_csv(io.BytesIO(response), compression="zip")
+
         if parse:
             df = self.parse_doc(df, verbose=verbose)
         return df
 
-    def read_docs(self, docs, parse=True, empty_df=None, verbose=False):
+    def read_docs(
+        self,
+        docs,
+        parse=True,
+        empty_df=None,
+        verbose=False,
+        request_kwargs=None,
+    ):
         if len(docs) == 0:
             return empty_df
 
         dfs = []
         for doc in tqdm.tqdm(docs, desc="Reading files", disable=not verbose):
-            dfs.append(self.read_doc(doc, parse=parse, verbose=verbose))
+            dfs.append(
+                self.read_doc(
+                    doc,
+                    parse=parse,
+                    verbose=verbose,
+                    request_kwargs=request_kwargs,
+                ),
+            )
         return pd.concat(dfs).reset_index(drop=True)
 
     def parse_doc(
@@ -3311,12 +3343,3 @@ class Ercot(ISOBase):
             "Southern",
             "West",
         ]
-
-
-if __name__ == "__main__":
-    iso = Ercot()
-    # df = iso.get_sced_system_lambda(date="09/13/2023", verbose=True)
-    df = iso.get_sced_system_lambda(date="latest", verbose=True)
-    print(df["SCED Time Stamp"].unique()[0].date())
-    print(df)
-    print(df.columns)
