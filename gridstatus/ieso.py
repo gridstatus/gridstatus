@@ -821,6 +821,9 @@ class IESO(ISOBase):
     def _request(self, url, verbose):
         """
         Make HTTP request with pycurl for .ashx URLs and requests for others.
+        This is required because requests cannot access the .ashx URLs without turning
+        off SSL verification. curl is able to access the URL without any issues.
+
         Includes retry logic with exponential backoff.
         """
         msg = f"Fetching URL: {url}"
@@ -833,11 +836,14 @@ class IESO(ISOBase):
         while retry_num < max_retries:
             try:
                 if url.endswith(".ashx"):
-                    # Use pycurl for .ashx URLs
                     buffer = BytesIO()
                     c = pycurl.Curl()
                     c.setopt(c.URL, url)
                     c.setopt(c.WRITEDATA, buffer)
+
+                    # These are on by default, but we set them explicitly to verify
+                    c.setopt(c.SSL_VERIFYPEER, 1)
+                    c.setopt(c.SSL_VERIFYHOST, 2)
 
                     try:
                         c.perform()
@@ -849,7 +855,6 @@ class IESO(ISOBase):
                     finally:
                         c.close()
                 else:
-                    # Use requests for non-.ashx URLs
                     r = requests.get(url, verify=False)
                     if r.ok:
                         return r
