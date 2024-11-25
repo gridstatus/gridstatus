@@ -336,7 +336,7 @@ class ISONEAPI:
             meta=["BeginDate", "Load", "NativeLoad", "ArdDemand"],
         )
         df["Location"] = df["Location.$"]
-        df["Location Id"] = df["Location.@LocId"]
+        df["LocId"] = df["Location.@LocId"]
         df = df.drop(columns=["Location.$", "Location.@LocId"])
         df.rename(
             columns={"NativeLoad": "Native Load", "ArdDemand": "ARD Demand"},
