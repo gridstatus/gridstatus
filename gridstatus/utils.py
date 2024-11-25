@@ -1,9 +1,11 @@
 import glob
 import io
 import os
+from io import BytesIO
 from zipfile import ZipFile
 
 import pandas as pd
+import pycurl
 import requests
 import tqdm
 
@@ -345,3 +347,39 @@ def move_cols_to_front(df, cols_to_move):
     for c in cols_to_move:
         cols.remove(c)
     return df[cols_to_move + cols]
+
+
+def request_with_pycurl(url: str):
+    """Make a request with pycurl. Aims to be a replacement for requests.get()"""
+
+    buffer = BytesIO()
+    c = pycurl.Curl()
+    c.setopt(c.URL, url)
+    c.setopt(c.WRITEDATA, buffer)
+
+    # These are on by default, but we set them explicitly to verify
+    c.setopt(c.SSL_VERIFYPEER, 1)
+    c.setopt(c.SSL_VERIFYHOST, 2)
+
+    try:
+        c.perform()
+        status_code = c.getinfo(pycurl.HTTP_CODE)
+        if status_code == 200:
+            # Create a response-like object to match requests interface
+            class PyCurlResponse:
+                def __init__(self, content, status_code):
+                    self.content = content
+                    self.text = content.decode("utf-8")
+                    self.status_code = status_code
+                    self.ok = status_code == 200
+                    self.reason = "OK" if status_code == 200 else f"HTTP {status_code}"
+
+                def raise_for_status(self):
+                    if not self.ok:
+                        raise requests.exceptions.HTTPError(f"HTTP {self.status_code}")
+
+            return PyCurlResponse(buffer.getvalue(), status_code)
+        else:
+            raise Exception(f"HTTP {status_code}")
+    finally:
+        c.close()

@@ -1,9 +1,7 @@
 import time
 import xml.etree.ElementTree as ET
-from io import BytesIO
 
 import pandas as pd
-import pycurl
 import requests
 
 from gridstatus import utils
@@ -835,59 +833,22 @@ class IESO(ISOBase):
 
         while retry_num < max_retries:
             try:
+                # requests is unable to access the .ashx URLs without turning off SSL
                 if url.endswith(".ashx"):
-                    buffer = BytesIO()
-                    c = pycurl.Curl()
-                    c.setopt(c.URL, url)
-                    c.setopt(c.WRITEDATA, buffer)
-
-                    # These are on by default, but we set them explicitly to verify
-                    c.setopt(c.SSL_VERIFYPEER, 1)
-                    c.setopt(c.SSL_VERIFYHOST, 2)
-
-                    try:
-                        c.perform()
-                        status_code = c.getinfo(pycurl.HTTP_CODE)
-                        if status_code == 200:
-                            return PyCurlResponse(buffer.getvalue(), status_code)
-                        else:
-                            raise Exception(f"HTTP {status_code}")
-                    finally:
-                        c.close()
+                    r = utils.request_with_pycurl(url)
                 else:
                     r = requests.get(url)
-                    if r.ok:
-                        return r
 
-                # If we got here without returning, the request failed
-                retry_num += 1
-                print(f"Request failed. Retrying {retry_num}/{max_retries}...")
+                if r.ok:
+                    return r
 
-                time.sleep(sleep)
-                # Exponential backoff
-                sleep *= 2
-
-            except (requests.exceptions.RequestException, pycurl.error) as e:
-                retry_num += 1
-                print(
-                    f"Request failed. Error: {str(e)}. Retrying {retry_num}/{max_retries}...",  # noqa: E501
+            except Exception as e:
+                log(
+                    f"Request failed: {str(e)}. Retrying {retry_num}/{max_retries}...",
                 )
 
-                time.sleep(sleep)
-                sleep *= 2
+            retry_num += 1
+            time.sleep(sleep)
+            sleep *= 2
 
         raise Exception(f"Failed to retrieve data from {url} in {max_retries} tries.")
-
-
-# Create a response-like object to match requests interface
-class PyCurlResponse:
-    def __init__(self, content, status_code):
-        self.content = content
-        self.text = content.decode("utf-8")
-        self.status_code = status_code
-        self.ok = status_code == 200
-        self.reason = "OK" if status_code == 200 else f"HTTP {status_code}"
-
-    def raise_for_status(self):
-        if not self.ok:
-            raise requests.exceptions.HTTPError(f"HTTP {self.status_code}")
