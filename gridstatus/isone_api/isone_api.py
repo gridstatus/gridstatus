@@ -12,9 +12,6 @@ from gridstatus.base import NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
 
-# API base URL
-BASE_URL = "https://webservices.iso-ne.com/api/v1.1"
-
 # Default page size for API requests
 DEFAULT_PAGE_SIZE = 1000
 
@@ -63,7 +60,7 @@ class ISONEAPI:
                 "Username and password must be provided or set as environment variables",
             )
 
-        self.base_url = BASE_URL
+        self.base_url = "https://webservices.iso-ne.com/api/v1.1"
         self.sleep_seconds = sleep_seconds
         self.initial_delay = min(sleep_seconds, 60.0)
         self.max_retries = min(max(0, max_retries), 10)
@@ -130,7 +127,7 @@ class ISONEAPI:
         Returns:
             pandas.DataFrame: A DataFrame containing location information.
         """
-        url = f"{BASE_URL}/locations"
+        url = f"{self.base_url}/locations"
         response = self.make_api_call(url)
         if "Locations" not in response or "Location" not in response["Locations"]:
             raise NoDataFoundException("No location data found.")
@@ -150,7 +147,7 @@ class ISONEAPI:
         Returns:
             pandas.DataFrame: A DataFrame containing the location information.
         """
-        url = f"{BASE_URL}/locations/{location_id}"
+        url = f"{self.base_url}/locations/{location_id}"
         response = self.make_api_call(url)
 
         if "Location" not in response:
@@ -167,7 +164,7 @@ class ISONEAPI:
         Returns:
             pandas.DataFrame: A DataFrame containing detailed information for all locations.
         """
-        url = f"{BASE_URL}/locations/all"
+        url = f"{self.base_url}/locations/all"
         response = self.make_api_call(url)
 
         if "Locations" not in response or "Location" not in response["Locations"]:
@@ -195,9 +192,9 @@ class ISONEAPI:
             pd.DataFrame: DataFrame containing fuel mix data with timestamps and generation by fuel type
         """
         if date == "latest":
-            url = f"{BASE_URL}/genfuelmix/current"
+            url = f"{self.base_url}/genfuelmix/current"
         else:
-            url = f"{BASE_URL}/genfuelmix/day/{date.strftime('%Y%m%d')}"
+            url = f"{self.base_url}/genfuelmix/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url)
         df = pd.DataFrame(response["GenFuelMixes"]["GenFuelMix"])
@@ -241,7 +238,7 @@ class ISONEAPI:
 
         match (date, locations):
             case ("latest", None):
-                url = f"{BASE_URL}/realtimehourlydemand/current"
+                url = f"{self.base_url}/realtimehourlydemand/current"
                 response = self.make_api_call(url)
                 df = pd.DataFrame(response["HourlyRtDemands"]["HourlyRtDemand"])
                 df["LocId"] = df["Location"].apply(lambda x: x["@LocId"])
@@ -255,7 +252,7 @@ class ISONEAPI:
                         raise ValueError(
                             f"{location}: Not a known ISO NE Hub or Zone for this data",
                         )
-                    url = f"{BASE_URL}/realtimehourlydemand/current/location/{location_id}"
+                    url = f"{self.base_url}/realtimehourlydemand/current/location/{location_id}"
                     response = self.make_api_call(url)
                     data = response["HourlyRtDemand"]
                     if not data:
@@ -284,7 +281,7 @@ class ISONEAPI:
                             f"{location}: Not a known ISO NE Hub or Zone for this data",
                         )
 
-                    url = f"{BASE_URL}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
+                    url = f"{self.base_url}/realtimehourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
                     data = response["HourlyRtDemands"]["HourlyRtDemand"]
                     if not data:
@@ -326,11 +323,11 @@ class ISONEAPI:
         """
 
         if date == "latest":
-            url = f"{BASE_URL}/hourlysysload/current"
+            url = f"{self.base_url}/hourlysysload/current"
             response = self.make_api_call(url)
             raw_data = [response["HourlySystemLoads"]["HourlySystemLoad"]]
         else:
-            url = f"{BASE_URL}/hourlysysload/day/{date.strftime('%Y%m%d')}"
+            url = f"{self.base_url}/hourlysysload/day/{date.strftime('%Y%m%d')}"
             response = self.make_api_call(url)
             raw_data = response["HourlySystemLoads"]["HourlySystemLoad"]
 
@@ -384,7 +381,7 @@ class ISONEAPI:
 
         match (date, locations):
             case ("latest", None):
-                url = f"{BASE_URL}/dayaheadhourlydemand/current"
+                url = f"{self.base_url}/dayaheadhourlydemand/current"
                 response = self.make_api_call(url)
                 df = pd.DataFrame(response["HourlyDaDemands"]["HourlyDaDemand"])
                 df["LocId"] = df["Location"].apply(lambda x: x["@LocId"])
@@ -398,7 +395,7 @@ class ISONEAPI:
                         raise ValueError(
                             f"{location}: Not a known ISO NE Hub or Zone for this data",
                         )
-                    url = f"{BASE_URL}/dayaheadhourlydemand/current/location/{location_id}"
+                    url = f"{self.base_url}/dayaheadhourlydemand/current/location/{location_id}"
                     response = self.make_api_call(url)
                     data = response["HourlyDaDemand"]
                     if not data:
@@ -420,7 +417,7 @@ class ISONEAPI:
                             f"{location}: Not a known ISO NE Hub or Zone for this data",
                         )
 
-                    url = f"{BASE_URL}/dayaheadhourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
+                    url = f"{self.base_url}/dayaheadhourlydemand/day/{date.strftime('%Y%m%d')}/location/{location_id}"
                     response = self.make_api_call(url)
                     data = response["HourlyDaDemands"]["HourlyDaDemand"]
                     for item in data:
@@ -522,15 +519,17 @@ class ISONEAPI:
         """
 
         if date == "latest":
-            url = f"{BASE_URL}/hourlyloadforecast/current"
+            url = f"{self.base_url}/hourlyloadforecast/current"
             response = self.make_api_call(url)
             df = pd.DataFrame(response["HourlyLoadForecast"])
             return self._handle_load_forecast(df, interval_minutes=60)
 
         elif vintage == "all":
-            url = f"{BASE_URL}/hourlyloadforecast/all/day/{date.strftime('%Y%m%d')}"
+            url = (
+                f"{self.base_url}/hourlyloadforecast/all/day/{date.strftime('%Y%m%d')}"
+            )
         else:
-            url = f"{BASE_URL}/hourlyloadforecast/day/{date.strftime('%Y%m%d')}"
+            url = f"{self.base_url}/hourlyloadforecast/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url)
         df = pd.DataFrame(response["HourlyLoadForecasts"]["HourlyLoadForecast"])
@@ -557,11 +556,11 @@ class ISONEAPI:
         """
 
         if date == "latest":
-            url = f"{BASE_URL}/reliabilityregionloadforecast/current"
+            url = f"{self.base_url}/reliabilityregionloadforecast/current"
         elif vintage == "all":
-            url = f"{BASE_URL}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}/all"
+            url = f"{self.base_url}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}/all"
         else:
-            url = f"{BASE_URL}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}"
+            url = f"{self.base_url}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url)
         df = pd.DataFrame(
