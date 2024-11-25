@@ -63,6 +63,7 @@ class ISONEAPI:
                 "Username and password must be provided or set as environment variables",
             )
 
+        self.base_url = BASE_URL
         self.sleep_seconds = sleep_seconds
         self.initial_delay = min(sleep_seconds, 60.0)
         self.max_retries = min(max(0, max_retries), 10)
@@ -303,6 +304,62 @@ class ISONEAPI:
         df = pd.DataFrame(all_data)
         return self._handle_demand(df, interval_minutes=60)
 
+    @support_date_range("HOUR_START")
+    def get_load_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return hourly load data for a given date or date range
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp, optional): The end date for the data request. Only used if date is not "latest".
+            locations (list[str], optional): List of specific location names to request data for.
+                                             If None, data for all locations will be retrieved.
+            verbose (bool, optional): Whether to print verbose logging information.
+
+
+        Returns:
+            pd.DataFrame: DataFrame containing load data with timestamps and load
+        """
+
+        if date == "latest":
+            url = f"{BASE_URL}/hourlysysload/current"
+            response = self.make_api_call(url)
+            raw_data = [response["HourlySystemLoads"]["HourlySystemLoad"]]
+        else:
+            url = f"{BASE_URL}/hourlysysload/day/{date.strftime('%Y%m%d')}"
+            response = self.make_api_call(url)
+            raw_data = response["HourlySystemLoads"]["HourlySystemLoad"]
+
+        df = pd.json_normalize(
+            raw_data,
+            meta=["BeginDate", "Load", "NativeLoad", "ArdDemand"],
+        )
+        df["Location"] = df["Location.$"]
+        df["LocId"] = df["Location.@LocId"]
+        df = df.drop(columns=["Location.$", "Location.@LocId"])
+        df.rename(
+            columns={"NativeLoad": "Native Load", "ArdDemand": "ARD Demand"},
+            inplace=True,
+        )
+
+        return self._handle_demand(
+            df,
+            interval_minutes=60,
+            columns=[
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Id",
+                "Load",
+                "Native Load",
+                "ARD Demand",
+            ],
+        )
+
     @support_date_range("DAY_START")
     def get_dayahead_hourly_demand(
         self,
@@ -387,6 +444,13 @@ class ISONEAPI:
         self,
         df: pd.DataFrame,
         interval_minutes: int = 60,
+        columns: list[str] = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ],
     ) -> pd.DataFrame:
         """
         Process demand DataFrame: convert types, rename columns, and add Interval End.
@@ -424,7 +488,7 @@ class ISONEAPI:
         log.info(
             f"Processed demand data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
         )
-        return df[["Interval Start", "Interval End", "Location", "Location Id", "Load"]]
+        return df[columns]
 
     @support_date_range("DAY_START")
     def get_hourly_load_forecast(
