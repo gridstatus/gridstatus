@@ -1,0 +1,246 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Authorization:
+      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://webservices.iso-ne.com/api/v1.1/dayaheadhourlydemand/day/20241102/location/4001
+  response:
+    body:
+      string: '{"HourlyDaDemands":{"HourlyDaDemand":[{"BeginDate":"2024-11-02T00:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":772.7},{"BeginDate":"2024-11-02T01:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":799.7},{"BeginDate":"2024-11-02T02:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":826.1},{"BeginDate":"2024-11-02T03:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":853.3},{"BeginDate":"2024-11-02T04:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":873.4},{"BeginDate":"2024-11-02T05:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":905.1},{"BeginDate":"2024-11-02T06:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":981.4},{"BeginDate":"2024-11-02T07:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1059.4},{"BeginDate":"2024-11-02T08:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1077.6},{"BeginDate":"2024-11-02T09:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":994.9},{"BeginDate":"2024-11-02T10:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":958.2},{"BeginDate":"2024-11-02T11:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":894},{"BeginDate":"2024-11-02T12:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":894.1},{"BeginDate":"2024-11-02T13:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":882.7},{"BeginDate":"2024-11-02T14:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":910.4},{"BeginDate":"2024-11-02T15:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1005},{"BeginDate":"2024-11-02T16:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1109},{"BeginDate":"2024-11-02T17:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1245.5},{"BeginDate":"2024-11-02T18:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1286.2},{"BeginDate":"2024-11-02T19:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1205},{"BeginDate":"2024-11-02T20:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1190.3},{"BeginDate":"2024-11-02T21:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1160.6},{"BeginDate":"2024-11-02T22:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1053},{"BeginDate":"2024-11-02T23:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":973.3}]}}'
+    headers:
+      Cache-Control:
+      - private
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '309'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 25 Nov 2024 20:34:51 GMT
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Server:
+      - ISO New England
+      Server-Timing:
+      - dtSInfo;desc="0", dtRpid;desc="-197510656"
+      Set-Cookie:
+      - dtCookie=v_4_srv_3_sn_DDFE15D689424B4701CB1C9E657BBEB5_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+        Path=/; Domain=.iso-ne.com
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Via:
+      - 1.1 18ea14e618c57b64a442b054083b4ed6.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - SZze8Us2XzQpcDj5jmUtHZnIJzBsk2gbJf7cEYcFomQ0MIoM1AJiuA==
+      X-Amz-Cf-Pop:
+      - JFK50-P10
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Oneagent-Js-Injection:
+      - 'true'
+      X-Xss-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: ''
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Authorization:
+      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://webservices.iso-ne.com/api/v1.1/dayaheadhourlydemand/day/20241102/location/4002
+  response:
+    body:
+      string: '{"HourlyDaDemands":{"HourlyDaDemand":[{"BeginDate":"2024-11-02T00:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":804.8},{"BeginDate":"2024-11-02T01:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":808.1},{"BeginDate":"2024-11-02T02:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":765},{"BeginDate":"2024-11-02T03:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":777.7},{"BeginDate":"2024-11-02T04:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":787},{"BeginDate":"2024-11-02T05:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":798.6},{"BeginDate":"2024-11-02T06:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":831.1},{"BeginDate":"2024-11-02T07:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":910.5},{"BeginDate":"2024-11-02T08:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":899},{"BeginDate":"2024-11-02T09:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":922.6},{"BeginDate":"2024-11-02T10:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":888.2},{"BeginDate":"2024-11-02T11:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":857.8},{"BeginDate":"2024-11-02T12:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":838.3},{"BeginDate":"2024-11-02T13:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":830.5},{"BeginDate":"2024-11-02T14:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":899.6},{"BeginDate":"2024-11-02T15:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":900.6},{"BeginDate":"2024-11-02T16:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":959.9},{"BeginDate":"2024-11-02T17:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1157.8},{"BeginDate":"2024-11-02T18:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1208.1},{"BeginDate":"2024-11-02T19:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1166.8},{"BeginDate":"2024-11-02T20:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1157.5},{"BeginDate":"2024-11-02T21:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":990.1},{"BeginDate":"2024-11-02T22:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":933.1},{"BeginDate":"2024-11-02T23:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":871.3}]}}'
+    headers:
+      Cache-Control:
+      - private
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '317'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 25 Nov 2024 20:34:52 GMT
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Server:
+      - ISO New England
+      Server-Timing:
+      - dtSInfo;desc="0", dtRpid;desc="-1850726405"
+      Set-Cookie:
+      - dtCookie=v_4_srv_2_sn_FD845962A7BDD1554FBE46CA58FA10F7_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+        Path=/; Domain=.iso-ne.com
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Via:
+      - 1.1 c6f8ebe3e9184b5af4e1db5847736f9c.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - icm_xMkk_Y_IEw6oyS2Ana6tyxZpVV4QFozxsBhUhp4c5xzds9skIA==
+      X-Amz-Cf-Pop:
+      - JFK50-P10
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Oneagent-Js-Injection:
+      - 'true'
+      X-Xss-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: ''
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Authorization:
+      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://webservices.iso-ne.com/api/v1.1/dayaheadhourlydemand/day/20241103/location/4001
+  response:
+    body:
+      string: '{"HourlyDaDemands":{"HourlyDaDemand":[{"BeginDate":"2024-11-03T00:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":948.1},{"BeginDate":"2024-11-03T01:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":893.9},{"BeginDate":"2024-11-03T01:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":950.9},{"BeginDate":"2024-11-03T02:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":917.5},{"BeginDate":"2024-11-03T03:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":935.7},{"BeginDate":"2024-11-03T04:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":938.5},{"BeginDate":"2024-11-03T05:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":973.4},{"BeginDate":"2024-11-03T06:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1001.1},{"BeginDate":"2024-11-03T07:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1074.3},{"BeginDate":"2024-11-03T08:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1006.5},{"BeginDate":"2024-11-03T09:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":914.7},{"BeginDate":"2024-11-03T10:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":853.6},{"BeginDate":"2024-11-03T11:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":842.3},{"BeginDate":"2024-11-03T12:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":828.5},{"BeginDate":"2024-11-03T13:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":858.1},{"BeginDate":"2024-11-03T14:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":900.8},{"BeginDate":"2024-11-03T15:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1043},{"BeginDate":"2024-11-03T16:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1220.7},{"BeginDate":"2024-11-03T17:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1348.9},{"BeginDate":"2024-11-03T18:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1331.5},{"BeginDate":"2024-11-03T19:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1261.1},{"BeginDate":"2024-11-03T20:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1238},{"BeginDate":"2024-11-03T21:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1191.9},{"BeginDate":"2024-11-03T22:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1158.9},{"BeginDate":"2024-11-03T23:00:00.000-05:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1067.5}]}}'
+    headers:
+      Cache-Control:
+      - private
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '317'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 25 Nov 2024 20:34:52 GMT
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Server:
+      - ISO New England
+      Server-Timing:
+      - dtSInfo;desc="0", dtRpid;desc="-2001440525"
+      Set-Cookie:
+      - dtCookie=v_4_srv_3_sn_5430320B8DAE53B377E83D5E1878D95D_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+        Path=/; Domain=.iso-ne.com
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Via:
+      - 1.1 37c23a320daf1957772cba43d1a5bde0.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - xlp1RvS8Sqz5LQqyws295O7V9lRb52HpuOB_lH73DJrNLgKXJmSrgA==
+      X-Amz-Cf-Pop:
+      - JFK50-P10
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Oneagent-Js-Injection:
+      - 'true'
+      X-Xss-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: ''
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Authorization:
+      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://webservices.iso-ne.com/api/v1.1/dayaheadhourlydemand/day/20241103/location/4002
+  response:
+    body:
+      string: '{"HourlyDaDemands":{"HourlyDaDemand":[{"BeginDate":"2024-11-03T00:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":895.8},{"BeginDate":"2024-11-03T01:00:00.000-04:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":876.5},{"BeginDate":"2024-11-03T01:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":899.2},{"BeginDate":"2024-11-03T02:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":822.3},{"BeginDate":"2024-11-03T03:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":853.7},{"BeginDate":"2024-11-03T04:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":871.3},{"BeginDate":"2024-11-03T05:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":898.2},{"BeginDate":"2024-11-03T06:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":914},{"BeginDate":"2024-11-03T07:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":968.6},{"BeginDate":"2024-11-03T08:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1027.4},{"BeginDate":"2024-11-03T09:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":973.1},{"BeginDate":"2024-11-03T10:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":907.3},{"BeginDate":"2024-11-03T11:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":930.5},{"BeginDate":"2024-11-03T12:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":947},{"BeginDate":"2024-11-03T13:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":965},{"BeginDate":"2024-11-03T14:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1031.6},{"BeginDate":"2024-11-03T15:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1093.8},{"BeginDate":"2024-11-03T16:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1197.4},{"BeginDate":"2024-11-03T17:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1276.5},{"BeginDate":"2024-11-03T18:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1216.2},{"BeginDate":"2024-11-03T19:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1184.9},{"BeginDate":"2024-11-03T20:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1191.3},{"BeginDate":"2024-11-03T21:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1139},{"BeginDate":"2024-11-03T22:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1056.7},{"BeginDate":"2024-11-03T23:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1006.6}]}}'
+    headers:
+      Cache-Control:
+      - private
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '329'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 25 Nov 2024 20:34:52 GMT
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Server:
+      - ISO New England
+      Server-Timing:
+      - dtSInfo;desc="0", dtRpid;desc="1525069351"
+      Set-Cookie:
+      - dtCookie=v_4_srv_4_sn_2C5B6C388846252E88E085FA3A3FB965_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+        Path=/; Domain=.iso-ne.com
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Via:
+      - 1.1 2ae108ea5404064fac59010eedcd1806.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - A5qCW6UibYpBpi20eDF0e78FEB0ztm7zBmQiQkqf7Ko2pNjKP8QYKw==
+      X-Amz-Cf-Pop:
+      - JFK50-P10
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Oneagent-Js-Injection:
+      - 'true'
+      X-Xss-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: ''
+version: 1
