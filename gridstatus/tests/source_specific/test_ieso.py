@@ -594,17 +594,17 @@ class TestIESO(BaseTestISO):
         "Interval Start",
         "Interval End",
         "Publish Time",
-        "Forecast Supply Capacity MW",
-        "Forecast Supply Energy MWhr",
-        "Forecast Supply Bottled Capacity MW",
-        "Forecast Supply Regulation MW",
-        "Total Forecast Supply MW",
-        "Total Requirement MW",
-        "Capacity Excess / Shortfall MW",
-        "Energy Excess / Shortfall MWhr",
-        "Offered Capacity Excess / Shortfall MW",
-        "Resources Not Scheduled MW",
-        "Imports Not Scheduled MW",
+        "Forecast Supply Capacity",
+        "Forecast Supply Energy MWh",
+        "Forecast Supply Bottled Capacity",
+        "Forecast Supply Regulation",
+        "Total Forecast Supply",
+        "Total Requirement",
+        "Capacity Excess / Shortfall",
+        "Energy Excess / Shortfall MWh",
+        "Offered Capacity Excess / Shortfall",
+        "Resources Not Scheduled",
+        "Imports Not Scheduled",
         "Nuclear Capacity",
         "Nuclear Outages",
         "Nuclear Offered",
@@ -615,7 +615,7 @@ class TestIESO(BaseTestISO):
         "Gas Scheduled",
         "Hydro Capacity",
         "Hydro Outages",
-        "Hydro Forecasted (MWhr)",
+        "Hydro Forecasted MWh",
         "Hydro Offered",
         "Hydro Scheduled",
         "Wind Capacity",
@@ -739,7 +739,10 @@ class TestIESO(BaseTestISO):
             assert col in df.columns
 
     # TODO(kladar): eventually don't record this each time
-    @file_vcr.use_cassette("test_get_latest_resource_adequacy_json.yaml")
+    @file_vcr.use_cassette(
+        "test_get_latest_resource_adequacy_json.yaml",
+        record_mode="ALL",
+    )
     def test_get_latest_resource_adequacy_json(self):
         date = pd.Timestamp.now(tz=self.default_timezone)
         json_data = self.iso._get_latest_resource_adequacy_json(date)
