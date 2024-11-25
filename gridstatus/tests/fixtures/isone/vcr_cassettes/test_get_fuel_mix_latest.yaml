@@ -16,8 +16,8 @@ interactions:
     uri: https://webservices.iso-ne.com/api/v1.1/genfuelmix/current
   response:
     body:
-      string: '{"GenFuelMixes":{"GenFuelMix":[{"BeginDate":"2024-11-25T15:31:41.000-05:00","GenMw":479,"FuelCategoryRollup":"Hydro","FuelCategory":"Hydro","MarginalFlag":"N"},{"BeginDate":"2024-11-25T15:31:41.000-05:00","GenMw":8181,"FuelCategoryRollup":"Natural
-        Gas","FuelCategory":"Natural Gas","MarginalFlag":"Y"},{"BeginDate":"2024-11-25T15:31:41.000-05:00","GenMw":3351,"FuelCategoryRollup":"Nuclear","FuelCategory":"Nuclear","MarginalFlag":"N"},{"BeginDate":"2024-11-25T15:31:41.000-05:00","GenMw":55,"FuelCategoryRollup":"Oil","FuelCategory":"Oil","MarginalFlag":"N"},{"BeginDate":"2024-11-25T15:31:41.000-05:00","GenMw":13,"FuelCategoryRollup":"Other","FuelCategory":"Other","MarginalFlag":"N"},{"BeginDate":"2024-11-25T15:31:41.000-05:00","GenMw":337,"FuelCategoryRollup":"Renewables","FuelCategory":"Refuse","MarginalFlag":"N"},{"BeginDate":"2024-11-25T15:31:41.000-05:00","GenMw":52,"FuelCategoryRollup":"Renewables","FuelCategory":"Solar","MarginalFlag":"N"},{"BeginDate":"2024-11-25T15:31:41.000-05:00","GenMw":714,"FuelCategoryRollup":"Renewables","FuelCategory":"Wind","MarginalFlag":"N"},{"BeginDate":"2024-11-25T15:31:41.000-05:00","GenMw":251,"FuelCategoryRollup":"Renewables","FuelCategory":"Wood","MarginalFlag":"N"}]}}'
+      string: '{"GenFuelMixes":{"GenFuelMix":[{"BeginDate":"2024-11-25T16:07:59.000-05:00","GenMw":849,"FuelCategoryRollup":"Hydro","FuelCategory":"Hydro","MarginalFlag":"N"},{"BeginDate":"2024-11-25T16:07:59.000-05:00","GenMw":8586,"FuelCategoryRollup":"Natural
+        Gas","FuelCategory":"Natural Gas","MarginalFlag":"Y"},{"BeginDate":"2024-11-25T16:07:59.000-05:00","GenMw":3351,"FuelCategoryRollup":"Nuclear","FuelCategory":"Nuclear","MarginalFlag":"N"},{"BeginDate":"2024-11-25T16:07:59.000-05:00","GenMw":22,"FuelCategoryRollup":"Oil","FuelCategory":"Oil","MarginalFlag":"N"},{"BeginDate":"2024-11-25T16:07:59.000-05:00","GenMw":5,"FuelCategoryRollup":"Other","FuelCategory":"Other","MarginalFlag":"N"},{"BeginDate":"2024-11-25T16:07:59.000-05:00","GenMw":330,"FuelCategoryRollup":"Renewables","FuelCategory":"Refuse","MarginalFlag":"N"},{"BeginDate":"2024-11-25T16:07:59.000-05:00","GenMw":3,"FuelCategoryRollup":"Renewables","FuelCategory":"Solar","MarginalFlag":"N"},{"BeginDate":"2024-11-25T16:07:59.000-05:00","GenMw":637,"FuelCategoryRollup":"Renewables","FuelCategory":"Wind","MarginalFlag":"N"},{"BeginDate":"2024-11-25T16:07:59.000-05:00","GenMw":256,"FuelCategoryRollup":"Renewables","FuelCategory":"Wood","MarginalFlag":"N"}]}}'
     headers:
       Cache-Control:
       - private
@@ -26,26 +26,26 @@ interactions:
       Content-Encoding:
       - gzip
       Content-Length:
-      - '268'
+      - '267'
       Content-Type:
       - application/json
       Date:
-      - Mon, 25 Nov 2024 20:34:58 GMT
+      - Mon, 25 Nov 2024 21:09:44 GMT
       Referrer-Policy:
       - strict-origin-when-cross-origin
       Server:
       - ISO New England
       Server-Timing:
-      - dtSInfo;desc="0", dtRpid;desc="388442279"
+      - dtSInfo;desc="0", dtRpid;desc="-1430930486"
       Set-Cookie:
-      - dtCookie=v_4_srv_4_sn_999F29E19AA432DE2ABA8EBBBDE159A2_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+      - dtCookie=v_4_srv_2_sn_5F93ADEDE21F167450492B39A0EFBDB8_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
         Path=/; Domain=.iso-ne.com
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Via:
-      - 1.1 2bfd6688fc2f119397b69ac2ba4187b8.cloudfront.net (CloudFront)
+      - 1.1 b1422ccb486c8b395d3da3c4f22f7644.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - wwKamPC7AlAU9EUzUyCngZ8MbwduftDfJ9whnNqGJJu8m_4mYQRjYA==
+      - xOeQ1UV-n1oRzYc2XNOdzwP7FQeLO4aI60ucN5fbKNdEyZhjiQf80A==
       X-Amz-Cf-Pop:
       - JFK50-P10
       X-Cache:
