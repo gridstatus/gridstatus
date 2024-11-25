@@ -304,7 +304,7 @@ class ISONEAPI:
         df = pd.DataFrame(all_data)
         return self._handle_demand(df, interval_minutes=60)
 
-    @support_date_range("HOUR_START")
+    @support_date_range("DAY_START")
     def get_load_hourly(
         self,
         date: str | pd.Timestamp,
