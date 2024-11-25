@@ -1,7 +1,9 @@
 import time
 import xml.etree.ElementTree as ET
+from io import BytesIO
 
 import pandas as pd
+import pycurl
 import requests
 
 from gridstatus import utils
@@ -817,6 +819,10 @@ class IESO(ISOBase):
         return interval_load_demand_triples
 
     def _request(self, url, verbose):
+        """
+        Make HTTP request with pycurl for .ashx URLs and requests for others.
+        Includes retry logic with exponential backoff.
+        """
         msg = f"Fetching URL: {url}"
         log(msg, verbose)
 
@@ -825,22 +831,58 @@ class IESO(ISOBase):
         sleep = 5
 
         while retry_num < max_retries:
-            r = requests.get(url, verify=False)
+            try:
+                if url.endswith(".ashx"):
+                    # Use pycurl for .ashx URLs
+                    buffer = BytesIO()
+                    c = pycurl.Curl()
+                    c.setopt(c.URL, url)
+                    c.setopt(c.WRITEDATA, buffer)
 
-            if r.ok:
-                break
+                    try:
+                        c.perform()
+                        status_code = c.getinfo(pycurl.HTTP_CODE)
+                        if status_code == 200:
+                            return PyCurlResponse(buffer.getvalue(), status_code)
+                        else:
+                            raise Exception(f"HTTP {status_code}")
+                    finally:
+                        c.close()
+                else:
+                    # Use requests for non-.ashx URLs
+                    r = requests.get(url, verify=False)
+                    if r.ok:
+                        return r
 
-            retry_num += 1
-            print(f"Request failed. Error: {r.reason}. Retrying {retry_num}...")
+                # If we got here without returning, the request failed
+                retry_num += 1
+                print(f"Request failed. Retrying {retry_num}/{max_retries}...")
 
-            time.sleep(sleep)
+                time.sleep(sleep)
+                # Exponential backoff
+                sleep *= 2
 
-            # Exponential backoff
-            sleep *= 2
+            except (requests.exceptions.RequestException, pycurl.error) as e:
+                retry_num += 1
+                print(
+                    f"Request failed. Error: {str(e)}. Retrying {retry_num}/{max_retries}...",  # noqa: E501
+                )
 
-        if not r.ok:
-            raise Exception(
-                f"Failed to retrieve data from {url} in {max_retries} tries.",
-            )
+                time.sleep(sleep)
+                sleep *= 2
 
-        return r
+        raise Exception(f"Failed to retrieve data from {url} in {max_retries} tries.")
+
+
+# Create a response-like object to match requests interface
+class PyCurlResponse:
+    def __init__(self, content, status_code):
+        self.content = content
+        self.text = content.decode("utf-8")
+        self.status_code = status_code
+        self.ok = status_code == 200
+        self.reason = "OK" if status_code == 200 else f"HTTP {status_code}"
+
+    def raise_for_status(self):
+        if not self.ok:
+            raise requests.exceptions.HTTPError(f"HTTP {self.status_code}")
