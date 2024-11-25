@@ -1044,6 +1044,7 @@ class IESO(ISOBase):
 
         return json_data
 
+    # TODO(Kladar): remove MW from column names, MWh instead of MWhr
     def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
         """Parse the Resource Adequacy Report JSON into DataFrames."""
         document_body = json_data["Document"]["DocBody"]
@@ -1278,42 +1279,42 @@ class IESO(ISOBase):
                     "Forecast Supply Capacity": {
                         "path": ["ForecastSupply", "Capacities", "Capacity"],
                         "value_key": "EnergyMW",
-                        "unit": "MW",
+                        "unit": "",
                     },
                     "Forecast Supply Energy": {
                         "path": ["ForecastSupply", "Energies", "Energy"],
                         "value_key": "EnergyMWhr",
-                        "unit": "MWhr",
+                        "unit": "MWh",
                     },
                     "Forecast Supply Bottled Capacity": {
                         "path": ["ForecastSupply", "BottledCapacities", "Capacity"],
                         "value_key": "EnergyMW",
-                        "unit": "MW",
+                        "unit": "",
                     },
                     "Forecast Supply Regulation": {
                         "path": ["ForecastSupply", "Regulations", "Regulation"],
                         "value_key": "EnergyMW",
-                        "unit": "MW",
+                        "unit": "",
                     },
                     "Total Forecast Supply": {
                         "path": ["ForecastSupply", "TotalSupplies", "Supply"],
                         "value_key": "EnergyMW",
-                        "unit": "MW",
+                        "unit": "",
                     },
                     "Total Requirement": {
                         "path": ["ForecastDemand", "TotalRequirements", "Requirement"],
                         "value_key": "EnergyMW",
-                        "unit": "MW",
+                        "unit": "",
                     },
                     "Capacity Excess / Shortfall": {
                         "path": ["ForecastDemand", "ExcessCapacities", "Capacity"],
                         "value_key": "EnergyMW",
-                        "unit": "MW",
+                        "unit": "",
                     },
                     "Energy Excess / Shortfall": {
                         "path": ["ForecastDemand", "ExcessEnergies", "Energy"],
                         "value_key": "EnergyMWhr",
-                        "unit": "MWhr",
+                        "unit": "MWh",
                     },
                     "Offered Capacity Excess / Shortfall": {
                         "path": [
@@ -1322,7 +1323,7 @@ class IESO(ISOBase):
                             "Capacity",
                         ],
                         "value_key": "EnergyMW",
-                        "unit": "MW",
+                        "unit": "",
                     },
                     "Resources Not Scheduled": {
                         "path": [
@@ -1331,7 +1332,7 @@ class IESO(ISOBase):
                             "UnscheduledResource",
                         ],
                         "value_key": "EnergyMW",
-                        "unit": "MW",
+                        "unit": "",
                     },
                     "Imports Not Scheduled": {
                         "path": [
@@ -1340,7 +1341,7 @@ class IESO(ISOBase):
                             "UnscheduledImport",
                         ],
                         "value_key": "EnergyMW",
-                        "unit": "MW",
+                        "unit": "",
                     },
                 },
                 "fuel_type_hourly": {
@@ -1362,7 +1363,7 @@ class IESO(ISOBase):
                         "Hydro": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Forecasted (MWhr)": [
+                            "Forecasted MWh": [
                                 "ForecastEnergies",
                                 "ForecastEnergy",
                                 "EnergyMWhr",
