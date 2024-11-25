@@ -3127,15 +3127,12 @@ class Ercot(ISOBase):
         doc,
         parse=True,
         verbose=False,
-        use_requests=False,
         request_kwargs=None,
     ):
         log(f"Reading {doc.url}", verbose)
-        if use_requests:
-            response = requests.get(doc.url, **(request_kwargs or {})).content
-            df = pd.read_csv(io.BytesIO(response), compression="zip")
-        else:
-            df = pd.read_csv(doc.url, compression="zip")
+
+        response = requests.get(doc.url, **(request_kwargs or {})).content
+        df = pd.read_csv(io.BytesIO(response), compression="zip")
 
         if parse:
             df = self.parse_doc(df, verbose=verbose)
@@ -3147,7 +3144,6 @@ class Ercot(ISOBase):
         parse=True,
         empty_df=None,
         verbose=False,
-        use_requests=False,
         request_kwargs=None,
     ):
         if len(docs) == 0:
@@ -3160,7 +3156,6 @@ class Ercot(ISOBase):
                     doc,
                     parse=parse,
                     verbose=verbose,
-                    use_requests=use_requests,
                     request_kwargs=request_kwargs,
                 ),
             )
