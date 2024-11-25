@@ -855,7 +855,7 @@ class IESO(ISOBase):
                     finally:
                         c.close()
                 else:
-                    r = requests.get(url, verify=False)
+                    r = requests.get(url)
                     if r.ok:
                         return r
 
