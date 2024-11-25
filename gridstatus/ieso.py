@@ -1060,7 +1060,7 @@ class IESO(ISOBase):
                     self._extract_hourly_values(
                         data=document_body,
                         path=config["path"],
-                        column_name=f"{metric_name} {config['unit']}",  # noqa
+                        column_name=f"{metric_name}",  # noqa
                         value_key=config["value_key"],
                         report_data=report_data,
                     )
@@ -1279,42 +1279,34 @@ class IESO(ISOBase):
                     "Forecast Supply Capacity": {
                         "path": ["ForecastSupply", "Capacities", "Capacity"],
                         "value_key": "EnergyMW",
-                        "unit": "",
                     },
-                    "Forecast Supply Energy": {
+                    "Forecast Supply Energy MWh": {
                         "path": ["ForecastSupply", "Energies", "Energy"],
                         "value_key": "EnergyMWhr",
-                        "unit": "MWh",
                     },
                     "Forecast Supply Bottled Capacity": {
                         "path": ["ForecastSupply", "BottledCapacities", "Capacity"],
                         "value_key": "EnergyMW",
-                        "unit": "",
                     },
                     "Forecast Supply Regulation": {
                         "path": ["ForecastSupply", "Regulations", "Regulation"],
                         "value_key": "EnergyMW",
-                        "unit": "",
                     },
                     "Total Forecast Supply": {
                         "path": ["ForecastSupply", "TotalSupplies", "Supply"],
                         "value_key": "EnergyMW",
-                        "unit": "",
                     },
                     "Total Requirement": {
                         "path": ["ForecastDemand", "TotalRequirements", "Requirement"],
                         "value_key": "EnergyMW",
-                        "unit": "",
                     },
                     "Capacity Excess / Shortfall": {
                         "path": ["ForecastDemand", "ExcessCapacities", "Capacity"],
                         "value_key": "EnergyMW",
-                        "unit": "",
                     },
-                    "Energy Excess / Shortfall": {
+                    "Energy Excess / Shortfall MWh": {
                         "path": ["ForecastDemand", "ExcessEnergies", "Energy"],
                         "value_key": "EnergyMWhr",
-                        "unit": "MWh",
                     },
                     "Offered Capacity Excess / Shortfall": {
                         "path": [
@@ -1323,7 +1315,6 @@ class IESO(ISOBase):
                             "Capacity",
                         ],
                         "value_key": "EnergyMW",
-                        "unit": "",
                     },
                     "Resources Not Scheduled": {
                         "path": [
@@ -1332,7 +1323,6 @@ class IESO(ISOBase):
                             "UnscheduledResource",
                         ],
                         "value_key": "EnergyMW",
-                        "unit": "",
                     },
                     "Imports Not Scheduled": {
                         "path": [
@@ -1341,7 +1331,6 @@ class IESO(ISOBase):
                             "UnscheduledImport",
                         ],
                         "value_key": "EnergyMW",
-                        "unit": "",
                     },
                 },
                 "fuel_type_hourly": {
