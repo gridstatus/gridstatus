@@ -336,7 +336,7 @@ class ISONEAPI:
             meta=["BeginDate", "Load", "NativeLoad", "ArdDemand"],
         )
         df["Location"] = df["Location.$"]
-        df["LocId"] = df["Location.@LocId"]
+        df["Location Id"] = df["Location.@LocId"]
         df = df.drop(columns=["Location.$", "Location.@LocId"])
         df.rename(
             columns={"NativeLoad": "Native Load", "ArdDemand": "ARD Demand"},
@@ -441,13 +441,7 @@ class ISONEAPI:
         self,
         df: pd.DataFrame,
         interval_minutes: int = 60,
-        columns: list[str] = [
-            "Interval Start",
-            "Interval End",
-            "Location",
-            "Location Id",
-            "Load",
-        ],
+        columns: list[str] | None = None,
     ) -> pd.DataFrame:
         """
         Process demand DataFrame: convert types, rename columns, and add Interval End.
@@ -459,6 +453,15 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: Processed DataFrame.
         """
+        if columns is None:
+            columns = [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Id",
+                "Load",
+            ]
+
         try:
             # Try the standard pandas datetime conversion first
             df["Interval Start"] = pd.to_datetime(df["BeginDate"])
