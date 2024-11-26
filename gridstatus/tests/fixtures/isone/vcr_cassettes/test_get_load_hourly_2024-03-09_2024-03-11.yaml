@@ -1,0 +1,171 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Authorization:
+      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://webservices.iso-ne.com/api/v1.1/hourlysysload/day/20240309
+  response:
+    body:
+      string: '{"HourlySystemLoads":{"HourlySystemLoad":[{"BeginDate":"2024-03-09T00:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11582.75,"NativeLoad":11230.845,"ArdDemand":351.905},{"BeginDate":"2024-03-09T01:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11248.74,"NativeLoad":10898.255,"ArdDemand":350.485},{"BeginDate":"2024-03-09T02:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11045.98,"NativeLoad":10696.489,"ArdDemand":349.491},{"BeginDate":"2024-03-09T03:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11232.943,"NativeLoad":10640.057,"ArdDemand":592.886},{"BeginDate":"2024-03-09T04:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11390.378,"NativeLoad":10798.454,"ArdDemand":591.924},{"BeginDate":"2024-03-09T05:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11446.05,"NativeLoad":11175.542,"ArdDemand":270.508},{"BeginDate":"2024-03-09T06:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11680.839,"NativeLoad":11662.191,"ArdDemand":18.648},{"BeginDate":"2024-03-09T07:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":12165.48,"NativeLoad":12146.919,"ArdDemand":18.561},{"BeginDate":"2024-03-09T08:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":12784.284,"NativeLoad":12764.607,"ArdDemand":19.677},{"BeginDate":"2024-03-09T09:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":13146.577,"NativeLoad":13127.321,"ArdDemand":19.256},{"BeginDate":"2024-03-09T10:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":13003.037,"NativeLoad":12978.7,"ArdDemand":24.337},{"BeginDate":"2024-03-09T11:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":12711.606,"NativeLoad":12689.151,"ArdDemand":22.455},{"BeginDate":"2024-03-09T12:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":12722.975,"NativeLoad":12699.892,"ArdDemand":23.083},{"BeginDate":"2024-03-09T13:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":12678.722,"NativeLoad":12658.778,"ArdDemand":19.944},{"BeginDate":"2024-03-09T14:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":12986.605,"NativeLoad":12966.062,"ArdDemand":20.543},{"BeginDate":"2024-03-09T15:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":13473.156,"NativeLoad":13456.139,"ArdDemand":17.017},{"BeginDate":"2024-03-09T16:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":14012.486,"NativeLoad":13993.515,"ArdDemand":18.971},{"BeginDate":"2024-03-09T17:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":14554.895,"NativeLoad":14539.184,"ArdDemand":15.711},{"BeginDate":"2024-03-09T18:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":14652.564,"NativeLoad":14637.483,"ArdDemand":15.081},{"BeginDate":"2024-03-09T19:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":14268.702,"NativeLoad":14253.283,"ArdDemand":15.419},{"BeginDate":"2024-03-09T20:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":13769.547,"NativeLoad":13752.642,"ArdDemand":16.905},{"BeginDate":"2024-03-09T21:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":13168.651,"NativeLoad":13147.382,"ArdDemand":21.269},{"BeginDate":"2024-03-09T22:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":12429.828,"NativeLoad":12409.271,"ArdDemand":20.557},{"BeginDate":"2024-03-09T23:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11715.411,"NativeLoad":11698.241,"ArdDemand":17.17}]}}'
+    headers:
+      Cache-Control:
+      - private
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '640'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 25 Nov 2024 21:09:49 GMT
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Server:
+      - ISO New England
+      Server-Timing:
+      - dtSInfo;desc="0", dtRpid;desc="1448430907"
+      Set-Cookie:
+      - dtCookie=v_4_srv_4_sn_DB449EA3FA44C67EDDAA678B2748BD3A_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+        Path=/; Domain=.iso-ne.com
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Via:
+      - 1.1 e00a954a79782fdd3cf71c54f8d15496.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 43j50-AhapetyLqc0TaKCuF6xEbneAVGCnDT9i8vg2okf1wWq2F3Xw==
+      X-Amz-Cf-Pop:
+      - JFK50-P10
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Oneagent-Js-Injection:
+      - 'true'
+      X-Xss-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: ''
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Authorization:
+      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://webservices.iso-ne.com/api/v1.1/hourlysysload/day/20240310
+  response:
+    body:
+      string: '{"HourlySystemLoads":{"HourlySystemLoad":[{"BeginDate":"2024-03-10T00:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11149.159,"NativeLoad":11129.693,"ArdDemand":19.466},{"BeginDate":"2024-03-10T01:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":10775.38,"NativeLoad":10743.109,"ArdDemand":32.271},{"BeginDate":"2024-03-10T03:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":10790.338,"NativeLoad":10507.932,"ArdDemand":282.406},{"BeginDate":"2024-03-10T04:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":10662.649,"NativeLoad":10403.589,"ArdDemand":259.06},{"BeginDate":"2024-03-10T05:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":10536.278,"NativeLoad":10513.993,"ArdDemand":22.285},{"BeginDate":"2024-03-10T06:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":10849.2,"NativeLoad":10831.699,"ArdDemand":17.501},{"BeginDate":"2024-03-10T07:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11224.997,"NativeLoad":11209.516,"ArdDemand":15.481},{"BeginDate":"2024-03-10T08:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11444.32,"NativeLoad":11427.612,"ArdDemand":16.708},{"BeginDate":"2024-03-10T09:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11251.378,"NativeLoad":11229.384,"ArdDemand":21.994},{"BeginDate":"2024-03-10T10:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":10728.917,"NativeLoad":10706.341,"ArdDemand":22.576},{"BeginDate":"2024-03-10T11:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":10871.023,"NativeLoad":10538.376,"ArdDemand":332.647},{"BeginDate":"2024-03-10T12:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":10959.7,"NativeLoad":10611.793,"ArdDemand":347.907},{"BeginDate":"2024-03-10T13:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11026.321,"NativeLoad":10676.384,"ArdDemand":349.937},{"BeginDate":"2024-03-10T14:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11081.72,"NativeLoad":10781.989,"ArdDemand":299.731},{"BeginDate":"2024-03-10T15:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11109.242,"NativeLoad":11087.855,"ArdDemand":21.387},{"BeginDate":"2024-03-10T16:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11946.537,"NativeLoad":11924.858,"ArdDemand":21.679},{"BeginDate":"2024-03-10T17:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":13183.999,"NativeLoad":13166.565,"ArdDemand":17.434},{"BeginDate":"2024-03-10T18:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":14058.226,"NativeLoad":14040.232,"ArdDemand":17.994},{"BeginDate":"2024-03-10T19:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":14343.612,"NativeLoad":14327.003,"ArdDemand":16.609},{"BeginDate":"2024-03-10T20:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":13954.33,"NativeLoad":13938.879,"ArdDemand":15.451},{"BeginDate":"2024-03-10T21:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":13268.723,"NativeLoad":13251.984,"ArdDemand":16.739},{"BeginDate":"2024-03-10T22:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":12399.011,"NativeLoad":12382.179,"ArdDemand":16.832},{"BeginDate":"2024-03-10T23:00:00.000-04:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":11578.315,"NativeLoad":11539.532,"ArdDemand":38.783}]}}'
+    headers:
+      Cache-Control:
+      - private
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '619'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 25 Nov 2024 21:09:50 GMT
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Server:
+      - ISO New England
+      Server-Timing:
+      - dtSInfo;desc="0", dtRpid;desc="1131622234"
+      Set-Cookie:
+      - dtCookie=v_4_srv_5_sn_61052DA0CE43DC09ECC40FD3521D7EBA_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+        Path=/; Domain=.iso-ne.com
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Via:
+      - 1.1 a5aff17032e65d74ef5c955d5493c06e.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - E1bssotW5uGAYDUdddT0-qlGgicJ3VaN8INJXxwkEUQoafeqH6Zi1A==
+      X-Amz-Cf-Pop:
+      - JFK50-P10
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Oneagent-Js-Injection:
+      - 'true'
+      X-Xss-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: ''
+version: 1

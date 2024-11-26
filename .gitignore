@@ -63,6 +63,7 @@ cover/
 mypy_report/
 # VCR cassettes for binary files, for now until we can figure out how to handle them
 gridstatus/tests/fixtures/miso/vcr_cassettes
+gridstatus/tests/fixtures/ieso/vcr_cassettes
 
 # Translations
 *.mo

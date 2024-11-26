@@ -13,10 +13,10 @@ interactions:
       User-Agent:
       - python-requests/2.31.0
     method: GET
-    uri: https://webservices.iso-ne.com/api/v1.1/realtimehourlydemand/current/location/4001
+    uri: https://webservices.iso-ne.com/api/v1.1/realtimehourlydemand/current/location/4002
   response:
     body:
-      string: '{"HourlyRtDemand":{"BeginDate":"2024-10-15T23:00:00.000-04:00","Location":{"@LocId":"4001","$":".Z.MAINE"},"Load":1077.614}}'
+      string: '{"HourlyRtDemand":{"BeginDate":"2024-11-20T23:00:00.000-05:00","Location":{"@LocId":"4002","$":".Z.NEWHAMPSHIRE"},"Load":1036.177}}'
     headers:
       Cache-Control:
       - private
@@ -25,26 +25,26 @@ interactions:
       Content-Encoding:
       - gzip
       Content-Length:
-      - '131'
+      - '138'
       Content-Type:
       - application/json
       Date:
-      - Fri, 18 Oct 2024 21:48:48 GMT
+      - Mon, 25 Nov 2024 21:09:32 GMT
       Referrer-Policy:
       - strict-origin-when-cross-origin
       Server:
       - ISO New England
       Server-Timing:
-      - dtSInfo;desc="0", dtRpid;desc="118096755"
+      - dtSInfo;desc="0", dtRpid;desc="764585236"
       Set-Cookie:
-      - dtCookie=v_4_srv_1_sn_2F918EE1C77A5F375D791BFAC1A84810_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+      - dtCookie=v_4_srv_5_sn_A3775C97814623DB941C4606E3126249_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
         Path=/; Domain=.iso-ne.com
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Via:
-      - 1.1 a5aff17032e65d74ef5c955d5493c06e.cloudfront.net (CloudFront)
+      - 1.1 57cf2ea4206ff643a898087150f0df7a.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - 2gSdevzyOEPz7BCnSEp1JNmcZACmxwjGHowlW2P0p1x0_elqEXbjig==
+      - 5sULsvaeRh44p16skO4KJVbZtUVpfc3SkqI3hfeaaGiJPgsGpKIiaQ==
       X-Amz-Cf-Pop:
       - JFK50-P10
       X-Cache:
