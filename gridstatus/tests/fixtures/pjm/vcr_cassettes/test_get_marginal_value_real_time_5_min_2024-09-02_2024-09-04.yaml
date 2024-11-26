@@ -9,9 +9,9 @@ interactions:
       Connection:
       - keep-alive
       Ocp-Apim-Subscription-Key:
-      - 7d70f087f35c4f55b9af9553333c107e
+      - XXXXXX
       User-Agent:
-      - python-requests/2.31.0
+      - python-requests/2.32.3
     method: GET
     uri: https://api.pjm.com/api/v1/rt_marginal_value?fields=datetime_beginning_utc%2C+datetime_ending_utc%2C+monitored_facility%2C+contingency_facility%2C+transmission_constraint_penalty_factor%2C+limit_control_percentage%2C+shadow_price&startRow=1&rowCount=50000&datetime_beginning_ept=09%2F02%2F2024+00%3A00to09%2F04%2F2024+00%3A00
   response:
@@ -975,11 +975,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 05 Nov 2024 19:38:00 GMT
+      - Tue, 26 Nov 2024 01:22:07 GMT
       Expires:
-      - Tue, 05 Nov 2024 19:38:20 GMT
+      - Tue, 26 Nov 2024 01:22:27 GMT
       Last-Modified:
-      - Tue, 05 Nov 2024 19:38:00 GMT
+      - Tue, 26 Nov 2024 01:22:07 GMT
       Request-Context:
       - appId=cid-v1:2aa2d631-5670-434a-9034-e8b4ff1aaf97
       Transfer-Encoding:

@@ -7,17 +7,17 @@ interactions:
       Accept-Encoding:
       - gzip, deflate
       Authorization:
-      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      - XXXXXX
       Connection:
       - keep-alive
       User-Agent:
-      - python-requests/2.31.0
+      - python-requests/2.32.3
     method: GET
     uri: https://webservices.iso-ne.com/api/v1.1/hourlysysload/current
   response:
     body:
-      string: '{"HourlySystemLoads":{"HourlySystemLoad":{"BeginDate":"2024-11-25T15:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
-        AREA"},"Load":13657.274,"NativeLoad":13646.239,"ArdDemand":11.035}}}'
+      string: '{"HourlySystemLoads":{"HourlySystemLoad":{"BeginDate":"2024-11-25T19:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":15114.079,"NativeLoad":15104.637,"ArdDemand":9.442}}}'
     headers:
       Cache-Control:
       - private
@@ -30,24 +30,24 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 25 Nov 2024 21:09:47 GMT
+      - Tue, 26 Nov 2024 01:21:21 GMT
       Referrer-Policy:
       - strict-origin-when-cross-origin
       Server:
       - ISO New England
       Server-Timing:
-      - dtSInfo;desc="0", dtRpid;desc="-669905016"
+      - dtSInfo;desc="0", dtRpid;desc="1810349883"
       Set-Cookie:
-      - dtCookie=v_4_srv_5_sn_A29213B0467C4F02D8ACE327D15EF7CE_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+      - dtCookie=v_4_srv_4_sn_FAC68BB1248DC0064AEC5A33992B35E4_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
         Path=/; Domain=.iso-ne.com
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Via:
-      - 1.1 f106673324d6e3006e921c9e92055438.cloudfront.net (CloudFront)
+      - 1.1 5f7eb39e021e91c3b4f1188abbe23720.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - eIzPe2HOS6ZK_obg81aeEGiUVTiewujYmfpFNhDy85l18AE74ma8gA==
+      - 46C0x1BqwOVeJM1ioOMUZmI3ONqkvTCU288cnMKaxa1ueO8fChUs7A==
       X-Amz-Cf-Pop:
-      - JFK50-P10
+      - IAD61-P4
       X-Cache:
       - Miss from cloudfront
       X-Content-Type-Options:

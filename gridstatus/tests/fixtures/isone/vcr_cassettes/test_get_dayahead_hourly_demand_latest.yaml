@@ -7,17 +7,17 @@ interactions:
       Accept-Encoding:
       - gzip, deflate
       Authorization:
-      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      - XXXXXX
       Connection:
       - keep-alive
       User-Agent:
-      - python-requests/2.31.0
+      - python-requests/2.32.3
     method: GET
     uri: https://webservices.iso-ne.com/api/v1.1/dayaheadhourlydemand/current/location/32
   response:
     body:
-      string: '{"HourlyDaDemand":{"BeginDate":"2024-11-25T16:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
-        AREA"},"Load":14160}}'
+      string: '{"HourlyDaDemand":{"BeginDate":"2024-11-25T20:00:00.000-05:00","Location":{"@LocId":"32","$":"NEPOOL
+        AREA"},"Load":13938}}'
     headers:
       Cache-Control:
       - private
@@ -26,28 +26,28 @@ interactions:
       Content-Encoding:
       - gzip
       Content-Length:
-      - '129'
+      - '128'
       Content-Type:
       - application/json
       Date:
-      - Mon, 25 Nov 2024 21:09:33 GMT
+      - Tue, 26 Nov 2024 01:21:21 GMT
       Referrer-Policy:
       - strict-origin-when-cross-origin
       Server:
       - ISO New England
       Server-Timing:
-      - dtSInfo;desc="0", dtRpid;desc="1620578017"
+      - dtSInfo;desc="0", dtRpid;desc="-250314370"
       Set-Cookie:
-      - dtCookie=v_4_srv_1_sn_9BEFD754E5CC651A07362CFB79224551_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+      - dtCookie=v_4_srv_4_sn_84F31F58C822458863DED8296FC093BE_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
         Path=/; Domain=.iso-ne.com
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Via:
-      - 1.1 73a725fa02f9ec8c532ae0d445890568.cloudfront.net (CloudFront)
+      - 1.1 caaddf8ce46d2bfa1216d6fdd9c0393c.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - -yKV35PHfVmnb1qydepafUXxhFkmayDnEUoWzPEydx2CGGOlKmeE5g==
+      - ocNzXnglucm4NSlF46O4U4LqlgcHT8dy29Cd3mD9cMqigCF_HQNfLQ==
       X-Amz-Cf-Pop:
-      - JFK50-P10
+      - IAD61-P4
       X-Cache:
       - Miss from cloudfront
       X-Content-Type-Options:
