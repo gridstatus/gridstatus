@@ -358,7 +358,8 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_as_reports(df, before_full_columns=True)
 
-    @api_vcr.use_cassette("test_get_as_reports_full_columns_21_days_ago.yaml")
+    # TODO: reneable cassettes when we can filter out the JWT request and response
+    # @api_vcr.use_cassette("test_get_as_reports_full_columns_21_days_ago.yaml")
     def test_get_as_reports_full_columns(self):
         df = self.iso.get_as_reports(
             self.local_start_of_today() - pd.DateOffset(days=21),
@@ -366,7 +367,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_as_reports(df)
 
-    @api_vcr.use_cassette("test_get_as_reports_dst_end_2024_11_03.yaml")
+    # @api_vcr.use_cassette("test_get_as_reports_dst_end_2024_11_03.yaml")
     def test_get_as_reports_dst_end(self):
         df = self.iso.get_as_reports("2024-11-03")
 

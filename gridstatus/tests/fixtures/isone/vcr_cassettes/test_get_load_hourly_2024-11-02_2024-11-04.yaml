@@ -7,11 +7,11 @@ interactions:
       Accept-Encoding:
       - gzip, deflate
       Authorization:
-      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      - XXXXXX
       Connection:
       - keep-alive
       User-Agent:
-      - python-requests/2.31.0
+      - python-requests/2.32.3
     method: GET
     uri: https://webservices.iso-ne.com/api/v1.1/hourlysysload/day/20241102
   response:
@@ -53,24 +53,24 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 25 Nov 2024 21:09:48 GMT
+      - Tue, 26 Nov 2024 01:21:21 GMT
       Referrer-Policy:
       - strict-origin-when-cross-origin
       Server:
       - ISO New England
       Server-Timing:
-      - dtSInfo;desc="0", dtRpid;desc="1821041299"
+      - dtSInfo;desc="0", dtRpid;desc="-1776110926"
       Set-Cookie:
-      - dtCookie=v_4_srv_3_sn_BA059565FF8A72BE067B64AAD80239CF_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+      - dtCookie=v_4_srv_3_sn_C558695C21FCF35B8C95F470D01BD541_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
         Path=/; Domain=.iso-ne.com
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Via:
-      - 1.1 c5f8d9953ac8f752d458b0ffba0f2074.cloudfront.net (CloudFront)
+      - 1.1 202eceb25387048bc093cf2084e5cea6.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - aIv-WW13xNpN1PZdpeXQKu3sxfsboQCYAKQsr1Kha7iaS4Hd_RI20Q==
+      - 5iSRWwcZ2jyhcnchoDAAqJBrfG3LkXtudD0Ek6wywPV5KzduNQTwLQ==
       X-Amz-Cf-Pop:
-      - JFK50-P10
+      - IAD61-P4
       X-Cache:
       - Miss from cloudfront
       X-Content-Type-Options:
@@ -92,11 +92,11 @@ interactions:
       Accept-Encoding:
       - gzip, deflate
       Authorization:
-      - Basic bWF4QGdyaWRzdGF0dXMuaW86RThjMVJnNkpldjEx
+      - XXXXXX
       Connection:
       - keep-alive
       User-Agent:
-      - python-requests/2.31.0
+      - python-requests/2.32.3
     method: GET
     uri: https://webservices.iso-ne.com/api/v1.1/hourlysysload/day/20241103
   response:
@@ -139,24 +139,24 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 25 Nov 2024 21:09:49 GMT
+      - Tue, 26 Nov 2024 01:21:21 GMT
       Referrer-Policy:
       - strict-origin-when-cross-origin
       Server:
       - ISO New England
       Server-Timing:
-      - dtSInfo;desc="0", dtRpid;desc="-641134048"
+      - dtSInfo;desc="0", dtRpid;desc="1665754566"
       Set-Cookie:
-      - dtCookie=v_4_srv_2_sn_BB239F33ED47542C7BFEA0B86EE04734_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
+      - dtCookie=v_4_srv_2_sn_CBBEB7CC21631A5C4C035289DE438E0A_perc_100000_ol_0_mul_1_app-3Afad02338c1182d25_1;
         Path=/; Domain=.iso-ne.com
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Via:
-      - 1.1 bc413bb41d41a5b805e3b9ecdcebc510.cloudfront.net (CloudFront)
+      - 1.1 0be89ec5b9fd1e7b2066b4e5e6c14da0.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - XsAI8PTPqFIxlvNOdMXx5hOoKcXp2y6pEDvC3TLxZ5p0jcW5OLL-Nw==
+      - AjzDhw7i91zCA9BpEQrxcRSCC50ba7_lxvDKaLLXkVEyNefnRYJTeA==
       X-Amz-Cf-Pop:
-      - JFK50-P10
+      - IAD61-P4
       X-Cache:
       - Miss from cloudfront
       X-Content-Type-Options:
