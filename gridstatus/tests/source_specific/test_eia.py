@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 import gridstatus
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
@@ -272,7 +271,6 @@ def test_get_coal_spots():
     assert d["coke_exports"].shape[0] > 0
 
 
-@pytest.mark.slow
 def test_eia_grid_monitor():
     eia = gridstatus.EIA()
     cols = [
