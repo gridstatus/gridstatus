@@ -917,6 +917,7 @@ class IESO(ISOBase):
         date: str | datetime.date | datetime.datetime,
         end: datetime.date | datetime.datetime | None = None,
         vintages: Literal["all", "latest"] = "latest",
+        publish_time: str | datetime.date | datetime.datetime | None = None,
     ) -> pd.DataFrame:
         """Retrieve and parse the Resource Adequacy Report for a given date.
 
@@ -924,26 +925,27 @@ class IESO(ISOBase):
             date (str | datetime.date | datetime.datetime): The date for which to get the report
             end (datetime.date | datetime.datetime | None): The end date for the range of reports to get
             vintages (Literal["all", "latest"]): The version of the report to get
+            publish_time (str | datetime.date | datetime.datetime | None): The publish time after which to get report(s)
 
         Returns:
             pd.DataFrame: The Resource Adequacy Report df for the given date
         """
         if vintages == "latest":
-            json_data = self._get_latest_resource_adequacy_json(date)
+            json_data = self._get_latest_resource_adequacy_json(date, publish_time)
             return self._parse_resource_adequacy_report(json_data)
+
         elif vintages == "all":
-            json_data = self._get_all_resource_adequacy_jsons(date)
+            json_data = self._get_all_resource_adequacy_jsons(date, publish_time)
             dfs = []
             for json_data in json_data:
                 dfs.append(self._parse_resource_adequacy_report(json_data))
             return pd.concat(dfs)
-        else:
-            raise ValueError(f"Invalid value for vintages: {vintages}")
 
     # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
     def _get_latest_resource_adequacy_json(
         self,
         date: str | datetime.date | datetime.datetime,
+        publish_time: str | datetime.date | datetime.datetime | None = None,
     ) -> dict:
         """Retrieve the Resource Adequacy Report for a given date and convert to JSON. There are often many
         files for a given date, so this function will return the file with the highest version number. It does
@@ -951,6 +953,7 @@ class IESO(ISOBase):
 
         Args:
             date (str | datetime.date | datetime.datetime): The date for which to get the report
+            publish_time (str | datetime.date | datetime.datetime | None): The publish time after which to get report(s)
 
         Returns:
             dict: The Resource Adequacy Report JSON for the given date
@@ -966,7 +969,8 @@ class IESO(ISOBase):
 
         r = self._request(base_url)
         files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
-        logger.info(f"Retrieved {len(files)} files for {date_str}")
+        last_modified_times = re.findall(r"(\d{2}-\w{3}-\d{4} \d{2}:\d{2})", r.text)
+        files_and_times = zip(files, last_modified_times)
         if not files:
             raise FileNotFoundError(
                 f"No resource adequacy files found for date {date_str}",
@@ -977,11 +981,21 @@ class IESO(ISOBase):
             None,
         )
 
+        if publish_time:
+            publish_time = pd.Timestamp(publish_time, tz=self.default_timezone)
+            filtered_files = [
+                file
+                for file, time in files_and_times
+                if pd.Timestamp(time, tz=self.default_timezone) >= publish_time
+            ]
+        else:
+            filtered_files = files
+
         latest_file = (
             unversioned_file
             if unversioned_file
             else max(
-                files,
+                filtered_files,
                 key=lambda x: int(x.split("_v")[-1].replace(".xml", "")),
             )
         )
@@ -1000,6 +1014,7 @@ class IESO(ISOBase):
     def _get_all_resource_adequacy_jsons(
         self,
         date: str | datetime.date | datetime.datetime,
+        publish_time: str | datetime.date | datetime.datetime | None = None,
     ) -> list[dict]:
         """Retrieve all Resource Adequacy Report JSONs for a given date. There are often many
         files for a given date, so this function will return all files, the data of which may be separated
@@ -1007,6 +1022,7 @@ class IESO(ISOBase):
 
         Args:
             date (str | datetime.date | datetime.datetime): The date for which to get the report
+            publish_time (str | datetime.date | datetime.datetime | None): The publish time after which to get report(s)
 
         Returns:
             dict: The Resource Adequacy Report JSON for the given date
@@ -1022,14 +1038,27 @@ class IESO(ISOBase):
 
         r = self._request(base_url)
         files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
+        last_modified_times = re.findall(r"(\d{2}-\w{3}-\d{4} \d{2}:\d{2})", r.text)
+        files_and_times = zip(files, last_modified_times)
+
         logger.info(f"Retrieved {len(files)} files for {date_str}")
         if not files:
             raise FileNotFoundError(
                 f"No resource adequacy files found for date {date_str}",
             )
 
+        if publish_time:
+            publish_time = pd.Timestamp(publish_time, tz=self.default_timezone)
+            filtered_files = [
+                file
+                for file, time in files_and_times
+                if pd.Timestamp(time, tz=self.default_timezone) >= publish_time
+            ]
+        else:
+            filtered_files = files
+
         json_data = []
-        with ThreadPoolExecutor(max_workers=min(10, len(files))) as executor:
+        with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
             future_to_file = {
                 executor.submit(self._fetch_and_parse_file, base_url, file): file
                 for file in files
