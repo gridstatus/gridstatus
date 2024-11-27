@@ -1076,7 +1076,7 @@ class IESO(ISOBase):
         with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
             future_to_file = {
                 executor.submit(self._fetch_and_parse_file, base_url, file): file
-                for file in files
+                for file in filtered_files
             }
 
             for future in as_completed(future_to_file):
