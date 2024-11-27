@@ -917,7 +917,7 @@ class IESO(ISOBase):
         date: str | datetime.date | datetime.datetime,
         end: datetime.date | datetime.datetime | None = None,
         vintages: Literal["all", "latest"] = "latest",
-        publish_time: str | datetime.date | datetime.datetime | None = None,
+        last_modified: str | datetime.date | datetime.datetime | None = None,
     ) -> pd.DataFrame:
         """Retrieve and parse the Resource Adequacy Report for a given date.
 
@@ -925,17 +925,17 @@ class IESO(ISOBase):
             date (str | datetime.date | datetime.datetime): The date for which to get the report
             end (datetime.date | datetime.datetime | None): The end date for the range of reports to get
             vintages (Literal["all", "latest"]): The version of the report to get
-            publish_time (str | datetime.date | datetime.datetime | None): The publish time after which to get report(s)
+            last_modified (str | datetime.date | datetime.datetime | None): The last modified time after which to get report(s)
 
         Returns:
             pd.DataFrame: The Resource Adequacy Report df for the given date
         """
         if vintages == "latest":
-            json_data = self._get_latest_resource_adequacy_json(date, publish_time)
+            json_data = self._get_latest_resource_adequacy_json(date, last_modified)
             return self._parse_resource_adequacy_report(json_data)
 
         elif vintages == "all":
-            json_data = self._get_all_resource_adequacy_jsons(date, publish_time)
+            json_data = self._get_all_resource_adequacy_jsons(date, last_modified)
             dfs = []
             for json_data in json_data:
                 dfs.append(self._parse_resource_adequacy_report(json_data))
@@ -945,7 +945,7 @@ class IESO(ISOBase):
     def _get_latest_resource_adequacy_json(
         self,
         date: str | datetime.date | datetime.datetime,
-        publish_time: str | datetime.date | datetime.datetime | None = None,
+        last_modified: str | datetime.date | datetime.datetime | None = None,
     ) -> dict:
         """Retrieve the Resource Adequacy Report for a given date and convert to JSON. There are often many
         files for a given date, so this function will return the file with the highest version number. It does
@@ -953,7 +953,7 @@ class IESO(ISOBase):
 
         Args:
             date (str | datetime.date | datetime.datetime): The date for which to get the report
-            publish_time (str | datetime.date | datetime.datetime | None): The publish time after which to get report(s)
+            last_modified (str | datetime.date | datetime.datetime | None): The last modified time after which to get report(s)
 
         Returns:
             dict: The Resource Adequacy Report JSON for the given date
@@ -976,15 +976,15 @@ class IESO(ISOBase):
                 f"No resource adequacy files found for date {date_str}",
             )
 
-        if publish_time:
-            publish_time = pd.Timestamp(publish_time, tz=self.default_timezone)
+        if last_modified:
+            last_modified = pd.Timestamp(last_modified, tz=self.default_timezone)
             filtered_files = [
                 file
                 for file, time in files_and_times
-                if pd.Timestamp(time, tz=self.default_timezone) >= publish_time
+                if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
             ]
             logger.info(
-                f"Found {len(filtered_files)} files after publish time {publish_time}",
+                f"Found {len(filtered_files)} files after last modified time {last_modified}",
             )
         else:
             filtered_files = files
@@ -995,7 +995,7 @@ class IESO(ISOBase):
         )
         if not filtered_files and not unversioned_file:
             raise FileNotFoundError(
-                f"No files found for date {date_str} after publish time {publish_time}",
+                f"No files found for date {date_str} after last modified time {last_modified}",
             )
 
         latest_file = (
@@ -1021,7 +1021,7 @@ class IESO(ISOBase):
     def _get_all_resource_adequacy_jsons(
         self,
         date: str | datetime.date | datetime.datetime,
-        publish_time: str | datetime.date | datetime.datetime | None = None,
+        last_modified: str | datetime.date | datetime.datetime | None = None,
     ) -> list[dict]:
         """Retrieve all Resource Adequacy Report JSONs for a given date. There are often many
         files for a given date, so this function will return all files, the data of which may be separated
@@ -1029,7 +1029,7 @@ class IESO(ISOBase):
 
         Args:
             date (str | datetime.date | datetime.datetime): The date for which to get the report
-            publish_time (str | datetime.date | datetime.datetime | None): The publish time after which to get report(s)
+            last_modified (str | datetime.date | datetime.datetime | None): The last modified time after which to get report(s)
 
         Returns:
             dict: The Resource Adequacy Report JSON for the given date
@@ -1054,22 +1054,22 @@ class IESO(ISOBase):
                 f"No resource adequacy files found for date {date_str}",
             )
 
-        if publish_time:
-            publish_time = pd.Timestamp(publish_time, tz=self.default_timezone)
+        if last_modified:
+            last_modified = pd.Timestamp(last_modified, tz=self.default_timezone)
             filtered_files = [
                 file
                 for file, time in files_and_times
-                if pd.Timestamp(time, tz=self.default_timezone) >= publish_time
+                if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
             ]
             logger.info(
-                f"Found {len(filtered_files)} files after publish time {publish_time}",
+                f"Found {len(filtered_files)} files after last modified time {last_modified}",
             )
         else:
             filtered_files = files
 
         if not filtered_files:
             raise FileNotFoundError(
-                f"No files found for date {date_str} after publish time {publish_time}",
+                f"No files found for date {date_str} after last modified time {last_modified}",
             )
 
         json_data = []
