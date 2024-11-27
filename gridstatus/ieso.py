@@ -983,9 +983,9 @@ class IESO(ISOBase):
                 for file, time in files_and_times
                 if pd.Timestamp(time, tz=self.default_timezone) >= publish_time
             ]
-
-            print(f"Files after publish time {publish_time}:")
-            print(filtered_files)
+            logger.info(
+                f"Found {len(filtered_files)} files after publish time {publish_time}",
+            )
         else:
             filtered_files = files
 
@@ -1061,6 +1061,9 @@ class IESO(ISOBase):
                 for file, time in files_and_times
                 if pd.Timestamp(time, tz=self.default_timezone) >= publish_time
             ]
+            logger.info(
+                f"Found {len(filtered_files)} files after publish time {publish_time}",
+            )
         else:
             filtered_files = files
 
