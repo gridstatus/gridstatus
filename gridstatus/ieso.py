@@ -976,11 +976,6 @@ class IESO(ISOBase):
                 f"No resource adequacy files found for date {date_str}",
             )
 
-        unversioned_file = next(
-            (f for f in files if "_v" not in f),
-            None,
-        )
-
         if publish_time:
             publish_time = pd.Timestamp(publish_time, tz=self.default_timezone)
             filtered_files = [
@@ -988,8 +983,20 @@ class IESO(ISOBase):
                 for file, time in files_and_times
                 if pd.Timestamp(time, tz=self.default_timezone) >= publish_time
             ]
+
+            print(f"Files after publish time {publish_time}:")
+            print(filtered_files)
         else:
             filtered_files = files
+
+        unversioned_file = next(
+            (f for f in filtered_files if "_v" not in f),
+            None,
+        )
+        if not filtered_files and not unversioned_file:
+            raise FileNotFoundError(
+                f"No files found for date {date_str} after publish time {publish_time}",
+            )
 
         latest_file = (
             unversioned_file
@@ -1056,6 +1063,11 @@ class IESO(ISOBase):
             ]
         else:
             filtered_files = files
+
+        if not filtered_files:
+            raise FileNotFoundError(
+                f"No files found for date {date_str} after publish time {publish_time}",
+            )
 
         json_data = []
         with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
