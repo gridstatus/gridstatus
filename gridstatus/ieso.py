@@ -833,8 +833,8 @@ class IESO(ISOBase):
 
         while retry_num < max_retries:
             try:
-                # requests is unable to access the .ashx URLs without turning off SSL
-                if url.endswith(".ashx"):
+                # requests is unable to access this URL without turning off SSL
+                if url == LOAD_FORECAST_URL:
                     r = utils.request_with_pycurl(url)
                 else:
                     r = requests.get(url)
