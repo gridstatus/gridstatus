@@ -916,7 +916,7 @@ class IESO(ISOBase):
         self,
         date: str | datetime.date | datetime.datetime,
         end: datetime.date | datetime.datetime | None = None,
-        vintages: Literal["all", "latest"] = "latest",
+        vintage: Literal["all", "latest"] = "latest",
         last_modified: str | datetime.date | datetime.datetime | None = None,
     ) -> pd.DataFrame:
         """Retrieve and parse the Resource Adequacy Report for a given date.
@@ -930,11 +930,11 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: The Resource Adequacy Report df for the given date
         """
-        if vintages == "latest":
+        if vintage == "latest":
             json_data = self._get_latest_resource_adequacy_json(date, last_modified)
             return self._parse_resource_adequacy_report(json_data)
 
-        elif vintages == "all":
+        elif vintage == "all":
             json_data = self._get_all_resource_adequacy_jsons(date, last_modified)
             dfs = []
             for json_data in json_data:
