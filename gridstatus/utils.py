@@ -1,11 +1,13 @@
 import glob
 import io
 import os
+from tempfile import NamedTemporaryFile
 from zipfile import ZipFile
 
 import pandas as pd
 import requests
 import tqdm
+from aia import AIASession
 
 import gridstatus
 from gridstatus.base import Markets, NotSupported, _interconnection_columns
@@ -345,3 +347,24 @@ def move_cols_to_front(df, cols_to_move):
     for c in cols_to_move:
         cols.remove(c)
     return df[cols_to_move + cols]
+
+
+def request_using_aia(url):
+    """
+    Work-around for URLs missing intermediate certificates in their chain.
+    The Python SSL module is unable to validate the certificate chain without the
+    intermediate certificates but does not download them automatically. This function
+    uses the aia package to download the intermediate certificates and allow requests to
+    validate the certificate chain.
+
+    https://github.com/python/cpython/issues/62817
+    """
+    aia_session = AIASession()
+    cadata = aia_session.cadata_from_url(url)  # Validated PEM certificate chain
+
+    with NamedTemporaryFile("w") as pem_file:
+        pem_file.write(cadata)
+        pem_file.flush()
+        resp = requests.get(url, verify=pem_file.name)
+
+    return resp
