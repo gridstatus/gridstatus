@@ -120,7 +120,7 @@ class MISOAPI:
 
         data_list = self._flatten(data_lists)
 
-        return self.process_pricing_data(data_list, market=market)
+        return self._process_pricing_data(data_list, market=market)
 
     @support_date_range(frequency="HOUR_START", convert_to_dataframe=False)
     def _get_lmp_day_ahead_hourly(
@@ -138,7 +138,7 @@ class MISOAPI:
             f"{BASE_PRICING_URL}/day-ahead/{date_str}/lmp-{version}?interval={interval}"
         )
 
-        data_list = self._get(url, verbose=verbose)
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
 
         return data_list
 
@@ -158,7 +158,7 @@ class MISOAPI:
 
         url = f"{BASE_PRICING_URL}/real-time/{date_str}/lmp-{version}?interval={interval}&preliminaryFinal={prelim_or_final}&timeResolution={resolution}"  # noqa
 
-        data_list = self._get(url, verbose=verbose)
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
 
         return data_list
 
@@ -173,7 +173,7 @@ class MISOAPI:
             f"{BASE_PRICING_URL}/real-time/{date_str}/lmp-{version}?interval={interval}"
         )
 
-        data_list = self._get(url, verbose=verbose)
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
 
         return data_list
 
@@ -193,11 +193,11 @@ class MISOAPI:
 
         url = f"{BASE_PRICING_URL}/real-time/{date_str}/lmp-{version}?interval={interval}&preliminaryFinal={prelim_or_final}&timeResolution={resolution}"  # noqa
 
-        data_list = self._get(url, verbose=verbose)
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
 
         return data_list
 
-    def process_pricing_data(self, data_list: List[Dict], market: Markets):
+    def _process_pricing_data(self, data_list: List[Dict], market: Markets):
         df = pd.DataFrame(data_list)
 
         # Split timeInterval dict into separate columns for 'start' and 'end'
@@ -253,8 +253,8 @@ class MISOAPI:
 
         return df
 
-    def _get(self, url, verbose=False, max_retries=3):
-        headers = self._headers()
+    def _get_url(self, url, product: str, verbose: bool = False, max_retries: int = 3):
+        headers = self._headers(product=product)
         data_list = []
 
         if verbose:
@@ -300,7 +300,7 @@ class MISOAPI:
 
         return data_list
 
-    def _headers(self, product: str = PRICING_PRODUCT) -> Dict:
+    def _headers(self, product: str) -> Dict:
         return {
             "Ocp-Apim-Subscription-Key": (
                 self.pricing_api_key
