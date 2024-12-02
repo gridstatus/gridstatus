@@ -924,7 +924,7 @@ class IESO(ISOBase):
         Args:
             date (str | datetime.date | datetime.datetime): The date for which to get the report
             end (datetime.date | datetime.datetime | None): The end date for the range of reports to get
-            vintages (Literal["all", "latest"]): The version of the report to get
+            vintage (Literal["all", "latest"]): The version of the report to get
             last_modified (str | datetime.date | datetime.datetime | None): The last modified time after which to get report(s)
 
         Returns:
