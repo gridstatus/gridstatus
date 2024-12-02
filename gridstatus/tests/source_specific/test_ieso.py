@@ -746,9 +746,10 @@ class TestIESO(BaseTestISO):
     )
     def test_get_latest_resource_adequacy_json(self):
         date = pd.Timestamp.now(tz=self.default_timezone)
-        json_data = self.iso._get_latest_resource_adequacy_json(date)
+        json_data, last_modified = self.iso._get_latest_resource_adequacy_json(date)
 
         assert isinstance(json_data, dict)
+        assert isinstance(last_modified, pd.Timestamp)
         assert "Document" in json_data
         assert "DocHeader" in json_data["Document"]
         assert "DocBody" in json_data["Document"]
@@ -761,16 +762,17 @@ class TestIESO(BaseTestISO):
     @file_vcr.use_cassette("test_get_all_resource_adequacy_json.yaml")
     def test_get_all_resource_adequacy_json(self):
         date = pd.Timestamp.now(tz=self.default_timezone)
-        json_data = self.iso._get_all_resource_adequacy_jsons(date)
+        json_data_with_times = self.iso._get_all_resource_adequacy_jsons(date)
 
-        assert isinstance(json_data, list)
-        for json_item in json_data:
-            assert isinstance(json_item, dict)
-            assert "Document" in json_item
-            assert "DocHeader" in json_item["Document"]
-            assert "DocBody" in json_item["Document"]
+        assert isinstance(json_data_with_times, list)
+        for json_data, last_modified in json_data_with_times:
+            assert isinstance(json_data, dict)
+            assert isinstance(last_modified, pd.Timestamp)
+            assert "Document" in json_data
+            assert "DocHeader" in json_data["Document"]
+            assert "DocBody" in json_data["Document"]
 
-            doc_body = json_item["Document"]["DocBody"]
+            doc_body = json_data["Document"]["DocBody"]
             assert "ForecastSupply" in doc_body
             assert "ForecastDemand" in doc_body
             assert "DeliveryDate" in doc_body

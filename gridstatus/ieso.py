@@ -931,17 +931,25 @@ class IESO(ISOBase):
             pd.DataFrame: The Resource Adequacy Report df for the given date
         """
         if vintage == "latest":
-            json_data = self._get_latest_resource_adequacy_json(date, last_modified)
+            json_data, file_last_modified = self._get_latest_resource_adequacy_json(
+                date,
+                last_modified,
+            )
             df = self._parse_resource_adequacy_report(json_data)
+            df["Last Modified"] = file_last_modified
 
         elif vintage == "all":
-            json_data = self._get_all_resource_adequacy_jsons(date, last_modified)
+            json_data_with_times = self._get_all_resource_adequacy_jsons(
+                date,
+                last_modified,
+            )
             dfs = []
-            for json_data in json_data:
-                dfs.append(self._parse_resource_adequacy_report(json_data))
+            for json_data, file_last_modified in json_data_with_times:
+                df = self._parse_resource_adequacy_report(json_data)
+                df["Last Modified"] = file_last_modified
+                dfs.append(df)
             df = pd.concat(dfs)
 
-        df["Last Modified"] = last_modified
         return df
 
     # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
@@ -949,7 +957,7 @@ class IESO(ISOBase):
         self,
         date: str | datetime.date | datetime.datetime,
         last_modified: str | datetime.date | datetime.datetime | None = None,
-    ) -> dict:
+    ) -> tuple[dict, datetime.datetime]:
         """Retrieve the Resource Adequacy Report for a given date and convert to JSON. There are often many
         files for a given date, so this function will return the file with the highest version number. It does
         not retrieve arbitrary files of lower version numbers.
@@ -959,7 +967,7 @@ class IESO(ISOBase):
             last_modified (str | datetime.date | datetime.datetime | None): The last modified time after which to get report(s)
 
         Returns:
-            dict: The Resource Adequacy Report JSON for the given date
+            tuple[dict, datetime.datetime]: The Resource Adequacy Report JSON and its last modified time
         """
         base_url = "https://reports-public.ieso.ca/public/Adequacy2"
 
@@ -974,6 +982,7 @@ class IESO(ISOBase):
         files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
         last_modified_times = re.findall(r"(\d{2}-\w{3}-\d{4} \d{2}:\d{2})", r.text)
         files_and_times = zip(files, last_modified_times)
+
         if not files:
             raise FileNotFoundError(
                 f"No resource adequacy files found for date {date_str}",
@@ -982,7 +991,7 @@ class IESO(ISOBase):
         if last_modified:
             last_modified = pd.Timestamp(last_modified, tz=self.default_timezone)
             filtered_files = [
-                file
+                (file, time)
                 for file, time in files_and_times
                 if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
             ]
@@ -990,31 +999,33 @@ class IESO(ISOBase):
                 f"Found {len(filtered_files)} files after last modified time {last_modified}",
             )
         else:
-            filtered_files = files
+            filtered_files = list(files_and_times)
 
-        unversioned_file = next(
-            (f for f in filtered_files if "_v" not in f),
-            None,
-        )
-        if not filtered_files and not unversioned_file:
+        if not filtered_files:
             raise FileNotFoundError(
                 f"No files found for date {date_str} after last modified time {last_modified}",
             )
 
-        latest_file = (
-            unversioned_file
-            if unversioned_file
-            else max(
-                filtered_files,
-                key=lambda x: int(x.split("_v")[-1].replace(".xml", "")),
-            )
+        unversioned_file = next(
+            ((f, t) for f, t in filtered_files if "_v" not in f),
+            None,
         )
+
+        if unversioned_file:
+            latest_file, file_time = unversioned_file
+        else:
+            latest_file, file_time = max(
+                filtered_files,
+                key=lambda x: int(x[0].split("_v")[-1].replace(".xml", "")),
+            )
+
         logger.info(f"Latest file: {latest_file}")
         url = f"{base_url}/{latest_file}"
         r = self._request(url)
         json_data = xmltodict.parse(r.text)
+        last_modified_time = pd.Timestamp(file_time, tz=self.default_timezone)
 
-        return json_data
+        return json_data, last_modified_time
 
     def _fetch_and_parse_file(self, base_url: str, file: str) -> dict:
         url = f"{base_url}/{file}"
@@ -1025,7 +1036,7 @@ class IESO(ISOBase):
         self,
         date: str | datetime.date | datetime.datetime,
         last_modified: str | datetime.date | datetime.datetime | None = None,
-    ) -> list[dict]:
+    ) -> list[tuple[dict, datetime.datetime]]:
         """Retrieve all Resource Adequacy Report JSONs for a given date. There are often many
         files for a given date, so this function will return all files, the data of which may be separated
         by publish time.
@@ -1047,12 +1058,11 @@ class IESO(ISOBase):
         file_prefix = f"PUB_Adequacy2_{date_str}"
 
         r = self._request(base_url)
-        files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
-        last_modified_times = re.findall(r"(\d{2}-\w{3}-\d{4} \d{2}:\d{2})", r.text)
-        files_and_times = zip(files, last_modified_times)
 
-        logger.info(f"Retrieved {len(files)} files for {date_str}")
-        if not files:
+        pattern = '<a href="({}.*?.xml)">.*?</a>\\s+(\\d{{2}}-\\w{{3}}-\\d{{4}} \\d{{2}}:\\d{{2}})'
+        file_rows = re.findall(pattern.format(file_prefix), r.text)
+
+        if not file_rows:
             raise FileNotFoundError(
                 f"No resource adequacy files found for date {date_str}",
             )
@@ -1060,36 +1070,42 @@ class IESO(ISOBase):
         if last_modified:
             last_modified = pd.Timestamp(last_modified, tz=self.default_timezone)
             filtered_files = [
-                file
-                for file, time in files_and_times
+                (file, time)
+                for file, time in file_rows
                 if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
             ]
             logger.info(
                 f"Found {len(filtered_files)} files after last modified time {last_modified}",
             )
         else:
-            filtered_files = files
+            filtered_files = file_rows
 
         if not filtered_files:
             raise FileNotFoundError(
                 f"No files found for date {date_str} after last modified time {last_modified}",
             )
 
-        json_data = []
+        json_data_with_times = []
         with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
             future_to_file = {
-                executor.submit(self._fetch_and_parse_file, base_url, file): file
-                for file in filtered_files
+                executor.submit(self._fetch_and_parse_file, base_url, file): (
+                    file,
+                    time,
+                )
+                for file, time in filtered_files
             }
 
             for future in as_completed(future_to_file):
-                file = future_to_file[future]
+                file, time = future_to_file[future]
                 try:
-                    json_data.append(future.result())
+                    json_data = future.result()
+                    json_data_with_times.append(
+                        (json_data, pd.Timestamp(time, tz=self.default_timezone)),
+                    )
                 except Exception as e:
                     logger.error(f"Error processing file {file}: {str(e)}")
 
-        return json_data
+        return json_data_with_times
 
     def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
         """Parse the Resource Adequacy Report JSON into DataFrames."""
