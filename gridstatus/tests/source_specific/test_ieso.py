@@ -681,6 +681,7 @@ class TestIESO(BaseTestISO):
         "Ontario Hourly Demand Response Bid/Forecasted",
         "Ontario Hourly Demand Response Scheduled",
         "Ontario Hourly Demand Response Curtailed",
+        "Last Modified",
     ]
 
     @pytest.mark.parametrize(
@@ -692,10 +693,10 @@ class TestIESO(BaseTestISO):
         date: str | datetime.date,
     ):
         with file_vcr.use_cassette(f"test_get_resource_adequacy_report_{date}.yaml"):
-            df = self.iso.get_resource_adequacy_report(date, vintages="latest")
+            df = self.iso.get_resource_adequacy_report(date, vintage="latest")
 
         assert isinstance(df, pd.DataFrame)
-        assert df.shape == (24, 90)  # 24 rows and 90 columns for each file
+        assert df.shape == (24, 91)  # 24 rows and 91 columns for each file
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
 
@@ -714,10 +715,10 @@ class TestIESO(BaseTestISO):
         with file_vcr.use_cassette(
             f"test_get_latest_resource_adequacy_report_{date}_to_{end}.yaml",
         ):
-            df = self.iso.get_resource_adequacy_report(date, end=end, vintages="latest")
+            df = self.iso.get_resource_adequacy_report(date, end=end, vintage="latest")
 
         assert isinstance(df, pd.DataFrame)
-        assert df.shape[1] == 90
+        assert df.shape[1] == 91
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
         expected_rows = ((pd.Timestamp(end) - pd.Timestamp(date)).days) * 24
@@ -731,10 +732,10 @@ class TestIESO(BaseTestISO):
         with file_vcr.use_cassette(
             f"test_get_all_resource_adequacy_report_{date}_to_{end}.yaml",
         ):
-            df = self.iso.get_resource_adequacy_report(date, end=end, vintages="all")
+            df = self.iso.get_resource_adequacy_report(date, end=end, vintage="all")
 
         assert isinstance(df, pd.DataFrame)
-        assert df.shape[1] == 90
+        assert df.shape[1] == 91
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
 

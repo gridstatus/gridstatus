@@ -932,14 +932,17 @@ class IESO(ISOBase):
         """
         if vintage == "latest":
             json_data = self._get_latest_resource_adequacy_json(date, last_modified)
-            return self._parse_resource_adequacy_report(json_data)
+            df = self._parse_resource_adequacy_report(json_data)
 
         elif vintage == "all":
             json_data = self._get_all_resource_adequacy_jsons(date, last_modified)
             dfs = []
             for json_data in json_data:
                 dfs.append(self._parse_resource_adequacy_report(json_data))
-            return pd.concat(dfs)
+            df = pd.concat(dfs)
+
+        df["Last Modified"] = last_modified
+        return df
 
     # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
     def _get_latest_resource_adequacy_json(
@@ -1088,7 +1091,6 @@ class IESO(ISOBase):
 
         return json_data
 
-    # TODO(Kladar): remove MW from column names, MWh instead of MWhr
     def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
         """Parse the Resource Adequacy Report JSON into DataFrames."""
         document_body = json_data["Document"]["DocBody"]
