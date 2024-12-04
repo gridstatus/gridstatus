@@ -6,7 +6,7 @@ from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
-    source="isone",
+    source="isone_api",
     record_mode=RECORD_MODE,
 )
 
