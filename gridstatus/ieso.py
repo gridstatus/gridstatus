@@ -1,11 +1,11 @@
 import datetime
+import os
 import re
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Literal
 
-import certifi
 import pandas as pd
 import requests
 import xmltodict
@@ -14,6 +14,12 @@ from gridstatus import utils
 from gridstatus.base import ISOBase, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+CERTIFICATES_CHAIN_FILE = os.path.join(
+    CURRENT_DIR,
+    "public_certificates/ieso/intermediate_and_root.pem",
+)
 
 """LOAD CONSTANTS"""
 # Load hourly files go back 30 days
@@ -599,10 +605,12 @@ class IESO(ISOBase):
     @support_date_range(frequency="DAY_START")
     def _retrieve_fuel_mix(
         self,
-        date: str
-        | datetime.date
-        | datetime.datetime
-        | tuple[datetime.date, datetime.date],
+        date: (
+            str
+            | datetime.date
+            | datetime.datetime
+            | tuple[datetime.date, datetime.date]
+        ),
         end: datetime.date | datetime.datetime | None = None,
         verbose: bool = False,
     ):
@@ -738,10 +746,12 @@ class IESO(ISOBase):
     @support_date_range(frequency="YEAR_START")
     def _retrieve_historical_fuel_mix(
         self,
-        date: str
-        | datetime.date
-        | datetime.datetime
-        | tuple[datetime.date, datetime.date],
+        date: (
+            str
+            | datetime.date
+            | datetime.datetime
+            | tuple[datetime.date, datetime.date]
+        ),
         end: datetime.date | datetime.datetime | None = None,
         verbose: bool = False,
     ):
@@ -881,12 +891,13 @@ class IESO(ISOBase):
         retry_num = 0
         sleep = 5
 
-        # NOTE(Kladar): Silences the TLS warning for the report URLs, skips for the media files. We could get
-        # certificate from the IESO site for those URLs, but probably more hassle than it's worth
-        if "media/Files" in url:
-            tls_verify = False
+        # This URL is missing a complete certificate chain. The browser knows how
+        # to retrieve the intermediate certificates, but requests does not. Therefore,
+        # we need to provide the certificate chain manually.
+        if "www.ieso.ca" in url:
+            tls_verify = CERTIFICATES_CHAIN_FILE
         else:
-            tls_verify = certifi.where()
+            tls_verify = True
 
         while retry_num < max_retries:
             r = requests.get(
