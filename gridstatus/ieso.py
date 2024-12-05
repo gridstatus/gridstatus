@@ -893,17 +893,14 @@ class IESO(ISOBase):
 
         # This URL is missing a complete certificate chain. The browser knows how
         # to retrieve the intermediate certificates, but requests does not. Therefore,
-        # we need to provide the certificate chain manually.
+        # we need to provide the certificate chain manually (intermediate and root).
         if "www.ieso.ca" in url:
             tls_verify = CERTIFICATES_CHAIN_FILE
         else:
             tls_verify = True
 
         while retry_num < max_retries:
-            r = requests.get(
-                url,
-                verify=tls_verify,
-            )
+            r = requests.get(url, verify=tls_verify)
 
             if r.ok:
                 break
