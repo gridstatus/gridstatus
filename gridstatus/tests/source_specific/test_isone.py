@@ -7,6 +7,12 @@ from gridstatus import ISONE
 from gridstatus.base import Markets
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+api_vcr = setup_vcr(
+    source="isone",
+    record_mode=RECORD_MODE,
+)
 
 # toggle for debugging
 VERBOSE = False

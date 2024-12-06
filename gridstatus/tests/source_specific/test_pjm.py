@@ -221,6 +221,7 @@ class TestPJM(BaseTestISO):
             df["Energy"] + df["Congestion"] + df["Loss"],
         )
 
+    @pytest.mark.integration
     def test_get_it_sced_lmp_5_min_today(self):
         df = self.iso.get_it_sced_lmp_5_min("today")
         self._check_it_sced_lmp_5_min(df)
@@ -234,6 +235,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_it_sced_lmp_5_min("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_it_sced_lmp_5_min_historical_date_range(self):
         start_date = self.local_today() - pd.Timedelta(days=10)
         end_date = start_date + pd.Timedelta(days=3)
@@ -542,11 +544,9 @@ class TestPJM(BaseTestISO):
     """NOTE(kladar): These are the new tests, building up unit tests with mock data along the way. If new
     technologies or resolutions are added, the tests should be straightforward to update."""
 
-    # NOTE(kladar) - we only have one fixture for now, but will leave it parameterized for now to indicate it can have more
-    @pytest.fixture(
-        params=[
-            ("pjm_5min_solar_forecast_response.json"),
-        ],
+    @api_vcr.use_cassette(
+        "test_sample_forecast_data.yaml",
+        filter_query_parameters=["api_key"],
     )
     def sample_forecast_data(self, request):
         filename = request.param

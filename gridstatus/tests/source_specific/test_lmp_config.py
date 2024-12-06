@@ -4,6 +4,8 @@ import pytest
 from gridstatus.base import ISOBase, Markets, NotSupported
 from gridstatus.lmp_config import lmp_config
 
+# TODO(kladar): Dive into this more to understand what's going on and whether VCR applies
+
 
 def days_ago(days):
     return pd.Timestamp.now(

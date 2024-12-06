@@ -1,8 +1,15 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 import gridstatus
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+api_vcr = setup_vcr(
+    source="eia",
+    record_mode=RECORD_MODE,
+)
 
 
 def _check_interchange(df):
@@ -83,6 +90,7 @@ def _check_fuel_type(df):
     assert df.columns.tolist() == columns
 
 
+@pytest.mark.integration
 def test_list_routes():
     eia = gridstatus.EIA()
 
@@ -91,6 +99,7 @@ def test_list_routes():
     assert "interchange-data" in [r["id"] for r in routes["routes"]]
 
 
+@pytest.mark.integration
 def test_list_facets():
     eia = gridstatus.EIA()
 
@@ -99,6 +108,7 @@ def test_list_facets():
     assert "type" in facets.keys()
 
 
+@pytest.mark.integration
 def test_rto_interchange():
     eia = gridstatus.EIA()
 
@@ -119,6 +129,7 @@ def test_rto_interchange():
     _check_interchange(df)
 
 
+@pytest.mark.integration
 def test_rto_region_data():
     eia = gridstatus.EIA()
     start = "2020-01-01"
@@ -139,6 +150,7 @@ def test_rto_region_data():
     _check_region_data(df)
 
 
+@pytest.mark.integration
 def test_rto_region_subba_data():
     eia = gridstatus.EIA()
     start = "2020-01-01"
@@ -159,6 +171,7 @@ def test_rto_region_subba_data():
     _check_region_subba_data(df)
 
 
+@pytest.mark.integration
 def test_fuel_type():
     eia = gridstatus.EIA()
 
@@ -179,6 +192,7 @@ def test_fuel_type():
     _check_fuel_type(df)
 
 
+@pytest.mark.integration
 def test_facets():
     eia = gridstatus.EIA()
 
@@ -199,6 +213,7 @@ def test_facets():
     _check_fuel_type(df)
 
 
+@pytest.mark.integration
 def test_daily_spots_and_futures():
     eia = gridstatus.EIA(api_key="abcd")  # no need for API key to scrape.
 
@@ -228,6 +243,7 @@ def test_daily_spots_and_futures():
     assert d["natural_gas"].shape[0] > 0
 
 
+@pytest.mark.integration
 def test_get_coal_spots():
     eia = gridstatus.EIA(api_key="abcd")  # no need for API key to scrape.
 
@@ -271,6 +287,7 @@ def test_get_coal_spots():
     assert d["coke_exports"].shape[0] > 0
 
 
+@pytest.mark.integration
 def test_eia_grid_monitor():
     eia = gridstatus.EIA()
     cols = [
@@ -350,6 +367,7 @@ def _check_henry_hub_natural_gas_spot_prices(df):
     assert np.issubdtype(df["price"], np.float64)
 
 
+@pytest.mark.integration
 def test_get_henry_hub_natural_gas_spot_prices_historical_date():
     df = EIA().get_henry_hub_natural_gas_spot_prices(
         "2024-01-02",
@@ -365,6 +383,7 @@ def test_get_henry_hub_natural_gas_spot_prices_historical_date():
     assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
 
 
+@pytest.mark.integration
 def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
     df = EIA().get_henry_hub_natural_gas_spot_prices(
         "2023-12-04",

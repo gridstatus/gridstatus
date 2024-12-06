@@ -95,6 +95,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
+    @pytest.mark.integration
     def test_get_hourly_wind_report_today(self):
         df = self.iso.get_hourly_wind_report("today")
 
@@ -105,12 +106,14 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_hourly_wind_report(df)
 
+    @pytest.mark.integration
     def test_get_hourly_wind_report_latest(self):
         df = self.iso.get_hourly_wind_report("latest")
 
         assert df["Publish Time"].nunique() == 1
         self._check_hourly_wind_report(df)
 
+    @pytest.mark.integration
     def test_get_hourly_wind_report_historical_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
         end = date + pd.Timedelta(hours=2)
@@ -168,6 +171,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
+    @pytest.mark.integration
     def test_get_hourly_solar_report_today(self):
         df = self.iso.get_hourly_solar_report("today")
 
@@ -179,12 +183,14 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_hourly_solar_report(df)
 
+    @pytest.mark.integration
     def test_get_hourly_solar_report_latest(self):
         df = self.iso.get_hourly_solar_report("latest")
 
         assert df["Publish Time"].nunique() == 1
         self._check_hourly_solar_report(df)
 
+    @pytest.mark.integration
     def test_get_hourly_solar_report_historical_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
         end = date + pd.Timedelta(hours=2)
@@ -225,6 +231,7 @@ class TestErcotAPI(TestHelperMixin):
         assert (df["Market"] == "DAM").all()
         assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
 
+    @pytest.mark.integration
     def test_get_as_prices_today_or_latest(self):
         df = self.iso.get_as_prices("today")
 
@@ -239,6 +246,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_as_prices("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_as_prices_historical_date(self):
         historical_date = datetime.date(2021, 3, 12)
         df = self.iso.get_as_prices(historical_date, verbose=True)
@@ -252,6 +260,7 @@ class TestErcotAPI(TestHelperMixin):
             days=1,
         )
 
+    @pytest.mark.integration
     def test_get_as_prices_historical_date_range(self):
         start_date = datetime.date(2021, 3, 8)
         end_date = datetime.date(2021, 3, 10)
@@ -323,6 +332,7 @@ class TestErcotAPI(TestHelperMixin):
             skip_column_named_time=True,
         )
 
+    @pytest.mark.integration
     def test_get_as_reports_today_or_latest_raises_error(self):
         with pytest.raises(ValueError) as error:
             self.iso.get_as_reports("today")
@@ -332,6 +342,7 @@ class TestErcotAPI(TestHelperMixin):
             self.iso.get_as_reports("latest")
             assert str(error.value) == "Cannot get AS reports for 'latest' or 'today'"
 
+    @pytest.mark.integration
     def test_get_as_reports_historical_date(self):
         historical_date = datetime.date(2021, 1, 1)
         df = self.iso.get_as_reports(historical_date, verbose=True)
@@ -345,6 +356,7 @@ class TestErcotAPI(TestHelperMixin):
             days=1,
         )
 
+    @pytest.mark.integration
     def test_get_as_reports_historical_date_range(self):
         start_date = datetime.date(2021, 1, 1)
         end_date = datetime.date(2021, 1, 3)
@@ -391,6 +403,7 @@ class TestErcotAPI(TestHelperMixin):
             "ECRS",
         ]
 
+    @pytest.mark.integration
     def test_get_as_plan_today_or_latest(self):
         df = self.iso.get_as_plan("today")
 
@@ -405,6 +418,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_as_plan("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_as_plan_historical_date(self):
         date = self.local_today() - pd.Timedelta(days=30)
 
@@ -421,6 +435,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["ECRS"].notna().any()
 
+    @pytest.mark.integration
     def test_get_as_plan_historical_date_range(self):
         start_date = self.local_today() - pd.Timedelta(days=30)
         end_date = start_date + pd.Timedelta(days=2)
@@ -440,6 +455,7 @@ class TestErcotAPI(TestHelperMixin):
             (start_date + pd.DateOffset(days=1)).date(),
         ]
 
+    @pytest.mark.integration
     def test_get_as_plan_before_ecrs(self):
         # Check that we add an ECRS column of nulls if it's not present
         date = "2012-05-01"
@@ -492,6 +508,7 @@ class TestErcotAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta("5min")
         ).all()
 
+    @pytest.mark.integration
     def test_get_lmp_by_settlement_point_today_or_latest(self):
         df = self.iso.get_lmp_by_settlement_point("today")
 
@@ -501,6 +518,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval End"].max() <= self.local_now()
 
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_get_lmp_by_settlement_point_historical_date(self):
         historical_date = datetime.date(2021, 11, 6)
         df = self.iso.get_lmp_by_settlement_point(historical_date, verbose=True)
@@ -515,6 +533,7 @@ class TestErcotAPI(TestHelperMixin):
         )
 
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_get_lmp_by_settlement_point_historical_date_range(self):
         start_date = datetime.date(2021, 11, 12)
         end_date = datetime.date(2021, 11, 14)
@@ -564,6 +583,7 @@ class TestErcotAPI(TestHelperMixin):
             skip_column_named_time=True,
         )
 
+    @pytest.mark.integration
     def test_get_hourly_resource_outage_capacity_today_or_latest(self):
         df = self.iso.get_hourly_resource_outage_capacity("today")
 
@@ -578,6 +598,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_hourly_resource_outage_capacity("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_hourly_resource_outage_capacity_historical_date(self):
         historical_date = datetime.date(2021, 3, 1)
         df = self.iso.get_hourly_resource_outage_capacity(historical_date, verbose=True)
@@ -592,6 +613,7 @@ class TestErcotAPI(TestHelperMixin):
             historical_date,
         ) + pd.DateOffset(days=7)
 
+    @pytest.mark.integration
     def test_get_hourly_resource_outage_capacity_historical_date_range(self):
         start_date = datetime.date(2021, 3, 15)
         end_date = datetime.date(2021, 3, 17)
@@ -641,6 +663,7 @@ class TestErcotAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
 
+    @pytest.mark.integration
     def test_get_lmp_by_bus_today(self):
         df = self.iso.get_lmp_by_bus("today", verbose=True)
 
@@ -649,6 +672,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval End"].max() <= self.local_now()
 
+    @pytest.mark.integration
     def test_get_lmp_by_bus_latest(self):
         df = self.iso.get_lmp_by_bus("latest")
 
@@ -658,6 +682,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval End"].max() <= self.local_now()
 
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_get_lmp_by_bus_historical_date(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
 
@@ -671,6 +696,7 @@ class TestErcotAPI(TestHelperMixin):
         ) + pd.DateOffset(days=1)
 
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_get_lmp_by_bus_historical_date_range(self):
         start_date = self.local_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
@@ -709,6 +735,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
 
+    @pytest.mark.integration
     def test_get_lmp_by_bus_dam_today_and_latest(self):
         df = self.iso.get_lmp_by_bus_dam("today")
 
@@ -723,6 +750,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_lmp_by_bus_dam("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_lmp_by_bus_dam_historical(self):
         past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 2,
@@ -737,6 +765,7 @@ class TestErcotAPI(TestHelperMixin):
             days=1,
         )
 
+    @pytest.mark.integration
     def test_get_lmp_by_bus_dam_historical_range(self):
         past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
@@ -750,6 +779,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == past_date.normalize()
         assert df["Interval End"].max() == past_end_date.normalize()
 
+    @pytest.mark.integration
     def test_get_lmp_by_bus_dam_dst_end(self):
         date = "2024-11-03"
 
@@ -764,6 +794,7 @@ class TestErcotAPI(TestHelperMixin):
         assert "2024-11-03 01:00:00-05:00" in unique_interval_strings
         assert "2024-11-03 01:00:00-06:00" in unique_interval_strings
 
+    @pytest.mark.integration
     def test_get_lmp_by_bus_dam_dst_start(self):
         date = "2024-03-10"
 
@@ -815,6 +846,7 @@ class TestErcotAPI(TestHelperMixin):
             .all()
         )
 
+    @pytest.mark.integration
     def test_get_shadow_prices_dam_today_and_latest(self):
         df = self.iso.get_shadow_prices_dam("today", verbose=True)
 
@@ -833,6 +865,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_shadow_prices_dam("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_shadow_prices_dam_historical(self):
         past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
@@ -846,6 +879,7 @@ class TestErcotAPI(TestHelperMixin):
             past_date.date(),
         ) + pd.Timedelta(hours=23)
 
+    @pytest.mark.integration
     def test_get_shadow_prices_dam_historical_range(self):
         past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 4,
@@ -902,6 +936,7 @@ class TestErcotAPI(TestHelperMixin):
         ordered_by_col = "SCED Timestamp"
         self._check_ordered_by_time(df, ordered_by_col)
 
+    @pytest.mark.integration
     def test_get_shadow_prices_sced_today_and_latest(self):
         df = self.iso.get_shadow_prices_sced("today", verbose=True)
 
@@ -915,6 +950,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_shadow_prices_sced("latest").equals(df)
 
+    @pytest.mark.integration
     def test_get_shadow_prices_sced_historical(self):
         past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 3,
@@ -935,6 +971,7 @@ class TestErcotAPI(TestHelperMixin):
             < start_of_past_date + pd.Timedelta(hours=24)
         )
 
+    @pytest.mark.integration
     def test_get_shadow_prices_sced_historical_range(self):
         past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 2,
@@ -990,6 +1027,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Market"].unique().tolist() == ["REAL_TIME_15_MIN"]
 
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_get_spp_real_time_15_min_historical_date_range(self):
         start_date = self.local_today() - pd.DateOffset(days=100)
 
@@ -1034,6 +1072,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Market"].unique().tolist() == ["DAY_AHEAD_HOURLY"]
 
+    @pytest.mark.integration
     def test_get_spp_day_ahead_hourly_historical_date_range(self):
         start_date = self.local_today() - pd.DateOffset(days=100)
 
@@ -1054,6 +1093,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_dam_load_and_gen_60_day_resources_as_offers"""
 
+    @pytest.mark.integration
     def test_get_dam_load_and_gen_60_day_resources_as_offers(self):
         start_date = self.local_start_of_today() - pd.DateOffset(days=3000)
 
@@ -1074,6 +1114,7 @@ class TestErcotAPI(TestHelperMixin):
 
             assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
 
+    @pytest.mark.integration
     def test_get_dam_load_and_gen_60_day_resources_as_offers_repeated_offers(self):
         """Tests a problematic date where one resource has repeated offers for a
         single service on a single interval"""
@@ -1105,6 +1146,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_historical_data"""
 
+    @pytest.mark.integration
     def test_get_historical_data(self):
         start_date = datetime.date(2023, 1, 1)
         end_date = datetime.date(2023, 1, 3)
@@ -1198,6 +1240,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """hit_ercot_api"""
 
+    @pytest.mark.integration
     def test_hit_ercot_api(self):
         """
         First we test that entering a bad endpoint results in a keyerror
@@ -1259,6 +1302,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """endpoints_map"""
 
+    @pytest.mark.integration
     def test_get_endpoints_map(self):
         endpoints_map = self.iso._get_endpoints_map()
 

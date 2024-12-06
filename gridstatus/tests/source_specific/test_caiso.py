@@ -5,11 +5,15 @@ import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException
-from gridstatus.caiso import (
-    REAL_TIME_DISPATCH_MARKET_RUN_ID,
-)
+from gridstatus.caiso import REAL_TIME_DISPATCH_MARKET_RUN_ID
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+api_vcr = setup_vcr(
+    source="caiso",
+    record_mode=RECORD_MODE,
+)
 
 
 class TestCAISO(BaseTestISO):
@@ -19,6 +23,7 @@ class TestCAISO(BaseTestISO):
 
     """get_as"""
 
+    @pytest.mark.integration
     def test_get_as_prices(self):
         date = "Oct 15, 2022"
         df = self.iso.get_as_prices(date)
@@ -39,6 +44,7 @@ class TestCAISO(BaseTestISO):
             "Spinning Reserves",
         ]
 
+    @pytest.mark.integration
     def test_get_as_procurement(self):
         date = "Oct 15, 2022"
         for market in ["DAM", "RTM"]:
@@ -47,6 +53,7 @@ class TestCAISO(BaseTestISO):
 
     """get_fuel_mix"""
 
+    @pytest.mark.integration
     def test_fuel_mix_across_dst_transition(self):
         # these dates are across the DST transition
         # and caused a bug in the past
@@ -59,6 +66,7 @@ class TestCAISO(BaseTestISO):
 
     """get_load_forecast"""
 
+    @pytest.mark.integration
     def test_get_load_forecast_publish_time(self):
         df = self.iso.get_load_forecast("today")
 
@@ -114,6 +122,7 @@ class TestCAISO(BaseTestISO):
         assert df["Publish Time"].max() < self.local_now()
         assert df["Publish Time"].nunique() == expected_count_unique_publish_times
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_dam_today(self):
         df = self.iso.get_solar_and_wind_forecast_dam("today")
         self._check_solar_and_wind_forecast(df, 1)
@@ -123,11 +132,13 @@ class TestCAISO(BaseTestISO):
             hours=23,
         )
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_dam_latest(self):
         assert self.iso.get_solar_and_wind_forecast_dam("latest").equals(
             self.iso.get_solar_and_wind_forecast_dam("today"),
         )
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_dam_historical_date(self):
         df = self.iso.get_solar_and_wind_forecast_dam("2024-02-20")
         self._check_solar_and_wind_forecast(df, 1)
@@ -137,6 +148,7 @@ class TestCAISO(BaseTestISO):
             "2024-02-20",
         ) + pd.Timedelta(hours=23)
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_dam_historical_range(self):
         start = pd.Timestamp("2023-08-15")
         end = pd.Timestamp("2023-08-21")
@@ -151,6 +163,7 @@ class TestCAISO(BaseTestISO):
             end,
         ) - pd.Timedelta(hours=1)
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_dam_future_date_range(self):
         start = self.local_today() + pd.Timedelta(days=1)
         end = start + pd.Timedelta(days=2)
@@ -175,12 +188,14 @@ class TestCAISO(BaseTestISO):
         ]
         self._check_time_columns(df)
 
+    @pytest.mark.integration
     def test_get_curtailment(self):
         date = "Oct 15, 2022"
         df = self.iso.get_curtailment(date)
         assert df.shape == (31, 8)
         self._check_curtailment(df)
 
+    @pytest.mark.integration
     def test_get_curtailment_2_pages(self):
         # test that the function can handle 3 pages of data
         date = "March 15, 2022"
@@ -188,6 +203,7 @@ class TestCAISO(BaseTestISO):
         assert df.shape == (55, 8)
         self._check_curtailment(df)
 
+    @pytest.mark.integration
     def test_get_curtailment_3_pages(self):
         # test that the function can handle 3 pages of data
         date = "March 16, 2022"
@@ -197,6 +213,7 @@ class TestCAISO(BaseTestISO):
 
     """get_gas_prices"""
 
+    @pytest.mark.integration
     def test_get_gas_prices(self):
         date = "Oct 15, 2022"
         # no fuel region
@@ -228,6 +245,7 @@ class TestCAISO(BaseTestISO):
 
     """get_fuel_regions"""
 
+    @pytest.mark.integration
     def test_get_fuel_regions(self):
         df = self.iso.get_fuel_regions()
         assert df.columns.tolist() == [
@@ -243,6 +261,7 @@ class TestCAISO(BaseTestISO):
 
     """get_ghg_allowance"""
 
+    @pytest.mark.integration
     def test_get_ghg_allowance(self):
         date = "Oct 15, 2022"
         df = self.iso.get_ghg_allowance(date)
@@ -257,12 +276,14 @@ class TestCAISO(BaseTestISO):
 
     """get_lmp"""
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
     )
     def test_lmp_date_range(self, market):
         super().test_lmp_date_range(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_15_MIN,
@@ -271,6 +292,7 @@ class TestCAISO(BaseTestISO):
     def test_get_lmp_historical(self, market):
         super().test_get_lmp_historical(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_15_MIN,
@@ -279,11 +301,13 @@ class TestCAISO(BaseTestISO):
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market=market)
 
+    @pytest.mark.integration
     def test_get_lmp_locations_must_be_list(self):
         date = "today"
         with pytest.raises(AssertionError):
             self.iso.get_lmp(date, locations="foo", market="REAL_TIME_5_MIN")
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_15_MIN,
@@ -292,6 +316,7 @@ class TestCAISO(BaseTestISO):
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
 
+    @pytest.mark.integration
     def test_get_lmp_with_locations_range_dam(self):
         end = pd.Timestamp("today").normalize()
         start = end - pd.Timedelta(days=3)
@@ -319,6 +344,7 @@ class TestCAISO(BaseTestISO):
     #     # assert approx 16000 locations
     #     assert df["Location"].nunique() > 16000
 
+    @pytest.mark.integration
     def test_get_lmp_all_ap_nodes_locations(self):
         yesterday = pd.Timestamp("today").normalize() - pd.Timedelta(days=1)
         df = self.iso.get_lmp(
@@ -329,6 +355,7 @@ class TestCAISO(BaseTestISO):
         # assert approx 2300 locations
         assert df["Location"].nunique() > 2300
 
+    @pytest.mark.integration
     def test_get_lmp_with_all_locations_range(self):
         end = pd.Timestamp("today").tz_localize(
             self.iso.default_timezone,
@@ -343,6 +370,7 @@ class TestCAISO(BaseTestISO):
         # assert all days are present
         assert df["Time"].dt.date.nunique() == 3
 
+    @pytest.mark.integration
     def test_get_lmp_all_locations_real_time_2_hour(self):
         # test two hours
         start = pd.Timestamp("now").tz_localize("UTC").normalize() - pd.Timedelta(
@@ -360,6 +388,7 @@ class TestCAISO(BaseTestISO):
         assert df["Location"].nunique() > 2300
         assert df["Interval Start"].dt.hour.nunique() == 2
 
+    @pytest.mark.integration
     def test_get_lmp_too_far_in_past_raises_custom_exception(self):
         too_old_date = pd.Timestamp.now().date() - pd.Timedelta(days=1201)
 
@@ -380,6 +409,7 @@ class TestCAISO(BaseTestISO):
 
         assert not df.empty
 
+    @pytest.mark.integration
     def test_warning_no_end_date(self):
         start = pd.Timestamp("2021-04-01T03:00").tz_localize("UTC")
         with (
@@ -434,6 +464,7 @@ class TestCAISO(BaseTestISO):
         assert df["Market"].unique()[0] == market
         assert df.shape[0] > 0
 
+    @pytest.mark.integration
     def test_get_curtailed_non_operational_generator_report(self):
         columns = [
             "Publish Time",
@@ -502,6 +533,7 @@ class TestCAISO(BaseTestISO):
             subset=["Interval Start", "Tie Name", "From BAA", "To BAA"],
         ).any()
 
+    @pytest.mark.integration
     def test_get_tie_flows_real_time_latest(self):
         df = self.iso.get_tie_flows_real_time("latest")
         self._check_tie_flows_real_time(df)
@@ -511,12 +543,14 @@ class TestCAISO(BaseTestISO):
             "5min",
         ) + pd.Timedelta(minutes=5)
 
+    @pytest.mark.integration
     def test_get_tie_flows_real_time_today(self):
         df = self.iso.get_tie_flows_real_time("today")
         self._check_tie_flows_real_time(df)
 
         assert df["Interval Start"].min() == self.local_start_of_today()
 
+    @pytest.mark.integration
     def test_get_tie_flows_real_time_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=100)
         end = start + pd.DateOffset(days=2)
@@ -529,6 +563,7 @@ class TestCAISO(BaseTestISO):
 
     """other"""
 
+    @pytest.mark.integration
     def test_oasis_no_data(self):
         df = self.iso.get_oasis_dataset(
             dataset="as_clearing_prices",
@@ -537,6 +572,7 @@ class TestCAISO(BaseTestISO):
 
         assert df.empty
 
+    @pytest.mark.integration
     def test_get_pnodes(self):
         df = self.iso.get_pnodes()
         assert df.shape[0] > 0

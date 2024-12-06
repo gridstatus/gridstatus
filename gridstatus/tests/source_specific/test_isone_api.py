@@ -6,7 +6,7 @@ from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
-    source="isone",
+    source="isone_api",
     record_mode=RECORD_MODE,
 )
 
@@ -40,7 +40,7 @@ class TestISONEAPI:
     def test_get_locations(self):
         result = self.iso.get_locations()
         assert isinstance(result, pd.DataFrame)
-        assert len(result) == 19
+        assert len(result) == 20
         assert list(result.columns) == [
             "LocationID",
             "LocationType",
