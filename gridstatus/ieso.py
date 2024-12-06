@@ -1370,15 +1370,15 @@ class IESO(ISOBase):
                         "path": ["ForecastDemand", "TotalRequirements", "Requirement"],
                         "value_key": "EnergyMW",
                     },
-                    "Capacity Excess / Shortfall": {
+                    "Capacity Excess Shortfall": {
                         "path": ["ForecastDemand", "ExcessCapacities", "Capacity"],
                         "value_key": "EnergyMW",
                     },
-                    "Energy Excess / Shortfall MWh": {
+                    "Energy Excess Shortfall MWh": {
                         "path": ["ForecastDemand", "ExcessEnergies", "Energy"],
                         "value_key": "EnergyMWhr",
                     },
-                    "Offered Capacity Excess / Shortfall": {
+                    "Offered Capacity Excess Shortfall": {
                         "path": [
                             "ForecastDemand",
                             "ExcessOfferedCapacities",
@@ -1451,7 +1451,7 @@ class IESO(ISOBase):
                         "Other": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered/Forecasted": [
+                            "Offered Forecasted": [
                                 "OfferForecasts",
                                 "OfferForecast",
                                 "EnergyMW",
@@ -1472,7 +1472,7 @@ class IESO(ISOBase):
                             "item_key": "Outage",
                             "value_key": "EnergyMW",
                         },
-                        "Total Internal Resources Offered/Forecasted": {
+                        "Total Internal Resources Offered Forecasted": {
                             "container": "OfferForecasts",
                             "item_key": "OfferForecast",
                             "value_key": "EnergyMW",
@@ -1552,7 +1552,7 @@ class IESO(ISOBase):
                                     "item_key": "Capacity",
                                     "value_key": "EnergyMW",
                                 },
-                                "Ontario Dispatchable Load Bid / Forecasted": {
+                                "Ontario Dispatchable Load Bid Forecasted": {
                                     "container": "BidForecasts",
                                     "item_key": "BidForecast",
                                     "value_key": "EnergyMW",
@@ -1571,7 +1571,7 @@ class IESO(ISOBase):
                         },
                         "Hourly Demand Response": {
                             "sections": {
-                                "Ontario Hourly Demand Response Bid/Forecasted": {
+                                "Ontario Hourly Demand Response Bid Forecasted": {
                                     "container": "Bids",
                                     "item_key": "Bid",
                                     "value_key": "EnergyMW",
