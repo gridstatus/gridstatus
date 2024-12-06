@@ -40,7 +40,7 @@ class TestISONEAPI:
     def test_get_locations(self):
         result = self.iso.get_locations()
         assert isinstance(result, pd.DataFrame)
-        assert len(result) == 19
+        assert len(result) == 20
         assert list(result.columns) == [
             "LocationID",
             "LocationType",
