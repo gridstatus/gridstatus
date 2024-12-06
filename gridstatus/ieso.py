@@ -1451,7 +1451,7 @@ class IESO(ISOBase):
                         "Other": {
                             "Capacity": ["Capacities", "Capacity", "EnergyMW"],
                             "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered/Forecasted": [
+                            "Offered Forecasted": [
                                 "OfferForecasts",
                                 "OfferForecast",
                                 "EnergyMW",
