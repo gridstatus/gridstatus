@@ -1552,7 +1552,7 @@ class IESO(ISOBase):
                                     "item_key": "Capacity",
                                     "value_key": "EnergyMW",
                                 },
-                                "Ontario Dispatchable Load Bid / Forecasted": {
+                                "Ontario Dispatchable Load Bid Forecasted": {
                                     "container": "BidForecasts",
                                     "item_key": "BidForecast",
                                     "value_key": "EnergyMW",
