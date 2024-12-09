@@ -37,6 +37,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_lmp_day_ahead_hourly_ex_ante"""
 
+    @api_vcr.use_cassette("test_get_lmp_day_ahead_hourly_ex_ante")
     def test_get_lmp_day_ahead_hourly_ex_ante_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
         end = self.local_now() - pd.DateOffset(days=1)
@@ -49,6 +50,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_lmp_day_ahead_hourly_ex_post"""
 
+    @api_vcr.use_cassette("test_get_lmp_day_ahead_hourly_ex_post")
     def test_get_lmp_day_ahead_hourly_ex_post_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
         end = self.local_now() - pd.DateOffset(days=1)
@@ -61,6 +63,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_lmp_real_time_hourly_ex_post_prelim"""
 
+    @api_vcr.use_cassette("test_get_lmp_real_time_hourly_ex_post_prelim")
     def test_get_lmp_real_time_hourly_ex_post_prelim_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
         end = self.local_now() - pd.DateOffset(days=1)
@@ -73,6 +76,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_lmp_real_time_hourly_ex_post_final"""
 
+    @api_vcr.use_cassette("test_get_lmp_real_time_hourly_ex_post_final")
     def test_get_lmp_real_time_hourly_ex_post_final_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
         end = self.local_now() - pd.DateOffset(days=1)
@@ -85,6 +89,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_lmp_real_time_5_min_ex_ante"""
 
+    @api_vcr.use_cassette("test_get_lmp_real_time_5_min_ex_ante")
     def test_get_lmp_real_time_5_min_ex_ante_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
         end = start + pd.Timedelta(hours=2)
@@ -97,6 +102,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_lmp_real_time_5_min_ex_post_prelim"""
 
+    @api_vcr.use_cassette("test_get_lmp_real_time_5_min_ex_post_prelim")
     def test_get_lmp_real_time_5_min_ex_post_prelim_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
         end = start + pd.Timedelta(hours=2)
@@ -109,6 +115,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_lmp_real_time_5_min_ex_post_final"""
 
+    @api_vcr.use_cassette("test_get_lmp_real_time_5_min_ex_post_final")
     def test_get_lmp_real_time_5_min_ex_post_final_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
         end = start + pd.Timedelta(hours=2)
