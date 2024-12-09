@@ -67,6 +67,7 @@ gridstatus/tests/fixtures/isone/vcr_cassettes
 gridstatus/tests/fixtures/pjm/vcr_cassettes
 gridstatus/tests/fixtures/ercot_api/vcr_cassettes
 gridstatus/tests/fixtures/ieso/vcr_cassettes
+gridstatus/tests/fixtures/miso_api/vcr_cassettes
 
 # Translations
 *.mo
