@@ -214,8 +214,8 @@ class TestISONEAPI:
             "Interval Start",
             "Interval End",
             "Publish Time",
-            "Load",
-            "Net Load",
+            "Load Forecast",
+            "Net Load Forecast",
         ]
         assert (
             min(result["Interval Start"]).date()
@@ -224,9 +224,9 @@ class TestISONEAPI:
         assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
             self.iso.default_timezone,
         )
-        assert result["Load"].dtype in [np.int64, np.float64]
-        assert result["Net Load"].dtype in [np.int64, np.float64]
-        assert (result["Load"] > 0).all()
+        assert result["Load Forecast"].dtype in [np.int64, np.float64]
+        assert result["Net Load Forecast"].dtype in [np.int64, np.float64]
+        assert (result["Load Forecast"] > 0).all()
         assert (
             (result["Interval End"] - result["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
@@ -246,7 +246,7 @@ class TestISONEAPI:
                 "Interval End",
                 "Publish Time",
                 "Location",
-                "Load",
+                "Load Forecast",
                 "Regional Percentage",
             ]
             assert (
@@ -270,8 +270,8 @@ class TestISONEAPI:
                 ".Z.WCMASS",
                 ".Z.NEMASSBOST",
             }
-            assert result["Load"].dtype in [np.int64, np.float64]
-            assert (result["Load"] > 0).all()
+            assert result["Load Forecast"].dtype in [np.int64, np.float64]
+            assert (result["Load Forecast"] > 0).all()
             assert result["Regional Percentage"].dtype == np.float64
             assert (
                 (result["Regional Percentage"] >= 0)
