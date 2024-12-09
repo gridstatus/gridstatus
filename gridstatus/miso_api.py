@@ -34,13 +34,14 @@ class MISOAPI:
         )
         self.load_api_key = load_api_key or os.getenv("MISO_API_LOAD_SUBSCRIPTION_KEY")
         self.default_timezone = "EST"
+        self.initial_sleep_seconds = 2
 
     def get_lmp_day_ahead_hourly_ex_ante(self, date, end=None, verbose=False):
         return self._get_pricing_data(
             date,
             end,
             retrieval_func=self._get_lmp_day_ahead_hourly,
-            market=Markets.DAY_AHEAD_HOURLY,
+            market=Markets.DAY_AHEAD_HOURLY_EX_ANTE,
             version=EX_ANTE,
             verbose=verbose,
         )
@@ -209,10 +210,10 @@ class MISOAPI:
             axis=1,
         )
 
-        df["Interval Start"] = pd.to_datetime(df["start"], utc=True).dt.tz_convert(
+        df["Interval Start"] = pd.to_datetime(df["start"]).dt.tz_localize(
             self.default_timezone,
         )
-        df["Interval End"] = pd.to_datetime(df["end"], utc=True).dt.tz_convert(
+        df["Interval End"] = pd.to_datetime(df["end"]).dt.tz_localize(
             self.default_timezone,
         )
 
@@ -278,7 +279,6 @@ class MISOAPI:
 
             page_url = f"{url}&pageNumber={page_number}"
 
-            # Retry logic
             attempt = 0
             response = requests.get(page_url, headers=headers, verify=False)
 
@@ -290,13 +290,14 @@ class MISOAPI:
                     f"{2**attempt} seconds...",
                 )
 
-                time.sleep(2**attempt)
-
+                time.sleep(self.initial_sleep_seconds**attempt)
                 response = requests.get(page_url, headers=headers, verify=False)
+
             data = response.json()
 
             last_page = data["page"]["lastPage"]
             data_list.extend(data["data"])
+            time.sleep(self.initial_sleep_seconds)
 
         return data_list
 
