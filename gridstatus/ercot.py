@@ -1967,6 +1967,14 @@ class Ercot(ISOBase):
                 "ACTUAL LZ SOUTH HOUSTON": "GEN LZ SOUTH HOUSTON",
                 "ACTUAL LZ WEST": "GEN LZ WEST",
                 "ACTUAL LZ NORTH": "GEN LZ NORTH",
+                # Older versions of wind power production by geographical region use
+                # "ACTUAL" instead of "GEN"
+                # https://data.ercot.com/data-product-archive/NP4-742-CD
+                "ACTUAL PANHANDLE": "GEN PANHANDLE",
+                "ACTUAL COASTAL": "GEN COASTAL",
+                "ACTUAL SOUTH": "GEN SOUTH",
+                "ACTUAL WEST": "GEN WEST",
+                "ACTUAL NORTH": "GEN NORTH",
             },
         )
 

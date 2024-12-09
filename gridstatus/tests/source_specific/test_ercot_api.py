@@ -67,9 +67,9 @@ class TestErcotAPI(TestHelperMixin):
             days_to_add_if_no_end=1,
         ) == self.local_start_of_day(datetime.date(2021, 11, 7))
 
-    """get_hourly_wind_report"""
+    """get_wind_actual_and_forecast_hourly"""
 
-    def _check_hourly_wind_report(self, df):
+    def _check_wind_actual_and_forecast_hourly(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -95,29 +95,34 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
-    def test_get_hourly_wind_report_today(self):
-        df = self.iso.get_hourly_wind_report("today")
+    @api_vcr.use_cassette("test_get_wind_actual_and_forecast_hourly_today.yaml")
+    def test_get_wind_actual_and_forecast_hourly_today(self):
+        df = self.iso.get_wind_actual_and_forecast_hourly("today")
 
         # The data should start at the beginning of two days ago
         assert df[
             "Interval Start"
         ].min() == self.local_start_of_today() - pd.DateOffset(days=2)
 
-        self._check_hourly_wind_report(df)
+        self._check_wind_actual_and_forecast_hourly(df)
 
-    def test_get_hourly_wind_report_latest(self):
-        df = self.iso.get_hourly_wind_report("latest")
+    @api_vcr.use_cassette("test_get_wind_actual_and_forecast_hourly_latest.yaml")
+    def test_get_wind_actual_and_forecast_hourly_latest(self):
+        df = self.iso.get_wind_actual_and_forecast_hourly("latest")
 
         assert df["Publish Time"].nunique() == 1
-        self._check_hourly_wind_report(df)
+        self._check_wind_actual_and_forecast_hourly(df)
 
-    def test_get_hourly_wind_report_historical_date_range(self):
+    @api_vcr.use_cassette(
+        "test_get_wind_actual_and_forecast_hourly_date_range.yaml",
+    )
+    def test_get_wind_actual_and_forecast_hourly_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
         end = date + pd.Timedelta(hours=2)
 
-        df = self.iso.get_hourly_wind_report(date, end, verbose=True)
+        df = self.iso.get_wind_actual_and_forecast_hourly(date, end, verbose=True)
 
-        self._check_hourly_wind_report(df)
+        self._check_wind_actual_and_forecast_hourly(df)
 
         assert df["Publish Time"].nunique() == 2
 
@@ -128,9 +133,150 @@ class TestErcotAPI(TestHelperMixin):
             date.date(),
         ) + pd.DateOffset(days=7)
 
-    """get_hourly_solar_report"""
+    """get_wind_actual_and_forecast_by_geographical_region_hourly"""
 
-    def _check_hourly_solar_report(self, df):
+    def _check_wind_actual_and_forecast_by_geographical_region_hourly(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "GEN SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STWPF SYSTEM WIDE",
+            "WGRPP SYSTEM WIDE",
+            "GEN PANHANDLE",
+            "COP HSL PANHANDLE",
+            "STWPF PANHANDLE",
+            "WGRPP PANHANDLE",
+            "GEN COASTAL",
+            "COP HSL COASTAL",
+            "STWPF COASTAL",
+            "WGRPP COASTAL",
+            "GEN SOUTH",
+            "COP HSL SOUTH",
+            "STWPF SOUTH",
+            "WGRPP SOUTH",
+            "GEN WEST",
+            "COP HSL WEST",
+            "STWPF WEST",
+            "WGRPP WEST",
+            "GEN NORTH",
+            "COP HSL NORTH",
+            "STWPF NORTH",
+            "WGRPP NORTH",
+            "HSL SYSTEM WIDE",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+
+    @api_vcr.use_cassette(
+        "test_get_wind_actual_and_forecast_by_geographical_region_hourly_today.yaml",
+    )
+    def test_get_wind_actual_and_forecast_by_geographical_region_hourly_today(self):
+        df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
+            "today",
+        )
+
+        # The data should start at the beginning of two days ago
+        assert df[
+            "Interval Start"
+        ].min() == self.local_start_of_today() - pd.DateOffset(days=2)
+
+        self._check_wind_actual_and_forecast_by_geographical_region_hourly(df)
+
+    @api_vcr.use_cassette(
+        "test_get_wind_actual_and_forecast_by_geographical_region_hourly_latest.yaml",
+    )
+    def test_get_wind_actual_and_forecast_by_geographical_region_hourly_latest(self):
+        df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
+            "latest",
+        )
+
+        assert df["Publish Time"].nunique() == 1
+        self._check_wind_actual_and_forecast_by_geographical_region_hourly(df)
+
+    @api_vcr.use_cassette(
+        "test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
+    )
+    def test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range(
+        self,
+    ):
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        end = date + pd.Timedelta(hours=2)
+
+        df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
+            date,
+            end,
+            verbose=True,
+        )
+
+        self._check_wind_actual_and_forecast_by_geographical_region_hourly(df)
+
+        assert df["Publish Time"].nunique() == 2
+
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            date.date(),
+        ) - pd.DateOffset(days=2)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            date.date(),
+        ) + pd.DateOffset(days=7)
+
+    """get_solar_actual_and_forecast_hourly"""
+
+    def _check_solar_actual_and_forecast_hourly(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "GEN SYSTEM WIDE",
+            "COP HSL SYSTEM WIDE",
+            "STPPF SYSTEM WIDE",
+            "PVGRPP SYSTEM WIDE",
+            "HSL SYSTEM WIDE",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+
+    @api_vcr.use_cassette("test_get_solar_actual_and_forecast_hourly_today.yaml")
+    def test_get_solar_actual_and_forecast_hourly_today(self):
+        df = self.iso.get_solar_actual_and_forecast_hourly("today")
+
+        # We don't know the exact number of publish times
+        # The data should start at the beginning of two days ago
+        assert df[
+            "Interval Start"
+        ].min() == self.local_start_of_today() - pd.DateOffset(days=2)
+
+        self._check_solar_actual_and_forecast_hourly(df)
+
+    @api_vcr.use_cassette("test_get_solar_actual_and_forecast_hourly_latest.yaml")
+    def test_get_solar_actual_and_forecast_hourly_latest(self):
+        df = self.iso.get_solar_actual_and_forecast_hourly("latest")
+
+        assert df["Publish Time"].nunique() == 1
+        self._check_solar_actual_and_forecast_hourly(df)
+
+    @api_vcr.use_cassette("test_get_solar_actual_and_forecast_hourly_date_range.yaml")
+    def test_get_solar_actual_and_forecast_hourly_date_range(self):
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        end = date + pd.Timedelta(hours=2)
+
+        df = self.iso.get_solar_actual_and_forecast_hourly(date, end, verbose=True)
+
+        self._check_solar_actual_and_forecast_hourly(df)
+
+        assert df["Publish Time"].nunique() == 2
+
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            date.date(),
+        ) - pd.DateOffset(days=2)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            date.date(),
+        ) + pd.DateOffset(days=7)
+
+    """get_solar_actual_and_forecast_by_geographical_region_hourly"""
+
+    def _check_solar_actual_and_forecast_by_geographical_region_hourly(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -168,8 +314,13 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
-    def test_get_hourly_solar_report_today(self):
-        df = self.iso.get_hourly_solar_report("today")
+    @api_vcr.use_cassette(
+        "test_get_solar_actual_and_forecast_by_geographical_region_hourly_today.yaml",
+    )
+    def test_get_solar_actual_and_forecast_by_geographical_region_hourly_today(self):
+        df = self.iso.get_solar_actual_and_forecast_by_geographical_region_hourly(
+            "today",
+        )
 
         # We don't know the exact number of publish times
         # The data should start at the beginning of two days ago
@@ -177,21 +328,35 @@ class TestErcotAPI(TestHelperMixin):
             "Interval Start"
         ].min() == self.local_start_of_today() - pd.DateOffset(days=2)
 
-        self._check_hourly_solar_report(df)
+        self._check_solar_actual_and_forecast_by_geographical_region_hourly(df)
 
-    def test_get_hourly_solar_report_latest(self):
-        df = self.iso.get_hourly_solar_report("latest")
+    @api_vcr.use_cassette(
+        "test_get_solar_actual_and_forecast_by_geographical_region_hourly_latest.yaml",
+    )
+    def test_get_solar_actual_and_forecast_by_geographical_region_hourly_latest(self):
+        df = self.iso.get_solar_actual_and_forecast_by_geographical_region_hourly(
+            "latest",
+        )
 
         assert df["Publish Time"].nunique() == 1
-        self._check_hourly_solar_report(df)
+        self._check_solar_actual_and_forecast_by_geographical_region_hourly(df)
 
-    def test_get_hourly_solar_report_historical_date_range(self):
+    @api_vcr.use_cassette(
+        "test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
+    )
+    def test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range(
+        self,
+    ):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
         end = date + pd.Timedelta(hours=2)
 
-        df = self.iso.get_hourly_solar_report(date, end, verbose=True)
+        df = self.iso.get_solar_actual_and_forecast_by_geographical_region_hourly(
+            date,
+            end,
+            verbose=True,
+        )
 
-        self._check_hourly_solar_report(df)
+        self._check_solar_actual_and_forecast_by_geographical_region_hourly(df)
 
         assert df["Publish Time"].nunique() == 2
 
