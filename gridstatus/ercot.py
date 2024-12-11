@@ -117,6 +117,10 @@ REAL_TIME_ADDERS_AND_RESERVES_RTID = 13221
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
 TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
 
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-970-CD
+# https://data.ercot.com/data-product-archive/NP6-970-CD - for historical data
+ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID = 13073
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -2886,15 +2890,15 @@ class Ercot(ISOBase):
 
     def _get_document(
         self,
-        report_type_id,
-        date=None,
-        published_after=None,
-        published_before=None,
-        constructed_name_contains=None,
-        extension=None,
-        verbose=False,
-        base_url="www.ercot.com",
-        request_kwargs=None,
+        report_type_id: int,
+        date: str | None = None,
+        published_after: str | None = None,
+        published_before: str | None = None,
+        constructed_name_contains: str | None = None,
+        extension: str | None = None,
+        verbose: bool = False,
+        base_url: str = "www.ercot.com",
+        request_kwargs: dict | None = None,
     ) -> Document:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -2926,17 +2930,17 @@ class Ercot(ISOBase):
 
     def _get_documents(
         self,
-        report_type_id,
-        date=None,
-        published_after=None,
-        published_before=None,
-        friendly_name_timestamp_after=None,
-        friendly_name_timestamp_before=None,
-        constructed_name_contains=None,
-        extension=None,
-        verbose=False,
-        base_url="www.ercot.com",
-        request_kwargs=None,
+        report_type_id: int,
+        date: str | None = None,
+        published_after: str | None = None,
+        published_before: str | None = None,
+        friendly_name_timestamp_after: str | None = None,
+        friendly_name_timestamp_before: str | None = None,
+        constructed_name_contains: str | None = None,
+        extension: str | None = None,
+        verbose: bool = False,
+        base_url: str = "www.ercot.com",
+        request_kwargs: dict | None = None,
     ) -> list:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -2946,8 +2950,7 @@ class Ercot(ISOBase):
         # Include a cache buster to ensure we get the latest data
         url = f"https://{base_url}/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}&_{int(time.time())}"  # noqa
 
-        msg = f"Fetching document {url}"
-        log(msg, verbose)
+        logger.info(f"Fetching document {url}")
 
         # if latest, we dont need to filter
         # so we can set to None
@@ -3124,10 +3127,10 @@ class Ercot(ISOBase):
 
     def read_doc(
         self,
-        doc,
-        parse=True,
-        verbose=False,
-        request_kwargs=None,
+        doc: Document,
+        parse: bool = True,
+        verbose: bool = False,
+        request_kwargs: dict | None = None,
     ):
         log(f"Reading {doc.url}", verbose)
 
@@ -3140,11 +3143,11 @@ class Ercot(ISOBase):
 
     def read_docs(
         self,
-        docs,
-        parse=True,
-        empty_df=None,
-        verbose=False,
-        request_kwargs=None,
+        docs: list[Document],
+        parse: bool = True,
+        empty_df: pd.DataFrame | None = None,
+        verbose: bool = False,
+        request_kwargs: dict | None = None,
     ):
         if len(docs) == 0:
             return empty_df
@@ -3163,10 +3166,10 @@ class Ercot(ISOBase):
 
     def parse_doc(
         self,
-        doc,
-        dst_ambiguous_default="infer",
-        verbose=False,
-        nonexistent="raise",
+        doc: pd.DataFrame,
+        dst_ambiguous_default: str = "infer",
+        verbose: bool = False,
+        nonexistent: str = "raise",
     ):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
@@ -3342,4 +3345,63 @@ class Ercot(ISOBase):
             "South Central",
             "Southern",
             "West",
+        ]
+
+    @support_date_range(frequency=None)
+    def get_ercot_indicative_lmp_by_settlement_point(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ):
+        endpoint_date = date[0] if isinstance(date, tuple) else date
+
+        historical_data_request = (
+            pd.Timestamp.now(tz=self.default_timezone)
+            - pd.Timestamp(endpoint_date, tz=self.default_timezone)
+        ) > pd.Timedelta(days=4)
+
+        if historical_data_request:
+            base_url = "https://data.ercot.com/data-product-archive/NP6-970-CD"
+        else:
+            base_url = "www.ercot.com"
+
+        doc = self._get_document(
+            report_type_id=ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID,
+            date=date,
+            base_url=base_url,
+            extension=None,
+            verbose=verbose,
+        )
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        columns_to_rename = {
+            "RepeatedHourFlag": "DSTFlag",
+            "IntervalId": "Interval Id",
+            "IntervalEnding": "Interval End",
+            "IntervalRepeatedHourFlag": "Interval Repeated Hour Flag",
+            "SettlementPoint": "Location",
+            "SettlementPointType": "Location Type",
+            "LMP": "LMP",
+        }
+        df.rename(columns=columns_to_rename, inplace=True)
+        df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "RTDTimestamp",
+                "Interval Id",
+                "Interval Repeated Hour Flag",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
         ]
