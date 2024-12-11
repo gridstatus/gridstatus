@@ -998,7 +998,10 @@ class IESO(ISOBase):
 
         if last_modified:
             if last_modified.tz is None:
-                last_modified = last_modified.tz_localize(self.default_timezone)
+                last_modified = utils._handle_date(
+                    last_modified,
+                    tz=self.default_timezone,
+                )
             filtered_files = [
                 (file, time)
                 for file, time in files_and_times
