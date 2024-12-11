@@ -35,13 +35,14 @@ class MISOAPI:
         self,
         pricing_api_key: str = None,
         load_api_key: str = None,
+        initial_sleep_seconds: int = 2,
     ):
         self.pricing_api_key = pricing_api_key or os.getenv(
             "MISO_API_PRICING_SUBSCRIPTION_KEY",
         )
         self.load_api_key = load_api_key or os.getenv("MISO_API_LOAD_SUBSCRIPTION_KEY")
         self.default_timezone = "EST"
-        self.initial_sleep_seconds = 3
+        self.initial_sleep_seconds = initial_sleep_seconds or 2
 
     def get_lmp_day_ahead_hourly_ex_ante(self, date, end=None, verbose=False):
         return self._get_pricing_data(
@@ -68,7 +69,7 @@ class MISOAPI:
             date,
             end,
             retrieval_func=self._get_lmp_real_time_hourly_ex_post,
-            market=Markets.REAL_TIME_HOURLY_PRELIM,
+            market=Markets.REAL_TIME_HOURLY_EX_POST_PRELIM,
             prelim_or_final=PRELIMINARY_STRING,
             verbose=verbose,
         )
