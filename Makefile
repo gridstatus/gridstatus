@@ -32,7 +32,7 @@ test-isone:
 
 .PHONY: test-miso
 test-miso:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_miso.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_miso.py gridstatus/tests/source_specific/test_miso_api.py
 
 .PHONY: test-nyiso
 test-nyiso:
