@@ -552,7 +552,7 @@ class TestIESO(BaseTestISO):
     # NOTE(kladar, 2024-12-11): Tests rolled off, earliest is currently 2024-09-10, 92 days ago
     RESOURCE_ADEQUACY_TEST_DATES = [
         (
-            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=92)).strftime(
+            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=91)).strftime(
                 "%Y-%m-%d",
             ),
             (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=89)).strftime(
