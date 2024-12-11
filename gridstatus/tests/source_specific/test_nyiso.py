@@ -5,6 +5,12 @@ import gridstatus
 from gridstatus import NYISO, Markets
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+api_vcr = setup_vcr(
+    source="nyiso",
+    record_mode=RECORD_MODE,
+)
 
 
 class TestNYISO(BaseTestISO):
@@ -12,6 +18,7 @@ class TestNYISO(BaseTestISO):
 
     """"get_capacity_prices"""
 
+    @pytest.mark.integration
     def test_get_capacity_prices(self):
         # test 2022, 2023, and today
         df = self.iso.get_capacity_prices(date="Dec 1, 2022", verbose=True)
@@ -26,10 +33,12 @@ class TestNYISO(BaseTestISO):
 
     """get_fuel_mix"""
 
+    @pytest.mark.integration
     def test_get_fuel_mix_date_range(self):
         df = self.iso.get_fuel_mix(start="Aug 1, 2022", end="Oct 22, 2022")
         assert df.shape[0] >= 0
 
+    @pytest.mark.integration
     def test_range_two_days_across_month(self):
         today = gridstatus.utils._handle_date("today", self.iso.default_timezone)
         first_day_of_month = today.replace(day=1, hour=5, minute=0, second=0)
@@ -46,6 +55,7 @@ class TestNYISO(BaseTestISO):
         assert df["Time"].dt.date.nunique() == 3  # 2 days in range + 1 day for midnight
         self._check_fuel_mix(df)
 
+    @pytest.mark.integration
     def test_month_start_multiple_months(self):
         start_date = pd.Timestamp("2022-01-01T06:00:00Z", tz=self.iso.default_timezone)
         end_date = pd.Timestamp("2022-03-01T06:00:00Z", tz=self.iso.default_timezone)
@@ -65,6 +75,7 @@ class TestNYISO(BaseTestISO):
 
     """get_generators"""
 
+    @pytest.mark.integration
     def test_get_generators(self):
         df = self.iso.get_generators()
         columns = [
@@ -80,6 +91,7 @@ class TestNYISO(BaseTestISO):
 
     """get_load"""
 
+    @pytest.mark.integration
     def test_get_load_contains_zones(self):
         df = self.iso.get_load("today")
         nyiso_load_cols = [
@@ -99,22 +111,26 @@ class TestNYISO(BaseTestISO):
         ]
         assert df.columns.tolist() == nyiso_load_cols
 
+    @pytest.mark.integration
     def test_get_load_month_range(self):
         df = self.iso.get_load(start="2023-04-01", end="2023-05-16")
         assert df.shape[0] >= 0
 
+    @pytest.mark.integration
     def test_get_load_historical(self):
         # TODO: why does this not work more than 8 days in the past
         super().test_get_load_historical(lookback_days=8)
 
     """get_lmp"""
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
     )
     def test_lmp_date_range(self, market):
         super().test_lmp_date_range(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
@@ -123,6 +139,7 @@ class TestNYISO(BaseTestISO):
     def test_get_lmp_historical(self, market):
         super().test_get_lmp_historical(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
@@ -131,6 +148,7 @@ class TestNYISO(BaseTestISO):
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
@@ -139,6 +157,7 @@ class TestNYISO(BaseTestISO):
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market=market)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_and_15_min_today(self):
         df_5 = self.iso.get_lmp("today", market=Markets.REAL_TIME_5_MIN)
         df_15 = self.iso.get_lmp("today", market=Markets.REAL_TIME_15_MIN)
@@ -166,6 +185,7 @@ class TestNYISO(BaseTestISO):
         )
         assert diffs_15.max() == pd.Timedelta(minutes=15)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_and_15_min_latest(self):
         df_5 = self.iso.get_lmp("latest", market=Markets.REAL_TIME_5_MIN)
         df_15 = self.iso.get_lmp("latest", market=Markets.REAL_TIME_15_MIN)
@@ -186,6 +206,7 @@ class TestNYISO(BaseTestISO):
         diffs_15 = df_15["Interval End"].diff().dropna()
         assert (diffs_15 == pd.Timedelta(minutes=0)).all()
 
+    @pytest.mark.integration
     def test_get_lmp_historical_with_range(self):
         start = "2021-12-01"
         end = "2022-02-02"
@@ -196,6 +217,7 @@ class TestNYISO(BaseTestISO):
         )
         assert df.shape[0] >= 0
 
+    @pytest.mark.integration
     def test_get_lmp_location_type_parameter(self):
         date = "2022-06-09"
 
@@ -248,6 +270,7 @@ class TestNYISO(BaseTestISO):
     """get_interconnection_queue"""
 
     # This test is in addition to the base_test_iso test
+    @pytest.mark.integration
     def test_get_interconnection_queue_handles_new_file(self):
         df = self.iso.get_interconnection_queue()
         # There are a few missing values, but a small percentage
@@ -255,6 +278,7 @@ class TestNYISO(BaseTestISO):
 
     """get_loads"""
 
+    @pytest.mark.integration
     def test_get_loads(self):
         df = self.iso.get_loads()
         columns = [
@@ -268,6 +292,7 @@ class TestNYISO(BaseTestISO):
 
     """get_status"""
 
+    @pytest.mark.integration
     def test_get_status_historical_status(self):
         date = "20220609"
         status = self.iso.get_status(date)
@@ -280,14 +305,17 @@ class TestNYISO(BaseTestISO):
 
     """get_storage"""
 
+    @pytest.mark.integration
     def test_get_storage_historical(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_historical()
 
+    @pytest.mark.integration
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
+    @pytest.mark.integration
     def test_various_edt_to_est(self):
         # number of rows hardcoded based on when this test was written. should stay same
         date = "Nov 7, 2021"
@@ -308,6 +336,7 @@ class TestNYISO(BaseTestISO):
         df = self.iso.get_load(date=date)
         assert df.shape[0] >= 307
 
+    @pytest.mark.integration
     def test_various_est_to_edt(self):
         # number of rows hardcoded based on when this test was written. should stay same
 
@@ -332,6 +361,7 @@ class TestNYISO(BaseTestISO):
         assert df.shape[0] >= 281
 
     # test btm solar
+    @pytest.mark.integration
     def test_get_btm_solar(self):
         # published ~8 hours after finish of previous day
         two_days_ago = pd.Timestamp.now(tz="US/Eastern").date() - pd.Timedelta(days=2)
@@ -372,6 +402,7 @@ class TestNYISO(BaseTestISO):
 
         assert df["Time"].dt.date.nunique() == 3
 
+    @pytest.mark.integration
     def test_get_btm_solar_forecast(self):
         df = self.iso.get_btm_solar_forecast(
             date="today",
@@ -410,6 +441,7 @@ class TestNYISO(BaseTestISO):
 
         assert df["Time"].dt.date.nunique() == 3
 
+    @pytest.mark.integration
     def test_load_forecast_today(self):
         forecast = self.iso.get_load_forecast("today")
 
@@ -424,6 +456,7 @@ class TestNYISO(BaseTestISO):
             ],
         )
 
+    @pytest.mark.integration
     def test_load_forecast_historical_date_range(self):
         end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
         start = (end - pd.Timedelta(days=7)).date()

@@ -10,6 +10,12 @@ from gridstatus.spp import (
     LOCATION_TYPE_SETTLEMENT_LOCATION,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+api_vcr = setup_vcr(
+    source="spp",
+    record_mode=RECORD_MODE,
+)
 
 
 class TestSPP(BaseTestISO):
@@ -24,6 +30,7 @@ class TestSPP(BaseTestISO):
     def test_get_fuel_mix_date_or_start(self):
         pass
 
+    @pytest.mark.integration
     def test_get_fuel_mix_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_historical()
@@ -40,10 +47,12 @@ class TestSPP(BaseTestISO):
     def test_get_fuel_mix_start_end_same_day(self):
         pass
 
+    @pytest.mark.integration
     def test_get_fuel_mix_central_time(self):
         fm = self.iso.get_fuel_mix(date="latest")
         assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
 
+    @pytest.mark.integration
     def test_get_fuel_mix_self_market(self):
         fm = self.iso.get_fuel_mix(date="latest", detailed=True)
 
@@ -109,6 +118,7 @@ class TestSPP(BaseTestISO):
 
         assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_location_latest(self):
         df = self.iso.get_lmp_real_time_5_min_by_location(date="latest")
 
@@ -120,6 +130,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
 
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_location_today(self):
         df = self.iso.get_lmp_real_time_5_min_by_location(date="today", verbose=True)
 
@@ -130,6 +141,7 @@ class TestSPP(BaseTestISO):
             "5min",
         ) - pd.DateOffset(minutes=10)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_location_date_range(self):
         three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
         three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
@@ -145,6 +157,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == three_days_ago
         assert df["Interval End"].max() == three_days_ago_0215
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_location_historical_date(self):
         # For a historical date, the decorator only retrieves a single interval
         thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
@@ -159,6 +172,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == thirty_days_ago
         assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(minutes=5)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_location_last_interval_of_day(self):
         two_days_ago = self.local_start_of_today() - pd.DateOffset(days=2)
         two_days_ago_2355 = two_days_ago + pd.DateOffset(hours=23, minutes=55)
@@ -172,6 +186,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == two_days_ago_2355
         assert df["Interval End"].max() == two_days_ago_2355 + pd.DateOffset(minutes=5)
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "location_type",
         [
@@ -188,6 +203,7 @@ class TestSPP(BaseTestISO):
 
         self._check_lmp_real_time_5_min_by_location(df, location_types=[location_type])
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_location_dst_end(self):
         df = self.iso.get_lmp_real_time_5_min_by_location(
             pd.Timestamp("2024-11-03 00:55:00-05:00"),
@@ -235,6 +251,7 @@ class TestSPP(BaseTestISO):
 
         assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_bus_latest(self):
         df = self.iso.get_lmp_real_time_5_min_by_bus(date="latest")
 
@@ -245,6 +262,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
 
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_bus_today(self):
         df = self.iso.get_lmp_real_time_5_min_by_bus(date="today", verbose=True)
 
@@ -255,6 +273,7 @@ class TestSPP(BaseTestISO):
             "5min",
         ) - pd.DateOffset(minutes=10)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_bus_date_range(self):
         three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
         three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
@@ -269,6 +288,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == three_days_ago
         assert df["Interval End"].max() == three_days_ago_0215
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_bus_historical_date(self):
         # For a historical date, the decorator only retrieves a single interval
         thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
@@ -280,6 +300,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == thirty_days_ago
         assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(minutes=5)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_bus_last_interval_of_day(self):
         two_days_ago = self.local_start_of_today() - pd.DateOffset(days=2)
         two_days_ago_2355 = two_days_ago + pd.DateOffset(hours=23, minutes=55)
@@ -293,6 +314,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == two_days_ago_2355
         assert df["Interval End"].max() == two_days_ago_2355 + pd.DateOffset(minutes=5)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_bus_dst_end(self):
         df = self.iso.get_lmp_real_time_5_min_by_bus(
             pd.Timestamp("2024-11-03 00:55:00-05:00"),
@@ -349,10 +371,12 @@ class TestSPP(BaseTestISO):
 
         assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
 
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_latest_not_supported(self):
         with pytest.raises(NotSupported):
             self.iso.get_lmp_day_ahead_hourly(date="latest")
 
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_today(self):
         df = self.iso.get_lmp_day_ahead_hourly(date="today")
 
@@ -364,6 +388,7 @@ class TestSPP(BaseTestISO):
             days=1,
         )
 
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_date_range(self):
         four_days_ago = self.local_start_of_today() - pd.DateOffset(days=4)
         two_days_ago = four_days_ago + pd.DateOffset(days=2)
@@ -379,6 +404,7 @@ class TestSPP(BaseTestISO):
         # Not end day inclusive
         assert df["Interval End"].max() == two_days_ago
 
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_historical_date(self):
         thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
 
@@ -397,6 +423,7 @@ class TestSPP(BaseTestISO):
             LOCATION_TYPE_SETTLEMENT_LOCATION,
         ],
     )
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_filters_location(self, location_type):
         df = self.iso.get_lmp_day_ahead_hourly(
             date="today",
@@ -442,6 +469,7 @@ class TestSPP(BaseTestISO):
         "Supp_Cleared",
     ]
 
+    @pytest.mark.integration
     def test_get_operating_reserves(self):
         yesterday = pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -454,11 +482,13 @@ class TestSPP(BaseTestISO):
         assert len(df) > 0
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
+    @pytest.mark.integration
     def test_get_operating_reserves_latest(self):
         df = self.iso.get_operating_reserves(date="latest")
         assert len(df) > 0
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
+    @pytest.mark.integration
     def test_get_operative_reserves_last_interval_of_day(self):
         two_days_ago = pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -476,6 +506,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval End"].max() == two_days_ago_2355 + pd.Timedelta(minutes=5)
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
+    @pytest.mark.integration
     def test_get_operating_reserves_dst_end(self):
         df = self.iso.get_operating_reserves(
             pd.Timestamp("2024-11-03 00:55:00-05:00"),
@@ -512,6 +543,7 @@ class TestSPP(BaseTestISO):
         "Unc_Up",
     ]
 
+    @pytest.mark.integration
     def test_get_day_ahead_operating_reserve_prices(self):
         tomorrow = pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -529,6 +561,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval End"].max() == tomorrow
         assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
 
+    @pytest.mark.integration
     def test_get_day_ahead_operating_reserve_prices_today(self):
         df = self.iso.get_day_ahead_operating_reserve_prices(date="today")
 
@@ -554,12 +587,14 @@ class TestSPP(BaseTestISO):
         "Loss",
     ]
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_weis_latest(self):
         df = self.iso.get_lmp_real_time_weis(date="latest")
 
         assert len(df) > 0
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_weis_1_hour_range(self):
         three_days_ago = pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -577,6 +612,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval End"].max() == three_days_ago_0015
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_weis_cross_day(self):
         two_days_ago_2345 = (
             pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
@@ -594,6 +630,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval End"].max() == one_day_ago_0010
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_weis_single_interval(self):
         three_weeks_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
             days=21,
@@ -606,6 +643,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].nunique() == 1
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_weis_last_interval_of_day(self):
         two_days_ago = pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -623,6 +661,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval End"].max() == two_days_ago_2355 + pd.Timedelta(minutes=5)
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_weis_dst_end(self):
         df = self.iso.get_lmp_real_time_weis(
             pd.Timestamp("2024-11-03 00:55:00-05:00"),
@@ -647,6 +686,7 @@ class TestSPP(BaseTestISO):
 
     """get_load"""
 
+    @pytest.mark.integration
     def test_get_load_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_load_historical()
@@ -663,6 +703,7 @@ class TestSPP(BaseTestISO):
 
     """get_load_forecast_short_term"""
 
+    @pytest.mark.integration
     def test_get_load_forecast_short_term_today(self):
         df = self.iso.get_load_forecast_short_term(date="today")
 
@@ -679,6 +720,7 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(df, "SHORT_TERM")
 
+    @pytest.mark.integration
     def test_get_load_forecast_short_term_latest(self):
         latest = self.iso.get_load_forecast_short_term(date="latest")
 
@@ -690,6 +732,7 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(latest, "SHORT_TERM")
 
+    @pytest.mark.integration
     def test_get_load_forecast_short_term_historical(self):
         now = self.iso.now()
 
@@ -705,6 +748,7 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(df, "SHORT_TERM")
 
+    @pytest.mark.integration
     def test_get_load_forecast_short_term_hour_24_handling(self):
         # This test checks we can successfully retrieve the 24th hour of the day
         # which has a 00 ((23 + 1) % 24 = 0) for the hour in the file name.
@@ -726,6 +770,7 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(df, "SHORT_TERM")
 
+    @pytest.mark.integration
     def test_get_load_forecast_short_term_historical_with_date_range(self):
         now = self.iso.now()
         three_days_ago = now.normalize() - pd.Timedelta(days=3)
@@ -743,6 +788,7 @@ class TestSPP(BaseTestISO):
 
     """get_load_forecast_mid_term"""
 
+    @pytest.mark.integration
     def test_get_load_forecast_mid_term_today(self):
         df = self.iso.get_load_forecast_mid_term(date="today")
 
@@ -759,6 +805,7 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(df, "MID_TERM")
 
+    @pytest.mark.integration
     def test_get_load_forecast_mid_term_latest(self):
         latest = self.iso.get_load_forecast_mid_term(date="latest")
 
@@ -770,6 +817,7 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(latest, "MID_TERM")
 
+    @pytest.mark.integration
     def test_get_load_forecast_mid_term_historical(self):
         now = self.iso.now()
 
@@ -785,6 +833,7 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(df, "MID_TERM")
 
+    @pytest.mark.integration
     def test_get_load_forecast_mid_term_historical_with_date_range(self):
         now = self.iso.now()
         three_days_ago = now.normalize() - pd.Timedelta(days=3)
@@ -804,6 +853,7 @@ class TestSPP(BaseTestISO):
 
     """get_solar_and_wind_forecast_short_term"""
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_today(self):
         df = self.iso.get_solar_and_wind_forecast_short_term(date="today")
 
@@ -823,6 +873,7 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "SHORT_TERM")
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_latest(self):
         latest = self.iso.get_solar_and_wind_forecast_short_term(date="latest")
 
@@ -834,6 +885,7 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(latest, "SHORT_TERM")
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_historical(self):
         now = self.iso.now()
 
@@ -849,6 +901,7 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "SHORT_TERM")
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_hour_24_handling(self):
         # This test checks we can successfully retrieve the 24th hour of the day
         # which has a 00 ((23 + 1) % 24 = 0) for the hour in the file name.
@@ -870,6 +923,7 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "SHORT_TERM")
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_historical_with_date_range(self):
         now = self.iso.now()
         three_days_ago = now.normalize() - pd.Timedelta(days=3)
@@ -887,6 +941,7 @@ class TestSPP(BaseTestISO):
 
     """get_solar_and_wind_forecast_mid_term"""
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_mid_term_today(self):
         df = self.iso.get_solar_and_wind_forecast_mid_term(date="today")
 
@@ -903,6 +958,7 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_mid_term_latest(self):
         latest = self.iso.get_solar_and_wind_forecast_mid_term(date="latest")
 
@@ -914,6 +970,7 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(latest, "MID_TERM")
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_mid_term_historical(self):
         now = self.iso.now()
 
@@ -929,6 +986,7 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
 
+    @pytest.mark.integration
     def test_get_solar_and_wind_forecast_mid_term_historical_with_date_range(self):
         now = self.iso.now()
         three_days_ago = now.normalize() - pd.Timedelta(days=3)
@@ -948,16 +1006,19 @@ class TestSPP(BaseTestISO):
 
     """get_status"""
 
+    @pytest.mark.integration
     def test_get_status_latest(self):
         with pytest.raises(NotImplementedError):
             super().test_get_status_latest()
 
     """get_storage"""
 
+    @pytest.mark.integration
     def test_get_storage_historical(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_historical()
 
+    @pytest.mark.integration
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
@@ -979,6 +1040,7 @@ class TestSPP(BaseTestISO):
             "Solar Curtailed For Energy",
         ]
 
+    @pytest.mark.integration
     def test_get_ver_curtailments_historical(self):
         two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
         start = two_days_ago - pd.Timedelta(days=2)
@@ -988,6 +1050,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].max().date() == two_days_ago.date()
         self._check_ver_curtailments(df)
 
+    @pytest.mark.integration
     def test_get_ver_curtailments_annual(self):
         year = 2020
         df = self.iso.get_ver_curtailments_annual(year=year)
@@ -1019,6 +1082,7 @@ class TestSPP(BaseTestISO):
 
         assert df.columns.tolist() == columns
 
+    @pytest.mark.integration
     def test_get_capacity_of_generation_on_outage(self):
         two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
         start = two_days_ago - pd.Timedelta(days=2)
@@ -1033,6 +1097,7 @@ class TestSPP(BaseTestISO):
         assert df.shape[0] / 168 == 3
         assert df["Publish Time"].dt.date.nunique() == 3
 
+    @pytest.mark.integration
     def test_get_capacity_of_generation_on_outage_annual(self):
         year = 2020
         df = self.iso.get_capacity_of_generation_on_outage_annual(year=year)
@@ -1142,6 +1207,7 @@ class TestSPP(BaseTestISO):
             "System Total",
         ]
 
+    @pytest.mark.integration
     def test_get_hourly_load_historical(self):
         two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
         start = two_days_ago - pd.Timedelta(days=2)
@@ -1151,6 +1217,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].max().date() == two_days_ago.date()
         self._check_hourly_load(df)
 
+    @pytest.mark.integration
     def test_get_hourly_load_annual(self):
         year = 2020
         df = self.iso.get_hourly_load_annual(year=year)
@@ -1160,6 +1227,7 @@ class TestSPP(BaseTestISO):
 
         self._check_hourly_load(df)
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "date",
         ["today", "latest", pd.Timestamp.now()],

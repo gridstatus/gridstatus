@@ -8,7 +8,11 @@ clean:
 
 PYTEST_CMD := poetry run pytest -s -vv -n auto --reruns 5 --reruns-delay 3 --durations=25
 NOT_SLOW := -m "not slow"
-UNIT_ONLY := -m "not slow and not integration"
+UNIT_ONLY := -m "not integration"
+
+.PHONY: test-unit
+test-unit:
+	$(PYTEST_CMD) $(UNIT_ONLY)
 
 .PHONY: test-base
 test-base:

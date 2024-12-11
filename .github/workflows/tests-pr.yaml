@@ -1,5 +1,5 @@
 name: Tests
-on: # Run on all pushes and pull requests. Eventually can run certain jobs on commit.
+on: # Run on main branch pushes and pull requests.
   push:
     branches:
       - main
@@ -28,6 +28,7 @@ jobs:
     needs: [test-base]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11"]
         iso: [caiso, ercot, isone, miso, nyiso, pjm, spp, ieso, eia, misc]
