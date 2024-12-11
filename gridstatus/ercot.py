@@ -3362,7 +3362,7 @@ class Ercot(ISOBase):
         ) > pd.Timedelta(days=4)
 
         if historical_data_request:
-            base_url = "https://data.ercot.com/data-product-archive/NP6-970-CD"
+            base_url = "https://data.ercot.com"
         else:
             base_url = "www.ercot.com"
 
