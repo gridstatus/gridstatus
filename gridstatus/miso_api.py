@@ -34,7 +34,7 @@ class MISOAPI:
         )
         self.load_api_key = load_api_key or os.getenv("MISO_API_LOAD_SUBSCRIPTION_KEY")
         self.default_timezone = "EST"
-        self.initial_sleep_seconds = 2
+        self.initial_sleep_seconds = 3
 
     def get_lmp_day_ahead_hourly_ex_ante(self, date, end=None, verbose=False):
         return self._get_pricing_data(
