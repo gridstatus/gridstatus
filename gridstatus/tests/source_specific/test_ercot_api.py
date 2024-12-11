@@ -95,6 +95,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
+    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_wind_actual_and_forecast_hourly_today.yaml")
     def test_get_wind_actual_and_forecast_hourly_today(self):
         df = self.iso.get_wind_actual_and_forecast_hourly("today")
@@ -106,6 +107,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_wind_actual_and_forecast_hourly(df)
 
+    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_wind_actual_and_forecast_hourly_latest.yaml")
     def test_get_wind_actual_and_forecast_hourly_latest(self):
         df = self.iso.get_wind_actual_and_forecast_hourly("latest")
@@ -113,6 +115,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_wind_actual_and_forecast_hourly(df)
 
+    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_wind_actual_and_forecast_hourly_date_range.yaml",
     )
@@ -169,6 +172,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
+    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_wind_actual_and_forecast_by_geographical_region_hourly_today.yaml",
     )
@@ -184,6 +188,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_wind_actual_and_forecast_by_geographical_region_hourly(df)
 
+    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_wind_actual_and_forecast_by_geographical_region_hourly_latest.yaml",
     )
@@ -195,6 +200,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_wind_actual_and_forecast_by_geographical_region_hourly(df)
 
+    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
     )
@@ -237,6 +243,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
+    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_solar_actual_and_forecast_hourly_today.yaml")
     def test_get_solar_actual_and_forecast_hourly_today(self):
         df = self.iso.get_solar_actual_and_forecast_hourly("today")
@@ -249,6 +256,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_solar_actual_and_forecast_hourly(df)
 
+    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_solar_actual_and_forecast_hourly_latest.yaml")
     def test_get_solar_actual_and_forecast_hourly_latest(self):
         df = self.iso.get_solar_actual_and_forecast_hourly("latest")
@@ -256,6 +264,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_solar_actual_and_forecast_hourly(df)
 
+    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_solar_actual_and_forecast_hourly_date_range.yaml")
     def test_get_solar_actual_and_forecast_hourly_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
@@ -314,6 +323,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
+    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_solar_actual_and_forecast_by_geographical_region_hourly_today.yaml",
     )
@@ -330,6 +340,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_solar_actual_and_forecast_by_geographical_region_hourly(df)
 
+    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_solar_actual_and_forecast_by_geographical_region_hourly_latest.yaml",
     )
@@ -341,6 +352,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_solar_actual_and_forecast_by_geographical_region_hourly(df)
 
+    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
     )
