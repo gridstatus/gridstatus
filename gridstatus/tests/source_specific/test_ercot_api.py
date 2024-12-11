@@ -6,7 +6,14 @@ import pytest
 from gridstatus.base import Markets
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
 from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES
-from gridstatus.ercot_api.ercot_api import HISTORICAL_DAYS_THRESHOLD, ErcotAPI
+from gridstatus.ercot_api.ercot_api import (
+    HISTORICAL_DAYS_THRESHOLD,
+    SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+    SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
+    WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+    WIND_ACTUAL_AND_FORECAST_COLUMNS,
+    ErcotAPI,
+)
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.source_specific.test_ercot import RESOURCE_AS_OFFERS_COLUMNS
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -70,29 +77,7 @@ class TestErcotAPI(TestHelperMixin):
     """get_wind_actual_and_forecast_hourly"""
 
     def _check_wind_actual_and_forecast_hourly(self, df):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "GEN SYSTEM WIDE",
-            "COP HSL SYSTEM WIDE",
-            "STWPF SYSTEM WIDE",
-            "WGRPP SYSTEM WIDE",
-            "GEN LZ SOUTH HOUSTON",
-            "COP HSL LZ SOUTH HOUSTON",
-            "STWPF LZ SOUTH HOUSTON",
-            "WGRPP LZ SOUTH HOUSTON",
-            "GEN LZ WEST",
-            "COP HSL LZ WEST",
-            "STWPF LZ WEST",
-            "WGRPP LZ WEST",
-            "GEN LZ NORTH",
-            "COP HSL LZ NORTH",
-            "STWPF LZ NORTH",
-            "WGRPP LZ NORTH",
-            "HSL SYSTEM WIDE",
-        ]
-
+        assert df.columns.tolist() == WIND_ACTUAL_AND_FORECAST_COLUMNS
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
     @pytest.mark.integration
@@ -139,36 +124,10 @@ class TestErcotAPI(TestHelperMixin):
     """get_wind_actual_and_forecast_by_geographical_region_hourly"""
 
     def _check_wind_actual_and_forecast_by_geographical_region_hourly(self, df):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "GEN SYSTEM WIDE",
-            "COP HSL SYSTEM WIDE",
-            "STWPF SYSTEM WIDE",
-            "WGRPP SYSTEM WIDE",
-            "GEN PANHANDLE",
-            "COP HSL PANHANDLE",
-            "STWPF PANHANDLE",
-            "WGRPP PANHANDLE",
-            "GEN COASTAL",
-            "COP HSL COASTAL",
-            "STWPF COASTAL",
-            "WGRPP COASTAL",
-            "GEN SOUTH",
-            "COP HSL SOUTH",
-            "STWPF SOUTH",
-            "WGRPP SOUTH",
-            "GEN WEST",
-            "COP HSL WEST",
-            "STWPF WEST",
-            "WGRPP WEST",
-            "GEN NORTH",
-            "COP HSL NORTH",
-            "STWPF NORTH",
-            "WGRPP NORTH",
-            "HSL SYSTEM WIDE",
-        ]
+        assert (
+            df.columns.tolist()
+            == WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
+        )
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
@@ -230,16 +189,7 @@ class TestErcotAPI(TestHelperMixin):
     """get_solar_actual_and_forecast_hourly"""
 
     def _check_solar_actual_and_forecast_hourly(self, df):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "GEN SYSTEM WIDE",
-            "COP HSL SYSTEM WIDE",
-            "STPPF SYSTEM WIDE",
-            "PVGRPP SYSTEM WIDE",
-            "HSL SYSTEM WIDE",
-        ]
+        assert df.columns.tolist() == SOLAR_ACTUAL_AND_FORECAST_COLUMNS
 
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
@@ -286,41 +236,10 @@ class TestErcotAPI(TestHelperMixin):
     """get_solar_actual_and_forecast_by_geographical_region_hourly"""
 
     def _check_solar_actual_and_forecast_by_geographical_region_hourly(self, df):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "GEN SYSTEM WIDE",
-            "COP HSL SYSTEM WIDE",
-            "STPPF SYSTEM WIDE",
-            "PVGRPP SYSTEM WIDE",
-            "GEN CenterWest",
-            "COP HSL CenterWest",
-            "STPPF CenterWest",
-            "PVGRPP CenterWest",
-            "GEN NorthWest",
-            "COP HSL NorthWest",
-            "STPPF NorthWest",
-            "PVGRPP NorthWest",
-            "GEN FarWest",
-            "COP HSL FarWest",
-            "STPPF FarWest",
-            "PVGRPP FarWest",
-            "GEN FarEast",
-            "COP HSL FarEast",
-            "STPPF FarEast",
-            "PVGRPP FarEast",
-            "GEN SouthEast",
-            "COP HSL SouthEast",
-            "STPPF SouthEast",
-            "PVGRPP SouthEast",
-            "GEN CenterEast",
-            "COP HSL CenterEast",
-            "STPPF CenterEast",
-            "PVGRPP CenterEast",
-            "HSL SYSTEM WIDE",
-        ]
-
+        assert (
+            df.columns.tolist()
+            == SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
+        )
         assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
 
     @pytest.mark.integration
