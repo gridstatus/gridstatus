@@ -11,6 +11,13 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import setup_gs_logger
 from gridstatus.miso import MISO
 
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+CERTIFICATES_CHAIN_FILE = os.path.join(
+    CURRENT_DIR,
+    "public_certificates/miso_api/intermediate_and_root.pem",
+)
+
+
 PRICING_PRODUCT = "pricing"
 BASE_PRICING_URL = "https://apim.misoenergy.org/pricing/v1"
 PRELIMINARY_STRING = "Preliminary"
@@ -261,7 +268,7 @@ class MISOAPI:
         if verbose:
             logger.info(f"Getting data from {url}")
 
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=headers, verify=CERTIFICATES_CHAIN_FILE)
         response.raise_for_status()
 
         data = response.json()
@@ -280,7 +287,11 @@ class MISOAPI:
             page_url = f"{url}&pageNumber={page_number}"
 
             attempt = 0
-            response = requests.get(page_url, headers=headers, verify=False)
+            response = requests.get(
+                page_url,
+                headers=headers,
+                verify=CERTIFICATES_CHAIN_FILE,
+            )
 
             while response.status_code != 200 and attempt < max_retries:
                 attempt += 1
@@ -291,7 +302,11 @@ class MISOAPI:
                 )
 
                 time.sleep(self.initial_sleep_seconds**attempt)
-                response = requests.get(page_url, headers=headers, verify=False)
+                response = requests.get(
+                    page_url,
+                    headers=headers,
+                    verify=CERTIFICATES_CHAIN_FILE,
+                )
 
             data = response.json()
 
