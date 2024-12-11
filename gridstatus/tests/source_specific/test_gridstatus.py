@@ -4,6 +4,12 @@ import pytest
 import gridstatus
 from gridstatus import CAISO, IESO, ISONE, MISO, NYISO, PJM, SPP, Ercot
 from gridstatus.base import GridStatus, ISOBase
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+api_vcr = setup_vcr(
+    source="gridstatus",
+    record_mode=RECORD_MODE,
+)
 
 all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE(), IESO()]
 
@@ -16,6 +22,7 @@ ISO-specific tests should go to BaseTestISO subclasses found in test_{iso}.py
 """
 
 
+@pytest.mark.integration
 def test_make_lmp_availability_df():
     gridstatus.utils.make_lmp_availability_table()
 
@@ -43,7 +50,6 @@ def test_handle_date_today_tz():
         tz=tz,
     )
     assert date.tzinfo.zone == tz
-
     assert date.hour == 0
     assert date.minute == 0
     assert date.second == 0
@@ -67,12 +73,10 @@ def test_gridstatus_to_dict():
     }
 
 
-# only testing with caiso, assume works with others
-
-
+# NOTE(kladar): This only tests against CAISO and assumes it works for all ISOs
+@pytest.mark.integration
 def test_end_is_today():
     iso = CAISO()
-
     num_days = 7
     end = pd.Timestamp.now(tz=iso.default_timezone) + pd.Timedelta(days=1)
     start = end - pd.Timedelta(days=num_days)
@@ -81,6 +85,7 @@ def test_end_is_today():
     assert data["Time"].dt.day.nunique() == num_days
 
 
+@pytest.mark.integration
 def test_end_before_start_raises_error():
     iso = CAISO()
     with pytest.raises(AssertionError):

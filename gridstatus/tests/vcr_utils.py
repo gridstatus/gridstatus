@@ -7,7 +7,7 @@ import vcr
 
 # NOTE(Kladar): Set VCR_RECORD_MODE to "all" to update the fixtures as an integration test,
 # say on a weekly or monthly job.
-RECORD_MODE = os.environ.get("VCR_RECORD_MODE", "once")
+RECORD_MODE = os.getenv("VCR_RECORD_MODE", "once")
 
 # Map of ISO -> endpoint patterns that require date range handling
 DATE_RANGE_METHODS = {

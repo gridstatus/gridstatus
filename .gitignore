@@ -62,12 +62,8 @@ coverage.xml
 cover/
 mypy_report/
 # Ignore local vcr cassette fixtures
-gridstatus/tests/fixtures/miso/vcr_cassettes
-gridstatus/tests/fixtures/isone/vcr_cassettes
-gridstatus/tests/fixtures/pjm/vcr_cassettes
-gridstatus/tests/fixtures/ercot_api/vcr_cassettes
-gridstatus/tests/fixtures/ieso/vcr_cassettes
-gridstatus/tests/fixtures/miso_api/vcr_cassettes
+**/vcr_cassettes/
+
 
 # Translations
 *.mo
