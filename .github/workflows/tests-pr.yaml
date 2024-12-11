@@ -67,6 +67,7 @@ jobs:
       ERCOT_API_SUBSCRIPTION_KEY: ${{ secrets.ERCOT_API_SUBSCRIPTION_KEY }}
       ISONE_API_USERNAME: ${{ secrets.ISONE_API_USERNAME }}
       ISONE_API_PASSWORD: ${{ secrets.ISONE_API_PASSWORD }}
+      MISO_API_PRICING_SUBSCRIPTION_KEY: ${{ secrets.MISO_API_PRICING_SUBSCRIPTION_KEY }}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.11
