@@ -131,7 +131,7 @@ class MISOAPI:
 
         return self._process_pricing_data(data_list, market=market)
 
-    @support_date_range(frequency="HOUR_START", convert_to_dataframe=False)
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_day_ahead_hourly(
         self,
         date,
@@ -151,7 +151,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="HOUR_START", convert_to_dataframe=False)
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_real_time_hourly_ex_post(
         self,
         date,
@@ -171,7 +171,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="5_MIN", convert_to_dataframe=False)
+    @support_date_range(frequency="5_MIN", return_raw=True)
     def _get_lmp_real_time_5_min_ex_ante(self, date, end=None, verbose=False):
         # Interval format is hh:mm at the start of the interval
         interval = date.floor("5min").strftime("%H:%M")
@@ -186,7 +186,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="5_MIN", convert_to_dataframe=False)
+    @support_date_range(frequency="5_MIN", return_raw=True)
     def _get_lmp_real_time_5_min_ex_post(
         self,
         date,
