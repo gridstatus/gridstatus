@@ -3348,28 +3348,15 @@ class Ercot(ISOBase):
         ]
 
     @support_date_range(frequency=None)
-    def get_ercot_indicative_lmp_by_settlement_point(
+    def get_indicative_lmp_by_settlement_point(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ):
-        endpoint_date = date[0] if isinstance(date, tuple) else date
-
-        historical_data_request = (
-            pd.Timestamp.now(tz=self.default_timezone)
-            - pd.Timestamp(endpoint_date, tz=self.default_timezone)
-        ) > pd.Timedelta(days=4)
-
-        if historical_data_request:
-            base_url = "https://data.ercot.com"
-        else:
-            base_url = "www.ercot.com"
-
         doc = self._get_document(
             report_type_id=ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID,
             date=date,
-            base_url=base_url,
             extension=None,
             verbose=verbose,
         )

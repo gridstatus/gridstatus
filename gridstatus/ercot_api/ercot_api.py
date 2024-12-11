@@ -3,7 +3,6 @@ import json
 import os
 import random
 import time
-from typing import Optional
 from zipfile import ZipFile
 
 import numpy as np
@@ -17,7 +16,7 @@ from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE, Ercot
 from gridstatus.ercot_api.api_parser import _timestamp_parser, parse_all_endpoints
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import log, logger
 
 # API to hit with subscription key to get token
 TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
@@ -102,6 +101,10 @@ DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_load_res_as_o
 # DAM 60 Day Gen Resource AS Offers
 # https://data.ercot.com/data-product-archive/NP3-966-ER
 DAM_60_DAY_GEN_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_gen_res_as_offers"
+
+# Indicative LMP
+# https://data.ercot.com/data-product-archive/NP6-970-CD
+INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-970-cd/rtd_lmp_node_zone_hub"
 
 
 class ErcotAPI:
@@ -543,6 +546,52 @@ class ErcotAPI:
         data = self.ercot._handle_lmp_df(df=data, verbose=verbose)
 
         return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_indicative_lmp_by_settlement_point(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ):
+        df = self.get_historical_data(
+            endpoint=INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+        )
+
+        columns_to_rename = {
+            "RepeatedHourFlag": "DSTFlag",
+            "IntervalId": "Interval Id",
+            "IntervalEnding": "Interval End",
+            "IntervalRepeatedHourFlag": "Interval Repeated Hour Flag",
+            "SettlementPoint": "Location",
+            "SettlementPointType": "Location Type",
+            "LMP": "LMP",
+        }
+        df.rename(columns=columns_to_rename, inplace=True)
+        df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "RTDTimestamp",
+                "Interval Id",
+                "Interval Repeated Hour Flag",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+        ]
 
     @support_date_range(frequency=None)
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
@@ -1069,13 +1118,13 @@ class ErcotAPI:
 
     def get_historical_data(
         self,
-        endpoint,
-        start_date,
-        end_date,
-        read_as_csv=True,
-        add_post_datetime=False,
-        verbose=False,
-    ):
+        endpoint: str,
+        start_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        read_as_csv: bool = True,
+        add_post_datetime: bool = False,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
         postDatetimeFrom parameters. The retrieval process has two steps:
@@ -1159,26 +1208,30 @@ class ErcotAPI:
                 except Exception as e:
                     if "429 Client Error" in str(e):
                         # Rate limited, so sleep for a longer time
-                        log(
+                        logger.info(
                             f"Rate limited. Sleeping {self.sleep_seconds * 10} seconds",
-                            verbose,
                         )
                         time.sleep(self.sleep_seconds * 10)
                     else:
-                        log(f"Link: {link} failed with error: {e}", verbose)
+                        logger.error(f"Link: {link} failed with error: {e}")
                         time.sleep(self.sleep_seconds)  # Wait before retrying
 
                     retries += 1
 
             if retries == max_retries:
-                log(
+                logger.error(
                     f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
-                    verbose,
                 )
 
         return pd.concat(dfs) if read_as_csv else dfs
 
-    def _get_historical_data_links(self, emil_id, start_date, end_date, verbose=False):
+    def _get_historical_data_links(
+        self,
+        emil_id: str,
+        start_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> list[tuple[str, str]]:
         """Retrieves links to download historical data for the given emil_id from
         start to end date.
 
@@ -1228,7 +1281,7 @@ class ErcotAPI:
             for archive in archives
         ]
 
-        log(f"Found {len(links_and_post_datetimes)} archives", verbose)
+        logger.info(f"Found {len(links_and_post_datetimes)} archives")
 
         return links_and_post_datetimes
 
@@ -1236,7 +1289,7 @@ class ErcotAPI:
         self,
         endpoint: str,
         page_size: int = DEFAULT_PAGE_SIZE,
-        max_pages: Optional[int] = None,
+        max_pages: int | None = None,
         verbose: bool = False,
         **api_params,
     ) -> pd.DataFrame:
@@ -1295,9 +1348,8 @@ class ErcotAPI:
 
             if pages_to_retrieve < total_pages:
                 # User requested fewer pages than total
-                print(
-                    f"warning: only retrieving {max_pages} pages "
-                    f"out of {total_pages} total",
+                logger.warning(
+                    f"Only retrieving {max_pages} pages out of {total_pages} total",
                 )
 
         with self._create_progress_bar(
@@ -1312,9 +1364,8 @@ class ErcotAPI:
                 current_page += 1
                 parsed_api_params["page"] = current_page
 
-                log(
+                logger.info(
                     f"Requesting url: {urlstring} with params {parsed_api_params}",
-                    verbose,
                 )
 
                 response = self.make_api_call(
@@ -1336,7 +1387,7 @@ class ErcotAPI:
 
         return data
 
-    def _should_use_historical(self, date):
+    def _should_use_historical(self, date: str | pd.Timestamp) -> bool:
         return utils._handle_date(
             date,
             tz=self.default_timezone,
