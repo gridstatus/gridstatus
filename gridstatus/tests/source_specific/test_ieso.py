@@ -549,12 +549,13 @@ class TestIESO(BaseTestISO):
     """get_resource_adequacy_report"""
 
     # NOTE(kladar): we will see how future data rolls in and historical rolls off
+    # NOTE(kladar, 2024-12-11): Tests rolled off, earliest is currently 2024-09-10, 92 days ago
     RESOURCE_ADEQUACY_TEST_DATES = [
         (
-            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=119)).strftime(
+            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=92)).strftime(
                 "%Y-%m-%d",
             ),
-            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=115)).strftime(
+            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=89)).strftime(
                 "%Y-%m-%d",
             ),
         ),
@@ -581,10 +582,10 @@ class TestIESO(BaseTestISO):
             ),
         ),
         (
-            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=28)).strftime(
+            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=31)).strftime(
                 "%Y-%m-%d",
             ),
-            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=30)).strftime(
+            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=34)).strftime(
                 "%Y-%m-%d",
             ),
         ),
