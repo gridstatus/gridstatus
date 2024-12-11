@@ -40,7 +40,7 @@ class TestMISOAPI(TestHelperMixin):
     @api_vcr.use_cassette("test_get_lmp_day_ahead_hourly_ex_ante")
     def test_get_lmp_day_ahead_hourly_ex_ante_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
-        end = start + pd.Timedelta(hours=12)
+        end = start + pd.Timedelta(hours=4)
         df = self.iso.get_lmp_day_ahead_hourly_ex_ante(start, end)
 
         self._check_lmp(df, market_value=Markets.DAY_AHEAD_HOURLY_EX_ANTE.value)
@@ -53,7 +53,7 @@ class TestMISOAPI(TestHelperMixin):
     @api_vcr.use_cassette("test_get_lmp_day_ahead_hourly_ex_post")
     def test_get_lmp_day_ahead_hourly_ex_post_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
-        end = start + pd.Timedelta(hours=12)
+        end = start + pd.Timedelta(hours=4)
         df = self.iso.get_lmp_day_ahead_hourly_ex_post(start, end)
 
         self._check_lmp(df, market_value=Markets.DAY_AHEAD_HOURLY_EX_POST.value)
@@ -66,7 +66,7 @@ class TestMISOAPI(TestHelperMixin):
     @api_vcr.use_cassette("test_get_lmp_real_time_hourly_ex_post_prelim")
     def test_get_lmp_real_time_hourly_ex_post_prelim_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
-        end = start + pd.Timedelta(hours=12)
+        end = start + pd.Timedelta(hours=4)
         df = self.iso.get_lmp_real_time_hourly_ex_post_prelim(start, end)
 
         self._check_lmp(df, market_value=Markets.REAL_TIME_HOURLY_EX_POST_PRELIM.value)
@@ -79,7 +79,7 @@ class TestMISOAPI(TestHelperMixin):
     @api_vcr.use_cassette("test_get_lmp_real_time_hourly_ex_post_final")
     def test_get_lmp_real_time_hourly_ex_post_final_date_range(self):
         start = self.local_now() - pd.DateOffset(days=2)
-        end = start + pd.Timedelta(hours=12)
+        end = start + pd.Timedelta(hours=4)
         df = self.iso.get_lmp_real_time_hourly_ex_post_final(start, end)
 
         self._check_lmp(df, market_value=Markets.REAL_TIME_HOURLY_EX_POST_FINAL.value)
