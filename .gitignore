@@ -64,6 +64,7 @@ mypy_report/
 # Ignore local vcr cassette fixtures
 **/vcr_cassettes/
 
+
 # Translations
 *.mo
 *.pot
@@ -171,3 +172,9 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Ignore all .pem files
+*.pem
+
+# But allow this specific certificate file
+!gridstatus/public_certificates/ieso/intermediate_and_root.pem

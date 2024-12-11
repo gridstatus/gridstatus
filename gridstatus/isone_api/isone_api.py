@@ -613,15 +613,15 @@ class ISONEAPI:
             "Interval End": "Interval End",
             "CreationDate": "Publish Time",
             "ReliabilityRegion": "Location",
-            "LoadMw": "Load",
+            "LoadMw": "Load Forecast",
             "ReliabilityRegionLoadPercentage": "Regional Percentage",
         }
         system_cols = {
             "BeginDate": "Interval Start",
             "Interval End": "Interval End",
             "CreationDate": "Publish Time",
-            "LoadMw": "Load",
-            "NetLoadMw": "Net Load",
+            "LoadMw": "Load Forecast",
+            "NetLoadMw": "Net Load Forecast",
         }
         if "ReliabilityRegion" in df.columns:
             df = df.rename(columns=regional_cols)
@@ -631,10 +631,13 @@ class ISONEAPI:
             )
         else:
             df = df.rename(columns=system_cols)
-            df["Net Load"] = pd.to_numeric(df["Net Load"], errors="coerce")
+            df["Net Load Forecast"] = pd.to_numeric(
+                df["Net Load Forecast"],
+                errors="coerce",
+            )
 
         df = df.sort_values(["Interval Start", "Publish Time"])
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
+        df["Load Forecast"] = pd.to_numeric(df["Load Forecast"], errors="coerce")
 
         log.info(
             f"Processed load forecast data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",

@@ -641,6 +641,9 @@ class PJM(ISOBase):
             index=["Publish Time", "Interval Start"],
         ).reset_index()
 
+        # Replace & with "" and / with _ in column names
+        data.columns = data.columns.str.replace("&", "").str.replace("/", "_")
+
         data["Publish Time"] = pd.to_datetime(
             data["Publish Time"],
             utc=True,

@@ -81,4 +81,9 @@ def setup_vcr(
         record_mode=record_mode,
         match_on=["uri", "method"],
         before_record=lambda request: before_record_callback(request, source),
+        filter_headers=[
+            ("Authorization", "XXXXXX"),
+            ("Ocp-Apim-Subscription-Key", "XXXXXX"),
+            ("X-Api-Key", "XXXXXX"),
+        ],
     )
