@@ -553,7 +553,7 @@ class ErcotAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         df = self.get_historical_data(
             endpoint=INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT,
             start_date=date,
@@ -1152,6 +1152,9 @@ class ErcotAPI:
             [pandas.DataFrame]: a dataframe of historical data
         """
         emil_id = endpoint.split("/")[1]
+        logger.debug(
+            f"Getting historical data for {emil_id} from {start_date} to {end_date}",
+        )
         links_and_post_datetimes = self._get_historical_data_links(
             emil_id,
             start_date,
@@ -1178,6 +1181,7 @@ class ErcotAPI:
             disable=not verbose,
             total=len(links),
         ):
+            logger.debug(f"Fetching historical data from {link}")
             while retries < max_retries:
                 try:
                     # Data comes back as a compressed zip file.
@@ -1249,6 +1253,7 @@ class ErcotAPI:
             "page": page_num,
         }
 
+        logger.debug(f"Requesting url: {urlstring} with params {api_params}")
         response = self.make_api_call(urlstring, api_params=api_params, verbose=verbose)
 
         meta = response["_meta"]
@@ -1438,7 +1443,12 @@ class ErcotAPI:
 
         return endpoints
 
-    def _create_progress_bar(self, total_pages, desc, verbose):
+    def _create_progress_bar(
+        self,
+        total_pages: int,
+        desc: str,
+        verbose: bool,
+    ) -> tqdm:
         return tqdm(
             total=total_pages,
             desc=desc,
