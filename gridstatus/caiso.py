@@ -24,8 +24,8 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
-_BASE = "https://www.caiso.com/outlook/SP"
-_HISTORY_BASE = "https://www.caiso.com/outlook/SP/History"
+CURRENT_BASE = "https://www.caiso.com/outlook/current"
+HISTORY_BASE = "https://www.caiso.com/outlook/history"
 
 DAY_AHEAD_MARKET_MARKET_RUN_ID = "DAM"
 REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
@@ -88,7 +88,7 @@ class CAISO(ISOBase):
         return self.get_status(date="latest").time.date()
 
     def get_stats(self, verbose=False):
-        stats_url = _BASE + "/stats.txt"
+        stats_url = CURRENT_BASE + "/stats.txt"
         r = self._get_json(stats_url, verbose=verbose)
         return r
 
@@ -1469,11 +1469,11 @@ def _get_historical(
     # NOTE: The cache buster is necessary because CAISO will serve cached data from cloudfront on the same url if the url has not changed.
     cache_buster = int(pd.Timestamp.now(tz=CAISO.default_timezone).timestamp())
     if utils.is_today(date, CAISO.default_timezone):
-        url: str = f"{_BASE}/{file}.csv?_={cache_buster}"
+        url: str = f"{CURRENT_BASE}/{file}.csv?_={cache_buster}"
         latest = True
     else:
         date_str: str = date.strftime("%Y%m%d")
-        url: str = f"{_HISTORY_BASE}/{date_str}/{file}.csv?_={cache_buster}"
+        url: str = f"{HISTORY_BASE}/{date_str}/{file}.csv?_={cache_buster}"
         latest = False
     msg: str = f"Fetching URL: {url}"
     log(msg, verbose)
