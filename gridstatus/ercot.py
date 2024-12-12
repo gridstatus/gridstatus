@@ -3354,6 +3354,9 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            self.get_indicative_lmp_by_settlement_point(date="today")
+
         doc = self._get_document(
             report_type_id=ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID,
             date=date,
