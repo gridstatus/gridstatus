@@ -76,14 +76,16 @@ def setup_vcr(
     if record_mode == "all":
         clean_cassettes(cassette_dir)
 
-    return vcr.VCR(
-        cassette_library_dir=cassette_dir,
-        record_mode=record_mode,
-        match_on=["uri", "method"],
-        before_record=lambda request: before_record_callback(request, source),
-        filter_headers=[
+    vcr_config = {
+        "cassette_library_dir": cassette_dir,
+        "record_mode": record_mode,
+        "match_on": ["uri", "method"],
+        "before_record": lambda request: before_record_callback(request, source),
+        "filter_headers": [
             ("Authorization", "XXXXXX"),
             ("Ocp-Apim-Subscription-Key", "XXXXXX"),
             ("X-Api-Key", "XXXXXX"),
         ],
-    )
+    }
+
+    return vcr.VCR(**vcr_config)
