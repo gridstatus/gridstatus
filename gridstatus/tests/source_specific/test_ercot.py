@@ -1841,3 +1841,43 @@ class TestErcot(BaseTestISO):
     def test_get_documents_raises_exception_when_no_docs(self):
         with pytest.raises(NoDataFoundException):
             self.iso.get_load_forecast("2010-01-01")
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                pd.Timestamp.today().normalize(),
+                pd.Timestamp.today().normalize() + pd.Timedelta(hours=1),
+            ),
+            # (pd.Timestamp("today").normalize() - pd.Timedelta(days=1), pd.Timestamp("today").normalize() - pd.Timedelta(days=1) + pd.Timedelta(hours=1)),
+            # (pd.Timestamp("today").normalize() - pd.Timedelta(days=2), pd.Timestamp("today").normalize() - pd.Timedelta(days=2) + pd.Timedelta(hours=1)),
+            # (pd.Timestamp("today").normalize() - pd.Timedelta(days=3), pd.Timestamp("today").normalize() - pd.Timedelta(days=3) + pd.Timedelta(hours=1))
+        ],
+    )
+    def test_get_indicative_lmp_by_settlement_point(self, date, end):
+        with api_vcr.use_cassette(
+            f"test_get_indicative_lmp_historical_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_indicative_lmp_by_settlement_point(date, end)
+
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "RTDTimestamp",
+                "Interval Id",
+                "Interval Repeated Hour Flag",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+
+            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["LMP"] == "float64"
+            assert (
+                (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+            ).all()
+            print(df["Interval Start"].min())
+            print(date)
+            assert df["Interval Start"].min() == date
+            assert df["Interval End"].max() == end + pd.Timedelta(minutes=50)
