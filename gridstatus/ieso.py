@@ -964,7 +964,7 @@ class IESO(ISOBase):
     def _get_latest_resource_adequacy_json(
         self,
         date: str | datetime.date | datetime.datetime,
-        last_modified: str | datetime.date | datetime.datetime | None = None,
+        last_modified: pd.Timestamp | None = None,
     ) -> tuple[dict, datetime.datetime]:
         """Retrieve the Resource Adequacy Report for a given date and convert to JSON. There are often many
         files for a given date, so this function will return the file with the highest version number. It does
@@ -997,7 +997,11 @@ class IESO(ISOBase):
             )
 
         if last_modified:
-            last_modified = pd.Timestamp(last_modified, tz=self.default_timezone)
+            if last_modified.tz is None:
+                last_modified = utils._handle_date(
+                    last_modified,
+                    tz=self.default_timezone,
+                )
             filtered_files = [
                 (file, time)
                 for file, time in files_and_times
@@ -1043,7 +1047,7 @@ class IESO(ISOBase):
     def _get_all_resource_adequacy_jsons(
         self,
         date: str | datetime.date | datetime.datetime,
-        last_modified: str | datetime.date | datetime.datetime | None = None,
+        last_modified: pd.Timestamp | None = None,
     ) -> list[tuple[dict, datetime.datetime]]:
         """Retrieve all Resource Adequacy Report JSONs for a given date. There are often many
         files for a given date, so this function will return all files, the data of which may be separated
@@ -1076,7 +1080,11 @@ class IESO(ISOBase):
             )
 
         if last_modified:
-            last_modified = pd.Timestamp(last_modified, tz=self.default_timezone)
+            if last_modified.tz is None:
+                last_modified = utils._handle_date(
+                    last_modified,
+                    tz=self.default_timezone,
+                )
             filtered_files = [
                 (file, time)
                 for file, time in file_rows
