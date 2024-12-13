@@ -2966,7 +2966,6 @@ class Ercot(ISOBase):
             match = True
 
             doc_url = f"https://{base_url}/misdownload/servlets/mirDownload?doclookupId={doc['Document']['DocID']}"  # noqa
-
             # make sure to handle retry files
             # e.g SPPHLZNP6905_retry_20230608_1545_csv
             try:
@@ -3132,7 +3131,7 @@ class Ercot(ISOBase):
         verbose: bool = False,
         request_kwargs: dict | None = None,
     ):
-        log(f"Reading {doc.url}", verbose)
+        logger.debug(f"Reading {doc.url}")
 
         response = requests.get(doc.url, **(request_kwargs or {})).content
         df = pd.read_csv(io.BytesIO(response), compression="zip")
@@ -3198,7 +3197,7 @@ class Ercot(ISOBase):
 
         ending_time_col_name = "HourEnding"
 
-        def ambiguous_based_on_dstflag(df):
+        def ambiguous_based_on_dstflag(df: pd.DataFrame) -> pd.Series:
             # DSTFlag is Y during the repeated hour (after the clock has been set back)
             # so it's False/N during DST And True/Y during Standard Time.
             # For ambiguous, Pandas wants True for DST and False for Standard Time
@@ -3356,14 +3355,18 @@ class Ercot(ISOBase):
     ) -> pd.DataFrame:
         if date == "latest":
             self.get_indicative_lmp_by_settlement_point(date="today")
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-        doc = self._get_document(
+        docs = self._get_documents(
             report_type_id=ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID,
             date=date,
-            extension=None,
+            extension="csv",
+            published_before=end,
+            published_after=date,
             verbose=verbose,
         )
-        df = self.read_doc(doc, parse=False, verbose=verbose)
+        df = self.read_docs(docs, parse=False, verbose=verbose)
         columns_to_rename = {
             "RepeatedHourFlag": "DSTFlag",
             "IntervalId": "Interval Id",
@@ -3382,7 +3385,7 @@ class Ercot(ISOBase):
         )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
-
+        df = df.sort_values("Interval Start").reset_index(drop=True)
         return df[
             [
                 "Interval Start",
