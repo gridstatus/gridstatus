@@ -40,10 +40,11 @@ def date_range_maker(start, end, freq, inclusive="neither"):
 # current or latest endpoints that are automatically handled. Currently cannot refactor this confidently
 # without improved testing since it touches many methods
 class support_date_range:
-    def __init__(self, frequency, update_dates=None):
+    def __init__(self, frequency, update_dates=None, return_raw=False):
         """Maximum frequency of ranges. if None, then no new ranges are created."""
         self.frequency = frequency
         self.update_dates = update_dates
+        self.return_raw = return_raw
 
     def __call__(self, f):
         @functools.wraps(f)
@@ -239,7 +240,10 @@ class support_date_range:
                 print("Errors that occurred while getting data:")
                 pprint.pprint(errors)
 
-            # if first item is a dict, then we neeed to concat by key
+            if self.return_raw:
+                return all_df
+
+            # if first item is a dict, then we need to concat by key
             if all_df and isinstance(all_df[0], dict):
                 df = {}
                 for d in all_df:

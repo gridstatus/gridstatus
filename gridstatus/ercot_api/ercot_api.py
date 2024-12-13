@@ -77,11 +77,121 @@ SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
 # https://data.ercot.com/data-product-archive/NP4-732-CD
 HOURLY_WIND_POWER_PRODUCTION_ENDPOINT = "/np4-732-cd/wpp_hrly_avrg_actl_fcast"
 
+WIND_ACTUAL_AND_FORECAST_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Publish Time",
+    "GEN SYSTEM WIDE",
+    "COP HSL SYSTEM WIDE",
+    "STWPF SYSTEM WIDE",
+    "WGRPP SYSTEM WIDE",
+    "HSL SYSTEM WIDE",
+    "GEN LZ SOUTH HOUSTON",
+    "COP HSL LZ SOUTH HOUSTON",
+    "STWPF LZ SOUTH HOUSTON",
+    "WGRPP LZ SOUTH HOUSTON",
+    "GEN LZ WEST",
+    "COP HSL LZ WEST",
+    "STWPF LZ WEST",
+    "WGRPP LZ WEST",
+    "GEN LZ NORTH",
+    "COP HSL LZ NORTH",
+    "STWPF LZ NORTH",
+    "WGRPP LZ NORTH",
+]
+
+# Wind Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# https://data.ercot.com/data-product-archive/NP4-742-CD
+HOURLY_WIND_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
+    "/np4-742-cd/wpp_hrly_actual_fcast_geo"
+)
+
+WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Publish Time",
+    "GEN SYSTEM WIDE",
+    "COP HSL SYSTEM WIDE",
+    "STWPF SYSTEM WIDE",
+    "WGRPP SYSTEM WIDE",
+    "HSL SYSTEM WIDE",
+    "GEN PANHANDLE",
+    "COP HSL PANHANDLE",
+    "STWPF PANHANDLE",
+    "WGRPP PANHANDLE",
+    "GEN COASTAL",
+    "COP HSL COASTAL",
+    "STWPF COASTAL",
+    "WGRPP COASTAL",
+    "GEN SOUTH",
+    "COP HSL SOUTH",
+    "STWPF SOUTH",
+    "WGRPP SOUTH",
+    "GEN WEST",
+    "COP HSL WEST",
+    "STWPF WEST",
+    "WGRPP WEST",
+    "GEN NORTH",
+    "COP HSL NORTH",
+    "STWPF NORTH",
+    "WGRPP NORTH",
+]
+
+# Solar Power Production
+# https://data.ercot.com/data-product-archive/NP4-737-CD
+HOURLY_SOLAR_POWER_PRODUCTION_ENDPOINT = "/np4-737-cd/spp_hrly_avrg_actl_fcast"
+
+SOLAR_ACTUAL_AND_FORECAST_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Publish Time",
+    "GEN SYSTEM WIDE",
+    "COP HSL SYSTEM WIDE",
+    "STPPF SYSTEM WIDE",
+    "PVGRPP SYSTEM WIDE",
+    "HSL SYSTEM WIDE",
+]
+
 # Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
 # https://data.ercot.com/data-product-archive/NP4-745-CD
-HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT = (
+HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
     "/np4-745-cd/spp_hrly_actual_fcast_geo"
 )
+
+SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Publish Time",
+    "GEN SYSTEM WIDE",
+    "COP HSL SYSTEM WIDE",
+    "STPPF SYSTEM WIDE",
+    "PVGRPP SYSTEM WIDE",
+    "HSL SYSTEM WIDE",
+    "GEN CenterWest",
+    "COP HSL CenterWest",
+    "STPPF CenterWest",
+    "PVGRPP CenterWest",
+    "GEN NorthWest",
+    "COP HSL NorthWest",
+    "STPPF NorthWest",
+    "PVGRPP NorthWest",
+    "GEN FarWest",
+    "COP HSL FarWest",
+    "STPPF FarWest",
+    "PVGRPP FarWest",
+    "GEN FarEast",
+    "COP HSL FarEast",
+    "STPPF FarEast",
+    "PVGRPP FarEast",
+    "GEN SouthEast",
+    "COP HSL SouthEast",
+    "STPPF SouthEast",
+    "PVGRPP SouthEast",
+    "GEN CenterEast",
+    "COP HSL CenterEast",
+    "STPPF CenterEast",
+    "PVGRPP CenterEast",
+]
 
 # Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes. # noqa
 # https://data.ercot.com/data-product-archive/NP6-905-CD
@@ -264,8 +374,7 @@ class ErcotAPI:
         # General information about the public reports
         return self.make_api_call(BASE_URL, verbose=verbose)
 
-    @support_date_range(frequency=None)
-    def get_hourly_wind_report(self, date, end=None, verbose=False):
+    def get_wind_actual_and_forecast_hourly(self, date, end=None, verbose=False):
         """Get Wind Power Production - Hourly Averaged Actual and Forecasted Values
 
         Arguments:
@@ -276,6 +385,48 @@ class ErcotAPI:
         Returns:
             pandas.DataFrame: A DataFrame with hourly wind power production reports
         """
+        return self._get_wind_actual_and_forecast_hourly(
+            endpoint=HOURLY_WIND_POWER_PRODUCTION_ENDPOINT,
+            date=date,
+            end=end,
+            columns=WIND_ACTUAL_AND_FORECAST_COLUMNS,
+            verbose=verbose,
+        )
+
+    def get_wind_actual_and_forecast_by_geographical_region_hourly(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Get Wind Power Production - Hourly Averaged Actual and Forecasted Values by
+        Geographical Region
+
+        Arguments:
+            date (str): the date to fetch reports for.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly wind power production reports
+        """
+        return self._get_wind_actual_and_forecast_hourly(
+            endpoint=HOURLY_WIND_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT,
+            date=date,
+            end=end,
+            columns=WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def _get_wind_actual_and_forecast_hourly(
+        self,
+        endpoint: str,
+        date,
+        end=None,
+        columns=None,
+        verbose=False,
+    ):
         if date == "latest":
             date = self._local_now() - pd.Timedelta(hours=1)
             end = self._local_now()
@@ -285,16 +436,20 @@ class ErcotAPI:
         # Only use the historical API because it allows us to filter on posted time (
         # publish time)
         data = self.get_historical_data(
-            endpoint=HOURLY_WIND_POWER_PRODUCTION_ENDPOINT,
+            endpoint=endpoint,
             start_date=date,
             end_date=end,
             verbose=verbose,
             add_post_datetime=True,
         )
 
-        return self._handle_hourly_wind_report(data, verbose=verbose)
+        return self._handle_wind_actual_and_forecast_hourly(
+            data,
+            columns=columns,
+            verbose=verbose,
+        )
 
-    def _handle_hourly_wind_report(self, data, verbose=False):
+    def _handle_wind_actual_and_forecast_hourly(self, data, columns, verbose=False):
         data = Ercot().parse_doc(data, verbose=verbose)
 
         data.columns = data.columns.str.replace("_", " ")
@@ -314,10 +469,33 @@ class ErcotAPI:
 
         data = Ercot()._rename_hourly_wind_or_solar_report(data)
 
-        return data
+        return data[columns]
 
-    @support_date_range(frequency=None)
-    def get_hourly_solar_report(self, date, end=None, verbose=False):
+    def get_solar_actual_and_forecast_hourly(self, date, end=None, verbose=False):
+        """Get Solar Power Production - Hourly Averaged Actual and Forecasted Values
+
+        Arguments:
+            date (str): the date to fetch reports for.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly solar power production reports
+        """
+        return self._get_solar_actual_and_forecast_hourly(
+            endpoint=HOURLY_SOLAR_POWER_PRODUCTION_ENDPOINT,
+            date=date,
+            end=end,
+            columns=SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
+            verbose=verbose,
+        )
+
+    def get_solar_actual_and_forecast_by_geographical_region_hourly(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
         """Get Solar Power Production - Hourly Averaged Actual and Forecasted Values by
         Geographical Region
 
@@ -329,6 +507,23 @@ class ErcotAPI:
         Returns:
             pandas.DataFrame: A DataFrame with hourly wind power production reports
         """
+        return self._get_solar_actual_and_forecast_hourly(
+            endpoint=HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT,
+            date=date,
+            end=end,
+            columns=SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def _get_solar_actual_and_forecast_hourly(
+        self,
+        endpoint,
+        date,
+        end=None,
+        columns=None,
+        verbose=False,
+    ):
         if date == "latest":
             date = self._local_now() - pd.Timedelta(hours=1)
             end = self._local_now()
@@ -338,16 +533,20 @@ class ErcotAPI:
         # Only use the historical API because it allows us to filter on posted time (
         # publish time)
         data = self.get_historical_data(
-            endpoint=HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_REPORT_ENDPOINT,  # noqa
+            endpoint=endpoint,
             start_date=date,
             end_date=end,
             verbose=verbose,
             add_post_datetime=True,
         )
 
-        return self._handle_hourly_solar_report(data, verbose=verbose)
+        return self._handle_solar_actual_and_forecast_hourly(
+            data,
+            columns=columns,
+            verbose=verbose,
+        )
 
-    def _handle_hourly_solar_report(self, data, verbose=False):
+    def _handle_solar_actual_and_forecast_hourly(self, data, columns, verbose=False):
         data = Ercot().parse_doc(data, verbose=verbose)
 
         data.columns = data.columns.str.replace("_", " ")
@@ -367,7 +566,7 @@ class ErcotAPI:
 
         data = Ercot()._rename_hourly_wind_or_solar_report(data)
 
-        return data
+        return data[columns]
 
     @support_date_range(frequency=None)
     def get_as_prices(self, date, end=None, verbose=False):
