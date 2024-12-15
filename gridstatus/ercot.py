@@ -3375,6 +3375,9 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
         df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_indicative_lmp_by_settlement_point(df)
+
+    def _handle_indicative_lmp_by_settlement_point(self, df: pd.DataFrame):
         columns_to_rename = {
             "RepeatedHourFlag": "DSTFlag",
             "IntervalId": "Interval Id",
@@ -3385,11 +3388,31 @@ class Ercot(ISOBase):
             "LMP": "LMP",
         }
         df.rename(columns=columns_to_rename, inplace=True)
+
+        def ambiguous_based_on_dstflag(df: pd.DataFrame) -> pd.Series:
+            # DSTFlag is Y during the repeated hour (after the clock has been set back)
+            # so it's False/N during DST And True/Y during Standard Time.
+            # For ambiguous, Pandas wants True for DST and False for Standard Time
+            # during repeated hours. Therefore, ambgiuous should be True when
+            # DSTFlag is False/N
+
+            # Some ERCOT datasets use a boolean, some use a string
+            if df["DSTFlag"].dtype == bool:
+                return ~df["DSTFlag"]
+            # Assume that if the DSTFlag column is a string, it's "Y" or "N"
+            else:
+                assert set(df["DSTFlag"].unique()).issubset({"Y", "N"})
+                return df["DSTFlag"] == "N"
+
+        ambiguous = ambiguous_based_on_dstflag(df)
+
         df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
             self.default_timezone,
+            ambiguous=ambiguous,
         )
         df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
             self.default_timezone,
+            ambiguous=ambiguous,
         )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)

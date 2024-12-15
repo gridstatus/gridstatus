@@ -760,37 +760,7 @@ class ErcotAPI:
             verbose=verbose,
         )
 
-        columns_to_rename = {
-            "RepeatedHourFlag": "DSTFlag",
-            "IntervalId": "Interval Id",
-            "IntervalEnding": "Interval End",
-            "IntervalRepeatedHourFlag": "Interval Repeated Hour Flag",
-            "SettlementPoint": "Location",
-            "SettlementPointType": "Location Type",
-            "LMP": "LMP",
-        }
-        df.rename(columns=columns_to_rename, inplace=True)
-        df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
-            self.default_timezone,
-        )
-        df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
-            self.default_timezone,
-        )
-
-        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
-
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "RTDTimestamp",
-                "Interval Id",
-                "Interval Repeated Hour Flag",
-                "Location",
-                "Location Type",
-                "LMP",
-            ]
-        ]
+        return self.ercot._handle_indicative_lmp_by_settlement_point(df)
 
     @support_date_range(frequency=None)
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
