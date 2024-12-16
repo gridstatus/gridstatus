@@ -22,7 +22,6 @@ def date_range_maker(
     start: pd.Timestamp,
     end: pd.Timestamp,
     freq: str,
-    inclusive: str = "neither",
 ) -> list[pd.Timestamp]:
     """Generate a date range based on start and end dates and a frequency."""
 
