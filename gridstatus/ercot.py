@@ -3409,10 +3409,12 @@ class Ercot(ISOBase):
         df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
             self.default_timezone,
             ambiguous=ambiguous,
+            nonexistent="NaT",
         )
         df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
             self.default_timezone,
             ambiguous=ambiguous,
+            nonexistent="NaT",
         )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
