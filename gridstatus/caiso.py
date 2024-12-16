@@ -870,7 +870,7 @@ class CAISO(ISOBase):
 
         if pdf is None:
             raise ValueError(
-                "Could not find curtailment PDF for {}".format(date),
+                f"Could not find curtailment PDF for {date}",
             )
 
         with io.StringIO() as buf, redirect_stderr(buf):

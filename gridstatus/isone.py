@@ -14,7 +14,7 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import log, logger
 from gridstatus.lmp_config import lmp_config
 
 
@@ -421,8 +421,7 @@ class ISONE(ISOBase):
 
             dfs = []
             for interval in intervals:
-                msg = "Loading interval {}".format(interval)
-                log(msg, verbose=verbose)
+                logger.info(f"Loading interval {interval}")
                 u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"  # noqa
                 # Use a try and except in case the data for previous intervals is not
                 # published yet.
@@ -436,7 +435,7 @@ class ISONE(ISOBase):
                         ),
                     )
                 except Exception as e:
-                    log(f"Failed to load {u} with {e}", verbose=verbose)
+                    logger.error(f"Failed to load {u} with {e}")
 
             data_intervals = None
 
@@ -448,8 +447,7 @@ class ISONE(ISOBase):
 
             if querying_for_today:
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
-                msg = "Loading current interval"
-                log(msg, verbose=verbose)
+                logger.info("Loading current interval")
                 # this request is very very slow for some reason.
                 # I suspect b/c the server is making the response dynamically
                 data_current = _make_request(
