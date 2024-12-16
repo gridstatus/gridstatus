@@ -3389,7 +3389,10 @@ class Ercot(ISOBase):
         }
         df.rename(columns=columns_to_rename, inplace=True)
 
-        def ambiguous_based_on_dstflag(df: pd.DataFrame) -> pd.Series:
+        def ambiguous_based_on_flag(
+            df: pd.DataFrame,
+            column_name: str = "DSTFlag",
+        ) -> pd.Series:
             # DSTFlag is Y during the repeated hour (after the clock has been set back)
             # so it's False/N during DST And True/Y during Standard Time.
             # For ambiguous, Pandas wants True for DST and False for Standard Time
@@ -3397,23 +3400,30 @@ class Ercot(ISOBase):
             # DSTFlag is False/N
 
             # Some ERCOT datasets use a boolean, some use a string
-            if df["DSTFlag"].dtype == bool:
-                return ~df["DSTFlag"]
+            if df[column_name].dtype == bool:
+                return ~df[column_name]
             # Assume that if the DSTFlag column is a string, it's "Y" or "N"
             else:
-                assert set(df["DSTFlag"].unique()).issubset({"Y", "N"})
-                return df["DSTFlag"] == "N"
+                assert set(df[column_name].unique()).issubset({"Y", "N"})
+                return df[column_name] == "N"
 
-        ambiguous = ambiguous_based_on_dstflag(df)
+        ambiguous_rtd_timestamp = ambiguous_based_on_flag(
+            df,
+            column_name="RTDTimestamp",
+        )
+        ambiguous_interval_repeated_hour_flag = ambiguous_based_on_flag(
+            df,
+            column_name="Interval Repeated Hour Flag",
+        )
 
         df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
             self.default_timezone,
-            ambiguous=ambiguous,
+            ambiguous=ambiguous_rtd_timestamp,
             nonexistent="NaT",
         )
         df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
             self.default_timezone,
-            ambiguous=ambiguous,
+            ambiguous=ambiguous_interval_repeated_hour_flag,
             nonexistent="NaT",
         )
 
@@ -3425,7 +3435,6 @@ class Ercot(ISOBase):
                 "Interval End",
                 "RTDTimestamp",
                 "Interval Id",
-                "Interval Repeated Hour Flag",
                 "Location",
                 "Location Type",
                 "LMP",
