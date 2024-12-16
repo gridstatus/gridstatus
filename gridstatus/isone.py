@@ -56,7 +56,7 @@ class ISONE(ISOBase):
         ".I.NRTHPORT138": 4017,
     }
 
-    def get_status(self, date, verbose=False):
+    def get_status(self, date: str, verbose: bool = False) -> GridStatus:
         """Get latest status for ISO NE"""
 
         if date != "latest":
@@ -108,7 +108,12 @@ class ISONE(ISOBase):
 
     # NOTE(Kladar): This is a deprecated in favor of the ISONEAPI method.
     @support_date_range(frequency="DAY_START")
-    def get_fuel_mix(self, date, end=None, verbose=False):
+    def get_fuel_mix(
+        self,
+        date: str,
+        end: str = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Return fuel mix at a previous date
 
         Provided at frequent, but irregular intervals by ISONE
@@ -899,8 +904,7 @@ def _make_request(url, skiprows, verbose):
 def _make_wsclient_request(url, data, verbose=False):
     """Make request to ISO NE wsclient"""
 
-    msg = f"Requesting data from {url}"
-    log(msg, verbose)
+    logger.info(f"Requesting data from {url}")
 
     r = requests.post(
         "https://www.iso-ne.com/ws/wsclient",
