@@ -3386,16 +3386,18 @@ class Ercot(ISOBase):
             "LMP": "LMP",
         }
         df.rename(columns=columns_to_rename, inplace=True)
-        # ambiguous_rtd_timestamp = df["RepeatedHourFlag"] == "N"
-        # ambiguous_interval_end = df["Interval Repeated Hour Flag"] == "N"
+        assert set(df["RepeatedHourFlag"].unique()).issubset({"Y", "N"})
+        assert set(df["Interval Repeated Hour Flag"].unique()).issubset({"Y", "N"})
 
         df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
             self.default_timezone,
-            # ambiguous=ambiguous_rtd_timestamp,
+            ambiguous=df["RepeatedHourFlag"] == "N",
+            nonexistent="shift_forward",
         )
         df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
             self.default_timezone,
-            # ambiguous=ambiguous_interval_end,
+            ambiguous=df["Interval Repeated Hour Flag"] == "N",
+            nonexistent="shift_forward",
         )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
