@@ -753,6 +753,9 @@ class ErcotAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if not end:
+            end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
         df = self.get_historical_data(
             endpoint=INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT,
             start_date=date,
