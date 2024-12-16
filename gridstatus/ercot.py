@@ -3379,52 +3379,23 @@ class Ercot(ISOBase):
 
     def _handle_indicative_lmp_by_settlement_point(self, df: pd.DataFrame):
         columns_to_rename = {
-            "RepeatedHourFlag": "DSTFlag",
             "IntervalId": "Interval Id",
             "IntervalEnding": "Interval End",
-            "IntervalRepeatedHourFlag": "Interval Repeated Hour Flag",
             "SettlementPoint": "Location",
             "SettlementPointType": "Location Type",
             "LMP": "LMP",
         }
         df.rename(columns=columns_to_rename, inplace=True)
-
-        def ambiguous_based_on_flag(
-            df: pd.DataFrame,
-            column_name: str = "DSTFlag",
-        ) -> pd.Series:
-            # DSTFlag is Y during the repeated hour (after the clock has been set back)
-            # so it's False/N during DST And True/Y during Standard Time.
-            # For ambiguous, Pandas wants True for DST and False for Standard Time
-            # during repeated hours. Therefore, ambgiuous should be True when
-            # DSTFlag is False/N
-
-            # Some ERCOT datasets use a boolean, some use a string
-            if df[column_name].dtype == bool:
-                return ~df[column_name]
-            # Assume that if the DSTFlag column is a string, it's "Y" or "N"
-            else:
-                assert set(df[column_name].unique()).issubset({"Y", "N"})
-                return df[column_name] == "N"
-
-        ambiguous_rtd_timestamp = ambiguous_based_on_flag(
-            df,
-            column_name="RTDTimestamp",
-        )
-        ambiguous_interval_repeated_hour_flag = ambiguous_based_on_flag(
-            df,
-            column_name="Interval Repeated Hour Flag",
-        )
+        # ambiguous_rtd_timestamp = df["RepeatedHourFlag"] == "N"
+        # ambiguous_interval_end = df["Interval Repeated Hour Flag"] == "N"
 
         df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
             self.default_timezone,
-            ambiguous=ambiguous_rtd_timestamp,
-            nonexistent="NaT",
+            # ambiguous=ambiguous_rtd_timestamp,
         )
         df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
             self.default_timezone,
-            ambiguous=ambiguous_interval_repeated_hour_flag,
-            nonexistent="NaT",
+            # ambiguous=ambiguous_interval_end,
         )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)

@@ -762,7 +762,7 @@ class ErcotAPI:
             end_date=end,
             verbose=verbose,
         )
-
+        logger.info(df.head())
         return self.ercot._handle_indicative_lmp_by_settlement_point(df)
 
     @support_date_range(frequency=None)
@@ -1371,19 +1371,18 @@ class ErcotAPI:
                     else:
                         # Decompress the zip file and read the csv
                         df = pd.read_csv(bytes, compression="zip")
-
+                        logger.debug(df.head())
                         if add_post_datetime:
                             df["postDatetime"] = posted_datetime
 
                         dfs.append(df)
-
+                        print(f"len of dfs: {len(dfs)}")
                     # Necessary to avoid rate limiting
                     time.sleep(self.sleep_seconds)
                     break  # Exit the loop if the operation is successful
 
                 except Exception as e:
                     if "429 Client Error" in str(e):
-                        # Rate limited, so sleep for a longer time
                         logger.info(
                             f"Rate limited. Sleeping {self.sleep_seconds * 10} seconds",
                         )

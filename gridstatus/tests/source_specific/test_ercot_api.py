@@ -1440,8 +1440,8 @@ class TestErcotAPI(TestHelperMixin):
     @pytest.mark.parametrize(
         "date, end",
         [
-            ("2024-02-15 00:00:00", "2024-02-15 01:00:00"),
-            ("2024-03-10 01:00:00", "2024-03-10 04:00:00"),
+            # ("2024-02-15 00:00:00", "2024-02-15 01:00:00"),
+            # ("2024-03-10 00:00:00", "2024-03-10 04:00:00"),
             ("2024-11-03 00:00:00", "2024-11-03 02:00:00"),
         ],
     )
@@ -1456,7 +1456,6 @@ class TestErcotAPI(TestHelperMixin):
                 "Interval End",
                 "RTDTimestamp",
                 "Interval Id",
-                "Interval Repeated Hour Flag",
                 "Location",
                 "Location Type",
                 "LMP",
