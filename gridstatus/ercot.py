@@ -3387,7 +3387,7 @@ class Ercot(ISOBase):
         }
         df.rename(columns=columns_to_rename, inplace=True)
         assert set(df["RepeatedHourFlag"].unique()).issubset({"Y", "N"})
-        assert set(df["Interval Repeated Hour Flag"].unique()).issubset({"Y", "N"})
+        assert set(df["IntervalRepeatedHourFlag"].unique()).issubset({"Y", "N"})
 
         df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
             self.default_timezone,
@@ -3396,7 +3396,7 @@ class Ercot(ISOBase):
         )
         df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
             self.default_timezone,
-            ambiguous=df["Interval Repeated Hour Flag"] == "N",
+            ambiguous=df["IntervalRepeatedHourFlag"] == "N",
             nonexistent="shift_forward",
         )
 
