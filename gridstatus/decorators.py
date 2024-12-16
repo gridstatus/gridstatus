@@ -1,31 +1,34 @@
 import functools
 import os
-import pprint
+from pprint import pprint as pp
+from typing import Callable
 
 import pandas as pd
 import tqdm
 
 from gridstatus import utils
 from gridstatus.base import Markets
+from gridstatus.gs_logging import logger
 
 
-def _get_args_dict(fn, args, kwargs):
+def _get_args_dict(fn: Callable, args: tuple, kwargs: dict) -> dict:
     args_names = fn.__code__.co_varnames[: fn.__code__.co_argcount]
     return {**dict(zip(args_names, args)), **kwargs}
 
 
 # make custom function rather than using pd.date_range
 # due to handling of localized timezones
-def date_range_maker(start, end, freq, inclusive="neither"):
+def date_range_maker(
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    freq: str,
+    inclusive: str = "neither",
+) -> list[pd.Timestamp]:
     """Generate a date range based on start and end dates and a frequency."""
-    # implement other behavior
-    # if/when needed
-    assert inclusive == "neither"
 
     if isinstance(freq, str):
         freq = pd.tseries.frequencies.to_offset(freq)
 
-    # Generate the date range
     current_date = start + freq
 
     dates = []
@@ -40,13 +43,18 @@ def date_range_maker(start, end, freq, inclusive="neither"):
 # current or latest endpoints that are automatically handled. Currently cannot refactor this confidently
 # without improved testing since it touches many methods
 class support_date_range:
-    def __init__(self, frequency, update_dates=None, return_raw=False):
+    def __init__(
+        self,
+        frequency: str,
+        update_dates: Callable = None,
+        return_raw: bool = False,
+    ):
         """Maximum frequency of ranges. if None, then no new ranges are created."""
         self.frequency = frequency
         self.update_dates = update_dates
         self.return_raw = return_raw
 
-    def __call__(self, f):
+    def __call__(self, f: Callable):
         @functools.wraps(f)
         def wrapped_f(*args, **kwargs):
             args_dict = _get_args_dict(f, args, kwargs)
@@ -73,16 +81,12 @@ class support_date_range:
 
             if "date" in args_dict and "start" in args_dict:
                 raise ValueError(
-                    "Cannot supply both 'date' and 'start' to function {}".format(
-                        f,
-                    ),
+                    f"Cannot supply both 'date' and 'start' to function {f.__name__}",
                 )
 
             if "date" not in args_dict and "start" not in args_dict:
                 raise ValueError(
-                    "Must supply either 'date' or 'start' to function {}".format(
-                        f,
-                    ),
+                    f"Must supply either 'date' or 'start' to function {f.__name__}",
                 )
 
             if "start" in args_dict:
@@ -129,10 +133,7 @@ class support_date_range:
 
             assert (
                 args_dict["end"] > args_dict["date"]
-            ), "End date {} must be after start date {}".format(
-                args_dict["end"],
-                args_dict["date"],
-            )
+            ), f"End date {args_dict['end']} must be after start date {args_dict['date']}"
 
             # if frequency is callable, then use it to get the frequency
             frequency = self.frequency
@@ -218,13 +219,11 @@ class support_date_range:
                         elif error == "ignore":
                             df = None
                             errors += [args_dict.copy()]
-                            print("Error: {}".format(e))
-                            print("Args: {}\n".format(args_dict))
+                            logger.error(f"Error: {e}")
+                            logger.error(f"Args: {args_dict}\n")
                         else:
                             raise ValueError(
-                                "Invalid value for error: {}".format(
-                                    error,
-                                ),
+                                f"Invalid value for error: {error}",
                             )
 
                     _handle_save_to(df, save_to, args_dict, f)
@@ -237,8 +236,8 @@ class support_date_range:
                     start_date = end_date
 
             if errors:
-                print("Errors that occurred while getting data:")
-                pprint.pprint(errors)
+                logger.error("Errors that occurred while getting data:")
+                pp(errors)
 
             if self.return_raw:
                 return all_df
@@ -261,28 +260,19 @@ class support_date_range:
         return wrapped_f
 
 
-def _handle_save_to(df, save_to, args_dict, f):
+def _handle_save_to(df: pd.DataFrame, save_to: str, args_dict: dict, f: Callable):
     if df is not None and save_to is not None:
         if "end" in args_dict:
-            filename = "{}_{}_{}_{}.csv".format(
-                args_dict["self"].__class__.__name__,
-                f.__name__,
-                args_dict["date"].strftime("%Y%m%d"),
-                args_dict["end"].strftime("%Y%m%d"),
-            )
+            filename = f"{args_dict['self'].__class__.__name__}_{f.__name__}_{args_dict['date'].strftime('%Y%m%d')}_{args_dict['end'].strftime('%Y%m%d')}.csv"
         else:
-            filename = "{}_{}_{}.csv".format(
-                args_dict["self"].__class__.__name__,
-                f.__name__,
-                args_dict["date"].strftime("%Y%m%d"),
-            )
+            filename = f"{args_dict['self'].__class__.__name__}_{f.__name__}_{args_dict['date'].strftime('%Y%m%d')}.csv"
 
         path = os.path.join(save_to, filename)
 
         df.to_csv(path, index=None)
 
 
-def _get_pjm_archive_date(market):
+def _get_pjm_archive_date(market: str) -> pd.Timestamp:
     import gridstatus
 
     market = Markets(market)
@@ -305,7 +295,7 @@ def _get_pjm_archive_date(market):
 
 
 # todo convert to custom PJMDateOffset class
-def pjm_update_dates(dates, args_dict):
+def pjm_update_dates(dates: list[pd.Timestamp], args_dict: dict) -> list[pd.Timestamp]:
     """PJM has a weird API. This method updates the date range list to account
     for the following restrictions:
 
