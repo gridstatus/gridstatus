@@ -762,7 +762,6 @@ class ErcotAPI:
             end_date=end,
             verbose=verbose,
         )
-        logger.info(df.head())
         return self.ercot._handle_indicative_lmp_by_settlement_point(df)
 
     @support_date_range(frequency=None)

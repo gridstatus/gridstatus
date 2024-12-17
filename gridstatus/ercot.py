@@ -3381,6 +3381,7 @@ class Ercot(ISOBase):
         columns_to_rename = {
             "IntervalId": "Interval Id",
             "IntervalEnding": "Interval End",
+            "RTDTimestamp": "RTD Timestamp",
             "SettlementPoint": "Location",
             "SettlementPointType": "Location Type",
             "LMP": "LMP",
@@ -3389,7 +3390,7 @@ class Ercot(ISOBase):
         assert set(df["RepeatedHourFlag"].unique()).issubset({"Y", "N"})
         assert set(df["IntervalRepeatedHourFlag"].unique()).issubset({"Y", "N"})
 
-        df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
+        df["RTD Timestamp"] = pd.to_datetime(df["RTD Timestamp"]).dt.tz_localize(
             self.default_timezone,
             ambiguous=df["RepeatedHourFlag"] == "N",
             nonexistent="shift_forward",
@@ -3406,7 +3407,7 @@ class Ercot(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "RTDTimestamp",
+                "RTD Timestamp",
                 "Interval Id",
                 "Location",
                 "Location Type",
