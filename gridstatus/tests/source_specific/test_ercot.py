@@ -1864,7 +1864,6 @@ class TestErcot(BaseTestISO):
                 "RTD Timestamp",
                 "Interval Start",
                 "Interval End",
-                "Interval Id",
                 "Location",
                 "Location Type",
                 "LMP",
