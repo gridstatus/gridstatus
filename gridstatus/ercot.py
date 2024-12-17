@@ -3380,8 +3380,8 @@ class Ercot(ISOBase):
     def _handle_indicative_lmp_by_settlement_point(self, df: pd.DataFrame):
         columns_to_rename = {
             "IntervalId": "Interval Id",
-            "RTDTimestamp": "RTD Timestamp",
             "IntervalEnding": "Interval End",
+            "RTDTimestamp": "RTD Timestamp",
             "SettlementPoint": "Location",
             "SettlementPointType": "Location Type",
             "LMP": "LMP",
