@@ -1873,5 +1873,9 @@ class TestErcot(BaseTestISO):
             assert (
                 (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
             ).all()
-            assert df["Interval Start"].min() == date
-            assert df["Interval End"].max() == end + pd.Timedelta(minutes=50)
+            assert df["Interval Start"].min() == date.tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() == end.tz_localize(
+                self.iso.default_timezone,
+            ) + pd.Timedelta(minutes=50)
