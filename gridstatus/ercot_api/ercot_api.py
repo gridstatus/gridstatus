@@ -909,29 +909,14 @@ class ErcotAPI:
         # date plus one if it is not provided.
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
-        if self._should_use_historical(date):
-            # For historical data, we need to subtract a day because we filter by
-            # posted date and this is day-ahead data
-            data = self.get_historical_data(
-                endpoint=DAM_LMP_ENDPOINT,
-                start_date=date - pd.Timedelta(days=1),
-                end_date=end - pd.Timedelta(days=1),
-                verbose=verbose,
-            )
-        else:
-            # For non-historical data, we do not need to subtract a day because filter
-            # by delivery date
-            api_params = {
-                "deliveryDateFrom": date,
-                "deliveryDateTo": end,
-            }
-
-            data = self.hit_ercot_api(
-                endpoint=DAM_LMP_ENDPOINT,
-                page_size=DEFAULT_PAGE_SIZE,
-                verbose=verbose,
-                **api_params,
-            )
+        # For historical data, we need to subtract a day because we filter by
+        # posted date and this is day-ahead data
+        data = self.get_historical_data(
+            endpoint=DAM_LMP_ENDPOINT,
+            start_date=date - pd.Timedelta(days=1),
+            end_date=end - pd.Timedelta(days=1),
+            verbose=verbose,
+        )
 
         return self.parse_dam_doc(data)
 
