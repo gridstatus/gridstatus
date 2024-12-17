@@ -3380,6 +3380,7 @@ class Ercot(ISOBase):
     def _handle_indicative_lmp_by_settlement_point(self, df: pd.DataFrame):
         columns_to_rename = {
             "IntervalId": "Interval Id",
+            "RTDTimestamp": "RTD Timestamp",
             "IntervalEnding": "Interval End",
             "SettlementPoint": "Location",
             "SettlementPointType": "Location Type",
@@ -3389,7 +3390,7 @@ class Ercot(ISOBase):
         assert set(df["RepeatedHourFlag"].unique()).issubset({"Y", "N"})
         assert set(df["IntervalRepeatedHourFlag"].unique()).issubset({"Y", "N"})
 
-        df["RTDTimestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
+        df["RTD Timestamp"] = pd.to_datetime(df["RTD Timestamp"]).dt.tz_localize(
             self.default_timezone,
             ambiguous=df["RepeatedHourFlag"] == "N",
             nonexistent="shift_forward",
@@ -3406,7 +3407,7 @@ class Ercot(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "RTDTimestamp",
+                "RTD Timestamp",
                 "Interval Id",
                 "Location",
                 "Location Type",
