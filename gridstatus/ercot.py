@@ -3405,9 +3405,9 @@ class Ercot(ISOBase):
         df = df.sort_values("Interval Start").reset_index(drop=True)
         return df[
             [
+                "RTD Timestamp",
                 "Interval Start",
                 "Interval End",
-                "RTD Timestamp",
                 "Interval Id",
                 "Location",
                 "Location Type",

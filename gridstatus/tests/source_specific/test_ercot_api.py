@@ -1452,9 +1452,9 @@ class TestErcotAPI(TestHelperMixin):
             df = self.iso.get_indicative_lmp_by_settlement_point(date, end)
 
             assert df.columns.tolist() == [
+                "RTD Timestamp",
                 "Interval Start",
                 "Interval End",
-                "RTD Timestamp",
                 "Interval Id",
                 "Location",
                 "Location Type",
