@@ -238,6 +238,7 @@ class ErcotAPI:
         subscription_key: str = None,
         sleep_seconds: float = 0.2,
         max_retries: int = 3,
+        batch_size: int = 1000,
     ):
         self.username = username or os.getenv("ERCOT_API_USERNAME")
         self.password = password or os.getenv("ERCOT_API_PASSWORD")
@@ -260,6 +261,8 @@ class ErcotAPI:
         self.sleep_seconds = sleep_seconds
         self.initial_delay = min(max(0.1, sleep_seconds), 60.0)
         self.max_retries = min(max(0, max_retries), 10)
+        # maximum batch size support by ERCOT API is 1000
+        self.batch_size = min(max(1, batch_size), 1_000)
 
     def _local_now(self):
         return pd.Timestamp("now", tz=self.default_timezone)
@@ -331,7 +334,7 @@ class ErcotAPI:
         method: str = "GET",
     ):
         logger.info(
-            f"Requesting url: {url} with params: {str(api_params)[:100] + '...' if api_params and len(str(api_params)) > 100 else api_params}",
+            f"Requesting url: {url} with params: {api_params}",
         )
 
         # make request with exponential backoff retry strategy
@@ -1325,7 +1328,7 @@ class ErcotAPI:
             add_post_datetime [bool]: if True, will add the postDatetime to the
                 dataframe. This is used for getting publish times.
             verbose [bool]: if True, will print out status messages
-            bulk_download [bool]: if True, will download the data in batches of 1000
+            bulk_download [bool]: if True, will download the data in batches
                 docIds. This is useful for avoiding rate limiting.
 
         Returns:
@@ -1341,6 +1344,9 @@ class ErcotAPI:
             end_date,
             verbose,
         )
+        links = [link for link, _ in links_and_post_datetimes]
+        doc_ids = [link.split("=")[-1] for link in links]
+        posted_datetimes = [tup[1] for tup in links_and_post_datetimes]
 
         if not links_and_post_datetimes:
             raise NoDataFoundException(
@@ -1349,94 +1355,105 @@ class ErcotAPI:
             )
 
         if bulk_download:
-            # Collect docIds from the links
-            doc_ids = [link.split("=")[-1] for link, _ in links_and_post_datetimes]
-
-            batch_size = 1000
-            doc_id_batches = [
-                doc_ids[i : i + batch_size] for i in range(0, len(doc_ids), batch_size)
-            ]
-
-            dfs = []
-            for batch in doc_id_batches:
-                payload = {"docIds": batch}
-                response = self.make_api_call(
-                    f"{BASE_URL}/archive/{emil_id}/download",
-                    api_params=payload,
-                    parse_json=False,
-                    method="POST",
-                )
-
-                bytes = pd.io.common.BytesIO(response)
-
-                if not read_as_csv:
-                    dfs.append(bytes)
-                else:
-                    with ZipFile(pd.io.common.BytesIO(response)) as outer_zip:
-                        logger.debug(
-                            f"Received zip file with {len(outer_zip.namelist())} files",
-                        )
-                        for inner_zip_name in outer_zip.namelist():
-                            with outer_zip.open(inner_zip_name) as inner_zip_file:
-                                df = pd.read_csv(inner_zip_file, compression="zip")
-                                if add_post_datetime:
-                                    df["postDatetime"] = pd.to_datetime(
-                                        df["postDatetime"],
-                                    )
-                                dfs.append(df)
-            return pd.concat(dfs) if read_as_csv else dfs
-
+            logger.debug("Bulk downloading historical data")
+            files = self._bulk_download_documents(doc_ids=doc_ids, emil_id=emil_id)
         else:
-            dfs = []
-            retries = 0
-            max_retries = 3
+            logger.debug("Individually downloading historical data")
+            files = self._individually_download_documents(links=links, verbose=verbose)
 
-            for link, posted_datetime in tqdm(
-                links_and_post_datetimes,
-                desc="Fetching historical data",
-                ncols=80,
-                disable=not verbose,
-                total=len(links_and_post_datetimes),
-            ):
-                logger.debug(f"Fetching historical data from {link}")
-                while retries < max_retries:
-                    try:
-                        response = self.make_api_call(
-                            link,
-                            parse_json=False,
-                        )
+        if not read_as_csv:
+            return files
 
-                        bytes = pd.io.common.BytesIO(response)
+        dfs = []
+        for bytes, posted_datetime in zip(files, posted_datetimes):
+            df = pd.read_csv(bytes, compression="zip")
+            if add_post_datetime:
+                df["postDatetime"] = posted_datetime
+            dfs.append(df)
 
-                        if not read_as_csv:
-                            dfs.append(bytes)
-                        else:
-                            df = pd.read_csv(bytes, compression="zip")
-                            if add_post_datetime:
-                                df["postDatetime"] = posted_datetime
+        return pd.concat(dfs)
 
-                            dfs.append(df)
-                        time.sleep(self.sleep_seconds)
-                        break
-
-                    except Exception as e:
-                        if "429 Client Error" in str(e):
-                            logger.info(
-                                f"Rate limited. Sleeping {self.sleep_seconds * 10} seconds",
-                            )
-                            time.sleep(self.sleep_seconds * 10)
-                        else:
-                            logger.error(f"Link: {link} failed with error: {e}")
-                            time.sleep(self.sleep_seconds)
-
-                        retries += 1
-
-                if retries == max_retries:
-                    logger.error(
-                        f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
+    def _individually_download_documents(
+        self,
+        links: list[str],
+        verbose: bool = False,
+    ) -> list[pd.io.common.BytesIO]:
+        retries = 0
+        max_retries = 3
+        documents = []
+        for link in tqdm(
+            links,
+            desc="Fetching historical data",
+            ncols=80,
+            disable=not verbose,
+            total=len(links),
+        ):
+            while retries < max_retries:
+                try:
+                    response = self.make_api_call(
+                        link,
+                        parse_json=False,
                     )
 
-            return pd.concat(dfs) if read_as_csv else dfs
+                    bytes = pd.io.common.BytesIO(response)
+
+                    documents.append(bytes)
+                    time.sleep(self.sleep_seconds)
+                    break
+
+                except Exception as e:
+                    if "429 Client Error" in str(e):
+                        logger.info(
+                            f"Rate limited. Sleeping {self.sleep_seconds * 10} seconds",
+                        )
+                        time.sleep(self.sleep_seconds * 10)
+                    else:
+                        logger.error(f"Link: {link} failed with error: {e}")
+                        time.sleep(self.sleep_seconds)
+
+                    retries += 1
+
+            if retries == max_retries:
+                logger.error(
+                    f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
+                )
+
+        return documents
+
+    def _bulk_download_documents(
+        self,
+        doc_ids: list[str],
+        emil_id: str,
+    ) -> list[pd.io.common.BytesIO]:
+        # Collect docIds from the links
+        documents = []
+        doc_id_batches = [
+            doc_ids[i : i + self.batch_size]
+            for i in range(0, len(doc_ids), self.batch_size)
+        ]
+        for batch in doc_id_batches:
+            payload = {"docIds": batch}
+            response = self.make_api_call(
+                f"{BASE_URL}/archive/{emil_id}/download",
+                api_params=payload,
+                parse_json=False,
+                method="POST",
+            )
+
+            with ZipFile(pd.io.common.BytesIO(response)) as outer_zip:
+                logger.debug(
+                    f"Received zip file with {len(outer_zip.namelist())} files",
+                )
+
+                # namelist is in reverse order of suppied docIds, so we need to reverse it
+                # so files are in the right order to zip with post datetimes
+                # todo(kanter) - i only spot checked the ordering, but seemed to be true
+                # I suspect there is a safer way to do this
+                for inner_zip_name in reversed(outer_zip.namelist()):
+                    with outer_zip.open(inner_zip_name) as inner_zip_file:
+                        documents.append(pd.io.common.BytesIO(inner_zip_file.read()))
+
+        return documents
 
     def _get_historical_data_links(
         self,
@@ -1462,7 +1479,6 @@ class ErcotAPI:
             "page": page_num,
         }
 
-        logger.debug(f"Requesting url: {urlstring} with params {api_params}")
         response = self.make_api_call(urlstring, api_params=api_params)
 
         meta = response["_meta"]
