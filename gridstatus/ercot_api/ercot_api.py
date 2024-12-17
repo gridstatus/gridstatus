@@ -3,7 +3,6 @@ import json
 import os
 import random
 import time
-from typing import Optional
 from zipfile import ZipFile
 
 import numpy as np
@@ -17,7 +16,7 @@ from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE, Ercot
 from gridstatus.ercot_api.api_parser import _timestamp_parser, parse_all_endpoints
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import logger
 
 # API to hit with subscription key to get token
 TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
@@ -213,6 +212,10 @@ DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_load_res_as_o
 # https://data.ercot.com/data-product-archive/NP3-966-ER
 DAM_60_DAY_GEN_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_gen_res_as_offers"
 
+# Indicative LMP
+# https://data.ercot.com/data-product-archive/NP6-970-CD
+INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-970-cd/rtd_lmp_node_zone_hub"
+
 
 class ErcotAPI:
     """
@@ -235,6 +238,7 @@ class ErcotAPI:
         subscription_key: str = None,
         sleep_seconds: float = 0.2,
         max_retries: int = 3,
+        batch_size: int = 1000,
     ):
         self.username = username or os.getenv("ERCOT_API_USERNAME")
         self.password = password or os.getenv("ERCOT_API_PASSWORD")
@@ -257,6 +261,8 @@ class ErcotAPI:
         self.sleep_seconds = sleep_seconds
         self.initial_delay = min(max(0.1, sleep_seconds), 60.0)
         self.max_retries = min(max(0, max_retries), 10)
+        # maximum batch size support by ERCOT API is 1000
+        self.batch_size = min(max(1, batch_size), 1_000)
 
     def _local_now(self):
         return pd.Timestamp("now", tz=self.default_timezone)
@@ -322,17 +328,23 @@ class ErcotAPI:
 
     def make_api_call(
         self,
-        url,
-        api_params=None,
-        parse_json=True,
-        verbose=False,
+        url: str,
+        api_params: dict = None,
+        parse_json: bool = True,
+        method: str = "GET",
     ):
-        log(f"Requesting url: {url} with params: {api_params}", verbose)
+        logger.info(
+            f"Requesting url: {url} with params: {api_params}",
+        )
+
         # make request with exponential backoff retry strategy
         retries = 0
         delay = self.initial_delay
         while retries <= self.max_retries:
-            response = requests.get(url, params=api_params, headers=self.headers())
+            if method == "POST":
+                response = requests.post(url, headers=self.headers(), json=api_params)
+            else:
+                response = requests.get(url, headers=self.headers(), params=api_params)
 
             retries += 1
             if response.status_code == status_codes.codes.OK:
@@ -341,10 +353,9 @@ class ErcotAPI:
                 response.status_code == status_codes.codes.TOO_MANY_REQUESTS
                 and retries <= self.max_retries
             ):
-                log(
+                logger.warning(
                     f"Warn: Rate-limited: waiting {delay} seconds before retry {retries}/{self.max_retries} "  # noqa
                     f"requesting url: {url} with params: {api_params}",
-                    verbose,
                 )
                 time.sleep(delay + random.uniform(0, delay * 0.1))
                 delay *= 2
@@ -359,7 +370,7 @@ class ErcotAPI:
                         f"Error: Failed to get data from {url} with params:"
                         f" {api_params}"
                     )
-                log(error_message, verbose)
+                logger.error(error_message)
                 response.raise_for_status()
 
         if parse_json:
@@ -367,9 +378,9 @@ class ErcotAPI:
         else:
             return response.content
 
-    def get_public_reports(self, verbose=False):
+    def get_public_reports(self):
         # General information about the public reports
-        return self.make_api_call(BASE_URL, verbose=verbose)
+        return self.make_api_call(BASE_URL)
 
     def get_wind_actual_and_forecast_hourly(self, date, end=None, verbose=False):
         """Get Wind Power Production - Hourly Averaged Actual and Forecasted Values
@@ -742,6 +753,25 @@ class ErcotAPI:
         data = self.ercot._handle_lmp_df(df=data, verbose=verbose)
 
         return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_indicative_lmp_by_settlement_point(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if not end:
+            end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        df = self.get_historical_data(
+            endpoint=INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            bulk_download=True,
+            verbose=verbose,
+        )
+        return self.ercot._handle_indicative_lmp_by_settlement_point(df)
 
     @support_date_range(frequency=None)
     def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
@@ -1268,13 +1298,14 @@ class ErcotAPI:
 
     def get_historical_data(
         self,
-        endpoint,
-        start_date,
-        end_date,
-        read_as_csv=True,
-        add_post_datetime=False,
-        verbose=False,
-    ):
+        endpoint: str,
+        start_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        read_as_csv: bool = True,
+        add_post_datetime: bool = False,
+        verbose: bool = False,
+        bulk_download: bool = False,
+    ) -> pd.DataFrame:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
         postDatetimeFrom parameters. The retrieval process has two steps:
@@ -1297,17 +1328,25 @@ class ErcotAPI:
             add_post_datetime [bool]: if True, will add the postDatetime to the
                 dataframe. This is used for getting publish times.
             verbose [bool]: if True, will print out status messages
+            bulk_download [bool]: if True, will download the data in batches
+                docIds. This is useful for avoiding rate limiting.
 
         Returns:
             [pandas.DataFrame]: a dataframe of historical data
         """
         emil_id = endpoint.split("/")[1]
+        logger.debug(
+            f"Getting historical data for {emil_id} from {start_date} to {end_date}",
+        )
         links_and_post_datetimes = self._get_historical_data_links(
             emil_id,
             start_date,
             end_date,
             verbose,
         )
+        links = [link for link, _ in links_and_post_datetimes]
+        doc_ids = [link.split("=")[-1] for link in links]
+        posted_datetimes = [tup[1] for tup in links_and_post_datetimes]
 
         if not links_and_post_datetimes:
             raise NoDataFoundException(
@@ -1315,14 +1354,35 @@ class ErcotAPI:
                 f"time range {start_date} to {end_date}",
             )
 
-        links, post_datetimes = zip(*links_and_post_datetimes)
+        if bulk_download:
+            logger.debug("Bulk downloading historical data")
+            files = self._bulk_download_documents(doc_ids=doc_ids, emil_id=emil_id)
+        else:
+            logger.debug("Individually downloading historical data")
+            files = self._individually_download_documents(links=links, verbose=verbose)
+
+        if not read_as_csv:
+            return files
 
         dfs = []
+        for bytes, posted_datetime in zip(files, posted_datetimes):
+            df = pd.read_csv(bytes, compression="zip")
+            if add_post_datetime:
+                df["postDatetime"] = posted_datetime
+            dfs.append(df)
+
+        return pd.concat(dfs)
+
+    def _individually_download_documents(
+        self,
+        links: list[str],
+        verbose: bool = False,
+    ) -> list[pd.io.common.BytesIO]:
         retries = 0
         max_retries = 3
-
-        for link, posted_datetime in tqdm(
-            zip(links, post_datetimes),
+        documents = []
+        for link in tqdm(
+            links,
             desc="Fetching historical data",
             ncols=80,
             disable=not verbose,
@@ -1330,54 +1390,86 @@ class ErcotAPI:
         ):
             while retries < max_retries:
                 try:
-                    # Data comes back as a compressed zip file.
                     response = self.make_api_call(
                         link,
-                        verbose=verbose,
                         parse_json=False,
                     )
 
-                    # Convert the bytes to a file-like object
                     bytes = pd.io.common.BytesIO(response)
 
-                    if not read_as_csv:
-                        dfs.append(bytes)
-                    else:
-                        # Decompress the zip file and read the csv
-                        df = pd.read_csv(bytes, compression="zip")
-
-                        if add_post_datetime:
-                            df["postDatetime"] = posted_datetime
-
-                        dfs.append(df)
-
-                    # Necessary to avoid rate limiting
+                    documents.append(bytes)
                     time.sleep(self.sleep_seconds)
-                    break  # Exit the loop if the operation is successful
+                    break
 
                 except Exception as e:
                     if "429 Client Error" in str(e):
-                        # Rate limited, so sleep for a longer time
-                        log(
+                        logger.info(
                             f"Rate limited. Sleeping {self.sleep_seconds * 10} seconds",
-                            verbose,
                         )
                         time.sleep(self.sleep_seconds * 10)
                     else:
-                        log(f"Link: {link} failed with error: {e}", verbose)
-                        time.sleep(self.sleep_seconds)  # Wait before retrying
+                        logger.error(f"Link: {link} failed with error: {e}")
+                        time.sleep(self.sleep_seconds)
 
                     retries += 1
 
             if retries == max_retries:
-                log(
+                logger.error(
                     f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
-                    verbose,
                 )
 
-        return pd.concat(dfs) if read_as_csv else dfs
+        return documents
 
-    def _get_historical_data_links(self, emil_id, start_date, end_date, verbose=False):
+    def _bulk_download_documents(
+        self,
+        doc_ids: list[str],
+        emil_id: str,
+    ) -> list[pd.io.common.BytesIO]:
+        documents = []
+        doc_id_batches = [
+            doc_ids[i : i + self.batch_size]
+            for i in range(0, len(doc_ids), self.batch_size)
+        ]
+        # empty list that is the length of the doc_ids
+        # we will fill this list with the documents in the correct order
+        documents = [None] * len(doc_ids)
+        for batch in doc_id_batches:
+            payload = {"docIds": batch}
+            response = self.make_api_call(
+                f"{BASE_URL}/archive/{emil_id}/download",
+                api_params=payload,
+                parse_json=False,
+                method="POST",
+            )
+
+            with ZipFile(pd.io.common.BytesIO(response)) as outer_zip:
+                logger.debug(
+                    f"Received zip file with {len(outer_zip.namelist())} files",
+                )
+
+                for inner_zip_name in outer_zip.namelist():
+                    # place the document in the correct index
+                    # based of the supplied doc_ids order
+                    # since downstream code expects this
+                    doc_id = inner_zip_name.split(".")[0]
+                    doc_index = doc_ids.index(doc_id)
+                    with outer_zip.open(inner_zip_name) as inner_zip_file:
+                        documents[doc_index] = pd.io.common.BytesIO(
+                            inner_zip_file.read(),
+                        )
+
+        # assert there are no None values in the documents list
+        # because this would indicate we missed a document
+        assert None not in documents, "Missing documents in bulk download"
+        return documents
+
+    def _get_historical_data_links(
+        self,
+        emil_id: str,
+        start_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> list[tuple[str, str]]:
         """Retrieves links to download historical data for the given emil_id from
         start to end date.
 
@@ -1395,7 +1487,7 @@ class ErcotAPI:
             "page": page_num,
         }
 
-        response = self.make_api_call(urlstring, api_params=api_params, verbose=verbose)
+        response = self.make_api_call(urlstring, api_params=api_params)
 
         meta = response["_meta"]
         total_pages = meta["totalPages"]
@@ -1413,7 +1505,6 @@ class ErcotAPI:
                 response = self.make_api_call(
                     urlstring,
                     api_params=api_params,
-                    verbose=verbose,
                 )
                 archives.extend(response["archives"])
 
@@ -1427,7 +1518,7 @@ class ErcotAPI:
             for archive in archives
         ]
 
-        log(f"Found {len(links_and_post_datetimes)} archives", verbose)
+        logger.info(f"Found {len(links_and_post_datetimes)} archives")
 
         return links_and_post_datetimes
 
@@ -1435,7 +1526,7 @@ class ErcotAPI:
         self,
         endpoint: str,
         page_size: int = DEFAULT_PAGE_SIZE,
-        max_pages: Optional[int] = None,
+        max_pages: int | None = None,
         verbose: bool = False,
         **api_params,
     ) -> pd.DataFrame:
@@ -1472,7 +1563,6 @@ class ErcotAPI:
         response = self.make_api_call(
             urlstring,
             api_params=parsed_api_params,
-            verbose=verbose,
         )
         # The data comes back as a list of lists. We get the columns to
         # create a dataframe after we have all the data
@@ -1494,9 +1584,8 @@ class ErcotAPI:
 
             if pages_to_retrieve < total_pages:
                 # User requested fewer pages than total
-                print(
-                    f"warning: only retrieving {max_pages} pages "
-                    f"out of {total_pages} total",
+                logger.warning(
+                    f"Only retrieving {max_pages} pages out of {total_pages} total",
                 )
 
         with self._create_progress_bar(
@@ -1511,15 +1600,13 @@ class ErcotAPI:
                 current_page += 1
                 parsed_api_params["page"] = current_page
 
-                log(
+                logger.info(
                     f"Requesting url: {urlstring} with params {parsed_api_params}",
-                    verbose,
                 )
 
                 response = self.make_api_call(
                     urlstring,
                     api_params=parsed_api_params,
-                    verbose=verbose,
                 )
 
                 data_results.extend(response["data"])
@@ -1535,7 +1622,7 @@ class ErcotAPI:
 
         return data
 
-    def _should_use_historical(self, date):
+    def _should_use_historical(self, date: str | pd.Timestamp) -> bool:
         return utils._handle_date(
             date,
             tz=self.default_timezone,
@@ -1586,7 +1673,12 @@ class ErcotAPI:
 
         return endpoints
 
-    def _create_progress_bar(self, total_pages, desc, verbose):
+    def _create_progress_bar(
+        self,
+        total_pages: int,
+        desc: str,
+        verbose: bool,
+    ) -> tqdm:
         return tqdm(
             total=total_pages,
             desc=desc,

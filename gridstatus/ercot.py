@@ -117,6 +117,10 @@ REAL_TIME_ADDERS_AND_RESERVES_RTID = 13221
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
 TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
 
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-970-CD
+# https://data.ercot.com/data-product-archive/NP6-970-CD - for historical data
+ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID = 13073
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -2894,15 +2898,15 @@ class Ercot(ISOBase):
 
     def _get_document(
         self,
-        report_type_id,
-        date=None,
-        published_after=None,
-        published_before=None,
-        constructed_name_contains=None,
-        extension=None,
-        verbose=False,
-        base_url="www.ercot.com",
-        request_kwargs=None,
+        report_type_id: int,
+        date: str | None = None,
+        published_after: str | None = None,
+        published_before: str | None = None,
+        constructed_name_contains: str | None = None,
+        extension: str | None = None,
+        verbose: bool = False,
+        base_url: str = "www.ercot.com",
+        request_kwargs: dict | None = None,
     ) -> Document:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -2934,17 +2938,17 @@ class Ercot(ISOBase):
 
     def _get_documents(
         self,
-        report_type_id,
-        date=None,
-        published_after=None,
-        published_before=None,
-        friendly_name_timestamp_after=None,
-        friendly_name_timestamp_before=None,
-        constructed_name_contains=None,
-        extension=None,
-        verbose=False,
-        base_url="www.ercot.com",
-        request_kwargs=None,
+        report_type_id: int,
+        date: str | None = None,
+        published_after: str | None = None,
+        published_before: str | None = None,
+        friendly_name_timestamp_after: str | None = None,
+        friendly_name_timestamp_before: str | None = None,
+        constructed_name_contains: str | None = None,
+        extension: str | None = None,
+        verbose: bool = False,
+        base_url: str = "www.ercot.com",
+        request_kwargs: dict | None = None,
     ) -> list:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -2954,8 +2958,7 @@ class Ercot(ISOBase):
         # Include a cache buster to ensure we get the latest data
         url = f"https://{base_url}/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}&_{int(time.time())}"  # noqa
 
-        msg = f"Fetching document {url}"
-        log(msg, verbose)
+        logger.info(f"Fetching document {url}")
 
         # if latest, we dont need to filter
         # so we can set to None
@@ -2971,7 +2974,6 @@ class Ercot(ISOBase):
             match = True
 
             doc_url = f"https://{base_url}/misdownload/servlets/mirDownload?doclookupId={doc['Document']['DocID']}"  # noqa
-
             # make sure to handle retry files
             # e.g SPPHLZNP6905_retry_20230608_1545_csv
             try:
@@ -3132,12 +3134,12 @@ class Ercot(ISOBase):
 
     def read_doc(
         self,
-        doc,
-        parse=True,
-        verbose=False,
-        request_kwargs=None,
+        doc: Document,
+        parse: bool = True,
+        verbose: bool = False,
+        request_kwargs: dict | None = None,
     ):
-        log(f"Reading {doc.url}", verbose)
+        logger.debug(f"Reading {doc.url}")
 
         response = requests.get(doc.url, **(request_kwargs or {})).content
         df = pd.read_csv(io.BytesIO(response), compression="zip")
@@ -3148,11 +3150,11 @@ class Ercot(ISOBase):
 
     def read_docs(
         self,
-        docs,
-        parse=True,
-        empty_df=None,
-        verbose=False,
-        request_kwargs=None,
+        docs: list[Document],
+        parse: bool = True,
+        empty_df: pd.DataFrame | None = None,
+        verbose: bool = False,
+        request_kwargs: dict | None = None,
     ):
         if len(docs) == 0:
             return empty_df
@@ -3171,10 +3173,10 @@ class Ercot(ISOBase):
 
     def parse_doc(
         self,
-        doc,
-        dst_ambiguous_default="infer",
-        verbose=False,
-        nonexistent="raise",
+        doc: pd.DataFrame,
+        dst_ambiguous_default: str = "infer",
+        verbose: bool = False,
+        nonexistent: str = "raise",
     ):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
@@ -3203,7 +3205,7 @@ class Ercot(ISOBase):
 
         ending_time_col_name = "HourEnding"
 
-        def ambiguous_based_on_dstflag(df):
+        def ambiguous_based_on_dstflag(df: pd.DataFrame) -> pd.Series:
             # DSTFlag is Y during the repeated hour (after the clock has been set back)
             # so it's False/N during DST And True/Y during Standard Time.
             # For ambiguous, Pandas wants True for DST and False for Standard Time
@@ -3350,4 +3352,63 @@ class Ercot(ISOBase):
             "South Central",
             "Southern",
             "West",
+        ]
+
+    @support_date_range(frequency=None)
+    def get_indicative_lmp_by_settlement_point(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            self.get_indicative_lmp_by_settlement_point(date="today")
+        if not end:
+            end = date + pd.DateOffset(days=1)
+
+        docs = self._get_documents(
+            report_type_id=ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID,
+            date=date,
+            extension="csv",
+            published_before=end,
+            published_after=date,
+            verbose=verbose,
+        )
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_indicative_lmp_by_settlement_point(df)
+
+    def _handle_indicative_lmp_by_settlement_point(self, df: pd.DataFrame):
+        columns_to_rename = {
+            "RTDTimestamp": "RTD Timestamp",
+            "IntervalEnding": "Interval End",
+            "SettlementPoint": "Location",
+            "SettlementPointType": "Location Type",
+            "LMP": "LMP",
+        }
+        df.rename(columns=columns_to_rename, inplace=True)
+        assert set(df["RepeatedHourFlag"].unique()).issubset({"Y", "N"})
+        assert set(df["IntervalRepeatedHourFlag"].unique()).issubset({"Y", "N"})
+
+        df["RTD Timestamp"] = pd.to_datetime(df["RTD Timestamp"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=df["RepeatedHourFlag"] == "N",
+            nonexistent="shift_forward",
+        )
+        df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=df["IntervalRepeatedHourFlag"] == "N",
+            nonexistent="shift_forward",
+        )
+
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+        return df[
+            [
+                "RTD Timestamp",
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
         ]

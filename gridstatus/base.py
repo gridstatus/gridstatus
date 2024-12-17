@@ -5,7 +5,7 @@ from typing import BinaryIO
 import pandas as pd
 import requests
 
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import logger
 
 # TODO: this is needed to make SPP request work. restrict only to SPP
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = "ALL:@SECLEVEL=1"
@@ -98,7 +98,13 @@ class ISOBase:
     def local_now(self):
         return pd.Timestamp.now(tz=self.default_timezone)
 
-    def _get_json(self, url, verbose=False, retries=None, **kwargs):
+    def _get_json(
+        self,
+        url: str,
+        verbose: bool = False,
+        retries: int | None = None,
+        **kwargs,
+    ):
         """
         Makes a get request to the given url and returns the json response. Optionally
         retries the request if it fails.
@@ -118,7 +124,7 @@ class ISOBase:
         attempt = 0
         while attempt < max_attempts:
             try:
-                log(f"Requesting {url} with {kwargs}", verbose)
+                logger.info(f"Requesting {url} with {kwargs}")
                 r = requests.get(url, **kwargs)
                 r.raise_for_status()  # Raise an error for HTTP error codes
                 return r.json()
@@ -127,9 +133,8 @@ class ISOBase:
                 if attempt >= max_attempts:
                     raise
                 wait_time = 2 ** (attempt - 1)
-                log(
+                logger.warning(
                     f"Request failed with {e}. Retrying in {wait_time} seconds...",
-                    verbose,
                 )
                 time.sleep(wait_time)
 

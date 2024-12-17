@@ -1,8 +1,12 @@
 name: Commit Tests
-on: # Run on all commit pushes to all feature branches.
+
+on:
   push:
     branches-ignore:
       - main
+  pull_request:
+    branches-ignore:
+      - '**'
 
 jobs:
   test-base:

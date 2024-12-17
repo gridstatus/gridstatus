@@ -1436,3 +1436,39 @@ class TestErcotAPI(TestHelperMixin):
                 elif not callable(parser_method):
                     issues.append(f"{param} has an invalid parser_method")
         return issues
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2024-02-15 00:00:00", "2024-02-15 01:00:00"),
+            ("2024-03-10 00:00:00", "2024-03-10 04:00:00"),
+            ("2024-11-03 00:00:00", "2024-11-03 02:00:00"),
+        ],
+    )
+    def test_get_indicative_lmp_by_settlement_point(self, date, end):
+        with api_vcr.use_cassette(
+            f"test_get_indicative_lmp_historical_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_indicative_lmp_by_settlement_point(date, end)
+
+            assert df.columns.tolist() == [
+                "RTD Timestamp",
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+
+            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["LMP"] == "float64"
+            assert (
+                (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+            ).all()
+            assert df["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() == pd.Timestamp(end).tz_localize(
+                self.iso.default_timezone,
+            ) + pd.Timedelta(minutes=50)

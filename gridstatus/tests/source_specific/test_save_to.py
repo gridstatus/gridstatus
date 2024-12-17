@@ -1,16 +1,22 @@
 import os
 
 import gridstatus
+from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+vcr = setup_vcr(
+    source="caiso_save_to",
+    record_mode=RECORD_MODE,
+)
 
 
 def test_save_to_one_day_per_request(tmp_path):
-    iso = gridstatus.CAISO()
-
-    df = iso.get_fuel_mix(
-        start="Jan 1, 2022",
-        end="Jan 4, 2022",
-        save_to=tmp_path,
-    )
+    with vcr.use_cassette("caiso_save_to_one_day_per_request.yaml"):
+        iso = gridstatus.CAISO()
+        df = iso.get_fuel_mix(
+            start="Jan 1, 2022",
+            end="Jan 4, 2022",
+            save_to=tmp_path,
+        )
 
     files = set(os.listdir(tmp_path))
 
@@ -29,13 +35,14 @@ def test_save_to_one_day_per_request(tmp_path):
 
 
 def test_save_to_with_date_range_requests(tmp_path):
-    iso = gridstatus.NYISO()
+    with vcr.use_cassette("nyiso_save_to_with_date_range_requests.yaml"):
+        iso = gridstatus.NYISO()
 
-    df = iso.get_fuel_mix(
-        start="Jan 30, 2022",
-        end="Feb 2, 2022",
-        save_to=tmp_path,
-    )
+        df = iso.get_fuel_mix(
+            start="Jan 30, 2022",
+            end="Feb 2, 2022",
+            save_to=tmp_path,
+        )
 
     files = set(os.listdir(tmp_path))
 

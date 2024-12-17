@@ -1841,3 +1841,43 @@ class TestErcot(BaseTestISO):
     def test_get_documents_raises_exception_when_no_docs(self):
         with pytest.raises(NoDataFoundException):
             self.iso.get_load_forecast("2010-01-01")
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                pd.Timestamp.now().normalize() - pd.Timedelta(hours=1),
+                pd.Timestamp.now().normalize(),
+            ),
+        ],
+    )
+    def test_get_indicative_lmp_by_settlement_point(self, date, end):
+        with api_vcr.use_cassette(
+            f"test_get_indicative_lmp_historical_{date}_{end}.yaml",
+            record_mode="all",  # NOTE(kladar) Relative parameters and fixtures don't play nicely together yet,
+            # so always record new interactions
+        ):
+            df = self.iso.get_indicative_lmp_by_settlement_point(date, end)
+
+            assert df.columns.tolist() == [
+                "RTD Timestamp",
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+
+            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["LMP"] == "float64"
+            assert (
+                (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+            ).all()
+            assert df["Interval Start"].min() == date.tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() == end.tz_localize(
+                self.iso.default_timezone,
+            ) + pd.Timedelta(minutes=50)
