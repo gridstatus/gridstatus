@@ -16,7 +16,7 @@ from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE, Ercot
 from gridstatus.ercot_api.api_parser import _timestamp_parser, parse_all_endpoints
-from gridstatus.gs_logging import log, logger
+from gridstatus.gs_logging import logger
 
 # API to hit with subscription key to get token
 TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
@@ -325,17 +325,21 @@ class ErcotAPI:
 
     def make_api_call(
         self,
-        url,
-        api_params=None,
-        parse_json=True,
-        verbose=False,
+        url: str,
+        api_params: dict = None,
+        parse_json: bool = True,
+        method: str = "GET",
     ):
-        log(f"Requesting url: {url} with params: {api_params}", verbose)
+        logger.info(f"Requesting url: {url} with params: {api_params}")
+
         # make request with exponential backoff retry strategy
         retries = 0
         delay = self.initial_delay
         while retries <= self.max_retries:
-            response = requests.get(url, params=api_params, headers=self.headers())
+            if method == "POST":
+                response = requests.post(url, headers=self.headers(), json=api_params)
+            else:
+                response = requests.get(url, headers=self.headers(), params=api_params)
 
             retries += 1
             if response.status_code == status_codes.codes.OK:
@@ -344,10 +348,9 @@ class ErcotAPI:
                 response.status_code == status_codes.codes.TOO_MANY_REQUESTS
                 and retries <= self.max_retries
             ):
-                log(
+                logger.warning(
                     f"Warn: Rate-limited: waiting {delay} seconds before retry {retries}/{self.max_retries} "  # noqa
                     f"requesting url: {url} with params: {api_params}",
-                    verbose,
                 )
                 time.sleep(delay + random.uniform(0, delay * 0.1))
                 delay *= 2
@@ -362,7 +365,7 @@ class ErcotAPI:
                         f"Error: Failed to get data from {url} with params:"
                         f" {api_params}"
                     )
-                log(error_message, verbose)
+                logger.error(error_message)
                 response.raise_for_status()
 
         if parse_json:
@@ -370,9 +373,9 @@ class ErcotAPI:
         else:
             return response.content
 
-    def get_public_reports(self, verbose=False):
+    def get_public_reports(self):
         # General information about the public reports
-        return self.make_api_call(BASE_URL, verbose=verbose)
+        return self.make_api_call(BASE_URL)
 
     def get_wind_actual_and_forecast_hourly(self, date, end=None, verbose=False):
         """Get Wind Power Production - Hourly Averaged Actual and Forecasted Values
@@ -760,9 +763,9 @@ class ErcotAPI:
             endpoint=INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT,
             start_date=date,
             end_date=end,
+            bulk_download=True,
             verbose=verbose,
         )
-        logger.info(df.head())
         return self.ercot._handle_indicative_lmp_by_settlement_point(df)
 
     @support_date_range(frequency=None)
@@ -1296,6 +1299,7 @@ class ErcotAPI:
         read_as_csv: bool = True,
         add_post_datetime: bool = False,
         verbose: bool = False,
+        bulk_download: bool = False,
     ) -> pd.DataFrame:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
@@ -1319,6 +1323,8 @@ class ErcotAPI:
             add_post_datetime [bool]: if True, will add the postDatetime to the
                 dataframe. This is used for getting publish times.
             verbose [bool]: if True, will print out status messages
+            bulk_download [bool]: if True, will download the data in batches of 1000
+                docIds. This is useful for avoiding rate limiting.
 
         Returns:
             [pandas.DataFrame]: a dataframe of historical data
@@ -1340,63 +1346,95 @@ class ErcotAPI:
                 f"time range {start_date} to {end_date}",
             )
 
-        links, post_datetimes = zip(*links_and_post_datetimes)
+        if bulk_download:
+            # Collect docIds from the links
+            doc_ids = [link.split("=")[-1] for link, _ in links_and_post_datetimes]
 
-        dfs = []
-        retries = 0
-        max_retries = 3
+            batch_size = 1000
+            doc_id_batches = [
+                doc_ids[i : i + batch_size] for i in range(0, len(doc_ids), batch_size)
+            ]
 
-        for link, posted_datetime in tqdm(
-            zip(links, post_datetimes),
-            desc="Fetching historical data",
-            ncols=80,
-            disable=not verbose,
-            total=len(links),
-        ):
-            logger.debug(f"Fetching historical data from {link}")
-            while retries < max_retries:
-                try:
-                    # Data comes back as a compressed zip file.
-                    response = self.make_api_call(
-                        link,
-                        verbose=verbose,
-                        parse_json=False,
-                    )
-
-                    # Convert the bytes to a file-like object
-                    bytes = pd.io.common.BytesIO(response)
-
-                    if not read_as_csv:
-                        dfs.append(bytes)
-                    else:
-                        # Decompress the zip file and read the csv
-                        df = pd.read_csv(bytes, compression="zip")
-                        if add_post_datetime:
-                            df["postDatetime"] = posted_datetime
-
-                        dfs.append(df)
-                    # Necessary to avoid rate limiting
-                    time.sleep(self.sleep_seconds)
-                    break  # Exit the loop if the operation is successful
-
-                except Exception as e:
-                    if "429 Client Error" in str(e):
-                        logger.info(
-                            f"Rate limited. Sleeping {self.sleep_seconds * 10} seconds",
-                        )
-                        time.sleep(self.sleep_seconds * 10)
-                    else:
-                        logger.error(f"Link: {link} failed with error: {e}")
-                        time.sleep(self.sleep_seconds)  # Wait before retrying
-
-                    retries += 1
-
-            if retries == max_retries:
-                logger.error(
-                    f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
+            dfs = []
+            for batch in doc_id_batches:
+                payload = {"docIds": batch}
+                response = self.make_api_call(
+                    f"{BASE_URL}/archive/{emil_id}/download",
+                    api_params=payload,
+                    parse_json=False,
+                    method="POST",
                 )
 
-        return pd.concat(dfs) if read_as_csv else dfs
+                bytes = pd.io.common.BytesIO(response)
+
+                if not read_as_csv:
+                    dfs.append(bytes)
+                else:
+                    with ZipFile(pd.io.common.BytesIO(response)) as outer_zip:
+                        for inner_zip_name in outer_zip.namelist():
+                            with outer_zip.open(inner_zip_name) as inner_zip_file:
+                                df = pd.read_csv(inner_zip_file, compression="zip")
+                                if add_post_datetime:
+                                    df["postDatetime"] = pd.to_datetime(
+                                        df["postDatetime"],
+                                    )
+                                dfs.append(df)
+
+                time.sleep(self.sleep_seconds)
+
+            return pd.concat(dfs) if read_as_csv else dfs
+
+        else:
+            dfs = []
+            retries = 0
+            max_retries = 3
+
+            for link, posted_datetime in tqdm(
+                links_and_post_datetimes,
+                desc="Fetching historical data",
+                ncols=80,
+                disable=not verbose,
+                total=len(links_and_post_datetimes),
+            ):
+                logger.debug(f"Fetching historical data from {link}")
+                while retries < max_retries:
+                    try:
+                        response = self.make_api_call(
+                            link,
+                            parse_json=False,
+                        )
+
+                        bytes = pd.io.common.BytesIO(response)
+
+                        if not read_as_csv:
+                            dfs.append(bytes)
+                        else:
+                            df = pd.read_csv(bytes, compression="zip")
+                            if add_post_datetime:
+                                df["postDatetime"] = posted_datetime
+
+                            dfs.append(df)
+                        time.sleep(self.sleep_seconds)
+                        break
+
+                    except Exception as e:
+                        if "429 Client Error" in str(e):
+                            logger.info(
+                                f"Rate limited. Sleeping {self.sleep_seconds * 10} seconds",
+                            )
+                            time.sleep(self.sleep_seconds * 10)
+                        else:
+                            logger.error(f"Link: {link} failed with error: {e}")
+                            time.sleep(self.sleep_seconds)
+
+                        retries += 1
+
+                if retries == max_retries:
+                    logger.error(
+                        f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
+                    )
+
+            return pd.concat(dfs) if read_as_csv else dfs
 
     def _get_historical_data_links(
         self,
@@ -1423,7 +1461,7 @@ class ErcotAPI:
         }
 
         logger.debug(f"Requesting url: {urlstring} with params {api_params}")
-        response = self.make_api_call(urlstring, api_params=api_params, verbose=verbose)
+        response = self.make_api_call(urlstring, api_params=api_params)
 
         meta = response["_meta"]
         total_pages = meta["totalPages"]
@@ -1441,7 +1479,6 @@ class ErcotAPI:
                 response = self.make_api_call(
                     urlstring,
                     api_params=api_params,
-                    verbose=verbose,
                 )
                 archives.extend(response["archives"])
 
@@ -1500,7 +1537,6 @@ class ErcotAPI:
         response = self.make_api_call(
             urlstring,
             api_params=parsed_api_params,
-            verbose=verbose,
         )
         # The data comes back as a list of lists. We get the columns to
         # create a dataframe after we have all the data
@@ -1545,7 +1581,6 @@ class ErcotAPI:
                 response = self.make_api_call(
                     urlstring,
                     api_params=parsed_api_params,
-                    verbose=verbose,
                 )
 
                 data_results.extend(response["data"])
