@@ -330,7 +330,9 @@ class ErcotAPI:
         parse_json: bool = True,
         method: str = "GET",
     ):
-        logger.info(f"Requesting url: {url} with params: {api_params}")
+        logger.info(
+            f"Requesting url: {url} with params: {str(api_params)[:100] + '...' if api_params and len(str(api_params)) > 100 else api_params}",
+        )
 
         # make request with exponential backoff retry strategy
         retries = 0
@@ -1371,6 +1373,9 @@ class ErcotAPI:
                     dfs.append(bytes)
                 else:
                     with ZipFile(pd.io.common.BytesIO(response)) as outer_zip:
+                        logger.debug(
+                            f"Received zip file with {len(outer_zip.namelist())} files",
+                        )
                         for inner_zip_name in outer_zip.namelist():
                             with outer_zip.open(inner_zip_name) as inner_zip_file:
                                 df = pd.read_csv(inner_zip_file, compression="zip")
@@ -1379,9 +1384,6 @@ class ErcotAPI:
                                         df["postDatetime"],
                                     )
                                 dfs.append(df)
-
-                time.sleep(self.sleep_seconds)
-
             return pd.concat(dfs) if read_as_csv else dfs
 
         else:
