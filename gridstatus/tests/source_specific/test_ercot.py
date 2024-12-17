@@ -1860,7 +1860,7 @@ class TestErcot(BaseTestISO):
             assert df.columns.tolist() == [
                 "Interval Start",
                 "Interval End",
-                "RTDTimestamp",
+                "RTD Timestamp",
                 "Interval Id",
                 "Interval Repeated Hour Flag",
                 "Location",
