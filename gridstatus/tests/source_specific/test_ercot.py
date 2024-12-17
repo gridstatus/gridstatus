@@ -1842,18 +1842,21 @@ class TestErcot(BaseTestISO):
         with pytest.raises(NoDataFoundException):
             self.iso.get_load_forecast("2010-01-01")
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "date, end",
         [
             (
-                pd.Timestamp.today().normalize(),
-                pd.Timestamp.today().normalize() + pd.Timedelta(hours=1),
+                pd.Timestamp.now().normalize() - pd.Timedelta(hours=1),
+                pd.Timestamp.now().normalize(),
             ),
         ],
     )
     def test_get_indicative_lmp_by_settlement_point(self, date, end):
         with api_vcr.use_cassette(
             f"test_get_indicative_lmp_historical_{date}_{end}.yaml",
+            record_mode="all",  # NOTE(kladar) Relative parameters and fixtures don't play nicely together yet,
+            # so always record new interactions
         ):
             df = self.iso.get_indicative_lmp_by_settlement_point(date, end)
 
