@@ -1425,13 +1425,12 @@ class ErcotAPI:
         doc_ids: list[str],
         emil_id: str,
     ) -> list[pd.io.common.BytesIO]:
-        # Collect docIds from the links
         documents = []
         doc_id_batches = [
             doc_ids[i : i + self.batch_size]
             for i in range(0, len(doc_ids), self.batch_size)
         ]
-        process_doc_ids = []
+        processed_doc_ids = []
         for batch in doc_id_batches:
             payload = {"docIds": batch}
             response = self.make_api_call(
@@ -1446,15 +1445,15 @@ class ErcotAPI:
                     f"Received zip file with {len(outer_zip.namelist())} files",
                 )
 
-                # namelist is in reverse order of suppied docIds, so we need to reverse it
+                # namelist is in reverse order of supplied docIds, so we need to reverse it
                 for inner_zip_name in reversed(outer_zip.namelist()):
-                    process_doc_ids.append(inner_zip_name.split(".")[0])
+                    processed_doc_ids.append(inner_zip_name.split(".")[0])
                     with outer_zip.open(inner_zip_name) as inner_zip_file:
                         documents.append(pd.io.common.BytesIO(inner_zip_file.read()))
 
         # Ensure that the order of the documents matches the order of the supplied
         # docIds since downstream code expects this
-        assert doc_ids == process_doc_ids, "docIds order does not match"
+        assert doc_ids == processed_doc_ids, "docIds order does not match"
         return documents
 
     def _get_historical_data_links(
