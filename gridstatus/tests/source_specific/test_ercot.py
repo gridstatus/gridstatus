@@ -1849,9 +1849,6 @@ class TestErcot(BaseTestISO):
                 pd.Timestamp.today().normalize(),
                 pd.Timestamp.today().normalize() + pd.Timedelta(hours=1),
             ),
-            # (pd.Timestamp("today").normalize() - pd.Timedelta(days=1), pd.Timestamp("today").normalize() - pd.Timedelta(days=1) + pd.Timedelta(hours=1)),
-            # (pd.Timestamp("today").normalize() - pd.Timedelta(days=2), pd.Timestamp("today").normalize() - pd.Timedelta(days=2) + pd.Timedelta(hours=1)),
-            # (pd.Timestamp("today").normalize() - pd.Timedelta(days=3), pd.Timestamp("today").normalize() - pd.Timedelta(days=3) + pd.Timedelta(hours=1))
         ],
     )
     def test_get_indicative_lmp_by_settlement_point(self, date, end):
@@ -1877,7 +1874,5 @@ class TestErcot(BaseTestISO):
             assert (
                 (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
             ).all()
-            print(df["Interval Start"].min())
-            print(date)
             assert df["Interval Start"].min() == date
             assert df["Interval End"].max() == end + pd.Timedelta(minutes=50)
