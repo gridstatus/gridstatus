@@ -1431,6 +1431,7 @@ class ErcotAPI:
             doc_ids[i : i + self.batch_size]
             for i in range(0, len(doc_ids), self.batch_size)
         ]
+        process_doc_ids = []
         for batch in doc_id_batches:
             payload = {"docIds": batch}
             response = self.make_api_call(
@@ -1446,13 +1447,14 @@ class ErcotAPI:
                 )
 
                 # namelist is in reverse order of suppied docIds, so we need to reverse it
-                # so files are in the right order to zip with post datetimes
-                # todo(kanter) - i only spot checked the ordering, but seemed to be true
-                # I suspect there is a safer way to do this
                 for inner_zip_name in reversed(outer_zip.namelist()):
+                    process_doc_ids.append(inner_zip_name.split(".")[0])
                     with outer_zip.open(inner_zip_name) as inner_zip_file:
                         documents.append(pd.io.common.BytesIO(inner_zip_file.read()))
 
+        # Ensure that the order of the documents matches the order of the supplied
+        # docIds since downstream code expects this
+        assert doc_ids == process_doc_ids, "docIds order does not match"
         return documents
 
     def _get_historical_data_links(
