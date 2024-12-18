@@ -1913,3 +1913,28 @@ class TestPJM(BaseTestISO):
             assert result["Monitored Facility"].dtype == object
             assert result["Contingency Facility"].dtype == object
             assert result["Duration"].dtype in [np.int64, np.float64]
+
+    @api_vcr.use_cassette("test_get_settlements_verified_lmp_5_min_date_range.yaml")
+    def test_get_settlements_verified_lmp_5_min_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=30)
+        end = start + pd.Timedelta(hours=4)
+
+        df = self.iso.get_settlements_verified_lmp_5_min(start=start, end=end)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location Id",
+            "Location Name",
+            "Voltage",
+            "Equipment",
+            "Type",
+            "Zone",
+            "Energy",
+            "Congestion",
+            "Loss",
+            "LMP",
+        ]
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end

@@ -1015,6 +1015,42 @@ class PJM(ISOBase):
 
         return df
 
+    @support_date_range(frequency=None)
+    def get_settlements_verified_lmp_5_min(self, date, end=None, verbose=False):
+        df = self._get_pjm_json(
+            "rt_fivemin_mnt_lmps",
+            start=date,
+            params={
+                "fields": "congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_rt,total_lmp_rt,type,voltage,zone",  # noqa: E501
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        return self._handle_settlements_verified_lmp_5_min(df)
+
+    def _handle_settlements_verified_lmp_5_min(self, data):
+        rename = {
+            "Interval Start": "Interval Start",
+            "Interval End": "Interval End",
+            "pnode_id": "Location Id",
+            "pnode_name": "Location Name",
+            "voltage": "Voltage",
+            "equipment": "Equipment",
+            "type": "Type",
+            "zone": "Zone",
+            "system_energy_price_rt": "Energy",
+            "congestion_price_rt": "Congestion",
+            "marginal_loss_price_rt": "Loss",
+            "total_lmp_rt": "LMP",
+        }
+
+        return data.rename(columns=rename)[rename.values()].sort_values(
+            ["Interval Start", "Location Id"],
+        )
+
     def _get_pjm_json(
         self,
         endpoint: str,
@@ -1053,6 +1089,7 @@ class PJM(ISOBase):
 
         # Exclude API key from logs
         params_to_log = final_params.copy()
+
         if "Ocp-Apim-Subscription-Key" in params_to_log:
             params_to_log["Ocp-Apim-Subscription-Key"] = "API_KEY_HIDDEN"
 
