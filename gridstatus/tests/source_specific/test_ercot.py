@@ -1584,10 +1584,8 @@ class TestErcot(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
 
-    # For some reason, the datasets (confirmed in the raw data) start with
-    # HourEnding 02:00 and end with HourEnding 01:00
-    temperature_forecast_start_offset = -pd.DateOffset(days=3, hours=-1)
-    temperature_forecast_end_offset = pd.DateOffset(days=9, hours=1)
+    temperature_forecast_start_offset = -pd.DateOffset(days=3)
+    temperature_forecast_end_offset = pd.DateOffset(days=9)
 
     @pytest.mark.integration
     def test_get_temperature_forecast_by_weather_zone_today_and_latest(self):
@@ -1603,9 +1601,6 @@ class TestErcot(BaseTestISO):
             == self.local_start_of_today() + self.temperature_forecast_start_offset
         )
 
-        dst_transition_date = pd.Timestamp("2024-11-03")
-        if dst_transition_date.date() in df["Interval Start"].dt.date.values:
-            self.temperature_forecast_end_offset = pd.DateOffset(days=9, hours=0)
         assert (
             df["Interval End"].max()
             == self.local_start_of_today() + self.temperature_forecast_end_offset
