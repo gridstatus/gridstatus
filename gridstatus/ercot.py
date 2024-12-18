@@ -3368,7 +3368,6 @@ class Ercot(ISOBase):
 
         docs = self._get_documents(
             report_type_id=ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID,
-            date=date,
             extension="csv",
             published_before=end,
             published_after=date,
