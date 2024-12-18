@@ -1304,7 +1304,7 @@ class ErcotAPI:
         read_as_csv: bool = True,
         add_post_datetime: bool = False,
         verbose: bool = False,
-        bulk_download: bool = False,
+        bulk_download: bool = True,
     ) -> pd.DataFrame:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
