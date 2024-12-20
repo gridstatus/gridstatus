@@ -1218,8 +1218,8 @@ class PJM(ISOBase):
             "System Impact Study Status",
             "Facilities Study",
             "Facilities Study Status",
-            # "Interim Interconnection Service Agreement",
-            # "Interim/Interconnection Service Agreement Status",
+            "Interim/Interconnection Service/Generation Interconnection Agreement",
+            "Interim/Interconnection Service/Generation Interconnection Agreement Status",  # noqa: E501
             "Wholesale Market Participation Agreement",
             "Construction Service Agreement",
             "Construction Service Agreement Status",
