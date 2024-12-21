@@ -434,7 +434,7 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_as_reports_historical_date(self):
-        historical_date = datetime.date(2021, 1, 1)
+        historical_date = datetime.date(2022, 1, 1)
         df = self.iso.get_as_reports(historical_date, verbose=True)
 
         self._check_as_reports(df, before_full_columns=True)
