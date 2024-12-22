@@ -958,7 +958,17 @@ class IESO(ISOBase):
                 dfs.append(df)
             df = pd.concat(dfs)
 
-        return df
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Last Modified",
+            ],
+        )
+        logger.debug(f"DataFrame Shape: {df.shape}")
+        return df.sort_values(["Interval Start", "Publish Time", "Last Modified"])
 
     # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
     def _get_latest_resource_adequacy_json(
@@ -1035,16 +1045,6 @@ class IESO(ISOBase):
         url = f"{base_url}/{latest_file}"
         r = self._request(url)
         json_data = xmltodict.parse(r.text)
-
-        import json
-
-        file_data = json.dumps(json_data["Document"]["DocBody"], indent=4)
-        with open(
-            f"scripts/files/ieso_resource_adequacy_report_{date_str}.json",
-            "w",
-        ) as f:
-            f.write(file_data)
-
         last_modified_time = pd.Timestamp(file_time, tz=self.default_timezone)
 
         return json_data, last_modified_time
@@ -1314,17 +1314,7 @@ class IESO(ISOBase):
         df["Publish Time"] = publish_time
 
         df = df.drop(columns=["DeliveryHour"])
-
-        df = utils.move_cols_to_front(
-            df,
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-            ],
-        )
-        logger.debug(f"DataFrame Shape: {df.shape}")
-        return df.sort_values(["Interval Start", "Publish Time"])
+        return df
 
     # TODO(Kladar): this could likely be developed from the XML structure, but this works for now
     # and is easier to modify and quite legible
