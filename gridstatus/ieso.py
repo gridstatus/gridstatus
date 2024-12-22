@@ -1035,6 +1035,16 @@ class IESO(ISOBase):
         url = f"{base_url}/{latest_file}"
         r = self._request(url)
         json_data = xmltodict.parse(r.text)
+
+        import json
+
+        file_data = json.dumps(json_data["Document"]["DocBody"], indent=4)
+        with open(
+            f"scripts/files/ieso_resource_adequacy_report_{date_str}.json",
+            "w",
+        ) as f:
+            f.write(file_data)
+
         last_modified_time = pd.Timestamp(file_time, tz=self.default_timezone)
 
         return json_data, last_modified_time
@@ -1132,165 +1142,138 @@ class IESO(ISOBase):
         # TODO(Kladar): this is clunky and could definitely be generalized to reduce
         # linecount, but it works for now. I kind of move around the report JSON to where I want
         # to extract data and then extract it, and that movement could be abstracted away
+        def get_nested_data(data, path):
+            """Helper function to traverse nested data using a path."""
+            for key in path:
+                data = data[key]
+            return data
+
         for section_name, section_data in data_map.items():
             if "hourly" in section_data:
                 for metric_name, config in section_data["hourly"].items():
                     self._extract_hourly_values(
                         data=document_body,
                         path=config["path"],
-                        column_name=f"{metric_name}",  # noqa
+                        column_name=metric_name,
                         value_key=config["value_key"],
                         report_data=report_data,
                     )
 
             if "fuel_type_hourly" in section_data:
                 fuel_type_config = section_data["fuel_type_hourly"]
-
-                current_data = document_body
-                for path_part in fuel_type_config["path"][:-1]:
-                    current_data = current_data[path_part]
-
-                resources = current_data[fuel_type_config["path"][-1]]
+                resources = get_nested_data(document_body, fuel_type_config["path"])
                 if not isinstance(resources, list):
                     resources = [resources]
 
                 for resource in resources:
-                    fuel_type = resource.get(fuel_type_config["key_field"])
-
+                    fuel_type = resource.get("FuelType")
                     if fuel_type in fuel_type_config["resources"]:
                         metrics = fuel_type_config["resources"][fuel_type]
-
-                        for metric in metrics:
-                            path_parts = fuel_type_config["resources"][fuel_type][
-                                metric
-                            ]
+                        for metric, config in metrics.items():
                             self._extract_hourly_values(
                                 data=resource,
-                                path=path_parts[:2],
+                                path=config["path"],
                                 column_name=f"{fuel_type} {metric}",
-                                value_key=path_parts[2],
+                                value_key=config["value_key"],
                                 report_data=report_data,
                             )
 
             for zonal_section in ["zonal_import_hourly", "zonal_export_hourly"]:
                 if zonal_section in section_data:
                     zonal_config = section_data[zonal_section]
-                current_data = document_body
-                for path_part in zonal_config["path"][:-1]:
-                    current_data = current_data[path_part]
+                    zones = get_nested_data(document_body, zonal_config["path"])
+                    if not isinstance(zones, list):
+                        zones = [zones]
 
-                zones = current_data[zonal_config["path"][-1]]
-
-                for zone in zones:
-                    zone_name = zone[zonal_config["key_field"]]
-                    metrics = zonal_config["zones"][zone_name]
-
-                    for metric in metrics:
-                        path_parts = zonal_config["zones"][zone_name][metric]
-                        self._extract_hourly_values(
-                            data=zone,
-                            path=path_parts[:2],
-                            column_name=f"{zone_name} {metric}",
-                            value_key=path_parts[2],
-                            report_data=report_data,
-                        )
+                    for zone in zones:
+                        zone_name = zone.get("ZoneName")
+                        if zone_name in zonal_config["zones"]:
+                            metrics = zonal_config["zones"][zone_name]
+                            for metric, config in metrics.items():
+                                self._extract_hourly_values(
+                                    data=zone,
+                                    path=config["path"],
+                                    column_name=f"{zone_name} {metric}",
+                                    value_key=config["value_key"],
+                                    report_data=report_data,
+                                )
 
             if "total_internal_resources" in section_data:
                 total_internal_resources_config = section_data[
                     "total_internal_resources"
                 ]
-
-                current_data = document_body
-                for path_part in total_internal_resources_config["path"][:-1]:
-                    current_data = current_data[path_part]
-
-                total_resources = current_data[
-                    total_internal_resources_config["path"][-1]
-                ]
-
-                for section_name, section_config in total_internal_resources_config[
+                total_resources = get_nested_data(
+                    document_body,
+                    total_internal_resources_config["path"],
+                )
+                for section_name, config in total_internal_resources_config[
                     "sections"
                 ].items():
                     self._extract_hourly_values(
                         data=total_resources,
-                        path=[section_config["container"], section_config["item_key"]],
+                        path=config["path"],
                         column_name=section_name,
-                        value_key=section_config["value_key"],
+                        value_key=config["value_key"],
                         report_data=report_data,
                     )
 
             if "total_imports" in section_data:
                 total_imports_config = section_data["total_imports"]
-                current_data = document_body
-                for path_part in ["ForecastSupply", "ZonalImports", "TotalImports"]:
-                    current_data = current_data[path_part]
-
-                metrics = total_imports_config["metrics"]
-
-                for metric in metrics:
-                    path_parts = total_imports_config["metrics"][metric]
+                total_imports = get_nested_data(
+                    document_body,
+                    total_imports_config["path"],
+                )
+                for metric, config in total_imports_config["metrics"].items():
                     self._extract_hourly_values(
-                        data=current_data,
-                        path=path_parts[:2],
+                        data=total_imports,
+                        path=config["path"],
                         column_name=f"Total Imports {metric}",
-                        value_key=path_parts[2],
+                        value_key=config["value_key"],
                         report_data=report_data,
                     )
 
             if "total_exports" in section_data:
                 total_exports_config = section_data["total_exports"]
-
-                current_data = document_body
-                for path_part in ["ForecastDemand", "ZonalExports", "TotalExports"]:
-                    current_data = current_data[path_part]
-
-                metrics = total_exports_config["metrics"]
-
-                for metric in metrics:
-                    path_parts = total_exports_config["metrics"][metric]
+                total_exports = get_nested_data(
+                    document_body,
+                    total_exports_config["path"],
+                )
+                for metric, config in total_exports_config["metrics"].items():
                     self._extract_hourly_values(
-                        data=current_data,
-                        path=path_parts[:2],
+                        data=total_exports,
+                        path=config["path"],
                         column_name=f"Total Exports {metric}",
-                        value_key=path_parts[2],
+                        value_key=config["value_key"],
                         report_data=report_data,
                     )
 
             if "reserves" in section_data:
                 reserves_config = section_data["reserves"]
-
-                current_data = document_body
-                for path_part in reserves_config["path"]:
-                    current_data = current_data[path_part]
-
-                for section_name, section_config in reserves_config["sections"].items():
+                reserves = get_nested_data(document_body, reserves_config["path"])
+                for section_name, config in reserves_config["sections"].items():
                     self._extract_hourly_values(
-                        data=current_data,
-                        path=[section_config["container"], section_config["item_key"]],
+                        data=reserves,
+                        path=config["path"],
                         column_name=section_name,
-                        value_key="EnergyMW",
+                        value_key=config["value_key"],
                         report_data=report_data,
                     )
 
             if "ontario_demand" in section_data:
                 ontario_demand_config = section_data["ontario_demand"]
-
-                current_data = document_body
-                for path_part in ontario_demand_config["path"]:
-                    current_data = current_data[path_part]
-
-                for section_name, section_config in ontario_demand_config[
-                    "sections"
-                ].items():
-                    if "sections" in section_config:
+                ontario_demand = get_nested_data(
+                    document_body,
+                    ontario_demand_config["path"],
+                )
+                for section_name, config in ontario_demand_config["sections"].items():
+                    if "sections" in config:
                         continue
 
-                    section_data = current_data
                     self._extract_hourly_values(
-                        data=section_data,
-                        path=section_config["path"],
+                        data=ontario_demand,
+                        path=config["path"],
                         column_name=section_name,
-                        value_key=section_config["value_key"],
+                        value_key=config["value_key"],
                         report_data=report_data,
                     )
 
@@ -1299,17 +1282,13 @@ class IESO(ISOBase):
                     "Hourly Demand Response",
                 ]:
                     btm_config = ontario_demand_config["sections"][ontario_demand_btm]
-                    btm_data = current_data[ontario_demand_btm.replace(" ", "")]
-
-                    for section_name, section_config in btm_config["sections"].items():
+                    btm_data = ontario_demand[ontario_demand_btm.replace(" ", "")]
+                    for section_name, config in btm_config["sections"].items():
                         self._extract_hourly_values(
                             data=btm_data,
-                            path=[
-                                section_config["container"],
-                                section_config["item_key"],
-                            ],
+                            path=config["path"],
                             column_name=section_name,
-                            value_key=section_config["value_key"],
+                            value_key=config["value_key"],
                             report_data=report_data,
                         )
 
@@ -1413,58 +1392,136 @@ class IESO(ISOBase):
                 },
                 "fuel_type_hourly": {
                     "path": ["ForecastSupply", "InternalResources", "InternalResource"],
-                    "key_field": "FuelType",
                     "resources": {
                         "Nuclear": {
-                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
-                            "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Capacity": {
+                                "path": ["Capacities", "Capacity"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Outages": {
+                                "path": ["Outages", "Outage"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Offered": {
+                                "path": ["Offers", "Offer"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Gas": {
-                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
-                            "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Capacity": {
+                                "path": ["Capacities", "Capacity"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Outages": {
+                                "path": ["Outages", "Outage"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Offered": {
+                                "path": ["Offers", "Offer"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Hydro": {
-                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
-                            "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Forecasted MWh": [
-                                "ForecastEnergies",
-                                "ForecastEnergy",
-                                "EnergyMWhr",
-                            ],
-                            "Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Capacity": {
+                                "path": ["Capacities", "Capacity"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Outages": {
+                                "path": ["Outages", "Outage"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Forecasted MWh": {
+                                "path": ["ForecastEnergies", "ForecastEnergy"],
+                                "value_key": "EnergyMWhr",
+                            },
+                            "Offered": {
+                                "path": ["Offers", "Offer"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Wind": {
-                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
-                            "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Forecasted": ["Forecasts", "Forecast", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Capacity": {
+                                "path": ["Capacities", "Capacity"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Outages": {
+                                "path": ["Outages", "Outage"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Forecasted": {
+                                "path": ["Forecasts", "Forecast"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Solar": {
-                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
-                            "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Forecasted": ["Forecasts", "Forecast", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Capacity": {
+                                "path": ["Capacities", "Capacity"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Outages": {
+                                "path": ["Outages", "Outage"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Forecasted": {
+                                "path": ["Forecasts", "Forecast"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Biofuel": {
-                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
-                            "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Capacity": {
+                                "path": ["Capacities", "Capacity"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Outages": {
+                                "path": ["Outages", "Outage"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Offered": {
+                                "path": ["Offers", "Offer"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Other": {
-                            "Capacity": ["Capacities", "Capacity", "EnergyMW"],
-                            "Outages": ["Outages", "Outage", "EnergyMW"],
-                            "Offered Forecasted": [
-                                "OfferForecasts",
-                                "OfferForecast",
-                                "EnergyMW",
-                            ],
-                            "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Capacity": {
+                                "path": ["Capacities", "Capacity"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Outages": {
+                                "path": ["Outages", "Outage"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Offered Forecasted": {
+                                "path": ["OfferForecasts", "OfferForecast"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                     },
                 },
@@ -1476,56 +1533,93 @@ class IESO(ISOBase):
                     ],
                     "sections": {
                         "Total Internal Resources Outages": {
-                            "container": "Outages",
-                            "item_key": "Outage",
+                            "path": ["Outages", "Outage"],
                             "value_key": "EnergyMW",
                         },
                         "Total Internal Resources Offered Forecasted": {
-                            "container": "OfferForecasts",
-                            "item_key": "OfferForecast",
+                            "path": ["OfferForecasts", "OfferForecast"],
                             "value_key": "EnergyMW",
                         },
                         "Total Internal Resources Scheduled": {
-                            "container": "Schedules",
-                            "item_key": "Schedule",
+                            "path": ["Schedules", "Schedule"],
                             "value_key": "EnergyMW",
                         },
                     },
                 },
                 "zonal_import_hourly": {
                     "path": ["ForecastSupply", "ZonalImports", "ZonalImport"],
-                    "key_field": "ZoneName",
                     "zones": {
                         "Manitoba": {
-                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": {
+                                "path": ["Offers", "Offer"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Imports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Minnesota": {
-                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": {
+                                "path": ["Offers", "Offer"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Imports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Michigan": {
-                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": {
+                                "path": ["Offers", "Offer"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Imports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "New York": {
-                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": {
+                                "path": ["Offers", "Offer"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Imports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Quebec": {
-                            "Imports Offered": ["Offers", "Offer", "EnergyMW"],
-                            "Imports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Imports Offered": {
+                                "path": ["Offers", "Offer"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Imports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                     },
                 },
                 "total_imports": {
-                    "path": ["ForecastSupply", "TotalImports"],
-                    "key_field": "TotalImports",
+                    "path": ["ForecastSupply", "ZonalImports", "TotalImports"],
                     "metrics": {
-                        "Offers": ["Offers", "Offer", "EnergyMW"],
-                        "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
-                        "Estimated": ["Estimates", "Estimate", "EnergyMW"],
-                        "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                        "Offers": {
+                            "path": ["Offers", "Offer"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Scheduled": {
+                            "path": ["Schedules", "Schedule"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Estimated": {
+                            "path": ["Estimates", "Estimate"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Capacity": {
+                            "path": ["Capacities", "Capacity"],
+                            "value_key": "EnergyMW",
+                        },
                     },
                 },
             },
@@ -1556,23 +1650,19 @@ class IESO(ISOBase):
                         "Dispatchable Load": {
                             "sections": {
                                 "Ontario Dispatchable Load Capacity": {
-                                    "container": "Capacities",
-                                    "item_key": "Capacity",
+                                    "path": ["Capacities", "Capacity"],
                                     "value_key": "EnergyMW",
                                 },
                                 "Ontario Dispatchable Load Bid Forecasted": {
-                                    "container": "BidForecasts",
-                                    "item_key": "BidForecast",
+                                    "path": ["BidForecasts", "BidForecast"],
                                     "value_key": "EnergyMW",
                                 },
                                 "Ontario Dispatchable Load Scheduled ON": {
-                                    "container": "ScheduledON",
-                                    "item_key": "Schedule",
+                                    "path": ["ScheduledON", "Schedule"],
                                     "value_key": "EnergyMW",
                                 },
                                 "Ontario Dispatchable Load Scheduled OFF": {
-                                    "container": "ScheduledOFF",
-                                    "item_key": "Schedule",
+                                    "path": ["ScheduledOFF", "Schedule"],
                                     "value_key": "EnergyMW",
                                 },
                             },
@@ -1580,18 +1670,15 @@ class IESO(ISOBase):
                         "Hourly Demand Response": {
                             "sections": {
                                 "Ontario Hourly Demand Response Bid Forecasted": {
-                                    "container": "Bids",
-                                    "item_key": "Bid",
+                                    "path": ["Bids", "Bid"],
                                     "value_key": "EnergyMW",
                                 },
                                 "Ontario Hourly Demand Response Scheduled": {
-                                    "container": "Schedules",
-                                    "item_key": "Schedule",
+                                    "path": ["Schedules", "Schedule"],
                                     "value_key": "EnergyMW",
                                 },
                                 "Ontario Hourly Demand Response Curtailed": {
-                                    "container": "Curtailed",
-                                    "item_key": "Curtail",
+                                    "path": ["Curtailed", "Curtail"],
                                     "value_key": "EnergyMW",
                                 },
                             },
@@ -1600,67 +1687,102 @@ class IESO(ISOBase):
                 },
                 "zonal_export_hourly": {
                     "path": ["ForecastDemand", "ZonalExports", "ZonalExport"],
-                    "key_field": "ZoneName",
                     "zones": {
                         "Manitoba": {
-                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": {
+                                "path": ["Bids", "Bid"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Exports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Minnesota": {
-                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": {
+                                "path": ["Bids", "Bid"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Exports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Michigan": {
-                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": {
+                                "path": ["Bids", "Bid"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Exports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "New York": {
-                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": {
+                                "path": ["Bids", "Bid"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Exports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                         "Quebec": {
-                            "Exports Offered": ["Bids", "Bid", "EnergyMW"],
-                            "Exports Scheduled": ["Schedules", "Schedule", "EnergyMW"],
+                            "Exports Offered": {
+                                "path": ["Bids", "Bid"],
+                                "value_key": "EnergyMW",
+                            },
+                            "Exports Scheduled": {
+                                "path": ["Schedules", "Schedule"],
+                                "value_key": "EnergyMW",
+                            },
                         },
                     },
                 },
                 "total_exports": {
-                    "path": ["ForecastDemand", "TotalExports"],
-                    "key_field": "TotalExports",
+                    "path": ["ForecastDemand", "ZonalExports", "TotalExports"],
                     "metrics": {
-                        "Bids": ["Bids", "Bid", "EnergyMW"],
-                        "Scheduled": ["Schedules", "Schedule", "EnergyMW"],
-                        "Estimated": ["Estimates", "Estimate", "EnergyMW"],
-                        "Capacity": ["Capacities", "Capacity", "EnergyMW"],
+                        "Bids": {
+                            "path": ["Bids", "Bid"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Scheduled": {
+                            "path": ["Schedules", "Schedule"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Estimated": {
+                            "path": ["Estimates", "Estimate"],
+                            "value_key": "EnergyMW",
+                        },
+                        "Capacity": {
+                            "path": ["Capacities", "Capacity"],
+                            "value_key": "EnergyMW",
+                        },
                     },
                 },
                 "reserves": {
                     "path": ["ForecastDemand", "GenerationReserveHoldback"],
                     "sections": {
                         "Total Operating Reserve": {
-                            "container": "TotalORReserve",
-                            "item_key": "ORReserve",
-                            "metric": "EnergyMW",
+                            "path": ["TotalORReserve", "ORReserve"],
+                            "value_key": "EnergyMW",
                         },
                         "Minimum 10 Minute Operating Reserve": {
-                            "container": "Min10MinOR",
-                            "item_key": "Min10OR",
-                            "metric": "EnergyMW",
+                            "path": ["Min10MinOR", "Min10OR"],
+                            "value_key": "EnergyMW",
                         },
                         "Minimum 10 Minute Spin OR": {
-                            "container": "Min10MinSpinOR",
-                            "item_key": "Min10SpinOR",
-                            "metric": "EnergyMW",
+                            "path": ["Min10MinSpinOR", "Min10SpinOR"],
+                            "value_key": "EnergyMW",
                         },
                         "Load Forecast Uncertainties": {
-                            "container": "LoadForecastUncertainties",
-                            "item_key": "Uncertainty",
-                            "metric": "EnergyMW",
+                            "path": ["LoadForecastUncertainties", "Uncertainty"],
+                            "value_key": "EnergyMW",
                         },
                         "Additional Contingency Allowances": {
-                            "container": "ContingencyAllowances",
-                            "item_key": "Allowance",
-                            "metric": "EnergyMW",
+                            "path": ["ContingencyAllowances", "Allowance"],
+                            "value_key": "EnergyMW",
                         },
                     },
                 },
