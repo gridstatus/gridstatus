@@ -1797,7 +1797,7 @@ class IESO(ISOBase):
         for key in path[:-1]:
             if key not in current:
                 logger.debug(
-                    f"Path segment {current} {path}:'{key}' not found in data structure",
+                    f"Path segment {path} has no key '{key}' in the data structure. Investigate the report data map definition.",
                 )
                 return
             current = current[key]
