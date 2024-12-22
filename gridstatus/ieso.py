@@ -1142,7 +1142,8 @@ class IESO(ISOBase):
         # TODO(Kladar): this is clunky and could definitely be generalized to reduce
         # linecount, but it works for now. I kind of move around the report JSON to where I want
         # to extract data and then extract it, and that movement could be abstracted away
-        def get_nested_data(data, path):
+        # NOTE(kladar): suggested libraries that does this sort of thing are `dpath` and `glom` https://github.com/mahmoud/glom
+        def get_nested_data(data: dict, path: list[str]) -> dict:
             """Helper function to traverse nested data using a path."""
             for key in path:
                 data = data[key]
