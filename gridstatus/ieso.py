@@ -1161,9 +1161,9 @@ class IESO(ISOBase):
 
             if "fuel_type_hourly" in section_data:
                 fuel_type_config = section_data["fuel_type_hourly"]
-                resources = get_nested_data(document_body, fuel_type_config["path"])
-                if not isinstance(resources, list):
-                    resources = [resources]
+                resources = list(
+                    get_nested_data(document_body, fuel_type_config["path"]),
+                )
 
                 for resource in resources:
                     fuel_type = resource.get("FuelType")
