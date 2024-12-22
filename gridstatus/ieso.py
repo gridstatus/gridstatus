@@ -1751,10 +1751,6 @@ class IESO(ISOBase):
                             "path": ["Schedules", "Schedule"],
                             "value_key": "EnergyMW",
                         },
-                        "Estimated": {
-                            "path": ["Estimates", "Estimate"],
-                            "value_key": "EnergyMW",
-                        },
                         "Capacity": {
                             "path": ["Capacities", "Capacity"],
                             "value_key": "EnergyMW",
@@ -1810,7 +1806,9 @@ class IESO(ISOBase):
         current = data
         for key in path[:-1]:
             if key not in current:
-                logger.debug(f"Path segment '{key}' not found in data structure")
+                logger.debug(
+                    f"Path segment {current} {path}:'{key}' not found in data structure",
+                )
                 return
             current = current[key]
 
