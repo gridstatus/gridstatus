@@ -938,6 +938,9 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: The Resource Adequacy Report df for the given date
         """
+        if last_modified:
+            last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
+
         if vintage == "latest":
             json_data, file_last_modified = self._get_latest_resource_adequacy_json(
                 date,
