@@ -1047,9 +1047,12 @@ class PJM(ISOBase):
             "total_lmp_rt": "LMP",
         }
 
-        return data.rename(columns=rename)[rename.values()].sort_values(
-            ["Interval Start", "Location Id"],
-        )
+        data = data.rename(columns=rename)[rename.values()]
+
+        for col in ["Type", "Zone"]:
+            data[col] = data[col].astype("category")
+
+        return data.sort_values(["Interval Start", "Location Id"])
 
     def _get_pjm_json(
         self,
