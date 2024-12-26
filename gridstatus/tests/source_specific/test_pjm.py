@@ -1926,14 +1926,14 @@ class TestPJM(BaseTestISO):
             "Interval End",
             "Location Id",
             "Location Name",
+            "Location Type",
             "Voltage",
             "Equipment",
-            "Type",
             "Zone",
+            "LMP",
             "Energy",
             "Congestion",
             "Loss",
-            "LMP",
         ]
 
         assert df["Interval Start"].min() == start

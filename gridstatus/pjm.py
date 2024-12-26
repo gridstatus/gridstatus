@@ -1032,27 +1032,28 @@ class PJM(ISOBase):
         return self._handle_settlements_verified_lmp_5_min(df)
 
     def _handle_settlements_verified_lmp_5_min(self, data):
+        # Voltage, Equipment, and Zone are in the original data, but we don't keep
         rename = {
             "Interval Start": "Interval Start",
             "Interval End": "Interval End",
             "pnode_id": "Location Id",
             "pnode_name": "Location Name",
+            "type": "Location Type",
             "voltage": "Voltage",
             "equipment": "Equipment",
-            "type": "Type",
             "zone": "Zone",
+            "total_lmp_rt": "LMP",
             "system_energy_price_rt": "Energy",
             "congestion_price_rt": "Congestion",
             "marginal_loss_price_rt": "Loss",
-            "total_lmp_rt": "LMP",
         }
 
         data = data.rename(columns=rename)[rename.values()]
 
-        for col in ["Type", "Zone"]:
+        for col in ["Location Type", "Zone"]:
             data[col] = data[col].astype("category")
 
-        return data.sort_values(["Interval Start", "Location Id"])
+        return data.sort_values(["Interval Start", "Location Name"])
 
     def _get_pjm_json(
         self,
