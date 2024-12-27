@@ -774,14 +774,19 @@ class ErcotAPI:
         return self.ercot._handle_indicative_lmp_by_settlement_point(df)
 
     @support_date_range(frequency=None)
-    def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
+    def get_hourly_resource_outage_capacity(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Hourly Resource Outage Capacity Reports. Fetches all reports
         published on the given date. Reports extend out 168 hours from the
         start of the day.
 
         Arguments:
-            date (str): the date to fetch reports for.
-            end (str, optional): the end date to fetch reports for. Defaults to None.
+            date (str, pd.Timestamp): the date to fetch reports for.
+            end (str, pd.Timestamp, optional): the end date to fetch reports for. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
@@ -798,6 +803,7 @@ class ErcotAPI:
             end_date=end,
             verbose=verbose,
             add_post_datetime=True,
+            bulk_download=True,
         )
 
         data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(

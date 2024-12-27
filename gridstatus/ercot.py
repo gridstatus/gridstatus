@@ -2043,7 +2043,12 @@ class Ercot(ISOBase):
         return df.sort_values("Time").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
+    def get_hourly_resource_outage_capacity(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Hourly Resource Outage Capacity report sourced
         from the Outage Scheduler (OS).
 
@@ -2057,9 +2062,9 @@ class Ercot(ISOBase):
         As such, it is a proxy for thermal outages.
 
         Arguments:
-            date (str): time to download. Returns last hourly report
+            date (str, pd.Timestamp): time to download. Returns last hourly report
                 before this time. Supports "latest"
-            end (str, optional): end time to download. Defaults to None.
+            end (str, pd.Timestamp, optional): end time to download. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
@@ -2076,7 +2081,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_hourly_resource_outage_capacity(self, doc, verbose=False):
+    def _handle_hourly_resource_outage_capacity(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self.read_doc(doc, parse=False, verbose=verbose)
         # there is no DST flag column
         # and the data set ignores DST
@@ -2099,7 +2108,10 @@ class Ercot(ISOBase):
 
         return self._handle_hourly_resource_outage_capacity_df(df)
 
-    def _handle_hourly_resource_outage_capacity_df(self, df):
+    def _handle_hourly_resource_outage_capacity_df(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         outage_types = ["Total Resource", "Total IRR", "Total New Equip Resource"]
 
         # Earlier data doesn't have these columns
@@ -2145,7 +2157,12 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_unplanned_resource_outages(self, date, end=None, verbose=False):
+    def get_unplanned_resource_outages(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Unplanned Resource Outages.
 
         Data published at ~5am central on the 3rd day after the day of interest. Since
@@ -2180,7 +2197,11 @@ class Ercot(ISOBase):
 
         return complete_df
 
-    def _handle_unplanned_resource_outages_file(self, doc, xls):
+    def _handle_unplanned_resource_outages_file(
+        self,
+        doc: Document,
+        xls: ZipFile,
+    ) -> pd.DataFrame:
         as_of = pd.to_datetime(
             pd.read_excel(
                 xls,
