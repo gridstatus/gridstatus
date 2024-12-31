@@ -1032,7 +1032,6 @@ class PJM(ISOBase):
         return self._handle_settlements_verified_lmp_5_min(df)
 
     def _handle_settlements_verified_lmp_5_min(self, data):
-        # Voltage, Equipment, and Zone are in the original data, but we don't keep
         rename = {
             "Interval Start": "Interval Start",
             "Interval End": "Interval End",
@@ -1046,6 +1045,49 @@ class PJM(ISOBase):
             "system_energy_price_rt": "Energy",
             "congestion_price_rt": "Congestion",
             "marginal_loss_price_rt": "Loss",
+        }
+
+        data = data.rename(columns=rename)[rename.values()]
+
+        for col in ["Location Type", "Zone"]:
+            data[col] = data[col].astype("category")
+
+        return data.sort_values(["Interval Start", "Location Name"])
+
+    @support_date_range(frequency=None)
+    def get_settlements_verified_lmp_hourly(self, date, end=None, verbose=False):
+        df = self._get_pjm_json(
+            "rt_da_monthly_lmps",
+            start=date,
+            params={
+                "fields": "congestion_price_da,congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_da,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_da,system_energy_price_rt,total_lmp_da,total_lmp_rt,type,voltage,zone",  # noqa: E501
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._handle_settlements_verified_lmp_hourly(df)
+
+    def _handle_settlements_verified_lmp_hourly(self, data):
+        rename = {
+            "Interval Start": "Interval Start",
+            "Interval End": "Interval End",
+            "pnode_id": "Location Id",
+            "pnode_name": "Location Name",
+            "type": "Location Type",
+            "voltage": "Voltage",
+            "equipment": "Equipment",
+            "zone": "Zone",
+            "total_lmp_rt": "LMP RT",
+            "system_energy_price_rt": "Energy RT",
+            "congestion_price_rt": "Congestion RT",
+            "marginal_loss_price_rt": "Loss RT",
+            "total_lmp_da": "LMP DA",
+            "system_energy_price_da": "Energy DA",
+            "congestion_price_da": "Congestion DA",
+            "marginal_loss_price_da": "Loss DA",
         }
 
         data = data.rename(columns=rename)[rename.values()]

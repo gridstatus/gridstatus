@@ -1939,3 +1939,39 @@ class TestPJM(BaseTestISO):
 
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            minutes=5,
+        )
+
+    @api_vcr.use_cassette("test_get_settlements_verified_lmp_hourly_date_range.yaml")
+    def test_get_settlements_verified_lmp_hourly_date_range(self):
+        # Data is only available more than 30 days in the past
+        start = self.local_start_of_today() - pd.DateOffset(days=32)
+        end = start + pd.Timedelta(hours=4)
+
+        df = self.iso.get_settlements_verified_lmp_hourly(start=start, end=end)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location Id",
+            "Location Name",
+            "Location Type",
+            "Voltage",
+            "Equipment",
+            "Zone",
+            "LMP RT",
+            "Energy RT",
+            "Congestion RT",
+            "Loss RT",
+            "LMP DA",
+            "Energy DA",
+            "Congestion DA",
+            "Loss DA",
+        ]
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            hours=1,
+        )
