@@ -20,11 +20,17 @@ class TestNYISO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_capacity_prices(self):
-        # test 2022, 2023, and today
+        # test 2022, 2023, 2024, and 2025
         df = self.iso.get_capacity_prices(date="Dec 1, 2022", verbose=True)
         assert not df.empty, "DataFrame came back empty"
 
         df = self.iso.get_capacity_prices(date="Jan 1, 2023", verbose=True)
+        assert not df.empty, "DataFrame came back empty"
+
+        df = self.iso.get_capacity_prices(date="Jan 1, 2024", verbose=True)
+        assert not df.empty, "DataFrame came back empty"
+
+        df = self.iso.get_capacity_prices(date="Jan 1, 2025", verbose=True)
         assert not df.empty, "DataFrame came back empty"
 
         # TODO: missing report: https://github.com/kmax12/gridstatus/issues/309
