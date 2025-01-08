@@ -77,6 +77,7 @@ def _check_fuel_type(df):
         "Natural Gas",
         "Nuclear",
         "Other",
+        "Other Energy Storage",
         "Petroleum",
         "Pumped Storage",
         "Solar",
