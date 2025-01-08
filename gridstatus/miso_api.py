@@ -34,15 +34,26 @@ class MISOAPI:
     def __init__(
         self,
         pricing_api_key: str = None,
-        load_api_key: str = None,
-        initial_sleep_seconds: int = 2,
+        initial_sleep_seconds: int = 1,
     ):
+        """
+        Class for querying the MISO API. Currently supports only pricing data.
+
+        Arguments:
+        pricing_api_key (str): The API key for the pricing API. Can be a comma-separated
+        list of keys if you have multiple keys.
+        initial_sleep_seconds (int): The number of seconds to wait between each request.
+        Used to prevent rate limiting.
+        """
         self.pricing_api_key = pricing_api_key or os.getenv(
             "MISO_API_PRICING_SUBSCRIPTION_KEY",
         )
-        self.load_api_key = load_api_key or os.getenv("MISO_API_LOAD_SUBSCRIPTION_KEY")
+        self.pricing_api_keys = self.pricing_api_key.split(",")
+        # Used to rotate through the pricing API keys
+        self.current_pricing_key_index = 0
+
         self.default_timezone = "EST"
-        self.initial_sleep_seconds = initial_sleep_seconds or 2
+        self.initial_sleep_seconds = initial_sleep_seconds
 
     def get_lmp_day_ahead_hourly_ex_ante(self, date, end=None, verbose=False):
         return self._get_pricing_data(
@@ -124,7 +135,7 @@ class MISOAPI:
         market: Markets,
         verbose: bool = False,
         **kwargs,
-    ):
+    ) -> pd.DataFrame:
         data_lists = retrieval_func(date, end, verbose=verbose, **kwargs)
 
         data_list = self._flatten(data_lists)
@@ -206,7 +217,11 @@ class MISOAPI:
 
         return data_list
 
-    def _process_pricing_data(self, data_list: List[Dict], market: Markets):
+    def _process_pricing_data(
+        self,
+        data_list: List[Dict],
+        market: Markets,
+    ) -> pd.DataFrame:
         df = pd.DataFrame(data_list)
 
         # Split timeInterval dict into separate columns for 'start' and 'end'
@@ -262,7 +277,13 @@ class MISOAPI:
 
         return df
 
-    def _get_url(self, url, product: str, verbose: bool = False, max_retries: int = 3):
+    def _get_url(
+        self,
+        url,
+        product: str,
+        verbose: bool = False,
+        max_retries: int = 3,
+    ) -> List:
         headers = self._headers(product=product)
         data_list = []
 
@@ -278,6 +299,9 @@ class MISOAPI:
         last_page = data["page"]["lastPage"]
         total_pages = data["page"]["totalPages"]
         page_number = data["page"]["pageNumber"]
+
+        # Make sure to sleep after the first request
+        time.sleep(self.initial_sleep_seconds)
 
         while page_number < total_pages and not last_page:
             page_number += 1
@@ -317,13 +341,20 @@ class MISOAPI:
 
         return data_list
 
+    def _get_next_key(self, product: str) -> str:
+        """Get the next API key in the rotation."""
+        if product == PRICING_PRODUCT:
+            key_index = self.current_pricing_key_index
+            self.current_pricing_key_index = (key_index + 1) % len(
+                self.pricing_api_keys,
+            )
+            return self.pricing_api_keys[key_index]
+
+        # TODO: support other products (load)
+
     def _headers(self, product: str) -> Dict:
         return {
-            "Ocp-Apim-Subscription-Key": (
-                self.pricing_api_key
-                if product == PRICING_PRODUCT
-                else self.load_api_key
-            ),
+            "Ocp-Apim-Subscription-Key": (self._get_next_key(product)),
             "Cache-Control": "no-cache",
         }
 
