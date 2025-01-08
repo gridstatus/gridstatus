@@ -103,8 +103,8 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_lmp(df, market_value=Markets.REAL_TIME_5_MIN_EX_ANTE.value)
 
-        assert df["Interval Start"].min() == start.floor("5T")
-        assert df["Interval Start"].max() == end.floor("5T")
+        assert df["Interval Start"].min() == start.floor("5min")
+        assert df["Interval Start"].max() == end.floor("5min")
 
     """get_lmp_real_time_5_min_ex_post_prelim"""
 
@@ -117,8 +117,8 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_lmp(df, market_value=Markets.REAL_TIME_5_MIN_EX_POST_PRELIM.value)
 
-        assert df["Interval Start"].min() == start.floor("5T")
-        assert df["Interval Start"].max() == end.floor("5T")
+        assert df["Interval Start"].min() == start.floor("5min")
+        assert df["Interval Start"].max() == end.floor("5min")
 
     """get_lmp_real_time_5_min_ex_post_final"""
 
@@ -131,5 +131,5 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_lmp(df, market_value=Markets.REAL_TIME_5_MIN_EX_POST_FINAL.value)
 
-        assert df["Interval Start"].min() == start.floor("5T")
-        assert df["Interval Start"].max() == end.floor("5T")
+        assert df["Interval Start"].min() == start.floor("5min")
+        assert df["Interval Start"].max() == end.floor("5min")
