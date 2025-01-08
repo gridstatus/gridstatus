@@ -599,15 +599,15 @@ class NYISO(ISOBase):
             * State
             * In-Service Date
             * Name Plate Rating (V) MW
-            * 2022 CRIS MW Summer
-            * 2022 CRIS MW Winter
-            * 2022 Capability MW Summer
-            * 2022 Capability MW Winter
+            * 2024 CRIS MW Summer
+            * 2024 CRIS MW Winter
+            * 2024 Capability MW Summer
+            * 2024 Capability MW Winter
             * Is Dual Fuel
             * Unit Type
             * Fuel Type 1
             * Fuel Type 2
-            * 2021 Net Energy GWh
+            * 2023 Net Energy GWh
             * Notes
             * Generator Type
         """
@@ -620,13 +620,13 @@ class NYISO(ISOBase):
 
         # need to be updated once a year. approximately around end of april
         # find it here: https://www.nyiso.com/gold-book-resources
-        capacity_url_2023 = "https://www.nyiso.com/documents/20142/37320118/2023-NYCA-Generators.xlsx/145ca922-064c-133f-b3e8-3b4a30ed2845"  # noqa
+        capacity_url_2024 = "https://www.nyiso.com/documents/20142/44474211/2024-NYCA-Generators.xlsx/41a5cba2-523a-9fe0-9830-a523839a2831"  # noqa
 
-        msg = f"Requesting {capacity_url_2023}"
+        msg = f"Requesting {capacity_url_2024}"
         log(msg, verbose)
 
         generators = pd.read_excel(
-            capacity_url_2023,
+            capacity_url_2024,
             sheet_name=[
                 "Table III-2a",
                 "Table III-2b",
@@ -650,15 +650,15 @@ class NYISO(ISOBase):
             "State",
             "In-Service Date",
             "Name Plate Rating (V) MW",
-            "2023 CRIS MW Summer",
-            "2023 CRIS MW Winter",
-            "2023 Capability MW Summer",
-            "2023 Capability MW Winter",
+            "2024 CRIS MW Summer",
+            "2024 CRIS MW Winter",
+            "2024 Capability MW Summer",
+            "2024 Capability MW Winter",
             "Is Dual Fuel",
             "Unit Type",
             "Fuel Type 1",
             "Fuel Type 2",
-            "2022 Net Energy GWh",
+            "2023 Net Energy GWh",
             "Notes",
             "Generator Type",
         ]
@@ -942,6 +942,10 @@ class NYISO(ISOBase):
             year_code = 27447313
         elif date.year == 2023:
             year_code = 35397361
+        elif date.year == 2024:
+            year_code = 42146126
+        elif date.year == 2025:
+            year_code = 48997190
         else:
             raise ValueError(
                 "Year not currently supported. Please file an issue.",
