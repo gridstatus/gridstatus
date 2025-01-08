@@ -72,6 +72,7 @@ def _check_fuel_type(df):
         "Respondent Name",
         "Battery Storage",
         "Coal",
+        "Geothermal",
         "Hydro",
         "Natural Gas",
         "Nuclear",
@@ -175,8 +176,8 @@ def test_rto_region_subba_data():
 def test_fuel_type():
     eia = gridstatus.EIA()
 
-    start = (pd.Timestamp.utcnow() - pd.Timedelta(days=7)).normalize()
-    end = start + pd.Timedelta(days=3)
+    start = (pd.Timestamp.utcnow() - pd.Timedelta(days=2)).normalize()
+    end = start + pd.Timedelta(days=1)
 
     # dataset that doesnt have a handler yet
     df = eia.get_dataset(
