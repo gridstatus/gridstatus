@@ -90,7 +90,7 @@ class MISOAPI:
             date,
             end,
             retrieval_func=self._get_lmp_real_time_hourly_ex_post,
-            market=Markets.REAL_TIME_HOURLY_FINAL,
+            market=Markets.REAL_TIME_HOURLY_EX_POST_FINAL,
             prelim_or_final=FINAL_STRING,
             verbose=verbose,
         )
