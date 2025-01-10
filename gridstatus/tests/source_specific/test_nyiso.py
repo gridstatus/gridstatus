@@ -447,6 +447,8 @@ class TestNYISO(BaseTestISO):
 
         assert df["Time"].dt.date.nunique() == 3
 
+    """get_load_forecast"""
+
     @pytest.mark.integration
     def test_load_forecast_today(self):
         forecast = self.iso.get_load_forecast("today")
@@ -481,6 +483,67 @@ class TestNYISO(BaseTestISO):
                 "Load Forecast",
             ],
         )
+
+    """get_zonal_load_forecast"""
+
+    @pytest.mark.integration
+    def test_zonal_load_forecast_today(self):
+        df = self.iso.get_zonal_load_forecast("today")
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "NYISO",
+            "Capitl",
+            "Centrl",
+            "Dunwod",
+            "Genese",
+            "Hud Vl",
+            "Longil",
+            "Mhk Vl",
+            "Millwd",
+            "N.Y.C.",
+            "North",
+            "West",
+        ]
+
+        assert df["Publish Time"].nunique() == 1
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
+        ).all()
+
+    @pytest.mark.integration
+    def test_zonal_load_forecast_historical_date_range(self):
+        end = self.local_start_of_today() - pd.Timedelta(days=14)
+        start = end - pd.Timedelta(days=7)
+
+        df = self.iso.get_zonal_load_forecast(start, end=end)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "NYISO",
+            "Capitl",
+            "Centrl",
+            "Dunwod",
+            "Genese",
+            "Hud Vl",
+            "Longil",
+            "Mhk Vl",
+            "Millwd",
+            "N.Y.C.",
+            "North",
+            "West",
+        ]
+
+        assert df["Publish Time"].nunique() == 8
+        assert df["Interval Start"].min() == self.local_start_of_day(start.date())
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
+        ).all()
 
     @staticmethod
     def _check_status(df):

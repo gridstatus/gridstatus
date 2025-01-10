@@ -15,10 +15,12 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
+# NYISO offers LMP data at two locational granularities
+# load zone and point of generator interconnection
 ZONE = "zone"
 GENERATOR = "generator"
-"""NYISO offers LMP data at two locational granularities: \
-    load zone and point of generator interconnection"""
+
+LOAD_FORECAST_DATASET = "isolf"
 
 
 class NYISO(ISOBase):
@@ -222,13 +224,11 @@ class NYISO(ISOBase):
     @support_date_range(frequency="MONTH_START")
     def get_load_forecast(self, date, end=None, verbose=False):
         """Get load forecast for a date in 1 hour intervals"""
-        date = utils._handle_date(date, self.default_timezone)
-
         # todo optimize this to accept a date range
         data = self._download_nyiso_archive(
             date,
             end=end,
-            dataset_name="isolf",
+            dataset_name=LOAD_FORECAST_DATASET,
             verbose=verbose,
         )
 
@@ -239,6 +239,42 @@ class NYISO(ISOBase):
                 "File Date": "Forecast Time",
                 "NYISO": "Load Forecast",
                 "Time": "Time",
+            },
+        )
+
+        return data
+
+    @support_date_range(frequency="MONTH_START")
+    def get_zonal_load_forecast(self, date, end=None, verbose=False):
+        """Get zonal load forecast for a date in 1 hour intervals"""
+        data = self._download_nyiso_archive(
+            date,
+            end=end,
+            dataset_name=LOAD_FORECAST_DATASET,
+            verbose=verbose,
+        )
+
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "File Date",
+                "NYISO",
+                "Capitl",
+                "Centrl",
+                "Dunwod",
+                "Genese",
+                "Hud Vl",
+                "Longil",
+                "Mhk Vl",
+                "Millwd",
+                "N.Y.C.",
+                "North",
+                "West",
+            ]
+        ].rename(
+            columns={
+                "File Date": "Publish Time",
             },
         )
 
@@ -815,7 +851,7 @@ class NYISO(ISOBase):
 
         # We need to add the file date to the load forecast dataset to get the
         # forecast publish time.
-        add_file_date = "isolf" == dataset_name
+        add_file_date = LOAD_FORECAST_DATASET == dataset_name
 
         date = gridstatus.utils._handle_date(date, self.default_timezone)
         month = date.strftime("%Y%m01")
@@ -976,7 +1012,7 @@ dataset_interval_map = {
     # fuel mix
     "rtfuelmix": ("instantaneous", None),
     # load forecast
-    "isolf": ("start", 60),
+    LOAD_FORECAST_DATASET: ("start", 60),
     # dam lmp
     "damlbmp": ("start", 60),
     # rt lmp
