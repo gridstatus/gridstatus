@@ -31,7 +31,7 @@ DAY_AHEAD_MARKET_MARKET_RUN_ID = "DAM"
 REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
 
 
-def determine_lmp_frequency(args):
+def determine_lmp_frequency(args: dict) -> str:
     """if querying all must use 1d frequency"""
     locations = args.get("locations", "")
     market = args.get("market", "")
@@ -49,7 +49,7 @@ def determine_lmp_frequency(args):
         return "31D"
 
 
-def determine_oasis_frequency(args):
+def determine_oasis_frequency(args: dict) -> str:
     dataset_config = copy.deepcopy(oasis_dataset_config[args["dataset"]])
     # get meta if it exists. and then max_query_frequency if it exists
     meta = dataset_config.get("meta", {})
@@ -87,12 +87,12 @@ class CAISO(ISOBase):
         # get current date from stats api
         return self.get_status(date="latest").time.date()
 
-    def get_stats(self, verbose=False):
+    def get_stats(self, verbose: bool = False) -> dict:
         stats_url = CURRENT_BASE + "/stats.txt"
         r = self._get_json(stats_url, verbose=verbose)
         return r
 
-    def get_status(self, date="latest", verbose=False) -> str:
+    def get_status(self, date: str = "latest", verbose: bool = False) -> str:
         """Get Current Status of the Grid. Only date="latest" is supported
 
         Known possible values: Normal, Restricted Maintenance Operations, Flex Alert
@@ -112,7 +112,13 @@ class CAISO(ISOBase):
             raise NotSupported()
 
     @support_date_range(frequency="DAY_START")
-    def get_fuel_mix(self, date, start=None, end=None, verbose=False):
+    def get_fuel_mix(
+        self,
+        date: str | pd.Timestamp,
+        start: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get fuel mix in 5 minute intervals for a provided day
 
         Arguments:
@@ -139,7 +145,11 @@ class CAISO(ISOBase):
 
         return self._get_historical_fuel_mix(date, verbose=verbose)
 
-    def _get_historical_fuel_mix(self, date, verbose=False):
+    def _get_historical_fuel_mix(
+        self,
+        date: str | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = _get_historical("fuelsource", date, column="Solar", verbose=verbose)
 
         # rename some inconsistent columns names to standardize across dates
@@ -161,7 +171,12 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_load(self, date, end=None, verbose=False):
+    def get_load(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Return load at a previous date in 5 minute intervals"""
 
         if date == "latest":
@@ -169,7 +184,11 @@ class CAISO(ISOBase):
 
         return self._get_historical_load(date, verbose=verbose)
 
-    def _get_historical_load(self, date, verbose=False):
+    def _get_historical_load(
+        self,
+        date: str | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = _get_historical("demand", date, column="Current demand", verbose=verbose)
 
         df = df[["Time", "Interval Start", "Interval End", "Current demand"]]
@@ -178,7 +197,13 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="31D")
-    def get_load_forecast(self, date, end=None, sleep=4, verbose=False):
+    def get_load_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
@@ -229,7 +254,12 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_solar_and_wind_forecast_dam(self, date, end=None, verbose=False):
+    def get_solar_and_wind_forecast_dam(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Return wind and solar forecast in hourly intervals
 
         Data at: http://oasis.caiso.com/mrioasis/logon.do  at System Demand >
@@ -258,9 +288,9 @@ class CAISO(ISOBase):
 
     def _process_solar_and_wind_forecast_dam(
         self,
-        data,
-        current_time,
-        publish_time_offset_from_day_start,
+        data: pd.DataFrame,
+        current_time: pd.Timestamp,
+        publish_time_offset_from_day_start: pd.Timedelta,
     ):
         df = data[
             [
@@ -318,9 +348,9 @@ class CAISO(ISOBase):
 
     def _add_forecast_publish_time(
         self,
-        data,
-        current_time,
-        publish_time_offset_from_day_start,
+        data: pd.DataFrame,
+        current_time: pd.Timestamp,
+        publish_time_offset_from_day_start: pd.Timedelta,
     ):
         """
         Labels forecasts with a publish time using the logic:
@@ -364,7 +394,7 @@ class CAISO(ISOBase):
 
         return data
 
-    def get_pnodes(self, verbose=False):
+    def get_pnodes(self, verbose: bool = False) -> pd.DataFrame:
         start = utils._handle_date("today")
 
         df = self.get_oasis_dataset(
@@ -392,12 +422,12 @@ class CAISO(ISOBase):
     @support_date_range(frequency=determine_lmp_frequency)
     def get_lmp(
         self,
-        date,
+        date: str | pd.Timestamp,
         market: str,
         locations: list = None,
         sleep: int = 5,
-        end=None,
-        verbose=False,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
     ):
         """Get LMP pricing starting at supplied date for a list of locations.
 
@@ -545,7 +575,11 @@ class CAISO(ISOBase):
         return data
 
     @support_date_range(frequency="DAY_START")
-    def get_storage(self, date, verbose=False):
+    def get_storage(
+        self,
+        date: str | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Return storage charging or discharging for today in 5 minute intervals
 
         Negative means charging, positive means discharging
@@ -589,11 +623,11 @@ class CAISO(ISOBase):
     @support_date_range(frequency="31D")
     def get_gas_prices(
         self,
-        date,
-        end=None,
-        fuel_region_id="ALL",
-        sleep=4,
-        verbose=False,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        fuel_region_id: str | list = "ALL",
+        sleep: int = 4,
+        verbose: bool = False,
     ):
         """Return gas prices at a previous date
 
@@ -650,7 +684,7 @@ class CAISO(ISOBase):
         ]
         return df
 
-    def get_fuel_regions(self, verbose=False):
+    def get_fuel_regions(self, verbose: bool = False) -> pd.DataFrame:
         """Retrieves the (mostly static) list of fuel regions with associated data.
         This file can be joined to the gas prices on Fuel Region Id"""
         url = (
@@ -670,10 +704,10 @@ class CAISO(ISOBase):
     @support_date_range(frequency="31D")
     def get_ghg_allowance(
         self,
-        date,
-        end=None,
-        sleep=4,
-        verbose=False,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
     ):
         """Return ghg allowance at a previous date
 
@@ -709,7 +743,7 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_raw_interconnection_queue(self, verbose):
+    def get_raw_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
         url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
 
         msg = f"Downloading interconnection queue from {url}"
@@ -717,7 +751,7 @@ class CAISO(ISOBase):
         response = requests.get(url)
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose=False):
+    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
         raw_data = self.get_raw_interconnection_queue(verbose)
 
         sheets = pd.read_excel(raw_data, skiprows=3, sheet_name=None)
@@ -818,7 +852,11 @@ class CAISO(ISOBase):
         return queue
 
     @support_date_range(frequency="DAY_START")
-    def get_curtailment(self, date, verbose=False):
+    def get_curtailment(
+        self,
+        date: str | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Return curtailment data for a given date
 
         Notes:
@@ -959,7 +997,14 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_as_prices(self, date, end=None, market="DAM", sleep=4, verbose=False):
+    def get_as_prices(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        market: str = "DAM",
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Return AS prices for a given date for each region
 
         Arguments:
@@ -1028,23 +1073,23 @@ class CAISO(ISOBase):
     @support_date_range(frequency="DAY_START")
     def get_curtailed_non_operational_generator_report(
         self,
-        date,
-        end=None,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Return curtailed non-operational generator report for a given date.
-            Earliest available date is June 17, 2021.
-
+           Earliest available date is June 17, 2021.
 
         Arguments:
-            date (datetime.date, str): date to return data
-            end (datetime.date, str): last date of range to return data.
+            date (str, pd.Timestamp): date to return data
+            end (str, pd.Timestamp, optional): last date of range to return data.
                 If None, returns only date. Defaults to None.
             verbose (bool, optional): print out url being fetched. Defaults to False.
 
         Returns:
             pandas.DataFrame: A DataFrame of curtailed non-operational generator report
 
+        Notes:
             column glossary:
             http://www.caiso.com/market/Pages/OutageManagement/Curtailed
             -OperationalGeneratorReportGlossary.aspx
@@ -1154,17 +1199,22 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_tie_flows_real_time(self, date, end=None, verbose=False):
+    def get_tie_flows_real_time(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Return real time tie flow data.
 
-        From OASIS: Energy > Energy Imbalance Market > EIM Transfer by Tie
-
-        Arguments:
-            date (datetime.date, str): date to return data
-            end (datetime.date, str): last date of range to return data.
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
 
         Returns:
-            pandas.DataFrame
+            pd.DataFrame: A DataFrame of real time tie flow data
         """
         if date == "latest":
             date = pd.Timestamp.utcnow().round("5min")
@@ -1180,7 +1230,7 @@ class CAISO(ISOBase):
 
         return self._process_tie_flows_data(df)
 
-    def _process_tie_flows_data(self, df):
+    def _process_tie_flows_data(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.drop(
             columns=[
                 "Time",
@@ -1249,21 +1299,21 @@ class CAISO(ISOBase):
     @support_date_range(frequency=determine_oasis_frequency)
     def get_oasis_dataset(
         self,
-        dataset,
-        date,
-        end=None,
-        params=None,
-        raw_data=True,
-        sleep=5,
-        verbose=False,
-    ):
+        dataset: str,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        params: dict | None = None,
+        raw_data: bool = True,
+        sleep: int = 5,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Return data from OASIS for a given dataset
 
-        Arguments:
+        Args:
             dataset (str): dataset to return data for. See CAISO.list_oasis_datasets
                 for supported datasets
-            date (datetime.date, str): date to return data
-            end (datetime.date, str): last date of range to return data.
+            date (str, pd.Timestamp): date to return data
+            end (str, pd.Timestamp, optional): last date of range to return data.
                 If None, returns only date. Defaults to None.
             params (dict): dictionary of parameters to pass to dataset.
                 See CAISO.list_oasis_datasets for supported parameters
@@ -1272,8 +1322,12 @@ class CAISO(ISOBase):
                 requests. Defaults to 5.
             verbose (bool, optional): print out url being fetched. Defaults to False.
 
+        Raises:
+            ValueError: _description_
+            ValueError: _description_
+
         Returns:
-            pandas.DataFrame: A DataFrame of OASIS data
+            pd.DataFrame: _description_
         """
 
         # deepcopy to avoid modifying original
@@ -1335,25 +1389,26 @@ class CAISO(ISOBase):
     @support_date_range(frequency="31D")
     def get_as_procurement(
         self,
-        date,
-        end=None,
-        market="DAM",
-        sleep=4,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        market: str = "DAM",
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get ancillary services procurement data from CAISO.
 
-        Arguments:
-            date (datetime.date, str): date to return data
-
-            end (datetime.date, str): last date of range to return data.
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
                 If None, returns only date. Defaults to None.
-
-            market: DAM or RTM. Defaults to DAM.
+            market (str, optional): DAM or RTM. Defaults to "DAM".
+            sleep (int, optional): number of seconds to sleep between requests. Defaults to 4.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
 
         Returns:
             pandas.DataFrame: A DataFrame of ancillary services data
         """
+
         assert market in ["DAM", "RTM"], "market must be DAM or RTM"
 
         df = self.get_oasis_dataset(
@@ -1411,7 +1466,12 @@ class CAISO(ISOBase):
 
         return df
 
-    def list_oasis_datasets(self, dataset=None):
+    def list_oasis_datasets(self, dataset: str | None = None):
+        """List all available OASIS datasets and their parameters.
+
+        Args:
+            dataset (str, optional): dataset to return data for. If None, returns all datasets.
+        """
         # pandas dataframe of oasis dataset name
         # param name
         # param default value
@@ -1516,7 +1576,14 @@ def _get_historical(
     return df
 
 
-def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
+def _get_oasis(
+    config: dict,
+    start: str | pd.Timestamp,
+    end: str | pd.Timestamp | None = None,
+    raw_data: bool = False,
+    verbose: bool = False,
+    sleep: int = 5,
+) -> pd.DataFrame | None:
     start, end = _caiso_handle_start_end(start, end)
     config = copy.deepcopy(config)
     config["startdatetime"] = start
@@ -1622,7 +1689,10 @@ def _get_oasis(config, start, end=None, raw_data=False, verbose=False, sleep=5):
     return df
 
 
-def _caiso_handle_start_end(date, end):
+def _caiso_handle_start_end(
+    date: str | pd.Timestamp,
+    end: str | pd.Timestamp | None = None,
+) -> tuple[str, str]:
     start = date.tz_convert("UTC")
 
     if end:
