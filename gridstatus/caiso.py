@@ -3,6 +3,7 @@ import io
 import time
 import warnings
 from contextlib import redirect_stderr
+from typing import Literal
 from zipfile import ZipFile
 
 import numpy as np
@@ -30,6 +31,243 @@ HISTORY_BASE = "https://www.caiso.com/outlook/history"
 DAY_AHEAD_MARKET_MARKET_RUN_ID = "DAM"
 REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
 
+OASIS_DATASET_CONFIG = {
+    "transmission_interface_usage": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "TRNS_USAGE",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": ["DAM", "HASP", "RRPD"],
+            # you can also specify a specific interface
+            "ti_id": "ALL",
+            "ti_direction": ["ALL", "E", "I"],
+        },
+    },
+    "schedule_by_tie": {
+        "query": {
+            "path": "GroupZip",
+            "resultformat": 6,
+            "version": 12,
+        },
+        "params": {
+            "groupid": [
+                "RTD_ENE_SCH_BY_TIE_GRP",
+                "DAM_ENE_SCH_BY_TIE_GRP",
+                "RUC_ENE_SCH_BY_TIE_GRP",
+                "RTPD_ENE_SCH_BY_TIE_GRP",
+            ],
+        },
+        "meta": {
+            "max_query_frequency": "1d",
+        },
+    },
+    "as_requirements": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "AS_REQ",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": ["DAM", "HASP", "RTM", "2DA"],
+            "anc_type": ["ALL", "NR", "RD", "RU", "SR", "RMD", "RMU"],
+            "anc_region": [
+                "ALL",
+                "AS_CAISO",
+                "AS_CAISO_EXP",
+                "AS_NP26",
+                "AS_NP26_EXP",
+                "AS_SP26",
+                "AS_SP26_EXP",
+            ],
+        },
+    },
+    "as_clearing_prices": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_AS",
+            "version": 12,
+        },
+        "params": {
+            "market_run_id": ["DAM", "HASP"],
+            "anc_type": ["ALL", "NR", "RD", "RMD", "RMU", "RU", "SR"],
+            "anc_region": [
+                "ALL",
+                "AS_CAISO",
+                "AS_SP26_EXP",
+                "AS_SP26",
+                "AS_CAISO_EXP",
+                "AS_NP26_EXP",
+                "AS_NP26",
+            ],
+        },
+    },
+    "fuel_prices": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_FUEL",
+            "version": 1,
+        },
+        "params": {
+            "fuel_region_id": "ALL",
+        },
+    },
+    "ghg_allowance": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_GHG_ALLOWANCE",
+            "version": 1,
+        },
+        "params": {},
+    },
+    "wind_and_solar_forecast": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "SLD_REN_FCST",
+            "version": 1,
+        },
+        "params": {"market_run_id": "DAM"},
+    },
+    "pnode_map": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ATL_PNODE_MAP",
+            "version": 1,
+        },
+        "params": {
+            "pnode_id": "ALL",
+        },
+    },
+    "lmp_day_ahead_hourly": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_LMP",
+            "version": 12,
+        },
+        "params": {
+            "market_run_id": "DAM",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+    },
+    "lmp_real_time_5_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_INTVL_LMP",
+            "version": 3,
+        },
+        "params": {
+            "market_run_id": "RTM",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+    },
+    "lmp_real_time_15_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_RTPD_LMP",
+            "version": 3,
+        },
+        "params": {
+            "market_run_id": "RTPD",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+    },
+    "demand_forecast": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "SLD_FCST",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": ["7DA", "2DA", "DAM", "ACTUAL", "RTM"],
+        },
+    },
+    "as_results": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "AS_RESULTS",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": ["DAM", "HASP", "RTM"],
+            "anc_type": ["ALL", "NR", "RD", "RU", "SR", "RMD", "RMU"],
+            "anc_region": [
+                "ALL",
+                "AS_CAISO",
+                "AS_CAISO_EXP",
+                "AS_NP26",
+                "AS_NP26_EXP",
+                "AS_SP26",
+                "AS_SP26_EXP",
+            ],
+        },
+    },
+    "excess_btm_production": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_EBTMP_PERF_DATA",
+            "version": 11,
+        },
+        "params": {},
+        "meta": {
+            "publish_delay": "3 months",
+        },
+    },
+    "public_bids": {
+        "query": {
+            "path": "GroupZip",
+            "resultformat": 6,
+            "version": 3,
+        },
+        "params": {
+            "groupid": ["PUB_DAM_GRP", "PUB_RTM_GRP"],
+        },
+        "meta": {
+            "publish_delay": "90 days",
+            "max_query_frequency": "1d",
+        },
+    },
+    "tie_flows_real_time": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_EIM_TRANSFER_TIE",
+            "version": 4,
+        },
+        "params": {
+            "baa_grp_id": "ALL",
+            "market_run_id": REAL_TIME_DISPATCH_MARKET_RUN_ID,
+        },
+    },
+    "tie_schedule_day_ahead_hourly": {
+        "query": {
+            "path": "GroupZip",
+            "resultformat": 6,
+            "version": 12,
+        },
+        "params": {
+            "groupid": ["DAM_ENE_SCH_BY_TIE_GRP"],
+            "market_run_id": DAY_AHEAD_MARKET_MARKET_RUN_ID,
+        },
+    },
+}
+
 
 def determine_lmp_frequency(args: dict) -> str:
     """if querying all must use 1d frequency"""
@@ -50,7 +288,7 @@ def determine_lmp_frequency(args: dict) -> str:
 
 
 def determine_oasis_frequency(args: dict) -> str:
-    dataset_config = copy.deepcopy(oasis_dataset_config[args["dataset"]])
+    dataset_config = copy.deepcopy(OASIS_DATASET_CONFIG[args["dataset"]])
     # get meta if it exists. and then max_query_frequency if it exists
     meta = dataset_config.get("meta", {})
     max_query_frequency = meta.get("max_query_frequency", None)
@@ -58,6 +296,90 @@ def determine_oasis_frequency(args: dict) -> str:
         return max_query_frequency
 
     return "31D"
+
+
+def _get_historical(
+    file: str,
+    date: str | pd.Timestamp,
+    column: str,
+    verbose: bool = False,
+) -> pd.DataFrame:
+    """Get the historical data file from CAISO given a data series name, formats, and returns a pandas dataframe.
+
+    Args:
+        file (str): The name of the data we are wanting, which is equivalent to the file to get from CAISO
+        date (str | pd.Timestamp): The date of the data to get from CAISO
+        column (str): The column to check for the latest value time
+        verbose (bool, optional): Whether to print out the URL being fetched, defaults to False
+
+    Returns:
+        pd.DataFrame: A pandas dataframe of the data
+    """
+    # NOTE: The cache buster is necessary because CAISO will serve cached data from cloudfront on the same url if the url has not changed.
+    cache_buster = int(pd.Timestamp.now(tz=CAISO.default_timezone).timestamp())
+    if utils.is_today(date, CAISO.default_timezone):
+        url: str = f"{CURRENT_BASE}/{file}.csv?_={cache_buster}"
+        latest = True
+    else:
+        date_str: str = date.strftime("%Y%m%d")
+        url: str = f"{HISTORY_BASE}/{date_str}/{file}.csv?_={cache_buster}"
+        latest = False
+    logger.info(f"Fetching URL: {url}")
+    df = pd.read_csv(url)
+
+    # sometimes there are extra rows at the end, so this lets us ignore them
+    df = df.dropna(subset=["Time"])
+
+    # drop every column after Time where values
+    # are all null. this happens during spring DST
+    # change and caiso keeps the non-existent hour
+    # but has nulls for all other columns
+    df = df.dropna(subset=df.columns[1:], how="all")
+
+    # for the latest data, we want to check if the data is actually from the previous day and update the date accordingly
+    if latest:
+        latest_file_time = caiso_utils.check_latest_value_time(df, column)
+        current_caiso_time = pd.Timestamp.now(tz=CAISO.default_timezone)
+
+        if latest_file_time > current_caiso_time:
+            date = date - pd.Timedelta(days=1)
+
+    df["Time"] = df["Time"].apply(
+        caiso_utils.make_timestamp,
+        today=date,
+        timezone=CAISO.default_timezone,
+    )
+
+    # sometimes returns midnight, which is technically the next day
+    # to be careful, let's check if that is the case before dropping
+    if df.iloc[-1]["Time"].hour == 0:
+        df = df.iloc[:-1]
+
+    # insert interval start/end columns
+    df.insert(1, "Interval Start", df["Time"])
+
+    # be careful if this is ever not 5 minutes
+    df.insert(2, "Interval End", df["Time"] + pd.Timedelta(minutes=5))
+
+    return df
+
+
+def _caiso_handle_start_end(
+    date: str | pd.Timestamp,
+    end: str | pd.Timestamp | None = None,
+) -> tuple[str, str]:
+    start = date.tz_convert("UTC")
+
+    if end:
+        end = end
+        end = end.tz_convert("UTC")
+    else:
+        end = start + pd.DateOffset(1)
+
+    start = start.strftime("%Y%m%dT%H:%M-0000")
+    end = end.strftime("%Y%m%dT%H:%M-0000")
+
+    return start, end
 
 
 class CAISO(ISOBase):
@@ -111,6 +433,249 @@ class CAISO(ISOBase):
         else:
             raise NotSupported()
 
+    def list_oasis_datasets(self, dataset: str | None = None):
+        """List all available OASIS datasets and their parameters.
+
+        Args:
+            dataset (str, optional): dataset to return data for. If None, returns all datasets.
+        """
+
+        for dataset_name, config in OASIS_DATASET_CONFIG.items():
+            if dataset is not None and dataset_name not in dataset:
+                continue
+            print(colored(f"Dataset: {dataset_name}", "cyan"))
+            if len(config["params"]) == 0:
+                print("    No parameters")
+            else:
+                table_data = []
+                for k, v in config["params"].items():
+                    default = v[0] if isinstance(v, list) else v
+                    possible_values = (
+                        ", ".join(str(val) for val in v)
+                        if isinstance(v, list)
+                        else "N/A"
+                    )
+                    table_data.append([k, default, possible_values])
+
+                print(
+                    tabulate(
+                        table_data,
+                        headers=[
+                            "Parameter",
+                            "Default",
+                            "Possible Values",
+                        ],
+                        tablefmt="grid",
+                    ),
+                )
+
+            print("\n")
+
+    @support_date_range(frequency=determine_oasis_frequency)
+    def get_oasis_dataset(
+        self,
+        dataset: str,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        params: dict | None = None,
+        raw_data: bool = True,
+        sleep: int = 5,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return data from OASIS for a given dataset
+
+        Args:
+            dataset (str): dataset to return data for. See CAISO.list_oasis_datasets
+                for supported datasets
+            date (str, pd.Timestamp): date to return data
+            end (str, pd.Timestamp, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            params (dict): dictionary of parameters to pass to dataset.
+                See CAISO.list_oasis_datasets for supported parameters
+            raw_data (bool, optional): return raw data from OASIS. Defaults to True.
+            sleep (int, optional): number of seconds to sleep between
+                requests. Defaults to 5.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Raises:
+            ValueError: if parameter is not supported for dataset
+            ValueError: if parameter value is not supported for dataset
+
+        Returns:
+            pd.DataFrame: A DataFrame of data from OASIS
+        """
+
+        # deepcopy to avoid modifying original
+        dataset_config = copy.deepcopy(OASIS_DATASET_CONFIG[dataset])
+        logger.debug(f"Dataset config: {dataset_config}")
+
+        if params is None:
+            params = {}
+
+        for p in params:
+            if p not in dataset_config["params"]:
+                raise ValueError(
+                    f"Parameter {p} not supported for dataset {dataset}",
+                )
+
+            # if it's a list, make sure param value is in list
+            if (
+                isinstance(dataset_config["params"][p], list)
+                and params[p] not in dataset_config["params"][p]
+            ):
+                raise ValueError(
+                    f"Parameter {p} not supported for dataset {dataset}",
+                )
+
+            dataset_config["params"][p] = params[p]
+
+        # if any dataset_config values are list,
+        # take first as default
+        for k, v in dataset_config["params"].items():
+            if isinstance(v, list):
+                dataset_config["params"][k] = v[0]
+
+        # combine kv from query and params
+        config_flat = {
+            **dataset_config["query"],
+            **dataset_config["params"],
+        }
+
+        # filter out null values
+        config_flat = {k: v for k, v in config_flat.items() if v is not None}
+
+        df = self._get_oasis(
+            config=config_flat,
+            start=date,
+            end=end,
+            raw_data=raw_data,
+            verbose=verbose,
+            sleep=sleep,
+        )
+
+        if df is None:
+            if end:
+                logger.warning(f"No data for {date} to {end}")
+            else:
+                logger.warning(f"No data for {date}")
+            return pd.DataFrame()
+
+        return df
+
+    def _get_oasis(
+        self,
+        config: dict,
+        start: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        raw_data: bool = False,
+        verbose: bool = False,
+        sleep: int = 5,
+    ) -> pd.DataFrame | None:
+        start, end = _caiso_handle_start_end(start, end)
+        config = copy.deepcopy(config)
+        config["startdatetime"] = start
+        config["enddatetime"] = end
+
+        base_url = f"http://oasis.caiso.com/oasisapi/{config.pop('path')}?"
+
+        url = base_url + "&".join(
+            [f"{k}={v}" for k, v in config.items()],
+        )
+
+        logger.info(f"Fetching URL: {url}")
+
+        retry_num = 0
+        while retry_num < 3:
+            r = requests.get(url)
+
+            if r.status_code == 200:
+                break
+
+            retry_num += 1
+            logger.error(f"Failed to get data from CAISO. Error: {r.status_code}")
+            logger.error(f"Retrying {retry_num}...")
+            time.sleep(sleep)
+
+        # this is when no data is available
+        if (
+            "Content-Disposition" not in r.headers
+            or ".xml.zip;" in r.headers["Content-Disposition"]
+            or b".xml" in r.content
+        ):
+            # avoid rate limiting
+            time.sleep(sleep)
+            return None
+
+        z = ZipFile(io.BytesIO(r.content))
+
+        # parse and concat all files
+        dfs = []
+        logger.debug(f"Found {len(z.namelist())} files: {z.namelist()}")
+        for f in z.namelist():
+            logger.debug(f"Parsing file: {f}")
+            df = pd.read_csv(z.open(f))
+            dfs.append(df)
+
+        df = pd.concat(dfs)
+
+        # if col ends in _GMT, then try to parse as UTC
+        for col in df.columns:
+            if col.endswith("_GMT"):
+                df[col] = pd.to_datetime(
+                    df[col],
+                    utc=True,
+                )
+
+        # handle different column names
+        # across different datasets
+        start_cols = [
+            "INTERVALSTARTTIME_GMT",
+            "INTERVAL_START_GMT",
+            "STARTTIME_GMT",
+            "START_DATE_GMT",
+        ]
+        end_cols = [
+            "INTERVALENDTIME_GMT",
+            "INTERVAL_END_GMT",
+            "ENDTIME_GMT",
+            "END_DATE_GMT",
+        ]
+        start_col = None
+        end_col = None
+        for col in start_cols:
+            if col in df.columns:
+                start_col = col
+                df = df.sort_values(by=start_col)
+                break
+        for col in end_cols:
+            if col in df.columns:
+                end_col = col
+                break
+
+        if not raw_data and start_col in df.columns:
+            df[start_col] = df[start_col].dt.tz_convert(
+                CAISO.default_timezone,
+            )
+
+            df[end_col] = df[end_col].dt.tz_convert(
+                CAISO.default_timezone,
+            )
+
+            df.rename(
+                columns={
+                    start_col: "Interval Start",
+                    end_col: "Interval End",
+                },
+                inplace=True,
+            )
+
+            df.insert(0, "Time", df["Interval Start"])
+
+        # avoid rate limiting
+        time.sleep(sleep)
+
+        return df
+
     @support_date_range(frequency="DAY_START")
     def get_fuel_mix(
         self,
@@ -122,14 +687,14 @@ class CAISO(ISOBase):
         """Get fuel mix in 5 minute intervals for a provided day
 
         Arguments:
-            date (datetime.date, str): "latest", "today", or an object
+            date (str, pd.Timestamp): "latest", "today", or an object
                 that can be parsed as a datetime for the day to return data.
 
-            start (datetime.date, str): start of date range to return.
+            start (str, pd.Timestamp): start of date range to return.
                 alias for `date` parameter.
                 Only specify one of `date` or `start`.
 
-            end (datetime.date, str): "today" or an object that can be parsed
+            end (str, pd.Timestamp): "today" or an object that can be parsed
                 as a datetime for the day to return data.
                 Only used if requesting a range of dates.
 
@@ -201,13 +766,14 @@ class CAISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
+        forecast_type: Literal["DAM", "2DA", "7DA", "ACTUAL", "RTM"] = "DAM",
         sleep: int = 4,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Returns load forecast for a previous date in 1 hour intervals
 
         Arguments:
-            date (datetime.date, pd.Timestamp, str): day to return.
+            date (str, pd.Timestamp): day to return.
                 If string, format should be YYYYMMDD e.g 20200623
 
             sleep (int): number of seconds to sleep before returning to avoid
@@ -223,6 +789,7 @@ class CAISO(ISOBase):
             raw_data=False,
             verbose=verbose,
             sleep=sleep,
+            params={"market_run_id": forecast_type},
         )
 
         df = df.rename(
@@ -351,7 +918,8 @@ class CAISO(ISOBase):
         data: pd.DataFrame,
         current_time: pd.Timestamp,
         publish_time_offset_from_day_start: pd.Timedelta,
-    ):
+        forecast_type: str = "DAM",
+    ) -> pd.DataFrame:
         """
         Labels forecasts with a publish time using the logic:
 
@@ -379,18 +947,58 @@ class CAISO(ISOBase):
         else:
             future_forecasts_publish_time = todays_publish_time - pd.Timedelta(days=1)
 
-        # Forecasts tomorrow and later get the future forecasts publish time
-        # Forecasts today and earlier get a publish time of the previous day at the
-        # publish time offset
-        data["Publish Time"] = np.where(
-            data["Interval Start"].dt.date > future_forecasts_publish_time.date(),
-            future_forecasts_publish_time,
-            data["Interval Start"].apply(
-                lambda x: x.floor("D").replace(hour=hour_offset, minute=minute_offset),
-            )
-            # DAM is for the next day
-            - pd.Timedelta(days=1),
-        )
+        match forecast_type:
+            case "DAM":
+                # Forecasts tomorrow and later get the future forecasts publish time
+                # Forecasts today and earlier get a publish time of the previous day at the
+                # publish time offset
+                data["Publish Time"] = np.where(
+                    data["Interval Start"].dt.date
+                    > future_forecasts_publish_time.date(),
+                    future_forecasts_publish_time,
+                    data["Interval Start"].apply(
+                        lambda x: x.floor("D").replace(
+                            hour=hour_offset,
+                            minute=minute_offset,
+                        ),
+                    )
+                    # DAM is for the next day
+                    - pd.Timedelta(days=1),
+                )
+            case "2DA":
+                data["Publish Time"] = data["Interval Start"].apply(
+                    lambda x: x.floor("D").replace(
+                        hour=hour_offset,
+                        minute=minute_offset,
+                    )
+                    - pd.Timedelta(days=2),
+                )
+            case "7DA":
+                data["Publish Time"] = data["Interval Start"].apply(
+                    lambda x: x.floor("D").replace(
+                        hour=hour_offset,
+                        minute=minute_offset,
+                    )
+                    - pd.Timedelta(days=7),
+                )
+            case "RTM":
+                data["Publish Time"] = data["Interval Start"] - pd.Timedelta(minutes=5)
+            case "ACTUAL":
+                data["Publish Time"] = data["Interval Start"]
+            case _:
+                # Default to existing DAM behavior for backward compatibility
+                data["Publish Time"] = np.where(
+                    data["Interval Start"].dt.date
+                    > future_forecasts_publish_time.date(),
+                    future_forecasts_publish_time,
+                    data["Interval Start"].apply(
+                        lambda x: x.floor("D").replace(
+                            hour=hour_offset,
+                            minute=minute_offset,
+                        ),
+                    )
+                    - pd.Timedelta(days=1),
+                )
 
         return data
 
@@ -1294,96 +1902,6 @@ class CAISO(ISOBase):
             ["Interval Start", "Interface ID"],
         )
 
-    @support_date_range(frequency=determine_oasis_frequency)
-    def get_oasis_dataset(
-        self,
-        dataset: str,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp | None = None,
-        params: dict | None = None,
-        raw_data: bool = True,
-        sleep: int = 5,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Return data from OASIS for a given dataset
-
-        Args:
-            dataset (str): dataset to return data for. See CAISO.list_oasis_datasets
-                for supported datasets
-            date (str, pd.Timestamp): date to return data
-            end (str, pd.Timestamp, optional): last date of range to return data.
-                If None, returns only date. Defaults to None.
-            params (dict): dictionary of parameters to pass to dataset.
-                See CAISO.list_oasis_datasets for supported parameters
-            raw_data (bool, optional): return raw data from OASIS. Defaults to True.
-            sleep (int, optional): number of seconds to sleep between
-                requests. Defaults to 5.
-            verbose (bool, optional): print out url being fetched. Defaults to False.
-
-        Raises:
-            ValueError: _description_
-            ValueError: _description_
-
-        Returns:
-            pd.DataFrame: _description_
-        """
-
-        # deepcopy to avoid modifying original
-        dataset_config = copy.deepcopy(oasis_dataset_config[dataset])
-
-        if params is None:
-            params = {}
-
-        for p in params:
-            if p not in dataset_config["params"]:
-                raise ValueError(
-                    f"Parameter {p} not supported for dataset {dataset}",
-                )
-
-            # if it's a list, make sure param value is in list
-            if (
-                isinstance(dataset_config["params"][p], list)
-                and params[p] not in dataset_config["params"][p]
-            ):
-                raise ValueError(
-                    f"Parameter {p} not supported for dataset {dataset}",
-                )
-
-            dataset_config["params"][p] = params[p]
-
-        # if any dataset_config values are list,
-        # take first as default
-        for k, v in dataset_config["params"].items():
-            if isinstance(v, list):
-                dataset_config["params"][k] = v[0]
-
-        # combine kv from queyr and params
-        config_flat = {
-            **dataset_config["query"],
-            **dataset_config["params"],
-        }
-
-        # filter out null values
-        config_flat = {k: v for k, v in config_flat.items() if v is not None}
-
-        df = _get_oasis(
-            config=config_flat,
-            start=date,
-            end=end,
-            raw_data=raw_data,
-            verbose=verbose,
-            sleep=sleep,
-        )
-
-        if df is None:
-            if end:
-                print(f"No data for {date} to {end}")
-            else:
-                print(f"No data for {date}")
-            return pd.DataFrame()
-
-        return df
-
     @support_date_range(frequency="31D")
     def get_as_procurement(
         self,
@@ -1463,481 +1981,3 @@ class CAISO(ISOBase):
         df.columns.name = None
 
         return df
-
-    def list_oasis_datasets(self, dataset: str | None = None):
-        """List all available OASIS datasets and their parameters.
-
-        Args:
-            dataset (str, optional): dataset to return data for. If None, returns all datasets.
-        """
-        # pandas dataframe of oasis dataset name
-        # param name
-        # param default value
-        # and param values
-
-        for dataset_name, config in oasis_dataset_config.items():
-            if dataset is not None and dataset_name not in dataset:
-                continue
-            print(colored(f"Dataset: {dataset_name}", "cyan"))
-            if len(config["params"]) == 0:
-                print("    No parameters")
-            else:
-                table_data = []
-                for k, v in config["params"].items():
-                    default = v[0] if isinstance(v, list) else v
-                    possible_values = (
-                        ", ".join(str(val) for val in v)
-                        if isinstance(v, list)
-                        else "N/A"
-                    )
-                    table_data.append([k, default, possible_values])
-
-                print(
-                    tabulate(
-                        table_data,
-                        headers=[
-                            "Parameter",
-                            "Default",
-                            "Possible Values",
-                        ],
-                        tablefmt="grid",
-                    ),
-                )
-
-            print("\n")
-
-
-def _get_historical(
-    file: str,
-    date: str | pd.Timestamp,
-    column: str,
-    verbose: bool = False,
-) -> pd.DataFrame:
-    """Get the historical data file from CAISO given a data series name, formats, and returns a pandas dataframe.
-
-    Args:
-        file (str): The name of the data we are wanting, which is equivalent to the file to get from CAISO
-        date (str | pd.Timestamp): The date of the data to get from CAISO
-        column (str): The column to check for the latest value time
-        verbose (bool, optional): Whether to print out the URL being fetched, defaults to False
-
-    Returns:
-        pd.DataFrame: A pandas dataframe of the data
-    """
-    # NOTE: The cache buster is necessary because CAISO will serve cached data from cloudfront on the same url if the url has not changed.
-    cache_buster = int(pd.Timestamp.now(tz=CAISO.default_timezone).timestamp())
-    if utils.is_today(date, CAISO.default_timezone):
-        url: str = f"{CURRENT_BASE}/{file}.csv?_={cache_buster}"
-        latest = True
-    else:
-        date_str: str = date.strftime("%Y%m%d")
-        url: str = f"{HISTORY_BASE}/{date_str}/{file}.csv?_={cache_buster}"
-        latest = False
-    logger.info(f"Fetching URL: {url}")
-    df = pd.read_csv(url)
-
-    # sometimes there are extra rows at the end, so this lets us ignore them
-    df = df.dropna(subset=["Time"])
-
-    # drop every column after Time where values
-    # are all null. this happens during spring DST
-    # change and caiso keeps the non-existent hour
-    # but has nulls for all other columns
-    df = df.dropna(subset=df.columns[1:], how="all")
-
-    # for the latest data, we want to check if the data is actually from the previous day and update the date accordingly
-    if latest:
-        latest_file_time = caiso_utils.check_latest_value_time(df, column)
-        current_caiso_time = pd.Timestamp.now(tz=CAISO.default_timezone)
-
-        if latest_file_time > current_caiso_time:
-            date = date - pd.Timedelta(days=1)
-
-    df["Time"] = df["Time"].apply(
-        caiso_utils.make_timestamp,
-        today=date,
-        timezone=CAISO.default_timezone,
-    )
-
-    # sometimes returns midnight, which is technically the next day
-    # to be careful, let's check if that is the case before dropping
-    if df.iloc[-1]["Time"].hour == 0:
-        df = df.iloc[:-1]
-
-    # insert interval start/end columns
-    df.insert(1, "Interval Start", df["Time"])
-
-    # be careful if this is ever not 5 minutes
-    df.insert(2, "Interval End", df["Time"] + pd.Timedelta(minutes=5))
-
-    return df
-
-
-def _get_oasis(
-    config: dict,
-    start: str | pd.Timestamp,
-    end: str | pd.Timestamp | None = None,
-    raw_data: bool = False,
-    verbose: bool = False,
-    sleep: int = 5,
-) -> pd.DataFrame | None:
-    start, end = _caiso_handle_start_end(start, end)
-    config = copy.deepcopy(config)
-    config["startdatetime"] = start
-    config["enddatetime"] = end
-
-    base_url = f"http://oasis.caiso.com/oasisapi/{config.pop('path')}?"
-
-    url = base_url + "&".join(
-        [f"{k}={v}" for k, v in config.items()],
-    )
-
-    logger.info(f"Fetching URL: {url}")
-
-    retry_num = 0
-    while retry_num < 3:
-        r = requests.get(url)
-
-        if r.status_code == 200:
-            break
-
-        retry_num += 1
-        print(f"Failed to get data from CAISO. Error: {r.status_code}")
-        print(f"Retrying {retry_num}...")
-        time.sleep(sleep)
-
-    # this is when no data is available
-    if (
-        "Content-Disposition" not in r.headers
-        or ".xml.zip;" in r.headers["Content-Disposition"]
-        or b".xml" in r.content
-    ):
-        # avoid rate limiting
-        time.sleep(sleep)
-        return None
-
-    z = ZipFile(io.BytesIO(r.content))
-
-    # parse and concat all files
-    dfs = []
-    for f in z.namelist():
-        df = pd.read_csv(z.open(f))
-        dfs.append(df)
-
-    df = pd.concat(dfs)
-
-    # if col ends in _GMT, then try to parse as UTC
-    for col in df.columns:
-        if col.endswith("_GMT"):
-            df[col] = pd.to_datetime(
-                df[col],
-                utc=True,
-            )
-
-    # handle different column names
-    # across different datasets
-    start_cols = [
-        "INTERVALSTARTTIME_GMT",
-        "INTERVAL_START_GMT",
-        "STARTTIME_GMT",
-        "START_DATE_GMT",
-    ]
-    end_cols = [
-        "INTERVALENDTIME_GMT",
-        "INTERVAL_END_GMT",
-        "ENDTIME_GMT",
-        "END_DATE_GMT",
-    ]
-    start_col = None
-    end_col = None
-    for col in start_cols:
-        if col in df.columns:
-            start_col = col
-            df = df.sort_values(by=start_col)
-            break
-    for col in end_cols:
-        if col in df.columns:
-            end_col = col
-            break
-
-    if not raw_data and start_col in df.columns:
-        df[start_col] = df[start_col].dt.tz_convert(
-            CAISO.default_timezone,
-        )
-
-        df[end_col] = df[end_col].dt.tz_convert(
-            CAISO.default_timezone,
-        )
-
-        df.rename(
-            columns={
-                start_col: "Interval Start",
-                end_col: "Interval End",
-            },
-            inplace=True,
-        )
-
-        df.insert(0, "Time", df["Interval Start"])
-
-    # avoid rate limiting
-    time.sleep(sleep)
-
-    return df
-
-
-def _caiso_handle_start_end(
-    date: str | pd.Timestamp,
-    end: str | pd.Timestamp | None = None,
-) -> tuple[str, str]:
-    start = date.tz_convert("UTC")
-
-    if end:
-        end = end
-        end = end.tz_convert("UTC")
-    else:
-        end = start + pd.DateOffset(1)
-
-    start = start.strftime("%Y%m%dT%H:%M-0000")
-    end = end.strftime("%Y%m%dT%H:%M-0000")
-
-    return start, end
-
-
-# Transmission Interface Usage Report
-oasis_dataset_config = {
-    "transmission_interface_usage": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "TRNS_USAGE",
-            "version": 1,
-        },
-        "params": {
-            "market_run_id": ["DAM", "HASP", "RRPD"],
-            # you can also specify a specific interface
-            "ti_id": "ALL",
-            "ti_direction": ["ALL", "E", "I"],
-        },
-    },
-    "schedule_by_tie": {
-        "query": {
-            "path": "GroupZip",
-            "resultformat": 6,
-            "version": 12,
-        },
-        "params": {
-            "groupid": [
-                "RTD_ENE_SCH_BY_TIE_GRP",
-                "DAM_ENE_SCH_BY_TIE_GRP",
-                "RUC_ENE_SCH_BY_TIE_GRP",
-                "RTPD_ENE_SCH_BY_TIE_GRP",
-            ],
-        },
-        "meta": {
-            "max_query_frequency": "1d",
-        },
-    },
-    "as_requirements": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "AS_REQ",
-            "version": 1,
-        },
-        "params": {
-            "market_run_id": ["DAM", "HASP", "RTM", "2DA"],
-            "anc_type": ["ALL", "NR", "RD", "RU", "SR", "RMD", "RMU"],
-            "anc_region": [
-                "ALL",
-                "AS_CAISO",
-                "AS_CAISO_EXP",
-                "AS_NP26",
-                "AS_NP26_EXP",
-                "AS_SP26",
-                "AS_SP26_EXP",
-            ],
-        },
-    },
-    "as_clearing_prices": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "PRC_AS",
-            "version": 12,
-        },
-        "params": {
-            "market_run_id": ["DAM", "HASP"],
-            "anc_type": ["ALL", "NR", "RD", "RMD", "RMU", "RU", "SR"],
-            "anc_region": [
-                "ALL",
-                "AS_CAISO",
-                "AS_SP26_EXP",
-                "AS_SP26",
-                "AS_CAISO_EXP",
-                "AS_NP26_EXP",
-                "AS_NP26",
-            ],
-        },
-    },
-    "fuel_prices": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "PRC_FUEL",
-            "version": 1,
-        },
-        "params": {
-            "fuel_region_id": "ALL",
-        },
-    },
-    "ghg_allowance": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "PRC_GHG_ALLOWANCE",
-            "version": 1,
-        },
-        "params": {},
-    },
-    "wind_and_solar_forecast": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "SLD_REN_FCST",
-            "version": 1,
-        },
-        "params": {"market_run_id": "DAM"},
-    },
-    "pnode_map": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "ATL_PNODE_MAP",
-            "version": 1,
-        },
-        "params": {
-            "pnode_id": "ALL",
-        },
-    },
-    "lmp_day_ahead_hourly": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "PRC_LMP",
-            "version": 12,
-        },
-        "params": {
-            "market_run_id": "DAM",
-            "node": None,
-            "grp_type": [None, "ALL", "ALL_APNODES"],
-        },
-    },
-    "lmp_real_time_5_min": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "PRC_INTVL_LMP",
-            "version": 3,
-        },
-        "params": {
-            "market_run_id": "RTM",
-            "node": None,
-            "grp_type": [None, "ALL", "ALL_APNODES"],
-        },
-    },
-    "lmp_real_time_15_min": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "PRC_RTPD_LMP",
-            "version": 3,
-        },
-        "params": {
-            "market_run_id": "RTPD",
-            "node": None,
-            "grp_type": [None, "ALL", "ALL_APNODES"],
-        },
-    },
-    "demand_forecast": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "SLD_FCST",
-            "version": 1,
-        },
-        "params": {
-            # TODO: support additional markets
-            "market_run_id": "DAM",
-        },
-    },
-    "as_results": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "AS_RESULTS",
-            "version": 1,
-        },
-        "params": {
-            "market_run_id": ["DAM", "HASP", "RTM"],
-            "anc_type": ["ALL", "NR", "RD", "RU", "SR", "RMD", "RMU"],
-            "anc_region": [
-                "ALL",
-                "AS_CAISO",
-                "AS_CAISO_EXP",
-                "AS_NP26",
-                "AS_NP26_EXP",
-                "AS_SP26",
-                "AS_SP26_EXP",
-            ],
-        },
-    },
-    "excess_btm_production": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "ENE_EBTMP_PERF_DATA",
-            "version": 11,
-        },
-        "params": {},
-        "meta": {
-            "publish_delay": "3 months",
-        },
-    },
-    "public_bids": {
-        "query": {
-            "path": "GroupZip",
-            "resultformat": 6,
-            "version": 3,
-        },
-        "params": {
-            "groupid": ["PUB_DAM_GRP", "PUB_RTM_GRP"],
-        },
-        "meta": {
-            "publish_delay": "90 days",
-            "max_query_frequency": "1d",
-        },
-    },
-    "tie_flows_real_time": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "ENE_EIM_TRANSFER_TIE",
-            "version": 4,
-        },
-        "params": {
-            "baa_grp_id": "ALL",
-            "market_run_id": REAL_TIME_DISPATCH_MARKET_RUN_ID,
-        },
-    },
-    "tie_schedule_day_ahead_hourly": {
-        "query": {
-            "path": "GroupZip",
-            "resultformat": 6,
-            "version": 12,
-        },
-        "params": {
-            "groupid": ["DAM_ENE_SCH_BY_TIE_GRP"],
-            "market_run_id": DAY_AHEAD_MARKET_MARKET_RUN_ID,
-        },
-    },
-}
