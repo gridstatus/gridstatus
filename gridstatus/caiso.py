@@ -21,7 +21,7 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
 CURRENT_BASE = "https://www.caiso.com/outlook/current"
@@ -691,7 +691,7 @@ class CAISO(ISOBase):
             "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
         )
 
-        log(f"Fetching {url}", verbose=verbose)
+        logger.info(f"Fetching {url}")
 
         # Only want the "GPI_Fuel_Region" sheet
         return pd.read_excel(url, sheet_name="GPI_Fuel_Region").rename(
@@ -746,8 +746,7 @@ class CAISO(ISOBase):
     def get_raw_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
         url = "http://www.caiso.com/PublishedDocuments/PublicQueueReport.xlsx"
 
-        msg = f"Downloading interconnection queue from {url}"
-        log(msg, verbose)
+        logger.info(f"Downloading interconnection queue from {url}")
         response = requests.get(url)
         return utils.get_response_blob(response)
 
@@ -896,8 +895,7 @@ class CAISO(ISOBase):
 
         url = f"{base_url}{date_str}.pdf"
 
-        msg = f"Fetching URL: {url}"
-        log(msg, verbose)
+        logger.info(f"Fetching URL: {url}")
 
         r = requests.get(url)
         if r.status_code == 404:
@@ -1124,7 +1122,7 @@ class CAISO(ISOBase):
         if date.date() == pd.Timestamp("2024-06-01").date():
             url = f"https://www.caiso.com/documents/curtailed-and-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"  # noqa
 
-        log(f"Fetching {url}", verbose=verbose)
+        logger.info(f"Fetching {url}")
         # fetch this way to avoid having to
         # make request twice
         content = requests.get(url).content
@@ -1535,8 +1533,7 @@ def _get_historical(
         date_str: str = date.strftime("%Y%m%d")
         url: str = f"{HISTORY_BASE}/{date_str}/{file}.csv?_={cache_buster}"
         latest = False
-    msg: str = f"Fetching URL: {url}"
-    log(msg, verbose)
+    logger.info(f"Fetching URL: {url}")
     df = pd.read_csv(url)
 
     # sometimes there are extra rows at the end, so this lets us ignore them
@@ -1595,8 +1592,7 @@ def _get_oasis(
         [f"{k}={v}" for k, v in config.items()],
     )
 
-    msg = f"Fetching URL: {url}"
-    log(msg, verbose)
+    logger.info(f"Fetching URL: {url}")
 
     retry_num = 0
     while retry_num < 3:
