@@ -804,6 +804,8 @@ class CAISO(ISOBase):
         df = self._add_forecast_publish_time(
             df,
             current_time,
+            forecast_type=forecast_type,
+            # TODO(kladar): figure out when other forecast types are published
             # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
             # ATLAS Reference > Publications > OASIS Publications Schedule
             publish_time_offset_from_day_start=pd.Timedelta(hours=9, minutes=10),
@@ -917,8 +919,8 @@ class CAISO(ISOBase):
         self,
         data: pd.DataFrame,
         current_time: pd.Timestamp,
-        publish_time_offset_from_day_start: pd.Timedelta,
-        forecast_type: str = "DAM",
+        publish_time_offset_from_day_start: pd.Timedelta | None = None,
+        forecast_type: Literal["DAM", "2DA", "7DA", "RTM", "ACTUAL"] = "DAM",
     ) -> pd.DataFrame:
         """
         Labels forecasts with a publish time using the logic:
@@ -940,15 +942,17 @@ class CAISO(ISOBase):
             minute=minute_offset,
         )
 
-        # If the current time is after the publish time, then future forecasts were
-        # published today. Otherwise, they were published yesterday.
-        if current_time > todays_publish_time:
-            future_forecasts_publish_time = todays_publish_time
-        else:
-            future_forecasts_publish_time = todays_publish_time - pd.Timedelta(days=1)
-
         match forecast_type:
             case "DAM":
+                # If the current time is after the publish time, then future forecasts were
+                # published today. Otherwise, they were published in a previous day.
+                if current_time > todays_publish_time:
+                    future_forecasts_publish_time = todays_publish_time
+                else:
+                    future_forecasts_publish_time = todays_publish_time - pd.Timedelta(
+                        days=1,
+                    )
+
                 # Forecasts tomorrow and later get the future forecasts publish time
                 # Forecasts today and earlier get a publish time of the previous day at the
                 # publish time offset

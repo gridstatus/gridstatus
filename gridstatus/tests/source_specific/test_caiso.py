@@ -10,39 +10,42 @@ from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
-api_vcr = setup_vcr(
+caiso_vcr = setup_vcr(
     source="caiso",
     record_mode=RECORD_MODE,
 )
 
 
 class TestCAISO(BaseTestISO):
-    iso = CAISO()
+    @classmethod
+    def setup_class(cls):
+        cls.iso = CAISO()
 
-    trading_hub_locations = iso.trading_hub_locations
+    trading_hub_locations = CAISO().trading_hub_locations
 
     """get_as"""
 
     @pytest.mark.integration
-    def test_get_as_prices(self):
-        date = "Oct 15, 2022"
-        df = self.iso.get_as_prices(date)
+    @pytest.mark.parametrize("date", ["20221015", "20221016"])
+    def test_get_as_prices(self, date):
+        with caiso_vcr.use_cassette(f"test_get_as_prices_{date}.yaml"):
+            df = self.iso.get_as_prices(date)
 
-        assert df.shape[0] > 0
+            assert df.shape[0] > 0
 
-        assert df.columns.tolist() == [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "Region",
-            "Market",
-            "Non-Spinning Reserves",
-            "Regulation Down",
-            "Regulation Mileage Down",
-            "Regulation Mileage Up",
-            "Regulation Up",
-            "Spinning Reserves",
-        ]
+            assert df.columns.tolist() == [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Market",
+                "Non-Spinning Reserves",
+                "Regulation Down",
+                "Regulation Mileage Down",
+                "Regulation Mileage Up",
+                "Regulation Up",
+                "Spinning Reserves",
+            ]
 
     @pytest.mark.integration
     def test_get_as_procurement(self):
