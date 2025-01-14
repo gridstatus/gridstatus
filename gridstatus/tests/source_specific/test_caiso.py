@@ -25,7 +25,6 @@ class TestCAISO(BaseTestISO):
 
     """get_as"""
 
-    @pytest.mark.integration
     @pytest.mark.parametrize("date", ["20221015", "20221016"])
     def test_get_as_prices(self, date):
         with caiso_vcr.use_cassette(f"test_get_as_prices_{date}.yaml"):
@@ -47,25 +46,27 @@ class TestCAISO(BaseTestISO):
                 "Spinning Reserves",
             ]
 
-    @pytest.mark.integration
-    def test_get_as_procurement(self):
-        date = "Oct 15, 2022"
-        for market in ["DAM", "RTM"]:
-            df = self.iso.get_as_procurement(date, market=market)
-            self._check_as_data(df, market)
+    @pytest.mark.parametrize("date", ["20221015", "20221016"])
+    def test_get_as_procurement(self, date):
+        with caiso_vcr.use_cassette(f"test_get_as_procurement_{date}.yaml"):
+            for market in ["DAM", "RTM"]:
+                df = self.iso.get_as_procurement(date, market=market)
+                self._check_as_data(df, market)
 
     """get_fuel_mix"""
 
-    @pytest.mark.integration
-    def test_fuel_mix_across_dst_transition(self):
-        # these dates are across the DST transition
-        # and caused a bug in the past
-        date = (
+    # NOTE: these dates are across the DST transition which caused a bug in the past
+    @pytest.mark.parametrize(
+        "date",
+        (
             pd.Timestamp("2023-11-05 09:55:00+0000", tz="UTC"),
             pd.Timestamp("2023-11-05 20:49:26.038069+0000", tz="UTC"),
-        )
-        df = self.iso.get_fuel_mix(date=date)
-        self._check_fuel_mix(df)
+        ),
+    )
+    def test_fuel_mix_across_dst_transition(self, date):
+        with caiso_vcr.use_cassette(f"test_fuel_mix_across_dst_transition_{date}.yaml"):
+            df = self.iso.get_fuel_mix(date=date)
+            self._check_fuel_mix(df)
 
     """get_load_forecast"""
 
