@@ -1063,7 +1063,7 @@ class CAISO(ISOBase):
                 "Date must be on or after June 17, 2021",
             )
 
-        # After May 31, 2024 and before Jan 13, 2025, the date format is
+        # Between May 31, 2024 and Jan 13, 2025, the date format is
         # %b-%d-%Y.lower() (jun-01-2024)
         date_str = date.strftime("%b-%d-%Y").lower()
 
