@@ -1063,14 +1063,17 @@ class CAISO(ISOBase):
                 "Date must be on or after June 17, 2021",
             )
 
-        # After May 31, 2024, the date format is %b-%d-%Y.lower() (jun-01-2024)
+        # Between May 31, 2024 and Jan 13, 2025, the date format is
+        # %b-%d-%Y.lower() (jun-01-2024)
         date_str = date.strftime("%b-%d-%Y").lower()
 
         # May 31, 2024 uses a unique format (2024-05-31)
         if date.date() == pd.Timestamp("2024-05-31").date():
             date_str = date.strftime("%Y-%m-%d").lower()
-        # Before May 31, 2024, the date format is %Y%m%d (20240530)
-        elif date < pd.Timestamp("2024-05-31", tz=date.tzinfo):
+        # Before May 31, 2024 and after Jan 12, 2025 date format is %Y%m%d (20240530)
+        elif (date < pd.Timestamp("2024-05-31", tz=date.tzinfo)) or (
+            date > pd.Timestamp("2025-01-12", tz=date.tzinfo)
+        ):
             date_str = date.strftime("%Y%m%d")
 
         url = f"https://www.caiso.com/documents/curtailed-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"  # noqa
