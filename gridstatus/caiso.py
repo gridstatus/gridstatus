@@ -766,21 +766,36 @@ class CAISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
-        forecast_type: Literal["DAM", "2DA", "7DA", "ACTUAL", "RTM"] = "DAM",
+        forecast_horizon: Literal[
+            "DAM",
+            "2DA",
+            "7DA",
+            "ACTUAL",
+            "RTM5",
+            "RTM15",
+        ] = "DAM",
         sleep: int = 4,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Returns load forecast for a previous date in 1 hour intervals
+        """Returns load forecast for a previous date and forecast type
 
         Arguments:
             date (str, pd.Timestamp): day to return.
                 If string, format should be YYYYMMDD e.g 20200623
-
+            end (str, pd.Timestamp): end of date range to return.
+                If None, returns only date. Defaults to None.
+            forecast_type (str): forecast type to return.
+                Defaults to "DAM".
             sleep (int): number of seconds to sleep before returning to avoid
                 hitting rate limit in regular usage. Defaults to 5 seconds.
+            verbose (bool): print verbose output. Defaults to False.
 
         """
         current_time = pd.Timestamp.now(tz=self.default_timezone)
+        if forecast_horizon == "RTM5" or forecast_horizon == "RTM15":
+            forecast_type = "RTM"
+        else:
+            forecast_type = forecast_horizon
 
         df = self.get_oasis_dataset(
             dataset="demand_forecast",
@@ -804,12 +819,19 @@ class CAISO(ISOBase):
         df = self._add_forecast_publish_time(
             df,
             current_time,
-            forecast_type=forecast_type,
+            forecast_horizon=forecast_horizon,
             # TODO(kladar): figure out when other forecast types are published
             # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
             # ATLAS Reference > Publications > OASIS Publications Schedule
             publish_time_offset_from_day_start=pd.Timedelta(hours=9, minutes=10),
         )
+        df["interval_duration"] = (
+            df["Interval End"] - df["Interval Start"]
+        ).dt.total_seconds() / 60
+        if forecast_horizon == "RTM5":
+            df = df[df["interval_duration"] == 5].copy()
+        elif forecast_horizon == "RTM15":
+            df = df[df["interval_duration"] == 15].copy()
 
         df = df[
             [
@@ -920,7 +942,14 @@ class CAISO(ISOBase):
         data: pd.DataFrame,
         current_time: pd.Timestamp,
         publish_time_offset_from_day_start: pd.Timedelta | None = None,
-        forecast_type: Literal["DAM", "2DA", "7DA", "RTM", "ACTUAL"] = "DAM",
+        forecast_horizon: Literal[
+            "DAM",
+            "2DA",
+            "7DA",
+            "RTM5",
+            "RTM15",
+            "ACTUAL",
+        ] = "DAM",
     ) -> pd.DataFrame:
         """
         Labels forecasts with a publish time using the logic:
@@ -942,7 +971,7 @@ class CAISO(ISOBase):
             minute=minute_offset,
         )
 
-        match forecast_type:
+        match forecast_horizon:
             case "DAM":
                 # If the current time is after the publish time, then future forecasts were
                 # published today. Otherwise, they were published in a previous day.
@@ -985,8 +1014,10 @@ class CAISO(ISOBase):
                     )
                     - pd.Timedelta(days=7),
                 )
-            case "RTM":
+            case "RTM5":
                 data["Publish Time"] = data["Interval Start"] - pd.Timedelta(minutes=5)
+            case "RTM15":
+                data["Publish Time"] = data["Interval Start"] - pd.Timedelta(minutes=15)
             case "ACTUAL":
                 data["Publish Time"] = data["Interval Start"]
             case _:
