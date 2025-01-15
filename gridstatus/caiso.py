@@ -1740,6 +1740,8 @@ class CAISO(ISOBase):
         content = requests.get(url).content
         content_io = io.BytesIO(content)
 
+        logger.debug(f"content: {content}")
+        logger.debug(f"content_io: {content_io}")
         # find index of OUTAGE MRID
         test_parse = pd.read_excel(
             content_io,

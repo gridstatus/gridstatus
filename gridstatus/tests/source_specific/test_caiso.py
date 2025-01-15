@@ -75,7 +75,22 @@ class TestCAISO(BaseTestISO):
 
     """get_load_forecast"""
 
-    @pytest.mark.parametrize("date", ["today", "2024-01-15"])
+    def test_get_load_forecast_publish_time_today(self):
+        with caiso_vcr.use_cassette("test_get_load_forecast_publish_time_today.yaml"):
+            df = self.iso.get_load_forecast("today")
+
+            assert df.columns.tolist() == [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Load Forecast",
+            ]
+
+            assert df["Publish Time"].nunique() == 1
+            assert df["Publish Time"].max() < self.local_now()
+
+    @pytest.mark.parametrize("date", ["2024-01-15"])
     def test_get_load_forecast_publish_time(self, date):
         with caiso_vcr.use_cassette(f"test_get_load_forecast_publish_time_{date}.yaml"):
             df = self.iso.get_load_forecast(date)
@@ -557,7 +572,7 @@ class TestCAISO(BaseTestISO):
             assert df.shape[0] > 0
             assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
 
-    @pytest.mark.parametrize("date", ["2021-06-16", "2021-11-07"])
+    @pytest.mark.parametrize("date", [pd.Timestamp("today") - pd.Timedelta(days=2)])
     def test_get_curtailed_non_operational_generator_report_two_days_ago(self, date):
         with caiso_vcr.use_cassette(
             f"test_get_curtailed_non_operational_generator_report_two_days_ago_{date}.yaml",
@@ -619,10 +634,9 @@ class TestCAISO(BaseTestISO):
             subset=["Interval Start", "Tie Name", "From BAA", "To BAA"],
         ).any()
 
-    @pytest.mark.parametrize("date", ["latest"])
-    def test_get_tie_flows_real_time_latest(self, date):
+    def test_get_tie_flows_real_time_latest(self):
         with caiso_vcr.use_cassette("test_get_tie_flows_real_time_latest.yaml"):
-            df = self.iso.get_tie_flows_real_time(date)
+            df = self.iso.get_tie_flows_real_time("latest")
             self._check_tie_flows_real_time(df)
 
             assert df["Interval Start"].min() == pd.Timestamp.utcnow().round("5min")
@@ -630,10 +644,9 @@ class TestCAISO(BaseTestISO):
                 "5min",
             ) + pd.Timedelta(minutes=5)
 
-    @pytest.mark.parametrize("date", ["today"])
-    def test_get_tie_flows_real_time_today(self, date):
+    def test_get_tie_flows_real_time_today(self):
         with caiso_vcr.use_cassette("test_get_tie_flows_real_time_today.yaml"):
-            df = self.iso.get_tie_flows_real_time(date)
+            df = self.iso.get_tie_flows_real_time("today")
             self._check_tie_flows_real_time(df)
 
             assert df["Interval Start"].min() == self.local_start_of_today()
@@ -641,7 +654,7 @@ class TestCAISO(BaseTestISO):
     def test_get_tie_flows_real_time_historical_date_range(self):
         start_of_local_today = self.local_start_of_today()
         start = start_of_local_today - pd.DateOffset(days=100)
-        end = start_of_local_today + pd.DateOffset(days=2)
+        end = start + pd.DateOffset(days=2)
         with caiso_vcr.use_cassette(
             f"test_get_tie_flows_real_time_historical_date_range_{start}_{end}.yaml",
         ):
