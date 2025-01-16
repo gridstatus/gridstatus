@@ -1774,13 +1774,12 @@ class CAISO(ISOBase):
         content = requests.get(url).content
         content_io = io.BytesIO(content)
 
-        logger.debug(f"content: {content}")
-        logger.debug(f"content_io: {content_io}")
         # find index of OUTAGE MRID
         test_parse = pd.read_excel(
             content_io,
             usecols="B:M",
             sheet_name="PREV_DAY_OUTAGES",
+            engine="openpyxl",
         )
         first_col = test_parse[test_parse.columns[0]]
         outage_mrid_index = first_col[first_col == "OUTAGE MRID"].index[0] + 1
@@ -1791,6 +1790,7 @@ class CAISO(ISOBase):
             usecols="B:M",
             skiprows=outage_mrid_index,
             sheet_name="PREV_DAY_OUTAGES",
+            engine="openpyxl",
         )
 
         # drop columns where the name is nan

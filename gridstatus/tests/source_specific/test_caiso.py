@@ -646,7 +646,7 @@ class TestCAISO(BaseTestISO):
             date=date_with_new_format,
         )
         assert df.shape[0] > 0
-        assert df.columns.tolist() == columns
+        assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
 
     """get_tie_flows_real_time"""
 
