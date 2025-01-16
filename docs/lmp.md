@@ -17,7 +17,7 @@ Below are the currently supported LMP markets
 | Ercot | `get_lmp` | -                         | -                         | -                         | -                         | -                        | -                         |
 | IESO  | -         | -                         | -                         | -                         | -                         | -                        | -                         |
 | ISONE | `get_lmp` | latest, today, historical | -                         | today, historical         | latest, today, historical | -                        | -                         |
-| MISO  | `get_lmp` | latest, today             | -                         | today, historical         | -                         | historical               | historical                |
+| MISO  | `get_lmp` | latest, today, historical | -                         | today, historical         | -                         | historical               | historical                |
 | NYISO | `get_lmp` | latest, today, historical | latest, today             | latest, today, historical | -                         | -                        | -                         |
 | PJM   | `get_lmp` | latest, today, historical | -                         | today, historical         | today, historical         | -                        | -                         |
 | SPP   | -         | -                         | -                         | -                         | -                         | -                        | -                         |
