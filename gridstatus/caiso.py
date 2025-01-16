@@ -766,7 +766,7 @@ class CAISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
-        forecast_horizon: Literal[
+        forecast_vintage: Literal[
             "DAM",
             "2DA",
             "7DA",
@@ -792,10 +792,10 @@ class CAISO(ISOBase):
 
         """
         current_time = pd.Timestamp.now(tz=self.default_timezone)
-        if forecast_horizon == "RTM5" or forecast_horizon == "RTM15":
+        if forecast_vintage == "RTM5" or forecast_vintage == "RTM15":
             forecast_type = "RTM"
         else:
-            forecast_type = forecast_horizon
+            forecast_type = forecast_vintage
 
         df = self.get_oasis_dataset(
             dataset="demand_forecast",
@@ -819,7 +819,7 @@ class CAISO(ISOBase):
         df = self._add_forecast_publish_time(
             df,
             current_time,
-            forecast_horizon=forecast_horizon,
+            forecast_vintage=forecast_vintage,
             # TODO(kladar): verify exactly  when other forecast types are published
             # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
             # ATLAS Reference > Publications > OASIS Publications Schedule
@@ -828,9 +828,9 @@ class CAISO(ISOBase):
         df["interval_duration"] = (
             df["Interval End"] - df["Interval Start"]
         ).dt.total_seconds() / 60
-        if forecast_horizon == "RTM5":
+        if forecast_vintage == "RTM5":
             df = df[df["interval_duration"] == 5].copy()
-        elif forecast_horizon == "RTM15":
+        elif forecast_vintage == "RTM15":
             df = df[df["interval_duration"] == 15].copy()
 
         df = df[
@@ -942,7 +942,7 @@ class CAISO(ISOBase):
         data: pd.DataFrame,
         current_time: pd.Timestamp,
         publish_time_offset_from_day_start: pd.Timedelta | None = None,
-        forecast_horizon: Literal[
+        forecast_vintage: Literal[
             "DAM",
             "2DA",
             "7DA",
@@ -971,7 +971,7 @@ class CAISO(ISOBase):
             minute=minute_offset,
         )
 
-        match forecast_horizon:
+        match forecast_vintage:
             case "DAM":
                 # If the current time is after the publish time, then future forecasts were
                 # published today. Otherwise, they were published in a previous day.
