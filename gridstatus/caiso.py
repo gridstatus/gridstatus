@@ -820,7 +820,7 @@ class CAISO(ISOBase):
             df,
             current_time,
             forecast_horizon=forecast_horizon,
-            # TODO(kladar): figure out when other forecast types are published
+            # TODO(kladar): verify exactly  when other forecast types are published
             # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
             # ATLAS Reference > Publications > OASIS Publications Schedule
             publish_time_offset_from_day_start=pd.Timedelta(hours=9, minutes=10),
