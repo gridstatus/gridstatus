@@ -104,19 +104,19 @@ class TestCAISO(BaseTestISO):
         ],
     )
     @pytest.mark.parametrize(
-        "forecast_horizon",
+        "forecast_vintage",
         ["DAM", "2DA", "7DA", "ACTUAL", "RTM5", "RTM15"],
     )
-    def test_get_load_forecast_historical(self, date, forecast_horizon):
+    def test_get_load_forecast_historical(self, date, forecast_vintage):
         with caiso_vcr.use_cassette(
-            f"test_get_load_forecast_{forecast_horizon}_{date.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_load_forecast_{forecast_vintage}_{date.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_load_forecast(date, forecast_horizon=forecast_horizon)
+            df = self.iso.get_load_forecast(date, forecast_vintage=forecast_vintage)
 
             expected_interval = {
                 "RTM5": 5,
                 "RTM15": 15,
-            }.get(forecast_horizon)
+            }.get(forecast_vintage)
 
             self._check_load_forecast(df, expected_interval)
 
