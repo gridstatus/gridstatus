@@ -69,8 +69,6 @@
 * Update EIA Fuel Mix for Geothermal and Other Energy Storage in [#518](https://github.com/gridstatus/gridstatus/pull/518)
 * Support Multiple API Keys for MISO API in [#516](https://github.com/gridstatus/gridstatus/pull/516)
 
-**Full Changelog**: https://github.com/gridstatus/gridstatus/compare/v0.28.0...v0.29.0
-
 ## v0.28.0 - October 3, 2024
 
 ### Breaking Changes
