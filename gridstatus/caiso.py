@@ -808,11 +808,8 @@ class CAISO(ISOBase):
         )
 
         df = df.rename(
-            columns={"MW": "Load Forecast"},
+            columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
-
-        # returns many areas, we only want one overall iso
-        df = df[df["TAC_AREA_NAME"] == "CA ISO-TAC"]
 
         df = df.sort_values("Time")
 
@@ -839,6 +836,7 @@ class CAISO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
+                "TAC Area Name",
                 "Load Forecast",
             ]
         ]
