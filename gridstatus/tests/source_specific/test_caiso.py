@@ -640,6 +640,14 @@ class TestCAISO(BaseTestISO):
 
                 assert df.shape[0] > 0
 
+        # Change in url format on this date
+        date_with_new_format = pd.Timestamp("2025-01-13")
+        df = self.iso.get_curtailed_non_operational_generator_report(
+            date=date_with_new_format,
+        )
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == columns
+
     """get_tie_flows_real_time"""
 
     def _check_tie_flows_real_time(self, df: pd.DataFrame):
