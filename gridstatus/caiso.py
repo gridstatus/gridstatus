@@ -784,7 +784,7 @@ class CAISO(ISOBase):
                 If string, format should be YYYYMMDD e.g 20200623
             end (str, pd.Timestamp): end of date range to return.
                 If None, returns only date. Defaults to None.
-            forecast_type (str): forecast type to return.
+            forecast_horizon (str): forecast type to return.
                 Defaults to "DAM".
             sleep (int): number of seconds to sleep before returning to avoid
                 hitting rate limit in regular usage. Defaults to 5 seconds.
