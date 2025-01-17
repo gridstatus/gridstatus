@@ -1,4 +1,5 @@
 <p align="center">
+<!-- TODO: this image does not exist -->
 <img width=75% src="https://github.com/gridstatus/gridstatus/blob/main/gridstatus-header.png" alt="gridstatus logo" />
 </p>
 
@@ -27,7 +28,6 @@ To learn more about our hosted API visit: https://www.gridstatus.io/api.
 ## Community
 
 - Need Help? Post a [GitHub issue](https://github.com/kmax12/gridstatus/issues)
-- Want to chat? Join our [Slack](https://join.slack.com/t/gridstatus/shared_invite/zt-1jk6vlzt2-Lzz4pdpjkJYVUJkynOiIvQ)
 - Want to stay updated? Follow us on Twitter [@grid_status](https://twitter.com/grid_status)
 - Want to contribute? Read our [Contributing Guide](CONTRIBUTING.md)
 
@@ -58,7 +58,7 @@ python -m pip install --upgrade gridstatus
 
 ## Documentation and Examples
 
-To learn more, visit the [documentation](https://docs.gridstatus.io/) and view [example notebooks](https://docs.gridstatus.io/en/latest/Examples/caiso/index.html).
+To learn more, visit the [documentation](https://opensource.gridstatus.io/) and view [example notebooks](https://opensource.gridstatus.io/en/latest/Examples/caiso/index.html).
 
 ## Get Help
 
