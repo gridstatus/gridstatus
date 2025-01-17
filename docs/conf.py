@@ -143,4 +143,5 @@ html_js_files = [
 # -- Options for open graph ------------------------------------------------
 
 ogp_site_url = "https://www.gridstatus.io"
-ogp_image = "https://docs.gridstatus.io/en/latest/_static/grid-status-og.jpg"
+# TODO: this image does not exist
+ogp_image = "https://opensource.gridstatus.io/en/latest/_static/grid-status-og.jpg"
