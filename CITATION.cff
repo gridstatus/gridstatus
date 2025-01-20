@@ -1,0 +1,30 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: gridstatus
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Max
+    family-names: Kanter
+    email: max@gridstatus.io
+    affiliation: Grid Status
+repository-code: 'https://github.com/gridstatus/gridstatus'
+url: 'https://opensource.gridstatus.io/en/latest/'
+abstract: >-
+  gridstatus is a Python library that provides a uniform API
+  for accessing electricity supply, demand, and pricing data
+  for the major Independent System Operators (ISOs) in the
+  United States.
+keywords:
+  - energy
+  - electricity
+  - grid
+  - python
+  - data
+license: BSD-3-Clause
+version: 0.30.0
+date-released: '2025-01-17'
