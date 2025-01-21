@@ -269,7 +269,7 @@ OASIS_DATASET_CONFIG = {
 }
 
 
-def determine_lmp_frequency(args: dict) -> str:
+def _determine_lmp_frequency(args: dict) -> str:
     """if querying all must use 1d frequency"""
     locations = args.get("locations", "")
     market = args.get("market", "")
@@ -287,7 +287,7 @@ def determine_lmp_frequency(args: dict) -> str:
         return "31D"
 
 
-def determine_oasis_frequency(args: dict) -> str:
+def _determine_oasis_frequency(args: dict) -> str:
     dataset_config = copy.deepcopy(OASIS_DATASET_CONFIG[args["dataset"]])
     # get meta if it exists. and then max_query_frequency if it exists
     meta = dataset_config.get("meta", {})
@@ -471,7 +471,7 @@ class CAISO(ISOBase):
 
             print("\n")
 
-    @support_date_range(frequency=determine_oasis_frequency)
+    @support_date_range(frequency=_determine_oasis_frequency)
     def get_oasis_dataset(
         self,
         dataset: str,
@@ -1274,7 +1274,7 @@ class CAISO(ISOBase):
             Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
         },
     )
-    @support_date_range(frequency=determine_lmp_frequency)
+    @support_date_range(frequency=_determine_lmp_frequency)
     def get_lmp(
         self,
         date: str | pd.Timestamp,
