@@ -759,6 +759,22 @@ class CAISO(ISOBase):
         df = df.dropna(subset=["Load"])
         return df
 
+    # Deprecated in favor of the vintage-based functions, e.g. get_load_forecast_5_min
+    @support_date_range(frequency="31D")
+    def get_load_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "today" or date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        df = self.get_load_forecast_day_ahead(date, end=end)
+        df["Time"] = df["Interval Start"]
+        df = df[df["TAC Area Name"] == "CA ISO-TAC"]
+        df = df.drop(columns=["TAC Area Name"])
+        return df
+
     @support_date_range(frequency="31D")
     def get_load_forecast_5_min(
         self,
@@ -898,7 +914,6 @@ class CAISO(ISOBase):
         df = df.rename(
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
-
         df = self._add_load_forecast_publish_time(df, day_offset=1)
         df.sort_values(by="Interval Start", inplace=True)
 
@@ -1026,13 +1041,12 @@ class CAISO(ISOBase):
         unique_dates = sorted(df["date"].unique())
 
         for forecast_date in unique_dates:
-            # 7DA forecast is published at 9:10 AM PT seven days before
             publish_time = (
-                pd.Timestamp(forecast_date) - pd.Timedelta(days=day_offset)
+                pd.Timestamp(forecast_date, tz=self.default_timezone)
+                - pd.Timedelta(days=day_offset)
             ).replace(
                 hour=9,
                 minute=10,
-                tz=self.default_timezone,
             )
             df.loc[df["date"] == forecast_date, "Publish Time"] = publish_time
 

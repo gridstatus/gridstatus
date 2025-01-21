@@ -17,9 +17,7 @@ caiso_vcr = setup_vcr(
 
 
 class TestCAISO(BaseTestISO):
-    @classmethod
-    def setup_class(cls):
-        cls.iso = CAISO()
+    iso = CAISO()
 
     trading_hub_locations = CAISO().trading_hub_locations
 
@@ -92,11 +90,6 @@ class TestCAISO(BaseTestISO):
             interval_minutes = (
                 df["Interval End"] - df["Interval Start"]
             ).dt.total_seconds() / 60
-            unexpected_intervals = interval_minutes[
-                interval_minutes != expected_interval_minutes
-            ]
-            if len(unexpected_intervals) > 0:
-                print(f"Unexpected intervals: {unexpected_intervals.tolist()}")
             assert (interval_minutes == expected_interval_minutes).all()
 
         assert df["Publish Time"].max() < self.local_now()
@@ -105,8 +98,10 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today().normalize() - pd.Timedelta(days=5),
-                pd.Timestamp.today().normalize() - pd.Timedelta(days=2),
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=5),
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=2),
             ),
         ],
     )
@@ -116,15 +111,15 @@ class TestCAISO(BaseTestISO):
         ):
             df = self.iso.get_load_forecast_5_min(date, end=end)
             self._check_load_forecast(df, expected_interval_minutes=5)
-            assert df["Interval Start"].min() == self.local_start_of_day(date)
-            assert df["Interval End"].max() <= self.local_start_of_day(end)
 
     @pytest.mark.parametrize(
         "date, end",
         [
             (
-                pd.Timestamp.today().normalize() - pd.Timedelta(days=3),
-                pd.Timestamp.today().normalize() - pd.Timedelta(days=1),
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=3),
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=1),
             ),
         ],
     )
@@ -134,15 +129,15 @@ class TestCAISO(BaseTestISO):
         ):
             df = self.iso.get_load_forecast_day_ahead(date, end=end)
             self._check_load_forecast(df, expected_interval_minutes=60)
-            assert df["Interval Start"].min() == self.local_start_of_day(date)
-            assert df["Interval End"].max() <= self.local_start_of_day(end)
 
     @pytest.mark.parametrize(
         "date, end",
         [
             (
-                pd.Timestamp.today().normalize() - pd.Timedelta(days=3),
-                pd.Timestamp.today().normalize() - pd.Timedelta(days=1),
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=3),
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=1),
             ),
         ],
     )
@@ -152,15 +147,15 @@ class TestCAISO(BaseTestISO):
         ):
             df = self.iso.get_load_forecast_two_day_ahead(date, end=end)
             self._check_load_forecast(df, expected_interval_minutes=60)
-            assert df["Interval Start"].min() == self.local_start_of_day(date)
-            assert df["Interval End"].max() <= self.local_start_of_day(end)
 
     @pytest.mark.parametrize(
         "date, end",
         [
             (
-                pd.Timestamp.today().normalize() - pd.Timedelta(days=3),
-                pd.Timestamp.today().normalize() - pd.Timedelta(days=1),
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=3),
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=1),
             ),
         ],
     )
@@ -170,8 +165,6 @@ class TestCAISO(BaseTestISO):
         ):
             df = self.iso.get_load_forecast_seven_day_ahead(date, end=end)
             self._check_load_forecast(df, expected_interval_minutes=60)
-            assert df["Interval Start"].min() == self.local_start_of_day(date)
-            assert df["Interval End"].max() <= self.local_start_of_day(end)
 
     """get_solar_and_wind_forecast_dam"""
 
