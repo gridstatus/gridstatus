@@ -1040,7 +1040,7 @@ class CAISO(ISOBase):
         df["date"] = df["Interval Start"].dt.date
         unique_dates = sorted(df["date"].unique())
 
-        # All daily forecasts are published at the same time
+        # All daily forecasts are published at the same time each day, 9:10 AM PT
         # http://oasis.caiso.com/mrioasis/logon.do > Atlas Reference > Publications > OASIS Publications Schedule
         for forecast_date in unique_dates:
             publish_time = (
