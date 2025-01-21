@@ -2547,7 +2547,7 @@ class PJM(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_hourly_demand_bids(self, date, end=None, verbose=False):
+    def get_day_ahead_demand_bids_hourly(self, date, end=None, verbose=False):
         """
         Retrieves the hourly demand bids data from:
         https://dataminer2.pjm.com/feed/hrl_dmd_bids/definition
