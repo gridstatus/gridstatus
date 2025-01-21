@@ -81,10 +81,10 @@ class TestCAISO(BaseTestISO):
         expected_interval_minutes: int | None = None,
     ):
         assert df.columns.tolist() == [
-            "Time",
             "Interval Start",
             "Interval End",
             "Publish Time",
+            "TAC Area Name",
             "Load Forecast",
         ]
 
@@ -92,49 +92,86 @@ class TestCAISO(BaseTestISO):
             interval_minutes = (
                 df["Interval End"] - df["Interval Start"]
             ).dt.total_seconds() / 60
+            unexpected_intervals = interval_minutes[
+                interval_minutes != expected_interval_minutes
+            ]
+            if len(unexpected_intervals) > 0:
+                print(f"Unexpected intervals: {unexpected_intervals.tolist()}")
             assert (interval_minutes == expected_interval_minutes).all()
 
         assert df["Publish Time"].max() < self.local_now()
 
     @pytest.mark.parametrize(
-        "date",
+        "date, end",
         [
-            pd.Timestamp.today().normalize() - pd.DateOffset(days=364),
-            pd.Timestamp.today().normalize() - pd.Timedelta(days=1),
+            (
+                pd.Timestamp.today().normalize() - pd.Timedelta(days=5),
+                pd.Timestamp.today().normalize() - pd.Timedelta(days=2),
+            ),
         ],
     )
-    @pytest.mark.parametrize(
-        "forecast_vintage",
-        ["DAM", "2DA", "7DA", "ACTUAL", "RTM5", "RTM15"],
-    )
-    def test_get_load_forecast_historical(self, date, forecast_vintage):
+    def test_get_load_forecast_5_min_date_range(self, date, end):
         with caiso_vcr.use_cassette(
-            f"test_get_load_forecast_{forecast_vintage}_{date.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_load_forecast_5_min_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_load_forecast(date, forecast_vintage=forecast_vintage)
-
-            expected_interval = {
-                "RTM5": 5,
-                "RTM15": 15,
-            }.get(forecast_vintage)
-
-            self._check_load_forecast(df, expected_interval)
-
+            df = self.iso.get_load_forecast_5_min(date, end=end)
+            self._check_load_forecast(df, expected_interval_minutes=5)
             assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() <= self.local_start_of_day(end)
 
-    def test_get_load_forecast_publish_time_today(self):
-        with caiso_vcr.use_cassette("test_get_load_forecast_publish_time_today.yaml"):
-            df = self.iso.get_load_forecast("today")
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                pd.Timestamp.today().normalize() - pd.Timedelta(days=3),
+                pd.Timestamp.today().normalize() - pd.Timedelta(days=1),
+            ),
+        ],
+    )
+    def test_get_load_forecast_day_ahead_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_load_forecast_day_ahead_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load_forecast_day_ahead(date, end=end)
+            self._check_load_forecast(df, expected_interval_minutes=60)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() <= self.local_start_of_day(end)
 
-            assert df.columns.tolist() == [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Load Forecast",
-            ]
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                pd.Timestamp.today().normalize() - pd.Timedelta(days=3),
+                pd.Timestamp.today().normalize() - pd.Timedelta(days=1),
+            ),
+        ],
+    )
+    def test_get_load_forecast_two_day_ahead_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_load_forecast_two_day_ahead_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load_forecast_two_day_ahead(date, end=end)
+            self._check_load_forecast(df, expected_interval_minutes=60)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() <= self.local_start_of_day(end)
 
-            assert df["Publish Time"].max() < self.local_now()
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                pd.Timestamp.today().normalize() - pd.Timedelta(days=3),
+                pd.Timestamp.today().normalize() - pd.Timedelta(days=1),
+            ),
+        ],
+    )
+    def test_get_load_forecast_seven_day_ahead_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_load_forecast_seven_day_ahead_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load_forecast_seven_day_ahead(date, end=end)
+            self._check_load_forecast(df, expected_interval_minutes=60)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() <= self.local_start_of_day(end)
 
     """get_solar_and_wind_forecast_dam"""
 

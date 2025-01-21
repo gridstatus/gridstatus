@@ -788,7 +788,9 @@ class CAISO(ISOBase):
             sleep=sleep,
             params={"market_run_id": "RTM"},
         )
-
+        df = df[
+            ((df["Interval End"] - df["Interval Start"]).dt.total_seconds() / 60) == 5
+        ]
         df = df.rename(
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
@@ -839,7 +841,9 @@ class CAISO(ISOBase):
             sleep=sleep,
             params={"market_run_id": "RTPD"},
         )
-
+        df = df[
+            ((df["Interval End"] - df["Interval Start"]).dt.total_seconds() / 60) == 15
+        ]
         df = df.rename(
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
@@ -1209,18 +1213,18 @@ class CAISO(ISOBase):
             # Forecasts today and earlier get a publish time of the previous day at the
             # publish time offset
 
-            # Default to existing DAM behavior for backward compatibility
-            data["Publish Time"] = np.where(
-                data["Interval Start"].dt.date > future_forecasts_publish_time.date(),
-                future_forecasts_publish_time,
-                data["Interval Start"].apply(
-                    lambda x: x.floor("D").replace(
-                        hour=hour_offset,
-                        minute=minute_offset,
-                    ),
-                )
-                - pd.Timedelta(days=1),
+        # Default to existing DAM behavior for backward compatibility
+        data["Publish Time"] = np.where(
+            data["Interval Start"].dt.date > future_forecasts_publish_time.date(),
+            future_forecasts_publish_time,
+            data["Interval Start"].apply(
+                lambda x: x.floor("D").replace(
+                    hour=hour_offset,
+                    minute=minute_offset,
+                ),
             )
+            - pd.Timedelta(days=1),
+        )
 
         return data
 
