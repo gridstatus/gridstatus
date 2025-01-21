@@ -1013,11 +1013,15 @@ class CAISO(ISOBase):
                     - pd.Timedelta(days=7),
                 )
             case "RTM5":
-                data["Publish Time"] = data["Interval Start"] - pd.Timedelta(minutes=5)
+                data["Publish Time"] = data["Interval Start"] - pd.Timedelta(
+                    minutes=2.5,
+                )
             case "RTM15":
-                data["Publish Time"] = data["Interval Start"] - pd.Timedelta(minutes=15)
+                data["Publish Time"] = data["Interval Start"] - pd.Timedelta(
+                    minutes=22.5,
+                )
             case "ACTUAL":
-                data["Publish Time"] = data["Interval Start"]
+                pass
             case _:
                 # Default to existing DAM behavior for backward compatibility
                 data["Publish Time"] = np.where(
