@@ -1171,9 +1171,6 @@ class CAISO(ISOBase):
             "DAM",
             "2DA",
             "7DA",
-            "RTM5",
-            "RTM15",
-            "ACTUAL",
         ] = "DAM",
     ) -> pd.DataFrame:
         """
@@ -1206,6 +1203,7 @@ class CAISO(ISOBase):
             # Forecasts today and earlier get a publish time of the previous day at the
             # publish time offset
 
+        # TODO(kladar): Each is published at 9:10 AM with their offset. Implement each vintage's publish time logic.
         match forecast_vintage:
             case "DAM":
                 data["Publish Time"] = data["Interval Start"].apply(
