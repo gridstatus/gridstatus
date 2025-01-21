@@ -762,41 +762,25 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="31D")
-    def get_load_forecast(
+    def get_load_forecast_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
-        forecast_vintage: Literal[
-            "DAM",
-            "2DA",
-            "7DA",
-            "ACTUAL",
-            "RTM5",
-            "RTM15",
-        ] = "DAM",
         sleep: int = 4,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Returns load forecast for a previous date and forecast type
+        """Returns 5-minute load forecast from the Real-Time Market
 
         Arguments:
-            date (str, pd.Timestamp): day to return.
-                If string, format should be YYYYMMDD e.g 20200623
-            end (str, pd.Timestamp): end of date range to return.
+            date (str | pd.Timestamp): day to return
+            end (str | pd.Timestamp, optional): end of date range to return.
                 If None, returns only date. Defaults to None.
-            forecast_horizon (str): forecast type to return.
-                Defaults to "DAM".
-            sleep (int): number of seconds to sleep before returning to avoid
-                hitting rate limit in regular usage. Defaults to 5 seconds.
+            sleep (int): seconds to sleep before returning to avoid rate limit. Defaults to 4.
             verbose (bool): print verbose output. Defaults to False.
 
+        Returns:
+            pd.DataFrame: DataFrame with load forecast data
         """
-        current_time = pd.Timestamp.now(tz=self.default_timezone)
-        if forecast_vintage == "RTM5" or forecast_vintage == "RTM15":
-            forecast_type = "RTM"
-        else:
-            forecast_type = forecast_vintage
-
         df = self.get_oasis_dataset(
             dataset="demand_forecast",
             start=date,
@@ -804,40 +788,283 @@ class CAISO(ISOBase):
             raw_data=False,
             verbose=verbose,
             sleep=sleep,
-            params={"market_run_id": forecast_type},
+            params={"market_run_id": "RTM"},
         )
 
         df = df.rename(
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
 
-        df = df.sort_values("Time")
-
-        df = self._add_forecast_publish_time(
-            df,
-            current_time,
-            forecast_vintage=forecast_vintage,
-            # TODO(kladar): verify exactly  when other forecast types are published
-            # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
-            # ATLAS Reference > Publications > OASIS Publications Schedule
-            publish_time_offset_from_day_start=pd.Timedelta(hours=9, minutes=10),
+        df["Publish Time"] = df["Interval Start"] - pd.Timedelta(
+            minutes=2.5,
         )
-        df["interval_duration"] = (
-            df["Interval End"] - df["Interval Start"]
-        ).dt.total_seconds() / 60
-        if forecast_vintage == "RTM5":
-            df = df[df["interval_duration"] == 5].copy()
-        elif forecast_vintage == "RTM15":
-            df = df[df["interval_duration"] == 15].copy()
 
+        df.sort_values(by="Interval Start", inplace=True)
         df = df[
             [
-                "Time",
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
                 "TAC Area Name",
                 "Load Forecast",
+            ]
+        ]
+
+        return df
+
+    @support_date_range(frequency="31D")
+    def get_load_forecast_15_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns 15-minute load forecast from the Real-Time Pre-Dispatch Market
+
+        Arguments:
+            date (str | pd.Timestamp): day to return
+            end (str | pd.Timestamp, optional): end of date range to return.
+                If None, returns only date. Defaults to None.
+            sleep (int): seconds to sleep before returning to avoid rate limit. Defaults to 4.
+            verbose (bool): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with load forecast data
+        """
+        df = self.get_oasis_dataset(
+            dataset="demand_forecast",
+            start=date,
+            end=end,
+            raw_data=False,
+            verbose=verbose,
+            sleep=sleep,
+            params={"market_run_id": "RTPD"},
+        )
+
+        df = df.rename(
+            columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
+        )
+
+        df["Publish Time"] = df["Interval Start"] - pd.Timedelta(
+            minutes=22.5,
+        )
+
+        df.sort_values(by="Interval Start", inplace=True)
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "TAC Area Name",
+                "Load Forecast",
+            ]
+        ]
+
+        return df
+
+    @support_date_range(frequency="31D")
+    def get_load_forecast_day_ahead(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns hourly day-ahead load forecast
+
+        Arguments:
+            date (str | pd.Timestamp): day to return
+            end (str | pd.Timestamp, optional): end of date range to return.
+                If None, returns only date. Defaults to None.
+            sleep (int): seconds to sleep before returning to avoid rate limit. Defaults to 4.
+            verbose (bool): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with load forecast data
+        """
+        df = self.get_oasis_dataset(
+            dataset="demand_forecast",
+            start=date,
+            end=end,
+            raw_data=False,
+            verbose=verbose,
+            sleep=sleep,
+            params={"market_run_id": "DAM"},
+        )
+
+        df = df.rename(
+            columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
+        )
+
+        # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
+        # ATLAS Reference > Publications > OASIS Publications Schedule
+        df = self._add_forecast_publish_time(
+            df,
+            pd.Timestamp.now(tz=self.default_timezone),
+            publish_time_offset_from_day_start=pd.Timedelta(hours=9, minutes=10),
+            forecast_vintage="DAM",
+        )
+
+        df.sort_values(by="Interval Start", inplace=True)
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "TAC Area Name",
+                "Load Forecast",
+            ]
+        ]
+
+        return df
+
+    @support_date_range(frequency="31D")
+    def get_load_forecast_two_day_ahead(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns hourly two-day-ahead load forecast
+
+        Arguments:
+            date (str | pd.Timestamp): day to return
+            end (str | pd.Timestamp, optional): end of date range to return.
+                If None, returns only date. Defaults to None.
+            sleep (int): seconds to sleep before returning to avoid rate limit. Defaults to 4.
+            verbose (bool): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with load forecast data
+        """
+        df = self.get_oasis_dataset(
+            dataset="demand_forecast",
+            start=date,
+            end=end,
+            raw_data=False,
+            verbose=verbose,
+            sleep=sleep,
+            params={"market_run_id": "2DA"},
+        )
+
+        df = df.rename(
+            columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
+        )
+
+        df = self._add_forecast_publish_time(
+            df,
+            pd.Timestamp.now(tz=self.default_timezone),
+            forecast_vintage="2DA",
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "TAC Area Name",
+                "Load Forecast",
+            ]
+        ]
+
+        return df
+
+    @support_date_range(frequency="31D")
+    def get_load_forecast_seven_day_ahead(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns hourly seven-day-ahead load forecast
+
+        Arguments:
+            date (str | pd.Timestamp): day to return
+            end (str | pd.Timestamp, optional): end of date range to return.
+                If None, returns only date. Defaults to None.
+            sleep (int): seconds to sleep before returning to avoid rate limit. Defaults to 4.
+            verbose (bool): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with load forecast data
+        """
+        df = self.get_oasis_dataset(
+            dataset="demand_forecast",
+            start=date,
+            end=end,
+            raw_data=False,
+            verbose=verbose,
+            sleep=sleep,
+            params={"market_run_id": "7DA"},
+        )
+
+        df = df.rename(
+            columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
+        )
+
+        df = self._add_forecast_publish_time(
+            df,
+            pd.Timestamp.now(tz=self.default_timezone),
+            forecast_vintage="7DA",
+        )
+
+        df.sort_values(by="Interval Start", inplace=True)
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "TAC Area Name",
+                "Load Forecast",
+            ]
+        ]
+
+        return df
+
+    @support_date_range(frequency="31D")
+    def get_load_actual(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns actual load values
+
+        Arguments:
+            date (str | pd.Timestamp): day to return
+            end (str | pd.Timestamp, optional): end of date range to return.
+                If None, returns only date. Defaults to None.
+            sleep (int): seconds to sleep before returning to avoid rate limit. Defaults to 4.
+            verbose (bool): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with actual load data
+        """
+        df = self.get_oasis_dataset(
+            dataset="demand_forecast",
+            start=date,
+            end=end,
+            raw_data=False,
+            verbose=verbose,
+            sleep=sleep,
+            params={"market_run_id": "ACTUAL"},
+        )
+
+        df = df.rename(
+            columns={"MW": "Load", "TAC_AREA_NAME": "TAC Area Name"},
+        )
+
+        df.sort_values(by="Interval Start", inplace=True)
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "TAC Area Name",
+                "Load",
             ]
         ]
 
@@ -968,32 +1195,24 @@ class CAISO(ISOBase):
             hour=hour_offset,
             minute=minute_offset,
         )
+        if current_time > todays_publish_time:
+            future_forecasts_publish_time = todays_publish_time
+        else:
+            future_forecasts_publish_time = todays_publish_time - pd.Timedelta(
+                days=1,
+            )
+
+            # Forecasts tomorrow and later get the future forecasts publish time
+            # Forecasts today and earlier get a publish time of the previous day at the
+            # publish time offset
 
         match forecast_vintage:
             case "DAM":
-                # If the current time is after the publish time, then future forecasts were
-                # published today. Otherwise, they were published in a previous day.
-                if current_time > todays_publish_time:
-                    future_forecasts_publish_time = todays_publish_time
-                else:
-                    future_forecasts_publish_time = todays_publish_time - pd.Timedelta(
-                        days=1,
+                data["Publish Time"] = data["Interval Start"].apply(
+                    lambda x: x.floor("D").replace(
+                        hour=hour_offset,
+                        minute=minute_offset,
                     )
-
-                # Forecasts tomorrow and later get the future forecasts publish time
-                # Forecasts today and earlier get a publish time of the previous day at the
-                # publish time offset
-                data["Publish Time"] = np.where(
-                    data["Interval Start"].dt.date
-                    > future_forecasts_publish_time.date(),
-                    future_forecasts_publish_time,
-                    data["Interval Start"].apply(
-                        lambda x: x.floor("D").replace(
-                            hour=hour_offset,
-                            minute=minute_offset,
-                        ),
-                    )
-                    # DAM is for the next day
                     - pd.Timedelta(days=1),
                 )
             case "2DA":
@@ -1012,16 +1231,7 @@ class CAISO(ISOBase):
                     )
                     - pd.Timedelta(days=7),
                 )
-            case "RTM5":
-                data["Publish Time"] = data["Interval Start"] - pd.Timedelta(
-                    minutes=2.5,
-                )
-            case "RTM15":
-                data["Publish Time"] = data["Interval Start"] - pd.Timedelta(
-                    minutes=22.5,
-                )
-            case "ACTUAL":
-                pass
+
             case _:
                 # Default to existing DAM behavior for backward compatibility
                 data["Publish Time"] = np.where(
