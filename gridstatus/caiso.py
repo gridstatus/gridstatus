@@ -895,19 +895,7 @@ class CAISO(ISOBase):
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
 
-        df["date"] = df["Interval Start"].dt.date
-        unique_dates = sorted(df["date"].unique())
-
-        for forecast_date in unique_dates:
-            # DAM Hourly Demand Forecast is published at 9:10 AM PT the day before
-            publish_time = (pd.Timestamp(forecast_date) - pd.Timedelta(days=1)).replace(
-                hour=9,
-                minute=10,
-                tz=self.default_timezone,
-            )
-            df.loc[df["date"] == forecast_date, "Publish Time"] = publish_time
-
-        df = df.drop(columns=["date"])
+        df = self._add_load_forecast_publish_time(df, day_offset=1)
         df.sort_values(by="Interval Start", inplace=True)
 
         df = df[
@@ -956,20 +944,7 @@ class CAISO(ISOBase):
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
 
-        # Group by date and assign publish times
-        df["date"] = df["Interval Start"].dt.date
-        unique_dates = sorted(df["date"].unique())
-
-        for forecast_date in unique_dates:
-            # 2DA forecast is published at 9:10 AM PT two days before
-            publish_time = (pd.Timestamp(forecast_date) - pd.Timedelta(days=2)).replace(
-                hour=9,
-                minute=10,
-                tz=self.default_timezone,
-            )
-            df.loc[df["date"] == forecast_date, "Publish Time"] = publish_time
-
-        df = df.drop(columns=["date"])
+        df = self._add_load_forecast_publish_time(df, day_offset=2)
         df.sort_values(by="Interval Start", inplace=True)
 
         df = df[
@@ -1018,19 +993,7 @@ class CAISO(ISOBase):
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
 
-        df["date"] = df["Interval Start"].dt.date
-        unique_dates = sorted(df["date"].unique())
-
-        for forecast_date in unique_dates:
-            # 7DA forecast is published at 9:10 AM PT seven days before
-            publish_time = (pd.Timestamp(forecast_date) - pd.Timedelta(days=7)).replace(
-                hour=9,
-                minute=10,
-                tz=self.default_timezone,
-            )
-            df.loc[df["date"] == forecast_date, "Publish Time"] = publish_time
-
-        df = df.drop(columns=["date"])
+        df = self._add_load_forecast_publish_time(df, day_offset=7)
         df.sort_values(by="Interval Start", inplace=True)
 
         df = df[
@@ -1043,6 +1006,33 @@ class CAISO(ISOBase):
             ]
         ]
 
+        return df
+
+    def _add_load_forecast_publish_time(self, df: pd.DataFrame, day_offset: int):
+        """Adds a publish time to the load forecast data
+
+        Args:
+            df (pd.DataFrame): load forecast data
+            day_offset (int): number of days before the forecast date that it was published
+
+        Returns:
+            pd.DataFrame: load forecast data with publish time
+        """
+        df["date"] = df["Interval Start"].dt.date
+        unique_dates = sorted(df["date"].unique())
+
+        for forecast_date in unique_dates:
+            # 7DA forecast is published at 9:10 AM PT seven days before
+            publish_time = (
+                pd.Timestamp(forecast_date) - pd.Timedelta(days=day_offset)
+            ).replace(
+                hour=9,
+                minute=10,
+                tz=self.default_timezone,
+            )
+            df.loc[df["date"] == forecast_date, "Publish Time"] = publish_time
+
+        df = df.drop(columns=["date"])
         return df
 
     @support_date_range(frequency="31D")
