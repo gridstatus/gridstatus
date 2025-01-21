@@ -3,7 +3,6 @@ import io
 import time
 import warnings
 from contextlib import redirect_stderr
-from typing import Literal
 from zipfile import ZipFile
 
 import numpy as np
@@ -615,7 +614,6 @@ class CAISO(ISOBase):
             logger.debug(f"Parsing file: {f}")
             df = pd.read_csv(z.open(f))
             dfs.append(df)
-
         df = pd.concat(dfs)
 
         # if col ends in _GMT, then try to parse as UTC
@@ -875,7 +873,7 @@ class CAISO(ISOBase):
 
         Arguments:
             date (str | pd.Timestamp): day to return
-            end (str | pd.Timestamp, optional): end of date range to return.
+            end (str | pd.Timestamp, optional): end of date range to return data.
                 If None, returns only date. Defaults to None.
             sleep (int): seconds to sleep before returning to avoid rate limit. Defaults to 4.
             verbose (bool): print verbose output. Defaults to False.
@@ -897,16 +895,21 @@ class CAISO(ISOBase):
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
 
-        # DAM Hourly Demand Forecast is published at 9:10 AM according to OASIS.
-        # ATLAS Reference > Publications > OASIS Publications Schedule
-        df = self._add_forecast_publish_time(
-            df,
-            pd.Timestamp.now(tz=self.default_timezone),
-            publish_time_offset_from_day_start=pd.Timedelta(hours=9, minutes=10),
-            forecast_vintage="DAM",
-        )
+        df["date"] = df["Interval Start"].dt.date
+        unique_dates = sorted(df["date"].unique())
 
+        for forecast_date in unique_dates:
+            # DAM Hourly Demand Forecast is published at 9:10 AM PT the day before
+            publish_time = (pd.Timestamp(forecast_date) - pd.Timedelta(days=1)).replace(
+                hour=9,
+                minute=10,
+                tz=self.default_timezone,
+            )
+            df.loc[df["date"] == forecast_date, "Publish Time"] = publish_time
+
+        df = df.drop(columns=["date"])
         df.sort_values(by="Interval Start", inplace=True)
+
         df = df[
             [
                 "Interval Start",
@@ -931,7 +934,7 @@ class CAISO(ISOBase):
 
         Arguments:
             date (str | pd.Timestamp): day to return
-            end (str | pd.Timestamp, optional): end of date range to return.
+            end (str | pd.Timestamp, optional): end of date range to return data.
                 If None, returns only date. Defaults to None.
             sleep (int): seconds to sleep before returning to avoid rate limit. Defaults to 4.
             verbose (bool): print verbose output. Defaults to False.
@@ -953,11 +956,21 @@ class CAISO(ISOBase):
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
 
-        df = self._add_forecast_publish_time(
-            df,
-            pd.Timestamp.now(tz=self.default_timezone),
-            forecast_vintage="2DA",
-        )
+        # Group by date and assign publish times
+        df["date"] = df["Interval Start"].dt.date
+        unique_dates = sorted(df["date"].unique())
+
+        for forecast_date in unique_dates:
+            # 2DA forecast is published at 9:10 AM PT two days before
+            publish_time = (pd.Timestamp(forecast_date) - pd.Timedelta(days=2)).replace(
+                hour=9,
+                minute=10,
+                tz=self.default_timezone,
+            )
+            df.loc[df["date"] == forecast_date, "Publish Time"] = publish_time
+
+        df = df.drop(columns=["date"])
+        df.sort_values(by="Interval Start", inplace=True)
 
         df = df[
             [
@@ -983,7 +996,7 @@ class CAISO(ISOBase):
 
         Arguments:
             date (str | pd.Timestamp): day to return
-            end (str | pd.Timestamp, optional): end of date range to return.
+            end (str | pd.Timestamp, optional): end of date range to return data.
                 If None, returns only date. Defaults to None.
             sleep (int): seconds to sleep before returning to avoid rate limit. Defaults to 4.
             verbose (bool): print verbose output. Defaults to False.
@@ -1005,13 +1018,21 @@ class CAISO(ISOBase):
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
 
-        df = self._add_forecast_publish_time(
-            df,
-            pd.Timestamp.now(tz=self.default_timezone),
-            forecast_vintage="7DA",
-        )
+        df["date"] = df["Interval Start"].dt.date
+        unique_dates = sorted(df["date"].unique())
 
+        for forecast_date in unique_dates:
+            # 7DA forecast is published at 9:10 AM PT seven days before
+            publish_time = (pd.Timestamp(forecast_date) - pd.Timedelta(days=7)).replace(
+                hour=9,
+                minute=10,
+                tz=self.default_timezone,
+            )
+            df.loc[df["date"] == forecast_date, "Publish Time"] = publish_time
+
+        df = df.drop(columns=["date"])
         df.sort_values(by="Interval Start", inplace=True)
+
         df = df[
             [
                 "Interval Start",
@@ -1167,11 +1188,6 @@ class CAISO(ISOBase):
         data: pd.DataFrame,
         current_time: pd.Timestamp,
         publish_time_offset_from_day_start: pd.Timedelta | None = None,
-        forecast_vintage: Literal[
-            "DAM",
-            "2DA",
-            "7DA",
-        ] = "DAM",
     ) -> pd.DataFrame:
         """
         Labels forecasts with a publish time using the logic:
@@ -1203,47 +1219,18 @@ class CAISO(ISOBase):
             # Forecasts today and earlier get a publish time of the previous day at the
             # publish time offset
 
-        # TODO(kladar): Each is published at 9:10 AM with their offset. Implement each vintage's publish time logic.
-        match forecast_vintage:
-            case "DAM":
-                data["Publish Time"] = data["Interval Start"].apply(
+            # Default to existing DAM behavior for backward compatibility
+            data["Publish Time"] = np.where(
+                data["Interval Start"].dt.date > future_forecasts_publish_time.date(),
+                future_forecasts_publish_time,
+                data["Interval Start"].apply(
                     lambda x: x.floor("D").replace(
                         hour=hour_offset,
                         minute=minute_offset,
-                    )
-                    - pd.Timedelta(days=1),
+                    ),
                 )
-            case "2DA":
-                data["Publish Time"] = data["Interval Start"].apply(
-                    lambda x: x.floor("D").replace(
-                        hour=hour_offset,
-                        minute=minute_offset,
-                    )
-                    - pd.Timedelta(days=2),
-                )
-            case "7DA":
-                data["Publish Time"] = data["Interval Start"].apply(
-                    lambda x: x.floor("D").replace(
-                        hour=hour_offset,
-                        minute=minute_offset,
-                    )
-                    - pd.Timedelta(days=7),
-                )
-
-            case _:
-                # Default to existing DAM behavior for backward compatibility
-                data["Publish Time"] = np.where(
-                    data["Interval Start"].dt.date
-                    > future_forecasts_publish_time.date(),
-                    future_forecasts_publish_time,
-                    data["Interval Start"].apply(
-                        lambda x: x.floor("D").replace(
-                            hour=hour_offset,
-                            minute=minute_offset,
-                        ),
-                    )
-                    - pd.Timedelta(days=1),
-                )
+                - pd.Timedelta(days=1),
+            )
 
         return data
 
