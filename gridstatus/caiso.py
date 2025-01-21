@@ -1025,7 +1025,7 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="31D")
-    def get_load_actual(
+    def get_load_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
