@@ -105,6 +105,24 @@ class TestCAISO(BaseTestISO):
             ),
         ],
     )
+    def test_get_load_forecast_15_min_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_load_forecast_15_min_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load_forecast_15_min(date, end=end)
+            self._check_load_forecast(df, expected_interval_minutes=15)
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=5),
+                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                - pd.Timedelta(days=2),
+            ),
+        ],
+    )
     def test_get_load_forecast_5_min_date_range(self, date, end):
         with caiso_vcr.use_cassette(
             f"test_get_load_forecast_5_min_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
