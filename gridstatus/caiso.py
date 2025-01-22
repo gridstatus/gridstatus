@@ -855,7 +855,7 @@ class CAISO(ISOBase):
             raw_data=False,
             verbose=verbose,
             sleep=sleep,
-            params={"market_run_id": "RTPD"},
+            params={"market_run_id": "RTM"},
         )
         df = df[
             ((df["Interval End"] - df["Interval Start"]).dt.total_seconds() / 60) == 15
