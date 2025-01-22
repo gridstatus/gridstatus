@@ -2547,9 +2547,9 @@ class PJM(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_day_ahead_demand_bids_hourly(self, date, end=None, verbose=False):
+    def get_day_ahead_demand_bids(self, date, end=None, verbose=False):
         """
-        Retrieves the hourly demand bids data from:
+        Retrieves the day ahead demand bids data from:
         https://dataminer2.pjm.com/feed/hrl_dmd_bids/definition
         """
         if date == "latest":
@@ -2567,13 +2567,13 @@ class PJM(ISOBase):
             verbose=verbose,
         ).rename(
             columns={
-                "hrly_da_demand_bid": "Hourly Day Ahead Demand Bid",
+                "hrly_da_demand_bid": "Demand Bid",
                 "area": "Area",
             },
         )
 
-        df = df[
-            ["Interval Start", "Interval End", "Area", "Hourly Day Ahead Demand Bid"]
-        ].sort_values(["Interval Start", "Area"])
+        df = df[["Interval Start", "Interval End", "Area", "Demand Bid"]].sort_values(
+            ["Interval Start", "Area"],
+        )
 
         return df
