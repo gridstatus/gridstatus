@@ -2545,3 +2545,35 @@ class PJM(ISOBase):
             ]
         ]
         return df
+
+    @support_date_range(frequency=None)
+    def get_day_ahead_demand_bids(self, date, end=None, verbose=False):
+        """
+        Retrieves the day ahead demand bids data from:
+        https://dataminer2.pjm.com/feed/hrl_dmd_bids/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "hrl_dmd_bids",
+            start=date,
+            params={
+                "fields": "area,datetime_beginning_utc,hrly_da_demand_bid",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        ).rename(
+            columns={
+                "hrly_da_demand_bid": "Demand Bid",
+                "area": "Area",
+            },
+        )
+
+        df = df[["Interval Start", "Interval End", "Area", "Demand Bid"]].sort_values(
+            ["Interval Start", "Area"],
+        )
+
+        return df

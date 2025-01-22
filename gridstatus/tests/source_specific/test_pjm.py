@@ -1975,3 +1975,23 @@ class TestPJM(BaseTestISO):
         assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
             hours=1,
         )
+
+    @api_vcr.use_cassette("test_get_day_ahead_demand_bids_date_range.yaml")
+    def test_get_day_ahead_demand_bids_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=30)
+        end = start + pd.Timedelta(hours=4)
+
+        df = self.iso.get_day_ahead_demand_bids(start=start, end=end)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Area",
+            "Demand Bid",
+        ]
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            hours=1,
+        )
