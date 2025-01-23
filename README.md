@@ -26,7 +26,7 @@ To learn more about our hosted API visit: https://www.gridstatus.io/api.
 
 ## Community
 
-- Need Help? Post a [GitHub issue](https://github.com/kmax12/gridstatus/issues)
+- Need Help? Post a [GitHub issue](https://github.com/gridstatus/gridstatus/issues)
 - Want to stay updated? Follow us on Twitter [@grid_status](https://twitter.com/grid_status)
 - Want to contribute? Read our [Contributing Guide](CONTRIBUTING.md)
 

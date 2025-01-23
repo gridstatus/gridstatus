@@ -20,9 +20,9 @@ keywords = ["energy", "independent system operator"]
 license = "LICENSE"
 
 [tool.poetry.urls]
-"Source Code" = "https://github.com/kmax12/gridstatus/"
-"Changes" = "https://github.com/kmax12/gridstatus/blob/main/CHANGELOG.md"
-"Issue Tracker" = "https://github.com/kmax12/gridstatus/issues"
+"Source Code" = "https://github.com/gridstatus/gridstatus/"
+"Changes" = "https://github.com/gridstatus/gridstatus/blob/main/CHANGELOG.md"
+"Issue Tracker" = "https://github.com/gridstatus/gridstatus/issues"
 
 [tool.poetry.dependencies]
 python = "^3.9"
