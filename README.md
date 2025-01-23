@@ -1,6 +1,6 @@
 <p align="center">
 <!-- TODO: this image does not exist -->
-<img width=75% src="https://github.com/gridstatus/gridstatus/blob/main/gridstatus-header.png" alt="gridstatus logo" />
+<img width=75% src="./gridstatus-header.png" alt="gridstatus logo" />
 </p>
 
 <p align="center">
