@@ -50,7 +50,7 @@ html_css_files = ["custom.css"]
 
 html_theme_options = {
     "path_to_docs": "docs",
-    "repository_url": "https://github.com/kmax12/gridstatus",
+    "repository_url": "https://github.com/gridstatus/gridstatus",
     # "repository_branch": "gh-pages",  # For testing
     "launch_buttons": {
         "binderhub_url": "https://mybinder.org",
