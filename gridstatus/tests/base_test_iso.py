@@ -404,6 +404,7 @@ class BaseTestISO(TestHelperMixin):
         "Energy",
         "Congestion",
         "Loss",
+        "GHG",
     ]
 
     def _check_lmp_columns(self, df, market):
