@@ -1401,6 +1401,10 @@ class CAISO(ISOBase):
             df["Location"].str.startswith("DLAP_"),
             "Location Type",
         ] = "DLAP"
+
+        if "GHG" not in df.columns:
+            df["GHG"] = None
+
         df = df[
             [
                 "Time",
