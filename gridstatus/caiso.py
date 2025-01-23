@@ -1377,6 +1377,7 @@ class CAISO(ISOBase):
                 "MCE": "Energy",
                 "MCC": "Congestion",
                 "MCL": "Loss",
+                "MGHG": "GHG",
             },
         )
 
@@ -1400,7 +1401,7 @@ class CAISO(ISOBase):
             df["Location"].str.startswith("DLAP_"),
             "Location Type",
         ] = "DLAP"
-
+        print(df)
         df = df[
             [
                 "Time",
@@ -1413,6 +1414,7 @@ class CAISO(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
+                "GHG",
             ]
         ]
 
