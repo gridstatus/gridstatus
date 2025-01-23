@@ -1401,7 +1401,6 @@ class CAISO(ISOBase):
             df["Location"].str.startswith("DLAP_"),
             "Location Type",
         ] = "DLAP"
-        print(df)
         df = df[
             [
                 "Time",
