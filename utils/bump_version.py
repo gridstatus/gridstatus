@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import re
 import sys
 from pathlib import Path
@@ -53,6 +54,13 @@ def update_citation_cff(file_path: Path, old_version: str, new_version: str) -> 
     """Update version in CITATION.cff file"""
     content = file_path.read_text()
     updated = content.replace(f"version: {old_version}", f"version: {new_version}")
+    # Also update the date-released with the current date. Use regex to find the line
+
+    updated = updated.replace(
+        re.search(r"date-released: \d{4}-\d{2}-\d{2}", updated).group(0),
+        f"date-released: {datetime.datetime.now().strftime('%Y-%m-%d')}",
+    )
+
     if updated != content:
         file_path.write_text(updated)
         return True
