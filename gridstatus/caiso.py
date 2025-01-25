@@ -1377,6 +1377,7 @@ class CAISO(ISOBase):
                 "MCE": "Energy",
                 "MCC": "Congestion",
                 "MCL": "Loss",
+                "MGHG": "GHG",
             },
         )
 
@@ -1401,6 +1402,9 @@ class CAISO(ISOBase):
             "Location Type",
         ] = "DLAP"
 
+        if "GHG" not in df.columns:
+            df["GHG"] = None
+
         df = df[
             [
                 "Time",
@@ -1413,6 +1417,7 @@ class CAISO(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
+                "GHG",
             ]
         ]
 
