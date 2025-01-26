@@ -22,6 +22,8 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot_60d_utils import (
+    process_dam_energy_bid_awards,
+    process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
     process_dam_energy_only_offers,
     process_dam_gen,
@@ -29,6 +31,8 @@ from gridstatus.ercot_60d_utils import (
     process_dam_or_gen_load_as_offers,
     process_dam_ptp_obligation_bid_awards,
     process_dam_ptp_obligation_bids,
+    process_dam_ptp_obligation_option,
+    process_dam_ptp_obligation_option_awards,
     process_sced_gen,
     process_sced_load,
 )
@@ -1619,8 +1623,14 @@ class Ercot(ISOBase):
         - "dam_gen_resource_as_offers"
         - "dam_load_resource"
         - "dam_load_resource_as_offers"
+        - "dam_energy_only_offer_awards"
+        - "dam_energy_only_offers"
+        - "dam_ptp_obligation_bid_awards"
+        - "dam_ptp_obligation_bids"
         - "dam_energy_bids"
         - "dam_energy_bid_awards"
+        - "dam_ptp_obligation_option"
+        - "dam_ptp_obligation_option_awards"
 
         and values as pandas.DataFrame objects
 
@@ -1656,12 +1666,14 @@ class Ercot(ISOBase):
                 "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",
                 "dam_load_resource": "60d_DAM_Load_Resource_Data-",
                 "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
-                "dam_energy_bids": "60d_DAM_EnergyBids-",
-                "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",
                 "dam_energy_only_offer_awards": "60d_DAM_EnergyOnlyOfferAwards-",
                 "dam_energy_only_offers": "60d_DAM_EnergyOnlyOffers-",
                 "dam_ptp_obligation_bid_awards": "60d_DAM_PTPObligationBidAwards-",
                 "dam_ptp_obligation_bids": "60d_DAM_PTPObligationBids-",
+                "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",
+                "dam_energy_bids": "60d_DAM_EnergyBids-",
+                "dam_ptp_obligation_option": "60d_DAM_PTP_Obligation_Option-",
+                "dam_ptp_obligation_option_awards": "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
             }
 
         files = {}
@@ -1693,6 +1705,10 @@ class Ercot(ISOBase):
                 "dam_energy_only_offers": process_dam_energy_only_offers,
                 "dam_ptp_obligation_bid_awards": process_dam_ptp_obligation_bid_awards,
                 "dam_ptp_obligation_bids": process_dam_ptp_obligation_bids,
+                "dam_energy_bid_awards": process_dam_energy_bid_awards,
+                "dam_energy_bids": process_dam_energy_bids,
+                "dam_ptp_obligation_option": process_dam_ptp_obligation_option,
+                "dam_ptp_obligation_option_awards": process_dam_ptp_obligation_option_awards,  # noqa
             }
 
             for file_name, process_func in file_to_function.items():

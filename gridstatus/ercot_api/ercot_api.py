@@ -1231,16 +1231,18 @@ class ErcotAPI:
 
         Returns:
             dict: Dictionary containing dataframes as values and keys:
-                - 'dam_gen_resource'
-                - 'dam_gen_resource_as_offers'
-                - 'dam_load_resource'
-                - 'dam_load_resource_as_offers'
-                - 'dam_energy_bids'
-                - 'dam_energy_bid_awards'
-                - 'dam_energy_only_offer_awards'
-                - 'dam_energy_only_offers'
-                - 'dam_ptp_obligation_bid_awards'
-                - 'dam_ptp_obligation_bids'
+                - "dam_gen_resource"
+                - "dam_gen_resource_as_offers"
+                - "dam_load_resource"
+                - "dam_load_resource_as_offers"
+                - "dam_energy_only_offer_awards"
+                - "dam_energy_only_offers"
+                - "dam_ptp_obligation_bid_awards"
+                - "dam_ptp_obligation_bids"
+                - "dam_energy_bids"
+                - "dam_energy_bid_awards"
+                - "dam_ptp_obligation_option"
+                - "dam_ptp_obligation_option_awards"
 
         NOTE: because data is delayed by 60 days, requesting data in the past 60 days
         will return no data.

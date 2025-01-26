@@ -19,6 +19,8 @@ from gridstatus.ercot_60d_utils import (
     DAM_LOAD_RESOURCE_COLUMNS,
     DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS,
     DAM_PTP_OBLIGATION_BIDS_COLUMNS,
+    DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS,
+    DAM_PTP_OBLIGATION_OPTION_COLUMNS,
     DAM_RESOURCE_AS_OFFERS_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -764,12 +766,14 @@ class TestErcot(BaseTestISO):
         dam_gen_resource_as_offers = df_dict["dam_gen_resource_as_offers"]
         dam_load_resource = df_dict["dam_load_resource"]
         dam_load_resource_as_offers = df_dict["dam_load_resource_as_offers"]
-        dam_energy_bids = df_dict["dam_energy_bids"]
-        dam_energy_bid_awards = df_dict["dam_energy_bid_awards"]
         dam_energy_only_offer_awards = df_dict["dam_energy_only_offer_awards"]
         dam_energy_only_offers = df_dict["dam_energy_only_offers"]
         dam_ptp_obligation_bid_awards = df_dict["dam_ptp_obligation_bid_awards"]
         dam_ptp_obligation_bids = df_dict["dam_ptp_obligation_bids"]
+        dam_energy_bid_awards = df_dict["dam_energy_bid_awards"]
+        dam_energy_bids = df_dict["dam_energy_bids"]
+        dam_ptp_obligation_option = df_dict["dam_ptp_obligation_option"]
+        dam_ptp_obligation_option_awards = df_dict["dam_ptp_obligation_option_awards"]
 
         assert dam_gen_resource.columns.tolist() == DAM_GEN_RESOURCE_COLUMNS
         assert (
@@ -782,9 +786,6 @@ class TestErcot(BaseTestISO):
             dam_load_resource_as_offers.columns.tolist()
             == DAM_RESOURCE_AS_OFFERS_COLUMNS
         )
-
-        assert dam_energy_bids.columns.tolist() == DAM_ENERGY_BIDS_COLUMNS
-        assert dam_energy_bid_awards.columns.tolist() == DAM_ENERGY_BID_AWARDS_COLUMNS
 
         assert (
             dam_energy_only_offer_awards.columns.tolist()
@@ -800,6 +801,19 @@ class TestErcot(BaseTestISO):
 
         assert (
             dam_ptp_obligation_bids.columns.tolist() == DAM_PTP_OBLIGATION_BIDS_COLUMNS
+        )
+
+        assert dam_energy_bids.columns.tolist() == DAM_ENERGY_BIDS_COLUMNS
+        assert dam_energy_bid_awards.columns.tolist() == DAM_ENERGY_BID_AWARDS_COLUMNS
+
+        assert (
+            dam_ptp_obligation_option.columns.tolist()
+            == DAM_PTP_OBLIGATION_OPTION_COLUMNS
+        )
+
+        assert (
+            dam_ptp_obligation_option_awards.columns.tolist()
+            == DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS
         )
 
         assert not dam_gen_resource_as_offers.duplicated(

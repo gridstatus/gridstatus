@@ -76,48 +76,6 @@ DAM_LOAD_RESOURCE_COLUMNS = [
 ]
 
 
-DAM_ENERGY_BIDS_COLUMNS = [
-    "Time",
-    "Interval Start",
-    "Interval End",
-    "Settlement Point",
-    "QSE Name",
-    "Energy Only Bid MW1",
-    "Energy Only Bid Price1",
-    "Energy Only Bid MW2",
-    "Energy Only Bid Price2",
-    "Energy Only Bid MW3",
-    "Energy Only Bid Price3",
-    "Energy Only Bid MW4",
-    "Energy Only Bid Price4",
-    "Energy Only Bid MW5",
-    "Energy Only Bid Price5",
-    "Energy Only Bid MW6",
-    "Energy Only Bid Price6",
-    "Energy Only Bid MW7",
-    "Energy Only Bid Price7",
-    "Energy Only Bid MW8",
-    "Energy Only Bid Price8",
-    "Energy Only Bid MW9",
-    "Energy Only Bid Price9",
-    "Energy Only Bid MW10",
-    "Energy Only Bid Price10",
-    "Energy Only Bid ID",
-    "Multi-Hour Block Indicator",
-    "Block/Curve indicator",
-]
-
-DAM_ENERGY_BID_AWARDS_COLUMNS = [
-    "Time",
-    "Interval Start",
-    "Interval End",
-    "Settlement Point",
-    "QSE Name",
-    "Energy Only Bid Award in MW",
-    "Settlement Point Price",
-    "Bid ID",
-]
-
 DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS = [
     "Interval Start",
     "Interval End",
@@ -161,6 +119,43 @@ DAM_PTP_OBLIGATION_BIDS_COLUMNS = [
     "PtP Bid - Price",
     "Multi-Hour Block Indicator",
 ]
+
+DAM_ENERGY_BID_AWARDS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Settlement Point Name",
+    "QSE",
+    "Bid ID",
+    "Energy Only Bid Award in MW",
+    "Settlement Point Price",
+]
+
+DAM_ENERGY_BIDS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Settlement Point Name",
+    "QSE",
+    "Energy Only Bid ID",
+    "Energy Only Bid Curve",
+    "Multi-Hour Block Indicator",
+    "Block/Curve indicator",
+]
+
+DAM_PTP_OBLIGATION_OPTION_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "QSE",
+    "Settlement Point Source",
+    "Settlement Point Sink",
+    "Offer ID",
+    "CRR ID",
+    "MW",
+    "Price",
+    "Multi-Hour Block Indicator",
+]
+
+# All except Multi-Hour Block Indicator
+DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS = DAM_PTP_OBLIGATION_OPTION_COLUMNS[:-1]
 
 
 def match_gen_load_names(list1, list2):
@@ -575,17 +570,9 @@ def process_dam_energy_only_offer_awards(df):
         columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
     )
 
-    all_cols = [
-        "Interval Start",
-        "Interval End",
-        "Settlement Point Name",
-        "QSE",
-        "Offer ID",
-        "Energy Only Offer Award in MW",
-        "Settlement Point Price",
-    ]
-
-    return df[all_cols].sort_values(["Interval Start", "Settlement Point Name"])
+    return df[DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS].sort_values(
+        ["Interval Start", "Settlement Point Name"],
+    )
 
 
 def process_dam_energy_only_offers(df):
@@ -602,53 +589,66 @@ def process_dam_energy_only_offers(df):
         price_suffix=" Price",
     )
 
-    all_cols = [
-        "Interval Start",
-        "Interval End",
-        "Settlement Point Name",
-        "QSE",
-        "Energy Only Offer ID",
-        curve_name + " Curve",
-        "Multi-Hour Block Indicator",
-        "Block/Curve indicator",
-    ]
-
-    return df[all_cols].sort_values(["Interval Start", "Settlement Point Name"])
+    return df[DAM_ENERGY_ONLY_OFFERS_COLUMNS].sort_values(
+        ["Interval Start", "Settlement Point Name"],
+    )
 
 
 def process_dam_ptp_obligation_bid_awards(df):
     df = df.rename(columns={"QSE Name": "QSE"})
 
-    all_cols = [
-        "Interval Start",
-        "Interval End",
-        "QSE",
-        "Settlement Point Source",
-        "Settlement Point Sink",
-        "Bid ID",
-        "PtP Bid Award - MW",
-        "PtP Bid - Price",
-    ]
-
-    return df[all_cols].sort_values(["Interval Start", "QSE"])
+    return df[DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS].sort_values(
+        ["Interval Start", "QSE"],
+    )
 
 
 def process_dam_ptp_obligation_bids(df):
     df = df.rename(columns={"QSE Name": "QSE"})
 
-    all_cols = [
-        "Interval Start",
-        "Interval End",
-        "QSE",
-        "Settlement Point Source",
-        "Settlement Point Sink",
-        "Bid ID",
-        "PtP Bid - MW",
-        "PtP Bid - Price",
-        "Multi-Hour Block Indicator",
-    ]
+    return df[DAM_PTP_OBLIGATION_BIDS_COLUMNS].sort_values(["Interval Start", "QSE"])
 
-    return df[all_cols].sort_values(["Interval Start", "QSE"])
+
+def process_dam_energy_bid_awards(df):
+    df = df.rename(
+        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+    )
+
+    return df[DAM_ENERGY_BID_AWARDS_COLUMNS].sort_values(
+        ["Interval Start", "Settlement Point Name"],
+    )
+
+
+def process_dam_energy_bids(df):
+    df = df.rename(
+        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+    )
+
+    curve_name = "Energy Only Bid"
+
+    df[curve_name + " Curve"] = extract_curve(
+        df,
+        curve_name,
+        mw_suffix=" MW",
+        price_suffix=" Price",
+    )
+
+    return df[DAM_ENERGY_BIDS_COLUMNS].sort_values(
+        ["Interval Start", "Settlement Point Name"],
+    )
+
+
+def process_dam_ptp_obligation_option(df):
+    df = df.rename(columns={"QSE Name": "QSE"})
+
+    return df[DAM_PTP_OBLIGATION_OPTION_COLUMNS].sort_values(["Interval Start", "QSE"])
+
+
+def process_dam_ptp_obligation_option_awards(df):
+    df = df.rename(columns={"QSE Name": "QSE"})
+
+    return df[DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS].sort_values(
+        ["Interval Start", "QSE"],
+    )
 
 
 def process_sced_gen(df):
