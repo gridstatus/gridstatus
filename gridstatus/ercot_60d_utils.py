@@ -1,6 +1,167 @@
 import numpy as np
 import pandas as pd
 
+# Same for both generation and load
+DAM_RESOURCE_AS_OFFERS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "QSE",
+    "DME",
+    "Resource Name",
+    "Multi-Hour Block Flag",
+    "Block Indicators",
+    "RRSPFR Offer Curve",
+    "RRSFFR Offer Curve",
+    "RRSUFR Offer Curve",
+    "ECRS Offer Curve",
+    "OFFEC Offer Curve",
+    "ONLINE NONSPIN Offer Curve",
+    "REGUP Offer Curve",
+    "REGDOWN Offer Curve",
+    "OFFLINE NONSPIN Offer Curve",
+]
+
+DAM_GEN_RESOURCE_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "QSE",
+    "DME",
+    "Resource Name",
+    "Resource Type",
+    "Settlement Point Name",
+    "Resource Status",
+    "HSL",
+    "LSL",
+    "Start Up Hot",
+    "Start Up Inter",
+    "Start Up Cold",
+    "Min Gen Cost",
+    "Awarded Quantity",
+    "Energy Settlement Point Price",
+    "RegUp Awarded",
+    "RegUp MCPC",
+    "RegDown Awarded",
+    "RegDown MCPC",
+    "RRSPFR Awarded",
+    "RRSFFR Awarded",
+    "RRSUFR Awarded",
+    "RRS MCPC",
+    "ECRSSD Awarded",
+    "ECRS MCPC",
+    "NonSpin Awarded",
+    "NonSpin MCPC",
+    "QSE submitted Curve",
+]
+
+DAM_LOAD_RESOURCE_COLUMNS = [
+    "Time",
+    "Interval Start",
+    "Interval End",
+    "Resource Name",
+    "Max Power Consumption for Load Resource",
+    "Low Power Consumption for Load Resource",
+    "RegUp Awarded",
+    "RegUp MCPC",
+    "RegDown Awarded",
+    "RegDown MCPC",
+    "RRSPFR Awarded",
+    "RRSFFR Awarded",
+    "RRSUFR Awarded",
+    "RRS MCPC",
+    "ECRSSD Awarded",
+    "ECRSMD Awarded",
+    "ECRS MCPC",
+    "NonSpin Awarded",
+    "NonSpin MCPC",
+]
+
+
+DAM_ENERGY_BIDS_COLUMNS = [
+    "Time",
+    "Interval Start",
+    "Interval End",
+    "Settlement Point",
+    "QSE Name",
+    "Energy Only Bid MW1",
+    "Energy Only Bid Price1",
+    "Energy Only Bid MW2",
+    "Energy Only Bid Price2",
+    "Energy Only Bid MW3",
+    "Energy Only Bid Price3",
+    "Energy Only Bid MW4",
+    "Energy Only Bid Price4",
+    "Energy Only Bid MW5",
+    "Energy Only Bid Price5",
+    "Energy Only Bid MW6",
+    "Energy Only Bid Price6",
+    "Energy Only Bid MW7",
+    "Energy Only Bid Price7",
+    "Energy Only Bid MW8",
+    "Energy Only Bid Price8",
+    "Energy Only Bid MW9",
+    "Energy Only Bid Price9",
+    "Energy Only Bid MW10",
+    "Energy Only Bid Price10",
+    "Energy Only Bid ID",
+    "Multi-Hour Block Indicator",
+    "Block/Curve indicator",
+]
+
+DAM_ENERGY_BID_AWARDS_COLUMNS = [
+    "Time",
+    "Interval Start",
+    "Interval End",
+    "Settlement Point",
+    "QSE Name",
+    "Energy Only Bid Award in MW",
+    "Settlement Point Price",
+    "Bid ID",
+]
+
+DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Settlement Point Name",
+    "QSE",
+    "Offer ID",
+    "Energy Only Offer Award in MW",
+    "Settlement Point Price",
+]
+
+DAM_ENERGY_ONLY_OFFERS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Settlement Point Name",
+    "QSE",
+    "Energy Only Offer ID",
+    "Energy Only Offer Curve",
+    "Multi-Hour Block Indicator",
+    "Block/Curve indicator",
+]
+
+DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "QSE",
+    "Settlement Point Source",
+    "Settlement Point Sink",
+    "Bid ID",
+    "PtP Bid Award - MW",
+    "PtP Bid - Price",
+]
+
+DAM_PTP_OBLIGATION_BIDS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "QSE",
+    "Settlement Point Source",
+    "Settlement Point Sink",
+    "Bid ID",
+    "PtP Bid - MW",
+    "PtP Bid - Price",
+    "Multi-Hour Block Indicator",
+]
+
 
 def match_gen_load_names(list1, list2):
     """Match generator and load names"""
@@ -117,9 +278,9 @@ def make_storage_resources(data):
     return storage_resources
 
 
-def extract_curve(df, curve_name):
-    mw_cols = [x for x in df.columns if x.startswith(curve_name + "-MW")]
-    price_cols = [x for x in df.columns if x.startswith(curve_name + "-Price")]
+def extract_curve(df, curve_name, mw_suffix="-MW", price_suffix="-Price"):
+    mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
+    price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
 
     if len(mw_cols) == 0 or len(price_cols) == 0:
         return np.nan
@@ -407,6 +568,87 @@ def process_as_offer_curves(df):
     ]
 
     return df
+
+
+def process_dam_energy_only_offer_awards(df):
+    df = df.rename(
+        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+    )
+
+    all_cols = [
+        "Interval Start",
+        "Interval End",
+        "Settlement Point Name",
+        "QSE",
+        "Offer ID",
+        "Energy Only Offer Award in MW",
+        "Settlement Point Price",
+    ]
+
+    return df[all_cols].sort_values(["Interval Start", "Settlement Point Name"])
+
+
+def process_dam_energy_only_offers(df):
+    df = df.rename(
+        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+    )
+
+    curve_name = "Energy Only Offer"
+
+    df[curve_name + " Curve"] = extract_curve(
+        df,
+        curve_name,
+        mw_suffix=" MW",
+        price_suffix=" Price",
+    )
+
+    all_cols = [
+        "Interval Start",
+        "Interval End",
+        "Settlement Point Name",
+        "QSE",
+        "Energy Only Offer ID",
+        curve_name + " Curve",
+        "Multi-Hour Block Indicator",
+        "Block/Curve indicator",
+    ]
+
+    return df[all_cols].sort_values(["Interval Start", "Settlement Point Name"])
+
+
+def process_dam_ptp_obligation_bid_awards(df):
+    df = df.rename(columns={"QSE Name": "QSE"})
+
+    all_cols = [
+        "Interval Start",
+        "Interval End",
+        "QSE",
+        "Settlement Point Source",
+        "Settlement Point Sink",
+        "Bid ID",
+        "PtP Bid Award - MW",
+        "PtP Bid - Price",
+    ]
+
+    return df[all_cols].sort_values(["Interval Start", "QSE"])
+
+
+def process_dam_ptp_obligation_bids(df):
+    df = df.rename(columns={"QSE Name": "QSE"})
+
+    all_cols = [
+        "Interval Start",
+        "Interval End",
+        "QSE",
+        "Settlement Point Source",
+        "Settlement Point Sink",
+        "Bid ID",
+        "PtP Bid - MW",
+        "PtP Bid - Price",
+        "Multi-Hour Block Indicator",
+    ]
+
+    return df[all_cols].sort_values(["Interval Start", "QSE"])
 
 
 def process_sced_gen(df):

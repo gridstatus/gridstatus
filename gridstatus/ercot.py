@@ -22,9 +22,13 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot_60d_utils import (
+    process_dam_energy_only_offer_awards,
+    process_dam_energy_only_offers,
     process_dam_gen,
     process_dam_load,
     process_dam_or_gen_load_as_offers,
+    process_dam_ptp_obligation_bid_awards,
+    process_dam_ptp_obligation_bids,
     process_sced_gen,
     process_sced_load,
 )
@@ -1654,6 +1658,10 @@ class Ercot(ISOBase):
                 "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
                 "dam_energy_bids": "60d_DAM_EnergyBids-",
                 "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",
+                "dam_energy_only_offer_awards": "60d_DAM_EnergyOnlyOfferAwards-",
+                "dam_energy_only_offers": "60d_DAM_EnergyOnlyOffers-",
+                "dam_ptp_obligation_bid_awards": "60d_DAM_PTPObligationBidAwards-",
+                "dam_ptp_obligation_bids": "60d_DAM_PTPObligationBids-",
             }
 
         files = {}
@@ -1670,7 +1678,7 @@ class Ercot(ISOBase):
 
         for key, file in files.items():
             doc = pd.read_csv(z.open(file))
-            # weird that these files dont have this column like all other eroct files
+            # weird that these files dont have this column like all other ERCOT files
             # add so we can parse
             doc["DSTFlag"] = "N"
             data[key] = self.parse_doc(doc, verbose=verbose)
@@ -1681,6 +1689,10 @@ class Ercot(ISOBase):
                 "dam_load_resource": process_dam_load,
                 "dam_gen_resource_as_offers": process_dam_or_gen_load_as_offers,
                 "dam_load_resource_as_offers": process_dam_or_gen_load_as_offers,
+                "dam_energy_only_offer_awards": process_dam_energy_only_offer_awards,
+                "dam_energy_only_offers": process_dam_energy_only_offers,
+                "dam_ptp_obligation_bid_awards": process_dam_ptp_obligation_bid_awards,
+                "dam_ptp_obligation_bids": process_dam_ptp_obligation_bids,
             }
 
             for file_name, process_func in file_to_function.items():
