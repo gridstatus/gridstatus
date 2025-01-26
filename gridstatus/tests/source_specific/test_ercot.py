@@ -803,8 +803,8 @@ class TestErcot(BaseTestISO):
             dam_ptp_obligation_bids.columns.tolist() == DAM_PTP_OBLIGATION_BIDS_COLUMNS
         )
 
-        assert dam_energy_bids.columns.tolist() == DAM_ENERGY_BIDS_COLUMNS
         assert dam_energy_bid_awards.columns.tolist() == DAM_ENERGY_BID_AWARDS_COLUMNS
+        assert dam_energy_bids.columns.tolist() == DAM_ENERGY_BIDS_COLUMNS
 
         assert (
             dam_ptp_obligation_option.columns.tolist()

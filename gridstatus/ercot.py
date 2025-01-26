@@ -1627,8 +1627,8 @@ class Ercot(ISOBase):
         - "dam_energy_only_offers"
         - "dam_ptp_obligation_bid_awards"
         - "dam_ptp_obligation_bids"
-        - "dam_energy_bids"
         - "dam_energy_bid_awards"
+        - "dam_energy_bids"
         - "dam_ptp_obligation_option"
         - "dam_ptp_obligation_option_awards"
 
