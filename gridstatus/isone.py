@@ -478,6 +478,9 @@ class ISONE(ISOBase):
             data = data.rename(columns={"Local Time": "Interval Start"})
 
         elif market == Markets.REAL_TIME_HOURLY:
+            if date.date() > now.date():
+                raise RuntimeError(f"date {date.date()} is in the future and cannot be used to query real-time data")
+
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
             data = _make_request(
                 url,
