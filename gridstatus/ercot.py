@@ -34,6 +34,9 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_BIDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_KEY,
+    SCED_GEN_RESOURCE_KEY,
+    SCED_LOAD_RESOURCE_KEY,
+    SCED_SMNE_KEY,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
@@ -1622,9 +1625,9 @@ class Ercot(ISOBase):
             )
 
         return {
-            "sced_load_resource": load_resource,
-            "sced_gen_resource": gen_resource,
-            "sced_smne": smne,
+            SCED_LOAD_RESOURCE_KEY: load_resource,
+            SCED_GEN_RESOURCE_KEY: gen_resource,
+            SCED_SMNE_KEY: smne,
         }
 
     @support_date_range("DAY_START")

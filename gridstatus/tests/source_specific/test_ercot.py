@@ -34,6 +34,9 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_OPTION_COLUMNS,
     DAM_PTP_OBLIGATION_OPTION_KEY,
     DAM_RESOURCE_AS_OFFERS_COLUMNS,
+    SCED_GEN_RESOURCE_KEY,
+    SCED_LOAD_RESOURCE_KEY,
+    SCED_SMNE_KEY,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -705,9 +708,9 @@ class TestErcot(BaseTestISO):
 
         df_dict = self.iso.get_60_day_sced_disclosure(date=days_ago_65, process=True)
 
-        load_resource = df_dict["sced_load_resource"]
-        gen_resource = df_dict["sced_gen_resource"]
-        smne = df_dict["sced_smne"]
+        load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
+        gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
+        smne = df_dict[SCED_SMNE_KEY]
 
         assert load_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
         assert gen_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
@@ -738,9 +741,9 @@ class TestErcot(BaseTestISO):
             verbose=True,
         )
 
-        load_resource = df_dict["sced_load_resource"]
-        gen_resource = df_dict["sced_gen_resource"]
-        smne = df_dict["sced_smne"]
+        load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
+        gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
+        smne = df_dict[SCED_SMNE_KEY]
 
         assert load_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
             days_ago_66,

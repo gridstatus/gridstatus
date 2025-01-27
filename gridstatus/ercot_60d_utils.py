@@ -14,6 +14,10 @@ DAM_ENERGY_BIDS_KEY = "dam_energy_bids"
 DAM_PTP_OBLIGATION_OPTION_KEY = "dam_ptp_obligation_option"
 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY = "dam_ptp_obligation_option_awards"
 
+SCED_LOAD_RESOURCE_KEY = "sced_load_resource"
+SCED_GEN_RESOURCE_KEY = "sced_gen_resource"
+SCED_SMNE_KEY = "sced_smne"
+
 
 # Same for both generation and load
 DAM_RESOURCE_AS_OFFERS_COLUMNS = [
