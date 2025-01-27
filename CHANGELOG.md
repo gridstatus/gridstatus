@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.29.1 - January 26, 2025
+
+* PJM Hourly Demand Bid Data [#527](https://github.com/gridstatus/gridstatus/pull/527)
+* feat(ENG 1120): Expand CAISO Load Forecast [#522](https://github.com/gridstatus/gridstatus/pull/522)
+* Update Docs and README [#526](https://github.com/gridstatus/gridstatus/pull/525)
+* Add CITATION.CFF and Script to Bump Version [#526](https://github.com/gridstatus/gridstatus/pull/526)
+* Add read_csv Kwargs for ERCOT read_doc [#528](https://github.com/gridstatus/gridstatus/pull/528)
+* upgrade lxml to 5.3.0 [#530](https://github.com/gridstatus/gridstatus/pull/530)
+* Query current day data from real-time hourly market in ISO-NE [#532](https://github.com/gridstatus/gridstatus/pull/532)
+
+
 ## v0.29.0 - January 15, 2025
 
 ### Additions (New Features/Datasets)
