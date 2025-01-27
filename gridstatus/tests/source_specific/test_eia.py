@@ -198,8 +198,8 @@ def test_fuel_type():
 def test_facets():
     eia = gridstatus.EIA()
 
-    start = "2020-01-01"
-    end = "2020-01-04"
+    start = "2025-01-01"
+    end = "2025-01-04"
 
     # dataset that doesnt have a handler yet
     df = eia.get_dataset(
@@ -212,7 +212,26 @@ def test_facets():
 
     assert (df["Respondent Name"] == "PacifiCorp East").all()
 
-    _check_fuel_type(df)
+    # We can't use check_fuel_type because the respondent will not have all the fuel
+    # types so the column set will be different
+    assert df.columns.tolist() == [
+        "Interval Start",
+        "Interval End",
+        "Respondent",
+        "Respondent Name",
+        "Battery Storage",
+        "Coal",
+        "Hydro",
+        "Natural Gas",
+        "Nuclear",
+        "Other",
+        "Petroleum",
+        "Pumped Storage",
+        "Solar",
+        "Solar With Integrated Battery Storage",
+        "Unknown Energy Storage",
+        "Wind",
+    ]
 
 
 @pytest.mark.integration
