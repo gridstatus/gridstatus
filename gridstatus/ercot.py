@@ -22,6 +22,18 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot_60d_utils import (
+    DAM_ENERGY_BID_AWARDS_KEY,
+    DAM_ENERGY_BIDS_KEY,
+    DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
+    DAM_ENERGY_ONLY_OFFERS_KEY,
+    DAM_GEN_RESOURCE_AS_OFFERS_KEY,
+    DAM_GEN_RESOURCE_KEY,
+    DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
+    DAM_LOAD_RESOURCE_KEY,
+    DAM_PTP_OBLIGATION_BID_AWARDS_KEY,
+    DAM_PTP_OBLIGATION_BIDS_KEY,
+    DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY,
+    DAM_PTP_OBLIGATION_OPTION_KEY,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
@@ -1662,18 +1674,18 @@ class Ercot(ISOBase):
     ):
         if not files_prefix:
             files_prefix = {
-                "dam_gen_resource": "60d_DAM_Gen_Resource_Data-",
-                "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",
-                "dam_load_resource": "60d_DAM_Load_Resource_Data-",
-                "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
-                "dam_energy_only_offer_awards": "60d_DAM_EnergyOnlyOfferAwards-",
-                "dam_energy_only_offers": "60d_DAM_EnergyOnlyOffers-",
-                "dam_ptp_obligation_bid_awards": "60d_DAM_PTPObligationBidAwards-",
-                "dam_ptp_obligation_bids": "60d_DAM_PTPObligationBids-",
-                "dam_energy_bid_awards": "60d_DAM_EnergyBidAwards-",
-                "dam_energy_bids": "60d_DAM_EnergyBids-",
-                "dam_ptp_obligation_option": "60d_DAM_PTP_Obligation_Option-",
-                "dam_ptp_obligation_option_awards": "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
+                DAM_GEN_RESOURCE_KEY: "60d_DAM_Gen_Resource_Data-",
+                DAM_GEN_RESOURCE_AS_OFFERS_KEY: "60d_DAM_Generation_Resource_ASOffers-",
+                DAM_LOAD_RESOURCE_KEY: "60d_DAM_Load_Resource_Data-",
+                DAM_LOAD_RESOURCE_AS_OFFERS_KEY: "60d_DAM_Load_Resource_ASOffers-",
+                DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: "60d_DAM_EnergyOnlyOfferAwards-",
+                DAM_ENERGY_ONLY_OFFERS_KEY: "60d_DAM_EnergyOnlyOffers-",
+                DAM_PTP_OBLIGATION_BID_AWARDS_KEY: "60d_DAM_PTPObligationBidAwards-",
+                DAM_PTP_OBLIGATION_BIDS_KEY: "60d_DAM_PTPObligationBids-",
+                DAM_ENERGY_BID_AWARDS_KEY: "60d_DAM_EnergyBidAwards-",
+                DAM_ENERGY_BIDS_KEY: "60d_DAM_EnergyBids-",
+                DAM_PTP_OBLIGATION_OPTION_KEY: "60d_DAM_PTP_Obligation_Option-",
+                DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
             }
 
         files = {}
@@ -1697,18 +1709,18 @@ class Ercot(ISOBase):
 
         if process:
             file_to_function = {
-                "dam_gen_resource": process_dam_gen,
-                "dam_load_resource": process_dam_load,
-                "dam_gen_resource_as_offers": process_dam_or_gen_load_as_offers,
-                "dam_load_resource_as_offers": process_dam_or_gen_load_as_offers,
-                "dam_energy_only_offer_awards": process_dam_energy_only_offer_awards,
-                "dam_energy_only_offers": process_dam_energy_only_offers,
-                "dam_ptp_obligation_bid_awards": process_dam_ptp_obligation_bid_awards,
-                "dam_ptp_obligation_bids": process_dam_ptp_obligation_bids,
-                "dam_energy_bid_awards": process_dam_energy_bid_awards,
-                "dam_energy_bids": process_dam_energy_bids,
-                "dam_ptp_obligation_option": process_dam_ptp_obligation_option,
-                "dam_ptp_obligation_option_awards": process_dam_ptp_obligation_option_awards,  # noqa
+                DAM_GEN_RESOURCE_KEY: process_dam_gen,
+                DAM_LOAD_RESOURCE_KEY: process_dam_load,
+                DAM_GEN_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
+                DAM_LOAD_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
+                DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: process_dam_energy_only_offer_awards,
+                DAM_ENERGY_ONLY_OFFERS_KEY: process_dam_energy_only_offers,
+                DAM_PTP_OBLIGATION_BID_AWARDS_KEY: process_dam_ptp_obligation_bid_awards,  # noqa
+                DAM_PTP_OBLIGATION_BIDS_KEY: process_dam_ptp_obligation_bids,
+                DAM_ENERGY_BID_AWARDS_KEY: process_dam_energy_bid_awards,
+                DAM_ENERGY_BIDS_KEY: process_dam_energy_bids,
+                DAM_PTP_OBLIGATION_OPTION_KEY: process_dam_ptp_obligation_option,
+                DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
             }
 
             for file_name, process_func in file_to_function.items():

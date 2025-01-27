@@ -12,15 +12,27 @@ from gridstatus.ercot import (
 )
 from gridstatus.ercot_60d_utils import (
     DAM_ENERGY_BID_AWARDS_COLUMNS,
+    DAM_ENERGY_BID_AWARDS_KEY,
     DAM_ENERGY_BIDS_COLUMNS,
+    DAM_ENERGY_BIDS_KEY,
     DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS,
+    DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
     DAM_ENERGY_ONLY_OFFERS_COLUMNS,
+    DAM_ENERGY_ONLY_OFFERS_KEY,
+    DAM_GEN_RESOURCE_AS_OFFERS_KEY,
     DAM_GEN_RESOURCE_COLUMNS,
+    DAM_GEN_RESOURCE_KEY,
+    DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
     DAM_LOAD_RESOURCE_COLUMNS,
+    DAM_LOAD_RESOURCE_KEY,
     DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS,
+    DAM_PTP_OBLIGATION_BID_AWARDS_KEY,
     DAM_PTP_OBLIGATION_BIDS_COLUMNS,
+    DAM_PTP_OBLIGATION_BIDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS,
+    DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_COLUMNS,
+    DAM_PTP_OBLIGATION_OPTION_KEY,
     DAM_RESOURCE_AS_OFFERS_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -762,18 +774,18 @@ class TestErcot(BaseTestISO):
     def _check_60_day_dam_disclosure(self, df_dict):
         assert df_dict is not None
 
-        dam_gen_resource = df_dict["dam_gen_resource"]
-        dam_gen_resource_as_offers = df_dict["dam_gen_resource_as_offers"]
-        dam_load_resource = df_dict["dam_load_resource"]
-        dam_load_resource_as_offers = df_dict["dam_load_resource_as_offers"]
-        dam_energy_only_offer_awards = df_dict["dam_energy_only_offer_awards"]
-        dam_energy_only_offers = df_dict["dam_energy_only_offers"]
-        dam_ptp_obligation_bid_awards = df_dict["dam_ptp_obligation_bid_awards"]
-        dam_ptp_obligation_bids = df_dict["dam_ptp_obligation_bids"]
-        dam_energy_bid_awards = df_dict["dam_energy_bid_awards"]
-        dam_energy_bids = df_dict["dam_energy_bids"]
-        dam_ptp_obligation_option = df_dict["dam_ptp_obligation_option"]
-        dam_ptp_obligation_option_awards = df_dict["dam_ptp_obligation_option_awards"]
+        dam_gen_resource = df_dict[DAM_GEN_RESOURCE_KEY]
+        dam_gen_resource_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
+        dam_load_resource = df_dict[DAM_LOAD_RESOURCE_KEY]
+        dam_load_resource_as_offers = df_dict[DAM_LOAD_RESOURCE_AS_OFFERS_KEY]
+        dam_energy_only_offer_awards = df_dict[DAM_ENERGY_ONLY_OFFER_AWARDS_KEY]
+        dam_energy_only_offers = df_dict[DAM_ENERGY_ONLY_OFFERS_KEY]
+        dam_ptp_obligation_bid_awards = df_dict[DAM_PTP_OBLIGATION_BID_AWARDS_KEY]
+        dam_ptp_obligation_bids = df_dict[DAM_PTP_OBLIGATION_BIDS_KEY]
+        dam_energy_bid_awards = df_dict[DAM_ENERGY_BID_AWARDS_KEY]
+        dam_energy_bids = df_dict[DAM_ENERGY_BIDS_KEY]
+        dam_ptp_obligation_option = df_dict[DAM_PTP_OBLIGATION_OPTION_KEY]
+        dam_ptp_obligation_option_awards = df_dict[DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY]
 
         assert dam_gen_resource.columns.tolist() == DAM_GEN_RESOURCE_COLUMNS
         assert (

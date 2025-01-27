@@ -1,6 +1,20 @@
 import numpy as np
 import pandas as pd
 
+DAM_GEN_RESOURCE_KEY = "dam_gen_resource"
+DAM_LOAD_RESOURCE_KEY = "dam_load_resource"
+DAM_GEN_RESOURCE_AS_OFFERS_KEY = "dam_gen_resource_as_offers"
+DAM_LOAD_RESOURCE_AS_OFFERS_KEY = "dam_load_resource_as_offers"
+DAM_ENERGY_ONLY_OFFER_AWARDS_KEY = "dam_energy_only_offer_awards"
+DAM_ENERGY_ONLY_OFFERS_KEY = "dam_energy_only_offers"
+DAM_PTP_OBLIGATION_BID_AWARDS_KEY = "dam_ptp_obligation_bid_awards"
+DAM_PTP_OBLIGATION_BIDS_KEY = "dam_ptp_obligation_bids"
+DAM_ENERGY_BID_AWARDS_KEY = "dam_energy_bid_awards"
+DAM_ENERGY_BIDS_KEY = "dam_energy_bids"
+DAM_PTP_OBLIGATION_OPTION_KEY = "dam_ptp_obligation_option"
+DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY = "dam_ptp_obligation_option_awards"
+
+
 # Same for both generation and load
 DAM_RESOURCE_AS_OFFERS_COLUMNS = [
     "Interval Start",
