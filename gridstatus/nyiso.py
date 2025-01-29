@@ -430,7 +430,7 @@ class NYISO(ISOBase):
 
         """  # noqa
 
-        # 3 sheets - ['Interconnection Queue', 'Withdrawn', 'In Service']
+        # 5 sheets - ['Interconnection Queue', 'Cluster Projects', 'Withdrawn', 'Cluster Projects-Withdrawn', 'In Service']
         # harded coded for now. perhaps this url can be parsed from the html here:
         raw_data = self.get_raw_interconnection_queue(verbose)
 
@@ -447,9 +447,26 @@ class NYISO(ISOBase):
             # Active projects can have multiple values for "Points of Interconnection"
         ).rename(columns={"Points of Interconnection": "Interconnection Point"})
 
+        cluster_active = (
+            pd.read_excel(excel_file, sheet_name=" Cluster Projects")
+            .dropna(
+                subset=["Queue Pos.", "Project Name"],
+            )
+            .copy()
+            # Active projects can have multiple values for "Points of Interconnection"
+        ).rename(columns={"Points of Interconnection": "Interconnection Point"})
+
+        active = pd.concat([active, cluster_active])
+
         active["Status"] = InterconnectionQueueStatus.ACTIVE.value
 
         withdrawn = pd.read_excel(excel_file, sheet_name="Withdrawn")
+        cluster_withdrawn = pd.read_excel(
+            excel_file,
+            sheet_name="Cluster Projects-Withdrawn",
+        )
+        withdrawn = pd.concat([withdrawn, cluster_withdrawn])
+
         withdrawn["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
         # assume it was withdrawn when last updated
         withdrawn["Withdrawn Date"] = withdrawn["Last Update"]
