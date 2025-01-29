@@ -398,30 +398,46 @@ class TestCAISO(BaseTestISO):
 
     """get_lmp"""
 
-    @pytest.mark.integration
+    lmp_cols = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+        "Energy",
+        "Congestion",
+        "Loss",
+        "GHG",
+    ]
+
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
     )
     def test_lmp_date_range(self, market):
-        super().test_lmp_date_range(market=market)
+        with caiso_vcr.use_cassette(f"test_lmp_date_range_{market.value.lower()}.yaml"):
+            super().test_lmp_date_range(market=market)
 
-    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_15_MIN,
         Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_historical(self, market):
-        super().test_get_lmp_historical(market=market)
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_historical_{market.value.lower()}.yaml",
+        ):
+            super().test_get_lmp_historical(market=market)
 
-    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_15_MIN,
         Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_latest(self, market):
-        super().test_get_lmp_latest(market=market)
+        with caiso_vcr.use_cassette(f"test_get_lmp_latest_{market.value.lower()}.yaml"):
+            super().test_get_lmp_latest(market=market)
 
     @pytest.mark.parametrize("date", ["today"])
     def test_get_lmp_locations_must_be_list(self, date):
@@ -429,14 +445,14 @@ class TestCAISO(BaseTestISO):
             with pytest.raises(AssertionError):
                 self.iso.get_lmp(date, locations="foo", market="REAL_TIME_5_MIN")
 
-    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_15_MIN,
         Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_today(self, market):
-        super().test_get_lmp_today(market=market)
+        with caiso_vcr.use_cassette(f"test_get_lmp_today_{market.value.lower()}.yaml"):
+            super().test_get_lmp_today(market=market)
 
     @pytest.mark.parametrize(
         "date, end",
@@ -449,7 +465,7 @@ class TestCAISO(BaseTestISO):
     )
     def test_get_lmp_with_locations_range_dam(self, date, end):
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_with_locations_range_dam_{date}_{end}.yaml",
+            f"test_get_lmp_with_locations_range_dam_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             locations = self.iso.trading_hub_locations
             df = self.iso.get_lmp(
@@ -480,7 +496,9 @@ class TestCAISO(BaseTestISO):
         [pd.Timestamp("today").normalize() - pd.Timedelta(days=1)],
     )
     def test_get_lmp_all_ap_nodes_locations(self, date):
-        with caiso_vcr.use_cassette(f"test_get_lmp_all_ap_nodes_locations_{date}.yaml"):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_all_ap_nodes_locations_{date.strftime('%Y-%m-%d')}.yaml",
+        ):
             df = self.iso.get_lmp(
                 date=date,
                 locations="ALL_AP_NODES",
@@ -500,7 +518,7 @@ class TestCAISO(BaseTestISO):
     def test_get_lmp_with_all_locations_range(self, end: pd.Timestamp) -> None:
         start = end - pd.Timedelta(days=3)
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_with_all_locations_range_{start}_{end}.yaml",
+            f"test_get_lmp_with_all_locations_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lmp(
                 start=start,
@@ -525,7 +543,7 @@ class TestCAISO(BaseTestISO):
     )
     def test_get_lmp_all_locations_real_time_2_hour(self, start, end):
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_all_locations_real_time_2_hour_{start}_{end}.yaml",
+            f"test_get_lmp_all_locations_real_time_2_hour_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             # test two hours
             df = self.iso.get_lmp(
@@ -568,13 +586,14 @@ class TestCAISO(BaseTestISO):
 
         assert not df.empty
 
-    @pytest.mark.integration
     @pytest.mark.parametrize(
         "start",
         [pd.Timestamp("2021-04-01T03:00").tz_localize("UTC")],
     )
     def test_warning_no_end_date(self, start):
-        with caiso_vcr.use_cassette(f"test_warning_no_end_date_{start}.yaml"):
+        with caiso_vcr.use_cassette(
+            f"test_warning_no_end_date_{start.strftime('%Y-%m-%d')}.yaml",
+        ):
             with pytest.warns(
                 UserWarning,
                 match="Only 1 hour of data will be returned for real time markets if end is not specified and all nodes are requested",  # noqa
@@ -742,7 +761,7 @@ class TestCAISO(BaseTestISO):
         start = start_of_local_today - pd.DateOffset(days=100)
         end = start + pd.DateOffset(days=2)
         with caiso_vcr.use_cassette(
-            f"test_get_tie_flows_real_time_historical_date_range_{start}_{end}.yaml",
+            f"test_get_tie_flows_real_time_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_tie_flows_real_time(start, end=end)
             self._check_tie_flows_real_time(df)
@@ -757,7 +776,9 @@ class TestCAISO(BaseTestISO):
         [("as_clearing_prices", pd.Timestamp.now() + pd.Timedelta(days=7))],
     )
     def test_oasis_no_data(self, dataset, date):
-        with caiso_vcr.use_cassette(f"test_oasis_no_data_{dataset}_{date}.yaml"):
+        with caiso_vcr.use_cassette(
+            f"test_oasis_no_data_{dataset}_{date.strftime('%Y-%m-%d')}.yaml",
+        ):
             df = self.iso.get_oasis_dataset(
                 dataset=dataset,
                 date=date,
