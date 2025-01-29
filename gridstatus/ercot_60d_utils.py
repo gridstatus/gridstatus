@@ -359,7 +359,7 @@ def process_as_offer_curves(df):
                 # only different by 0.1, so we just take the row with the lowest
                 # quantity. This is a temporary fix until we can figure out why this
                 # is happening.
-                if resource_name == "CANYONRO_LD1":
+                if resource_name in ("CANYONRO_LD1", "DARSCR_LD10"):
                     subset = subset.sort_values("QUANTITY MW1").head(1)
                 else:
                     raise ValueError(
