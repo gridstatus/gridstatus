@@ -613,7 +613,10 @@ class CAISO(ISOBase):
         for f in z.namelist():
             logger.debug(f"Parsing file: {f}")
             df = pd.read_csv(z.open(f))
+            print(df.columns)
+            print(df.head())
             dfs.append(df)
+
         df = pd.concat(dfs)
 
         # if col ends in _GMT, then try to parse as UTC
@@ -1403,7 +1406,7 @@ class CAISO(ISOBase):
         ] = "DLAP"
 
         if "GHG" not in df.columns:
-            df["GHG"] = None
+            df["GHG"] = df["LMP"] - (df["Energy"] + df["Congestion"] + df["Loss"])
 
         df = df[
             [
