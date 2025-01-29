@@ -61,8 +61,9 @@ coverage.xml
 .pytest_cache/
 cover/
 mypy_report/
-# VCR cassettes for binary files, for now until we can figure out how to handle them
-gridstatus/tests/fixtures/miso/vcr_cassettes
+# Ignore local vcr cassette fixtures
+**/vcr_cassettes/
+
 
 # Translations
 *.mo
@@ -171,3 +172,10 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Ignore all .pem files
+*.pem
+
+# But allow this specific certificate file
+!gridstatus/public_certificates/ieso/intermediate_and_root.pem
+!gridstatus/public_certificates/miso_api/intermediate_and_root.pem

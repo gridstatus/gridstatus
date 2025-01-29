@@ -7,7 +7,7 @@ import vcr
 
 # NOTE(Kladar): Set VCR_RECORD_MODE to "all" to update the fixtures as an integration test,
 # say on a weekly or monthly job.
-RECORD_MODE = os.environ.get("VCR_RECORD_MODE", "once")
+RECORD_MODE = os.getenv("VCR_RECORD_MODE", "new_episodes")
 
 # Map of ISO -> endpoint patterns that require date range handling
 DATE_RANGE_METHODS = {
@@ -76,9 +76,16 @@ def setup_vcr(
     if record_mode == "all":
         clean_cassettes(cassette_dir)
 
-    return vcr.VCR(
-        cassette_library_dir=cassette_dir,
-        record_mode=record_mode,
-        match_on=["uri", "method"],
-        before_record=lambda request: before_record_callback(request, source),
-    )
+    vcr_config = {
+        "cassette_library_dir": cassette_dir,
+        "record_mode": record_mode,
+        "match_on": ["uri", "method"],
+        "before_record": lambda request: before_record_callback(request, source),
+        "filter_headers": [
+            ("Authorization", "XXXXXX"),
+            ("Ocp-Apim-Subscription-Key", "XXXXXX"),
+            ("X-Api-Key", "XXXXXX"),
+        ],
+    }
+
+    return vcr.VCR(**vcr_config)

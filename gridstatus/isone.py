@@ -478,19 +478,17 @@ class ISONE(ISOBase):
             data = data.rename(columns={"Local Time": "Interval Start"})
 
         elif market == Markets.REAL_TIME_HOURLY:
-            if date.date() < now.date():
-                url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
-                data = _make_request(
-                    url,
-                    skiprows=[0, 1, 2, 3, 5],
-                    verbose=verbose,
-                )
-            else:
-                # iso only publishes rolling 3 hours of data for current
-                # day real time hourly. idk why
+            if date.date() > now.date():
                 raise RuntimeError(
-                    "Today not supported for hourly lmp. Try latest",
+                    f"date {date.date()} is in the future and cannot be used to query real-time data"
                 )
+
+            url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
+            data = _make_request(
+                url,
+                skiprows=[0, 1, 2, 3, 5],
+                verbose=verbose,
+            )
 
         elif market == Markets.DAY_AHEAD_HOURLY:
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"  # noqa

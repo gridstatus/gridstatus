@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gridstatus"
-version = "0.28.0"
+version = "0.29.1"
 readme = "README.md"
 description = "API to access energy data"
 classifiers = [
@@ -18,11 +18,16 @@ maintainers = [
 ]
 keywords = ["energy", "independent system operator"]
 license = "LICENSE"
+packages = [
+    { include = "gridstatus" },
+    { include = "gridstatus/py.typed" },
+]
 
 [tool.poetry.urls]
-"Source Code" = "https://github.com/kmax12/gridstatus/"
-"Changes" = "https://github.com/kmax12/gridstatus/blob/main/CHANGELOG.md"
-"Issue Tracker" = "https://github.com/kmax12/gridstatus/issues"
+"Source Code" = "https://github.com/gridstatus/gridstatus/"
+"Changes" = "https://github.com/gridstatus/gridstatus/blob/main/CHANGELOG.md"
+"Issue Tracker" = "https://github.com/gridstatus/gridstatus/issues"
+
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -33,10 +38,12 @@ tabulate = "^0.9.0"
 tqdm = "^4.64.1"
 openpyxl = "^3.1.0"
 tabula-py = "^2.5.1"
-lxml = "^4.9.1"
+lxml = "^5.3.0"
 plotly = "^5.11.0"
 termcolor = "^2.2.0"
 xlrd = "^2.0.1"
+xmltodict = "^0.14.2"
+
 # Below pins are for Dependabot security updates
 zipp = "^3.19.1"
 certifi = "^2024.7.4"
@@ -44,6 +51,7 @@ setuptools = "^70.0.0"
 cryptography = "^43.0.1"
 urllib3 = "^2.2.2"
 tornado = "^6.4.1"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.1.2"
@@ -72,6 +80,7 @@ poetry-dotenv-plugin = "^0.2.0"
 notebook = "^7.2.2"
 jupyterlab = "^4.2.5"
 mypy = "^1.8.0"
+time-machine = "^2.16.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

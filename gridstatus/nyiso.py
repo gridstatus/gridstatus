@@ -15,10 +15,12 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
 from gridstatus.lmp_config import lmp_config
 
+# NYISO offers LMP data at two locational granularities
+# load zone and point of generator interconnection
 ZONE = "zone"
 GENERATOR = "generator"
-"""NYISO offers LMP data at two locational granularities: \
-    load zone and point of generator interconnection"""
+
+LOAD_FORECAST_DATASET = "isolf"
 
 
 class NYISO(ISOBase):
@@ -222,13 +224,11 @@ class NYISO(ISOBase):
     @support_date_range(frequency="MONTH_START")
     def get_load_forecast(self, date, end=None, verbose=False):
         """Get load forecast for a date in 1 hour intervals"""
-        date = utils._handle_date(date, self.default_timezone)
-
         # todo optimize this to accept a date range
         data = self._download_nyiso_archive(
             date,
             end=end,
-            dataset_name="isolf",
+            dataset_name=LOAD_FORECAST_DATASET,
             verbose=verbose,
         )
 
@@ -239,6 +239,42 @@ class NYISO(ISOBase):
                 "File Date": "Forecast Time",
                 "NYISO": "Load Forecast",
                 "Time": "Time",
+            },
+        )
+
+        return data
+
+    @support_date_range(frequency="MONTH_START")
+    def get_zonal_load_forecast(self, date, end=None, verbose=False):
+        """Get zonal load forecast for a date in 1 hour intervals"""
+        data = self._download_nyiso_archive(
+            date,
+            end=end,
+            dataset_name=LOAD_FORECAST_DATASET,
+            verbose=verbose,
+        )
+
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "File Date",
+                "NYISO",
+                "Capitl",
+                "Centrl",
+                "Dunwod",
+                "Genese",
+                "Hud Vl",
+                "Longil",
+                "Mhk Vl",
+                "Millwd",
+                "N.Y.C.",
+                "North",
+                "West",
+            ]
+        ].rename(
+            columns={
+                "File Date": "Publish Time",
             },
         )
 
@@ -616,15 +652,15 @@ class NYISO(ISOBase):
             * State
             * In-Service Date
             * Name Plate Rating (V) MW
-            * 2022 CRIS MW Summer
-            * 2022 CRIS MW Winter
-            * 2022 Capability MW Summer
-            * 2022 Capability MW Winter
+            * 2024 CRIS MW Summer
+            * 2024 CRIS MW Winter
+            * 2024 Capability MW Summer
+            * 2024 Capability MW Winter
             * Is Dual Fuel
             * Unit Type
             * Fuel Type 1
             * Fuel Type 2
-            * 2021 Net Energy GWh
+            * 2023 Net Energy GWh
             * Notes
             * Generator Type
         """
@@ -637,13 +673,13 @@ class NYISO(ISOBase):
 
         # need to be updated once a year. approximately around end of april
         # find it here: https://www.nyiso.com/gold-book-resources
-        capacity_url_2023 = "https://www.nyiso.com/documents/20142/37320118/2023-NYCA-Generators.xlsx/145ca922-064c-133f-b3e8-3b4a30ed2845"  # noqa
+        capacity_url_2024 = "https://www.nyiso.com/documents/20142/44474211/2024-NYCA-Generators.xlsx/41a5cba2-523a-9fe0-9830-a523839a2831"  # noqa
 
-        msg = f"Requesting {capacity_url_2023}"
+        msg = f"Requesting {capacity_url_2024}"
         log(msg, verbose)
 
         generators = pd.read_excel(
-            capacity_url_2023,
+            capacity_url_2024,
             sheet_name=[
                 "Table III-2a",
                 "Table III-2b",
@@ -667,15 +703,15 @@ class NYISO(ISOBase):
             "State",
             "In-Service Date",
             "Name Plate Rating (V) MW",
-            "2023 CRIS MW Summer",
-            "2023 CRIS MW Winter",
-            "2023 Capability MW Summer",
-            "2023 Capability MW Winter",
+            "2024 CRIS MW Summer",
+            "2024 CRIS MW Winter",
+            "2024 Capability MW Summer",
+            "2024 Capability MW Winter",
             "Is Dual Fuel",
             "Unit Type",
             "Fuel Type 1",
             "Fuel Type 2",
-            "2022 Net Energy GWh",
+            "2023 Net Energy GWh",
             "Notes",
             "Generator Type",
         ]
@@ -832,7 +868,7 @@ class NYISO(ISOBase):
 
         # We need to add the file date to the load forecast dataset to get the
         # forecast publish time.
-        add_file_date = "isolf" == dataset_name
+        add_file_date = LOAD_FORECAST_DATASET == dataset_name
 
         date = gridstatus.utils._handle_date(date, self.default_timezone)
         month = date.strftime("%Y%m01")
@@ -959,6 +995,10 @@ class NYISO(ISOBase):
             year_code = 27447313
         elif date.year == 2023:
             year_code = 35397361
+        elif date.year == 2024:
+            year_code = 42146126
+        elif date.year == 2025:
+            year_code = 48997190
         else:
             raise ValueError(
                 "Year not currently supported. Please file an issue.",
@@ -989,7 +1029,7 @@ dataset_interval_map = {
     # fuel mix
     "rtfuelmix": ("instantaneous", None),
     # load forecast
-    "isolf": ("start", 60),
+    LOAD_FORECAST_DATASET: ("start", 60),
     # dam lmp
     "damlbmp": ("start", 60),
     # rt lmp

@@ -641,6 +641,9 @@ class PJM(ISOBase):
             index=["Publish Time", "Interval Start"],
         ).reset_index()
 
+        # Replace & with "" and / with _ in column names
+        data.columns = data.columns.str.replace("&", "").str.replace("/", "_")
+
         data["Publish Time"] = pd.to_datetime(
             data["Publish Time"],
             utc=True,
@@ -1012,6 +1015,88 @@ class PJM(ISOBase):
 
         return df
 
+    @support_date_range(frequency=None)
+    def get_settlements_verified_lmp_5_min(self, date, end=None, verbose=False):
+        df = self._get_pjm_json(
+            "rt_fivemin_mnt_lmps",
+            start=date,
+            params={
+                "fields": "congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_rt,total_lmp_rt,type,voltage,zone",  # noqa: E501
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        return self._handle_settlements_verified_lmp_5_min(df)
+
+    def _handle_settlements_verified_lmp_5_min(self, data):
+        rename = {
+            "Interval Start": "Interval Start",
+            "Interval End": "Interval End",
+            "pnode_id": "Location Id",
+            "pnode_name": "Location Name",
+            "type": "Location Type",
+            "voltage": "Voltage",
+            "equipment": "Equipment",
+            "zone": "Zone",
+            "total_lmp_rt": "LMP",
+            "system_energy_price_rt": "Energy",
+            "congestion_price_rt": "Congestion",
+            "marginal_loss_price_rt": "Loss",
+        }
+
+        data = data.rename(columns=rename)[rename.values()]
+
+        for col in ["Location Type", "Zone"]:
+            data[col] = data[col].astype("category")
+
+        return data.sort_values(["Interval Start", "Location Name"])
+
+    @support_date_range(frequency=None)
+    def get_settlements_verified_lmp_hourly(self, date, end=None, verbose=False):
+        df = self._get_pjm_json(
+            "rt_da_monthly_lmps",
+            start=date,
+            params={
+                "fields": "congestion_price_da,congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_da,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_da,system_energy_price_rt,total_lmp_da,total_lmp_rt,type,voltage,zone",  # noqa: E501
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._handle_settlements_verified_lmp_hourly(df)
+
+    def _handle_settlements_verified_lmp_hourly(self, data):
+        rename = {
+            "Interval Start": "Interval Start",
+            "Interval End": "Interval End",
+            "pnode_id": "Location Id",
+            "pnode_name": "Location Name",
+            "type": "Location Type",
+            "voltage": "Voltage",
+            "equipment": "Equipment",
+            "zone": "Zone",
+            "total_lmp_rt": "LMP RT",
+            "system_energy_price_rt": "Energy RT",
+            "congestion_price_rt": "Congestion RT",
+            "marginal_loss_price_rt": "Loss RT",
+            "total_lmp_da": "LMP DA",
+            "system_energy_price_da": "Energy DA",
+            "congestion_price_da": "Congestion DA",
+            "marginal_loss_price_da": "Loss DA",
+        }
+
+        data = data.rename(columns=rename)[rename.values()]
+
+        for col in ["Location Type", "Zone"]:
+            data[col] = data[col].astype("category")
+
+        return data.sort_values(["Interval Start", "Location Name"])
+
     def _get_pjm_json(
         self,
         endpoint: str,
@@ -1050,6 +1135,7 @@ class PJM(ISOBase):
 
         # Exclude API key from logs
         params_to_log = final_params.copy()
+
         if "Ocp-Apim-Subscription-Key" in params_to_log:
             params_to_log["Ocp-Apim-Subscription-Key"] = "API_KEY_HIDDEN"
 
@@ -1179,7 +1265,7 @@ class PJM(ISOBase):
             "Facilities Study",
             "Facilities Study Status",
             "Interim/Interconnection Service/Generation Interconnection Agreement",
-            "Interim/Interconnection Service/Generation Interconnection Agreement Status",
+            "Interim/Interconnection Service/Generation Interconnection Agreement Status",  # noqa: E501
             "Wholesale Market Participation Agreement",
             "Construction Service Agreement",
             "Construction Service Agreement Status",
@@ -1485,7 +1571,7 @@ class PJM(ISOBase):
                 "unscheduled_steam_capacity",
             },
             end=end,
-            filter_timestamp_name="projected_peak_datetime",
+            filter_timestamp_name="generated_at",
             verbose=verbose,
         )
 
@@ -1542,7 +1628,7 @@ class PJM(ISOBase):
                 "projected_peak_datetime_utc,unscheduled_steam_capacity",
             },
             end=end,
-            filter_timestamp_name="projected_peak_datetime",
+            filter_timestamp_name="generated_at",
             verbose=verbose,
         )
 
@@ -2458,4 +2544,36 @@ class PJM(ISOBase):
                 "Contingency Facility",
             ]
         ]
+        return df
+
+    @support_date_range(frequency=None)
+    def get_day_ahead_demand_bids(self, date, end=None, verbose=False):
+        """
+        Retrieves the day ahead demand bids data from:
+        https://dataminer2.pjm.com/feed/hrl_dmd_bids/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "hrl_dmd_bids",
+            start=date,
+            params={
+                "fields": "area,datetime_beginning_utc,hrly_da_demand_bid",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        ).rename(
+            columns={
+                "hrly_da_demand_bid": "Demand Bid",
+                "area": "Area",
+            },
+        )
+
+        df = df[["Interval Start", "Interval End", "Area", "Demand Bid"]].sort_values(
+            ["Interval Start", "Area"],
+        )
+
         return df

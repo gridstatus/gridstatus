@@ -1,5 +1,85 @@
 # Changelog
 
+## v0.29.1 - January 26, 2025
+
+* PJM Hourly Demand Bid Data [#527](https://github.com/gridstatus/gridstatus/pull/527)
+* feat(ENG 1120): Expand CAISO Load Forecast [#522](https://github.com/gridstatus/gridstatus/pull/522)
+* Update Docs and README [#526](https://github.com/gridstatus/gridstatus/pull/525)
+* Add CITATION.CFF and Script to Bump Version [#526](https://github.com/gridstatus/gridstatus/pull/526)
+* Add read_csv Kwargs for ERCOT read_doc [#528](https://github.com/gridstatus/gridstatus/pull/528)
+* upgrade lxml to 5.3.0 [#530](https://github.com/gridstatus/gridstatus/pull/530)
+* Query current day data from real-time hourly market in ISO-NE [#532](https://github.com/gridstatus/gridstatus/pull/532)
+
+
+## v0.29.0 - January 15, 2025
+
+### Additions (New Features/Datasets)
+* Add 5 Minute PJM Solar and Wind Forecast in [#446](https://github.com/gridstatus/gridstatus/pull/446)
+* Add PJM IT SCED LMP 5 Minute in [#450](https://github.com/gridstatus/gridstatus/pull/450)
+* Add ISO New England API Integration and Initial Datasets in [#452](https://github.com/gridstatus/gridstatus/pull/452)
+* MISO Outages Forecast and Actuals Estimated in [#457](https://github.com/gridstatus/gridstatus/pull/457)
+* ISONE Load Forecasts in [#460](https://github.com/gridstatus/gridstatus/pull/460)
+* ERCOT DAM 60d AS Offers Data in [#464](https://github.com/gridstatus/gridstatus/pull/464)
+* PJM Constraints Datasets in [#472](https://github.com/gridstatus/gridstatus/pull/472)
+* MISO Constraints in [#476](https://github.com/gridstatus/gridstatus/pull/476)
+* ISONE Hourly System Load in [#490](https://github.com/gridstatus/gridstatus/pull/490)
+* IESO Resource Adequacy Report in [#482](https://github.com/gridstatus/gridstatus/pull/482)
+* MISO API Pricing Data in [#493](https://github.com/gridstatus/gridstatus/pull/493)
+* ERCOT Indicative LMPs in [#504](https://github.com/gridstatus/gridstatus/pull/504)
+* PJM Settlements Verified LMPS in [#509](https://github.com/gridstatus/gridstatus/pull/509)
+* PJM Settlements Verified Hourly LMPs in [#514](https://github.com/gridstatus/gridstatus/pull/514)
+* NYISO Zonal Load Forecast in [#519](https://github.com/gridstatus/gridstatus/pull/519)
+
+### Fixes
+* Fix ERCOT API Hourly Solar and Wind Tests in [#449](https://github.com/gridstatus/gridstatus/pull/449)
+* Resolve undated times correctly and bust cloudfront cache in [#451](https://github.com/gridstatus/gridstatus/pull/451)
+* Fix ISONE API methods in [#454](https://github.com/gridstatus/gridstatus/pull/454)
+* MISO Outages Fix for Missing Columns in [#459](https://github.com/gridstatus/gridstatus/pull/459)
+* Add small fix to ERCOT temp method in [#463](https://github.com/gridstatus/gridstatus/pull/463)
+* * Update to all IESO public report links in [#465](https://github.com/gridstatus/gridstatus/pull/465)
+* ERCOT DAM LMP By Bus DST Fix in [#467](https://github.com/gridstatus/gridstatus/pull/467)
+* DST Fix for energy_storage_resources in [#469](https://github.com/gridstatus/gridstatus/pull/469)
+* ERCOT Fix Real Time AS Monitor, Real Time System Conditions, and Forecasts Publish Dates DST Issue in [#468](https://github.com/gridstatus/gridstatus/pull/468)
+* ISO NE fuel mix 2024 fallback transition time fix in [#471](https://github.com/gridstatus/gridstatus/pull/471)
+* SPP 5 Minute Dataset DST End Fixes in [#470](https://github.com/gridstatus/gridstatus/pull/470)
+* Fix ERCOT AS Reports for DST in [#473](https://github.com/gridstatus/gridstatus/pull/473)
+* Fix for ERCOT DAM AS Offers with Repeated Offers in [#474](https://github.com/gridstatus/gridstatus/pull/474)
+* EIA Fix Grid Monitor (CO2 Emissions) in [#483](https://github.com/gridstatus/gridstatus/pull/483)
+* Fix Tests for is_today and is_yesterday in [#489](https://github.com/gridstatus/gridstatus/pull/489)
+* adequacy report columns in [#499](https://github.com/gridstatus/gridstatus/pull/499)
+* Disambiguate `last_modified` timezone better in [#502](https://github.com/gridstatus/gridstatus/pull/502)
+* * Update url base for caiso outlook in [#503](https://github.com/gridstatus/gridstatus/pull/503)
+* Fix ERCOT Tests in [#507](https://github.com/gridstatus/gridstatus/pull/507)
+* IESO Adequacy Forecast Report fixes in [#512](https://github.com/gridstatus/gridstatus/pull/512)
+* * Update NYISO data sources in [#517](https://github.com/gridstatus/gridstatus/pull/517)
+* Fix CAISO Generator Outages in [#520](https://github.com/gridstatus/gridstatus/pull/520)
+
+### General Updates/Codebase Improvements
+
+* Change Processing of Bid Curve to Array of Arrays in [#453](https://github.com/gridstatus/gridstatus/pull/453)
+* Add mypy to work toward type safety in [#456](https://github.com/gridstatus/gridstatus/pull/456)
+* ruff format over black in [#455](https://github.com/gridstatus/gridstatus/pull/455)
+* Rename to Generation Outages MISO in [#461](https://github.com/gridstatus/gridstatus/pull/461)
+* Raise NoDataFoundException When ERCOT Documents are Not Found in [#462](https://github.com/gridstatus/gridstatus/pull/462)
+* Bump the pip group across 1 directory with 3 updates in [#458](https://github.com/gridstatus/gridstatus/pull/458)
+* Update EIA Fuel Mix for New Power Storage Columns in [#475](https://github.com/gridstatus/gridstatus/pull/475)
+* Remove ErcotAPI Dependency on GitHub File in [#477](https://github.com/gridstatus/gridstatus/pull/477)
+* tune testing config in [#478](https://github.com/gridstatus/gridstatus/pull/478)
+* Rename MISO LMP Weekly to Real Time 5 Min Final in [#479](https://github.com/gridstatus/gridstatus/pull/479)
+* EIA Regional Data Keep NAs in [#485](https://github.com/gridstatus/gridstatus/pull/485)
+* ERCOT Updates for Request Kwargs in [#484](https://github.com/gridstatus/gridstatus/pull/484)
+* Ignore fixtures in [#491](https://github.com/gridstatus/gridstatus/pull/491)
+* IESO Public Certificates in [#496](https://github.com/gridstatus/gridstatus/pull/496)
+* Rename Columns for PJM Load Forecast Hourly in [#498](https://github.com/gridstatus/gridstatus/pull/498)
+* rename to `load forecast` in [#501](https://github.com/gridstatus/gridstatus/pull/501)
+* VCR Filter Headers in [#492](https://github.com/gridstatus/gridstatus/pull/492)
+* VCR Setup (Part 1) in [#497](https://github.com/gridstatus/gridstatus/pull/497)
+* Remove date parameter in [#510](https://github.com/gridstatus/gridstatus/pull/510)
+* Change Bulk Download Default to True in [#508](https://github.com/gridstatus/gridstatus/pull/508)
+* Typehints for EMIL for ERCOT Capacity Outages in [#513](https://github.com/gridstatus/gridstatus/pull/513)
+* Update EIA Fuel Mix for Geothermal and Other Energy Storage in [#518](https://github.com/gridstatus/gridstatus/pull/518)
+* Support Multiple API Keys for MISO API in [#516](https://github.com/gridstatus/gridstatus/pull/516)
+
 ## v0.28.0 - October 3, 2024
 
 ### Breaking Changes

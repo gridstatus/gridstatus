@@ -16,7 +16,7 @@ Before contributing, please read this guide. If you have any questions, feel fre
 
 ## Submitting Bug Reports and Feature Requests
 
-If you find a bug in the code or have an idea for a new feature, please [search for an existing issue](https://github.com/kmax12/gridstatus/issues) or [open a new issue](https://github.com/kmax12/gridstatus/issues/new) and provide as much detail as possible.
+If you find a bug in the code or have an idea for a new feature, please [search for an existing issue](https://github.com/gridstatus/gridstatus/issues) or [open a new issue](https://github.com/gridstatus/gridstatus/issues/new) and provide as much detail as possible.
 
 ## Submitting Pull Requests
 
@@ -42,7 +42,7 @@ When submitting a pull request, please make sure to:
 
 To set up a development environment for this project, you will need to:
 
-* Install Python 3.9 or higher and make sure java is installed on your system
+* Install Python 3.11 or higher and make sure java is installed on your system
 
 * Fork the repository and clone it to your local machine. For a PR, create a new branch in your fork.
 

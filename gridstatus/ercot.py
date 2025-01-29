@@ -117,6 +117,10 @@ REAL_TIME_ADDERS_AND_RESERVES_RTID = 13221
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
 TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
 
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-970-CD
+# https://data.ercot.com/data-product-archive/NP6-970-CD - for historical data
+ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID = 13073
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -1967,6 +1971,14 @@ class Ercot(ISOBase):
                 "ACTUAL LZ SOUTH HOUSTON": "GEN LZ SOUTH HOUSTON",
                 "ACTUAL LZ WEST": "GEN LZ WEST",
                 "ACTUAL LZ NORTH": "GEN LZ NORTH",
+                # Older versions of wind power production by geographical region use
+                # "ACTUAL" instead of "GEN"
+                # https://data.ercot.com/data-product-archive/NP4-742-CD
+                "ACTUAL PANHANDLE": "GEN PANHANDLE",
+                "ACTUAL COASTAL": "GEN COASTAL",
+                "ACTUAL SOUTH": "GEN SOUTH",
+                "ACTUAL WEST": "GEN WEST",
+                "ACTUAL NORTH": "GEN NORTH",
             },
         )
 
@@ -2031,7 +2043,12 @@ class Ercot(ISOBase):
         return df.sort_values("Time").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_hourly_resource_outage_capacity(self, date, end=None, verbose=False):
+    def get_hourly_resource_outage_capacity(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Hourly Resource Outage Capacity report sourced
         from the Outage Scheduler (OS).
 
@@ -2045,9 +2062,9 @@ class Ercot(ISOBase):
         As such, it is a proxy for thermal outages.
 
         Arguments:
-            date (str): time to download. Returns last hourly report
+            date (str, pd.Timestamp): time to download. Returns last hourly report
                 before this time. Supports "latest"
-            end (str, optional): end time to download. Defaults to None.
+            end (str, pd.Timestamp, optional): end time to download. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
@@ -2064,7 +2081,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_hourly_resource_outage_capacity(self, doc, verbose=False):
+    def _handle_hourly_resource_outage_capacity(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self.read_doc(doc, parse=False, verbose=verbose)
         # there is no DST flag column
         # and the data set ignores DST
@@ -2087,7 +2108,10 @@ class Ercot(ISOBase):
 
         return self._handle_hourly_resource_outage_capacity_df(df)
 
-    def _handle_hourly_resource_outage_capacity_df(self, df):
+    def _handle_hourly_resource_outage_capacity_df(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         outage_types = ["Total Resource", "Total IRR", "Total New Equip Resource"]
 
         # Earlier data doesn't have these columns
@@ -2133,7 +2157,12 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_unplanned_resource_outages(self, date, end=None, verbose=False):
+    def get_unplanned_resource_outages(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Unplanned Resource Outages.
 
         Data published at ~5am central on the 3rd day after the day of interest. Since
@@ -2168,7 +2197,11 @@ class Ercot(ISOBase):
 
         return complete_df
 
-    def _handle_unplanned_resource_outages_file(self, doc, xls):
+    def _handle_unplanned_resource_outages_file(
+        self,
+        doc: Document,
+        xls: ZipFile,
+    ) -> pd.DataFrame:
         as_of = pd.to_datetime(
             pd.read_excel(
                 xls,
@@ -2886,13 +2919,15 @@ class Ercot(ISOBase):
 
     def _get_document(
         self,
-        report_type_id,
-        date=None,
-        published_after=None,
-        published_before=None,
-        constructed_name_contains=None,
-        extension=None,
-        verbose=False,
+        report_type_id: int,
+        date: str | None = None,
+        published_after: str | None = None,
+        published_before: str | None = None,
+        constructed_name_contains: str | None = None,
+        extension: str | None = None,
+        verbose: bool = False,
+        base_url: str = "www.ercot.com",
+        request_kwargs: dict | None = None,
     ) -> Document:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -2916,21 +2951,25 @@ class Ercot(ISOBase):
             constructed_name_contains=constructed_name_contains,
             extension=extension,
             verbose=verbose,
+            base_url=base_url,
+            request_kwargs=request_kwargs,
         )
 
         return max(documents, key=lambda x: x.publish_date)
 
     def _get_documents(
         self,
-        report_type_id,
-        date=None,
-        published_after=None,
-        published_before=None,
-        friendly_name_timestamp_after=None,
-        friendly_name_timestamp_before=None,
-        constructed_name_contains=None,
-        extension=None,
-        verbose=False,
+        report_type_id: int,
+        date: str | None = None,
+        published_after: str | None = None,
+        published_before: str | None = None,
+        friendly_name_timestamp_after: str | None = None,
+        friendly_name_timestamp_before: str | None = None,
+        constructed_name_contains: str | None = None,
+        extension: str | None = None,
+        verbose: bool = False,
+        base_url: str = "www.ercot.com",
+        request_kwargs: dict | None = None,
     ) -> list:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -2938,23 +2977,24 @@ class Ercot(ISOBase):
             list of Document with URL and Publish Date
         """
         # Include a cache buster to ensure we get the latest data
-        url = f"https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}&_{int(time.time())}"  # noqa
+        url = f"https://{base_url}/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}&_{int(time.time())}"  # noqa
 
-        msg = f"Fetching document {url}"
-        log(msg, verbose)
+        logger.info(f"Fetching document {url}")
 
         # if latest, we dont need to filter
         # so we can set to None
         if published_before == "latest":
             published_before = None
 
-        docs = self._get_json(url)["ListDocsByRptTypeRes"]["DocumentList"]
+        docs = self._get_json(url, verbose=verbose, **(request_kwargs or {}))[
+            "ListDocsByRptTypeRes"
+        ]["DocumentList"]
+
         matches = []
         for doc in docs:
             match = True
 
-            doc_url = f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc['Document']['DocID']}"  # noqa
-
+            doc_url = f"https://{base_url}/misdownload/servlets/mirDownload?doclookupId={doc['Document']['DocID']}"  # noqa
             # make sure to handle retry files
             # e.g SPPHLZNP6905_retry_20230608_1545_csv
             try:
@@ -3113,28 +3153,54 @@ class Ercot(ISOBase):
         df = pd.read_csv(z.open(settlement_points_file))
         return df
 
-    def read_doc(self, doc, parse=True, verbose=False):
-        log(f"Reading {doc.url}", verbose)
-        df = pd.read_csv(doc.url, compression="zip")
+    def read_doc(
+        self,
+        doc: Document,
+        parse: bool = True,
+        verbose: bool = False,
+        request_kwargs: dict | None = None,
+        read_csv_kwargs: dict | None = None,
+    ):
+        logger.debug(f"Reading {doc.url}")
+
+        response = requests.get(doc.url, **(request_kwargs or {})).content
+        df = pd.read_csv(
+            io.BytesIO(response), compression="zip", **(read_csv_kwargs or {})
+        )
+
         if parse:
             df = self.parse_doc(df, verbose=verbose)
         return df
 
-    def read_docs(self, docs, parse=True, empty_df=None, verbose=False):
+    def read_docs(
+        self,
+        docs: list[Document],
+        parse: bool = True,
+        empty_df: pd.DataFrame | None = None,
+        verbose: bool = False,
+        request_kwargs: dict | None = None,
+    ):
         if len(docs) == 0:
             return empty_df
 
         dfs = []
         for doc in tqdm.tqdm(docs, desc="Reading files", disable=not verbose):
-            dfs.append(self.read_doc(doc, parse=parse, verbose=verbose))
+            dfs.append(
+                self.read_doc(
+                    doc,
+                    parse=parse,
+                    verbose=verbose,
+                    request_kwargs=request_kwargs,
+                ),
+            )
         return pd.concat(dfs).reset_index(drop=True)
 
     def parse_doc(
         self,
-        doc,
-        dst_ambiguous_default="infer",
-        verbose=False,
-        nonexistent="raise",
+        doc: pd.DataFrame,
+        dst_ambiguous_default: str = "infer",
+        verbose: bool = False,
+        nonexistent: str = "raise",
     ):
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
@@ -3163,7 +3229,7 @@ class Ercot(ISOBase):
 
         ending_time_col_name = "HourEnding"
 
-        def ambiguous_based_on_dstflag(df):
+        def ambiguous_based_on_dstflag(df: pd.DataFrame) -> pd.Series:
             # DSTFlag is Y during the repeated hour (after the clock has been set back)
             # so it's False/N during DST And True/Y during Standard Time.
             # For ambiguous, Pandas wants True for DST and False for Standard Time
@@ -3312,11 +3378,60 @@ class Ercot(ISOBase):
             "West",
         ]
 
+    @support_date_range(frequency=None)
+    def get_indicative_lmp_by_settlement_point(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            self.get_indicative_lmp_by_settlement_point(date="today")
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-if __name__ == "__main__":
-    iso = Ercot()
-    # df = iso.get_sced_system_lambda(date="09/13/2023", verbose=True)
-    df = iso.get_sced_system_lambda(date="latest", verbose=True)
-    print(df["SCED Time Stamp"].unique()[0].date())
-    print(df)
-    print(df.columns)
+        docs = self._get_documents(
+            report_type_id=ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID,
+            extension="csv",
+            published_before=end,
+            published_after=date,
+            verbose=verbose,
+        )
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_indicative_lmp_by_settlement_point(df)
+
+    def _handle_indicative_lmp_by_settlement_point(self, df: pd.DataFrame):
+        columns_to_rename = {
+            "RTDTimestamp": "RTD Timestamp",
+            "IntervalEnding": "Interval End",
+            "SettlementPoint": "Location",
+            "SettlementPointType": "Location Type",
+            "LMP": "LMP",
+        }
+        df.rename(columns=columns_to_rename, inplace=True)
+        assert set(df["RepeatedHourFlag"].unique()).issubset({"Y", "N"})
+        assert set(df["IntervalRepeatedHourFlag"].unique()).issubset({"Y", "N"})
+
+        df["RTD Timestamp"] = pd.to_datetime(df["RTD Timestamp"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=df["RepeatedHourFlag"] == "N",
+            nonexistent="shift_forward",
+        )
+        df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=df["IntervalRepeatedHourFlag"] == "N",
+            nonexistent="shift_forward",
+        )
+
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+        return df[
+            [
+                "RTD Timestamp",
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+        ]
