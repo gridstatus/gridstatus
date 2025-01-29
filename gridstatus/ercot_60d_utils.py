@@ -112,7 +112,7 @@ DAM_ENERGY_ONLY_OFFERS_COLUMNS = [
     "Energy Only Offer ID",
     "Energy Only Offer Curve",
     "Multi-Hour Block Indicator",
-    "Block/Curve indicator",
+    "Block-Curve indicator",
 ]
 
 DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS = [
@@ -156,7 +156,7 @@ DAM_ENERGY_BIDS_COLUMNS = [
     "Energy Only Bid ID",
     "Energy Only Bid Curve",
     "Multi-Hour Block Indicator",
-    "Block/Curve indicator",
+    "Block - Curve indicator",
 ]
 
 DAM_PTP_OBLIGATION_OPTION_COLUMNS = [
@@ -595,7 +595,11 @@ def process_dam_energy_only_offer_awards(df):
 
 def process_dam_energy_only_offers(df):
     df = df.rename(
-        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+        columns={
+            "Settlement Point": "Settlement Point Name",
+            "QSE Name": "QSE",
+            "Block/Curve indicator": "Block - Curve indicator",
+        },
     )
 
     curve_name = "Energy Only Offer"
@@ -638,7 +642,11 @@ def process_dam_energy_bid_awards(df):
 
 def process_dam_energy_bids(df):
     df = df.rename(
-        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+        columns={
+            "Settlement Point": "Settlement Point Name",
+            "QSE Name": "QSE",
+            "Block/Curve indicator": "Block - Curve indicator",
+        },
     )
 
     curve_name = "Energy Only Bid"
