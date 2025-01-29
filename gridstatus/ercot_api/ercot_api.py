@@ -1213,15 +1213,14 @@ class ErcotAPI:
         return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_dam_load_and_gen_60_day_resources_as_offers(
+    def get_60_day_dam_disclosure(
         self,
         date,
         end=None,
         verbose=False,
     ):
         """
-        Get both load and generation resource ancillary services offers from the
-        Day-Ahead Market from the 60-day disclosure reports.
+        Get the 60-day DAM disclosure reports from ERCOT.
 
         Args:
             date (datetime-like): Start date for the query
@@ -1231,9 +1230,19 @@ class ErcotAPI:
                 False
 
         Returns:
-            dict: Dictionary containing two dataframes with keys:
-                - 'dam_load_resource_as_offers'
-                - 'dam_gen_resource_as_offers'
+            dict: Dictionary containing dataframes as values and keys:
+                - "dam_gen_resource"
+                - "dam_gen_resource_as_offers"
+                - "dam_load_resource"
+                - "dam_load_resource_as_offers"
+                - "dam_energy_only_offer_awards"
+                - "dam_energy_only_offers"
+                - "dam_ptp_obligation_bid_awards"
+                - "dam_ptp_obligation_bids"
+                - "dam_energy_bid_awards"
+                - "dam_energy_bids"
+                - "dam_ptp_obligation_option"
+                - "dam_ptp_obligation_option_awards"
 
         NOTE: because data is delayed by 60 days, requesting data in the past 60 days
         will return no data.
@@ -1247,9 +1256,7 @@ class ErcotAPI:
         else:
             end = date + pd.DateOffset(days=1)
 
-        # Initialize empty lists for both types of dataframes
-        load_dfs = []
-        gen_dfs = []
+        df_list = []
 
         # Get data once since both endpoints return the same zipfile
         data_bytes = self.get_historical_data(
@@ -1269,23 +1276,11 @@ class ErcotAPI:
                 z=zip_file,
                 process=True,
                 verbose=verbose,
-                files_prefix={
-                    "dam_load_resource_as_offers": "60d_DAM_Load_Resource_ASOffers-",
-                    "dam_gen_resource_as_offers": "60d_DAM_Generation_Resource_ASOffers-",
-                },
             )
-            load_dfs.append(processed_files["dam_load_resource_as_offers"])
-            gen_dfs.append(processed_files["dam_gen_resource_as_offers"])
+            df_list.append(processed_files)
 
-        # Combine the results into a dictionary with sorted dataframes
-        return {
-            "dam_load_resource_as_offers": pd.concat(load_dfs).sort_values(
-                ["Interval Start", "Resource Name"],
-            ),
-            "dam_gen_resource_as_offers": pd.concat(gen_dfs).sort_values(
-                ["Interval Start", "Resource Name"],
-            ),
-        }
+        # Take the list of dictionaries and concat the dataframes for each key
+        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0].keys()}
 
     def get_historical_data(
         self,
