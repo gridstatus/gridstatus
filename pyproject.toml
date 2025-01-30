@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gridstatus"
-version = "0.29.0"
+version = "0.29.1"
 readme = "README.md"
 description = "API to access energy data"
 classifiers = [
@@ -18,11 +18,16 @@ maintainers = [
 ]
 keywords = ["energy", "independent system operator"]
 license = "LICENSE"
+packages = [
+    { include = "gridstatus" },
+    { include = "gridstatus/py.typed" },
+]
 
 [tool.poetry.urls]
-"Source Code" = "https://github.com/kmax12/gridstatus/"
-"Changes" = "https://github.com/kmax12/gridstatus/blob/main/CHANGELOG.md"
-"Issue Tracker" = "https://github.com/kmax12/gridstatus/issues"
+"Source Code" = "https://github.com/gridstatus/gridstatus/"
+"Changes" = "https://github.com/gridstatus/gridstatus/blob/main/CHANGELOG.md"
+"Issue Tracker" = "https://github.com/gridstatus/gridstatus/issues"
+
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -33,7 +38,7 @@ tabulate = "^0.9.0"
 tqdm = "^4.64.1"
 openpyxl = "^3.1.0"
 tabula-py = "^2.5.1"
-lxml = "^4.9.1"
+lxml = "^5.3.0"
 plotly = "^5.11.0"
 termcolor = "^2.2.0"
 xlrd = "^2.0.1"

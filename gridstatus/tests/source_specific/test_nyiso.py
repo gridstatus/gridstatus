@@ -33,7 +33,7 @@ class TestNYISO(BaseTestISO):
         df = self.iso.get_capacity_prices(date="Jan 1, 2025", verbose=True)
         assert not df.empty, "DataFrame came back empty"
 
-        # TODO: missing report: https://github.com/kmax12/gridstatus/issues/309
+        # TODO: missing report: https://github.com/gridstatus/gridstatus/issues/309
         # df = self.iso.get_capacity_prices(date="today", verbose=True)
         # assert not df.empty, "DataFrame came back empty"
 

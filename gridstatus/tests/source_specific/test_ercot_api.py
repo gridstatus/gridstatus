@@ -5,6 +5,7 @@ import pytest
 
 from gridstatus.base import Markets
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
+from gridstatus.ercot_60d_utils import DAM_RESOURCE_AS_OFFERS_COLUMNS
 from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES
 from gridstatus.ercot_api.ercot_api import (
     HISTORICAL_DAYS_THRESHOLD,
@@ -15,7 +16,7 @@ from gridstatus.ercot_api.ercot_api import (
     ErcotAPI,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
-from gridstatus.tests.source_specific.test_ercot import RESOURCE_AS_OFFERS_COLUMNS
+from gridstatus.tests.source_specific.test_ercot import TestErcot
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
@@ -1181,38 +1182,33 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
-    """get_dam_load_and_gen_60_day_resources_as_offers"""
+    """get_60_day_dam_disclosure"""
 
     @pytest.mark.integration
-    def test_get_dam_load_and_gen_60_day_resources_as_offers(self):
+    def test_get_60_day_dam_disclosure_historical(self):
         start_date = self.local_start_of_today() - pd.DateOffset(days=3000)
-
         end_date = start_date + pd.DateOffset(days=2)
 
-        df_dict = ErcotAPI().get_dam_load_and_gen_60_day_resources_as_offers(
+        df_dict = ErcotAPI().get_60_day_dam_disclosure(
             start_date,
             end_date,
         )
 
-        df_load = df_dict["dam_load_resource_as_offers"]
-        df_gen = df_dict["dam_gen_resource_as_offers"]
+        TestErcot()._check_60_day_dam_disclosure(df_dict)
 
-        for df in [df_load, df_gen]:
-            assert df.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
+        for df in df_dict.values():
             assert df["Interval Start"].min() == start_date
             assert df["Interval End"].max() == end_date
 
-            assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
-
     @pytest.mark.integration
-    def test_get_dam_load_and_gen_60_day_resources_as_offers_repeated_offers(self):
+    def test_get_60_day_dam_disclosure_repeated_offers(self):
         """Tests a problematic date where one resource has repeated offers for a
         single service on a single interval"""
         # This is the resource. We expect to still have the data for this resource
         resource_name = "CANYONRO_LD1"
         date_with_issue = pd.Timestamp("2024-09-04", tz="US/Central")
 
-        df_dict = ErcotAPI().get_dam_load_and_gen_60_day_resources_as_offers(
+        df_dict = ErcotAPI().get_60_day_dam_disclosure(
             date_with_issue,
         )
 
@@ -1223,7 +1219,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df_load[df_load["Resource Name"] == resource_name].shape[0] == 24
 
         for df in [df_load, df_gen]:
-            assert df.columns.tolist() == RESOURCE_AS_OFFERS_COLUMNS
+            assert df.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
 
             assert df["Interval Start"].min() == pd.Timestamp(date_with_issue)
             assert df["Interval End"].max() == pd.Timestamp(
