@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from gs_logging import setup_gs_logger
+from gridstatus.gs_logging import setup_gs_logger
 
 logger = setup_gs_logger()
 
