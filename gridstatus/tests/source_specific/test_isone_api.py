@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
+from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
@@ -10,7 +11,7 @@ api_vcr = setup_vcr(
     record_mode=RECORD_MODE,
 )
 
-TEST_DATES = [
+DST_CHANGE_TEST_DATES = [
     ("2024-11-02", "2024-11-04"),
     ("2024-03-09", "2024-03-11"),
 ]
@@ -22,7 +23,7 @@ TEST_MULTIPLE_LOCATIONS = [
 TEST_SINGLE_LOCATIONS = [loc for pair in TEST_MULTIPLE_LOCATIONS for loc in pair]
 
 
-class TestISONEAPI:
+class TestISONEAPI(TestHelperMixin):
     def setup_class(cls):
         cls.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
 
@@ -132,7 +133,7 @@ class TestISONEAPI:
 
     @pytest.mark.parametrize(
         "date,end,locations",
-        [(date, end, TEST_SINGLE_LOCATIONS) for date, end in TEST_DATES],
+        [(date, end, TEST_SINGLE_LOCATIONS) for date, end in DST_CHANGE_TEST_DATES],
     )
     def test_get_realtime_hourly_demand_date_range(
         self,
@@ -167,7 +168,7 @@ class TestISONEAPI:
 
     @pytest.mark.parametrize(
         "date,end,locations",
-        [(date, end, TEST_SINGLE_LOCATIONS) for date, end in TEST_DATES],
+        [(date, end, TEST_SINGLE_LOCATIONS) for date, end in DST_CHANGE_TEST_DATES],
     )
     def test_get_dayahead_hourly_demand_date_range(
         self,
@@ -202,7 +203,7 @@ class TestISONEAPI:
 
     @pytest.mark.parametrize(
         "date,end",
-        TEST_DATES,
+        DST_CHANGE_TEST_DATES,
     )
     def test_get_hourly_load_forecast(self, date, end):
         cassette_name = f"test_get_hourly_load_forecast_{date}_{end}.yaml"
@@ -233,7 +234,7 @@ class TestISONEAPI:
 
     @pytest.mark.parametrize(
         "date,end",
-        TEST_DATES,
+        DST_CHANGE_TEST_DATES,
     )
     def test_get_reliability_region_load_forecast(self, date, end):
         cassette_name = f"test_get_reliability_region_load_forecast_{date}_{end}.yaml"
@@ -296,7 +297,7 @@ class TestISONEAPI:
 
     @pytest.mark.parametrize(
         "date,end",
-        TEST_DATES,
+        DST_CHANGE_TEST_DATES,
     )
     def test_get_fuel_mix_date_range(self, date, end):
         cassette_name = f"test_get_fuel_mix_{date}_{end}.yaml"
@@ -342,7 +343,7 @@ class TestISONEAPI:
 
     @pytest.mark.parametrize(
         "date,end",
-        TEST_DATES,
+        DST_CHANGE_TEST_DATES,
     )
     def test_get_load_hourly_date_range(
         self,
@@ -375,3 +376,26 @@ class TestISONEAPI:
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(hours=1)
             ).all()
+
+    """get_interchange_fifteen_minute"""
+
+    @pytest.mark.integration
+    @api_vcr.use_cassette("test_get_interchange_fifteen_minute_date_range.yaml")
+    def test_get_interchange_fifteen_minute_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        end = start + pd.DateOffset(days=1)
+
+        df = self.iso.get_interchange_fifteen_minute(start, end)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "ActInterchange",
+            "Purchase",
+            "Sale",
+        ]
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end

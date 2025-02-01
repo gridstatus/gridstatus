@@ -644,8 +644,65 @@ class ISONEAPI:
         )
         return df[
             list(
-                regional_cols.values()
-                if "Location" in df.columns
-                else system_cols.values(),
+                (
+                    regional_cols.values()
+                    if "Location" in df.columns
+                    else system_cols.values()
+                ),
             )
         ]
+
+    @support_date_range("DAY_START")
+    def get_interchange_fifteen_minute(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the fifteen minute interchange data for specified date range.
+
+        Args:
+            date (str): The start date for the data request. Use "latest" for most
+            recent data.
+            end_date (str | None): The end date for the data request. Only used if date
+            is not "latest".
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the interchange fifteen minute
+            data for all requested locations.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/fifteenminuteinterchange/current"
+        else:
+            url = f"{self.base_url}/fifteenminuteinterchange/day/{date.strftime('%Y%m%d')}"  # noqa: E501
+
+        log.info(f"Requesting interchange data for date: {date}")
+
+        response = self.make_api_call(url)
+
+        df = pd.DataFrame(
+            response["ActualFifteenMinInterchanges"]["ActualFifteenMinInterchange"],
+        )
+
+        return self._handle_interchange_fifteen_minute(df)
+
+    def _handle_interchange_fifteen_minute(self, df):
+        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
+        df["Interval Start"] = df["BeginDate"].dt.tz_convert(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=15)
+        # Split location column from {'$': '.I.ROSETON 345 1', '@LocId': '4011'} to
+        # Location and Location Id
+        df[["Location", "Location Id"]] = pd.json_normalize(df["Location"])
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Id",
+                "ActInterchange",
+                "Purchase",
+                "Sale",
+            ]
+        ].sort_values(["Interval Start", "Location"])
