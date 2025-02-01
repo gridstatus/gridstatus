@@ -21,6 +21,9 @@ ZONE = "zone"
 GENERATOR = "generator"
 
 LOAD_FORECAST_DATASET = "isolf"
+INTERFACE_LIMITS_AND_FLOWS_DATASET = "ExternalLimitsFlows"
+LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET = "eriecirculationrt"
+LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET = "eriecirculationda"
 
 
 class NYISO(ISOBase):
@@ -277,6 +280,82 @@ class NYISO(ISOBase):
                 "File Date": "Publish Time",
             },
         )
+
+        return data
+
+    @support_date_range(frequency="MONTH_START")
+    def get_interface_limits_and_flows(self, date, end=None, verbose=False):
+        """Get interface limits and flows for a date"""
+        if date == "latest":
+            data = pd.read_csv(
+                "https://mis.nyiso.com/public/csv/ExternalLimitsFlows/currentExternalLimitsFlows.csv",  # noqa
+            )
+            data = _handle_time(data, INTERFACE_LIMITS_AND_FLOWS_DATASET)
+        else:
+            data = self._download_nyiso_archive(
+                date,
+                end=end,
+                dataset_name=INTERFACE_LIMITS_AND_FLOWS_DATASET,
+                verbose=verbose,
+            )
+
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Interface Name",
+                "Point ID",
+                "Flow (MWH)",
+                "Positive Limit (MWH)",
+                "Negative Limit (MWH)",
+            ]
+        ].sort_values(["Interval Start", "Interface Name"])
+
+        return data
+
+    @support_date_range(frequency="MONTH_START")
+    def get_lake_erie_circulation_real_time(self, date, end=None, verbose=False):
+        # No latest file available
+        if date == "latest":
+            return self.get_lake_erie_circulation_real_time(
+                date="today",
+                verbose=verbose,
+            )
+
+        data = self._download_nyiso_archive(
+            date,
+            end=end,
+            dataset_name=LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET,
+            filename="ErieCirculationRT",
+            verbose=verbose,
+        )
+
+        data = data[
+            ["Interval Start", "Interval End", "Lake Erie Circulation (MWH)"]
+        ].sort_values("Interval Start")
+
+        return data
+
+    @support_date_range(frequency="MONTH_START")
+    def get_lake_erie_circulation_day_ahead(self, date, end=None, verbose=False):
+        # No latest file available
+        if date == "latest":
+            return self.get_lake_erie_circulation_day_ahead(
+                date="today",
+                verbose=verbose,
+            )
+
+        data = self._download_nyiso_archive(
+            date,
+            end=end,
+            dataset_name=LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET,
+            filename="ErieCirculationDA",
+            verbose=verbose,
+        )
+
+        data = data[
+            ["Interval Start", "Interval End", "Lake Erie Circulation (MWH)"]
+        ].sort_values("Interval Start")
 
         return data
 
@@ -1040,6 +1119,9 @@ dataset_interval_map = {
     "btmactualforecast": ("start", 60),
     # btm solar forecast
     "btmdaforecast": ("start", 60),
+    INTERFACE_LIMITS_AND_FLOWS_DATASET: ("start", 5),
+    LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET: ("start", 5),
+    LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: ("start", 60),
 }
 
 
