@@ -500,3 +500,74 @@ class TestISONEAPI(TestHelperMixin):
 
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
+
+    """get_external_flows_five_minute"""
+
+    @pytest.mark.integration
+    @api_vcr.use_cassette("test_get_external_flows_five_minute_date_range.yaml")
+    def test_get_external_flows_five_minute_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        end = start + pd.DateOffset(days=1)
+
+        df = self.iso.get_external_flows_five_minute(start, end)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "ActualFlow",
+            "ImportLimit",
+            "ExportLimit",
+            "CurrentSchedule",
+            "Purchase",
+            "Sale",
+            "TotalExports",
+            "TotalImports",
+        ]
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            minutes=5,
+        )
+
+        assert sorted(df["Location"].unique()) == [
+            ".I.HQHIGATE120 2",
+            ".I.HQ_P1_P2345 5",
+            ".I.NRTHPORT138 5",
+            ".I.ROSETON 345 1",
+            ".I.SALBRYNB345 1",
+            ".I.SHOREHAM138 99",
+        ]
+
+    @pytest.mark.integration
+    @api_vcr.use_cassette("test_get_external_flows_five_minute_dst_end.yaml")
+    def test_get_external_flows_five_minute_dst_end(self):
+        start = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][0])
+        end = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][1])
+
+        df = self.iso.get_external_flows_five_minute(start, end)
+
+        # 12 intervals per hour * 24 hours * 2 days * 6 locations + (6 locations * 12
+        # intervals per hour * 1 extra hour)
+        assert len(df) == 12 * 24 * 2 * 6 + 6 * 12
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+    @pytest.mark.integration
+    @api_vcr.use_cassette("test_get_external_flows_five_minute_dst_start.yaml")
+    def test_get_external_flows_five_minute_dst_start(self):
+        start = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][0])
+        end = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][1])
+
+        df = self.iso.get_external_flows_five_minute(start, end)
+
+        # 12 intervals per hour * 24 hours * 2 days * 6 locations - (6 locations * 12
+        # intervals per hour)
+        assert len(df) == 12 * 24 * 2 * 6 - 6 * 12
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end

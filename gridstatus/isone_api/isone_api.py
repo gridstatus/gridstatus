@@ -752,3 +752,72 @@ class ISONEAPI:
                 "Sale",
             ]
         ].sort_values(["Interval Start", "Location"])
+
+    @support_date_range("DAY_START")
+    def get_external_flows_five_minute(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the five minute external flow data for specified date range.
+
+        Args:
+            date (str): The start date for the data request. Use "latest" for most
+            recent data.
+            end_date (str | None): The end date for the data request. Only used if date
+            is not "latest".
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the external flow five minute
+            data for all requested locations.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/fiveminuteexternalflow/current"
+        else:
+            url = (
+                f"{self.base_url}/fiveminuteexternalflow/day/{date.strftime('%Y%m%d')}"
+            )
+
+        log.info(f"Requesting external flow data for date: {date}")
+
+        response = self.make_api_call(url)
+
+        if data := response.get("ExternalFlows"):
+            df = pd.DataFrame(data["ExternalFlow"])
+        else:
+            raise NoDataFoundException(
+                f"No five minute external flow data found for {date}",
+            )
+
+        return self._handle_external_flows_dataframe(df, interval_minutes=5)
+
+    def _handle_external_flows_dataframe(self, df, interval_minutes):
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=interval_minutes,
+        )
+
+        # Split location column from {'$': '.I.ROSETON 345 1', '@LocId': '4011'} to
+        # Location and Location Id
+        df[["Location", "Location Id"]] = pd.json_normalize(df["Location"])
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Id",
+                "ActualFlow",
+                "ImportLimit",
+                "ExportLimit",
+                "CurrentSchedule",
+                "Purchase",
+                "Sale",
+                "TotalExports",
+                "TotalImports",
+            ]
+        ].sort_values(["Interval Start", "Location"])
