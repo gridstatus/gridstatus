@@ -724,7 +724,7 @@ class ISONEAPI:
         return self._handle_interchange_dataframe(df, interval_minutes=15)
 
     def _handle_interchange_dataframe(self, df, interval_minutes):
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"]).dt.tz_convert(
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
             self.default_timezone,
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(

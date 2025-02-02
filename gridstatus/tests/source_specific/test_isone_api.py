@@ -413,6 +413,36 @@ class TestISONEAPI(TestHelperMixin):
             ".I.SHOREHAM138 99",
         ]
 
+    @pytest.mark.integration
+    @api_vcr.use_cassette("test_get_interchange_hourly_dst_end.yaml")
+    def test_get_interchange_hourly_dst_end(self):
+        start = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][0])
+        end = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][1])
+
+        df = self.iso.get_interchange_hourly(start, end)
+
+        # ISONE does publish data for the repeated hour so there is one extra data point
+        # for each location
+        # 24 hours * 2 days * 6 locations + 6 locations
+        assert len(df) == 24 * 2 * 6 + 6
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+    @pytest.mark.integration
+    @api_vcr.use_cassette("test_get_interchange_hourly_dst_start.yaml")
+    def test_get_interchange_hourly_dst_start(self):
+        start = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][0])
+        end = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][1])
+
+        df = self.iso.get_interchange_hourly(start, end)
+
+        # 24 hours * 2 days * 6 locations - 6 locations
+        assert len(df) == 24 * 2 * 6 - 6
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
     """get_interchange_fifteen_minute"""
 
     @pytest.mark.integration
@@ -441,3 +471,32 @@ class TestISONEAPI(TestHelperMixin):
         )
 
         assert sorted(df["Location"].unique()) == [".I.ROSETON 345 1"]
+
+    @pytest.mark.integration
+    @api_vcr.use_cassette("test_get_interchange_fifteen_minute_dst_end.yaml")
+    def test_get_interchange_fifteen_minute_dst_end(self):
+        start = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][0])
+        end = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][1])
+
+        df = self.iso.get_interchange_fifteen_minute(start, end)
+
+        # ISONE does not publish data for the repeated hour so there are no extra
+        # data points. 24 hours * 4 intervals per hour * 2 days
+        assert len(df) == 24 * 4 * 2
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+    @pytest.mark.integration
+    @api_vcr.use_cassette("test_get_interchange_fifteen_minute_dst_start.yaml")
+    def test_get_interchange_fifteen_minute_dst_start(self):
+        start = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][0])
+        end = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][1])
+
+        df = self.iso.get_interchange_fifteen_minute(start, end)
+
+        # 24 hours * 4 intervals per hour * 2 days - (1 hour * 4 intervals per hour)
+        assert len(df) == 24 * 4 * 2 - 4
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
