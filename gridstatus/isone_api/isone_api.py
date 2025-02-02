@@ -682,9 +682,12 @@ class ISONEAPI:
 
         response = self.make_api_call(url)
 
-        df = pd.DataFrame(
-            response["ActualInterchanges"]["ActualInterchange"],
-        )
+        if data := response.get("ActualInterchanges"):
+            df = pd.DataFrame(
+                data["ActualInterchange"],
+            )
+        else:
+            raise NoDataFoundException(f"No hourly interchange data found for {date}")
 
         return self._handle_interchange_dataframe(df, interval_minutes=60)
 
@@ -717,9 +720,12 @@ class ISONEAPI:
 
         response = self.make_api_call(url)
 
-        df = pd.DataFrame(
-            response["ActualFifteenMinInterchanges"]["ActualFifteenMinInterchange"],
-        )
+        if data := response.get("ActualFifteenMinInterchanges"):
+            df = pd.DataFrame(data["ActualFifteenMinInterchange"])
+        else:
+            raise NoDataFoundException(
+                f"No fifteen minute interchange data found for {date}",
+            )
 
         return self._handle_interchange_dataframe(df, interval_minutes=15)
 
