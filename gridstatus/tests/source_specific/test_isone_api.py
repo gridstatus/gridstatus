@@ -377,6 +377,42 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(hours=1)
             ).all()
 
+    """get_interchange_hourly"""
+
+    @pytest.mark.integration
+    @api_vcr.use_cassette("test_get_interchange_hourly_date_range.yaml")
+    def test_get_interchange_hourly_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        end = start + pd.DateOffset(days=1)
+
+        df = self.iso.get_interchange_hourly(start, end)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "ActInterchange",
+            "Purchase",
+            "Sale",
+        ]
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max()
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            hours=1,
+        )
+
+        assert sorted(df["Location"].unique()) == [
+            ".I.HQHIGATE120 2",
+            ".I.HQ_P1_P2345 5",
+            ".I.NRTHPORT138 5",
+            ".I.ROSETON 345 1",
+            ".I.SALBRYNB345 1",
+            ".I.SHOREHAM138 99",
+        ]
+
     """get_interchange_fifteen_minute"""
 
     @pytest.mark.integration
@@ -399,3 +435,9 @@ class TestISONEAPI(TestHelperMixin):
 
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            minutes=15,
+        )
+
+        assert sorted(df["Location"].unique()) == [".I.ROSETON 345 1"]

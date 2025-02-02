@@ -653,6 +653,42 @@ class ISONEAPI:
         ]
 
     @support_date_range("DAY_START")
+    def get_interchange_hourly(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the hourly interchange data for specified date range. Hourly data includes
+        multiple locations.
+
+        Args:
+            date (str): The start date for the data request. Use "latest" for most
+            recent data.
+            end_date (str | None): The end date for the data request. Only used if date
+            is not "latest".
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the interchange fifteen minute
+            data for all requested locations.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/actualinterchange/current"
+        else:
+            url = f"{self.base_url}/actualinterchange/day/{date.strftime('%Y%m%d')}"
+
+        log.info(f"Requesting interchange data for date: {date}")
+
+        response = self.make_api_call(url)
+
+        df = pd.DataFrame(
+            response["ActualInterchanges"]["ActualInterchange"],
+        )
+
+        return self._handle_interchange_dataframe(df, interval_minutes=60)
+
+    @support_date_range("DAY_START")
     def get_interchange_fifteen_minute(
         self,
         date: str | pd.Timestamp = "latest",
@@ -685,12 +721,16 @@ class ISONEAPI:
             response["ActualFifteenMinInterchanges"]["ActualFifteenMinInterchange"],
         )
 
-        return self._handle_interchange_fifteen_minute(df)
+        return self._handle_interchange_dataframe(df, interval_minutes=15)
 
-    def _handle_interchange_fifteen_minute(self, df):
-        df["BeginDate"] = pd.to_datetime(df["BeginDate"])
-        df["Interval Start"] = df["BeginDate"].dt.tz_convert(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=15)
+    def _handle_interchange_dataframe(self, df, interval_minutes):
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"]).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=interval_minutes,
+        )
+
         # Split location column from {'$': '.I.ROSETON 345 1', '@LocId': '4011'} to
         # Location and Location Id
         df[["Location", "Location Id"]] = pd.json_normalize(df["Location"])
