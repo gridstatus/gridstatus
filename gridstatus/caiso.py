@@ -614,6 +614,7 @@ class CAISO(ISOBase):
             logger.debug(f"Parsing file: {f}")
             df = pd.read_csv(z.open(f))
             dfs.append(df)
+
         df = pd.concat(dfs)
 
         # if col ends in _GMT, then try to parse as UTC
@@ -1377,6 +1378,7 @@ class CAISO(ISOBase):
                 "MCE": "Energy",
                 "MCC": "Congestion",
                 "MCL": "Loss",
+                "MGHG": "GHG",
             },
         )
 
@@ -1401,20 +1403,37 @@ class CAISO(ISOBase):
             "Location Type",
         ] = "DLAP"
 
-        df = df[
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Market",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
+        if market == Markets.DAY_AHEAD_HOURLY:
+            df = df[
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Market",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                    "Energy",
+                    "Congestion",
+                    "Loss",
+                ]
             ]
-        ]
+        else:
+            df = df[
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Market",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                    "Energy",
+                    "Congestion",
+                    "Loss",
+                    "GHG",
+                ]
+            ]
 
         # data = utils.filter_lmp_locations(df, locations=location_filter)
         data = df
