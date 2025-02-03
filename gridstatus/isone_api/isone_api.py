@@ -741,13 +741,15 @@ class ISONEAPI:
         # Location and Location Id
         df[["Location", "Location Id"]] = pd.json_normalize(df["Location"])
 
+        df = df.rename(columns={"ActInterchange": "Actual Interchange"})
+
         return df[
             [
                 "Interval Start",
                 "Interval End",
                 "Location",
                 "Location Id",
-                "ActInterchange",
+                "Actual Interchange",
                 "Purchase",
                 "Sale",
             ]
@@ -805,19 +807,30 @@ class ISONEAPI:
         # Location and Location Id
         df[["Location", "Location Id"]] = pd.json_normalize(df["Location"])
 
+        df = df.rename(
+            columns={
+                "ActualFlow": "Actual Flow",
+                "ImportLimit": "Import Limit",
+                "ExportLimit": "Export Limit",
+                "CurrentSchedule": "Current Schedule",
+                "TotalExports": "Total Exports",
+                "TotalImports": "Total Imports",
+            },
+        )
+
         return df[
             [
                 "Interval Start",
                 "Interval End",
                 "Location",
                 "Location Id",
-                "ActualFlow",
-                "ImportLimit",
-                "ExportLimit",
-                "CurrentSchedule",
+                "Actual Flow",
+                "Import Limit",
+                "Export Limit",
+                "Current Schedule",
                 "Purchase",
                 "Sale",
-                "TotalExports",
-                "TotalImports",
+                "Total Exports",
+                "Total Imports",
             ]
         ].sort_values(["Interval Start", "Location"])

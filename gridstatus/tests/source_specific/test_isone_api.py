@@ -392,7 +392,7 @@ class TestISONEAPI(TestHelperMixin):
             "Interval End",
             "Location",
             "Location Id",
-            "ActInterchange",
+            "Actual Interchange",
             "Purchase",
             "Sale",
         ]
@@ -458,7 +458,7 @@ class TestISONEAPI(TestHelperMixin):
             "Interval End",
             "Location",
             "Location Id",
-            "ActInterchange",
+            "Actual Interchange",
             "Purchase",
             "Sale",
         ]
@@ -516,14 +516,14 @@ class TestISONEAPI(TestHelperMixin):
             "Interval End",
             "Location",
             "Location Id",
-            "ActualFlow",
-            "ImportLimit",
-            "ExportLimit",
-            "CurrentSchedule",
+            "Actual Flow",
+            "Import Limit",
+            "Export Limit",
+            "Current Schedule",
             "Purchase",
             "Sale",
-            "TotalExports",
-            "TotalImports",
+            "Total Exports",
+            "Total Imports",
         ]
 
         assert df["Interval Start"].min() == start
