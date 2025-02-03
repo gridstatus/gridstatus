@@ -501,15 +501,15 @@ class TestISONEAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
 
-    """get_external_flows_five_minute"""
+    """get_external_flows_5_min"""
 
     @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_external_flows_five_minute_date_range.yaml")
-    def test_get_external_flows_five_minute_date_range(self):
+    @api_vcr.use_cassette("test_get_external_flows_5_min_date_range.yaml")
+    def test_get_external_flows_5_min_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=10)
         end = start + pd.DateOffset(days=1)
 
-        df = self.iso.get_external_flows_five_minute(start, end)
+        df = self.iso.get_external_flows_5_min(start, end)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -543,12 +543,12 @@ class TestISONEAPI(TestHelperMixin):
         ]
 
     @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_external_flows_five_minute_dst_end.yaml")
-    def test_get_external_flows_five_minute_dst_end(self):
+    @api_vcr.use_cassette("test_get_external_flows_5_min_dst_end.yaml")
+    def test_get_external_flows_5_min_dst_end(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][1])
 
-        df = self.iso.get_external_flows_five_minute(start, end)
+        df = self.iso.get_external_flows_5_min(start, end)
 
         # 12 intervals per hour * 24 hours * 2 days * 6 locations + (6 locations * 12
         # intervals per hour * 1 extra hour)
@@ -558,12 +558,12 @@ class TestISONEAPI(TestHelperMixin):
         assert df["Interval End"].max() == end
 
     @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_external_flows_five_minute_dst_start.yaml")
-    def test_get_external_flows_five_minute_dst_start(self):
+    @api_vcr.use_cassette("test_get_external_flows_5_min_dst_start.yaml")
+    def test_get_external_flows_5_min_dst_start(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][1])
 
-        df = self.iso.get_external_flows_five_minute(start, end)
+        df = self.iso.get_external_flows_5_min(start, end)
 
         # 12 intervals per hour * 24 hours * 2 days * 6 locations - (6 locations * 12
         # intervals per hour)

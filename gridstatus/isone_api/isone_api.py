@@ -756,7 +756,7 @@ class ISONEAPI:
         ].sort_values(["Interval Start", "Location"])
 
     @support_date_range("DAY_START")
-    def get_external_flows_five_minute(
+    def get_external_flows_5_min(
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
