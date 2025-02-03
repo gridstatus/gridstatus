@@ -1403,24 +1403,37 @@ class CAISO(ISOBase):
             "Location Type",
         ] = "DLAP"
 
-        if "GHG" not in df.columns:
-            df["GHG"] = df["LMP"] - (df["Energy"] + df["Congestion"] + df["Loss"])
-
-        df = df[
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Market",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-                "GHG",
+        if market == Markets.DAY_AHEAD_HOURLY:
+            df = df[
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Market",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                    "Energy",
+                    "Congestion",
+                    "Loss",
+                ]
             ]
-        ]
+        else:
+            df = df[
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Market",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                    "Energy",
+                    "Congestion",
+                    "Loss",
+                    "GHG",
+                ]
+            ]
 
         # data = utils.filter_lmp_locations(df, locations=location_filter)
         data = df
