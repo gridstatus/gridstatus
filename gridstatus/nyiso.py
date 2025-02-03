@@ -284,7 +284,7 @@ class NYISO(ISOBase):
         return data
 
     @support_date_range(frequency="MONTH_START")
-    def get_interface_limits_and_flows(self, date, end=None, verbose=False):
+    def get_interface_limits_and_flows_5_min(self, date, end=None, verbose=False):
         """Get interface limits and flows for a date"""
         if date == "latest":
             data = pd.read_csv(
@@ -299,25 +299,33 @@ class NYISO(ISOBase):
                 verbose=verbose,
             )
 
+        data = data.rename(
+            columns={
+                "Flow (MWH)": "Flow MWH",
+                "Positive Limit (MWH)": "Positive Limit MWH",
+                "Negative Limit (MWH)": "Negative Limit MWH",
+            },
+        )
+
         data = data[
             [
                 "Interval Start",
                 "Interval End",
                 "Interface Name",
                 "Point ID",
-                "Flow (MWH)",
-                "Positive Limit (MWH)",
-                "Negative Limit (MWH)",
+                "Flow MWH",
+                "Positive Limit MWH",
+                "Negative Limit MWH",
             ]
         ].sort_values(["Interval Start", "Interface Name"])
 
         return data
 
     @support_date_range(frequency="MONTH_START")
-    def get_lake_erie_circulation_real_time(self, date, end=None, verbose=False):
+    def get_lake_erie_circulation_real_time_5_min(self, date, end=None, verbose=False):
         # No latest file available
         if date == "latest":
-            return self.get_lake_erie_circulation_real_time(
+            return self.get_lake_erie_circulation_real_time_5_min(
                 date="today",
                 verbose=verbose,
             )
@@ -330,17 +338,19 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        data = data[
-            ["Interval Start", "Interval End", "Lake Erie Circulation (MWH)"]
-        ].sort_values("Interval Start")
+        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MWH"})
+
+        data = data[["Interval Start", "Interval End", "MWH"]].sort_values(
+            "Interval Start",
+        )
 
         return data
 
     @support_date_range(frequency="MONTH_START")
-    def get_lake_erie_circulation_day_ahead(self, date, end=None, verbose=False):
+    def get_lake_erie_circulation_day_ahead_hourly(self, date, end=None, verbose=False):
         # No latest file available
         if date == "latest":
-            return self.get_lake_erie_circulation_day_ahead(
+            return self.get_lake_erie_circulation_day_ahead_hourly(
                 date="today",
                 verbose=verbose,
             )
@@ -353,9 +363,11 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        data = data[
-            ["Interval Start", "Interval End", "Lake Erie Circulation (MWH)"]
-        ].sort_values("Interval Start")
+        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MWH"})
+
+        data = data[["Interval Start", "Interval End", "MWH"]].sort_values(
+            "Interval Start",
+        )
 
         return data
 
