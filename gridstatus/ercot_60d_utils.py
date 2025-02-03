@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 
+from gridstatus.gs_logging import setup_gs_logger
+
+logger = setup_gs_logger()
+
 DAM_GEN_RESOURCE_KEY = "dam_gen_resource"
 DAM_LOAD_RESOURCE_KEY = "dam_load_resource"
 DAM_GEN_RESOURCE_AS_OFFERS_KEY = "dam_gen_resource_as_offers"
@@ -112,7 +116,7 @@ DAM_ENERGY_ONLY_OFFERS_COLUMNS = [
     "Energy Only Offer ID",
     "Energy Only Offer Curve",
     "Multi-Hour Block Indicator",
-    "Block/Curve indicator",
+    "Block or Curve indicator",
 ]
 
 DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS = [
@@ -156,7 +160,7 @@ DAM_ENERGY_BIDS_COLUMNS = [
     "Energy Only Bid ID",
     "Energy Only Bid Curve",
     "Multi-Hour Block Indicator",
-    "Block/Curve indicator",
+    "Block or Curve indicator",
 ]
 
 DAM_PTP_OBLIGATION_OPTION_COLUMNS = [
@@ -527,13 +531,17 @@ def process_as_offer_curves(df):
             )
 
             if len(subset) > 1:
-                # We've identified an issue with this specific resource name where
+                # We've identified an issue with these specific resource names where
                 # there are sometimes multiple offers for the same service at the same
                 # interval. In theory this should never happen. The QUANTITY MW are
                 # only different by 0.1, so we just take the row with the lowest
                 # quantity. This is a temporary fix until we can figure out why this
                 # is happening.
-                if resource_name == "CANYONRO_LD1":
+                if resource_name in ("CANYONRO_LD1", "DARSCR_LD10"):
+                    logger.info(
+                        f"Found {len(subset)} rows for {resource_name}across columns "
+                        f"{column_list}. Taking the row with the lowest quantity",
+                    )
                     subset = subset.sort_values("QUANTITY MW1").head(1)
                 else:
                     raise ValueError(
@@ -595,7 +603,11 @@ def process_dam_energy_only_offer_awards(df):
 
 def process_dam_energy_only_offers(df):
     df = df.rename(
-        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+        columns={
+            "Settlement Point": "Settlement Point Name",
+            "QSE Name": "QSE",
+            "Block/Curve indicator": "Block or Curve indicator",
+        },
     )
 
     curve_name = "Energy Only Offer"
@@ -638,7 +650,11 @@ def process_dam_energy_bid_awards(df):
 
 def process_dam_energy_bids(df):
     df = df.rename(
-        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+        columns={
+            "Settlement Point": "Settlement Point Name",
+            "QSE Name": "QSE",
+            "Block/Curve indicator": "Block or Curve indicator",
+        },
     )
 
     curve_name = "Energy Only Bid"
