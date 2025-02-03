@@ -9,11 +9,13 @@ from gridstatus.ercot_60d_utils import DAM_RESOURCE_AS_OFFERS_COLUMNS
 from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES
 from gridstatus.ercot_api.ercot_api import (
     HISTORICAL_DAYS_THRESHOLD,
+    ErcotAPI,
+)
+from gridstatus.ercot_constants import (
     SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_COLUMNS,
-    ErcotAPI,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.source_specific.test_ercot import TestErcot

@@ -1,3 +1,4 @@
+import datetime
 import io
 import time
 from dataclasses import dataclass
@@ -50,6 +51,12 @@ from gridstatus.ercot_60d_utils import (
     process_dam_ptp_obligation_option_awards,
     process_sced_gen,
     process_sced_load,
+)
+from gridstatus.ercot_constants import (
+    SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+    SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
+    WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+    WIND_ACTUAL_AND_FORECAST_COLUMNS,
 )
 from gridstatus.gs_logging import log, logger
 from gridstatus.lmp_config import lmp_config
@@ -207,11 +214,21 @@ HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID = 13103
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-732-CD
 WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID = 13028
 
+# Wind Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region  # noqa
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-742-cd
+WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID = (  # noqa
+    14787
+)
+
 # Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-745-CD
 SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID = (  # noqa
-    21809  # noqa
+    21809
 )
+
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-737-cd
+SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID = 13483
 
 """
 Settlement	Point Type	Description
@@ -1932,7 +1949,12 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_hourly_wind_report(self, date, end=None, verbose=False):
+    def get_wind_actual_and_forecast_hourly(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
         """Get Hourly Wind Report.
 
         This report is posted every hour and includes System-wide and Regional
@@ -1950,7 +1972,7 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with hourly wind report data
         """
-        return self._get_hourly_report(
+        df = self._get_hourly_report(
             start=date,
             end=end,
             report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,  # noqa: E501
@@ -1959,9 +1981,77 @@ class Ercot(ISOBase):
             verbose=True,
         )
 
+        return df[WIND_ACTUAL_AND_FORECAST_COLUMNS].sort_values(
+            ["Interval Start", "Publish Time"],
+        )
+
     @support_date_range(frequency=None)
-    def get_hourly_solar_report(self, date, end=None, verbose=False):
+    def get_wind_actual_and_forecast_by_geographical_region_hourly(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
+        """Get Hourly Wind Report by geographical region
+
+        Arguments:
+            date (str): date to get report for. Supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly wind report data
+        """
+        df = self._get_hourly_report(
+            start=date,
+            end=end,
+            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,  # noqa: E501
+            extension="csv",
+            handle_doc=self._handle_hourly_wind_or_solar_report,
+            verbose=True,
+        )
+
+        return df[WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS].sort_values(
+            ["Interval Start", "Publish Time"],
+        )
+
+    @support_date_range(frequency=None)
+    def get_solar_actual_and_forecast_hourly(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
         """Get Hourly Solar Report.
+
+        Arguments:
+            date (str): date to get report for. Supports "latest" or a date string
+            end (str, optional): end date for date range. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly solar report data
+        """
+        df = self._get_hourly_report(
+            start=date,
+            end=end,
+            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,  # noqa: E501
+            extension="csv",
+            handle_doc=self._handle_hourly_wind_or_solar_report,
+            verbose=True,
+        )
+
+        return df[SOLAR_ACTUAL_AND_FORECAST_COLUMNS].sort_values(
+            ["Interval Start", "Publish Time"],
+        )
+
+    @support_date_range(frequency=None)
+    def get_solar_actual_and_forecast_by_geographical_region_hourly(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
+        """Get Hourly Solar Report by geographical region
 
         Posted every hour and includes System-wide and geographic regional
         hourly averaged solar power production, STPPF, PVGRPP, and COP HSL
@@ -1977,13 +2067,17 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with hourly solar report data
         """
-        return self._get_hourly_report(
+        df = self._get_hourly_report(
             start=date,
             end=end,
             report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,  # noqa: E501
             extension="csv",
             handle_doc=self._handle_hourly_wind_or_solar_report,
             verbose=True,
+        )
+
+        return df[SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS].sort_values(
+            ["Interval Start", "Publish Time"],
         )
 
     def _handle_hourly_wind_or_solar_report(self, doc, verbose=False):

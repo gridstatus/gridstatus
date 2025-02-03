@@ -16,6 +16,12 @@ from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE, Ercot
 from gridstatus.ercot_api.api_parser import _timestamp_parser, parse_all_endpoints
+from gridstatus.ercot_constants import (
+    SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+    SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
+    WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+    WIND_ACTUAL_AND_FORECAST_COLUMNS,
+)
 from gridstatus.gs_logging import logger
 
 # API to hit with subscription key to get token
@@ -73,32 +79,10 @@ SHADOW_PRICES_DAM_ENDPOINT = "/np4-191-cd/dam_shadow_prices"
 # https://data.ercot.com/data-product-archive/NP6-86-CD
 SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
 
-# Wind Power Production
+# Wind Power Production - Hourly Averaged Actual and Forecasted Values
 # https://data.ercot.com/data-product-archive/NP4-732-CD
 HOURLY_WIND_POWER_PRODUCTION_ENDPOINT = "/np4-732-cd/wpp_hrly_avrg_actl_fcast"
 
-WIND_ACTUAL_AND_FORECAST_COLUMNS = [
-    "Interval Start",
-    "Interval End",
-    "Publish Time",
-    "GEN SYSTEM WIDE",
-    "COP HSL SYSTEM WIDE",
-    "STWPF SYSTEM WIDE",
-    "WGRPP SYSTEM WIDE",
-    "HSL SYSTEM WIDE",
-    "GEN LZ SOUTH HOUSTON",
-    "COP HSL LZ SOUTH HOUSTON",
-    "STWPF LZ SOUTH HOUSTON",
-    "WGRPP LZ SOUTH HOUSTON",
-    "GEN LZ WEST",
-    "COP HSL LZ WEST",
-    "STWPF LZ WEST",
-    "WGRPP LZ WEST",
-    "GEN LZ NORTH",
-    "COP HSL LZ NORTH",
-    "STWPF LZ NORTH",
-    "WGRPP LZ NORTH",
-]
 
 # Wind Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
 # https://data.ercot.com/data-product-archive/NP4-742-CD
@@ -106,51 +90,10 @@ HOURLY_WIND_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
     "/np4-742-cd/wpp_hrly_actual_fcast_geo"
 )
 
-WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS = [
-    "Interval Start",
-    "Interval End",
-    "Publish Time",
-    "GEN SYSTEM WIDE",
-    "COP HSL SYSTEM WIDE",
-    "STWPF SYSTEM WIDE",
-    "WGRPP SYSTEM WIDE",
-    "HSL SYSTEM WIDE",
-    "GEN PANHANDLE",
-    "COP HSL PANHANDLE",
-    "STWPF PANHANDLE",
-    "WGRPP PANHANDLE",
-    "GEN COASTAL",
-    "COP HSL COASTAL",
-    "STWPF COASTAL",
-    "WGRPP COASTAL",
-    "GEN SOUTH",
-    "COP HSL SOUTH",
-    "STWPF SOUTH",
-    "WGRPP SOUTH",
-    "GEN WEST",
-    "COP HSL WEST",
-    "STWPF WEST",
-    "WGRPP WEST",
-    "GEN NORTH",
-    "COP HSL NORTH",
-    "STWPF NORTH",
-    "WGRPP NORTH",
-]
-
-# Solar Power Production
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values
 # https://data.ercot.com/data-product-archive/NP4-737-CD
 HOURLY_SOLAR_POWER_PRODUCTION_ENDPOINT = "/np4-737-cd/spp_hrly_avrg_actl_fcast"
 
-SOLAR_ACTUAL_AND_FORECAST_COLUMNS = [
-    "Interval Start",
-    "Interval End",
-    "Publish Time",
-    "GEN SYSTEM WIDE",
-    "COP HSL SYSTEM WIDE",
-    "STPPF SYSTEM WIDE",
-    "PVGRPP SYSTEM WIDE",
-    "HSL SYSTEM WIDE",
-]
 
 # Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
 # https://data.ercot.com/data-product-archive/NP4-745-CD
@@ -158,40 +101,6 @@ HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
     "/np4-745-cd/spp_hrly_actual_fcast_geo"
 )
 
-SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS = [
-    "Interval Start",
-    "Interval End",
-    "Publish Time",
-    "GEN SYSTEM WIDE",
-    "COP HSL SYSTEM WIDE",
-    "STPPF SYSTEM WIDE",
-    "PVGRPP SYSTEM WIDE",
-    "HSL SYSTEM WIDE",
-    "GEN CenterWest",
-    "COP HSL CenterWest",
-    "STPPF CenterWest",
-    "PVGRPP CenterWest",
-    "GEN NorthWest",
-    "COP HSL NorthWest",
-    "STPPF NorthWest",
-    "PVGRPP NorthWest",
-    "GEN FarWest",
-    "COP HSL FarWest",
-    "STPPF FarWest",
-    "PVGRPP FarWest",
-    "GEN FarEast",
-    "COP HSL FarEast",
-    "STPPF FarEast",
-    "PVGRPP FarEast",
-    "GEN SouthEast",
-    "COP HSL SouthEast",
-    "STPPF SouthEast",
-    "PVGRPP SouthEast",
-    "GEN CenterEast",
-    "COP HSL CenterEast",
-    "STPPF CenterEast",
-    "PVGRPP CenterEast",
-]
 
 # Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes. # noqa
 # https://data.ercot.com/data-product-archive/NP6-905-CD
