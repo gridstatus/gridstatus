@@ -443,15 +443,15 @@ class TestISONEAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
 
-    """get_interchange_fifteen_minute"""
+    """get_interchange_15_min"""
 
     @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_interchange_fifteen_minute_date_range.yaml")
-    def test_get_interchange_fifteen_minute_date_range(self):
+    @api_vcr.use_cassette("test_get_interchange_15_min_date_range.yaml")
+    def test_get_interchange_15_min_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=10)
         end = start + pd.DateOffset(days=1)
 
-        df = self.iso.get_interchange_fifteen_minute(start, end)
+        df = self.iso.get_interchange_15_min(start, end)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -473,12 +473,12 @@ class TestISONEAPI(TestHelperMixin):
         assert sorted(df["Location"].unique()) == [".I.ROSETON 345 1"]
 
     @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_interchange_fifteen_minute_dst_end.yaml")
-    def test_get_interchange_fifteen_minute_dst_end(self):
+    @api_vcr.use_cassette("test_get_interchange_15_min_dst_end.yaml")
+    def test_get_interchange_15_min_dst_end(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][1])
 
-        df = self.iso.get_interchange_fifteen_minute(start, end)
+        df = self.iso.get_interchange_15_min(start, end)
 
         # ISONE does not publish data for the repeated hour so there are no extra
         # data points. 24 hours * 4 intervals per hour * 2 days
@@ -488,12 +488,12 @@ class TestISONEAPI(TestHelperMixin):
         assert df["Interval End"].max() == end
 
     @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_interchange_fifteen_minute_dst_start.yaml")
-    def test_get_interchange_fifteen_minute_dst_start(self):
+    @api_vcr.use_cassette("test_get_interchange_15_min_dst_start.yaml")
+    def test_get_interchange_15_min_dst_start(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][1])
 
-        df = self.iso.get_interchange_fifteen_minute(start, end)
+        df = self.iso.get_interchange_15_min(start, end)
 
         # 24 hours * 4 intervals per hour * 2 days - (1 hour * 4 intervals per hour)
         assert len(df) == 24 * 4 * 2 - 4

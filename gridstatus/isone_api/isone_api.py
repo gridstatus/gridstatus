@@ -692,7 +692,7 @@ class ISONEAPI:
         return self._handle_interchange_dataframe(df, interval_minutes=60)
 
     @support_date_range("DAY_START")
-    def get_interchange_fifteen_minute(
+    def get_interchange_15_min(
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
