@@ -547,15 +547,60 @@ class TestNYISO(BaseTestISO):
 
     """get_interface_limits_and_flows_5_min"""
 
-    @pytest.mark.integration
-    @api_vcr.use_cassette(
-        "test_get_interface_limits_and_flows_5_min_historical_date_range.yaml",
-    )
     def test_get_interface_limits_and_flows_5_min_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=10)
         end = start + pd.Timedelta(days=1)
 
-        df = self.iso.get_interface_limits_and_flows_5_min(start, end)
+        with api_vcr.use_cassette(
+            f"test_get_interface_limits_and_flows_5_min_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
+        ):
+            df = self.iso.get_interface_limits_and_flows_5_min(start, end)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Interface Name",
+            "Point ID",
+            "Flow MWH",
+            "Positive Limit MWH",
+            "Negative Limit MWH",
+        ]
+
+        assert df["Interval Start"].min() == start
+        # NYISO is inclusive of the end date
+        assert df["Interval End"].max() == end + pd.DateOffset(days=1)
+
+    def test_get_interface_limits_and_flows_dst_end(self):
+        start = self.local_start_of_day("2024-11-03")
+        end = start + pd.DateOffset(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_interface_limits_and_flows_dst_end_{start.date()}_{end.date()}.yaml",  # noqa: E501
+        ):
+            df = self.iso.get_interface_limits_and_flows_5_min(start, end)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Interface Name",
+            "Point ID",
+            "Flow MWH",
+            "Positive Limit MWH",
+            "Negative Limit MWH",
+        ]
+
+        assert df["Interval Start"].min() == start
+        # NYISO is inclusive of the end date
+        assert df["Interval End"].max() == end + pd.DateOffset(days=1)
+
+    def test_get_interface_limits_and_flows_dst_start(self):
+        start = self.local_start_of_day("2024-03-10")
+        end = start + pd.DateOffset(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_interface_limits_and_flows_dst_start_{start.date()}_{end.date()}.yaml",  # noqa: E501
+        ):
+            df = self.iso.get_interface_limits_and_flows_5_min(start, end)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -573,15 +618,14 @@ class TestNYISO(BaseTestISO):
 
     """get_lake_erie_circulation_real_time_5_min"""
 
-    @pytest.mark.integration
-    @api_vcr.use_cassette(
-        "test_get_lake_erie_circulation_real_time_5_min_historical_date_range.yaml",
-    )
     def test_get_lake_erie_circulation_real_time_5_min_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=30)
-        end = start + pd.Timedelta(days=2)
+        end = start + pd.DateOffset(days=2)
 
-        df = self.iso.get_lake_erie_circulation_real_time_5_min(start, end)
+        with api_vcr.use_cassette(
+            f"test_get_lake_erie_circulation_real_time_5_min_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
+        ):
+            df = self.iso.get_lake_erie_circulation_real_time_5_min(start, end)
 
         assert df.columns.tolist() == ["Interval Start", "Interval End", "MWH"]
 
@@ -597,15 +641,14 @@ class TestNYISO(BaseTestISO):
 
     """get_lake_erie_circulation_day_ahead_hourly"""
 
-    @pytest.mark.integration
-    @api_vcr.use_cassette(
-        "test_get_lake_erie_circulation_day_ahead_hourly_historical_date_range.yaml",
-    )
     def test_get_lake_erie_circulation_day_ahead_hourly_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=60)
-        end = start + pd.Timedelta(days=2)
+        end = start + pd.DateOffset(days=2)
 
-        df = self.iso.get_lake_erie_circulation_day_ahead_hourly(start, end)
+        with api_vcr.use_cassette(
+            f"test_get_lake_erie_circulation_day_ahead_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
+        ):
+            df = self.iso.get_lake_erie_circulation_day_ahead_hourly(start, end)
 
         assert df.columns.tolist() == ["Interval Start", "Interval End", "MWH"]
 
