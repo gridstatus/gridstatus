@@ -1,4 +1,4 @@
-from typing import BinaryIO, NamedTuple, Union
+from typing import BinaryIO, Dict, NamedTuple, Union
 
 import pandas as pd
 import requests
@@ -20,7 +20,14 @@ from gridstatus.lmp_config import lmp_config
 ZONE = "zone"
 GENERATOR = "generator"
 
+LOAD_DATASET = "pal"
+FUEL_MIX_DATASET = "rtfuelmix"
 LOAD_FORECAST_DATASET = "isolf"
+DAM_LMP_DATASET = "damlbmp"
+REAL_TIME_LMP_DATASET = "realtime"
+REAL_TIME_EVENTS_DATASET = "RealTimeEvents"
+BTM_SOLAR_ACTUAL_DATASET = "btmactualforecast"
+BTM_SOLAR_FORECAST_DATASET = "btmdaforecast"
 INTERFACE_LIMITS_AND_FLOWS_DATASET = "ExternalLimitsFlows"
 LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET = "eriecirculationrt"
 LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET = "eriecirculationda"
@@ -31,24 +38,15 @@ class DatasetInterval(NamedTuple):
     interval_duration_minutes: Union[int, None]
 
 
-DATASET_INTERVAL_MAP = {
-    # (time_type, interval_duration_minutes)
-    # load
-    "pal": DatasetInterval("instantaneous", None),
-    # fuel mix
-    "rtfuelmix": DatasetInterval("instantaneous", None),
-    # load forecast
+DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
+    LOAD_DATASET: DatasetInterval("instantaneous", None),
+    FUEL_MIX_DATASET: DatasetInterval("instantaneous", None),
     LOAD_FORECAST_DATASET: DatasetInterval("start", 60),
-    # dam lmp
-    "damlbmp": DatasetInterval("start", 60),
-    # rt lmp
-    "realtime": DatasetInterval("end", 5),
-    # real time events
-    "RealTimeEvents": DatasetInterval("instantaneous", None),
-    # btm solar
-    "btmactualforecast": DatasetInterval("start", 60),
-    # btm solar forecast
-    "btmdaforecast": DatasetInterval("start", 60),
+    DAM_LMP_DATASET: DatasetInterval("start", 60),
+    REAL_TIME_LMP_DATASET: DatasetInterval("end", 5),
+    REAL_TIME_EVENTS_DATASET: DatasetInterval("instantaneous", None),
+    BTM_SOLAR_ACTUAL_DATASET: DatasetInterval("start", 60),
+    BTM_SOLAR_FORECAST_DATASET: DatasetInterval("start", 60),
     INTERFACE_LIMITS_AND_FLOWS_DATASET: DatasetInterval("start", 5),
     LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET: DatasetInterval("start", 5),
     LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("start", 60),
@@ -80,7 +78,7 @@ class NYISO(ISOBase):
         status_df = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="RealTimeEvents",
+            dataset_name=REAL_TIME_EVENTS_DATASET,
             verbose=verbose,
         )
 
@@ -124,7 +122,7 @@ class NYISO(ISOBase):
         mix_df = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="rtfuelmix",
+            dataset_name=FUEL_MIX_DATASET,
             verbose=verbose,
         )
 
@@ -160,7 +158,7 @@ class NYISO(ISOBase):
         data = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="pal",
+            dataset_name=LOAD_DATASET,
             verbose=verbose,
         )
 
@@ -204,7 +202,7 @@ class NYISO(ISOBase):
         data = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="btmactualforecast",
+            dataset_name=BTM_SOLAR_ACTUAL_DATASET,
             filename="BTMEstimatedActual",
             verbose=verbose,
         )
@@ -233,7 +231,7 @@ class NYISO(ISOBase):
         data = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="btmdaforecast",
+            dataset_name=BTM_SOLAR_FORECAST_DATASET,
             verbose=verbose,
         )
 
@@ -945,9 +943,9 @@ class NYISO(ISOBase):
 
     def _set_marketname(self, market: Markets) -> str:
         if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
-            marketname = "realtime"
+            marketname = REAL_TIME_LMP_DATASET
         elif market == Markets.DAY_AHEAD_HOURLY:
-            marketname = "damlbmp"
+            marketname = DAM_LMP_DATASET
         else:
             raise RuntimeError(f"LMP Market {market} is not supported")
         return marketname
