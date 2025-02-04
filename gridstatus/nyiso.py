@@ -1,3 +1,4 @@
+import datetime
 from typing import BinaryIO, Dict, NamedTuple, Union
 
 import pandas as pd
@@ -311,7 +312,12 @@ class NYISO(ISOBase):
         return data
 
     @support_date_range(frequency="MONTH_START")
-    def get_interface_limits_and_flows_5_min(self, date, end=None, verbose=False):
+    def get_interface_limits_and_flows_5_min(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
         """Get interface limits and flows for a date"""
         if date == "latest":
             data = pd.read_csv(
@@ -354,7 +360,12 @@ class NYISO(ISOBase):
         return data
 
     @support_date_range(frequency="MONTH_START")
-    def get_lake_erie_circulation_real_time_5_min(self, date, end=None, verbose=False):
+    def get_lake_erie_circulation_real_time_5_min(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
         # No latest file available
         if date == "latest":
             return self.get_lake_erie_circulation_real_time_5_min(
@@ -379,7 +390,12 @@ class NYISO(ISOBase):
         return data
 
     @support_date_range(frequency="MONTH_START")
-    def get_lake_erie_circulation_day_ahead_hourly(self, date, end=None, verbose=False):
+    def get_lake_erie_circulation_day_ahead_hourly(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
         # No latest file available
         if date == "latest":
             return self.get_lake_erie_circulation_day_ahead_hourly(
