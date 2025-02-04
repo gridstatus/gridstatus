@@ -317,7 +317,7 @@ class NYISO(ISOBase):
                 "Positive Limit MWH",
                 "Negative Limit MWH",
             ]
-        ].sort_values(["Interval Start", "Interface Name"])
+        ]
 
         return data
 
