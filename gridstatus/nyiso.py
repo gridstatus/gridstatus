@@ -1,4 +1,4 @@
-from typing import BinaryIO
+from typing import BinaryIO, NamedTuple, Union
 
 import pandas as pd
 import requests
@@ -24,6 +24,35 @@ LOAD_FORECAST_DATASET = "isolf"
 INTERFACE_LIMITS_AND_FLOWS_DATASET = "ExternalLimitsFlows"
 LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET = "eriecirculationrt"
 LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET = "eriecirculationda"
+
+
+class DatasetInterval(NamedTuple):
+    time_type: str
+    interval_duration_minutes: Union[int, None]
+
+
+DATASET_INTERVAL_MAP = {
+    # (time_type, interval_duration_minutes)
+    # load
+    "pal": DatasetInterval("instantaneous", None),
+    # fuel mix
+    "rtfuelmix": DatasetInterval("instantaneous", None),
+    # load forecast
+    LOAD_FORECAST_DATASET: DatasetInterval("start", 60),
+    # dam lmp
+    "damlbmp": DatasetInterval("start", 60),
+    # rt lmp
+    "realtime": DatasetInterval("end", 5),
+    # real time events
+    "RealTimeEvents": DatasetInterval("instantaneous", None),
+    # btm solar
+    "btmactualforecast": DatasetInterval("start", 60),
+    # btm solar forecast
+    "btmdaforecast": DatasetInterval("start", 60),
+    INTERFACE_LIMITS_AND_FLOWS_DATASET: DatasetInterval("start", 5),
+    LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET: DatasetInterval("start", 5),
+    LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("start", 60),
+}
 
 
 class NYISO(ISOBase):
@@ -290,12 +319,17 @@ class NYISO(ISOBase):
             data = pd.read_csv(
                 "https://mis.nyiso.com/public/csv/ExternalLimitsFlows/currentExternalLimitsFlows.csv",  # noqa
             )
-            data = _handle_time(data, INTERFACE_LIMITS_AND_FLOWS_DATASET)
+            data = _handle_time(
+                data,
+                INTERFACE_LIMITS_AND_FLOWS_DATASET,
+                groupby="Interface Name",
+            )
         else:
             data = self._download_nyiso_archive(
                 date,
                 end=end,
                 dataset_name=INTERFACE_LIMITS_AND_FLOWS_DATASET,
+                groupby="Interface Name",
                 verbose=verbose,
             )
 
@@ -935,6 +969,7 @@ class NYISO(ISOBase):
         end=None,
         dataset_name=None,
         filename=None,
+        groupby=None,
         verbose=False,
     ):
         """Download a dataset from NYISO's archive
@@ -948,6 +983,8 @@ class NYISO(ISOBase):
                 the name of the dataset to download
             filename (str): the name of the file to download.
                 if not provided, dataset_name is used
+            groupby (str): the column to group by when converting datetimes. Used
+                to avoid ambiguous datetimes when dst ends
             verbose (bool): print out requested url
 
         Returns:
@@ -982,7 +1019,7 @@ class NYISO(ISOBase):
             log(msg, verbose)
 
             df = pd.read_csv(csv_url)
-            df = _handle_time(df, dataset_name)
+            df = _handle_time(df, dataset_name, groupby=groupby)
             if add_file_date:
                 df["File Date"] = self._get_load_forecast_file_date(date, verbose)
         else:
@@ -1025,8 +1062,7 @@ class NYISO(ISOBase):
                         *z.getinfo(csv_filename).date_time,
                         tz=self.default_timezone,
                     )
-
-                df = _handle_time(df, dataset_name)
+                df = _handle_time(df, dataset_name, groupby=groupby)
                 all_dfs.append(df)
 
             df = pd.concat(all_dfs)
@@ -1113,32 +1149,8 @@ class NYISO(ISOBase):
         return df.dropna(how="any", axis="columns")
 
 
-dataset_interval_map = {
-    # (time_type, interval_duration_minutes)
-    # load
-    "pal": ("instantaneous", None),
-    # fuel mix
-    "rtfuelmix": ("instantaneous", None),
-    # load forecast
-    LOAD_FORECAST_DATASET: ("start", 60),
-    # dam lmp
-    "damlbmp": ("start", 60),
-    # rt lmp
-    "realtime": ("end", 5),
-    # real time events
-    "RealTimeEvents": ("instantaneous", None),
-    # btm solar
-    "btmactualforecast": ("start", 60),
-    # btm solar forecast
-    "btmdaforecast": ("start", 60),
-    INTERFACE_LIMITS_AND_FLOWS_DATASET: ("start", 5),
-    LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET: ("start", 5),
-    LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: ("start", 60),
-}
-
-
-def _handle_time(df, dataset_name):
-    time_type, interval_duration_minutes = dataset_interval_map[dataset_name]
+def _handle_time(df, dataset_name, groupby=None):
+    time_type, interval_duration_minutes = DATASET_INTERVAL_MAP[dataset_name]
 
     if "Time Stamp" in df.columns:
         time_stamp_col = "Time Stamp"
@@ -1158,9 +1170,12 @@ def _handle_time(df, dataset_name):
             dst,
         )
 
-    elif "Name" in df.columns:
+    elif "Name" in df.columns or groupby:
+        groupby = groupby or "Name"
         # once we group by name, the time series for each group is no longer ambiguous
-        df[time_stamp_col] = df.groupby("Name", group_keys=False)[time_stamp_col].apply(
+        df[time_stamp_col] = df.groupby(groupby, group_keys=False)[
+            time_stamp_col
+        ].apply(
             time_to_datetime,
             "infer",
         )
