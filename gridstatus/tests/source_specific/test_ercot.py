@@ -1231,7 +1231,7 @@ class TestErcot(BaseTestISO):
         end = self.local_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"test_get_wind_actual_and_forecast_by_geographical_region_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
+            f"test_get_wind_actual_and_forecast_by_geographical_region_hourly_historical_date_range_{start}_{end}.yaml",  # noqa: E501
         ):
             df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
                 start,
@@ -1266,7 +1266,7 @@ class TestErcot(BaseTestISO):
         end = self.local_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"test_get_solar_actual_and_forecast_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
+            f"test_get_solar_actual_and_forecast_hourly_historical_date_range_{start}_{end}.yaml",  # noqa: E501
         ):
             df = self.iso.get_solar_actual_and_forecast_hourly(start, end, verbose=True)
 
