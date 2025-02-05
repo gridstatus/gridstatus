@@ -1116,8 +1116,6 @@ class CAISO(ISOBase):
         if date == "latest":
             return self.get_solar_and_wind_forecast_dam("today", verbose=verbose)
 
-        current_time = pd.Timestamp.now(tz=self.default_timezone)
-
         data = self.get_oasis_dataset(
             dataset="wind_and_solar_forecast",
             date=date,
@@ -1126,19 +1124,11 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
-        return self._process_solar_and_wind_forecast_dam(
-            data,
-            current_time,
-            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
-            # to OASIS.
-            publish_time_offset_from_day_start=pd.Timedelta(hours=7),
-        )
+        return self._process_solar_and_wind_forecast_dam(data)
 
     def _process_solar_and_wind_forecast_dam(
         self,
         data: pd.DataFrame,
-        current_time: pd.Timestamp,
-        publish_time_offset_from_day_start: pd.Timedelta,
     ):
         df = data[
             [
@@ -1169,13 +1159,24 @@ class CAISO(ISOBase):
             values="MW",
         ).reset_index()
 
-        df = self._add_forecast_publish_time(
-            df,
-            current_time,
-            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
-            # to OASIS.
-            publish_time_offset_from_day_start=publish_time_offset_from_day_start,
-        )
+        # Add the publish time
+        df["date"] = df["Interval Start"].dt.date
+        unique_dates = sorted(df["date"].unique())
+
+        # Solar and wind forecast DAM is published at 7:00 AM
+        # http://oasis.caiso.com/mrioasis/logon.do > Atlas Reference > Publications > OASIS Publications Schedule  # noqa
+        for forecast_date in unique_dates:
+            publish_time = (
+                pd.Timestamp(forecast_date, tz=self.default_timezone)
+                # One day because this is a day-ahead forecast
+                - pd.Timedelta(days=1)
+            ).replace(
+                hour=7,
+                minute=0,
+            )
+            df.loc[df["date"] == forecast_date, "Publish Time"] = publish_time
+
+        df = df.drop(columns=["date"])
 
         df = utils.move_cols_to_front(
             df.rename(
@@ -1193,57 +1194,6 @@ class CAISO(ISOBase):
         return df.sort_values(
             ["Interval Start", "Publish Time", "Location"],
         ).reset_index(drop=True)
-
-    def _add_forecast_publish_time(
-        self,
-        data: pd.DataFrame,
-        current_time: pd.Timestamp,
-        publish_time_offset_from_day_start: pd.Timedelta | None = None,
-    ) -> pd.DataFrame:
-        """
-        Labels forecasts with a publish time using the logic:
-
-        - If tomorrow or further in the future, the publish time is
-            * Today's publish time if current time is after the publish time
-            * Yesterday's publish time if current time is before the publish time
-        - If today or earlier, the publish time is the previous day's publish time
-
-        We assume the forecast was published the day before the forecasted day unless
-        the forecast is in the future to avoid having publish times in the future.
-        """
-        hour_offset = publish_time_offset_from_day_start.components.hours
-        minute_offset = publish_time_offset_from_day_start.components.minutes
-
-        # Use replace to avoid DST issues
-        todays_publish_time = current_time.normalize().replace(
-            hour=hour_offset,
-            minute=minute_offset,
-        )
-        if current_time > todays_publish_time:
-            future_forecasts_publish_time = todays_publish_time
-        else:
-            future_forecasts_publish_time = todays_publish_time - pd.Timedelta(
-                days=1,
-            )
-
-            # Forecasts tomorrow and later get the future forecasts publish time
-            # Forecasts today and earlier get a publish time of the previous day at the
-            # publish time offset
-
-        # Default to existing DAM behavior for backward compatibility
-        data["Publish Time"] = np.where(
-            data["Interval Start"].dt.date > future_forecasts_publish_time.date(),
-            future_forecasts_publish_time,
-            data["Interval Start"].apply(
-                lambda x: x.floor("D").replace(
-                    hour=hour_offset,
-                    minute=minute_offset,
-                ),
-            )
-            - pd.Timedelta(days=1),
-        )
-
-        return data
 
     def get_pnodes(self, verbose: bool = False) -> pd.DataFrame:
         start = utils._handle_date("today")
