@@ -38,6 +38,12 @@ from gridstatus.ercot_60d_utils import (
     SCED_LOAD_RESOURCE_KEY,
     SCED_SMNE_KEY,
 )
+from gridstatus.ercot_constants import (
+    SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+    SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
+    WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
+    WIND_ACTUAL_AND_FORECAST_COLUMNS,
+)
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
@@ -1143,41 +1149,22 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == cols
         assert df["Publish Time"].nunique() == 3
 
-    """get_hourly_wind_report"""
+    """get_wind_actual_and_forecast_hourly"""
 
-    def _check_hourly_wind_report(self, df):
-        cols = [
-            "Publish Time",
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "GEN SYSTEM WIDE",
-            "COP HSL SYSTEM WIDE",
-            "STWPF SYSTEM WIDE",
-            "WGRPP SYSTEM WIDE",
-            "GEN LZ SOUTH HOUSTON",
-            "COP HSL LZ SOUTH HOUSTON",
-            "STWPF LZ SOUTH HOUSTON",
-            "WGRPP LZ SOUTH HOUSTON",
-            "GEN LZ WEST",
-            "COP HSL LZ WEST",
-            "STWPF LZ WEST",
-            "WGRPP LZ WEST",
-            "GEN LZ NORTH",
-            "COP HSL LZ NORTH",
-            "STWPF LZ NORTH",
-            "WGRPP LZ NORTH",
-            "HSL SYSTEM WIDE",
-        ]
+    def _check_hourly_wind_report(self, df, geographic_data=False):
+        assert (
+            df.columns.tolist() == WIND_ACTUAL_AND_FORECAST_COLUMNS
+            if not geographic_data
+            else WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
+        )
 
-        assert df.columns.tolist() == cols
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
     @pytest.mark.integration
-    def test_get_hourly_wind_report_today(self):
-        df = self.iso.get_hourly_wind_report("today", verbose=True)
+    def test_get_wind_actual_and_forecast_hourly_today(self):
+        df = self.iso.get_wind_actual_and_forecast_hourly("today", verbose=True)
 
         self._check_hourly_wind_report(df)
 
@@ -1188,17 +1175,17 @@ class TestErcot(BaseTestISO):
         assert df["Publish Time"].nunique() == hours_since_local_midnight
 
     @pytest.mark.integration
-    def test_get_hourly_wind_report_latest(self):
-        df = self.iso.get_hourly_wind_report("latest", verbose=True)
+    def test_get_wind_actual_and_forecast_hourly_latest(self):
+        df = self.iso.get_wind_actual_and_forecast_hourly("latest", verbose=True)
 
         self._check_hourly_wind_report(df)
 
         assert df["Publish Time"].nunique() == 1
 
     @pytest.mark.integration
-    def test_get_hourly_wind_report_historical_date(self):
+    def test_get_wind_actual_and_forecast_hourly_historical_date(self):
         date = self.local_today() - pd.Timedelta(days=1)
-        df = self.iso.get_hourly_wind_report(date, verbose=True)
+        df = self.iso.get_wind_actual_and_forecast_hourly(date, verbose=True)
 
         self._check_hourly_wind_report(df)
 
@@ -1207,10 +1194,10 @@ class TestErcot(BaseTestISO):
         assert df["Publish Time"].max().hour == 23
 
     @pytest.mark.integration
-    def test_get_hourly_wind_report_historical_date_range(self):
+    def test_get_wind_actual_and_forecast_hourly_historical_date_range(self):
         start = self.local_today() - pd.Timedelta(days=3)
         end = self.local_today() - pd.Timedelta(days=1)
-        df = self.iso.get_hourly_wind_report(start, end, verbose=True)
+        df = self.iso.get_wind_actual_and_forecast_hourly(start, end, verbose=True)
 
         self._check_hourly_wind_report(df)
 
@@ -1218,53 +1205,53 @@ class TestErcot(BaseTestISO):
         assert df["Publish Time"].min().hour == 0
         assert df["Publish Time"].max().hour == 23
 
-    """get_hourly_solar_report"""
+    """get_wind_actual_and_forecast_by_geographical_region_hourly"""
 
-    def _check_hourly_solar_report(self, df):
-        cols = [
-            "Publish Time",
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "GEN SYSTEM WIDE",
-            "COP HSL SYSTEM WIDE",
-            "STPPF SYSTEM WIDE",
-            "PVGRPP SYSTEM WIDE",
-            "GEN CenterWest",
-            "COP HSL CenterWest",
-            "STPPF CenterWest",
-            "PVGRPP CenterWest",
-            "GEN NorthWest",
-            "COP HSL NorthWest",
-            "STPPF NorthWest",
-            "PVGRPP NorthWest",
-            "GEN FarWest",
-            "COP HSL FarWest",
-            "STPPF FarWest",
-            "PVGRPP FarWest",
-            "GEN FarEast",
-            "COP HSL FarEast",
-            "STPPF FarEast",
-            "PVGRPP FarEast",
-            "GEN SouthEast",
-            "COP HSL SouthEast",
-            "STPPF SouthEast",
-            "PVGRPP SouthEast",
-            "GEN CenterEast",
-            "COP HSL CenterEast",
-            "STPPF CenterEast",
-            "PVGRPP CenterEast",
-            "HSL SYSTEM WIDE",
-        ]
+    def test_get_wind_actual_and_forecast_by_geographical_region_hourly_today(self):
+        with api_vcr.use_cassette(
+            "test_get_wind_actual_and_forecast_by_geographical_region_hourly_today.yaml",
+        ):
+            df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
+                "today",
+                verbose=True,
+            )
 
-        assert df.columns.tolist() == cols
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
-        ).all()
+        self._check_hourly_wind_report(df, geographic_data=True)
 
-    @pytest.mark.integration
-    def test_get_hourly_solar_report_today(self):
-        df = self.iso.get_hourly_solar_report("today", verbose=True)
+        hours_since_local_midnight = (
+            self.local_now() - self.local_start_of_today()
+        ) // pd.Timedelta(hours=1)
+
+        assert df["Publish Time"].nunique() == hours_since_local_midnight
+
+    def test_get_wind_actual_and_forecast_by_geographical_region_hourly_historical_date_range(  # noqa: E501
+        self,
+    ):
+        start = self.local_today() - pd.Timedelta(days=3)
+        end = self.local_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_wind_actual_and_forecast_by_geographical_region_hourly_historical_date_range_{start}_{end}.yaml",  # noqa: E501
+        ):
+            df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
+                start,
+                end,
+                verbose=True,
+            )
+
+        self._check_hourly_wind_report(df, geographic_data=True)
+
+        assert df["Publish Time"].nunique() == 48
+        assert df["Publish Time"].min().hour == 0
+        assert df["Publish Time"].max().hour == 23
+
+    """get_solar_actual_and_forecast_hourly"""
+
+    def test_get_solar_actual_and_forecast_hourly_today(self):
+        with api_vcr.use_cassette(
+            "test_get_solar_actual_and_forecast_hourly_today.yaml",
+        ):
+            df = self.iso.get_solar_actual_and_forecast_hourly("today", verbose=True)
 
         self._check_hourly_solar_report(df)
 
@@ -1274,32 +1261,88 @@ class TestErcot(BaseTestISO):
 
         assert df["Publish Time"].nunique() == hours_since_local_midnight
 
-    @pytest.mark.integration
-    def test_get_hourly_solar_report_latest(self):
-        df = self.iso.get_hourly_solar_report("latest", verbose=True)
+    def test_get_solar_actual_and_forecast_hourly_historical_date_range(self):
+        start = self.local_today() - pd.Timedelta(days=3)
+        end = self.local_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_solar_actual_and_forecast_hourly_historical_date_range_{start}_{end}.yaml",  # noqa: E501
+        ):
+            df = self.iso.get_solar_actual_and_forecast_hourly(start, end, verbose=True)
 
         self._check_hourly_solar_report(df)
+
+        assert df["Publish Time"].nunique() == 48
+        assert df["Publish Time"].min().hour == 0
+        assert df["Publish Time"].max().hour == 23
+
+    """get_solar_actual_and_forecast_by_geographical_region_hourly"""
+
+    def _check_hourly_solar_report(self, df, geographic_data=False):
+        assert (
+            df.columns.tolist() == SOLAR_ACTUAL_AND_FORECAST_COLUMNS
+            if not geographic_data
+            else SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
+        )
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    @pytest.mark.integration
+    def test_get_solar_actual_and_forecast_by_geographical_region_hourly_today(self):
+        df = self.iso.get_solar_actual_and_forecast_by_geographical_region_hourly(
+            "today",
+            verbose=True,
+        )
+
+        self._check_hourly_solar_report(df, geographic_data=True)
+
+        hours_since_local_midnight = (
+            self.local_now() - self.local_start_of_today()
+        ) // pd.Timedelta(hours=1)
+
+        assert df["Publish Time"].nunique() == hours_since_local_midnight
+
+    @pytest.mark.integration
+    def test_get_solar_actual_and_forecast_by_geographical_region_hourly_latest(self):
+        df = self.iso.get_solar_actual_and_forecast_by_geographical_region_hourly(
+            "latest",
+            verbose=True,
+        )
+
+        self._check_hourly_solar_report(df, geographic_data=True)
 
         assert df["Publish Time"].nunique() == 1
 
     @pytest.mark.integration
-    def test_get_hourly_solar_report_historical_date(self):
+    def test_get_solar_actual_and_forecast_by_geographical_region_hourly_historical_date(  # noqa: E501
+        self,
+    ):
         date = self.local_today() - pd.Timedelta(days=1)
-        df = self.iso.get_hourly_solar_report(date, verbose=True)
+        df = self.iso.get_solar_actual_and_forecast_by_geographical_region_hourly(
+            date,
+            verbose=True,
+        )
 
-        self._check_hourly_solar_report(df)
+        self._check_hourly_solar_report(df, geographic_data=True)
 
         assert df["Publish Time"].nunique() == 24  # One for each hour
         assert df["Publish Time"].min().hour == 0
         assert df["Publish Time"].max().hour == 23
 
     @pytest.mark.integration
-    def test_get_hourly_solar_report_historical_date_range(self):
+    def test_get_solar_actual_and_forecast_by_geographical_region_hourly_historical_date_range(
+        self,
+    ):
         start = self.local_today() - pd.Timedelta(days=3)
         end = self.local_today() - pd.Timedelta(days=1)
-        df = self.iso.get_hourly_solar_report(start, end, verbose=True)
+        df = self.iso.get_solar_actual_and_forecast_by_geographical_region_hourly(
+            start,
+            end,
+            verbose=True,
+        )
 
-        self._check_hourly_solar_report(df)
+        self._check_hourly_solar_report(df, geographic_data=True)
 
         assert df["Publish Time"].nunique() == 48
         assert df["Publish Time"].min().hour == 0
