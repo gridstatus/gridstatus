@@ -2650,3 +2650,30 @@ class PJM(ISOBase):
         )
 
         return df
+
+    @support_date_range(frequency=None)
+    def get_area_control_error(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the area control error data from:
+        https://dataminer2.pjm.com/feed/area_control_error/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "area_control_error",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,ace_mw",
+            },
+            interval_duration_min=0.25,
+            verbose=verbose,
+        )
+
+        return df
