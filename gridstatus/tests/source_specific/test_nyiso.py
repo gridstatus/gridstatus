@@ -561,9 +561,9 @@ class TestNYISO(BaseTestISO):
             "Interval End",
             "Interface Name",
             "Point ID",
-            "Flow MWH",
-            "Positive Limit MWH",
-            "Negative Limit MWH",
+            "Flow MW",
+            "Positive Limit MW",
+            "Negative Limit MW",
         ]
 
         assert df["Interval Start"].min() == start
@@ -584,9 +584,9 @@ class TestNYISO(BaseTestISO):
             "Interval End",
             "Interface Name",
             "Point ID",
-            "Flow MWH",
-            "Positive Limit MWH",
-            "Negative Limit MWH",
+            "Flow MW",
+            "Positive Limit MW",
+            "Negative Limit MW",
         ]
 
         assert df["Interval Start"].min() == start
@@ -607,9 +607,9 @@ class TestNYISO(BaseTestISO):
             "Interval End",
             "Interface Name",
             "Point ID",
-            "Flow MWH",
-            "Positive Limit MWH",
-            "Negative Limit MWH",
+            "Flow MW",
+            "Positive Limit MW",
+            "Negative Limit MW",
         ]
 
         assert df["Interval Start"].min() == start

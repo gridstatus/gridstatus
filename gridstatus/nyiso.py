@@ -337,11 +337,12 @@ class NYISO(ISOBase):
                 verbose=verbose,
             )
 
+        # The source has these values as MWH but they are actually MW
         data = data.rename(
             columns={
-                "Flow (MWH)": "Flow MWH",
-                "Positive Limit (MWH)": "Positive Limit MWH",
-                "Negative Limit (MWH)": "Negative Limit MWH",
+                "Flow (MWH)": "Flow MW",
+                "Positive Limit (MWH)": "Positive Limit MW",
+                "Negative Limit (MWH)": "Negative Limit MW",
             },
         )
 
@@ -351,9 +352,9 @@ class NYISO(ISOBase):
                 "Interval End",
                 "Interface Name",
                 "Point ID",
-                "Flow MWH",
-                "Positive Limit MWH",
-                "Negative Limit MWH",
+                "Flow MW",
+                "Positive Limit MW",
+                "Negative Limit MW",
             ]
         ].sort_values(["Interval Start", "Interface Name"])
 
