@@ -16,7 +16,7 @@ from gridstatus.decorators import (
     pjm_update_dates,
     support_date_range,
 )
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
 # PJM requires retries because the API is flaky
@@ -436,7 +436,11 @@ class PJM(ISOBase):
     load_forecast_endpoint_name = "load_frcstd_7_day"
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
 
-    def __init__(self, api_key=None, retries=DEFAULT_RETRIES) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        retries: int = DEFAULT_RETRIES,
+    ) -> None:
         """
         Arguments:
             api_key (str, optional): PJM API key. Alternatively, can be set
@@ -451,7 +455,12 @@ class PJM(ISOBase):
             raise ValueError("api_key must be provided or set in PJM_API_KEY env var")
 
     @support_date_range(frequency="365D")
-    def get_fuel_mix(self, date, end=None, verbose=False):
+    def get_fuel_mix(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get fuel mix for a date or date range  in hourly intervals"""
 
         if date == "latest":
@@ -485,7 +494,12 @@ class PJM(ISOBase):
         return mix_df
 
     @support_date_range(frequency="30D")
-    def get_load(self, date, end=None, verbose=False):
+    def get_load(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns load at a previous date at 5 minute intervals
 
         Arguments:
@@ -555,7 +569,12 @@ class PJM(ISOBase):
         return load
 
     @support_date_range(frequency=None)
-    def get_load_forecast(self, date, end=None, verbose=False):
+    def get_load_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Load forecast made today extending for six days in hourly intervals.
 
@@ -590,7 +609,12 @@ class PJM(ISOBase):
         return self._handle_load_forecast(data)
 
     @support_date_range(frequency=None)
-    def get_load_forecast_historical(self, date, end=None, verbose=False):
+    def get_load_forecast_historical(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Historical load forecast in hourly intervals. Historical forecasts include all
         vintages of the forecast but has fewer regions than the current forecast.
@@ -622,7 +646,7 @@ class PJM(ISOBase):
 
         return self._handle_load_forecast(data)
 
-    def _handle_load_forecast(self, data):
+    def _handle_load_forecast(self, data: pd.DataFrame) -> pd.DataFrame:
         data = data.rename(
             columns={
                 "evaluated_at_utc": "Publish Time",
@@ -683,7 +707,7 @@ class PJM(ISOBase):
             drop=True,
         )
 
-    def get_pnode_ids(self):
+    def get_pnode_ids(self) -> pd.DataFrame:
         data = {
             "fields": "effective_date,pnode_id,pnode_name,pnode_subtype,pnode_type\
                 ,termination_date,voltage_level,zone",
@@ -707,7 +731,7 @@ class PJM(ISOBase):
         # so we need to extract it from full name
         # other LMP datasets have but do it this way
         # for consistent logic
-        def extract_short_name(row):
+        def extract_short_name(row: pd.Series) -> str:
             if row["voltage_level"] is None or pd.isna(row["voltage_level"]):
                 return row["pnode_name"]
             else:
@@ -733,13 +757,13 @@ class PJM(ISOBase):
     @support_date_range(frequency="365D", update_dates=pjm_update_dates)
     def get_lmp(
         self,
-        date,
+        date: str | pd.Timestamp,
         market: str,
-        end=None,
-        locations="hubs",
-        location_type=None,
-        verbose=False,
-    ):
+        end: str | pd.Timestamp | None = None,
+        locations: str = "hubs",
+        location_type: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns LMP at a previous date
 
         Notes:
@@ -938,7 +962,7 @@ class PJM(ISOBase):
 
         return data
 
-    def _add_pnode_info_to_lmp_data(self, data):
+    def _add_pnode_info_to_lmp_data(self, data: pd.DataFrame) -> pd.DataFrame:
         # the pnode_name in the lmp data isn't always full name
         # so, let drop it for now
         # will get full name by merge with pnode data later
@@ -953,7 +977,12 @@ class PJM(ISOBase):
         return data
 
     @support_date_range(frequency=None)
-    def get_it_sced_lmp_5_min(self, date, end=None, verbose=False):
+    def get_it_sced_lmp_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get 5 minute LMPs from the Integrated Forward Market (IFM)"""
 
         if date == "latest":
@@ -1016,7 +1045,12 @@ class PJM(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_settlements_verified_lmp_5_min(self, date, end=None, verbose=False):
+    def get_settlements_verified_lmp_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self._get_pjm_json(
             "rt_fivemin_mnt_lmps",
             start=date,
@@ -1031,7 +1065,10 @@ class PJM(ISOBase):
 
         return self._handle_settlements_verified_lmp_5_min(df)
 
-    def _handle_settlements_verified_lmp_5_min(self, data):
+    def _handle_settlements_verified_lmp_5_min(
+        self,
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
         rename = {
             "Interval Start": "Interval Start",
             "Interval End": "Interval End",
@@ -1055,7 +1092,12 @@ class PJM(ISOBase):
         return data.sort_values(["Interval Start", "Location Name"])
 
     @support_date_range(frequency=None)
-    def get_settlements_verified_lmp_hourly(self, date, end=None, verbose=False):
+    def get_settlements_verified_lmp_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self._get_pjm_json(
             "rt_da_monthly_lmps",
             start=date,
@@ -1070,7 +1112,10 @@ class PJM(ISOBase):
 
         return self._handle_settlements_verified_lmp_hourly(df)
 
-    def _handle_settlements_verified_lmp_hourly(self, data):
+    def _handle_settlements_verified_lmp_hourly(
+        self,
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
         rename = {
             "Interval Start": "Interval Start",
             "Interval End": "Interval End",
@@ -1139,8 +1184,7 @@ class PJM(ISOBase):
         if "Ocp-Apim-Subscription-Key" in params_to_log:
             params_to_log["Ocp-Apim-Subscription-Key"] = "API_KEY_HIDDEN"
 
-        msg = f"Retrieving data from {endpoint} with params {params_to_log}"
-        log(msg, verbose)
+        logger.info(f"Retrieving data from {endpoint} with params {params_to_log}")
         r = self._get_json(
             "https://api.pjm.com/api/v1/" + endpoint,
             verbose=verbose,
@@ -1217,7 +1261,7 @@ class PJM(ISOBase):
 
         return df
 
-    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+    def get_raw_interconnection_queue(self, verbose: bool = False) -> BinaryIO:
         url = "https://services.pjm.com/PJMPlanningApi/api/Queue/ExportToXls"
         response = requests.post(
             url,
@@ -1231,7 +1275,7 @@ class PJM(ISOBase):
         )
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose=False):
+    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
         raw_data = self.get_raw_interconnection_queue(verbose)
         queue = pd.read_excel(raw_data)
 
@@ -1495,7 +1539,12 @@ class PJM(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_gen_outages_by_type(self, date, end=None, verbose=False):
+    def get_gen_outages_by_type(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the generation outage data
         From: https://dataminer2.pjm.com/feed/gen_outages_by_type/definition
@@ -1518,7 +1567,7 @@ class PJM(ISOBase):
 
         return self._parse_gen_outages_by_type(df)
 
-    def _parse_gen_outages_by_type(self, df):
+    def _parse_gen_outages_by_type(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "forecast_execution_date_ept": "Publish Time",
@@ -1552,7 +1601,12 @@ class PJM(ISOBase):
 
     # Can retrieve a max of 365 days at a time.
     @support_date_range(frequency="365D")
-    def get_projected_rto_statistics_at_peak(self, date, end=None, verbose=False):
+    def get_projected_rto_statistics_at_peak(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """RTO-wide projected data for the peak of the day
 
         https://dataminer2.pjm.com/feed/ops_sum_frcst_peak_rto/definition
@@ -1577,7 +1631,10 @@ class PJM(ISOBase):
 
         return self._handle_projected_rto_statistics_at_peak(df)
 
-    def _handle_projected_rto_statistics_at_peak(self, df):
+    def _handle_projected_rto_statistics_at_peak(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         df["projected_peak_datetime_ept"] = pd.to_datetime(
             df["projected_peak_datetime_ept"],
         ).dt.tz_localize(self.default_timezone)
@@ -1611,7 +1668,12 @@ class PJM(ISOBase):
         return df.sort_values("Publish Time").reset_index(drop=True)
 
     @support_date_range(frequency="365D")
-    def get_projected_area_statistics_at_peak(self, date, end=None, verbose=False):
+    def get_projected_area_statistics_at_peak(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Area projected data for the peak of the day
 
         https://dataminer2.pjm.com/feed/ops_sum_frcst_peak_area/definition
@@ -1634,7 +1696,10 @@ class PJM(ISOBase):
 
         return self._handle_projected_area_statistics_at_peak(df)
 
-    def _handle_projected_area_statistics_at_peak(self, df):
+    def _handle_projected_area_statistics_at_peak(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         df["projected_peak_datetime_ept"] = pd.to_datetime(
             df["projected_peak_datetime_ept"],
         ).dt.tz_localize(self.default_timezone)
@@ -1673,9 +1738,9 @@ class PJM(ISOBase):
     def get_solar_generation_5_min(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
-        verbose: Optional[bool] = False,
-    ):
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the 5 min solar generation data from:
         https://dataminer2.pjm.com/feed/five_min_solar_generation/definition
@@ -1708,7 +1773,7 @@ class PJM(ISOBase):
 
         return self._parse_solar_generation_5_min(df)
 
-    def _parse_solar_generation_5_min(self, df: pd.DataFrame):
+    def _parse_solar_generation_5_min(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "solar_generation_mw": "Solar Generation",
@@ -1729,9 +1794,9 @@ class PJM(ISOBase):
     def get_wind_generation_instantaneous(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
-        verbose: Optional[bool] = False,
-    ):
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the instantaneous wind generation data from:
         https://dataminer2.pjm.com/feed/instantaneous_wind_gen/definition
@@ -1765,7 +1830,7 @@ class PJM(ISOBase):
 
         return self._parse_wind_generation_instantaneous(df)
 
-    def _parse_wind_generation_instantaneous(self, df: pd.DataFrame):
+    def _parse_wind_generation_instantaneous(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "wind_generation_mw": "Wind Generation",
@@ -1786,9 +1851,9 @@ class PJM(ISOBase):
     def get_operational_reserves(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
-        verbose: Optional[bool] = False,
-    ):
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the reserve market quantities in Megawatts from:
         https://dataminer2.pjm.com/feed/operational_reserves/definition
@@ -1822,7 +1887,7 @@ class PJM(ISOBase):
 
         return self._parse_operational_reserves(df)
 
-    def _parse_operational_reserves(self, df: pd.DataFrame):
+    def _parse_operational_reserves(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "reserve_name": "Reserve Name",
@@ -1845,9 +1910,9 @@ class PJM(ISOBase):
     def get_transfer_interface_information_5_min(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
-        verbose: Optional[bool] = False,
-    ):
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the transfer interface information from:
         https://dataminer2.pjm.com/feed/transfer_interface_infor/definition
@@ -1881,7 +1946,10 @@ class PJM(ISOBase):
 
         return self._parse_transfer_interface_information_5_min(df)
 
-    def _parse_transfer_interface_information_5_min(self, df: pd.DataFrame):
+    def _parse_transfer_interface_information_5_min(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "name": "Interface Name",
@@ -1908,9 +1976,9 @@ class PJM(ISOBase):
     def get_transmission_limits(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
-        verbose: Optional[bool] = False,
-    ):
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the current transmission limit information from:
         https://dataminer2.pjm.com/feed/transfer_interface_infor/definition
@@ -1945,7 +2013,7 @@ class PJM(ISOBase):
 
         return self._parse_transmission_limits(df)
 
-    def _parse_transmission_limits(self, df: pd.DataFrame):
+    def _parse_transmission_limits(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "constraint_name": "Constraint Name",
@@ -1972,9 +2040,9 @@ class PJM(ISOBase):
     def get_solar_generation_by_area(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
-        verbose: Optional[bool] = False,
-    ):
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the current solar generation information from:
         https://dataminer2.pjm.com/feed/solar_gen/definition
@@ -2007,7 +2075,7 @@ class PJM(ISOBase):
 
         return self._parse_solar_generation_by_area(df)
 
-    def _parse_solar_generation_by_area(self, df: pd.DataFrame):
+    def _parse_solar_generation_by_area(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.pivot_table(
             index=["Time", "Interval Start", "Interval End"],
             columns="area",
@@ -2069,7 +2137,7 @@ class PJM(ISOBase):
 
         return self._parse_wind_generation_by_area(df)
 
-    def _parse_wind_generation_by_area(self, df: pd.DataFrame):
+    def _parse_wind_generation_by_area(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.pivot_table(
             index=["Time", "Interval Start", "Interval End"],
             columns="area",
@@ -2140,7 +2208,7 @@ class PJM(ISOBase):
 
         return self._parse_dam_as_market_results(df)
 
-    def _parse_dam_as_market_results(self, df: pd.DataFrame):
+    def _parse_dam_as_market_results(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "locale": "Locale",
@@ -2254,7 +2322,7 @@ class PJM(ISOBase):
 
         return self._parse_real_time_as_market_results(df)
 
-    def _parse_real_time_as_market_results(self, df: pd.DataFrame):
+    def _parse_real_time_as_market_results(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "locale": "Locale",
@@ -2339,7 +2407,7 @@ class PJM(ISOBase):
 
         return self._parse_load_metered_hourly(df)
 
-    def _parse_load_metered_hourly(self, df):
+    def _parse_load_metered_hourly(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "load_area": "Load Area",
@@ -2390,7 +2458,7 @@ class PJM(ISOBase):
 
         return self._parse_forecasted_generation_outages(df)
 
-    def _parse_forecasted_generation_outages(self, df):
+    def _parse_forecasted_generation_outages(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "forecast_execution_date_ept": "Publish Time",
@@ -2424,7 +2492,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         """
         Retrieves the marginal value data from:
         https://dataminer2.pjm.com/feed/rt_marginal_value/definition
@@ -2470,7 +2538,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         """
         Retrieves the marginal value data from:
         https://dataminer2.pjm.com/feed/da_marginal_value/definition
@@ -2510,7 +2578,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         """
         Retrieves the transmission constraints data from:
         https://dataminer2.pjm.com/feed/da_transconstraints/definition
@@ -2547,7 +2615,12 @@ class PJM(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_day_ahead_demand_bids(self, date, end=None, verbose=False):
+    def get_day_ahead_demand_bids(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the day ahead demand bids data from:
         https://dataminer2.pjm.com/feed/hrl_dmd_bids/definition
