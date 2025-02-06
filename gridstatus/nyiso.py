@@ -1,5 +1,5 @@
 import datetime
-from typing import BinaryIO, Dict, NamedTuple, Union
+from typing import BinaryIO, Dict, Literal, NamedTuple, Union
 
 import pandas as pd
 import requests
@@ -35,7 +35,7 @@ LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET = "eriecirculationda"
 
 
 class DatasetInterval(NamedTuple):
-    time_type: str
+    time_type: Literal["start", "end", "instantaneous"]
     interval_duration_minutes: Union[int, None]
 
 
@@ -49,8 +49,8 @@ DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
     BTM_SOLAR_ACTUAL_DATASET: DatasetInterval("start", 60),
     BTM_SOLAR_FORECAST_DATASET: DatasetInterval("start", 60),
     INTERFACE_LIMITS_AND_FLOWS_DATASET: DatasetInterval("start", 5),
-    LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET: DatasetInterval("start", 5),
-    LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("start", 60),
+    LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET: DatasetInterval("instantaneous", None),
+    LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("instantaneous", None),
 }
 
 
@@ -360,7 +360,7 @@ class NYISO(ISOBase):
         return data
 
     @support_date_range(frequency="MONTH_START")
-    def get_lake_erie_circulation_real_time_5_min(
+    def get_lake_erie_circulation_real_time(
         self,
         date: str | datetime.date,
         end: str | datetime.date = None,
@@ -368,7 +368,7 @@ class NYISO(ISOBase):
     ):
         # No latest file available
         if date == "latest":
-            return self.get_lake_erie_circulation_real_time_5_min(
+            return self.get_lake_erie_circulation_real_time(
                 date="today",
                 verbose=verbose,
             )
@@ -381,16 +381,15 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MWH"})
+        # The source has MWH in the column name but it's actually MW
+        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MW"})
 
-        data = data[["Interval Start", "Interval End", "MWH"]].sort_values(
-            "Interval Start",
-        )
+        data = data[["Time", "MW"]].sort_values("Time")
 
         return data
 
     @support_date_range(frequency="MONTH_START")
-    def get_lake_erie_circulation_day_ahead_hourly(
+    def get_lake_erie_circulation_day_ahead(
         self,
         date: str | datetime.date,
         end: str | datetime.date = None,
@@ -398,7 +397,7 @@ class NYISO(ISOBase):
     ):
         # No latest file available
         if date == "latest":
-            return self.get_lake_erie_circulation_day_ahead_hourly(
+            return self.get_lake_erie_circulation_day_ahead(
                 date="today",
                 verbose=verbose,
             )
@@ -411,11 +410,9 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MWH"})
+        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MW"})
 
-        data = data[["Interval Start", "Interval End", "MWH"]].sort_values(
-            "Interval Start",
-        )
+        data = data[["Time", "MW"]].sort_values("Time")
 
         return data
 
