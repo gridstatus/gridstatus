@@ -2096,4 +2096,16 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette(f"test_get_area_control_error_{date}.yaml"):
             df = self.iso.get_area_control_error(date)
 
-            assert self.iso.get_area_control_error("latest").equals(df)
+            assert isinstance(df, pd.DataFrame)
+            assert df.columns.tolist() == [
+                "Time",
+                "Area Control Error",
+            ]
+
+            assert df["Area Control Error"].dtype in [np.float64, np.int64]
+            assert df["Time"].min() <= self.local_start_of_today() + pd.Timedelta(
+                seconds=15,
+            )
+            assert df["Time"].max() <= self.local_start_of_today() + pd.Timedelta(
+                days=1,
+            )
