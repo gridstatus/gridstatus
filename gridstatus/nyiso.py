@@ -1,4 +1,5 @@
-from typing import BinaryIO
+import datetime
+from typing import BinaryIO, Dict, Literal, NamedTuple, Union
 
 import pandas as pd
 import requests
@@ -20,7 +21,37 @@ from gridstatus.lmp_config import lmp_config
 ZONE = "zone"
 GENERATOR = "generator"
 
+LOAD_DATASET = "pal"
+FUEL_MIX_DATASET = "rtfuelmix"
 LOAD_FORECAST_DATASET = "isolf"
+DAM_LMP_DATASET = "damlbmp"
+REAL_TIME_LMP_DATASET = "realtime"
+REAL_TIME_EVENTS_DATASET = "RealTimeEvents"
+BTM_SOLAR_ACTUAL_DATASET = "btmactualforecast"
+BTM_SOLAR_FORECAST_DATASET = "btmdaforecast"
+INTERFACE_LIMITS_AND_FLOWS_DATASET = "ExternalLimitsFlows"
+LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET = "eriecirculationrt"
+LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET = "eriecirculationda"
+
+
+class DatasetInterval(NamedTuple):
+    time_type: Literal["start", "end", "instantaneous"]
+    interval_duration_minutes: Union[int, None]
+
+
+DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
+    LOAD_DATASET: DatasetInterval("instantaneous", None),
+    FUEL_MIX_DATASET: DatasetInterval("instantaneous", None),
+    LOAD_FORECAST_DATASET: DatasetInterval("start", 60),
+    DAM_LMP_DATASET: DatasetInterval("start", 60),
+    REAL_TIME_LMP_DATASET: DatasetInterval("end", 5),
+    REAL_TIME_EVENTS_DATASET: DatasetInterval("instantaneous", None),
+    BTM_SOLAR_ACTUAL_DATASET: DatasetInterval("start", 60),
+    BTM_SOLAR_FORECAST_DATASET: DatasetInterval("start", 60),
+    INTERFACE_LIMITS_AND_FLOWS_DATASET: DatasetInterval("start", 5),
+    LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET: DatasetInterval("instantaneous", None),
+    LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("instantaneous", None),
+}
 
 
 class NYISO(ISOBase):
@@ -48,7 +79,7 @@ class NYISO(ISOBase):
         status_df = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="RealTimeEvents",
+            dataset_name=REAL_TIME_EVENTS_DATASET,
             verbose=verbose,
         )
 
@@ -92,7 +123,7 @@ class NYISO(ISOBase):
         mix_df = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="rtfuelmix",
+            dataset_name=FUEL_MIX_DATASET,
             verbose=verbose,
         )
 
@@ -128,7 +159,7 @@ class NYISO(ISOBase):
         data = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="pal",
+            dataset_name=LOAD_DATASET,
             verbose=verbose,
         )
 
@@ -172,7 +203,7 @@ class NYISO(ISOBase):
         data = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="btmactualforecast",
+            dataset_name=BTM_SOLAR_ACTUAL_DATASET,
             filename="BTMEstimatedActual",
             verbose=verbose,
         )
@@ -201,7 +232,7 @@ class NYISO(ISOBase):
         data = self._download_nyiso_archive(
             date=date,
             end=end,
-            dataset_name="btmdaforecast",
+            dataset_name=BTM_SOLAR_FORECAST_DATASET,
             verbose=verbose,
         )
 
@@ -277,6 +308,112 @@ class NYISO(ISOBase):
                 "File Date": "Publish Time",
             },
         )
+
+        return data
+
+    @support_date_range(frequency="MONTH_START")
+    def get_interface_limits_and_flows_5_min(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
+        """Get interface limits and flows for a date"""
+        if date == "latest":
+            data = pd.read_csv(
+                "https://mis.nyiso.com/public/csv/ExternalLimitsFlows/currentExternalLimitsFlows.csv",  # noqa
+            )
+            data = _handle_time(
+                data,
+                INTERFACE_LIMITS_AND_FLOWS_DATASET,
+                groupby="Interface Name",
+            )
+        else:
+            data = self._download_nyiso_archive(
+                date,
+                end=end,
+                dataset_name=INTERFACE_LIMITS_AND_FLOWS_DATASET,
+                groupby="Interface Name",
+                verbose=verbose,
+            )
+
+        # The source has these values as MWH but they are actually MW
+        data = data.rename(
+            columns={
+                "Flow (MWH)": "Flow MW",
+                "Positive Limit (MWH)": "Positive Limit MW",
+                "Negative Limit (MWH)": "Negative Limit MW",
+            },
+        )
+
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Interface Name",
+                "Point ID",
+                "Flow MW",
+                "Positive Limit MW",
+                "Negative Limit MW",
+            ]
+        ].sort_values(["Interval Start", "Interface Name"])
+
+        return data
+
+    @support_date_range(frequency="MONTH_START")
+    def get_lake_erie_circulation_real_time(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
+        # No latest file available
+        if date == "latest":
+            return self.get_lake_erie_circulation_real_time(
+                date="today",
+                verbose=verbose,
+            )
+
+        data = self._download_nyiso_archive(
+            date,
+            end=end,
+            dataset_name=LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET,
+            filename="ErieCirculationRT",
+            verbose=verbose,
+        )
+
+        # The source has MWH in the column name but it's actually MW
+        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MW"})
+
+        data = data[["Time", "MW"]].sort_values("Time")
+
+        return data
+
+    @support_date_range(frequency="MONTH_START")
+    def get_lake_erie_circulation_day_ahead(
+        self,
+        date: str | datetime.date,
+        end: str | datetime.date = None,
+        verbose: bool = False,
+    ):
+        # No latest file available
+        if date == "latest":
+            return self.get_lake_erie_circulation_day_ahead(
+                date="today",
+                verbose=verbose,
+            )
+
+        data = self._download_nyiso_archive(
+            date,
+            end=end,
+            dataset_name=LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET,
+            filename="ErieCirculationDA",
+            verbose=verbose,
+        )
+
+        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MW"})
+
+        data = data[["Time", "MW"]].sort_values("Time")
 
         return data
 
@@ -820,9 +957,9 @@ class NYISO(ISOBase):
 
     def _set_marketname(self, market: Markets) -> str:
         if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
-            marketname = "realtime"
+            marketname = REAL_TIME_LMP_DATASET
         elif market == Markets.DAY_AHEAD_HOURLY:
-            marketname = "damlbmp"
+            marketname = DAM_LMP_DATASET
         else:
             raise RuntimeError(f"LMP Market {market} is not supported")
         return marketname
@@ -844,6 +981,7 @@ class NYISO(ISOBase):
         end=None,
         dataset_name=None,
         filename=None,
+        groupby=None,
         verbose=False,
     ):
         """Download a dataset from NYISO's archive
@@ -857,6 +995,8 @@ class NYISO(ISOBase):
                 the name of the dataset to download
             filename (str): the name of the file to download.
                 if not provided, dataset_name is used
+            groupby (str): the column to group by when converting datetimes. Used
+                to avoid ambiguous datetimes when dst ends
             verbose (bool): print out requested url
 
         Returns:
@@ -891,7 +1031,7 @@ class NYISO(ISOBase):
             log(msg, verbose)
 
             df = pd.read_csv(csv_url)
-            df = _handle_time(df, dataset_name)
+            df = _handle_time(df, dataset_name, groupby=groupby)
             if add_file_date:
                 df["File Date"] = self._get_load_forecast_file_date(date, verbose)
         else:
@@ -934,8 +1074,7 @@ class NYISO(ISOBase):
                         *z.getinfo(csv_filename).date_time,
                         tz=self.default_timezone,
                     )
-
-                df = _handle_time(df, dataset_name)
+                df = _handle_time(df, dataset_name, groupby=groupby)
                 all_dfs.append(df)
 
             df = pd.concat(all_dfs)
@@ -1022,29 +1161,8 @@ class NYISO(ISOBase):
         return df.dropna(how="any", axis="columns")
 
 
-dataset_interval_map = {
-    # (time_type, interval_duration_minutes)
-    # load
-    "pal": ("instantaneous", None),
-    # fuel mix
-    "rtfuelmix": ("instantaneous", None),
-    # load forecast
-    LOAD_FORECAST_DATASET: ("start", 60),
-    # dam lmp
-    "damlbmp": ("start", 60),
-    # rt lmp
-    "realtime": ("end", 5),
-    # real time events
-    "RealTimeEvents": ("instantaneous", None),
-    # btm solar
-    "btmactualforecast": ("start", 60),
-    # btm solar forecast
-    "btmdaforecast": ("start", 60),
-}
-
-
-def _handle_time(df, dataset_name):
-    time_type, interval_duration_minutes = dataset_interval_map[dataset_name]
+def _handle_time(df, dataset_name, groupby=None):
+    time_type, interval_duration_minutes = DATASET_INTERVAL_MAP[dataset_name]
 
     if "Time Stamp" in df.columns:
         time_stamp_col = "Time Stamp"
@@ -1064,9 +1182,12 @@ def _handle_time(df, dataset_name):
             dst,
         )
 
-    elif "Name" in df.columns:
+    elif "Name" in df.columns or groupby:
+        groupby = groupby or "Name"
         # once we group by name, the time series for each group is no longer ambiguous
-        df[time_stamp_col] = df.groupby("Name", group_keys=False)[time_stamp_col].apply(
+        df[time_stamp_col] = df.groupby(groupby, group_keys=False)[
+            time_stamp_col
+        ].apply(
             time_to_datetime,
             "infer",
         )
