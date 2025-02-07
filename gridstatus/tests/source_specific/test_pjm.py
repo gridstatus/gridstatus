@@ -165,14 +165,9 @@ class TestPJM(BaseTestISO):
         ],
     )
     def test_get_lmp_hourly(self, market: Markets):
-        markets = [
-            Markets.REAL_TIME_HOURLY,
-            Markets.DAY_AHEAD_HOURLY,
-        ]
-
-        for m in markets:
-            logger.info(self.iso.iso_id, m)
-            self._lmp_tests(m)
+        with pjm_vcr.use_cassette(f"test_get_lmp_hourly_{market}.yaml"):
+            logger.info(self.iso.iso_id, market)
+            self._lmp_tests(market)
 
     @pytest.mark.parametrize(
         "date, end",
