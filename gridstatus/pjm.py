@@ -2672,7 +2672,6 @@ class PJM(ISOBase):
             params={
                 "fields": "datetime_beginning_utc,ace_mw",
             },
-            interval_duration_min=0.25,
             verbose=verbose,
         )
         df = df.rename(
@@ -2680,5 +2679,5 @@ class PJM(ISOBase):
                 "ace_mw": "Area Control Error",
             },
         )
-
-        return df[["Interval Start", "Interval End", "Area Control Error"]]
+        print(df)
+        return df[["Time", "Area Control Error"]]
