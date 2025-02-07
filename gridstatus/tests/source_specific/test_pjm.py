@@ -12,7 +12,6 @@ import gridstatus
 from gridstatus import PJM, NotSupported
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import _get_pjm_archive_date
-from gridstatus.gs_logging import logger
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
@@ -166,7 +165,6 @@ class TestPJM(BaseTestISO):
     )
     def test_get_lmp_hourly(self, market: Markets):
         with pjm_vcr.use_cassette(f"test_get_lmp_hourly_{market}.yaml"):
-            logger.info(self.iso.iso_id, market)
             self._lmp_tests(market)
 
     @pytest.mark.parametrize(
@@ -250,21 +248,25 @@ class TestPJM(BaseTestISO):
         "date",
         [
             "today",
+            "latest",
         ],
     )
     def test_get_it_sced_lmp_5_min_today(self, date: str):
-        with pjm_vcr.use_cassette("test_get_it_sced_lmp_5_min_today.yaml"):
+        with pjm_vcr.use_cassette(f"test_get_it_sced_lmp_5_min_{date}.yaml"):
             df = self.iso.get_it_sced_lmp_5_min(date)
+
             self._check_it_sced_lmp_5_min(df)
-
             assert df["Interval Start"].min() == self.local_start_of_today()
-
             assert (
                 df["Case Approval Time"].dt.date.unique()
                 == [(self.local_today() - pd.Timedelta(days=1)), self.local_today()]
             ).all()
 
-        assert self.iso.get_it_sced_lmp_5_min("latest").equals(df)
+            # Compare to latest if testing today
+            if date == "today":
+                with pjm_vcr.use_cassette("test_get_it_sced_lmp_5_min_latest.yaml"):
+                    df_latest = self.iso.get_it_sced_lmp_5_min("latest")
+                    pd.testing.assert_frame_equal(df, df_latest)
 
     def test_get_it_sced_lmp_5_min_historical_date_range(self):
         start_date = self.local_today() - pd.Timedelta(days=10)
@@ -578,28 +580,28 @@ class TestPJM(BaseTestISO):
                 pd.Timestamp("2020-02-01 00:00:00-0500", tz="US/Eastern"),
             ]
 
-    def test_pjm_update_dates_cross_archive_date(self, dates: list[pd.Timestamp]):
+    def test_pjm_update_dates_cross_archive_date(self):
         args_dict = {
             "self": gridstatus.PJM(),
             "market": Markets.REAL_TIME_5_MIN,
         }
-        with pjm_vcr.use_cassette(
-            f"test_pjm_update_dates_cross_archive_date_{dates[0].strftime('%Y-%m-%d')}.yaml",
-        ):
-            archive_date = _get_pjm_archive_date(args_dict["market"])
-            start = archive_date - pd.DateOffset(days=1)
-            end = archive_date + pd.DateOffset(days=1)
-            new_dates = gridstatus.pjm.pjm_update_dates([start, end], args_dict)
+        archive_date = _get_pjm_archive_date(args_dict["market"])
+        start = archive_date - pd.DateOffset(days=1)
+        end = archive_date + pd.DateOffset(days=1)
+        new_dates = gridstatus.pjm.pjm_update_dates([start, end], args_dict)
 
-            day_before_archive = archive_date - pd.DateOffset(days=1)
-            before_archive = pd.Timestamp(
-                year=day_before_archive.year,
-                month=day_before_archive.month,
-                day=day_before_archive.day,
-                hour=23,
-                minute=59,
-                tz=args_dict["self"].default_timezone,
-            )
+        day_before_archive = archive_date - pd.DateOffset(days=1)
+        before_archive = pd.Timestamp(
+            year=day_before_archive.year,
+            month=day_before_archive.month,
+            day=day_before_archive.day,
+            hour=23,
+            minute=59,
+            tz=args_dict["self"].default_timezone,
+        )
+        with pjm_vcr.use_cassette(
+            f"test_pjm_update_dates_cross_archive_date_{start.strftime('%Y-%m-%d')}.yaml",
+        ):
             assert new_dates == [
                 start,
                 before_archive,
