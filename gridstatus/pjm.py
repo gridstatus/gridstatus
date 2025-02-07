@@ -2679,5 +2679,4 @@ class PJM(ISOBase):
                 "ace_mw": "Area Control Error",
             },
         )
-        print(df)
         return df[["Time", "Area Control Error"]]
