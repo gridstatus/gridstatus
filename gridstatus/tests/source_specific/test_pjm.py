@@ -2065,3 +2065,40 @@ class TestPJM(BaseTestISO):
             assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
                 hours=1,
             )
+
+    def test_get_area_control_error_date_range(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=20)
+        end = date + pd.Timedelta(days=2)
+        """Test getting area control error data for a date range"""
+        with pjm_vcr.use_cassette(
+            f"test_get_area_control_error_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=date, end=end)
+
+            assert isinstance(df, pd.DataFrame)
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Area Control Error",
+            ]
+
+            assert df["Area Control Error"].dtype in [np.float64, np.int64]
+            assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
+            assert df["Interval End"].max().date() <= pd.Timestamp(end).date()
+            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+                seconds=15,
+            )
+
+    @pytest.mark.parametrize(
+        "date",
+        [
+            "today",
+            "latest",
+        ],
+    )
+    def test_get_area_control_error_today_or_latest(self, date: str):
+        """Test getting area control error data for today and latest"""
+        with pjm_vcr.use_cassette(f"test_get_area_control_error_{date}.yaml"):
+            df = self.iso.get_area_control_error(date)
+
+            assert self.iso.get_area_control_error("latest").equals(df)

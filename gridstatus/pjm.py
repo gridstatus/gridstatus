@@ -2675,5 +2675,10 @@ class PJM(ISOBase):
             interval_duration_min=0.25,
             verbose=verbose,
         )
+        df = df.rename(
+            columns={
+                "ace_mw": "Area Control Error",
+            },
+        )
 
-        return df
+        return df[["Interval Start", "Interval End", "Area Control Error"]]
