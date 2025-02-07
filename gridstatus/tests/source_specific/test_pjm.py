@@ -12,11 +12,11 @@ import gridstatus
 from gridstatus import PJM, NotSupported
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import _get_pjm_archive_date
+from gridstatus.gs_logging import logger
 from gridstatus.tests.base_test_iso import BaseTestISO
-from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
-api_vcr = setup_vcr(
+pjm_vcr = setup_vcr(
     source="pjm",
     record_mode=RECORD_MODE,
 )
@@ -48,29 +48,31 @@ class TestPJM(BaseTestISO):
 
     """get_fuel_mix"""
 
-    @pytest.mark.integration
-    def test_get_fuel_mix_no_data(self):
-        date = "2000-01-14"
-        with pytest.raises(NoDataFoundException):
-            self.iso.get_fuel_mix(start=date)
+    @pytest.mark.parametrize("date", ["2000-01-14"])
+    def test_get_fuel_mix_no_data(self, date):
+        with pjm_vcr.use_cassette(f"test_get_fuel_mix_no_data_{date}.yaml"):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_fuel_mix(start=date)
 
-    @pytest.mark.integration
-    def test_get_fuel_mix_dst_shift_back(self):
-        date = "2021-11-07"
-        df = self.iso.get_fuel_mix(start=date)
+    @pytest.mark.parametrize("date", ["2021-11-07"])
+    def test_get_fuel_mix_dst_shift_back(self, date):
+        with pjm_vcr.use_cassette(f"test_get_fuel_mix_dst_shift_back_{date}.yaml"):
+            df = self.iso.get_fuel_mix(start=date)
 
         assert (
             len(df["Interval Start"]) == 25
         )  # 25 hours due to shift backwards in time
         assert (df["Interval Start"].dt.strftime("%Y-%m-%d") == date).all()
 
-    @pytest.mark.integration
-    def test_get_fuel_mix_dst_shift_forward(self):
-        date = "2021-03-14"
-        df = self.iso.get_fuel_mix(start=date)
+    @pytest.mark.parametrize("date", ["2021-03-14"])
+    def test_get_fuel_mix_dst_shift_forward(self, date):
+        with pjm_vcr.use_cassette(f"test_get_fuel_mix_dst_shift_forward_{date}.yaml"):
+            df = self.iso.get_fuel_mix(start=date)
 
-        assert len(df["Interval Start"]) == 23  # 23 hours due to shift forwards in time
-        assert (df["Interval Start"].dt.strftime("%Y-%m-%d") == date).all()
+            assert (
+                len(df["Interval Start"]) == 23
+            )  # 23 hours due to shift forwards in time
+            assert (df["Interval Start"].dt.strftime("%Y-%m-%d") == date).all()
 
     """get_lmp"""
 
@@ -90,111 +92,139 @@ class TestPJM(BaseTestISO):
         "Loss",
     ]
 
-    @pytest.mark.integration
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-    )
+    @pytest.mark.parametrize("market", [Markets.DAY_AHEAD_HOURLY])
     def test_lmp_date_range(self, market: Markets):
-        super().test_lmp_date_range(market=market)
+        with pjm_vcr.use_cassette(f"test_lmp_date_range_{market}.yaml"):
+            super().test_lmp_date_range(market=market)
 
-    @pytest.mark.integration
-    @with_markets(
-        # Markets.REAL_TIME_5_MIN, # TODO reenable, but too slow
-        Markets.REAL_TIME_HOURLY,
-        Markets.DAY_AHEAD_HOURLY,
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_5_MIN,
+            Markets.REAL_TIME_HOURLY,
+            Markets.DAY_AHEAD_HOURLY,
+        ],
     )
     def test_get_lmp_historical(self, market: Markets):
-        super().test_get_lmp_historical(market=market)
+        with pjm_vcr.use_cassette(f"test_get_lmp_historical_{market}.yaml"):
+            super().test_get_lmp_historical(market=market)
 
-    @pytest.mark.integration
-    @with_markets(
-        Markets.DAY_AHEAD_HOURLY,
-        Markets.REAL_TIME_HOURLY,
-        Markets.REAL_TIME_5_MIN,
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.DAY_AHEAD_HOURLY,
+            Markets.REAL_TIME_HOURLY,
+            Markets.REAL_TIME_5_MIN,
+        ],
     )
     def test_get_lmp_latest(self, market: Markets):
-        if market in [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_HOURLY]:
-            with pytest.raises(NotSupported):
+        with pjm_vcr.use_cassette(f"test_get_lmp_latest_{market}.yaml"):
+            if market in [Markets.DAY_AHEAD_HOURLY, Markets.REAL_TIME_HOURLY]:
+                with pytest.raises(NotSupported):
+                    super().test_get_lmp_latest(market=market)
+            else:
                 super().test_get_lmp_latest(market=market)
-        else:
-            super().test_get_lmp_latest(market=market)
 
-    @pytest.mark.integration
-    @with_markets(
-        Markets.REAL_TIME_HOURLY,
-        Markets.REAL_TIME_5_MIN,
-        Markets.DAY_AHEAD_HOURLY,
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_HOURLY,
+            Markets.REAL_TIME_5_MIN,
+            Markets.DAY_AHEAD_HOURLY,
+        ],
     )
     def test_get_lmp_today(self, market: Markets):
-        if market in [Markets.REAL_TIME_HOURLY]:
-            with pytest.raises(
-                NoDataFoundException,
-                match="No data found for rt_hrl_lmps",
-            ):  # noqa
+        with pjm_vcr.use_cassette(f"test_get_lmp_today_{market}.yaml"):
+            if market in [Markets.REAL_TIME_HOURLY]:
+                with pytest.raises(
+                    NoDataFoundException,
+                    match="No data found for rt_hrl_lmps",
+                ):  # noqa
+                    super().test_get_lmp_today(market=market)
+            else:
                 super().test_get_lmp_today(market=market)
-        else:
-            super().test_get_lmp_today(market=market)
 
-    @pytest.mark.integration
-    def test_get_lmp_no_data(self):
-        # raise no error since date in future
-        future_date = pd.Timestamp.now().normalize() + pd.DateOffset(days=10)
+    @pytest.mark.parametrize(
+        "date",
+        [
+            pd.Timestamp.now().normalize() + pd.DateOffset(days=10),
+        ],
+    )
+    def test_get_lmp_no_data(self, date: pd.Timestamp):
         with pytest.raises(NoDataFoundException):
             self.iso.get_lmp(
-                date=future_date,
+                date=date,
                 market="REAL_TIME_5_MIN",
             )
 
-    @pytest.mark.integration
-    def test_get_lmp_hourly(self):
+    @pytest.mark.parametrize(
+        "market",
+        [
+            Markets.REAL_TIME_HOURLY,
+            Markets.DAY_AHEAD_HOURLY,
+        ],
+    )
+    def test_get_lmp_hourly(self, market: Markets):
         markets = [
             Markets.REAL_TIME_HOURLY,
             Markets.DAY_AHEAD_HOURLY,
         ]
 
         for m in markets:
-            print(self.iso.iso_id, m)
+            logger.info(self.iso.iso_id, m)
             self._lmp_tests(m)
 
-    @pytest.mark.integration
-    def test_get_lmp_returns_latest(self):
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("04-06-2023 17:45", "04-06-2023 17:50"),
+        ],
+    )
+    def test_get_lmp_returns_latest(self, date: str, end: str):
         # this interval has two LMP versions
         # make sure only one is returned
         # for each location
-        df = self.iso.get_lmp(
-            start="04-06-2023 17:45",
-            end="04-06-2023 17:50",
-            market="REAL_TIME_5_MIN",
-        )
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        assert df.duplicated(["Interval Start", "Location Id"]).sum() == 0
+        with pjm_vcr.use_cassette(f"test_get_lmp_returns_latest_{date}_{end}.yaml"):
+            df = self.iso.get_lmp(
+                start=date,
+                end=end,
+                market="REAL_TIME_5_MIN",
+            )
+            assert isinstance(df, pd.DataFrame)
+            assert not df.empty
+            assert df.duplicated(["Interval Start", "Location Id"]).sum() == 0
 
-    @pytest.mark.slow
-    @pytest.mark.integration
-    def test_get_lmp_5_min(self):
-        self._lmp_tests(Markets.REAL_TIME_5_MIN)
+    @pytest.mark.parametrize(
+        "date",
+        [
+            "Oct 20, 2022",
+        ],
+    )
+    def test_get_lmp_query_by_location_type(self, date: str):
+        with pjm_vcr.use_cassette(f"test_get_lmp_query_by_location_type_{date}.yaml"):
+            df = self.iso.get_lmp(
+                date=date,
+                market="DAY_AHEAD_HOURLY",
+                location_type="ZONE",
+                verbose=True,
+            )
+            assert isinstance(df, pd.DataFrame)
 
-    @pytest.mark.integration
-    def test_get_lmp_query_by_location_type(self):
-        df = self.iso.get_lmp(
-            date="Oct 20, 2022",
-            market="DAY_AHEAD_HOURLY",
-            location_type="ZONE",
-            verbose=True,
-        )
-        df
+    @pytest.mark.parametrize(
+        "date",
+        [
+            "Jan 1, 2022",
+        ],
+    )
+    def test_get_lmp_all_pnodes(self, date: str):
+        with pjm_vcr.use_cassette(f"test_get_lmp_all_pnodes_{date}.yaml"):
+            df = self.iso.get_lmp(
+                date=date,
+                market="REAL_TIME_HOURLY",
+                locations="ALL",
+            )
 
-    @pytest.mark.slow
-    @pytest.mark.integration
-    def test_get_lmp_all_pnodes(self):
-        df = self.iso.get_lmp(
-            date="Jan 1, 2022",
-            market="REAL_TIME_HOURLY",
-            locations="ALL",
-        )
-
-        assert len(df) > 0
+            assert len(df) > 0
 
     """get_it_sced_lmp_5_min"""
 
@@ -544,7 +574,7 @@ class TestPJM(BaseTestISO):
     """NOTE(kladar): These are the new tests, building up unit tests with mock data along the way. If new
     technologies or resolutions are added, the tests should be straightforward to update."""
 
-    @api_vcr.use_cassette(
+    @pjm_vcr.use_cassette(
         "test_sample_forecast_data.yaml",
         filter_query_parameters=["api_key"],
     )
@@ -753,35 +783,37 @@ class TestPJM(BaseTestISO):
         # This data also includes one forecast time on the next day
         assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
 
-    @pytest.mark.integration
     def test_get_wind_forecast_5_min_today_or_latest(self):
-        df = self.iso.get_wind_forecast_5_min("today")
-        self._check_wind_forecast(df)
-        print(df)
-        assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval End"].max() >= self.local_start_of_today() + pd.Timedelta(
-            hours=6,
-        )
+        with pjm_vcr.use_cassette("test_get_wind_forecast_5_min_today_or_latest.yaml"):
+            df = self.iso.get_wind_forecast_5_min("today")
+            self._check_wind_forecast(df)
+            assert df["Interval Start"].min() == self.local_start_of_today()
+            assert df[
+                "Interval End"
+            ].max() >= self.local_start_of_today() + pd.Timedelta(
+                hours=6,
+            )
 
-        assert (
-            df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
-            == self.local_today()
-        ).all()
+            assert (
+                df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+                == self.local_today()
+            ).all()
 
-        assert self.iso.get_wind_forecast_5_min("latest").equals(df)
+            assert self.iso.get_wind_forecast_5_min("latest").equals(df)
 
     @pytest.mark.integration
     def test_get_wind_forecast_5_min_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
-        df = self.iso.get_wind_forecast_5_min(past_date)
-        print(df)
-        self._check_wind_forecast(df)
-        assert df["Interval Start"].min() == self.local_start_of_day(
-            past_date,
-        )
-        assert df["Interval End"].max() >= self.local_start_of_day(
-            past_date,
-        ) + pd.Timedelta(hours=6)
+        with pjm_vcr.use_cassette("test_get_wind_forecast_5_min_historical_date.yaml"):
+            df = self.iso.get_wind_forecast_5_min(past_date)
+            self._check_wind_forecast(df)
+
+            assert df["Interval Start"].min() == self.local_start_of_day(
+                past_date,
+            )
+            assert df["Interval End"].max() >= self.local_start_of_day(
+                past_date,
+            ) + pd.Timedelta(hours=6)
 
         assert df["Publish Time"].min() == self.local_start_of_day(past_date)
         # When end date is generated this data
@@ -1835,7 +1867,7 @@ class TestPJM(BaseTestISO):
     )
     def test_get_marginal_value_real_time_5_min(self, date, end):
         cassette_name = f"test_get_marginal_value_real_time_5_min_{date}_{end}.yaml"
-        with api_vcr.use_cassette(cassette_name):
+        with pjm_vcr.use_cassette(cassette_name):
             result = self.iso.get_marginal_value_real_time_5_min(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
@@ -1866,7 +1898,7 @@ class TestPJM(BaseTestISO):
     )
     def test_get_marginal_value_day_ahead_hourly(self, date, end):
         cassette_name = f"test_get_marginal_value_day_ahead_hourly_{date}_{end}.yaml"
-        with api_vcr.use_cassette(cassette_name):
+        with pjm_vcr.use_cassette(cassette_name):
             result = self.iso.get_marginal_value_day_ahead_hourly(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
@@ -1892,7 +1924,7 @@ class TestPJM(BaseTestISO):
         cassette_name = (
             f"test_get_transmission_constraints_day_ahead_hourly_{date}_{end}.yaml"
         )
-        with api_vcr.use_cassette(cassette_name):
+        with pjm_vcr.use_cassette(cassette_name):
             result = self.iso.get_transmission_constraints_day_ahead_hourly(
                 date=date,
                 end=end,
@@ -1915,83 +1947,88 @@ class TestPJM(BaseTestISO):
             assert result["Contingency Facility"].dtype == object
             assert result["Duration"].dtype in [np.int64, np.float64]
 
-    @api_vcr.use_cassette("test_get_settlements_verified_lmp_5_min_date_range.yaml")
     def test_get_settlements_verified_lmp_5_min_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=30)
         end = start + pd.Timedelta(hours=4)
 
-        df = self.iso.get_settlements_verified_lmp_5_min(start=start, end=end)
+        with pjm_vcr.use_cassette(
+            f"test_get_settlements_verified_lmp_5_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_settlements_verified_lmp_5_min(start=start, end=end)
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Location Id",
-            "Location Name",
-            "Location Type",
-            "Voltage",
-            "Equipment",
-            "Zone",
-            "LMP",
-            "Energy",
-            "Congestion",
-            "Loss",
-        ]
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location Id",
+                "Location Name",
+                "Location Type",
+                "Voltage",
+                "Equipment",
+                "Zone",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            minutes=5,
-        )
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
+            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+                minutes=5,
+            )
 
-    @api_vcr.use_cassette("test_get_settlements_verified_lmp_hourly_date_range.yaml")
     def test_get_settlements_verified_lmp_hourly_date_range(self):
         # Data is only available more than 30 days in the past
         start = self.local_start_of_today() - pd.DateOffset(days=32)
         end = start + pd.Timedelta(hours=4)
+        with pjm_vcr.use_cassette(
+            f"test_get_settlements_verified_lmp_hourly_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_settlements_verified_lmp_hourly(start=start, end=end)
 
-        df = self.iso.get_settlements_verified_lmp_hourly(start=start, end=end)
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location Id",
+                "Location Name",
+                "Location Type",
+                "Voltage",
+                "Equipment",
+                "Zone",
+                "LMP RT",
+                "Energy RT",
+                "Congestion RT",
+                "Loss RT",
+                "LMP DA",
+                "Energy DA",
+                "Congestion DA",
+                "Loss DA",
+            ]
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Location Id",
-            "Location Name",
-            "Location Type",
-            "Voltage",
-            "Equipment",
-            "Zone",
-            "LMP RT",
-            "Energy RT",
-            "Congestion RT",
-            "Loss RT",
-            "LMP DA",
-            "Energy DA",
-            "Congestion DA",
-            "Loss DA",
-        ]
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
+            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+                hours=1,
+            )
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            hours=1,
-        )
-
-    @api_vcr.use_cassette("test_get_day_ahead_demand_bids_date_range.yaml")
-    def test_get_day_ahead_demand_bids_date_range(self):
+    def test_get_day_ahead_demand_bids_date_range(self, date: str):
         start = self.local_start_of_today() - pd.DateOffset(days=30)
         end = start + pd.Timedelta(hours=4)
 
-        df = self.iso.get_day_ahead_demand_bids(start=start, end=end)
+        with pjm_vcr.use_cassette(
+            f"test_get_day_ahead_demand_bids_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_day_ahead_demand_bids(start=start, end=end)
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Area",
-            "Demand Bid",
-        ]
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Area",
+                "Demand Bid",
+            ]
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            hours=1,
-        )
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
+            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+                hours=1,
+            )
