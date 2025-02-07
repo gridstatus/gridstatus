@@ -2077,17 +2077,12 @@ class TestPJM(BaseTestISO):
 
             assert isinstance(df, pd.DataFrame)
             assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
+                "Time",
                 "Area Control Error",
             ]
 
             assert df["Area Control Error"].dtype in [np.float64, np.int64]
-            assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
-            assert df["Interval End"].max().date() <= pd.Timestamp(end).date()
-            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-                seconds=15,
-            )
+            assert df["Time"].min().date() == pd.Timestamp(date).date()
 
     @pytest.mark.parametrize(
         "date",
