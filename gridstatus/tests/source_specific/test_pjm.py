@@ -2047,12 +2047,12 @@ class TestPJM(BaseTestISO):
                 hours=1,
             )
 
-    def test_get_day_ahead_demand_bids_date_range(self, date: str):
+    def test_get_day_ahead_demand_bids_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=30)
         end = start + pd.Timedelta(hours=4)
 
         with pjm_vcr.use_cassette(
-            f"test_get_day_ahead_demand_bids_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_day_ahead_demand_bids_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_day_ahead_demand_bids(start=start, end=end)
 
