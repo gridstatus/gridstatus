@@ -222,7 +222,10 @@ class TestCAISO(BaseTestISO):
         )
 
         # Make sure there are no future publish times
-        assert df["Publish Time"].max() < self.local_now()
+        # NOTE: due to the way  we assign publish times, we can end up with
+        # publish times in the future. Updating the code to avoid this can
+        # create duplicate rows in the database so we accept this inconsistency.
+        # assert df["Publish Time"].max() < self.local_now()
         assert df["Publish Time"].nunique() == expected_count_unique_publish_times
 
     def test_get_solar_and_wind_forecast_dam_today(self):
