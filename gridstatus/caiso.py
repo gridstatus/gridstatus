@@ -1159,10 +1159,11 @@ class CAISO(ISOBase):
             values="MW",
         ).reset_index()
 
-        # Add the publish time
         df["date"] = df["Interval Start"].dt.date
         unique_dates = sorted(df["date"].unique())
 
+        # Add the publish time based on the date of the forecast and the time of the
+        # forecast provided on OASIS
         # Solar and wind forecast DAM is published at 7:00 AM
         # http://oasis.caiso.com/mrioasis/logon.do > Atlas Reference > Publications > OASIS Publications Schedule  # noqa
         for forecast_date in unique_dates:
