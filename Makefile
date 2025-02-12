@@ -119,4 +119,4 @@ docs: clean
 
 .PHONY: mypy-coverage
 mypy-coverage:
-	poetry run mypy --html-report mypy_report gridstatus/
+	poetry run mypy --html-report mypy_report_$(shell date +%Y%m%d) gridstatus/
