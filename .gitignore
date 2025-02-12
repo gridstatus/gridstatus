@@ -60,7 +60,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
-mypy_report/
+mypy_report*/
 # Ignore local vcr cassette fixtures
 **/vcr_cassettes/
 
