@@ -610,6 +610,55 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].min() == self.local_start_of_day("2025-01-01")
         assert df["Interval End"].max() == self.local_start_of_today()
 
+    """get_hoep_real_time_hourly"""
+
+    def test_get_hoep_real_time_hourly_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=3)
+        end = start + pd.Timedelta(hours=4)
+
+        with file_vcr.use_cassette(
+            f"test_get_hoep_real_time_hourly_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_hoep_real_time_hourly(start, end)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "HOEP"]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == self.local_start_of_day(
+            end.tz_localize(None) + pd.DateOffset(days=1),
+        )
+
+    """get_hoep_historical_hourly"""
+
+    def test_get_hoep_historical_hourly_date_range(self):
+        start = pd.Timestamp("2024-02-01")
+
+        with file_vcr.use_cassette(
+            f"test_get_hoep_historical_hourly_date_range_{start.date()}.yaml",
+        ):
+            df = self.iso.get_hoep_historical_hourly(start)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "HOEP",
+            "Hour 1 Predispatch",
+            "Hour 2 Predispatch",
+            "Hour 3 Predispatch",
+            "OR 10 Min Sync",
+            "OR 10 Min non-sync",
+            "OR 30 Min",
+        ]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+        assert df["Interval Start"].min() == self.local_start_of_day("2024-01-01")
+        assert df["Interval End"].max() == self.local_start_of_day("2025-01-01")
+
     """get_resource_adequacy_report"""
 
     # NOTE(kladar): we will see how future data rolls in and historical rolls off
