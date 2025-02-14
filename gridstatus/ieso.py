@@ -84,6 +84,26 @@ HOUR_INTERVAL = 1
 # Default namespace used in the XML files
 NAMESPACES_FOR_XML = {"": "http://www.ieso.ca/schema"}
 
+# Maps abbreviations used in the MCP real time data to the full names
+# used in the historical data
+IESO_ZONE_MAPPING = {
+    "MBSI": "Manitoba",
+    "PQSK": "Manitoba SK",
+    "MISI": "Michigan",
+    "MNSI": "Minnesota",
+    "NYSI": "New-York",
+    "ONZN": "Ontario",
+    "PQAT": "Quebec AT",
+    "PQBE": "Quebec B5D.B31L",
+    "PQDZ": "Quebec D4Z",
+    "PQDA": "Quebec D5A",
+    "PQHZ": "Quebec H4Z",
+    "PQHA": "Quebec H9A",
+    "PQPC": "Quebec P33C",
+    "PQQC": "Quebec Q4C",
+    "PQXY": "Quebec X2Y",
+}
+
 
 class IESO(ISOBase):
     """Independent Electricity System Operator (IESO)"""
@@ -916,6 +936,7 @@ class IESO(ISOBase):
                 )
 
         data["Delivery Date"] = date.date()
+        data["Zone"] = data["Zone"].map(IESO_ZONE_MAPPING)
 
         return self._handle_mcp_data(data)
 
