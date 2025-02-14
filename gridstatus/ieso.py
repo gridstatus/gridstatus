@@ -5,6 +5,7 @@ import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Literal
+from urllib.error import HTTPError
 
 import pandas as pd
 import requests
@@ -883,6 +884,83 @@ class IESO(ISOBase):
                 )
 
         return interval_load_demand_triples
+
+    @support_date_range(frequency="DAY_START")
+    def get_hoep_real_time_hourly(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if utils.is_today(date, tz=self.default_timezone):
+            # This file always contains the most recent file for today
+            url = "https://reports-public.ieso.ca/public/DispUnconsHOEP/PUB_DispUnconsHOEP.csv"  # noqa: E501
+        else:
+            # The most recent file for a give date does not have a version number
+            url = f"https://reports-public.ieso.ca/public/DispUnconsHOEP/PUB_DispUnconsHOEP_{date.strftime('%Y%m%d')}.csv"  # noqa: E501
+
+        # Data is only available for a limited number of days through this method
+        try:
+            raw_data = pd.read_csv(url)
+        except HTTPError as e:
+            if e.code == 404:
+                raise NotSupported(
+                    f"HOEP data is not available for the requested date {date}. Try using the historical method.",  # noqa: E501
+                )
+            raise
+
+        # Extract the date from the first row of the data
+        data_date = raw_data.columns[1]
+
+        # Extract the actual data which starts from the 3rd row and is only
+        # the hour ending and the HOEP columns
+        data = raw_data.iloc[2:, :2]
+        data.columns = ["hour_ending", "hoep"]
+
+        # Convert the hour ending to a datetime object using the data date. Subtract 1
+        # from the hour ending to get the interval start time
+        data["interval_end"] = (
+            pd.to_datetime(data_date)
+            + pd.to_timedelta(data["hour_ending"].astype(int), unit="h")
+        ).dt.tz_localize(self.default_timezone)
+        data["interval_start"] = data["interval_end"] - pd.Timedelta(hours=1)
+
+        data = data[["interval_start", "interval_end", "hoep"]]
+
+        return data.sort_values("interval_start")
+
+    @support_date_range(frequency="YEAR_START")
+    def get_hoep_historical_hourly(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
+        url = f"https://reports-public.ieso.ca/public/PriceHOEPPredispOR/PUB_PriceHOEPPredispOR_{date.year}.csv"  # noqa: E501
+
+        data = pd.read_csv(url, skiprows=1, header=2)
+
+        data["Interval End"] = (
+            pd.to_datetime(data["Date"]) + pd.to_timedelta(data["Hour"], unit="h")
+        ).dt.tz_localize(self.default_timezone)
+
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "HOEP",
+                "Hour 1 Predispatch",
+                "Hour 2 Predispatch",
+                "Hour 3 Predispatch",
+                "OR 10 Min Sync",
+                "OR 10 Min non-sync",
+                "OR 30 Min",
+            ]
+        ]
+
+        return data.sort_values("Interval Start")
 
     def _request(self, url: str, verbose: bool = False):
         logger.info(f"Fetching URL: {url}")
