@@ -1009,7 +1009,13 @@ class IESO(ISOBase):
 
         # Data is only available for a limited number of days through this method
         try:
-            raw_data = pd.read_csv(url)
+            data = pd.read_csv(
+                url,
+                skiprows=4,
+                usecols=[0, 1],
+                header=None,
+                names=["Hour Ending", "HOEP"],
+            )
         except HTTPError as e:
             if e.code == 404:
                 raise NotSupported(
@@ -1017,18 +1023,10 @@ class IESO(ISOBase):
                 )
             raise
 
-        # Extract the date from the first row of the data
-        data_date = raw_data.columns[1]
-
-        # Extract the actual data which starts from the 3rd row and is only
-        # the hour ending and the HOEP columns
-        data = raw_data.iloc[2:, :2]
-        data.columns = ["Hour Ending", "HOEP"]
-
         # Convert the hour ending to a datetime object using the data date. Subtract 1
         # from the hour ending to get the interval start time
         data["Interval End"] = (
-            pd.to_datetime(data_date)
+            date.normalize().tz_localize(None)
             + pd.to_timedelta(data["Hour Ending"].astype(int), unit="h")
         ).dt.tz_localize(self.default_timezone)
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
