@@ -552,14 +552,14 @@ class TestIESO(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Zone",
+            "Location",
             "10 Min Sync",
             "10 Min non-sync",
             "30 Min Reserves",
             "Energy",
         ]
 
-        assert sorted(df["Zone"].unique()) == [
+        assert sorted(df["Location"].unique()) == [
             "Manitoba",
             "Manitoba SK",
             "Michigan",
@@ -641,6 +641,7 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_hoep_historical_hourly(start)
 
+        # NOTE: different columns from real-time
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",

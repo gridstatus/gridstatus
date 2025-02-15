@@ -927,7 +927,7 @@ class IESO(ISOBase):
                 skiprows=4,
                 header=None,
                 usecols=[0, 1, 2, 3, 4],
-                names=["Hour Ending", "Interval", "Component", "Zone", "Price"],
+                names=["Hour Ending", "Interval", "Component", "Location", "Price"],
             )
         except HTTPError as e:
             if e.code == 404:
@@ -936,7 +936,7 @@ class IESO(ISOBase):
                 )
 
         data["Delivery Date"] = date.date()
-        data["Zone"] = data["Zone"].map(IESO_ZONE_MAPPING)
+        data["Location"] = data["Location"].map(IESO_ZONE_MAPPING)
 
         return self._handle_mcp_data(data)
 
@@ -964,7 +964,7 @@ class IESO(ISOBase):
             "Delivery Date",
             "Hour Ending",
             "Interval",
-            "Zone",
+            "Location",
             "Component",
             "Price",
         ]
@@ -983,7 +983,7 @@ class IESO(ISOBase):
 
         # Pivot so each component is a column
         data = data.pivot_table(
-            index=["Interval Start", "Interval End", "Zone"],
+            index=["Interval Start", "Interval End", "Location"],
             columns="Component",
             values="Price",
         ).reset_index()
@@ -1001,7 +1001,7 @@ class IESO(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "Zone",
+                "Location",
                 "10 Min Sync",
                 "10 Min non-sync",
                 "30 Min Reserves",
@@ -1009,7 +1009,7 @@ class IESO(ISOBase):
             ]
         ]
 
-        return data.sort_values(["Interval Start", "Zone"])
+        return data.sort_values(["Interval Start", "Location"])
 
     @support_date_range(frequency="DAY_START")
     def get_hoep_real_time_hourly(
