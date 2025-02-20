@@ -418,3 +418,105 @@ def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
         tz=HENRY_HUB_TIMEZONE,
     )
     assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
+
+
+OPERATING_POWER_PLANT_COLUMNS = [
+    "Period",
+    "Entity ID",
+    "Entity Name",
+    "Plant ID",
+    "Plant Name",
+    "Plant State",
+    "County",
+    "Balancing Authority Code",
+    "Sector",
+    "Generator ID",
+    "Unit Code",
+    "Nameplate Capacity",
+    "Net Summer Capacity",
+    "Net Winter Capacity",
+    "Technology",
+    "Energy Source Code",
+    "Prime Mover Code",
+    "Operating Month",
+    "Operating Year",
+    "Planned Retirement Month",
+    "Planned Retirement Year",
+    "Status",
+    "Nameplate Energy Capacity",
+    "DC Net Capacity",
+    "Planned Derate Year",
+    "Planned Derate Month",
+    "Planned Derate of Summer Capacity",
+    "Planned Uprate Year",
+    "Planned Uprate Month",
+    "Planned Uprate of Summer Capacity",
+    "Latitude",
+    "Longitude",
+]
+
+PLANNED_POWER_PLANT_COLUMNS = [
+    "Period",
+    "Entity ID",
+    "Entity Name",
+    "Plant ID",
+    "Plant Name",
+    "Plant State",
+    "County",
+    "Balancing Authority Code",
+    "Sector",
+    "Generator ID",
+    "Unit Code",
+    "Nameplate Capacity",
+    "Net Summer Capacity",
+    "Net Winter Capacity",
+    "Technology",
+    "Energy Source Code",
+    "Prime Mover Code",
+    "Planned Operation Month",
+    "Planned Operation Year",
+    "Status",
+    "Latitude",
+    "Longitude",
+]
+
+RETIRED_POWER_PLANT_COLUMNS = [
+    "Period",
+    "Entity ID",
+    "Entity Name",
+    "Plant ID",
+    "Plant Name",
+    "Plant State",
+    "County",
+    "Balancing Authority Code",
+    "Sector",
+    "Generator ID",
+    "Unit Code",
+    "Nameplate Capacity",
+    "Net Summer Capacity",
+    "Net Winter Capacity",
+    "Technology",
+    "Energy Source Code",
+    "Prime Mover Code",
+    "Operating Month",
+    "Operating Year",
+    "Retirement Month",
+    "Retirement Year",
+    "Nameplate Energy Capacity",
+    "DC Net Capacity",
+    "Latitude",
+    "Longitude",
+]
+
+
+def test_get_power_plants():
+    # The files for the most recent month are generally available 24-26 days
+    # after the end of the month.
+    date = pd.Timestamp.utcnow() - pd.DateOffset(days=60)
+
+    with api_vcr.use_cassette(f"test_get_power_plants_{date.date()}"):
+        data = EIA().get_power_plants(date)
+
+    assert data["operating"].columns.tolist() == OPERATING_POWER_PLANT_COLUMNS
+    assert data["planned"].columns.tolist() == PLANNED_POWER_PLANT_COLUMNS
+    assert data["retired"].columns.tolist() == RETIRED_POWER_PLANT_COLUMNS
