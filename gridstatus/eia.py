@@ -5,6 +5,7 @@ import os
 import re
 import warnings
 from pathlib import Path
+from zipfile import BadZipFile
 
 import numpy as np
 import pandas as pd
@@ -25,6 +26,7 @@ HENRY_HUB_TIMEZONE = "US/Central"
 
 class EIA:
     BASE_URL = "https://api.eia.gov/v2/"
+    default_timezone = HENRY_HUB_TIMEZONE
 
     def __init__(self, api_key=None):
         """Initialize EIA API object
@@ -53,8 +55,7 @@ class EIA:
             facet_list = response["facets"]
         except KeyError:
             msg = (
-                f"'facets' not found in keys. \n"
-                f"Data route: {route} is not an endpoint."
+                f"'facets' not found in keys. \nData route: {route} is not an endpoint."
             )
             warnings.warn(msg, UserWarning)
             return
@@ -624,6 +625,67 @@ class EIA:
         )
 
         return data
+
+    def get_power_plants(
+        self,
+        date: str | datetime.datetime,
+        end: str | datetime.datetime = None,
+        verbose: bool = False,
+    ):
+        date = utils._handle_date(date, "UTC")
+        month_name = date.strftime("%B").lower()
+        year = date.year
+        # The most recent file doesn't have "archive" in the path. Since we don't know
+        # exactly when a file comes out, use a try and except approach to the URL.
+        url = f"https://www.eia.gov/electricity/data/eia860m/archive/xls/{month_name}_generator{year}.xlsx"
+
+        if verbose:
+            logger.info(f"Downloading EIA power plant data from {url}")
+
+        # Test if the file exists
+        try:
+            file = pd.ExcelFile(url, engine="openpyxl")
+        except BadZipFile:
+            url = url.replace("archive/", "")
+            try:
+                if verbose:
+                    logger.info(f"Downloading EIA power plant data from {url}")
+                file = pd.ExcelFile(url, engine="openpyxl")
+            except BadZipFile:
+                raise ValueError(f"EIA power plant data not found for {date}")
+
+        period = date.replace(day=1).date()
+
+        operating_data = file.parse("Operating", skiprows=2, skipfooter=2)
+        planned_data = file.parse("Planned", skiprows=2, skipfooter=2)
+        retired_data = file.parse("Retired", skiprows=2, skipfooter=2)
+
+        return {
+            "operating": self._handle_power_plant_data(operating_data, period),
+            "planned": self._handle_power_plant_data(planned_data, period),
+            "retired": self._handle_power_plant_data(retired_data, period),
+        }
+
+    def _handle_power_plant_data(
+        self,
+        df: pd.DataFrame,
+        period: datetime.date,
+    ) -> pd.DataFrame:
+        df.insert(0, "Period", period)
+
+        df = df.rename(
+            columns={
+                "Nameplate Capacity (MW)": "Nameplate Capacity",
+                "Net Summer Capacity (MW)": "Net Summer Capacity",
+                "Net Winter Capacity (MW)": "Net Winter Capacity",
+                "Nameplate Energy Capacity (MWh)": "Nameplate Energy Capacity",
+                "DC Net Capacity (MW)": "DC Net Capacity",
+                "Planned Derate of Summer Capacity (MW)": "Planned Derate of Summer Capacity",
+                "Planned Uprate of Summer Capacity (MW)": "Planned Uprate of Summer Capacity",
+            },
+        ).drop(columns=["Google Map", "Bing Map"])
+
+        return df
 
 
 def _handle_time(df, frequency="1h"):
