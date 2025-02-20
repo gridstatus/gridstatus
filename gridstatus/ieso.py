@@ -1044,8 +1044,6 @@ class IESO(ISOBase):
                 )
             raise
 
-        # Convert the hour ending to a datetime object using the data date. Subtract 1
-        # from the hour ending to get the interval start time
         data["Interval End"] = (
             date.normalize().tz_localize(None)
             + pd.to_timedelta(data["Hour Ending"].astype(int), unit="h")
