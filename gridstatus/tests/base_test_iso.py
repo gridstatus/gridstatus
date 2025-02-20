@@ -15,7 +15,7 @@ class TestHelperMixin:
     def local_today(self):
         return self.local_now().date()
 
-    def local_start_of_day(self, date):
+    def local_start_of_day(self, date: str | pd.Timestamp | None):
         return pd.Timestamp(date).tz_localize(self.iso.default_timezone).normalize()
 
     def local_start_of_today(self):
