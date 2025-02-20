@@ -5,6 +5,7 @@ import os
 import re
 import warnings
 from pathlib import Path
+from typing import Dict
 from zipfile import BadZipFile
 
 import numpy as np
@@ -631,7 +632,7 @@ class EIA:
         date: str | datetime.datetime,
         end: str | datetime.datetime = None,
         verbose: bool = False,
-    ):
+    ) -> Dict[str, pd.DataFrame]:
         date = utils._handle_date(date, "UTC")
         month_name = date.strftime("%B").lower()
         year = date.year
