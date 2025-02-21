@@ -4,6 +4,11 @@ import pytest
 
 import gridstatus
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
+from gridstatus.eia_constants import (
+    OPERATING_POWER_PLANT_COLUMNS,
+    PLANNED_POWER_PLANT_COLUMNS,
+    RETIRED_POWER_PLANT_COLUMNS,
+)
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
@@ -420,95 +425,6 @@ def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
     assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
 
 
-OPERATING_POWER_PLANT_COLUMNS = [
-    "Period",
-    "Entity ID",
-    "Entity Name",
-    "Plant ID",
-    "Plant Name",
-    "Plant State",
-    "County",
-    "Balancing Authority Code",
-    "Sector",
-    "Generator ID",
-    "Unit Code",
-    "Nameplate Capacity",
-    "Net Summer Capacity",
-    "Net Winter Capacity",
-    "Technology",
-    "Energy Source Code",
-    "Prime Mover Code",
-    "Operating Month",
-    "Operating Year",
-    "Planned Retirement Month",
-    "Planned Retirement Year",
-    "Status",
-    "Nameplate Energy Capacity",
-    "DC Net Capacity",
-    "Planned Derate Year",
-    "Planned Derate Month",
-    "Planned Derate of Summer Capacity",
-    "Planned Uprate Year",
-    "Planned Uprate Month",
-    "Planned Uprate of Summer Capacity",
-    "Latitude",
-    "Longitude",
-]
-
-PLANNED_POWER_PLANT_COLUMNS = [
-    "Period",
-    "Entity ID",
-    "Entity Name",
-    "Plant ID",
-    "Plant Name",
-    "Plant State",
-    "County",
-    "Balancing Authority Code",
-    "Sector",
-    "Generator ID",
-    "Unit Code",
-    "Nameplate Capacity",
-    "Net Summer Capacity",
-    "Net Winter Capacity",
-    "Technology",
-    "Energy Source Code",
-    "Prime Mover Code",
-    "Planned Operation Month",
-    "Planned Operation Year",
-    "Status",
-    "Latitude",
-    "Longitude",
-]
-
-RETIRED_POWER_PLANT_COLUMNS = [
-    "Period",
-    "Entity ID",
-    "Entity Name",
-    "Plant ID",
-    "Plant Name",
-    "Plant State",
-    "County",
-    "Balancing Authority Code",
-    "Sector",
-    "Generator ID",
-    "Unit Code",
-    "Nameplate Capacity",
-    "Net Summer Capacity",
-    "Net Winter Capacity",
-    "Technology",
-    "Energy Source Code",
-    "Prime Mover Code",
-    "Operating Month",
-    "Operating Year",
-    "Retirement Month",
-    "Retirement Year",
-    "Nameplate Energy Capacity",
-    "DC Net Capacity",
-    "Latitude",
-    "Longitude",
-]
-
-
 def test_get_power_plants_relative_date():
     # The files for the most recent month are generally available 24-26 days
     # after the end of the month.
@@ -528,17 +444,19 @@ def test_get_power_plants_relative_date():
 
 
 def test_get_power_plants_absolute_date():
-    # First month with both Summer and Winter Capacity
-    date = pd.Timestamp("2016-07-22")
+    # First month with all columns
+    date = pd.Timestamp("2022-04-22")
 
     with api_vcr.use_cassette(f"test_get_power_plants_absolute_date_{date.date()}"):
         data = EIA().get_power_plants(date)
 
-    for key, columns in [
-        ("operating", OPERATING_POWER_PLANT_COLUMNS),
-        ("planned", PLANNED_POWER_PLANT_COLUMNS),
-        ("retired", RETIRED_POWER_PLANT_COLUMNS),
+    for key, columns, expected_rows in [
+        # The row values come from inspecting the spreadsheet
+        ("operating", OPERATING_POWER_PLANT_COLUMNS, 24_766),
+        ("planned", PLANNED_POWER_PLANT_COLUMNS, 1_397),
+        ("retired", RETIRED_POWER_PLANT_COLUMNS, 5_857),
     ]:
         dataset = data[key]
         assert dataset.columns.tolist() == columns
-        assert dataset["Period"].unique() == pd.Timestamp("2016-07-01")
+        assert dataset.shape[0] == expected_rows
+        assert dataset["Period"].unique() == pd.Timestamp("2022-04-01", tz="UTC")
