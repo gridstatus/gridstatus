@@ -546,6 +546,122 @@ class TestIESO(BaseTestISO):
             "WIND",
         ]
 
+    """get_mcp_real_time_5_min"""
+
+    def _check_mcp(self, df: pd.DataFrame) -> None:
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Non-sync 10 Min",
+            "Sync 10 Min",
+            "Reserves 30 Min",
+            "Energy",
+        ]
+
+        assert sorted(df["Location"].unique()) == [
+            "Manitoba",
+            "Manitoba SK",
+            "Michigan",
+            "Minnesota",
+            "New-York",
+            "Ontario",
+            "Quebec AT",
+            "Quebec B5D.B31L",
+            "Quebec D4Z",
+            "Quebec D5A",
+            "Quebec H4Z",
+            "Quebec H9A",
+            "Quebec P33C",
+            "Quebec Q4C",
+            "Quebec X2Y",
+        ]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+    def test_get_mcp_real_time_5_min_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=3)
+        end = start + pd.Timedelta(hours=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_mcp_real_time_5_min_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_mcp_real_time_5_min(start, end)
+
+        self._check_mcp(df)
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+    """get_mcp_historical_5_min"""
+
+    def test_get_mcp_historical_5_min_date_range(self):
+        start = pd.Timestamp("2025-02-01")
+
+        with file_vcr.use_cassette(
+            f"test_get_mcp_historical_5_min_date_range_{start.date()}.yaml",
+        ):
+            df = self.iso.get_mcp_historical_5_min(start)
+
+        self._check_mcp(df)
+
+        # Historical data starts at the beginning of the year and runs through
+        # the end of the previous day
+        assert df["Interval Start"].min() == self.local_start_of_day("2025-01-01")
+        assert df["Interval End"].max() == self.local_start_of_today()
+
+    """get_hoep_real_time_hourly"""
+
+    def test_get_hoep_real_time_hourly_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=3)
+        end = start + pd.Timedelta(hours=4)
+
+        with file_vcr.use_cassette(
+            f"test_get_hoep_real_time_hourly_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_hoep_real_time_hourly(start, end)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "HOEP"]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == self.local_start_of_day(
+            end.tz_localize(None) + pd.DateOffset(days=1),
+        )
+
+    """get_hoep_historical_hourly"""
+
+    def test_get_hoep_historical_hourly_date_range(self):
+        start = pd.Timestamp("2024-02-01")
+
+        with file_vcr.use_cassette(
+            f"test_get_hoep_historical_hourly_date_range_{start.date()}.yaml",
+        ):
+            df = self.iso.get_hoep_historical_hourly(start)
+
+        # NOTE: different columns from real-time
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "HOEP",
+            "Hour 1 Predispatch",
+            "Hour 2 Predispatch",
+            "Hour 3 Predispatch",
+            "OR 10 Min Sync",
+            "OR 10 Min non-sync",
+            "OR 30 Min",
+        ]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+        assert df["Interval Start"].min() == self.local_start_of_day("2024-01-01")
+        assert df["Interval End"].max() == self.local_start_of_day("2025-01-01")
+
     """get_resource_adequacy_report"""
 
     # NOTE(kladar): we will see how future data rolls in and historical rolls off

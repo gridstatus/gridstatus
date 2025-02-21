@@ -157,7 +157,7 @@ class support_date_range:
                     frequency = MonthBeginOffset()
 
                 elif frequency == "HOUR_START":
-                    frequency = pd.DateOffset(hours=1)
+                    frequency = HourBeginOffset()
 
                 elif frequency == "5_MIN":
                     frequency = FiveMinOffset()
@@ -417,6 +417,28 @@ class FiveMinOffset:
         # Add 1 microsecond to ensure we make it to the
         # next interval when already on a 5 min interval
         rounded_utc = (other_utc + pd.Timedelta(microseconds=1)).ceil("5min")
+
+        # Convert back to the original timezone
+        s = rounded_utc.tz_convert(original_tz)
+
+        return s
+
+    def __radd__(self, other):
+        return self.__ladd__(other)
+
+
+class HourBeginOffset:
+    def __ladd__(self, other):
+        # Store the original timezone
+        original_tz = other.tz
+
+        # Convert to UTC to avoid DST issues
+        other_utc = other.tz_convert("UTC")
+
+        # Round up to the next hour
+        # Add 1 microsecond to ensure we make it to the
+        # next interval when already on a 5 min interval
+        rounded_utc = (other_utc + pd.Timedelta(microseconds=1)).ceil("h")
 
         # Convert back to the original timezone
         s = rounded_utc.tz_convert(original_tz)
