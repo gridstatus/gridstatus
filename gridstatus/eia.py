@@ -653,7 +653,9 @@ class EIA:
                     logger.info(f"Downloading EIA power plant data from {url}")
                 file = pd.ExcelFile(url, engine="openpyxl")
             except BadZipFile:
-                raise NoDataFoundException(f"EIA power plant data not found for {date}")
+                raise NoDataFoundException(
+                    f"EIA power plant data not found for {date}",
+                ) from None
 
         period = date.replace(day=1).date()
 
