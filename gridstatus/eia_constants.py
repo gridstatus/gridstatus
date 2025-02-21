@@ -85,3 +85,25 @@ RETIRED_POWER_PLANT_COLUMNS = [
     "Latitude",
     "Longitude",
 ]
+
+CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS = [
+    "Period",
+    "Entity ID",
+    "Entity Name",
+    "Plant ID",
+    "Plant Name",
+    "Plant State",
+    "County",
+    "Balancing Authority Code",
+    "Sector",
+    "Generator ID",
+    "Unit Code",
+    "Nameplate Capacity",
+    "Net Summer Capacity",
+    "Net Winter Capacity",
+    "Technology",
+    "Energy Source Code",
+    "Prime Mover Code",
+    "Latitude",
+    "Longitude",
+]

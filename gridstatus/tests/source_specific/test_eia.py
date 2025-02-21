@@ -5,6 +5,7 @@ import pytest
 import gridstatus
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
 from gridstatus.eia_constants import (
+    CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS,
     OPERATING_POWER_PLANT_COLUMNS,
     PLANNED_POWER_PLANT_COLUMNS,
     RETIRED_POWER_PLANT_COLUMNS,
@@ -437,26 +438,102 @@ def test_get_power_plants_relative_date():
         ("operating", OPERATING_POWER_PLANT_COLUMNS),
         ("planned", PLANNED_POWER_PLANT_COLUMNS),
         ("retired", RETIRED_POWER_PLANT_COLUMNS),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS),
     ]:
         dataset = data[key]
         assert dataset.columns.tolist() == columns
         assert dataset["Period"].unique() == date.replace(day=1).normalize()
+        assert dataset["Entity ID"].notna().all()
+        assert dataset["Plant ID"].notna().all()
+        assert dataset["Net Summer Capacity"].notna().all()
 
 
 def test_get_power_plants_absolute_date():
-    # First month with all columns
-    date = pd.Timestamp("2022-04-22")
+    # This is a relatively recent file with all columns filled in
+    date = pd.Timestamp("2024-10-01")
 
     with api_vcr.use_cassette(f"test_get_power_plants_absolute_date_{date.date()}"):
         data = EIA().get_power_plants(date)
 
     for key, columns, expected_rows in [
         # The row values come from inspecting the spreadsheet
-        ("operating", OPERATING_POWER_PLANT_COLUMNS, 24_766),
-        ("planned", PLANNED_POWER_PLANT_COLUMNS, 1_397),
-        ("retired", RETIRED_POWER_PLANT_COLUMNS, 5_857),
+        ("operating", OPERATING_POWER_PLANT_COLUMNS, 26_455),
+        ("planned", PLANNED_POWER_PLANT_COLUMNS, 1_866),
+        ("retired", RETIRED_POWER_PLANT_COLUMNS, 6_715),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS, 1_481),
     ]:
         dataset = data[key]
         assert dataset.columns.tolist() == columns
         assert dataset.shape[0] == expected_rows
-        assert dataset["Period"].unique() == pd.Timestamp("2022-04-01", tz="UTC")
+        assert dataset["Period"].unique() == pd.Timestamp("2024-10-01", tz="UTC")
+        assert dataset["Entity ID"].notna().all()
+        assert dataset["Plant ID"].notna().all()
+        assert dataset["Net Summer Capacity"].notna().all()
+
+        # These columns should not be all empty
+        if key in ["operating", "retired"]:
+            for col in [
+                "Balancing Authority Code",
+                "DC Net Capacity",
+                "Nameplate Capacity",
+                "Nameplate Energy Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ]:
+                assert dataset[col].notna().any()
+
+        elif key in ["planned", "canceled_or_postponed"]:
+            for col in [
+                "Balancing Authority Code",
+                "Nameplate Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ]:
+                assert dataset[col].notna().any()
+
+
+def test_get_power_plants_absolute_date_with_missing_columns():
+    # Older month where we have to fill in some columns with np.nan. This is also the
+    # first month with data that works in our parsing.
+    date = pd.Timestamp("2015-12-22")
+
+    with api_vcr.use_cassette(
+        f"test_get_power_plants_absolute_date_with_missing_columns_{date.date()}",
+    ):
+        data = EIA().get_power_plants(date)
+
+    for key, columns, expected_rows in [
+        # The row values come from inspecting the spreadsheet
+        ("operating", OPERATING_POWER_PLANT_COLUMNS, 20_070),
+        ("planned", PLANNED_POWER_PLANT_COLUMNS, 1_029),
+        ("retired", RETIRED_POWER_PLANT_COLUMNS, 3_053),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS, 717),
+    ]:
+        dataset = data[key]
+        assert dataset.columns.tolist() == columns
+        assert dataset.shape[0] == expected_rows
+        assert dataset["Period"].unique() == pd.Timestamp("2015-12-01", tz="UTC")
+        assert dataset["Entity ID"].notna().all()
+        assert dataset["Plant ID"].notna().all()
+        assert dataset["Net Summer Capacity"].notna().all()
+
+        # These are the empty columns we have to fill in
+        if key in ["operating", "retired"]:
+            for col in [
+                "Balancing Authority Code",
+                "DC Net Capacity",
+                "Nameplate Capacity",
+                "Nameplate Energy Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ]:
+                assert dataset[col].isna().all()
+
+        elif key in ["planned", "canceled_or_postponed"]:
+            for col in [
+                "Balancing Authority Code",
+                "Nameplate Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ]:
+                assert dataset[col].isna().all()

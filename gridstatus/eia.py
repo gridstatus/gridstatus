@@ -17,6 +17,7 @@ from tqdm import tqdm
 import gridstatus
 from gridstatus import NoDataFoundException, utils
 from gridstatus.eia_constants import (
+    CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS,
     OPERATING_POWER_PLANT_COLUMNS,
     PLANNED_POWER_PLANT_COLUMNS,
     RETIRED_POWER_PLANT_COLUMNS,
@@ -669,34 +670,48 @@ class EIA:
         # column to determine the rows to skip. For the footer, we drop NAs while
         # processing the data
         skiprows = 1
-        operating_data = file.parse("Operating", skiprows=skiprows, skipfooter=1)
+        shared_args = {"skiprows": skiprows, "skipfooter": 1}
+        operating_data = file.parse("Operating", **shared_args)
 
         if operating_data.columns[0] == "Unnamed: 0":
             operating_data.columns = operating_data.iloc[0].values
             operating_data = operating_data.iloc[1:]
             skiprows = 2
+            shared_args.update({"skiprows": skiprows})
 
-        planned_data = file.parse("Planned", skiprows=skiprows, skipfooter=1)
-        retired_data = file.parse("Retired", skiprows=skiprows, skipfooter=1)
+        planned_data = file.parse("Planned", **shared_args)
+        retired_data = file.parse("Retired", **shared_args)
+        canceled_or_postponed_data = file.parse("Canceled or Postponed", **shared_args)
 
         return {
-            "operating": self._handle_power_plant_data(operating_data, period)[
-                OPERATING_POWER_PLANT_COLUMNS
-            ],
-            "planned": self._handle_power_plant_data(planned_data, period)[
-                PLANNED_POWER_PLANT_COLUMNS
-            ],
-            "retired": self._handle_power_plant_data(retired_data, period)[
-                RETIRED_POWER_PLANT_COLUMNS
-            ],
+            key: self._handle_power_plant_data(dataset, period, columns, verbose)
+            for key, dataset, columns in zip(
+                ["operating", "planned", "retired", "canceled_or_postponed"],
+                [
+                    operating_data,
+                    planned_data,
+                    retired_data,
+                    canceled_or_postponed_data,
+                ],
+                [
+                    OPERATING_POWER_PLANT_COLUMNS,
+                    PLANNED_POWER_PLANT_COLUMNS,
+                    RETIRED_POWER_PLANT_COLUMNS,
+                    CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS,
+                ],
+            )
         }
 
     def _handle_power_plant_data(
         self,
         df: pd.DataFrame,
-        period: datetime.date,
+        period: datetime.datetime,
+        columns: list[str],
+        verbose: bool = False,
     ) -> pd.DataFrame:
         df.insert(0, "Period", period)
+
+        df.columns = df.columns.str.strip()
 
         df = (
             df.rename(
@@ -719,7 +734,28 @@ class EIA:
             .dropna(subset=["Plant ID"])
         )
 
-        return df
+        # Older files may not have all the columns. These are the columns we want to
+        # fill with np.nan if they don't exist.
+        columns_to_fill = [
+            "Balancing Authority Code",
+            "DC Net Capacity",
+            "Nameplate Capacity",
+            "Nameplate Energy Capacity",
+            "Net Winter Capacity",
+            "Unit Code",
+        ]
+
+        for col in columns_to_fill:
+            if col not in df.columns:
+                if verbose:
+                    logger.warning(
+                        f"Column {col} not found in data. Filling with np.nan",
+                    )
+                df[col] = np.nan
+
+        df["Entity ID"] = df["Entity ID"].astype(int)
+
+        return df[columns]
 
 
 def _handle_time(df, frequency="1h"):
