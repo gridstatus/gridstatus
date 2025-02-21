@@ -4,6 +4,11 @@ import pytest
 
 import gridstatus
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
+from gridstatus.eia_constants import (
+    OPERATING_POWER_PLANT_COLUMNS,
+    PLANNED_POWER_PLANT_COLUMNS,
+    RETIRED_POWER_PLANT_COLUMNS,
+)
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
@@ -418,3 +423,40 @@ def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
         tz=HENRY_HUB_TIMEZONE,
     )
     assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
+
+
+def test_get_power_plants_relative_date():
+    # The files for the most recent month are generally available 24-26 days
+    # after the end of the month.
+    date = pd.Timestamp.utcnow() - pd.DateOffset(days=60)
+
+    with api_vcr.use_cassette(f"test_get_power_plants_relative_date_{date.date()}"):
+        data = EIA().get_power_plants(date)
+
+    for key, columns in [
+        ("operating", OPERATING_POWER_PLANT_COLUMNS),
+        ("planned", PLANNED_POWER_PLANT_COLUMNS),
+        ("retired", RETIRED_POWER_PLANT_COLUMNS),
+    ]:
+        dataset = data[key]
+        assert dataset.columns.tolist() == columns
+        assert dataset["Period"].unique() == date.replace(day=1).normalize()
+
+
+def test_get_power_plants_absolute_date():
+    # First month with all columns
+    date = pd.Timestamp("2022-04-22")
+
+    with api_vcr.use_cassette(f"test_get_power_plants_absolute_date_{date.date()}"):
+        data = EIA().get_power_plants(date)
+
+    for key, columns, expected_rows in [
+        # The row values come from inspecting the spreadsheet
+        ("operating", OPERATING_POWER_PLANT_COLUMNS, 24_766),
+        ("planned", PLANNED_POWER_PLANT_COLUMNS, 1_397),
+        ("retired", RETIRED_POWER_PLANT_COLUMNS, 5_857),
+    ]:
+        dataset = data[key]
+        assert dataset.columns.tolist() == columns
+        assert dataset.shape[0] == expected_rows
+        assert dataset["Period"].unique() == pd.Timestamp("2022-04-01", tz="UTC")
