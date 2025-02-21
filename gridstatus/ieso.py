@@ -990,9 +990,9 @@ class IESO(ISOBase):
 
         data = data.rename(
             columns={
-                "10N": "10 Min non-sync",
-                "10S": "10 Min Sync",
-                "30R": "30 Min Reserves",
+                "10N": "Non-sync 10 Min",
+                "10S": "Sync 10 Min",
+                "30R": "Reserves 30 Min",
                 "ENGY": "Energy",
             },
         )
@@ -1002,9 +1002,9 @@ class IESO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "10 Min Sync",
-                "10 Min non-sync",
-                "30 Min Reserves",
+                "Non-sync 10 Min",
+                "Sync 10 Min",
+                "Reserves 30 Min",
                 "Energy",
             ]
         ]

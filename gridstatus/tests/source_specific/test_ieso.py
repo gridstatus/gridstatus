@@ -553,9 +553,9 @@ class TestIESO(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Location",
-            "10 Min Sync",
-            "10 Min non-sync",
-            "30 Min Reserves",
+            "Non-sync 10 Min",
+            "Sync 10 Min",
+            "Reserves 30 Min",
             "Energy",
         ]
 
@@ -607,6 +607,8 @@ class TestIESO(BaseTestISO):
 
         self._check_mcp(df)
 
+        # Historical data starts at the beginning of the year and runs through
+        # the end of the previous day
         assert df["Interval Start"].min() == self.local_start_of_day("2025-01-01")
         assert df["Interval End"].max() == self.local_start_of_today()
 
