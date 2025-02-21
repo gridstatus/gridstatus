@@ -16,6 +16,11 @@ from tqdm import tqdm
 
 import gridstatus
 from gridstatus import NoDataFoundException, utils
+from gridstatus.eia_constants import (
+    OPERATING_POWER_PLANT_COLUMNS,
+    PLANNED_POWER_PLANT_COLUMNS,
+    RETIRED_POWER_PLANT_COLUMNS,
+)
 from gridstatus.gs_logging import setup_gs_logger
 
 logger = setup_gs_logger()
@@ -660,13 +665,6 @@ class EIA:
         # Beginning of the month
         period = date.replace(day=1).normalize()
 
-        import IPython
-
-        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
-            "last_expr_or_assign"
-        )
-        IPython.embed()
-
         # Some files we have to skip 2 rows, others only 1. We test for the first
         # column to determine the rows to skip. For the footer, we drop NAs while
         # processing the data
@@ -674,17 +672,23 @@ class EIA:
         operating_data = file.parse("Operating", skiprows=skiprows, skipfooter=1)
 
         if operating_data.columns[0] == "Unnamed: 0":
-            skiprows = 2
             operating_data.columns = operating_data.iloc[0].values
             operating_data = operating_data.iloc[1:]
+            skiprows = 2
 
         planned_data = file.parse("Planned", skiprows=skiprows, skipfooter=1)
         retired_data = file.parse("Retired", skiprows=skiprows, skipfooter=1)
 
         return {
-            "operating": self._handle_power_plant_data(operating_data, period),
-            "planned": self._handle_power_plant_data(planned_data, period),
-            "retired": self._handle_power_plant_data(retired_data, period),
+            "operating": self._handle_power_plant_data(operating_data, period)[
+                OPERATING_POWER_PLANT_COLUMNS
+            ],
+            "planned": self._handle_power_plant_data(planned_data, period)[
+                PLANNED_POWER_PLANT_COLUMNS
+            ],
+            "retired": self._handle_power_plant_data(retired_data, period)[
+                RETIRED_POWER_PLANT_COLUMNS
+            ],
         }
 
     def _handle_power_plant_data(
@@ -711,6 +715,7 @@ class EIA:
                     col for col in ["Google Map", "Bing Map"] if col in df.columns
                 ],
             )
+            # Dropna values to remove extra footer rows
             .dropna(subset=["Plant ID"])
         )
 
