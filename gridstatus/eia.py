@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 import gridstatus
-from gridstatus import utils
+from gridstatus import NoDataFoundException, utils
 from gridstatus.gs_logging import setup_gs_logger
 
 logger = setup_gs_logger()
@@ -653,7 +653,7 @@ class EIA:
                     logger.info(f"Downloading EIA power plant data from {url}")
                 file = pd.ExcelFile(url, engine="openpyxl")
             except BadZipFile:
-                raise ValueError(f"EIA power plant data not found for {date}")
+                raise NoDataFoundException(f"EIA power plant data not found for {date}")
 
         period = date.replace(day=1).date()
 
