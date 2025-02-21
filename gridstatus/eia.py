@@ -657,7 +657,8 @@ class EIA:
                     f"EIA power plant data not found for {date}",
                 ) from None
 
-        period = date.replace(day=1).date()
+        # Beginning of the month
+        period = date.replace(day=1).normalize()
 
         operating_data = file.parse("Operating", skiprows=2, skipfooter=2)
         planned_data = file.parse("Planned", skiprows=2, skipfooter=2)
