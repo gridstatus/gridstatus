@@ -660,9 +660,26 @@ class EIA:
         # Beginning of the month
         period = date.replace(day=1).normalize()
 
-        operating_data = file.parse("Operating", skiprows=2, skipfooter=2)
-        planned_data = file.parse("Planned", skiprows=2, skipfooter=2)
-        retired_data = file.parse("Retired", skiprows=2, skipfooter=2)
+        import IPython
+
+        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
+            "last_expr_or_assign"
+        )
+        IPython.embed()
+
+        # Some files we have to skip 2 rows, others only 1. We test for the first
+        # column to determine the rows to skip. For the footer, we drop NAs while
+        # processing the data
+        skiprows = 1
+        operating_data = file.parse("Operating", skiprows=skiprows, skipfooter=1)
+
+        if operating_data.columns[0] == "Unnamed: 0":
+            skiprows = 2
+            operating_data.columns = operating_data.iloc[0].values
+            operating_data = operating_data.iloc[1:]
+
+        planned_data = file.parse("Planned", skiprows=skiprows, skipfooter=1)
+        retired_data = file.parse("Retired", skiprows=skiprows, skipfooter=1)
 
         return {
             "operating": self._handle_power_plant_data(operating_data, period),
@@ -677,17 +694,25 @@ class EIA:
     ) -> pd.DataFrame:
         df.insert(0, "Period", period)
 
-        df = df.rename(
-            columns={
-                "Nameplate Capacity (MW)": "Nameplate Capacity",
-                "Net Summer Capacity (MW)": "Net Summer Capacity",
-                "Net Winter Capacity (MW)": "Net Winter Capacity",
-                "Nameplate Energy Capacity (MWh)": "Nameplate Energy Capacity",
-                "DC Net Capacity (MW)": "DC Net Capacity",
-                "Planned Derate of Summer Capacity (MW)": "Planned Derate of Summer Capacity",
-                "Planned Uprate of Summer Capacity (MW)": "Planned Uprate of Summer Capacity",
-            },
-        ).drop(columns=["Google Map", "Bing Map"])
+        df = (
+            df.rename(
+                columns={
+                    "Nameplate Capacity (MW)": "Nameplate Capacity",
+                    "Net Summer Capacity (MW)": "Net Summer Capacity",
+                    "Net Winter Capacity (MW)": "Net Winter Capacity",
+                    "Nameplate Energy Capacity (MWh)": "Nameplate Energy Capacity",
+                    "DC Net Capacity (MW)": "DC Net Capacity",
+                    "Planned Derate of Summer Capacity (MW)": "Planned Derate of Summer Capacity",
+                    "Planned Uprate of Summer Capacity (MW)": "Planned Uprate of Summer Capacity",
+                },
+            )
+            .drop(
+                columns=[
+                    col for col in ["Google Map", "Bing Map"] if col in df.columns
+                ],
+            )
+            .dropna(subset=["Plant ID"])
+        )
 
         return df
 

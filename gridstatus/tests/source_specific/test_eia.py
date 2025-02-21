@@ -509,14 +509,36 @@ RETIRED_POWER_PLANT_COLUMNS = [
 ]
 
 
-def test_get_power_plants():
+def test_get_power_plants_relative_date():
     # The files for the most recent month are generally available 24-26 days
     # after the end of the month.
     date = pd.Timestamp.utcnow() - pd.DateOffset(days=60)
 
-    with api_vcr.use_cassette(f"test_get_power_plants_{date.date()}"):
+    with api_vcr.use_cassette(f"test_get_power_plants_relative_date_{date.date()}"):
         data = EIA().get_power_plants(date)
 
-    assert data["operating"].columns.tolist() == OPERATING_POWER_PLANT_COLUMNS
-    assert data["planned"].columns.tolist() == PLANNED_POWER_PLANT_COLUMNS
-    assert data["retired"].columns.tolist() == RETIRED_POWER_PLANT_COLUMNS
+    for key, columns in [
+        ("operating", OPERATING_POWER_PLANT_COLUMNS),
+        ("planned", PLANNED_POWER_PLANT_COLUMNS),
+        ("retired", RETIRED_POWER_PLANT_COLUMNS),
+    ]:
+        dataset = data[key]
+        assert dataset.columns.tolist() == columns
+        assert dataset["Period"].unique() == date.replace(day=1).normalize()
+
+
+def test_get_power_plants_absolute_date():
+    # First month with both Summer and Winter Capacity
+    date = pd.Timestamp("2016-07-22")
+
+    with api_vcr.use_cassette(f"test_get_power_plants_absolute_date_{date.date()}"):
+        data = EIA().get_power_plants(date)
+
+    for key, columns in [
+        ("operating", OPERATING_POWER_PLANT_COLUMNS),
+        ("planned", PLANNED_POWER_PLANT_COLUMNS),
+        ("retired", RETIRED_POWER_PLANT_COLUMNS),
+    ]:
+        dataset = data[key]
+        assert dataset.columns.tolist() == columns
+        assert dataset["Period"].unique() == pd.Timestamp("2016-07-01")
