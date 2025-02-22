@@ -663,8 +663,10 @@ class EIA:
                     f"EIA power plant data not found for {date}",
                 ) from None
 
-        # Beginning of the month
-        period = date.replace(day=1).normalize()
+        updated_at = pd.to_datetime(file.book.properties.modified, utc=True)
+
+        # Beginning of the month as a date
+        period = date.replace(day=1).date()
 
         # Some files we have to skip 2 rows, others only 1. We test for the first
         # column to determine the rows to skip. For the footer, we drop NAs while
@@ -684,7 +686,13 @@ class EIA:
         canceled_or_postponed_data = file.parse("Canceled or Postponed", **shared_args)
 
         return {
-            key: self._handle_power_plant_data(dataset, period, columns, verbose)
+            key: self._handle_power_plant_data(
+                dataset,
+                period,
+                updated_at,
+                columns,
+                verbose,
+            )
             for key, dataset, columns in zip(
                 ["operating", "planned", "retired", "canceled_or_postponed"],
                 [
@@ -705,11 +713,13 @@ class EIA:
     def _handle_power_plant_data(
         self,
         df: pd.DataFrame,
-        period: datetime.datetime,
+        period: datetime.date,
+        updated_at: datetime.datetime,
         columns: list[str],
         verbose: bool = False,
     ) -> pd.DataFrame:
         df.insert(0, "Period", period)
+        df.insert(1, "Updated At", updated_at)
 
         df.columns = df.columns.str.strip()
 

@@ -442,7 +442,7 @@ def test_get_power_plants_relative_date():
     ]:
         dataset = data[key]
         assert dataset.columns.tolist() == columns
-        assert dataset["Period"].unique() == date.replace(day=1).normalize()
+        assert dataset["Period"].unique() == date.replace(day=1).date()
         assert dataset["Entity ID"].notna().all()
         assert dataset["Plant ID"].notna().all()
         assert dataset["Net Summer Capacity"].notna().all()
@@ -465,7 +465,12 @@ def test_get_power_plants_absolute_date():
         dataset = data[key]
         assert dataset.columns.tolist() == columns
         assert dataset.shape[0] == expected_rows
-        assert dataset["Period"].unique() == pd.Timestamp("2024-10-01", tz="UTC")
+        assert dataset["Period"].unique() == pd.Timestamp("2024-10-01").date()
+        # This is found from the properties of the Excel file
+        assert dataset["Updated At"].unique() == pd.Timestamp(
+            "11/21/2024, 20:19:25",
+            tz="UTC",
+        )
         assert dataset["Entity ID"].notna().all()
         assert dataset["Plant ID"].notna().all()
         assert dataset["Net Summer Capacity"].notna().all()
@@ -512,7 +517,12 @@ def test_get_power_plants_absolute_date_with_missing_columns():
         dataset = data[key]
         assert dataset.columns.tolist() == columns
         assert dataset.shape[0] == expected_rows
-        assert dataset["Period"].unique() == pd.Timestamp("2015-12-01", tz="UTC")
+        assert dataset["Period"].unique() == pd.Timestamp("2015-12-01").date()
+        # This is found from the properties of the Excel file
+        assert dataset["Updated At"].unique() == pd.Timestamp(
+            "02/25/2016, 17:09:16",
+            tz="UTC",
+        )
         assert dataset["Entity ID"].notna().all()
         assert dataset["Plant ID"].notna().all()
         assert dataset["Net Summer Capacity"].notna().all()

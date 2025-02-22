@@ -1,5 +1,6 @@
 OPERATING_POWER_PLANT_COLUMNS = [
     "Period",
+    "Updated At",
     "Entity ID",
     "Entity Name",
     "Plant ID",
@@ -35,6 +36,7 @@ OPERATING_POWER_PLANT_COLUMNS = [
 
 PLANNED_POWER_PLANT_COLUMNS = [
     "Period",
+    "Updated At",
     "Entity ID",
     "Entity Name",
     "Plant ID",
@@ -60,6 +62,7 @@ PLANNED_POWER_PLANT_COLUMNS = [
 
 RETIRED_POWER_PLANT_COLUMNS = [
     "Period",
+    "Updated At",
     "Entity ID",
     "Entity Name",
     "Plant ID",
@@ -88,6 +91,7 @@ RETIRED_POWER_PLANT_COLUMNS = [
 
 CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS = [
     "Period",
+    "Updated At",
     "Entity ID",
     "Entity Name",
     "Plant ID",
