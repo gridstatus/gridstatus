@@ -1232,6 +1232,27 @@ class TestErcotAPI(TestHelperMixin):
 
             assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
 
+    """get_60_day_sced_disclosure"""
+
+    def test_get_60_day_sced_disclosure_historical(self):
+        start_date = self.local_start_of_today() - pd.DateOffset(days=3000)
+        end_date = start_date + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_60_day_sced_disclosure_historical_{start_date.date()}_{end_date.date()}.yaml",
+        ):
+            df_dict = ErcotAPI().get_60_day_sced_disclosure(
+                start_date,
+                end_date,
+                process=True,
+            )
+
+        TestErcot()._check_60_day_sced_disclosure(df_dict)
+
+        for df in df_dict.values():
+            assert df["Interval Start"].min() == start_date
+            assert df["Interval End"].max() == end_date
+
     """get_historical_data"""
 
     @pytest.mark.integration

@@ -1,4 +1,5 @@
 from io import StringIO
+from typing import Dict
 
 import pandas as pd
 import pytest
@@ -34,8 +35,11 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_OPTION_COLUMNS,
     DAM_PTP_OBLIGATION_OPTION_KEY,
     DAM_RESOURCE_AS_OFFERS_COLUMNS,
+    SCED_GEN_RESOURCE_COLUMNS,
     SCED_GEN_RESOURCE_KEY,
+    SCED_LOAD_RESOURCE_COLUMNS,
     SCED_LOAD_RESOURCE_KEY,
+    SCED_SMNE_COLUMNS,
     SCED_SMNE_KEY,
 )
 from gridstatus.ercot_constants import (
@@ -704,7 +708,6 @@ class TestErcot(BaseTestISO):
 
     """get_60_day_sced_disclosure"""
 
-    @pytest.mark.integration
     def test_get_60_day_sced_disclosure_historical(self):
         days_ago_65 = pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -712,7 +715,13 @@ class TestErcot(BaseTestISO):
             days=65,
         )
 
-        df_dict = self.iso.get_60_day_sced_disclosure(date=days_ago_65, process=True)
+        with api_vcr.use_cassette(
+            f"test_get_60_day_sced_disclosure_historical_{days_ago_65}",
+        ):
+            df_dict = self.iso.get_60_day_sced_disclosure(
+                date=days_ago_65,
+                process=True,
+            )
 
         load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
         gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
@@ -722,11 +731,8 @@ class TestErcot(BaseTestISO):
         assert gen_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
         assert smne["Interval Time"].dt.date.unique()[0] == days_ago_65
 
-        assert load_resource.shape[1] == 22
-        assert gen_resource.shape[1] == 29
-        assert smne.shape[1] == 6
+        self._check_60_day_sced_disclosure(df_dict)
 
-    @pytest.mark.integration
     def test_get_60_day_sced_disclosure_range(self):
         days_ago_65 = pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -740,16 +746,22 @@ class TestErcot(BaseTestISO):
             days=66,
         )
 
-        df_dict = self.iso.get_60_day_sced_disclosure(
-            start=days_ago_66,
-            end=days_ago_65
-            + pd.Timedelta(days=1),  # add one day to end date since exclusive
-            verbose=True,
-        )
+        with api_vcr.use_cassette(
+            f"test_get_60_day_sced_disclosure_range_{days_ago_66}_{days_ago_65}",
+        ):
+            df_dict = self.iso.get_60_day_sced_disclosure(
+                start=days_ago_66,
+                end=days_ago_65
+                + pd.Timedelta(days=1),  # add one day to end date since exclusive
+                process=True,
+                verbose=True,
+            )
 
         load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
         gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
         smne = df_dict[SCED_SMNE_KEY]
+
+        self._check_60_day_sced_disclosure(df_dict)
 
         assert load_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
             days_ago_66,
@@ -765,6 +777,15 @@ class TestErcot(BaseTestISO):
             days_ago_66,
             days_ago_65,
         ]
+
+    def _check_60_day_sced_disclosure(self, df_dict: Dict[str, pd.DataFrame]) -> None:
+        load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
+        gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
+        smne = df_dict[SCED_SMNE_KEY]
+
+        assert load_resource.columns.tolist() == SCED_LOAD_RESOURCE_COLUMNS
+        assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
+        assert smne.columns.tolist() == SCED_SMNE_COLUMNS
 
     """get_60_day_dam_disclosure"""
 

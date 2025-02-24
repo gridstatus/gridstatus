@@ -3,6 +3,7 @@ import json
 import os
 import random
 import time
+from typing import Dict
 from zipfile import ZipFile
 
 import numpy as np
@@ -120,6 +121,10 @@ DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_load_res_as_o
 # DAM 60 Day Gen Resource AS Offers
 # https://data.ercot.com/data-product-archive/NP3-966-ER
 DAM_60_DAY_GEN_RESOURCES_AS_OFFERS_ENDPOINT = "/np3-966-er/60_dam_gen_res_as_offers"
+
+# SCED 60 Day SCED SMNE
+# https://data.ercot.com/data-product-archive/NP3-965-ER
+SCED_60_DAY_SMNE_ENDPOINT = "/np3-965-er/60_sced_smne_gen_res"
 
 # Indicative LMP
 # https://data.ercot.com/data-product-archive/NP6-970-CD
@@ -1124,10 +1129,10 @@ class ErcotAPI:
     @support_date_range(frequency=None)
     def get_60_day_dam_disclosure(
         self,
-        date,
-        end=None,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> Dict[str, pd.DataFrame]:
         """
         Get the 60-day DAM disclosure reports from ERCOT.
 
@@ -1176,12 +1181,73 @@ class ErcotAPI:
             read_as_csv=False,
         )
 
-        # Process both load and gen resources from each zipfile
+        # Process individual files from each zipfile
         for bytes in data_bytes:
             zip_file = ZipFile(bytes)
 
             # Process load resources
             processed_files = Ercot()._handle_60_day_dam_disclosure(
+                z=zip_file,
+                process=True,
+                verbose=verbose,
+            )
+            df_list.append(processed_files)
+
+        # Take the list of dictionaries and concat the dataframes for each key
+        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0].keys()}
+
+    @support_date_range(frequency=None)
+    def get_60_day_sced_disclosure(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> Dict[str, pd.DataFrame]:
+        """
+        Get the 60-day SCED disclosure reports from ERCOT.
+
+        Args:
+            date (datetime-like): Start date for the query
+            end (datetime-like, optional): End date for the query.
+                Defaults to date + 1 day
+            verbose (bool, optional): Whether to print progress messages. Defaults to
+                False
+
+        Returns:
+            dict: Dictionary containing dataframes as values and keys:
+                - "sced_gen_resource"
+                - "sced_load_resource"
+                - "sced_smne"
+
+        NOTE: because data is delayed by 60 days, requesting data in the past 60 days
+        will return no data.
+        """
+        # Reports are delayed by 60 days
+        date = date + pd.DateOffset(days=60)
+
+        # End is required so set a default end date
+        if end:
+            end = end + pd.DateOffset(days=60)
+        else:
+            end = date + pd.DateOffset(days=1)
+
+        df_list = []
+
+        # Get data once since both endpoints return the same zipfile
+        data_bytes = self.get_historical_data(
+            endpoint=SCED_60_DAY_SMNE_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            read_as_csv=False,
+        )
+
+        # Process individual files from each zipfile
+        for bytes in data_bytes:
+            zip_file = ZipFile(bytes)
+
+            # Process load resources
+            processed_files = Ercot()._handle_60_day_sced_disclosure(
                 z=zip_file,
                 process=True,
                 verbose=verbose,
