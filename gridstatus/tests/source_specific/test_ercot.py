@@ -731,7 +731,7 @@ class TestErcot(BaseTestISO):
         assert gen_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
         assert smne["Interval Time"].dt.date.unique()[0] == days_ago_65
 
-        self._check_60_day_sced_disclosure(df_dict)
+        check_60_day_sced_disclosure(df_dict)
 
     def test_get_60_day_sced_disclosure_range(self):
         days_ago_65 = pd.Timestamp.now(
@@ -778,15 +778,6 @@ class TestErcot(BaseTestISO):
             days_ago_65,
         ]
 
-    def _check_60_day_sced_disclosure(self, df_dict: Dict[str, pd.DataFrame]) -> None:
-        load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
-        gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
-        smne = df_dict[SCED_SMNE_KEY]
-
-        assert load_resource.columns.tolist() == SCED_LOAD_RESOURCE_COLUMNS
-        assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
-        assert smne.columns.tolist() == SCED_SMNE_COLUMNS
-
     """get_60_day_dam_disclosure"""
 
     @pytest.mark.integration
@@ -799,72 +790,7 @@ class TestErcot(BaseTestISO):
 
         df_dict = self.iso.get_60_day_dam_disclosure(date=days_ago_65, process=True)
 
-        self._check_60_day_dam_disclosure(df_dict)
-
-    def _check_60_day_dam_disclosure(self, df_dict):
-        assert df_dict is not None
-
-        dam_gen_resource = df_dict[DAM_GEN_RESOURCE_KEY]
-        dam_gen_resource_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
-        dam_load_resource = df_dict[DAM_LOAD_RESOURCE_KEY]
-        dam_load_resource_as_offers = df_dict[DAM_LOAD_RESOURCE_AS_OFFERS_KEY]
-        dam_energy_only_offer_awards = df_dict[DAM_ENERGY_ONLY_OFFER_AWARDS_KEY]
-        dam_energy_only_offers = df_dict[DAM_ENERGY_ONLY_OFFERS_KEY]
-        dam_ptp_obligation_bid_awards = df_dict[DAM_PTP_OBLIGATION_BID_AWARDS_KEY]
-        dam_ptp_obligation_bids = df_dict[DAM_PTP_OBLIGATION_BIDS_KEY]
-        dam_energy_bid_awards = df_dict[DAM_ENERGY_BID_AWARDS_KEY]
-        dam_energy_bids = df_dict[DAM_ENERGY_BIDS_KEY]
-        dam_ptp_obligation_option = df_dict[DAM_PTP_OBLIGATION_OPTION_KEY]
-        dam_ptp_obligation_option_awards = df_dict[DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY]
-
-        assert dam_gen_resource.columns.tolist() == DAM_GEN_RESOURCE_COLUMNS
-        assert (
-            dam_gen_resource_as_offers.columns.tolist()
-            == DAM_RESOURCE_AS_OFFERS_COLUMNS
-        )
-        assert dam_load_resource.columns.tolist() == DAM_LOAD_RESOURCE_COLUMNS
-
-        assert (
-            dam_load_resource_as_offers.columns.tolist()
-            == DAM_RESOURCE_AS_OFFERS_COLUMNS
-        )
-
-        assert (
-            dam_energy_only_offer_awards.columns.tolist()
-            == DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS
-        )
-
-        assert dam_energy_only_offers.columns.tolist() == DAM_ENERGY_ONLY_OFFERS_COLUMNS
-
-        assert (
-            dam_ptp_obligation_bid_awards.columns.tolist()
-            == DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS
-        )
-
-        assert (
-            dam_ptp_obligation_bids.columns.tolist() == DAM_PTP_OBLIGATION_BIDS_COLUMNS
-        )
-
-        assert dam_energy_bid_awards.columns.tolist() == DAM_ENERGY_BID_AWARDS_COLUMNS
-        assert dam_energy_bids.columns.tolist() == DAM_ENERGY_BIDS_COLUMNS
-
-        assert (
-            dam_ptp_obligation_option.columns.tolist()
-            == DAM_PTP_OBLIGATION_OPTION_COLUMNS
-        )
-
-        assert (
-            dam_ptp_obligation_option_awards.columns.tolist()
-            == DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS
-        )
-
-        assert not dam_gen_resource_as_offers.duplicated(
-            subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
-        ).any()
-
-        assert not dam_load_resource_as_offers.duplicated(
-            subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
-        ).any()
+        check_60_day_dam_disclosure(df_dict)
 
     @pytest.mark.integration
     def test_get_sara(self):
@@ -1989,3 +1915,72 @@ class TestErcot(BaseTestISO):
             assert df["Interval End"].max() == end.tz_localize(
                 self.iso.default_timezone,
             ) + pd.Timedelta(minutes=50)
+
+
+def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
+    load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
+    gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
+    smne = df_dict[SCED_SMNE_KEY]
+
+    assert load_resource.columns.tolist() == SCED_LOAD_RESOURCE_COLUMNS
+    assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
+    assert smne.columns.tolist() == SCED_SMNE_COLUMNS
+
+
+def check_60_day_dam_disclosure(df_dict):
+    assert df_dict is not None
+
+    dam_gen_resource = df_dict[DAM_GEN_RESOURCE_KEY]
+    dam_gen_resource_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
+    dam_load_resource = df_dict[DAM_LOAD_RESOURCE_KEY]
+    dam_load_resource_as_offers = df_dict[DAM_LOAD_RESOURCE_AS_OFFERS_KEY]
+    dam_energy_only_offer_awards = df_dict[DAM_ENERGY_ONLY_OFFER_AWARDS_KEY]
+    dam_energy_only_offers = df_dict[DAM_ENERGY_ONLY_OFFERS_KEY]
+    dam_ptp_obligation_bid_awards = df_dict[DAM_PTP_OBLIGATION_BID_AWARDS_KEY]
+    dam_ptp_obligation_bids = df_dict[DAM_PTP_OBLIGATION_BIDS_KEY]
+    dam_energy_bid_awards = df_dict[DAM_ENERGY_BID_AWARDS_KEY]
+    dam_energy_bids = df_dict[DAM_ENERGY_BIDS_KEY]
+    dam_ptp_obligation_option = df_dict[DAM_PTP_OBLIGATION_OPTION_KEY]
+    dam_ptp_obligation_option_awards = df_dict[DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY]
+
+    assert dam_gen_resource.columns.tolist() == DAM_GEN_RESOURCE_COLUMNS
+    assert dam_gen_resource_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+    assert dam_load_resource.columns.tolist() == DAM_LOAD_RESOURCE_COLUMNS
+
+    assert (
+        dam_load_resource_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+    )
+
+    assert (
+        dam_energy_only_offer_awards.columns.tolist()
+        == DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS
+    )
+
+    assert dam_energy_only_offers.columns.tolist() == DAM_ENERGY_ONLY_OFFERS_COLUMNS
+
+    assert (
+        dam_ptp_obligation_bid_awards.columns.tolist()
+        == DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS
+    )
+
+    assert dam_ptp_obligation_bids.columns.tolist() == DAM_PTP_OBLIGATION_BIDS_COLUMNS
+
+    assert dam_energy_bid_awards.columns.tolist() == DAM_ENERGY_BID_AWARDS_COLUMNS
+    assert dam_energy_bids.columns.tolist() == DAM_ENERGY_BIDS_COLUMNS
+
+    assert (
+        dam_ptp_obligation_option.columns.tolist() == DAM_PTP_OBLIGATION_OPTION_COLUMNS
+    )
+
+    assert (
+        dam_ptp_obligation_option_awards.columns.tolist()
+        == DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS
+    )
+
+    assert not dam_gen_resource_as_offers.duplicated(
+        subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
+    ).any()
+
+    assert not dam_load_resource_as_offers.duplicated(
+        subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
+    ).any()
