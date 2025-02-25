@@ -1407,21 +1407,12 @@ class MISO(ISOBase):
 
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_sr_la_rg.csv"
         logger.info(f"Downloading look-ahead hourly data from {url}")
-        publish_date = pd.read_csv(
-            url,
-            nrows=1,
-            skiprows=1,
-            header=None,
-        ).iloc[0, 0]
-        publish_time = pd.to_datetime(publish_date.split(": ")[1]).tz_localize(
-            self.default_timezone,
-        )
 
-        df_raw = pd.read_csv(url, skiprows=3)
-        df = df_raw.iloc[:96]  # 24 hours * 4 regions per hour
+        publish_time = date.normalize()
 
+        df = pd.read_csv(url, skiprows=3, skipfooter=15)
         id_cols = ["Hourend_EST", "Region"]
-        value_cols = [col for col in df_raw.columns if col not in id_cols]
+        value_cols = [col for col in df.columns if col not in id_cols]
 
         df_melted = df.melt(
             id_vars=id_cols,
