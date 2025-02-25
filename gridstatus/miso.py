@@ -1394,3 +1394,20 @@ class MISO(ISOBase):
             self.default_timezone,
         )
         return market_date, publish_date
+
+    @support_date_range(frequency="DAY_START")
+    def get_look_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            return self.get_look_ahead_hourly(date="today", verbose=verbose)
+
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_sr_la_rg.csv"
+        logger.info(f"Downloading look-ahead hourly data from {url}")
+
+        df = pd.read_csv(url, skiprows=4)
+
+        return df
