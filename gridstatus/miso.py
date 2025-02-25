@@ -1410,7 +1410,7 @@ class MISO(ISOBase):
 
         publish_time = date.normalize()
 
-        df = pd.read_csv(url, skiprows=3, skipfooter=15)
+        df = pd.read_csv(url, skiprows=3, skipfooter=15, engine="python")
         id_cols = ["Hourend_EST", "Region"]
         value_cols = [col for col in df.columns if col not in id_cols]
 
