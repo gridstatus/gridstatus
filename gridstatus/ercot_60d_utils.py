@@ -179,6 +179,72 @@ DAM_PTP_OBLIGATION_OPTION_COLUMNS = [
 # All except Multi-Hour Block Indicator
 DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS = DAM_PTP_OBLIGATION_OPTION_COLUMNS[:-1]
 
+SCED_GEN_RESOURCE_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "SCED Time Stamp",
+    "QSE",
+    "DME",
+    "Resource Name",
+    "Resource Type",
+    "Telemetered Resource Status",
+    "Output Schedule",
+    "HSL",
+    "HASL",
+    "HDL",
+    "LSL",
+    "LASL",
+    "LDL",
+    "Base Point",
+    "Telemetered Net Output",
+    "AS Responsibility for RegUp",
+    "AS Responsibility for RegDown",
+    "AS Responsibility for RRS",
+    "AS Responsibility for RRSFFR",
+    "AS Responsibility for NonSpin",
+    "AS Responsibility for ECRS",
+    "SCED1 Offer Curve",
+    "Start Up Cold Offer",
+    "Start Up Hot Offer",
+    "Start Up Inter Offer",
+    "Min Gen Cost",
+    "SCED TPO Offer Curve",
+]
+
+SCED_LOAD_RESOURCE_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "SCED Time Stamp",
+    "QSE",
+    "DME",
+    "Resource Name",
+    "Telemetered Resource Status",
+    "Max Power Consumption",
+    "Low Power Consumption",
+    "Real Power Consumption",
+    "HASL",
+    "HDL",
+    "LASL",
+    "LDL",
+    "Base Point",
+    "AS Responsibility for RRS",
+    "AS Responsibility for RRSFFR",
+    "AS Responsibility for NonSpin",
+    "AS Responsibility for RegUp",
+    "AS Responsibility for RegDown",
+    "AS Responsibility for ECRS",
+    "SCED Bid to Buy Curve",
+]
+
+SCED_SMNE_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Interval Time",
+    "Interval Number",
+    "Resource Name",
+    "Interval Value",
+]
+
 
 def match_gen_load_names(list1, list2):
     """Match generator and load names"""
