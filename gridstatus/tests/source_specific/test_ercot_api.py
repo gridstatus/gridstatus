@@ -18,7 +18,10 @@ from gridstatus.ercot_constants import (
     WIND_ACTUAL_AND_FORECAST_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
-from gridstatus.tests.source_specific.test_ercot import TestErcot
+from gridstatus.tests.source_specific.test_ercot import (
+    check_60_day_dam_disclosure,
+    check_60_day_sced_disclosure,
+)
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
@@ -1196,7 +1199,7 @@ class TestErcotAPI(TestHelperMixin):
             end_date,
         )
 
-        TestErcot()._check_60_day_dam_disclosure(df_dict)
+        check_60_day_dam_disclosure(df_dict)
 
         for df in df_dict.values():
             assert df["Interval Start"].min() == start_date
@@ -1213,6 +1216,8 @@ class TestErcotAPI(TestHelperMixin):
         df_dict = ErcotAPI().get_60_day_dam_disclosure(
             date_with_issue,
         )
+
+        check_60_day_dam_disclosure(df_dict)
 
         df_load = df_dict["dam_load_resource_as_offers"]
         df_gen = df_dict["dam_gen_resource_as_offers"]
@@ -1231,6 +1236,26 @@ class TestErcotAPI(TestHelperMixin):
             )
 
             assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
+
+    """get_60_day_sced_disclosure"""
+
+    def test_get_60_day_sced_disclosure_historical(self):
+        start_date = self.local_start_of_today() - pd.DateOffset(days=1000)
+        end_date = start_date + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_60_day_sced_disclosure_historical_{start_date.date()}_{end_date.date()}.yaml",
+        ):
+            df_dict = ErcotAPI().get_60_day_sced_disclosure(
+                start_date,
+                end_date,
+            )
+
+        check_60_day_sced_disclosure(df_dict)
+
+        for df in df_dict.values():
+            assert df["Interval Start"].min() == start_date
+            assert df["Interval End"].max() == end_date
 
     """get_historical_data"""
 
