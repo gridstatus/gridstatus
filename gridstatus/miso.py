@@ -10,7 +10,7 @@ import requests
 from gridstatus import utils
 from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
-from gridstatus.gs_logging import log, logger
+from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
 
@@ -124,7 +124,7 @@ class MISO(ISOBase):
 
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_df_al.xls"  # noqa
 
-        log(msg=f"Downloading load forecast data from {url}", verbose=verbose)
+        logger.info(f"Downloading load forecast data from {url}")
         df = pd.read_excel(url, sheet_name="Sheet1", skiprows=4, skipfooter=1)
 
         df = df.dropna(subset=["HourEnding"])
@@ -205,7 +205,7 @@ class MISO(ISOBase):
         # Example url: https://docs.misoenergy.org/marketreports/20240327_mom.xlsx
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
 
-        log(f"Downloading mom forecast data from {url}", verbose)
+        logger.info(f"Downloading mom forecast data from {url}")
 
         try:
             # Ignore the UserWarning from openpyxl about styles
@@ -279,8 +279,8 @@ class MISO(ISOBase):
             raise NotSupported("Only historical data is available for final LMPs")
 
         if not date.weekday() == 0:
-            log("Weekly LMP data is only available for Mondays", verbose)
-            log("Changing date to the previous Monday", verbose)
+            logger.warning("Weekly LMP data is only available for Mondays")
+            logger.warning("Changing date to the previous Monday")
             date -= pd.DateOffset(days=date.weekday())
 
         # The data file contains data starting two weeks before the date and
@@ -387,7 +387,7 @@ class MISO(ISOBase):
                     "Only today, yesterday, and latest are supported for 5 min LMPs",
                 )
 
-            log(f"Downloading LMP data from {url}", verbose)
+            logger.info(f"Downloading LMP data from {url}")
             data = pd.read_csv(url)
 
             data["Interval Start"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
@@ -419,7 +419,7 @@ class MISO(ISOBase):
             elif market == Markets.REAL_TIME_HOURLY_PRELIM:
                 url = f"https://docs.misoenergy.org/marketreports/{date_str}_rt_lmp_prelim.csv"
 
-            log(f"Downloading LMP data from {url}", verbose)
+            logger.info(f"Downloading LMP data from {url}")
             raw_data = pd.read_csv(url, skiprows=4)
             data = self._handle_hourly_lmp(date, raw_data)
             interval_duration = 60
@@ -493,7 +493,7 @@ class MISO(ISOBase):
         # use dam to get location types
         today = utils._handle_date("today", self.default_timezone)
         url = f"https://docs.misoenergy.org/marketreports/{today.strftime('%Y%m%d')}_da_expost_lmp.csv"  # noqa
-        log(f"Downloading LMP data from {url}", verbose)
+        logger.info(f"Downloading LMP data from {url}")
         today_dam_data = pd.read_csv(url, skiprows=4)
         node_to_type = (
             today_dam_data[["Node", "Type"]]
@@ -507,7 +507,7 @@ class MISO(ISOBase):
         url = "https://www.misoenergy.org/api/giqueue/getprojects"
 
         msg = f"Downloading interconnection queue from {url}"
-        log(msg, verbose)
+        logger.info(msg)
 
         response = requests.get(url)
         return utils.get_response_blob(response)
@@ -626,7 +626,7 @@ class MISO(ISOBase):
 
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
 
-        log(f"Downloading outages {type} data from {url}", verbose)
+        logger.info(f"Downloading outages {type} data from {url}")
 
         skiprows = 6
         nrows = 17
