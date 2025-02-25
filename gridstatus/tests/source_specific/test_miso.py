@@ -8,7 +8,7 @@ from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
-api_vcr = setup_vcr(
+miso_vcr = setup_vcr(
     source="miso",
     record_mode=RECORD_MODE,
 )
@@ -148,7 +148,7 @@ class TestMISO(BaseTestISO):
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
 
-    @api_vcr.use_cassette("test_get_lmp_real_time_5_min_yesterday.yaml")
+    @miso_vcr.use_cassette("test_get_lmp_real_time_5_min_yesterday.yaml")
     def test_get_lmp_real_time_5_min_yesterday(self):
         date = self.local_today() - pd.DateOffset(days=1)
 
@@ -490,7 +490,7 @@ class TestMISO(BaseTestISO):
     )
     def test_get_binding_constraints_supplemental(self, date, end):
         cassette_name = f"test_get_binding_constraints_supplemental_{date}_{end}.yaml"
-        with api_vcr.use_cassette(cassette_name):
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_binding_constraints_supplemental(
                 date=date,
                 end=end,
@@ -544,7 +544,7 @@ class TestMISO(BaseTestISO):
         cassette_name = (
             f"test_get_binding_constraints_day_ahead_hourly_{date}_{end}.yaml"
         )
-        with api_vcr.use_cassette(cassette_name):
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_binding_constraints_day_ahead_hourly(
                 date=date,
                 end=end,
@@ -596,7 +596,7 @@ class TestMISO(BaseTestISO):
         end,
     ):
         cassette_name = f"test_get_subregional_power_balance_constraints_day_ahead_hourly_{date}_{end}.yaml"
-        with api_vcr.use_cassette(cassette_name):
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_subregional_power_balance_constraints_day_ahead_hourly(
                 date=date,
                 end=end,
@@ -639,7 +639,7 @@ class TestMISO(BaseTestISO):
         end,
     ):
         cassette_name = f"test_get_reserve_product_binding_constraints_day_ahead_hourly_{date}_{end}.yaml"
-        with api_vcr.use_cassette(cassette_name):
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_reserve_product_binding_constraints_day_ahead_hourly(
                 date=date,
                 end=end,
@@ -670,7 +670,7 @@ class TestMISO(BaseTestISO):
         cassette_name = (
             f"test_get_binding_constraints_real_time_5_min_{date}_{end}.yaml"
         )
-        with api_vcr.use_cassette(cassette_name):
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_binding_constraints_real_time_5_min(
                 date=date,
                 end=end,
@@ -708,7 +708,7 @@ class TestMISO(BaseTestISO):
         cassette_name = (
             f"test_get_binding_constraints_real_time_yearly_historical_{year}.yaml"
         )
-        with api_vcr.use_cassette(cassette_name):
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_binding_constraints_real_time_yearly_historical(
                 year=year,
             )
@@ -748,7 +748,7 @@ class TestMISO(BaseTestISO):
         cassette_name = (
             f"test_get_binding_constraint_overrides_real_time_5_min_{date}_{end}.yaml"
         )
-        with api_vcr.use_cassette(cassette_name):
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_binding_constraint_overrides_real_time_5_min(
                 date=date,
                 end=end,
@@ -791,7 +791,7 @@ class TestMISO(BaseTestISO):
         end,
     ):
         cassette_name = f"test_get_subregional_power_balance_constraints_real_time_5_min_{date}_{end}.yaml"
-        with api_vcr.use_cassette(cassette_name):
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_subregional_power_balance_constraints_real_time_5_min(
                 date=date,
                 end=end,
@@ -834,7 +834,7 @@ class TestMISO(BaseTestISO):
         end,
     ):
         cassette_name = f"test_get_reserve_product_binding_constraints_real_time_5_min_{date}_{end}.yaml"
-        with api_vcr.use_cassette(cassette_name):
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_reserve_product_binding_constraints_real_time_5_min(
                 date=date,
                 end=end,
@@ -856,3 +856,41 @@ class TestMISO(BaseTestISO):
                 pytest.skip(
                     "No data available for this date range, so skipping data-comparison assertions",
                 )
+
+    """get_look_ahead_hourly"""
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_look_ahead_hourly(self, date, end):
+        with miso_vcr.use_cassette(f"test_get_look_ahead_hourly_{date}_{end}.yaml"):
+            df = self.iso.get_look_ahead_hourly(
+                date=date,
+                end=end,
+            )
+
+            assert isinstance(df, pd.DataFrame)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "MTLF",
+                "Outage",
+            ]
+
+            # Each day has 24 hours, 7 days of forecast, and 4 regions
+            days = (pd.Timestamp(end) - pd.Timestamp(date)).days
+            expected_rows = 24 * 7 * 4 * days
+            assert len(df) == expected_rows
+            expected_regions = ["Central", "MISO", "North", "South"]
+            assert sorted(df["Region"].unique()) == sorted(expected_regions)
+
+            assert df["Interval Start"].dt.tz.zone == self.iso.default_timezone
+            assert df["Interval End"].dt.tz.zone == self.iso.default_timezone
+            assert df["Publish Time"].dt.tz.zone == self.iso.default_timezone
+            assert (df["Interval End"] - df["Interval Start"]).unique() == [
+                pd.Timedelta(hours=1),
+            ]
+            assert min(df["Interval Start"]).date() == pd.Timestamp(date).date()
