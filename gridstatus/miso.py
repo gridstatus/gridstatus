@@ -14,6 +14,39 @@ from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
 
+def add_interval_end(df: pd.DataFrame, duration_min: int) -> pd.DataFrame:
+    """Add an interval end column to a dataframe
+
+    Args:
+        df (pandas.DataFrame): Dataframe with a time column
+        duration_min (int): Interval duration in minutes
+
+    Returns:
+        pandas.DataFrame: Dataframe with an interval end column
+    """
+    df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=duration_min)
+    df["Time"] = df["Interval Start"]
+    df = utils.move_cols_to_front(
+        df,
+        ["Time", "Interval Start", "Interval End"],
+    )
+    return df
+
+
+"""
+Notes
+
+- Real-time 5-minute LMP data for current day, previous day available
+https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=rollingmarketday&returnType=json
+
+- market reports https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=
+historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ASummary%2FMarketReportName%3AHistorical%20Generation%20Fuel%20Mix%20(xlsx)&t=10&p=0&s=MarketReportPublished&sd=desc
+
+- ancillary services available in consolidate api
+
+"""  # noqa
+
+
 class MISO(ISOBase):
     """Midcontinent Independent System Operator (MISO)"""
 
@@ -50,7 +83,11 @@ class MISO(ISOBase):
         "ARKANSAS.HUB",
     ]
 
-    def get_fuel_mix(self, date, verbose=False):
+    def get_fuel_mix(
+        self,
+        date: str | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get the fuel mix for a given day for a provided MISO.
 
         Arguments:
@@ -83,7 +120,7 @@ class MISO(ISOBase):
         df = add_interval_end(df, 5)
         return df
 
-    def get_load(self, date, verbose=False):
+    def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
         if date == "latest":
             return self.get_load(date="today", verbose=verbose)
 
@@ -115,7 +152,12 @@ class MISO(ISOBase):
             raise NotSupported
 
     @support_date_range(frequency="DAY_START")
-    def get_load_forecast(self, date, end=None, verbose=False):
+    def get_load_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         https://docs.misoenergy.org/marketreports/YYYYMMDD_df_al.xls
         """
@@ -158,7 +200,7 @@ class MISO(ISOBase):
 
         return df.sort_values("Interval Start").reset_index(drop=True)
 
-    def _get_load_data(self, verbose=False):
+    def _get_load_data(self, verbose: bool = False) -> dict:
         url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"  # noqa
         r = self._get_json(url, verbose=verbose)
         return r
@@ -180,7 +222,11 @@ class MISO(ISOBase):
     ]
 
     @support_date_range(frequency="DAY_START")
-    def get_solar_forecast(self, date, verbose=False):
+    def get_solar_forecast(
+        self,
+        date: str | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         if date == "latest":
             return self.get_solar_forecast(date="today", verbose=verbose)
 
@@ -191,7 +237,11 @@ class MISO(ISOBase):
         )
 
     @support_date_range(frequency="DAY_START")
-    def get_wind_forecast(self, date, verbose=False):
+    def get_wind_forecast(
+        self,
+        date: str | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         if date == "latest":
             return self.get_wind_forecast(date="today", verbose=verbose)
 
@@ -201,7 +251,11 @@ class MISO(ISOBase):
             verbose=verbose,
         )
 
-    def _get_mom_forecast_report(self, date, verbose=False):
+    def _get_mom_forecast_report(
+        self,
+        date: str | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.ExcelFile:
         # Example url: https://docs.misoenergy.org/marketreports/20240327_mom.xlsx
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
 
@@ -219,7 +273,12 @@ class MISO(ISOBase):
 
         return excel_file
 
-    def _get_solar_and_wind_forecast_data(self, date, fuel, verbose=False):
+    def _get_solar_and_wind_forecast_data(
+        self,
+        date: str | pd.Timestamp,
+        fuel: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         excel_file = self._get_mom_forecast_report(date, verbose)
         publish_time = pd.to_datetime(excel_file.book.properties.modified, utc=True)
 
@@ -269,7 +328,12 @@ class MISO(ISOBase):
         return df[self.solar_and_wind_forecast_cols]
 
     @support_date_range(frequency="W-MON")
-    def get_lmp_real_time_5_min_final(self, date, end=None, verbose=False):
+    def get_lmp_real_time_5_min_final(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Retrieves real time final lmp data that includes price corrections to the
         preliminary real time data.
 
@@ -304,7 +368,11 @@ class MISO(ISOBase):
 
         return self._handle_lmp_real_time_5_min_final(df, verbose)
 
-    def _handle_lmp_real_time_5_min_final(self, df, verbose=False):
+    def _handle_lmp_real_time_5_min_final(
+        self,
+        df: pd.DataFrame,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df["Interval Start"] = pd.to_datetime(df["MKTHOUR_EST"]).dt.tz_localize(
             self.default_timezone,
         )
@@ -357,12 +425,12 @@ class MISO(ISOBase):
     @support_date_range(frequency="DAY_START")
     def get_lmp(
         self,
-        date,
-        end=None,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
         market: str = Markets.REAL_TIME_5_MIN,
         locations: list = "ALL",
-        verbose=False,
-    ):
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Supported Markets:
             - ``REAL_TIME_5_MIN`` - (Prelim ExPost 5 Minute)
@@ -464,7 +532,11 @@ class MISO(ISOBase):
 
         return data
 
-    def _handle_hourly_lmp(self, date, raw_data):
+    def _handle_hourly_lmp(
+        self,
+        date: str | pd.Timestamp,
+        raw_data: pd.DataFrame,
+    ) -> pd.DataFrame:
         data_melted = raw_data.melt(
             id_vars=["Node", "Type", "Value"],
             value_vars=[col for col in raw_data.columns if col.startswith("HE")],
@@ -489,7 +561,7 @@ class MISO(ISOBase):
 
         return data
 
-    def _get_node_to_type_mapping(self, verbose=False):
+    def _get_node_to_type_mapping(self, verbose: bool = False) -> pd.DataFrame:
         # use dam to get location types
         today = utils._handle_date("today", self.default_timezone)
         url = f"https://docs.misoenergy.org/marketreports/{today.strftime('%Y%m%d')}_da_expost_lmp.csv"  # noqa
@@ -503,7 +575,7 @@ class MISO(ISOBase):
 
         return node_to_type
 
-    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+    def get_raw_interconnection_queue(self, verbose: bool = False) -> BinaryIO:
         url = "https://www.misoenergy.org/api/giqueue/getprojects"
 
         msg = f"Downloading interconnection queue from {url}"
@@ -512,7 +584,7 @@ class MISO(ISOBase):
         response = requests.get(url)
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose=False):
+    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
         """Get the interconnection queue
 
         Returns:
@@ -595,7 +667,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         """Get the forecasted generation outages published on the date for the next
         seven days."""
         return self._get_generation_outages_data(date, type="forecast", verbose=verbose)
@@ -606,7 +678,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         """Get the estimated generation outages published on the date for the past 30
         days. NOTE: since these are estimates, they change with each file published.
         """
@@ -614,10 +686,10 @@ class MISO(ISOBase):
 
     def _get_generation_outages_data(
         self,
-        date: pd.Timestamp,
+        date: str | pd.Timestamp,
         type: str = "forecast",
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         if date == "latest":
             # Latest available file is for yesterday
             date = pd.Timestamp.now(
@@ -744,7 +816,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         query_date = date - pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_bc.xls"
         logger.info(f"Downloading day-ahead binding constraints data from {url}")
@@ -862,7 +934,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         query_date = date - pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_pbc.csv"
         logger.info(
@@ -943,7 +1015,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         query_date = date - pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_rpe.xls"
         logger.info(
@@ -994,7 +1066,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         query_date = date + pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_bc.xls"
         logger.info(f"Downloading real-time binding constraints data from {url}")
@@ -1126,7 +1198,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         query_date = date + pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_or.xls"
         logger.info(
@@ -1191,7 +1263,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         query_date = date + pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_pbc.csv"
         logger.info(
@@ -1272,7 +1344,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         query_date = date + pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_rpe.xls"
         logger.info(
@@ -1322,36 +1394,3 @@ class MISO(ISOBase):
             self.default_timezone,
         )
         return market_date, publish_date
-
-
-def add_interval_end(df: pd.DataFrame, duration_min: int) -> pd.DataFrame:
-    """Add an interval end column to a dataframe
-
-    Args:
-        df (pandas.DataFrame): Dataframe with a time column
-        duration_min (int): Interval duration in minutes
-
-    Returns:
-        pandas.DataFrame: Dataframe with an interval end column
-    """
-    df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=duration_min)
-    df["Time"] = df["Interval Start"]
-    df = utils.move_cols_to_front(
-        df,
-        ["Time", "Interval Start", "Interval End"],
-    )
-    return df
-
-
-"""
-Notes
-
-- Real-time 5-minute LMP data for current day, previous day available
-https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=rollingmarketday&returnType=json
-
-- market reports https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=
-historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ASummary%2FMarketReportName%3AHistorical%20Generation%20Fuel%20Mix%20(xlsx)&t=10&p=0&s=MarketReportPublished&sd=desc
-
-- ancillary services available in consolidate api
-
-"""  # noqa
