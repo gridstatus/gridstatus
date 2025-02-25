@@ -1,3 +1,4 @@
+import io
 import json
 import re
 import urllib
@@ -1407,7 +1408,91 @@ class MISO(ISOBase):
 
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_sr_la_rg.csv"
         logger.info(f"Downloading look-ahead hourly data from {url}")
+        response = requests.get(url)
+        content = response.content.decode("utf-8")
+        publish_date = pd.read_csv(
+            io.StringIO(content),
+            nrows=1,
+            skiprows=1,
+            header=None,
+        ).iloc[0, 0]
+        publish_time = pd.to_datetime(publish_date.split(": ")[1]).tz_localize(
+            self.default_timezone,
+        )
 
-        df = pd.read_csv(url, skiprows=4)
+        df_raw = pd.read_csv(io.StringIO(content), skiprows=3)
+        from pprint import pprint as pp
 
-        return df
+        print("\nInitial DataFrame:")
+        pp(df_raw.head())
+
+        df = df_raw.iloc[:96]  # 24 hours * 4 regions per hour
+        print("\nAfter keeping first 96 rows:")
+        pp(
+            df[
+                [
+                    "Hourend_EST",
+                    "Region",
+                    "02/25/2025 Tuesday  Peak Hour: HE   9 MTLF (GW)",
+                ]
+            ],
+        )
+
+        id_cols = ["Hourend_EST", "Region"]
+        value_cols = [col for col in df_raw.columns if col not in id_cols]
+
+        df_melted = df_raw.melt(
+            id_vars=id_cols,
+            value_vars=value_cols,
+            var_name="date_col",
+            value_name="value",
+        )
+        print("\nAfter melt:")
+        # print(df_melted.head())
+
+        df_melted["date"] = df_melted["date_col"].str.extract(r"(\d{2}/\d{2}/\d{4})")
+        df_melted["type"] = (
+            df_melted["date_col"]
+            .str.contains("Outage")
+            .map({True: "Outage", False: "MTLF"})
+        )
+        # print("\nAfter adding date and type:")
+        # print(df_melted)
+
+        df_wide = df_melted.pivot(
+            index=["Hourend_EST", "Region", "date"],
+            columns="type",
+            values="value",
+        ).reset_index()
+
+        df_wide["Interval End"] = pd.to_datetime(
+            df_wide["date"]
+            + " "
+            + df_wide["Hourend_EST"].str.extract(r"Hour (\d+)")[0]
+            + ":00",
+        ).dt.tz_localize(self.default_timezone)
+
+        df_wide["Interval Start"] = df_wide["Interval End"] - pd.Timedelta(hours=1)
+
+        df_wide["Interval Start"] = df_wide["Interval Start"].dt.tz_convert("UTC")
+        df_wide["Interval End"] = df_wide["Interval End"].dt.tz_convert("UTC")
+        df_wide["Publish Time"] = publish_time.tz_convert("UTC")
+
+        # print("\nAfter datetime processing:")
+        # print(df_wide.head())
+
+        final_df = df_wide[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "MTLF",
+                "Outage",
+            ]
+        ].sort_values(["Interval Start", "Region"])
+
+        # print("\nFinal DataFrame:")
+        # print(final_df.head())
+
+        return final_df
