@@ -1,4 +1,3 @@
-import io
 import json
 import re
 import urllib
@@ -1408,11 +1407,8 @@ class MISO(ISOBase):
 
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_sr_la_rg.csv"
         logger.info(f"Downloading look-ahead hourly data from {url}")
-        response = requests.get(url)
-        content = response.content.decode("utf-8")
-
         publish_date = pd.read_csv(
-            io.StringIO(content),
+            url,
             nrows=1,
             skiprows=1,
             header=None,
@@ -1421,7 +1417,7 @@ class MISO(ISOBase):
             self.default_timezone,
         )
 
-        df_raw = pd.read_csv(io.StringIO(content), skiprows=3)
+        df_raw = pd.read_csv(url, skiprows=3)
         df = df_raw.iloc[:96]  # 24 hours * 4 regions per hour
 
         id_cols = ["Hourend_EST", "Region"]

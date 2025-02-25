@@ -79,49 +79,50 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             self.iso.get_lmp_real_time_5_min_final("today")
 
-    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_historical_date_range(self):
         start = self.local_today() - pd.Timedelta(days=100)
         # Set start to a Wednesday to check logic
         start = start - pd.DateOffset(days=start.weekday() - 2)
-
         assert start.weekday() == 2
 
         # Make sure to span a week
-
         end = start + pd.Timedelta(days=7)
-        df = self.iso.get_lmp_real_time_5_min_final(start, end)
 
-        most_recent_monday = self.local_start_of_day(start) - pd.DateOffset(
-            days=self.local_start_of_day(start).weekday(),
-        )
+        cassette_name = f"test_get_lmp_real_time_5_min_final_historical_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_lmp_real_time_5_min_final(start, end)
 
-        assert df["Interval Start"].min() == most_recent_monday
-        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(days=14)
+            most_recent_monday = self.local_start_of_day(start) - pd.DateOffset(
+                days=self.local_start_of_day(start).weekday(),
+            )
 
-        self._check_lmp_real_time_5_min_final(df)
+            assert df["Interval Start"].min() == most_recent_monday
+            assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(
+                days=14,
+            )
 
-    @pytest.mark.integration
+            self._check_lmp_real_time_5_min_final(df)
+
     def test_get_lmp_real_time_5_min_final_raises_error_if_no_data(self):
         date = self.local_today() - pd.DateOffset(days=5)
-
-        with pytest.raises(NoDataFoundException):
-            self.iso.get_lmp_real_time_5_min_final(date)
+        cassette_name = f"test_get_lmp_real_time_5_min_final_raises_error_if_no_data_{date.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_lmp_real_time_5_min_final(date)
 
     """get_lmp"""
 
     @with_markets(Markets.REAL_TIME_HOURLY_FINAL, Markets.REAL_TIME_HOURLY_PRELIM)
-    @pytest.mark.integration
     def test_lmp_date_range(self, market):
-        offset_from_today = 5 if market == Markets.REAL_TIME_HOURLY_FINAL else 1
-        super().test_lmp_date_range(market, offset_from_today)
+        with miso_vcr.use_cassette(f"test_lmp_date_range_{market.value}.yaml"):
+            offset_from_today = 5 if market == Markets.REAL_TIME_HOURLY_FINAL else 1
+            super().test_lmp_date_range(market, offset_from_today)
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_HOURLY_FINAL,
         Markets.REAL_TIME_HOURLY_PRELIM,
     )
-    @pytest.mark.integration
     def test_get_lmp_historical(self, market):
         # Prelim data only goes back 4 days
         if market == Markets.REAL_TIME_HOURLY_PRELIM:
@@ -130,60 +131,65 @@ class TestMISO(BaseTestISO):
             date = self.local_today() - pd.Timedelta(days=100)
 
         date_str = date.strftime("%Y-%m-%d")
-
-        super().test_get_lmp_historical(market, date_str=date_str)
+        cassette_name = f"test_get_lmp_historical_{market.value}_{date_str}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            super().test_get_lmp_historical(market, date_str=date_str)
 
     @with_markets(
         Markets.REAL_TIME_5_MIN,
     )
-    @pytest.mark.integration
     def test_get_lmp_latest(self, market):
-        super().test_get_lmp_latest(market)
+        cassette_name = f"test_get_lmp_latest_{market.value}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            super().test_get_lmp_latest(market)
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
     )
-    @pytest.mark.integration
     def test_get_lmp_today(self, market):
-        super().test_get_lmp_today(market=market)
+        cassette_name = f"test_get_lmp_today_{market.value}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            super().test_get_lmp_today(market=market)
 
-    @miso_vcr.use_cassette("test_get_lmp_real_time_5_min_yesterday.yaml")
     def test_get_lmp_real_time_5_min_yesterday(self):
         date = self.local_today() - pd.DateOffset(days=1)
-
-        df = self.iso.get_lmp(
-            date=date,
-            market=Markets.REAL_TIME_5_MIN,
+        cassette_name = (
+            f"test_get_lmp_real_time_5_min_yesterday_{date.strftime('%Y-%m-%d')}.yaml"
         )
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_lmp(
+                date=date,
+                market=Markets.REAL_TIME_5_MIN,
+            )
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                date,
+            ) + pd.DateOffset(days=1)
+            assert sorted(list(df["Location Type"].unique())) == [
+                "Gennode",
+                "Hub",
+                "Interface",
+                "Loadzone",
+            ]
 
-        assert df["Interval Start"].min() == self.local_start_of_day(date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            date,
-        ) + pd.DateOffset(days=1)
-
-        assert sorted(list(df["Location Type"].unique())) == [
-            "Gennode",
-            "Hub",
-            "Interface",
-            "Loadzone",
-        ]
-
-    @pytest.mark.integration
     def test_get_lmp_locations(self):
-        data = self.iso.get_lmp(
-            date="latest",
-            market=Markets.REAL_TIME_5_MIN,
-            locations=self.iso.hubs,
-        )
-        assert set(data["Location"].unique()) == set(self.iso.hubs)
+        cassette_name = "test_get_lmp_locations.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            data = self.iso.get_lmp(
+                date="latest",
+                market=Markets.REAL_TIME_5_MIN,
+                locations=self.iso.hubs,
+            )
+            assert set(data["Location"].unique()) == set(self.iso.hubs)
 
     """get_load"""
 
-    @pytest.mark.integration
     def test_get_load_historical(self):
-        with pytest.raises(NotSupported):
-            super().test_get_load_historical()
+        cassette_name = "test_get_load_historical.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            with pytest.raises(NotSupported):
+                super().test_get_load_historical()
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_historical_with_date_range(self):
@@ -204,9 +210,10 @@ class TestMISO(BaseTestISO):
         "MISO MTLF",
     ]
 
-    @pytest.mark.integration
     def test_get_load_forecast_today(self):
-        df = self.iso.get_load_forecast("today")
+        cassette_name = "test_get_load_forecast_today.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_load_forecast("today")
 
         assert df.columns.tolist() == self.load_forecast_cols
 
@@ -216,55 +223,66 @@ class TestMISO(BaseTestISO):
             days=6,
         )
 
-    @pytest.mark.integration
     def test_get_load_forecast_latest(self):
-        assert self.iso.get_load_forecast("latest").equals(
-            self.iso.get_load_forecast("today"),
-        )
+        cassette_name = "test_get_load_forecast_latest.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            assert self.iso.get_load_forecast("latest").equals(
+                self.iso.get_load_forecast("today"),
+            )
 
-    @pytest.mark.integration
     def test_get_load_forecast_historical(self):
         past_date = self.local_today() - pd.Timedelta(days=30)
-        df = self.iso.get_load_forecast(past_date)
+        cassette_name = (
+            f"test_get_load_forecast_historical_{past_date.strftime('%Y-%m-%d')}.yaml"
+        )
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_load_forecast(past_date)
+            assert df.columns.tolist() == self.load_forecast_cols
 
-        assert df.columns.tolist() == self.load_forecast_cols
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                past_date,
+            ) + pd.Timedelta(days=6)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            past_date,
-        ) + pd.Timedelta(days=6)
+            assert (
+                df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
+            )
 
-        assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
-
-    @pytest.mark.integration
     def test_get_load_forecast_historical_with_date_range(self):
         past_date = self.local_today() - pd.Timedelta(days=250)
         end_date = past_date + pd.Timedelta(days=3)
+        cassette_name = f"test_get_load_forecast_historical_with_date_range_{past_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_load_forecast(
+                start=past_date,
+                end=end_date,
+            )
 
-        df = self.iso.get_load_forecast(
-            start=past_date,
-            end=end_date,
-        )
+            assert df.columns.tolist() == self.load_forecast_cols
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                end_date,
+            ) + pd.Timedelta(days=5)
 
-        assert df.columns.tolist() == self.load_forecast_cols
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            end_date,
-        ) + pd.Timedelta(days=5)
-
-    @pytest.mark.integration
-    def test_get_load_forecast_dst_start_and_end(self):
+    def test_get_load_forecast_dst_spring_forward(self):
         dst_start = pd.Timestamp("2022-03-13")
-        df = self.iso.get_load_forecast(dst_start)
+        cassette_name = f"test_get_load_forecast_dst_spring_forward_{dst_start.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_load_forecast(dst_start)
 
-        assert df.columns.tolist() == self.load_forecast_cols
-        assert df["Interval Start"].min() == self.local_start_of_day(dst_start)
+            assert df.columns.tolist() == self.load_forecast_cols
+            assert df["Interval Start"].min() == self.local_start_of_day(dst_start)
 
+    def test_get_load_forecast_dst_fall_back(self):
         dst_end = pd.Timestamp("2022-11-06")
-        df = self.iso.get_load_forecast(dst_end)
+        cassette_name = (
+            f"test_get_load_forecast_dst_fall_back_{dst_end.strftime('%Y-%m-%d')}.yaml"
+        )
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_load_forecast(dst_end)
 
-        assert df.columns.tolist() == self.load_forecast_cols
-        assert df["Interval Start"].min() == self.local_start_of_day(dst_end)
+            assert df.columns.tolist() == self.load_forecast_cols
+            assert df["Interval Start"].min() == self.local_start_of_day(dst_end)
 
     solar_and_wind_forecast_cols = [
         "Interval Start",
@@ -284,121 +302,130 @@ class TestMISO(BaseTestISO):
             "1h",
         )
 
-    @pytest.mark.integration
     def test_get_solar_forecast_historical(self):
         past_date = self.local_today() - pd.Timedelta(days=30)
-        df = self.iso.get_solar_forecast(past_date)
+        cassette_name = (
+            f"test_get_solar_forecast_historical_{past_date.strftime('%Y-%m-%d')}.yaml"
+        )
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_solar_forecast(past_date)
 
-        self._check_solar_and_wind_forecast(df)
+            self._check_solar_and_wind_forecast(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            past_date,
-        ) + pd.Timedelta(days=7)
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                past_date,
+            ) + pd.Timedelta(days=7)
 
-        assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
+            assert (
+                df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
+            )
 
-    @pytest.mark.integration
     def test_get_solar_forecast_historical_date_range(self):
         past_date = self.local_today() - pd.Timedelta(days=100)
         end_date = past_date + pd.Timedelta(days=3)
+        cassette_name = f"test_get_solar_forecast_historical_date_range_{past_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_solar_forecast(
+                start=past_date,
+                end=end_date,
+            )
 
-        df = self.iso.get_solar_forecast(
-            start=past_date,
-            end=end_date,
-        )
+            self._check_solar_and_wind_forecast(df)
 
-        self._check_solar_and_wind_forecast(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                end_date,
+            ) + pd.Timedelta(days=6)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            end_date,
-        ) + pd.Timedelta(days=6)
+            assert df["Publish Time"].dt.date.unique().tolist() == [
+                past_date,
+                past_date + pd.Timedelta(days=1),
+                past_date + pd.Timedelta(days=2),
+            ]
 
-        assert df["Publish Time"].dt.date.unique().tolist() == [
-            past_date,
-            past_date + pd.Timedelta(days=1),
-            past_date + pd.Timedelta(days=2),
-        ]
-
-    @pytest.mark.integration
     def test_get_solar_forecast_historical_before_schema_change(self):
         # Data schema changed on 2022-06-13
         date = pd.Timestamp("2022-05-12").date()
-
-        df = self.iso.get_solar_forecast(date)
-
-        self._check_solar_and_wind_forecast(df)
+        cassette_name = f"test_get_solar_forecast_historical_before_schema_change_{date.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_solar_forecast(date)
+            self._check_solar_and_wind_forecast(df)
 
     """get_wind_forecast"""
 
-    @pytest.mark.integration
     def test_get_wind_forecast_historical(self):
         past_date = self.local_today() - pd.Timedelta(days=30)
-        df = self.iso.get_wind_forecast(past_date)
+        cassette_name = (
+            f"test_get_wind_forecast_historical_{past_date.strftime('%Y-%m-%d')}.yaml"
+        )
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_wind_forecast(past_date)
 
-        self._check_solar_and_wind_forecast(df)
+            self._check_solar_and_wind_forecast(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            past_date,
-        ) + pd.Timedelta(days=7)
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                past_date,
+            ) + pd.Timedelta(days=7)
+            assert (
+                df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
+            )
 
-        assert df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
-
-    @pytest.mark.integration
     def test_get_wind_forecast_historical_date_range(self):
         past_date = self.local_today() - pd.Timedelta(days=100)
         end_date = past_date + pd.Timedelta(days=3)
+        cassette_name = f"test_get_wind_forecast_historical_date_range_{past_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_wind_forecast(
+                start=past_date,
+                end=end_date,
+            )
 
-        df = self.iso.get_wind_forecast(
-            start=past_date,
-            end=end_date,
-        )
+            self._check_solar_and_wind_forecast(df)
 
-        self._check_solar_and_wind_forecast(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                end_date,
+            ) + pd.Timedelta(days=6)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            end_date,
-        ) + pd.Timedelta(days=6)
+            assert df["Publish Time"].dt.date.unique().tolist() == [
+                past_date,
+                past_date + pd.Timedelta(days=1),
+                past_date + pd.Timedelta(days=2),
+            ]
 
-        assert df["Publish Time"].dt.date.unique().tolist() == [
-            past_date,
-            past_date + pd.Timedelta(days=1),
-            past_date + pd.Timedelta(days=2),
-        ]
-
-    @pytest.mark.integration
     def test_get_wind_forecast_historical_before_schema_change(self):
         # Data schema changed on 2022-06-13
         # No south data for 2022-05-12 for wind
         date = pd.Timestamp("2022-05-12").date()
-
-        df = self.iso.get_wind_forecast(date)
-
-        self._check_solar_and_wind_forecast(df)
-
-        assert df["South"].isnull().all()
+        cassette_name = f"test_get_wind_forecast_historical_before_schema_change_{date.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_wind_forecast(date)
+            self._check_solar_and_wind_forecast(df)
+            assert df["South"].isnull().all()
 
     """get_status"""
 
-    @pytest.mark.integration
     def test_get_status_latest(self):
-        with pytest.raises(NotImplementedError):
-            super().test_get_status_latest()
+        cassette_name = "test_get_status_latest.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            with pytest.raises(NotImplementedError):
+                super().test_get_status_latest()
 
     """get_storage"""
 
-    @pytest.mark.integration
     def test_get_storage_historical(self):
-        with pytest.raises(NotImplementedError):
-            super().test_get_storage_historical()
+        cassette_name = "test_get_storage_historical.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            with pytest.raises(NotImplementedError):
+                super().test_get_storage_historical()
 
-    @pytest.mark.integration
     def test_get_storage_today(self):
-        with pytest.raises(NotImplementedError):
-            super().test_get_storage_today()
+        cassette_name = "test_get_storage_today.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            with pytest.raises(NotImplementedError):
+                super().test_get_storage_today()
 
     """get_generation_outages_forecast"""
 
@@ -420,69 +447,66 @@ class TestMISO(BaseTestISO):
 
         assert (df["Region"].unique() == ["Central", "MISO", "North", "South"]).all()
 
-    @pytest.mark.integration
     def test_get_generation_outages_forecast_latest(self):
-        df = self.iso.get_generation_outages_forecast("latest")
+        cassette_name = "test_get_generation_outages_forecast_latest.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_generation_outages_forecast("latest")
 
-        self._check_generation_outages(df)
+            self._check_generation_outages(df)
 
-        # Latest fetches the file published yesterday with the first forecast day today
-        expected_start_date = self.local_start_of_today()
+            # Latest fetches the file published yesterday with the first forecast day today
+            expected_start_date = self.local_start_of_today()
 
-        assert df["Publish Time"].unique() == expected_start_date - pd.DateOffset(
-            days=1,
-        )
-        assert df["Interval Start"].min() == expected_start_date
-        assert df["Interval End"].max() == expected_start_date + pd.DateOffset(days=7)
+            assert df["Publish Time"].unique() == expected_start_date - pd.DateOffset(
+                days=1,
+            )
+            assert df["Interval Start"].min() == expected_start_date
+            assert df["Interval End"].max() == expected_start_date + pd.DateOffset(
+                days=7,
+            )
 
-    @pytest.mark.integration
     def test_get_generation_outages_forecast_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=100)
         end = start + pd.DateOffset(days=3)
+        cassette_name = f"test_get_generation_outages_forecast_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_generation_outages_forecast(start, end)
+            self._check_generation_outages(df)
 
-        df = self.iso.get_generation_outages_forecast(start, end)
-
-        self._check_generation_outages(df)
-
-        assert df["Interval Start"].min() == start + pd.DateOffset(days=1)
-
-        assert df["Interval End"].max() == end + pd.DateOffset(days=7)
-
-        assert df["Publish Time"].min() == start
-        assert df["Publish Time"].nunique() == 3
+            assert df["Interval Start"].min() == start + pd.DateOffset(days=1)
+            assert df["Interval End"].max() == end + pd.DateOffset(days=7)
+            assert df["Publish Time"].min() == start
+            assert df["Publish Time"].nunique() == 3
 
     """get_generation_outages_estimated"""
 
-    @pytest.mark.integration
     def test_get_generation_outages_estimated_latest(self):
-        df = self.iso.get_generation_outages_estimated("latest")
+        cassette_name = "test_get_generation_outages_estimated_latest.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_generation_outages_estimated("latest")
+            self._check_generation_outages(df)
 
-        self._check_generation_outages(df)
+            # Latest fetches the file published yesterday
+            expected_start_date = self.local_start_of_today() - pd.DateOffset(days=30)
 
-        # Latest fetches the file published yesterday
-        expected_start_date = self.local_start_of_today() - pd.DateOffset(days=30)
+            assert df[
+                "Publish Time"
+            ].unique() == self.local_start_of_today() - pd.DateOffset(days=1)
 
-        assert df[
-            "Publish Time"
-        ].unique() == self.local_start_of_today() - pd.DateOffset(days=1)
+            assert df["Interval Start"].min() == expected_start_date
+            assert df["Interval End"].max() == self.local_start_of_today()
 
-        assert df["Interval Start"].min() == expected_start_date
-        assert df["Interval End"].max() == self.local_start_of_today()
-
-    @pytest.mark.integration
     def test_get_generation_outages_estimated_historical_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=100)
         end = start + pd.DateOffset(days=3)
-
-        df = self.iso.get_generation_outages_estimated(start, end)
-
-        self._check_generation_outages(df)
-
-        assert df["Interval Start"].min() == start - pd.DateOffset(days=29)
-        assert df["Interval End"].max() == end
-
-        assert df["Publish Time"].min() == start
-        assert df["Publish Time"].nunique() == 3
+        cassette_name = f"test_get_generation_outages_estimated_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_generation_outages_estimated(start, end)
+            self._check_generation_outages(df)
+            assert df["Interval Start"].min() == start - pd.DateOffset(days=29)
+            assert df["Interval End"].max() == end
+            assert df["Publish Time"].min() == start
+            assert df["Publish Time"].nunique() == 3
 
     @pytest.mark.parametrize(
         "date,end",
