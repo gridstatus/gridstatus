@@ -764,7 +764,7 @@ class EIA:
             if col not in df.columns and col in columns:
                 if verbose:
                     logger.warning(
-                        f"Column {col} not found in data for {generator_status} generators. Filling with np.nan",  # noqa
+                        f"Column {col} not found in data for {generator_status} generators. Adding and filling with np.nan values.",  # noqa
                     )
                 df[col] = np.nan
 
