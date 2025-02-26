@@ -4,6 +4,12 @@ import pytest
 
 import gridstatus
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
+from gridstatus.eia_constants import (
+    CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
+    OPERATING_GENERATOR_COLUMNS,
+    PLANNED_GENERATOR_COLUMNS,
+    RETIRED_GENERATOR_COLUMNS,
+)
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
@@ -418,3 +424,126 @@ def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
         tz=HENRY_HUB_TIMEZONE,
     )
     assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
+
+
+def test_get_generators_relative_date():
+    # The files for the most recent month are generally available 24-26 days
+    # after the end of the month.
+    date = pd.Timestamp.utcnow() - pd.DateOffset(days=60)
+
+    with api_vcr.use_cassette(f"test_get_generators_relative_date_{date.date()}"):
+        data = EIA().get_generators(date)
+
+    for key, columns in [
+        ("operating", OPERATING_GENERATOR_COLUMNS),
+        ("planned", PLANNED_GENERATOR_COLUMNS),
+        ("retired", RETIRED_GENERATOR_COLUMNS),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS),
+    ]:
+        dataset = data[key]
+        assert dataset.columns.tolist() == columns
+        assert dataset["Period"].unique() == date.replace(day=1).date()
+        assert dataset["Entity ID"].notna().all()
+        assert dataset["Plant ID"].notna().all()
+        assert dataset["Generator ID"].notna().all()
+
+
+def test_get_generators_absolute_date():
+    # This is a relatively recent file with all columns filled in
+    date = pd.Timestamp("2024-10-01")
+
+    with api_vcr.use_cassette(f"test_get_generators_absolute_date_{date.date()}"):
+        data = EIA().get_generators(date)
+
+    for key, columns, expected_rows in [
+        # The row values come from inspecting the spreadsheet
+        ("operating", OPERATING_GENERATOR_COLUMNS, 26_455),
+        ("planned", PLANNED_GENERATOR_COLUMNS, 1_864),
+        ("retired", RETIRED_GENERATOR_COLUMNS, 6_715),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS, 1_480),
+    ]:
+        dataset = data[key]
+        assert dataset.columns.tolist() == columns
+        assert dataset.shape[0] == expected_rows
+        assert dataset["Period"].unique() == pd.Timestamp("2024-10-01").date()
+        # This is found from the properties of the Excel file
+        assert dataset["Updated At"].unique() == pd.Timestamp(
+            "11/21/2024, 20:19:25",
+            tz="UTC",
+        )
+        assert dataset["Entity ID"].notna().all()
+        assert dataset["Plant ID"].notna().all()
+        assert dataset["Generator ID"].notna().all()
+
+        # These columns should not be all empty
+        if key in ["operating", "retired"]:
+            for col in [
+                "Balancing Authority Code",
+                "DC Net Capacity",
+                "Nameplate Capacity",
+                "Nameplate Energy Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ]:
+                assert dataset[col].notna().any()
+
+        elif key in ["planned", "canceled_or_postponed"]:
+            for col in [
+                "Balancing Authority Code",
+                "Nameplate Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ]:
+                assert dataset[col].notna().any()
+
+
+def test_get_generators_absolute_date_with_missing_columns():
+    # Older month where we have to fill in some columns with np.nan. This is also the
+    # first month with data that works in our parsing.
+    date = pd.Timestamp("2015-12-22")
+
+    with api_vcr.use_cassette(
+        f"test_get_generators_absolute_date_with_missing_columns_{date.date()}",
+    ):
+        data = EIA().get_generators(date)
+
+    for key, columns, expected_rows in [
+        # The row values come from inspecting the spreadsheet
+        ("operating", OPERATING_GENERATOR_COLUMNS, 20_070),
+        ("planned", PLANNED_GENERATOR_COLUMNS, 1_028),
+        ("retired", RETIRED_GENERATOR_COLUMNS, 3_053),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS, 717),
+    ]:
+        dataset = data[key]
+        assert dataset.columns.tolist() == columns
+        assert dataset.shape[0] == expected_rows
+        assert dataset["Period"].unique() == pd.Timestamp("2015-12-01").date()
+        # This is found from the properties of the Excel file
+        assert dataset["Updated At"].unique() == pd.Timestamp(
+            "02/25/2016, 17:09:16",
+            tz="UTC",
+        )
+        assert dataset["Entity ID"].notna().all()
+        assert dataset["Plant ID"].notna().all()
+        assert dataset["Generator ID"].notna().all()
+
+        # These are the empty columns we have to fill in
+        if key in ["operating", "retired"]:
+            for col in [
+                "Balancing Authority Code",
+                "DC Net Capacity",
+                "Nameplate Capacity",
+                "Nameplate Energy Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ]:
+                assert dataset[col].isna().all()
+
+        elif key in ["planned", "canceled_or_postponed"]:
+            for col in [
+                "Balancing Authority Code",
+                "Nameplate Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ]:
+                assert dataset[col].isna().all()
