@@ -859,40 +859,7 @@ class ISONEAPI:
         else:
             url = f"{self.base_url}/hourlylmp/rt/prelim/day/{date.strftime('%Y%m%d')}"
 
-        response = self.make_api_call(url)
-        df = pd.DataFrame(response["HourlyLmps"]["HourlyLmp"])
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
-        )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=60,
-        )
-
-        df["Location Type"] = df["Location"].apply(lambda x: x["@LocType"])
-        df["Location"] = df["Location"].apply(lambda x: x["$"])
-        df["Market"] = "REAL_TIME_HOURLY"
-        df = df.rename(
-            columns={
-                "LmpTotal": "LMP",
-                "EnergyComponent": "Energy",
-                "CongestionComponent": "Congestion",
-                "LossComponent": "Loss",
-            },
-        )
-
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Market",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-        ].sort_values(["Interval Start", "Location"])
+        return self._handle_lmp_real_time_hourly(url, verbose)
 
     @support_date_range("DAY_START")
     def get_lmp_real_time_hourly_final(
@@ -917,7 +884,13 @@ class ISONEAPI:
             return self.get_lmp_real_time_hourly_prelim("today", verbose)
 
         url = f"{self.base_url}/hourlylmp/rt/final/day/{date.strftime('%Y%m%d')}"
+        return self._handle_lmp_real_time_hourly(url, verbose)
 
+    def _handle_lmp_real_time_hourly(
+        self,
+        url: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         response = self.make_api_call(url)
         df = pd.DataFrame(response["HourlyLmps"]["HourlyLmp"])
         df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
@@ -929,7 +902,6 @@ class ISONEAPI:
 
         df["Location Type"] = df["Location"].apply(lambda x: x["@LocType"])
         df["Location"] = df["Location"].apply(lambda x: x["$"])
-        df["Market"] = "REAL_TIME_HOURLY"
         df = df.rename(
             columns={
                 "LmpTotal": "LMP",
@@ -943,7 +915,6 @@ class ISONEAPI:
             [
                 "Interval Start",
                 "Interval End",
-                "Market",
                 "Location",
                 "Location Type",
                 "LMP",

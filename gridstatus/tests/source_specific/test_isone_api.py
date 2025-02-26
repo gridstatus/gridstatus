@@ -582,7 +582,6 @@ class TestISONEAPI(TestHelperMixin):
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
-                "Market",
                 "Location",
                 "Location Type",
                 "LMP",
@@ -590,7 +589,6 @@ class TestISONEAPI(TestHelperMixin):
                 "Congestion",
                 "Loss",
             ]
-            assert all(result["Market"] == "REAL_TIME_HOURLY")
             assert result["LMP"].dtype in [np.int64, np.float64]
             assert result["Energy"].dtype in [np.int64, np.float64]
             assert result["Congestion"].dtype in [np.int64, np.float64]
@@ -609,7 +607,6 @@ class TestISONEAPI(TestHelperMixin):
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
-                "Market",
                 "Location",
                 "Location Type",
                 "LMP",
@@ -617,7 +614,6 @@ class TestISONEAPI(TestHelperMixin):
                 "Congestion",
                 "Loss",
             ]
-            assert all(result["Market"] == "REAL_TIME_HOURLY")
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
@@ -643,7 +639,6 @@ class TestISONEAPI(TestHelperMixin):
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
-                "Market",
                 "Location",
                 "Location Type",
                 "LMP",
@@ -651,7 +646,6 @@ class TestISONEAPI(TestHelperMixin):
                 "Congestion",
                 "Loss",
             ]
-            assert all(result["Market"] == "REAL_TIME_HOURLY")
             assert result["LMP"].dtype in [np.int64, np.float64]
             assert result["Energy"].dtype in [np.int64, np.float64]
             assert result["Congestion"].dtype in [np.int64, np.float64]
@@ -670,7 +664,6 @@ class TestISONEAPI(TestHelperMixin):
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
-                "Market",
                 "Location",
                 "Location Type",
                 "LMP",
@@ -678,7 +671,6 @@ class TestISONEAPI(TestHelperMixin):
                 "Congestion",
                 "Loss",
             ]
-            assert all(result["Market"] == "REAL_TIME_HOURLY")
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
