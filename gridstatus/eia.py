@@ -689,11 +689,12 @@ class EIA:
 
         return {
             key: self._handle_generator_data(
-                dataset,
-                period,
-                updated_at,
-                columns,
-                verbose,
+                df=dataset,
+                period=period,
+                updated_at=updated_at,
+                columns=columns,
+                generator_status=key,
+                verbose=verbose,
             )
             for key, dataset, columns in zip(
                 ["operating", "planned", "retired", "canceled_or_postponed"],
@@ -718,6 +719,7 @@ class EIA:
         period: datetime.date,
         updated_at: datetime.datetime,
         columns: list[str],
+        generator_status: str,
         verbose: bool = False,
     ) -> pd.DataFrame:
         df.insert(0, "Period", period)
@@ -758,10 +760,11 @@ class EIA:
         ]
 
         for col in columns_to_fill:
-            if col not in df.columns:
+            # If this column is not in the dataframe but should be, add it with np.nan
+            if col not in df.columns and col in columns:
                 if verbose:
                     logger.warning(
-                        f"Column {col} not found in data. Filling with np.nan",
+                        f"Column {col} not found in data for {generator_status} generators. Filling with np.nan",  # noqa
                     )
                 df[col] = np.nan
 
