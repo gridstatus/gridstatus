@@ -834,3 +834,121 @@ class ISONEAPI:
                 "Total Imports",
             ]
         ].sort_values(["Interval Start", "Location"])
+
+    @support_date_range("DAY_START")
+    def get_lmp_real_time_hourly_prelim(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the real-time hourly LMP data for specified date range.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most
+            recent data.
+            end_date (str | pd.Timestamp | None): The end date for the data request. Only used if date
+            is not "latest".
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the real-time hourly LMP data.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/hourlylmp/rt/prelim/current"
+        else:
+            url = f"{self.base_url}/hourlylmp/rt/prelim/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url)
+        df = pd.DataFrame(response["HourlyLmps"]["HourlyLmp"])
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=60,
+        )
+
+        df["Location Type"] = df["Location"].apply(lambda x: x["@LocType"])
+        df["Location"] = df["Location"].apply(lambda x: x["$"])
+        df["Market"] = "REAL_TIME_HOURLY"
+        df = df.rename(
+            columns={
+                "LmpTotal": "LMP",
+                "EnergyComponent": "Energy",
+                "CongestionComponent": "Congestion",
+                "LossComponent": "Loss",
+            },
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ].sort_values(["Interval Start", "Location"])
+
+    @support_date_range("DAY_START")
+    def get_lmp_real_time_hourly_final(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the real-time hourly LMP data for specified date range.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most
+            recent data.
+            end_date (str | pd.Timestamp | None): The end date for the data request. Only used if date
+            is not "latest".
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the real-time hourly LMP data.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/hourlylmp/rt/final/current"
+        else:
+            url = f"{self.base_url}/hourlylmp/rt/final/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url)
+        df = pd.DataFrame(response["HourlyLmps"]["HourlyLmp"])
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=60,
+        )
+
+        df["Location Type"] = df["Location"].apply(lambda x: x["@LocType"])
+        df["Location"] = df["Location"].apply(lambda x: x["$"])
+        df["Market"] = "REAL_TIME_HOURLY"
+        df = df.rename(
+            columns={
+                "LmpTotal": "LMP",
+                "EnergyComponent": "Energy",
+                "CongestionComponent": "Congestion",
+                "LossComponent": "Loss",
+            },
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ].sort_values(["Interval Start", "Location"])
