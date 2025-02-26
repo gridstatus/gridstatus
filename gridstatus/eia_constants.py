@@ -111,3 +111,34 @@ CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS = [
     "Latitude",
     "Longitude",
 ]
+
+POWER_PLANT_FLOAT_COLUMNS = [
+    "Nameplate Capacity",
+    "Net Summer Capacity",
+    "Net Winter Capacity",
+    "Nameplate Energy Capacity",
+    "DC Net Capacity",
+    "Planned Derate of Summer Capacity",
+    "Planned Uprate of Summer Capacity",
+    "Latitude",
+    "Longitude",
+]
+
+POWER_PLANT_INT_COLUMNS = [
+    "Entity ID",
+    "Plant ID",
+    # Generator ID is not an integer
+    "Operating Month",
+    "Operating Year",
+    "Planned Operation Month",
+    "Planned Operation Year",
+    "Planned Retirement Month",
+    "Planned Retirement Year",
+    "Planned Derate Year",
+    "Planned Derate Month",
+    "Planned Uprate Year",
+    "Planned Uprate Month",
+    "Planned Operation Year",
+    "Retirement Month",
+    "Retirement Year",
+]

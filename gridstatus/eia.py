@@ -20,6 +20,8 @@ from gridstatus.eia_constants import (
     CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS,
     OPERATING_POWER_PLANT_COLUMNS,
     PLANNED_POWER_PLANT_COLUMNS,
+    POWER_PLANT_FLOAT_COLUMNS,
+    POWER_PLANT_INT_COLUMNS,
     RETIRED_POWER_PLANT_COLUMNS,
 )
 from gridstatus.gs_logging import setup_gs_logger
@@ -723,6 +725,8 @@ class EIA:
 
         df.columns = df.columns.str.strip()
 
+        cols_to_drop = [col for col in ["Google Map", "Bing Map"] if col in df.columns]
+
         df = (
             df.rename(
                 columns={
@@ -736,9 +740,7 @@ class EIA:
                 },
             )
             .drop(
-                columns=[
-                    col for col in ["Google Map", "Bing Map"] if col in df.columns
-                ],
+                columns=cols_to_drop,
             )
             # Dropna values to remove extra footer rows
             .dropna(subset=["Plant ID"])
@@ -763,7 +765,21 @@ class EIA:
                     )
                 df[col] = np.nan
 
-        df["Entity ID"] = df["Entity ID"].astype(int)
+        for col in POWER_PLANT_FLOAT_COLUMNS:
+            if col in df.columns and df[col].dtype == "object":
+                df[col] = (
+                    df[col].astype(str).str.strip().replace({"": np.nan}).astype(float)
+                )
+
+        for col in POWER_PLANT_INT_COLUMNS:
+            if col in df.columns and df[col].dtype == "object":
+                df[col] = (
+                    df[col]
+                    .astype(str)
+                    .str.strip()
+                    .replace({"": None, "nan": None})
+                    .astype("Int64")
+                )
 
         return df[columns]
 
