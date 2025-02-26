@@ -729,7 +729,7 @@ class ISONEAPI:
 
         return self._handle_interchange_dataframe(df, interval_minutes=15)
 
-    def _handle_interchange_dataframe(self, df, interval_minutes):
+    def _handle_interchange_dataframe(self, df: pd.DataFrame, interval_minutes: int):
         df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
             self.default_timezone,
         )
@@ -795,7 +795,7 @@ class ISONEAPI:
 
         return self._handle_external_flows_dataframe(df, interval_minutes=5)
 
-    def _handle_external_flows_dataframe(self, df, interval_minutes):
+    def _handle_external_flows_dataframe(self, df: pd.DataFrame, interval_minutes: int):
         df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
             self.default_timezone,
         )
@@ -914,9 +914,9 @@ class ISONEAPI:
             pandas.DataFrame: A DataFrame containing the real-time hourly LMP data.
         """
         if date == "latest":
-            url = f"{self.base_url}/hourlylmp/rt/final/current"
-        else:
-            url = f"{self.base_url}/hourlylmp/rt/final/day/{date.strftime('%Y%m%d')}"
+            return self.get_lmp_real_time_hourly_prelim("today", verbose)
+
+        url = f"{self.base_url}/hourlylmp/rt/final/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url)
         df = pd.DataFrame(response["HourlyLmps"]["HourlyLmp"])
