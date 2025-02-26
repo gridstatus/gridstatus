@@ -784,6 +784,16 @@ class EIA:
                     .astype("Int64")
                 )
 
+        null_generator_id_rows = df.loc[df["Generator ID"].isnull()]
+
+        # There are some rows with null Generator IDs. We drop these rows
+        if not null_generator_id_rows.empty:
+            logger.warning(
+                f"Found rows with null Generator Ids for {generator_status} "
+                + f"power plants. {null_generator_id_rows}",
+            )
+            df = df.dropna(subset=["Generator ID"])
+
         return df[columns]
 
 

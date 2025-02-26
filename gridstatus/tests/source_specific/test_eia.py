@@ -445,7 +445,7 @@ def test_get_generators_relative_date():
         assert dataset["Period"].unique() == date.replace(day=1).date()
         assert dataset["Entity ID"].notna().all()
         assert dataset["Plant ID"].notna().all()
-        assert dataset["Net Summer Capacity"].notna().all()
+        assert dataset["Generator ID"].notna().all()
 
 
 def test_get_generators_absolute_date():
@@ -458,9 +458,9 @@ def test_get_generators_absolute_date():
     for key, columns, expected_rows in [
         # The row values come from inspecting the spreadsheet
         ("operating", OPERATING_GENERATOR_COLUMNS, 26_455),
-        ("planned", PLANNED_GENERATOR_COLUMNS, 1_866),
+        ("planned", PLANNED_GENERATOR_COLUMNS, 1_864),
         ("retired", RETIRED_GENERATOR_COLUMNS, 6_715),
-        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS, 1_481),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS, 1_480),
     ]:
         dataset = data[key]
         assert dataset.columns.tolist() == columns
@@ -473,7 +473,7 @@ def test_get_generators_absolute_date():
         )
         assert dataset["Entity ID"].notna().all()
         assert dataset["Plant ID"].notna().all()
-        assert dataset["Net Summer Capacity"].notna().all()
+        assert dataset["Generator ID"].notna().all()
 
         # These columns should not be all empty
         if key in ["operating", "retired"]:
@@ -510,7 +510,7 @@ def test_get_generators_absolute_date_with_missing_columns():
     for key, columns, expected_rows in [
         # The row values come from inspecting the spreadsheet
         ("operating", OPERATING_GENERATOR_COLUMNS, 20_070),
-        ("planned", PLANNED_GENERATOR_COLUMNS, 1_029),
+        ("planned", PLANNED_GENERATOR_COLUMNS, 1_028),
         ("retired", RETIRED_GENERATOR_COLUMNS, 3_053),
         ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS, 717),
     ]:
@@ -525,7 +525,7 @@ def test_get_generators_absolute_date_with_missing_columns():
         )
         assert dataset["Entity ID"].notna().all()
         assert dataset["Plant ID"].notna().all()
-        assert dataset["Net Summer Capacity"].notna().all()
+        assert dataset["Generator ID"].notna().all()
 
         # These are the empty columns we have to fill in
         if key in ["operating", "retired"]:
