@@ -17,12 +17,12 @@ from tqdm import tqdm
 import gridstatus
 from gridstatus import NoDataFoundException, utils
 from gridstatus.eia_constants import (
-    CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS,
-    OPERATING_POWER_PLANT_COLUMNS,
-    PLANNED_POWER_PLANT_COLUMNS,
-    POWER_PLANT_FLOAT_COLUMNS,
-    POWER_PLANT_INT_COLUMNS,
-    RETIRED_POWER_PLANT_COLUMNS,
+    CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
+    GENERATOR_FLOAT_COLUMNS,
+    GENERATOR_INT_COLUMNS,
+    OPERATING_GENERATOR_COLUMNS,
+    PLANNED_GENERATOR_COLUMNS,
+    RETIRED_GENERATOR_COLUMNS,
 )
 from gridstatus.gs_logging import setup_gs_logger
 
@@ -635,7 +635,7 @@ class EIA:
 
         return data
 
-    def get_power_plants(
+    def get_generators(
         self,
         date: str | datetime.datetime,
         end: str | datetime.datetime = None,
@@ -649,7 +649,7 @@ class EIA:
         url = f"https://www.eia.gov/electricity/data/eia860m/archive/xls/{month_name}_generator{year}.xlsx"
 
         if verbose:
-            logger.info(f"Downloading EIA power plant data from {url}")
+            logger.info(f"Downloading EIA generator data from {url}")
 
         # Test if the file exists
         try:
@@ -658,11 +658,11 @@ class EIA:
             url = url.replace("archive/", "")
             try:
                 if verbose:
-                    logger.info(f"Downloading EIA power plant data from {url}")
+                    logger.info(f"Downloading EIA generator data from {url}")
                 file = pd.ExcelFile(url, engine="openpyxl")
             except BadZipFile:
                 raise NoDataFoundException(
-                    f"EIA power plant data not found for {date}",
+                    f"EIA generator data not found for {date}",
                 ) from None
 
         updated_at = pd.to_datetime(file.book.properties.modified, utc=True)
@@ -688,7 +688,7 @@ class EIA:
         canceled_or_postponed_data = file.parse("Canceled or Postponed", **shared_args)
 
         return {
-            key: self._handle_power_plant_data(
+            key: self._handle_generator_data(
                 dataset,
                 period,
                 updated_at,
@@ -704,15 +704,15 @@ class EIA:
                     canceled_or_postponed_data,
                 ],
                 [
-                    OPERATING_POWER_PLANT_COLUMNS,
-                    PLANNED_POWER_PLANT_COLUMNS,
-                    RETIRED_POWER_PLANT_COLUMNS,
-                    CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS,
+                    OPERATING_GENERATOR_COLUMNS,
+                    PLANNED_GENERATOR_COLUMNS,
+                    RETIRED_GENERATOR_COLUMNS,
+                    CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
                 ],
             )
         }
 
-    def _handle_power_plant_data(
+    def _handle_generator_data(
         self,
         df: pd.DataFrame,
         period: datetime.date,
@@ -765,13 +765,13 @@ class EIA:
                     )
                 df[col] = np.nan
 
-        for col in POWER_PLANT_FLOAT_COLUMNS:
+        for col in GENERATOR_FLOAT_COLUMNS:
             if col in df.columns and df[col].dtype == "object":
                 df[col] = (
                     df[col].astype(str).str.strip().replace({"": np.nan}).astype(float)
                 )
 
-        for col in POWER_PLANT_INT_COLUMNS:
+        for col in GENERATOR_INT_COLUMNS:
             if col in df.columns and df[col].dtype == "object":
                 df[col] = (
                     df[col]

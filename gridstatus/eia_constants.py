@@ -1,4 +1,4 @@
-OPERATING_POWER_PLANT_COLUMNS = [
+OPERATING_GENERATOR_COLUMNS = [
     "Period",
     "Updated At",
     "Entity ID",
@@ -34,7 +34,7 @@ OPERATING_POWER_PLANT_COLUMNS = [
     "Longitude",
 ]
 
-PLANNED_POWER_PLANT_COLUMNS = [
+PLANNED_GENERATOR_COLUMNS = [
     "Period",
     "Updated At",
     "Entity ID",
@@ -60,7 +60,7 @@ PLANNED_POWER_PLANT_COLUMNS = [
     "Longitude",
 ]
 
-RETIRED_POWER_PLANT_COLUMNS = [
+RETIRED_GENERATOR_COLUMNS = [
     "Period",
     "Updated At",
     "Entity ID",
@@ -89,7 +89,7 @@ RETIRED_POWER_PLANT_COLUMNS = [
     "Longitude",
 ]
 
-CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS = [
+CANCELED_OR_POSTPONED_GENERATOR_COLUMNS = [
     "Period",
     "Updated At",
     "Entity ID",
@@ -112,7 +112,7 @@ CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS = [
     "Longitude",
 ]
 
-POWER_PLANT_FLOAT_COLUMNS = [
+GENERATOR_FLOAT_COLUMNS = [
     "Nameplate Capacity",
     "Net Summer Capacity",
     "Net Winter Capacity",
@@ -124,7 +124,7 @@ POWER_PLANT_FLOAT_COLUMNS = [
     "Longitude",
 ]
 
-POWER_PLANT_INT_COLUMNS = [
+GENERATOR_INT_COLUMNS = [
     "Entity ID",
     "Plant ID",
     # Generator ID is not an integer

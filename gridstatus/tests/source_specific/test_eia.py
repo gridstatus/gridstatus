@@ -5,10 +5,10 @@ import pytest
 import gridstatus
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
 from gridstatus.eia_constants import (
-    CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS,
-    OPERATING_POWER_PLANT_COLUMNS,
-    PLANNED_POWER_PLANT_COLUMNS,
-    RETIRED_POWER_PLANT_COLUMNS,
+    CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
+    OPERATING_GENERATOR_COLUMNS,
+    PLANNED_GENERATOR_COLUMNS,
+    RETIRED_GENERATOR_COLUMNS,
 )
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
@@ -426,19 +426,19 @@ def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
     assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
 
 
-def test_get_power_plants_relative_date():
+def test_get_generators_relative_date():
     # The files for the most recent month are generally available 24-26 days
     # after the end of the month.
     date = pd.Timestamp.utcnow() - pd.DateOffset(days=60)
 
-    with api_vcr.use_cassette(f"test_get_power_plants_relative_date_{date.date()}"):
-        data = EIA().get_power_plants(date)
+    with api_vcr.use_cassette(f"test_get_generators_relative_date_{date.date()}"):
+        data = EIA().get_generators(date)
 
     for key, columns in [
-        ("operating", OPERATING_POWER_PLANT_COLUMNS),
-        ("planned", PLANNED_POWER_PLANT_COLUMNS),
-        ("retired", RETIRED_POWER_PLANT_COLUMNS),
-        ("canceled_or_postponed", CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS),
+        ("operating", OPERATING_GENERATOR_COLUMNS),
+        ("planned", PLANNED_GENERATOR_COLUMNS),
+        ("retired", RETIRED_GENERATOR_COLUMNS),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS),
     ]:
         dataset = data[key]
         assert dataset.columns.tolist() == columns
@@ -448,19 +448,19 @@ def test_get_power_plants_relative_date():
         assert dataset["Net Summer Capacity"].notna().all()
 
 
-def test_get_power_plants_absolute_date():
+def test_get_generators_absolute_date():
     # This is a relatively recent file with all columns filled in
     date = pd.Timestamp("2024-10-01")
 
-    with api_vcr.use_cassette(f"test_get_power_plants_absolute_date_{date.date()}"):
-        data = EIA().get_power_plants(date)
+    with api_vcr.use_cassette(f"test_get_generators_absolute_date_{date.date()}"):
+        data = EIA().get_generators(date)
 
     for key, columns, expected_rows in [
         # The row values come from inspecting the spreadsheet
-        ("operating", OPERATING_POWER_PLANT_COLUMNS, 26_455),
-        ("planned", PLANNED_POWER_PLANT_COLUMNS, 1_866),
-        ("retired", RETIRED_POWER_PLANT_COLUMNS, 6_715),
-        ("canceled_or_postponed", CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS, 1_481),
+        ("operating", OPERATING_GENERATOR_COLUMNS, 26_455),
+        ("planned", PLANNED_GENERATOR_COLUMNS, 1_866),
+        ("retired", RETIRED_GENERATOR_COLUMNS, 6_715),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS, 1_481),
     ]:
         dataset = data[key]
         assert dataset.columns.tolist() == columns
@@ -497,22 +497,22 @@ def test_get_power_plants_absolute_date():
                 assert dataset[col].notna().any()
 
 
-def test_get_power_plants_absolute_date_with_missing_columns():
+def test_get_generators_absolute_date_with_missing_columns():
     # Older month where we have to fill in some columns with np.nan. This is also the
     # first month with data that works in our parsing.
     date = pd.Timestamp("2015-12-22")
 
     with api_vcr.use_cassette(
-        f"test_get_power_plants_absolute_date_with_missing_columns_{date.date()}",
+        f"test_get_generators_absolute_date_with_missing_columns_{date.date()}",
     ):
-        data = EIA().get_power_plants(date)
+        data = EIA().get_generators(date)
 
     for key, columns, expected_rows in [
         # The row values come from inspecting the spreadsheet
-        ("operating", OPERATING_POWER_PLANT_COLUMNS, 20_070),
-        ("planned", PLANNED_POWER_PLANT_COLUMNS, 1_029),
-        ("retired", RETIRED_POWER_PLANT_COLUMNS, 3_053),
-        ("canceled_or_postponed", CANCELED_OR_POSTPONED_POWER_PLANT_COLUMNS, 717),
+        ("operating", OPERATING_GENERATOR_COLUMNS, 20_070),
+        ("planned", PLANNED_GENERATOR_COLUMNS, 1_029),
+        ("retired", RETIRED_GENERATOR_COLUMNS, 3_053),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS, 717),
     ]:
         dataset = data[key]
         assert dataset.columns.tolist() == columns
