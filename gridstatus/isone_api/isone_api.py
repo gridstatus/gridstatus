@@ -857,7 +857,7 @@ class ISONEAPI:
         if date == "latest":
             url = f"{self.base_url}/hourlylmp/rt/prelim/current"
         else:
-            url = f"{self.base_url}/hourlylmp/rt/prelim/day/{date.strftime('%Y%m%d')}"
+            url = f"{self.base_url}/hourlylmp/rt/prelim/day/{date.strftime('%Y%m%d')}/hour/{date.hour:02d}"
 
         return self._handle_lmp_real_time_hourly(url, verbose)
 
