@@ -855,7 +855,7 @@ class ISONEAPI:
             pandas.DataFrame: A DataFrame containing the real-time hourly LMP data.
         """
         if date == "latest":
-            url = f"{self.base_url}/hourlylmp/rt/prelim/current"
+            return self.get_lmp_real_time_hourly_prelim("today", verbose)
         else:
             url = f"{self.base_url}/hourlylmp/rt/prelim/day/{date.strftime('%Y%m%d')}/hour/{date.hour:02d}"
 
