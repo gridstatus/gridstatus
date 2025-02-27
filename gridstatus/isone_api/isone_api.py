@@ -729,7 +729,7 @@ class ISONEAPI:
 
         return self._handle_interchange_dataframe(df, interval_minutes=15)
 
-    def _handle_interchange_dataframe(self, df, interval_minutes):
+    def _handle_interchange_dataframe(self, df: pd.DataFrame, interval_minutes: int):
         df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
             self.default_timezone,
         )
@@ -795,7 +795,7 @@ class ISONEAPI:
 
         return self._handle_external_flows_dataframe(df, interval_minutes=5)
 
-    def _handle_external_flows_dataframe(self, df, interval_minutes):
+    def _handle_external_flows_dataframe(self, df: pd.DataFrame, interval_minutes: int):
         df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
             self.default_timezone,
         )
@@ -832,5 +832,94 @@ class ISONEAPI:
                 "Sale",
                 "Total Exports",
                 "Total Imports",
+            ]
+        ].sort_values(["Interval Start", "Location"])
+
+    @support_date_range("DAY_START")
+    def get_lmp_real_time_hourly_prelim(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the real-time hourly LMP data for specified date range.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most
+            recent data.
+            end_date (str | pd.Timestamp | None): The end date for the data request. Only used if date
+            is not "latest".
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the real-time hourly LMP data.
+        """
+        if date == "latest":
+            return self.get_lmp_real_time_hourly_prelim("today", verbose)
+        else:
+            url = f"{self.base_url}/hourlylmp/rt/prelim/day/{date.strftime('%Y%m%d')}"
+
+        return self._handle_lmp_real_time_hourly(url, verbose)
+
+    @support_date_range("DAY_START")
+    def get_lmp_real_time_hourly_final(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the real-time hourly LMP data for specified date range.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most
+            recent data.
+            end_date (str | pd.Timestamp | None): The end date for the data request. Only used if date
+            is not "latest".
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the real-time hourly LMP data.
+        """
+        if date == "latest":
+            return self.get_lmp_real_time_hourly_prelim("today", verbose)
+
+        url = f"{self.base_url}/hourlylmp/rt/final/day/{date.strftime('%Y%m%d')}"
+        return self._handle_lmp_real_time_hourly(url, verbose)
+
+    def _handle_lmp_real_time_hourly(
+        self,
+        url: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        response = self.make_api_call(url)
+        df = pd.DataFrame(response["HourlyLmps"]["HourlyLmp"])
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=60,
+        )
+
+        df["Location Type"] = df["Location"].apply(lambda x: x["@LocType"])
+        df["Location"] = df["Location"].apply(lambda x: x["$"])
+        df = df.rename(
+            columns={
+                "LmpTotal": "LMP",
+                "EnergyComponent": "Energy",
+                "CongestionComponent": "Congestion",
+                "LossComponent": "Loss",
+            },
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
             ]
         ].sort_values(["Interval Start", "Location"])
