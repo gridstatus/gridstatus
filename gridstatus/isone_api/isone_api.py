@@ -835,7 +835,7 @@ class ISONEAPI:
             ]
         ].sort_values(["Interval Start", "Location"])
 
-    @support_date_range("HOUR_START")
+    @support_date_range("DAY_START")
     def get_lmp_real_time_hourly_prelim(
         self,
         date: str | pd.Timestamp = "latest",
@@ -857,7 +857,7 @@ class ISONEAPI:
         if date == "latest":
             return self.get_lmp_real_time_hourly_prelim("today", verbose)
         else:
-            url = f"{self.base_url}/hourlylmp/rt/prelim/day/{date.strftime('%Y%m%d')}/hour/{date.hour:02d}"
+            url = f"{self.base_url}/hourlylmp/rt/prelim/day/{date.strftime('%Y%m%d')}"
 
         return self._handle_lmp_real_time_hourly(url, verbose)
 
