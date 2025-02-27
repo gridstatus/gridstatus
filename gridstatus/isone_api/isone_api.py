@@ -835,7 +835,7 @@ class ISONEAPI:
             ]
         ].sort_values(["Interval Start", "Location"])
 
-    @support_date_range("DAY_START")
+    @support_date_range("HOUR_START")
     def get_lmp_real_time_hourly_prelim(
         self,
         date: str | pd.Timestamp = "latest",
