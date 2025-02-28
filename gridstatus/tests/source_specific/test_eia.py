@@ -438,6 +438,7 @@ def _check_generators_data(
     expected_rows: int = None,
     expected_period: datetime.date = None,
     expected_updated_at: pd.Timestamp = None,
+    expected_all_na_columns: List[str] = None,
 ):
     assert df.columns.tolist() == columns
     if expected_rows is not None:
@@ -461,8 +462,13 @@ def _check_generators_data(
             "Net Winter Capacity",
             "Unit Code",
         ]:
-            assert df[col].notna().any()
+            # Earlier datasets may not have all columns so we add them as pd.NA values
+            if expected_all_na_columns is not None and col in expected_all_na_columns:
+                assert df[col].isna().all()
+            else:
+                assert df[col].notna().any()
 
+    # Different generator_status datasets have different columns
     elif generator_status in ["planned", "canceled_or_postponed"]:
         for col in [
             "Balancing Authority Code",
@@ -470,7 +476,10 @@ def _check_generators_data(
             "Net Winter Capacity",
             "Unit Code",
         ]:
-            assert df[col].notna().any()
+            if expected_all_na_columns is not None and col in expected_all_na_columns:
+                assert df[col].isna().all()
+            else:
+                assert df[col].notna().any()
 
     for col in GENERATOR_FLOAT_COLUMNS:
         if col in df.columns:
@@ -560,4 +569,12 @@ def test_get_generators_absolute_date_with_missing_columns():
                 "02/25/2016, 17:09:16",
                 tz="UTC",
             ),
+            expected_all_na_columns=[
+                "Balancing Authority Code",
+                "DC Net Capacity",
+                "Nameplate Capacity",
+                "Nameplate Energy Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ],
         )
