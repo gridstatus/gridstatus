@@ -881,6 +881,8 @@ class ISONEAPI:
         """
 
         if date == "latest":
+            # NB: We don't quite know when this is published each day,
+            # and don't have a /current/all option for final data, so grab the full day on "latest"
             return self.get_lmp_real_time_5_min_prelim("today")
 
         url = f"{self.base_url}/fiveminutelmp/final/day/{date.strftime('%Y%m%d')}/starthour/{date.hour:02d}"
