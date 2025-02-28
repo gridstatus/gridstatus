@@ -686,3 +686,125 @@ class TestISONEAPI(TestHelperMixin):
             assert result["Energy"].dtype in [np.int64, np.float64]
             assert result["Congestion"].dtype in [np.int64, np.float64]
             assert result["Loss"].dtype in [np.int64, np.float64]
+
+    def test_get_lmp_real_time_5_min_prelim_latest(self):
+        with api_vcr.use_cassette("test_get_lmp_real_time_5_min_prelim_latest.yaml"):
+            result = self.iso.get_lmp_real_time_5_min_prelim(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) > 0
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(minutes=5)
+            ).all()
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_lmp_real_time_5_min_prelim_date_range(self, date: str, end: str):
+        cassette_name = f"test_get_lmp_real_time_5_min_prelim_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_lmp_real_time_5_min_prelim(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert (
+                min(result["Interval Start"]).date()
+                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
+            )
+            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
+                self.iso.default_timezone,
+            )
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(minutes=5)
+            ).all()
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+
+    def test_get_lmp_real_time_5_min_final_latest(self):
+        with api_vcr.use_cassette("test_get_lmp_real_time_5_min_final_latest.yaml"):
+            result = self.iso.get_lmp_real_time_5_min_final(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) > 0
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(minutes=5)
+            ).all()
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_lmp_real_time_5_min_final_date_range(self, date: str, end: str):
+        cassette_name = f"test_get_lmp_real_time_5_min_final_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_lmp_real_time_5_min_final(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert (
+                min(result["Interval Start"]).date()
+                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
+            )
+            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
+                self.iso.default_timezone,
+            )
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(minutes=5)
+            ).all()
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
