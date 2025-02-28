@@ -246,32 +246,33 @@ class TestErcot(BaseTestISO):
 
     """get_fuel_mix"""
 
-    @pytest.mark.integration
-    def test_get_fuel_mix(self):
-        # today
-        cols = [
-            "Time",
-            "Coal and Lignite",
-            "Hydro",
-            "Nuclear",
-            "Power Storage",
-            "Solar",
-            "Wind",
-            "Natural Gas",
-            "Other",
-        ]
-        df = self.iso.get_fuel_mix("today")
+    fuel_mix_cols = [
+        "Time",
+        "Coal and Lignite",
+        "Hydro",
+        "Nuclear",
+        "Power Storage",
+        "Solar",
+        "Wind",
+        "Natural Gas",
+        "Other",
+    ]
+
+    def test_get_fuel_mix_today(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
+            df = self.iso.get_fuel_mix("today")
         self._check_fuel_mix(df)
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns.tolist() == self.fuel_mix_cols
 
-        # latest
-        df = self.iso.get_fuel_mix("latest")
+    def test_get_fuel_mix_latest(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
+            df = self.iso.get_fuel_mix("latest")
         self._check_fuel_mix(df)
         # returns two days of data
         assert df["Time"].dt.date.nunique() == 2
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns.tolist() == self.fuel_mix_cols
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_date_or_start(self):
@@ -292,6 +293,47 @@ class TestErcot(BaseTestISO):
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_start_end_same_day(self):
         pass
+
+    """get_fuel_mix_detailed"""
+    fuel_mix_detailed_columns = [
+        "Time",
+        "Coal and Lignite Gen",
+        "Coal and Lignite HSL",
+        "Coal and Lignite Seasonal Capacity",
+        "Hydro Gen",
+        "Hydro HSL",
+        "Hydro Seasonal Capacity",
+        "Nuclear Gen",
+        "Nuclear HSL",
+        "Nuclear Seasonal Capacity",
+        "Power Storage Gen",
+        "Power Storage HSL",
+        "Power Storage Seasonal Capacity",
+        "Solar Gen",
+        "Solar HSL",
+        "Solar Seasonal Capacity",
+        "Wind Gen",
+        "Wind HSL",
+        "Wind Seasonal Capacity",
+        "Natural Gas Gen",
+        "Natural Gas HSL",
+        "Natural Gas Seasonal Capacity",
+        "Other Gen",
+        "Other HSL",
+        "Other Seasonal Capacity",
+    ]
+
+    def test_get_fuel_mix_detailed_latest(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_detailed_latest.yaml"):
+            df = self.iso.get_fuel_mix_detailed("latest")
+        assert df.columns.tolist() == self.fuel_mix_detailed_columns
+        assert df["Time"].dt.date.nunique() == 2
+
+    def test_get_fuel_mix_detailed_today(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_detailed_today.yaml"):
+            df = self.iso.get_fuel_mix_detailed("today")
+        assert df.columns.tolist() == self.fuel_mix_detailed_columns
+        assert df["Time"].dt.date.nunique() == 1
 
     """get_lmp"""
 
