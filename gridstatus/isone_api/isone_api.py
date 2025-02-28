@@ -836,6 +836,44 @@ class ISONEAPI:
         ].sort_values(["Interval Start", "Location"])
 
     @support_date_range("DAY_START")
+    def get_lmp_real_time_5_min_final(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the real-time 5 minute LMP final data for specified date range.
+
+        Args:
+            date (str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp]): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the real-time 5 minute LMP final data.
+        """
+
+        if date == "latest":
+            return self.get_lmp_real_time_5_min_final("today", verbose)
+        else:
+            url = f"{self.base_url}/fiveminutelmp/final/info"
+            response = self.make_api_call(url)
+            df = pd.DataFrame(response["FiveMinLmps"]["FiveMinLmp"])
+            df["Interval Start"] = pd.to_datetime(
+                df["BeginDate"],
+                utc=True,
+            ).dt.tz_convert(
+                self.default_timezone,
+            )
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+                minutes=5,
+            )
+            return df
+
+            # return self._handle_lmp_real_time_hourly(url, verbose)
+
+    @support_date_range("DAY_START")
     def get_lmp_real_time_hourly_prelim(
         self,
         date: str | pd.Timestamp = "latest",
