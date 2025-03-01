@@ -775,11 +775,14 @@ class EIA:
                 )
 
         for col in GENERATOR_INT_COLUMNS:
-            if col in df.columns and df[col].dtype == "object":
+            if col in df.columns and (
+                df[col].dtype == "object" or df[col].dtype == "float"
+            ):
                 df[col] = (
                     df[col]
                     .astype(str)
                     .str.strip()
+                    .str.replace(".0", "")
                     .replace({"": None, "nan": None})
                     .astype("Int64")
                 )
