@@ -2564,7 +2564,7 @@ class Ercot(ISOBase):
 
         def _make_bid_curve(df):
             return [
-                tuple(x)
+                list(x)
                 for x in df[["MW Offered", f"{as_name} Offer Price"]].values.tolist()
             ]
 
