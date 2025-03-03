@@ -1004,6 +1004,18 @@ class TestErcot(BaseTestISO):
             == [five_days_ago.date(), four_days_ago.date()]
         ).all()
 
+        bid_curve_columns = [
+            "Bid Curve - RRSPFR",
+            "Bid Curve - RRSUFR",
+            "Bid Curve - RRSFFR",
+            "Bid Curve - ECRSM",
+            "Bid Curve - ECRSS",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
+        ]
+
         cols = [
             "Time",
             "Interval Start",
@@ -1025,18 +1037,15 @@ class TestErcot(BaseTestISO):
             "Total Self-Arranged AS - RegDown",
             "Total Self-Arranged AS - NonSpin",
             "Total Self-Arranged AS - NSPNM",
-            "Bid Curve - RRSPFR",
-            "Bid Curve - RRSUFR",
-            "Bid Curve - RRSFFR",
-            "Bid Curve - ECRSM",
-            "Bid Curve - ECRSS",
-            "Bid Curve - REGUP",
-            "Bid Curve - REGDN",
-            "Bid Curve - ONNS",
-            "Bid Curve - OFFNS",
-        ]
+        ] + bid_curve_columns
 
         assert df.columns.tolist() == cols
+
+        for col in bid_curve_columns:
+            # Check that the first non-null value is a list of lists
+            first_non_null_value = df[col].dropna().iloc[0]
+            assert isinstance(first_non_null_value, list)
+            assert all(isinstance(x, list) for x in first_non_null_value)
 
     """get_reported_outages"""
 

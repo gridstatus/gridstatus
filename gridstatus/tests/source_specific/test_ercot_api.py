@@ -371,25 +371,24 @@ class TestErcotAPI(TestHelperMixin):
     """get_as_reports"""
 
     def _check_as_reports(self, df, before_full_columns=False):
-        shared_columns = [
-            "Interval Start",
-            "Interval End",
-            "Total Cleared AS - RegUp",
-            "Total Cleared AS - RegDown",
-            "Total Cleared AS - NonSpin",
-            "Total Self-Arranged AS - RegUp",
-            "Total Self-Arranged AS - RegDown",
-            "Total Self-Arranged AS - NonSpin",
-            "Bid Curve - REGUP",
-            "Bid Curve - REGDN",
-            "Bid Curve - ONNS",
-            "Bid Curve - OFFNS",
-        ]
-
+        # Earlier datasets only have these limited columns
         if before_full_columns:
-            assert df.columns.tolist() == shared_columns
+            columns = [
+                "Interval Start",
+                "Interval End",
+                "Total Cleared AS - RegUp",
+                "Total Cleared AS - RegDown",
+                "Total Cleared AS - NonSpin",
+                "Total Self-Arranged AS - RegUp",
+                "Total Self-Arranged AS - RegDown",
+                "Total Self-Arranged AS - NonSpin",
+                "Bid Curve - REGUP",
+                "Bid Curve - REGDN",
+                "Bid Curve - ONNS",
+                "Bid Curve - OFFNS",
+            ]
         else:
-            full_columns = [
+            columns = [
                 "Interval Start",
                 "Interval End",
                 "Total Cleared AS - RRSPFR",
@@ -420,7 +419,26 @@ class TestErcotAPI(TestHelperMixin):
                 "Bid Curve - OFFNS",
             ]
 
-            assert df.columns.tolist() == full_columns
+        assert df.columns.tolist() == columns
+
+        bid_curve_columns = [
+            "Bid Curve - RRSPFR",
+            "Bid Curve - RRSUFR",
+            "Bid Curve - RRSFFR",
+            "Bid Curve - ECRSM",
+            "Bid Curve - ECRSS",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
+        ]
+
+        for column in bid_curve_columns:
+            if column in df.columns:
+                # Column should be a list of lists
+                first_non_null_value = df[column].dropna().iloc[0]
+                assert isinstance(first_non_null_value, list)
+                assert all(isinstance(x, list) for x in first_non_null_value)
 
         self._check_time_columns(
             df,
