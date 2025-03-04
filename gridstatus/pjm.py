@@ -1729,7 +1729,7 @@ class PJM(ISOBase):
 
         return df.sort_values("Publish Time").reset_index(drop=True)
 
-    def to_local_datetime(self, df, column_name):
+    def to_local_datetime(self, df: pd.DataFrame, column_name: str) -> pd.Series:
         return pd.to_datetime(df[column_name]).dt.tz_localize(
             self.default_timezone,
         )
@@ -2680,3 +2680,122 @@ class PJM(ISOBase):
             },
         )
         return df[["Time", "Area Control Error"]]
+
+    @support_date_range(frequency=None)
+    def get_dispatched_reserves_prelim(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the dispatched reserves preliminary data from:
+        https://dataminer2.pjm.com/feed/dispatched_reserves/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "dispatched_reserves",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,area,reserve_type,reserve_quantity,reserve_requirement,reliability_requirement,extended_requirement,mw_adjustment,market_clearing_price,shortage_indicator",
+            },
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "area": "Area",
+                "reserve_type": "Reserve Type",
+                "reserve_quantity": "Reserve Quantity",
+                "reserve_requirement": "Reserve Requirement",
+                "reliability_requirement": "Reliability Requirement",
+                "extended_requirement": "Extended Requirement",
+                "mw_adjustment": "MW Adjustment",
+                "market_clearing_price": "Market Clearing Price",
+                "shortage_indicator": "Shortage Indicator",
+            },
+        )
+
+        df["Area"] = df["Area"].str.replace("Mid-Atlantic/Dominion", "MAD")
+        df["Ancillary Service"] = df["Area"] + "-" + df["Reserve Type"]
+
+        df = df.replace({"Area": self.locale_abbreviated_to_full})
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Ancillary Service",
+                "Area",
+                "Reserve Quantity",
+                "Reserve Requirement",
+                "Reliability Requirement",
+                "Extended Requirement",
+                "MW Adjustment",
+                "Market Clearing Price",
+                "Shortage Indicator",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_dispatched_reserves_verified(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the dispatched reserves verified data from:
+        https://dataminer2.pjm.com/feed/rt_dispatch_reserves/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "rt_dispatch_reserves",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,area,reserve_type,total_reserve_mw,reserve_reqmt_mw,reliability_reqmt_mw,extended_reqmt_mw,additional_extended_reqmt_mw,deficit_mw",
+            },
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "area": "Area",
+                "reserve_type": "Reserve Type",
+                "total_reserve_mw": "Total Reserve",
+                "reserve_reqmt_mw": "Reserve Requirement",
+                "reliability_reqmt_mw": "Reliability Requirement",
+                "extended_reqmt_mw": "Extended Requirement",
+                "additional_extended_reqmt_mw": "Additional Extended Requirement",
+                "deficit_mw": "Deficit",
+            },
+        )
+        full_name_to_abbreviation = {
+            v: k for k, v in self.locale_abbreviated_to_full.items()
+        }
+        df["Ancillary Service"] = (
+            df["Area"].replace(full_name_to_abbreviation) + "-" + df["Reserve Type"]
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Ancillary Service",
+                "Area",
+                "Total Reserve",
+                "Reserve Requirement",
+                "Reliability Requirement",
+                "Extended Requirement",
+                "Additional Extended Requirement",
+                "Deficit",
+            ]
+        ]
