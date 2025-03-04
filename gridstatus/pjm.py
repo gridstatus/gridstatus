@@ -2763,7 +2763,12 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/rt_dispatch_reserves/definition
         """
         if date == "latest":
-            date = "today"
+            # TODO: This is a hack to get the data for the previous day
+            # because the data is not available for the current day. Thinking about
+            # adding a "yesterday" to @support_date_range
+            date = (
+                pd.Timestamp.now(self.default_timezone) - pd.Timedelta(days=1)
+            ).strftime("%Y-%m-%d")
 
         df = self._get_pjm_json(
             "rt_dispatch_reserves",
