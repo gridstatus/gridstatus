@@ -2,7 +2,7 @@ import math
 import os
 import warnings
 from datetime import datetime
-from typing import BinaryIO, Optional
+from typing import BinaryIO
 
 import pandas as pd
 import pytz
@@ -2102,8 +2102,8 @@ class PJM(ISOBase):
     def get_wind_generation_by_area(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
-        verbose: Optional[bool] = False,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
     ):
         """
         Retrieves the current wind generation information from:
@@ -2171,8 +2171,8 @@ class PJM(ISOBase):
     def get_dam_as_market_results(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
-        verbose: Optional[bool] = False,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
     ):
         """
         Retrieves the day-ahead ancillary service market results from :
@@ -2260,8 +2260,8 @@ class PJM(ISOBase):
     def get_real_time_as_market_results(
         self,
         date: str | pd.Timestamp,
-        end: Optional[str | pd.Timestamp] = None,
-        verbose: Optional[bool] = False,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
     ):
         """
         Retrieves the real-time ancillary service market results from :
@@ -2384,7 +2384,12 @@ class PJM(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_load_metered_hourly(self, date, end=None, verbose=False):
+    def get_load_metered_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
         """
         Retrieves the hourly metered load data from:
 
@@ -2435,7 +2440,12 @@ class PJM(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency=None)
-    def get_forecasted_generation_outages(self, date, end=None, verbose=False):
+    def get_forecasted_generation_outages(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
         """
         Retrieves the forecasted generation outages for the next 90 days from:
 
