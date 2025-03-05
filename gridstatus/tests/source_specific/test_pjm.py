@@ -2117,6 +2117,7 @@ class TestPJM(BaseTestISO):
         "Interval End",
         "Ancillary Service",
         "Area",
+        "Reserve Type",
         "Reserve Quantity",
         "Reserve Requirement",
         "Reliability Requirement",
@@ -2169,6 +2170,7 @@ class TestPJM(BaseTestISO):
                 df["Ancillary Service"].unique().tolist().sort()
                 == self.expected_ancillary_services.sort()
             )
+            assert df["Reserve Type"].dtype == object
             assert df["Reserve Quantity"].dtype in [np.float64, np.int64]
             assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
             assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
@@ -2203,6 +2205,7 @@ class TestPJM(BaseTestISO):
                 df["Ancillary Service"].unique().tolist().sort()
                 == self.expected_ancillary_services.sort()
             )
+            assert df["Reserve Type"].dtype == object
             assert df["Reserve Quantity"].dtype in [np.float64, np.int64]
             assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
             assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
@@ -2218,6 +2221,7 @@ class TestPJM(BaseTestISO):
         "Interval End",
         "Ancillary Service",
         "Area",
+        "Reserve Type",
         "Total Reserve",
         "Reserve Requirement",
         "Reliability Requirement",
@@ -2256,6 +2260,7 @@ class TestPJM(BaseTestISO):
                 df["Ancillary Service"].unique().tolist().sort()
                 == self.expected_ancillary_services.sort()
             )
+            assert df["Reserve Type"].dtype == object
             assert df["Total Reserve"].dtype in [np.float64, np.int64]
             assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
             assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
@@ -2291,6 +2296,7 @@ class TestPJM(BaseTestISO):
                 df["Ancillary Service"].unique().tolist().sort()
                 == self.expected_ancillary_services.sort()
             )
+            assert df["Reserve Type"].dtype == object
             assert df["Total Reserve"].dtype in [np.float64, np.int64]
             assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
             assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
