@@ -2126,6 +2126,18 @@ class TestPJM(BaseTestISO):
         "Shortage Indicator",
     ]
 
+    expected_reserve_areas = [
+        "PJM RTO Reserve Zone",
+        "Mid-Atlantic/Dominion Reserve Subzone",
+    ]
+    expected_ancillary_services = [
+        "MAD-Primary Reserve",
+        "MAD-Synchronized Reserve",
+        "PJM_RTO-Primary Reserve",
+        "PJM_RTO-Synchronized Reserve",
+        "PJM_RTO-Thirty-Minute Reserve",
+    ]
+
     @pytest.mark.parametrize(
         "date",
         [
@@ -2149,6 +2161,14 @@ class TestPJM(BaseTestISO):
 
             assert df["Ancillary Service"].dtype == object
             assert df["Area"].dtype == object
+            assert (
+                df["Area"].unique().tolist().sort()
+                == self.expected_reserve_areas.sort()
+            )
+            assert (
+                df["Ancillary Service"].unique().tolist().sort()
+                == self.expected_ancillary_services.sort()
+            )
             assert df["Reserve Quantity"].dtype in [np.float64, np.int64]
             assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
             assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
@@ -2175,6 +2195,14 @@ class TestPJM(BaseTestISO):
 
             assert df["Ancillary Service"].dtype == object
             assert df["Area"].dtype == object
+            assert (
+                df["Area"].unique().tolist().sort()
+                == self.expected_reserve_areas.sort()
+            )
+            assert (
+                df["Ancillary Service"].unique().tolist().sort()
+                == self.expected_ancillary_services.sort()
+            )
             assert df["Reserve Quantity"].dtype in [np.float64, np.int64]
             assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
             assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
@@ -2220,6 +2248,14 @@ class TestPJM(BaseTestISO):
 
             assert df["Ancillary Service"].dtype == object
             assert df["Area"].dtype == object
+            assert (
+                df["Area"].unique().tolist().sort()
+                == self.expected_reserve_areas.sort()
+            )
+            assert (
+                df["Ancillary Service"].unique().tolist().sort()
+                == self.expected_ancillary_services.sort()
+            )
             assert df["Total Reserve"].dtype in [np.float64, np.int64]
             assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
             assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
@@ -2247,6 +2283,14 @@ class TestPJM(BaseTestISO):
 
             assert df["Ancillary Service"].dtype == object
             assert df["Area"].dtype == object
+            assert (
+                df["Area"].unique().tolist().sort()
+                == self.expected_reserve_areas.sort()
+            )
+            assert (
+                df["Ancillary Service"].unique().tolist().sort()
+                == self.expected_ancillary_services.sort()
+            )
             assert df["Total Reserve"].dtype in [np.float64, np.int64]
             assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
             assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
