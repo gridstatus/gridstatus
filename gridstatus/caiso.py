@@ -184,6 +184,45 @@ OASIS_DATASET_CONFIG = {
             "grp_type": [None, "ALL", "ALL_APNODES"],
         },
     },
+    "lmp_scheduling_point_tie_combination_5_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_SPTIE_LMP",
+            "version": 3,
+        },
+        "params": {
+            "market_run_id": "RTD",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+    },
+    "lmp_scheduling_point_tie_combination_15_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_SPTIE_LMP",
+            "version": 3,
+        },
+        "params": {
+            "market_run_id": "FMM",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+    },
+    "lmp_scheduling_point_tie_combination_hourly": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_SPTIE_LMP",
+            "version": 3,
+        },
+        "params": {
+            "market_run_id": "DAM",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+    },
     "demand_forecast": {
         "query": {
             "path": "SingleZip",
@@ -2246,4 +2285,91 @@ class CAISO(ISOBase):
 
         df.columns.name = None
 
+        return df
+
+    def get_lmp_scheduling_point_tie_combination_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get LMP scheduling point tie combination 5-min data from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of LMP scheduling point tie combination 5-min data
+        """
+
+        df = self.get_oasis_dataset(
+            dataset="lmp_scheduling_point_tie_combination_5_min",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        print("Hello world")
+        return df
+
+    def lmp_scheduling_point_tie_combination_15_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df = self.get_oasis_dataset(
+            dataset="lmp_scheduling_point_tie_combination_15_min",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_lmp_scheduling_point_tie_combination(df)
+
+    def lmp_scheduling_point_tie_combination_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df = self.get_oasis_dataset(
+            dataset="lmp_scheduling_point_tie_combination_hourly",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_lmp_scheduling_point_tie_combination(df)
+
+    def _handle_lmp_scheduling_point_tie_combination(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        # df = df.rename(
+        #     columns={
+        #         "NODE": "Location",
+        #         "TIE": "Tie",
+        #         "GROUP": "Group",
+        #         "MARKET_RUN_ID": "Market",
+        #     },
+        # )
+
+        # df = df.pivot_table(
+        #     index=["Interval Start", "Location", "Tie", "Market"],
+        #     columns="LMP_TYPE",
+        #     values="PRC",
+        #     aggfunc="first",
+        # ).reset_index()
+        # print(df)
+
+        # df.rename(
+        #     columns={
+        #         "LMP": "LMP",
+        #         "MCC": "Congestion",
+        #     },
+        # )
         return df
