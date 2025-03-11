@@ -193,6 +193,8 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {
             "market_run_id": "RTD",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
         },
     },
     "lmp_scheduling_point_tie_combination_15_min": {
