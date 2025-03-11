@@ -2358,13 +2358,23 @@ class CAISO(ISOBase):
         )
 
         df = df.pivot_table(
-            index=["Interval Start", "Location", "Tie", "Market"],
+            index=[
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Tie",
+                "Group",
+                "Market",
+                "POS",
+                "GRP_TYPE",
+            ],
             columns="LMP_TYPE",
             values="PRC",
             aggfunc="first",
         ).reset_index()
 
-        df.rename(
+        df.columns.name = None
+        df = df.rename(
             columns={
                 "MCE": "Energy",
                 "MCC": "Congestion",
@@ -2372,6 +2382,7 @@ class CAISO(ISOBase):
                 "MGHG": "GHG",
             },
         )
+
         df["Node Tie"] = df["Location"] + " " + df["Tie"]
         return df[
             [
@@ -2383,6 +2394,7 @@ class CAISO(ISOBase):
                 "POS",
                 "Tie",
                 "Group",
+                "GRP_TYPE",
                 "Energy",
                 "Congestion",
                 "Loss",
