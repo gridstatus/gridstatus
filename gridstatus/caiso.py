@@ -2312,8 +2312,7 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
-        print("Hello world")
-        return df
+        return self._handle_lmp_scheduling_point_tie_combination(df)
 
     def get_lmp_scheduling_point_tie_combination_15_min(
         self,
@@ -2349,27 +2348,44 @@ class CAISO(ISOBase):
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
-        # df = df.rename(
-        #     columns={
-        #         "NODE": "Location",
-        #         "TIE": "Tie",
-        #         "GROUP": "Group",
-        #         "MARKET_RUN_ID": "Market",
-        #     },
-        # )
+        df = df.rename(
+            columns={
+                "NODE": "Location",
+                "TIE": "Tie",
+                "GROUP": "Group",
+                "MARKET_RUN_ID": "Market",
+            },
+        )
 
-        # df = df.pivot_table(
-        #     index=["Interval Start", "Location", "Tie", "Market"],
-        #     columns="LMP_TYPE",
-        #     values="PRC",
-        #     aggfunc="first",
-        # ).reset_index()
-        # print(df)
+        df = df.pivot_table(
+            index=["Interval Start", "Location", "Tie", "Market"],
+            columns="LMP_TYPE",
+            values="PRC",
+            aggfunc="first",
+        ).reset_index()
 
-        # df.rename(
-        #     columns={
-        #         "LMP": "LMP",
-        #         "MCC": "Congestion",
-        #     },
-        # )
-        return df
+        df.rename(
+            columns={
+                "MCE": "Energy",
+                "MCC": "Congestion",
+                "MCL": "Loss",
+                "MGHG": "GHG",
+            },
+        )
+        df["Node Tie"] = df["Location"] + " " + df["Tie"]
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Node Tie",
+                "POS",
+                "Tie",
+                "Group",
+                "Energy",
+                "Congestion",
+                "Loss",
+                "GHG",
+            ]
+        ]
