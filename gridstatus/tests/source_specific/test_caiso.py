@@ -866,9 +866,63 @@ class TestCAISO(BaseTestISO):
             ),
         ],
     )
-    def test_get_lmp_scheduling_point_tie_combination_date_range(self, start, end):
+    def test_get_lmp_scheduling_point_tie_combination_hourly_date_range(
+        self,
+        start,
+        end,
+    ):
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_scheduling_point_tie_combination_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_lmp_scheduling_point_tie_combination_hourly_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_scheduling_point_tie_combination_hourly(
+                start,
+                end=end,
+            )
+            self._check_lmp_scheduling_point_tie_combination(df)
+
+            assert df["Interval Start"].min() >= self.local_start_of_day(start)
+
+    @pytest.mark.parametrize(
+        "start, end",
+        [
+            (
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+            ),
+        ],
+    )
+    def test_get_lmp_scheduling_point_tie_combination_5_min_date_range(
+        self,
+        start,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_scheduling_point_tie_combination_5_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_scheduling_point_tie_combination_hourly(
+                start,
+                end=end,
+            )
+            self._check_lmp_scheduling_point_tie_combination(df)
+
+            assert df["Interval Start"].min() >= self.local_start_of_day(start)
+
+    @pytest.mark.parametrize(
+        "start, end",
+        [
+            (
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+            ),
+        ],
+    )
+    def test_get_lmp_scheduling_point_tie_combination_15_min_date_range(
+        self,
+        start,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_scheduling_point_tie_combination_15_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lmp_scheduling_point_tie_combination_hourly(
                 start,
