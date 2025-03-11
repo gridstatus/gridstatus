@@ -189,12 +189,10 @@ OASIS_DATASET_CONFIG = {
             "path": "SingleZip",
             "resultformat": 6,
             "queryname": "PRC_SPTIE_LMP",
-            "version": 3,
+            "version": 5,
         },
         "params": {
             "market_run_id": "RTD",
-            "node": None,
-            "grp_type": [None, "ALL", "ALL_APNODES"],
         },
     },
     "lmp_scheduling_point_tie_combination_15_min": {
@@ -202,10 +200,10 @@ OASIS_DATASET_CONFIG = {
             "path": "SingleZip",
             "resultformat": 6,
             "queryname": "PRC_SPTIE_LMP",
-            "version": 3,
+            "version": 5,
         },
         "params": {
-            "market_run_id": "FMM",
+            "market_run_id": "RTPD",
             "node": None,
             "grp_type": [None, "ALL", "ALL_APNODES"],
         },
@@ -215,7 +213,7 @@ OASIS_DATASET_CONFIG = {
             "path": "SingleZip",
             "resultformat": 6,
             "queryname": "PRC_SPTIE_LMP",
-            "version": 3,
+            "version": 5,
         },
         "params": {
             "market_run_id": "DAM",
@@ -2315,7 +2313,7 @@ class CAISO(ISOBase):
         print("Hello world")
         return df
 
-    def lmp_scheduling_point_tie_combination_15_min(
+    def get_lmp_scheduling_point_tie_combination_15_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2330,7 +2328,7 @@ class CAISO(ISOBase):
         )
         return self._handle_lmp_scheduling_point_tie_combination(df)
 
-    def lmp_scheduling_point_tie_combination_hourly(
+    def get_lmp_scheduling_point_tie_combination_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
