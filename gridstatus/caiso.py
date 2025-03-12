@@ -2296,7 +2296,7 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_lmp_scheduling_point_tie_combination_5_min(
+    def get_lmp_scheduling_point_tie_real_time_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2323,7 +2323,7 @@ class CAISO(ISOBase):
         )
         return self._handle_lmp_scheduling_point_tie_combination(df)
 
-    def get_lmp_scheduling_point_tie_combination_15_min(
+    def get_lmp_scheduling_point_tie_real_time_15_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2338,7 +2338,7 @@ class CAISO(ISOBase):
         )
         return self._handle_lmp_scheduling_point_tie_combination(df)
 
-    def get_lmp_scheduling_point_tie_combination_hourly(
+    def get_lmp_scheduling_point_tie_day_ahead_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2359,7 +2359,7 @@ class CAISO(ISOBase):
     ) -> pd.DataFrame:
         df = df.rename(
             columns={
-                "NODE": "Location",
+                "NODE": "Node",
                 "TIE": "Tie",
                 "MARKET_RUN_ID": "Market",
             },
@@ -2369,7 +2369,7 @@ class CAISO(ISOBase):
             index=[
                 "Interval Start",
                 "Interval End",
-                "Location",
+                "Node",
                 "Tie",
                 "Market",
                 "GRP_TYPE",
@@ -2389,14 +2389,14 @@ class CAISO(ISOBase):
             },
         )
 
-        df["Node Tie"] = df["Location"] + " " + df["Tie"]
+        df["Node Tie"] = df["Node"] + " " + df["Tie"]
         return df[
             [
                 "Interval Start",
                 "Interval End",
-                "Market",
                 "Location",
-                "Node Tie",
+                "Market",
+                "Node",
                 "Tie",
                 "GRP_TYPE",
                 "LMP",
