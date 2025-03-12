@@ -2398,7 +2398,6 @@ class CAISO(ISOBase):
                 "Market",
                 "Node",
                 "Tie",
-                "GRP_TYPE",
                 "LMP",
                 "Energy",
                 "Congestion",
