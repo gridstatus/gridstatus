@@ -797,10 +797,11 @@ class TestCAISO(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Market",
             "Location",
+            "Market",
             "Node",
             "Tie",
+            "LMP",
             "Energy",
             "Congestion",
             "Loss",
