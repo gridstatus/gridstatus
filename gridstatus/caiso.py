@@ -2399,6 +2399,7 @@ class CAISO(ISOBase):
                 "Node Tie",
                 "Tie",
                 "GRP_TYPE",
+                "LMP",
                 "Energy",
                 "Congestion",
                 "Loss",
