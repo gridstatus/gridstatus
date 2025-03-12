@@ -792,25 +792,22 @@ class TestCAISO(BaseTestISO):
 
     """get_lmp_scheduling_point_tie_combination"""
 
-    def _check_lmp_scheduling_point_tie_combination(self, df: pd.DataFrame):
+    def _check_lmp_scheduling_point_tie(self, df: pd.DataFrame):
         assert df.shape[0] > 0
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
             "Market",
             "Location",
-            "Node Tie",
-            "POS",
+            "Node",
             "Tie",
-            "Group",
-            "GRP_TYPE",
             "Energy",
             "Congestion",
             "Loss",
             "GHG",
         ]
 
-        assert (df["Node Tie"] == df["Location"] + " " + df["Tie"]).all()
+        assert (df["Location"] == df["Node"] + " " + df["Tie"]).all()
 
         self._check_time_columns(
             df,
@@ -819,12 +816,12 @@ class TestCAISO(BaseTestISO):
         )
 
     @pytest.mark.parametrize("date", ["2022-10-15"])
-    def test_get_lmp_scheduling_point_tie_combination_5_min(self, date):
+    def test_get_lmp_scheduling_point_tie_real_time_5_min(self, date):
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_scheduling_point_tie_combination_5_min_{date}.yaml",
+            f"test_get_lmp_scheduling_point_tie_real_time_5_min_{date}.yaml",
         ):
-            df = self.iso.get_lmp_scheduling_point_tie_combination_5_min(date)
-            self._check_lmp_scheduling_point_tie_combination(df)
+            df = self.iso.get_lmp_scheduling_point_tie_real_time_5_min(date)
+            self._check_lmp_scheduling_point_tie(df)
 
             interval_minutes = (
                 df["Interval End"] - df["Interval Start"]
@@ -832,12 +829,12 @@ class TestCAISO(BaseTestISO):
             assert (interval_minutes == 5).all()
 
     @pytest.mark.parametrize("date", ["2022-10-15"])
-    def test_get_lmp_scheduling_point_tie_combination_15_min(self, date):
+    def test_get_lmp_scheduling_point_tie_real_time_15_min(self, date):
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_scheduling_point_tie_combination_15_min_{date}.yaml",
+            f"test_get_lmp_scheduling_point_tie_real_time_15_min_{date}.yaml",
         ):
-            df = self.iso.get_lmp_scheduling_point_tie_combination_15_min(date)
-            self._check_lmp_scheduling_point_tie_combination(df)
+            df = self.iso.get_lmp_scheduling_point_tie_real_time_15_min(date)
+            self._check_lmp_scheduling_point_tie(df)
 
             interval_minutes = (
                 df["Interval End"] - df["Interval Start"]
@@ -845,12 +842,12 @@ class TestCAISO(BaseTestISO):
             assert (interval_minutes == 15).all()
 
     @pytest.mark.parametrize("date", ["2022-10-15"])
-    def test_get_lmp_scheduling_point_tie_combination_hourly(self, date):
+    def test_get_lmp_scheduling_point_tie_day_ahead_hourly(self, date):
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_scheduling_point_tie_combination_hourly_{date}.yaml",
+            f"test_get_lmp_scheduling_point_tie_day_ahead_hourly_{date}.yaml",
         ):
-            df = self.iso.get_lmp_scheduling_point_tie_combination_hourly(date)
-            self._check_lmp_scheduling_point_tie_combination(df)
+            df = self.iso.get_lmp_scheduling_point_tie_day_ahead_hourly(date)
+            self._check_lmp_scheduling_point_tie(df)
 
             interval_minutes = (
                 df["Interval End"] - df["Interval Start"]
@@ -878,7 +875,7 @@ class TestCAISO(BaseTestISO):
                 start,
                 end=end,
             )
-            self._check_lmp_scheduling_point_tie_combination(df)
+            self._check_lmp_scheduling_point_tie(df)
 
             assert df["Interval Start"].min() >= self.local_start_of_day(start)
 
@@ -903,7 +900,7 @@ class TestCAISO(BaseTestISO):
                 start,
                 end=end,
             )
-            self._check_lmp_scheduling_point_tie_combination(df)
+            self._check_lmp_scheduling_point_tie(df)
 
             assert df["Interval Start"].min() >= self.local_start_of_day(start)
 
@@ -928,6 +925,6 @@ class TestCAISO(BaseTestISO):
                 start,
                 end=end,
             )
-            self._check_lmp_scheduling_point_tie_combination(df)
+            self._check_lmp_scheduling_point_tie(df)
 
             assert df["Interval Start"].min() >= self.local_start_of_day(start)
