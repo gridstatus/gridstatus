@@ -2372,7 +2372,6 @@ class CAISO(ISOBase):
                 "Node",
                 "Tie",
                 "Market",
-                "GRP_TYPE",
             ],
             columns="LMP_TYPE",
             values="PRC",
@@ -2389,7 +2388,7 @@ class CAISO(ISOBase):
             },
         )
 
-        df["Node Tie"] = df["Node"] + " " + df["Tie"]
+        df["Location"] = df["Node"] + " " + df["Tie"]
         return df[
             [
                 "Interval Start",

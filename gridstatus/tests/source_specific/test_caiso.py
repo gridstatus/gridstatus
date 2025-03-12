@@ -866,15 +866,15 @@ class TestCAISO(BaseTestISO):
             ),
         ],
     )
-    def test_get_lmp_scheduling_point_tie_combination_hourly_date_range(
+    def test_get_lmp_scheduling_point_tie_day_ahead_hourly_min_date_range(
         self,
         start,
         end,
     ):
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_scheduling_point_tie_combination_hourly_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_lmp_scheduling_point_tie_day_ahead_hourly_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_lmp_scheduling_point_tie_combination_hourly(
+            df = self.iso.get_lmp_scheduling_point_tie_day_ahead_hourly(
                 start,
                 end=end,
             )
@@ -891,15 +891,15 @@ class TestCAISO(BaseTestISO):
             ),
         ],
     )
-    def test_get_lmp_scheduling_point_tie_combination_5_min_date_range(
+    def test_get_lmp_scheduling_point_tie_real_time_5_min_date_range(
         self,
         start,
         end,
     ):
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_scheduling_point_tie_combination_5_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_lmp_scheduling_point_tie_real_time_5_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_lmp_scheduling_point_tie_combination_hourly(
+            df = self.iso.get_lmp_scheduling_point_tie_real_time_5_min(
                 start,
                 end=end,
             )
@@ -916,15 +916,15 @@ class TestCAISO(BaseTestISO):
             ),
         ],
     )
-    def test_get_lmp_scheduling_point_tie_combination_15_min_date_range(
+    def test_get_lmp_scheduling_point_tie_real_time_15_min_date_range(
         self,
         start,
         end,
     ):
         with caiso_vcr.use_cassette(
-            f"test_get_lmp_scheduling_point_tie_combination_15_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_lmp_scheduling_point_tie_real_time_15_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_lmp_scheduling_point_tie_combination_hourly(
+            df = self.iso.get_lmp_scheduling_point_tie_real_time_15_min(
                 start,
                 end=end,
             )
