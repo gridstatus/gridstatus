@@ -196,6 +196,9 @@ OASIS_DATASET_CONFIG = {
             "node": None,
             "grp_type": [None, "ALL", "ALL_APNODES"],
         },
+        "meta": {
+            "max_query_frequency": "1h",
+        },
     },
     "lmp_scheduling_point_tie_combination_15_min": {
         "query": {
@@ -209,6 +212,9 @@ OASIS_DATASET_CONFIG = {
             "node": None,
             "grp_type": [None, "ALL", "ALL_APNODES"],
         },
+        "meta": {
+            "max_query_frequency": "1h",
+        },
     },
     "lmp_scheduling_point_tie_combination_hourly": {
         "query": {
@@ -221,6 +227,9 @@ OASIS_DATASET_CONFIG = {
             "market_run_id": "DAM",
             "node": None,
             "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+        "meta": {
+            "max_query_frequency": "1d",
         },
     },
     "demand_forecast": {
@@ -2352,7 +2361,6 @@ class CAISO(ISOBase):
             columns={
                 "NODE": "Location",
                 "TIE": "Tie",
-                "GROUP": "Group",
                 "MARKET_RUN_ID": "Market",
             },
         )
@@ -2363,9 +2371,7 @@ class CAISO(ISOBase):
                 "Interval End",
                 "Location",
                 "Tie",
-                "Group",
                 "Market",
-                "POS",
                 "GRP_TYPE",
             ],
             columns="LMP_TYPE",
@@ -2391,9 +2397,7 @@ class CAISO(ISOBase):
                 "Market",
                 "Location",
                 "Node Tie",
-                "POS",
                 "Tie",
-                "Group",
                 "GRP_TYPE",
                 "Energy",
                 "Congestion",
