@@ -2359,7 +2359,7 @@ class CAISO(ISOBase):
                     pd.Timestamp.now(tz=self.default_timezone).normalize()
                     + pd.Timedelta(days=1),
                 )
-            except ValueError:
+            except KeyError:
                 df = self.get_lmp_scheduling_point_tie_day_ahead_hourly(
                     "today",
                 )
