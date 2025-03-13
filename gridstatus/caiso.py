@@ -2354,7 +2354,17 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            return self.get_lmp_scheduling_point_tie_day_ahead_hourly("today")
+            try:
+                df = self.get_lmp_scheduling_point_tie_day_ahead_hourly(
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
+                    + pd.Timedelta(days=1),
+                )
+            except ValueError:
+                df = self.get_lmp_scheduling_point_tie_day_ahead_hourly(
+                    "today",
+                )
+
+            return df
 
         df = self.get_oasis_dataset(
             dataset="lmp_scheduling_point_tie_combination_hourly",
