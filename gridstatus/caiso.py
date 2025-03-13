@@ -2313,6 +2313,10 @@ class CAISO(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame of LMP scheduling point tie combination 5-min data
         """
+        if date == "latest":
+            return self.get_lmp_scheduling_point_tie_real_time_5_min(
+                pd.Timestamp.now(tz=self.default_timezone),
+            )
 
         df = self.get_oasis_dataset(
             dataset="lmp_scheduling_point_tie_combination_5_min",
@@ -2329,6 +2333,11 @@ class CAISO(ISOBase):
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            return self.get_lmp_scheduling_point_tie_real_time_15_min(
+                pd.Timestamp.now(tz=self.default_timezone),
+            )
+
         df = self.get_oasis_dataset(
             dataset="lmp_scheduling_point_tie_combination_15_min",
             date=date,
@@ -2344,6 +2353,9 @@ class CAISO(ISOBase):
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            return self.get_lmp_scheduling_point_tie_day_ahead_hourly("today")
+
         df = self.get_oasis_dataset(
             dataset="lmp_scheduling_point_tie_combination_hourly",
             date=date,
