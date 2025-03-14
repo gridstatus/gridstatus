@@ -184,6 +184,54 @@ OASIS_DATASET_CONFIG = {
             "grp_type": [None, "ALL", "ALL_APNODES"],
         },
     },
+    "lmp_scheduling_point_tie_combination_5_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_SPTIE_LMP",
+            "version": 5,
+        },
+        "params": {
+            "market_run_id": "RTD",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+        "meta": {
+            "max_query_frequency": "1h",
+        },
+    },
+    "lmp_scheduling_point_tie_combination_15_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_SPTIE_LMP",
+            "version": 5,
+        },
+        "params": {
+            "market_run_id": "RTPD",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+        "meta": {
+            "max_query_frequency": "1h",
+        },
+    },
+    "lmp_scheduling_point_tie_combination_hourly": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_SPTIE_LMP",
+            "version": 5,
+        },
+        "params": {
+            "market_run_id": "DAM",
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+        "meta": {
+            "max_query_frequency": "1d",
+        },
+    },
     "demand_forecast": {
         "query": {
             "path": "SingleZip",
@@ -2247,3 +2295,134 @@ class CAISO(ISOBase):
         df.columns.name = None
 
         return df
+
+    def get_lmp_scheduling_point_tie_real_time_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get LMP scheduling point tie combination 5-min data from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of LMP scheduling point tie combination 5-min data
+        """
+        if date == "latest":
+            return self.get_lmp_scheduling_point_tie_real_time_5_min(
+                pd.Timestamp.now(tz=self.default_timezone),
+            )
+
+        df = self.get_oasis_dataset(
+            dataset="lmp_scheduling_point_tie_combination_5_min",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_lmp_scheduling_point_tie_combination(df)
+
+    def get_lmp_scheduling_point_tie_real_time_15_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            return self.get_lmp_scheduling_point_tie_real_time_15_min(
+                pd.Timestamp.now(tz=self.default_timezone),
+            )
+
+        df = self.get_oasis_dataset(
+            dataset="lmp_scheduling_point_tie_combination_15_min",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_lmp_scheduling_point_tie_combination(df)
+
+    def get_lmp_scheduling_point_tie_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            try:
+                df = self.get_lmp_scheduling_point_tie_day_ahead_hourly(
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
+                    + pd.Timedelta(days=1),
+                )
+            except KeyError:
+                df = self.get_lmp_scheduling_point_tie_day_ahead_hourly(
+                    "today",
+                )
+
+            return df
+
+        df = self.get_oasis_dataset(
+            dataset="lmp_scheduling_point_tie_combination_hourly",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_lmp_scheduling_point_tie_combination(df)
+
+    def _handle_lmp_scheduling_point_tie_combination(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "NODE": "Node",
+                "TIE": "Tie",
+                "MARKET_RUN_ID": "Market",
+            },
+        )
+
+        df = df.pivot_table(
+            index=[
+                "Interval Start",
+                "Interval End",
+                "Node",
+                "Tie",
+                "Market",
+            ],
+            columns="LMP_TYPE",
+            values="PRC",
+            aggfunc="first",
+        ).reset_index()
+
+        df.columns.name = None
+        df = df.rename(
+            columns={
+                "MCE": "Energy",
+                "MCC": "Congestion",
+                "MCL": "Loss",
+                "MGHG": "GHG",
+            },
+        )
+
+        df["Location"] = df["Node"] + " " + df["Tie"]
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Market",
+                "Node",
+                "Tie",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+                "GHG",
+            ]
+        ]
