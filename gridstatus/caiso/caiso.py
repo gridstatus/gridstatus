@@ -2175,14 +2175,13 @@ class CAISO(ISOBase):
 
     def _handle_lmp_hasp_15_min(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
-            columns={"NODE": "Location", "MARKET_RUN_ID": "Market"},
+            columns={"NODE": "Location"},
         )
         df = df.pivot_table(
             index=[
                 "Interval Start",
                 "Interval End",
-                "Node",
-                "Market",
+                "Location",
             ],
             columns="LMP_TYPE",
             values="MW",  # NB: This is likely a mistake from CAISO, should probably be PRC
@@ -2203,7 +2202,7 @@ class CAISO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Market",
+                "LMP",
                 "Energy",
                 "Congestion",
                 "Loss",
