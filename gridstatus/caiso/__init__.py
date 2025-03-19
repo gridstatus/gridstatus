@@ -1,1 +1,1 @@
-from gridstatus.caiso.caiso import *
+from gridstatus.caiso.caiso import CAISO
