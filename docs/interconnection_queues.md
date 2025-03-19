@@ -22,7 +22,7 @@ nyiso.get_interconnection_queue()
 
 ## CAISO
 ```{code-cell}
-caiso = gridstatus.CAISO()
+caiso = gridstatus.caiso.CAISO()
 caiso.get_interconnection_queue()
 ```
 

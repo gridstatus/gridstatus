@@ -45,7 +45,7 @@ gridstatus.list_isos()
 Next, we can select an ISO we want to use
 
 ```{code-cell}
-caiso = gridstatus.CAISO()
+caiso = gridstatus.caiso.CAISO()
 ```
 
 ### Fuel Mix

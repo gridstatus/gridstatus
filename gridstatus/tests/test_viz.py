@@ -1,11 +1,11 @@
 import plotly
 import pytest
 
-import gridstatus
+import gridstatus.caiso.caiso
 
 
 def test_dam_heat_map():
-    iso = gridstatus.CAISO()
+    iso = gridstatus.caiso.caiso.CAISO()
 
     df = iso.get_lmp(
         date="today",  # you can change to desired date
@@ -30,7 +30,7 @@ def test_dam_heat_map():
 
 @pytest.mark.skip(reason="Failed. TODO Fix")
 def test_load_over_time():
-    iso = gridstatus.CAISO()
+    iso = gridstatus.caiso.caiso.CAISO()
 
     df = iso.get_load("today")
 
