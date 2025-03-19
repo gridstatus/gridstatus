@@ -206,6 +206,18 @@ OASIS_DATASET_CONFIG = {
             "max_query_frequency": "1d",
         },
     },
+    "lmp_hasp_15_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_HASP_LMP",
+            "version": 3,
+        },
+        "params": {
+            "node": None,
+            "grp_type": [None, "ALL", "ALL_APNODES"],
+        },
+    },
     "demand_forecast": {
         "query": {
             "path": "SingleZip",

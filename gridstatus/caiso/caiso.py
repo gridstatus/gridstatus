@@ -20,7 +20,7 @@ from gridstatus.base import (
     NoDataFoundException,
     NotSupported,
 )
-from gridstatus.caiso.caiso import caiso_utils
+from gridstatus.caiso import caiso_utils
 from gridstatus.caiso.caiso_constants import (
     CURRENT_BASE,
     HISTORY_BASE,
@@ -2171,4 +2171,23 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
+        return df
+        # return self._handle_lmp_hasp_15_min(df)
+
+    def _handle_lmp_hasp_15_min(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={"NODE": "Node", "MARKET_RUN_ID": "Market"},
+        )
+        df = df.pivot_table(
+            index=[
+                "Interval Start",
+                "Interval End",
+                "Node",
+                "Market",
+            ],
+            columns="LMP_TYPE",
+            values="PRC",
+            aggfunc="first",
+        ).reset_index()
+
         return df
