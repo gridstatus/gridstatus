@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-# NOTE: Currently the gridstatus.CAISO.default_timezone is in the caiso.py file, which imports caiso_utils.py and thus
+# NOTE: Currently the gridstatus.caiso.caiso.CAISO.default_timezone is in the caiso.py file, which imports caiso_utils.py and thus
 # it can't be set to the value without causing a circular import, which is why they are hardcoded here.
 def make_timestamp(time_str: str, today: pd.Timestamp, timezone: str = "US/Pacific"):
     hour, minute = map(int, time_str.split(":"))
