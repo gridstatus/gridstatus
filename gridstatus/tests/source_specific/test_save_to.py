@@ -1,6 +1,6 @@
 import os
 
-import gridstatus.caiso.caiso
+import gridstatus
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 vcr = setup_vcr(
@@ -11,7 +11,7 @@ vcr = setup_vcr(
 
 def test_save_to_one_day_per_request(tmp_path):
     with vcr.use_cassette("caiso_save_to_one_day_per_request.yaml"):
-        iso = gridstatus.caiso.caiso.CAISO()
+        iso = gridstatus.CAISO()
         df = iso.get_fuel_mix(
             start="Jan 1, 2022",
             end="Jan 4, 2022",
