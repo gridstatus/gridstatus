@@ -39,7 +39,7 @@ And here is querying CAISO
 
 ```{code-cell}
 import gridstatus
-caiso = gridstatus.caiso.CAISO()
+caiso = gridstatus.CAISO()
 locations = ["TH_NP15_GEN-APND", "TH_SP15_GEN-APND", "TH_ZP26_GEN-APND"]
 caiso.get_lmp(date="today", market='DAY_AHEAD_HOURLY', locations=locations)
 ```
