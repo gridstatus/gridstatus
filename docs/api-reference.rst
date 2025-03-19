@@ -27,7 +27,7 @@ Supported Independent System Operators (ISOs)
 .. autoapisummary::
 
     gridstatus.base.ISOBase
-    gridstatus.caiso.CAISO
+    gridstatus.caiso.caiso.CAISO
     gridstatus.Ercot
     gridstatus.ISONE
     gridstatus.MISO
