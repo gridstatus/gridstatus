@@ -9,7 +9,7 @@ import tqdm
 
 import gridstatus
 from gridstatus.base import Markets, NotSupported, _interconnection_columns
-from gridstatus.caiso import CAISO
+from gridstatus.caiso.caiso import CAISO
 from gridstatus.ercot import Ercot
 from gridstatus.gs_logging import log
 from gridstatus.ieso import IESO

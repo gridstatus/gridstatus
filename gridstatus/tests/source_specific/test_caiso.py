@@ -5,7 +5,7 @@ import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException
-from gridstatus.caiso import REAL_TIME_DISPATCH_MARKET_RUN_ID
+from gridstatus.caiso.caiso import REAL_TIME_DISPATCH_MARKET_RUN_ID
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
