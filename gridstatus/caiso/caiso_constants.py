@@ -217,6 +217,9 @@ OASIS_DATASET_CONFIG = {
             "node": None,
             "grp_type": [None, "ALL", "ALL_APNODES"],
         },
+        "meta": {
+            "max_query_frequency": "1h",
+        },
     },
     "demand_forecast": {
         "query": {
