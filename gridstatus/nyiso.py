@@ -58,66 +58,6 @@ DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
 }
 
 
-def _handle_time(
-    df: pd.DataFrame,
-    dataset_name: str,
-    groupby: str | None = None,
-) -> pd.DataFrame:
-    time_type, interval_duration_minutes = DATASET_INTERVAL_MAP[dataset_name]
-
-    if "Time Stamp" in df.columns:
-        time_stamp_col = "Time Stamp"
-    elif "Timestamp" in df.columns:
-        time_stamp_col = "Timestamp"
-
-    def time_to_datetime(s: pd.Series, dst: str = "infer") -> pd.Series:
-        return pd.to_datetime(s).dt.tz_localize(
-            NYISO.default_timezone,
-            ambiguous=dst,
-        )
-
-    if "Time Zone" in df.columns:
-        dst = df["Time Zone"] == "EDT"
-        df[time_stamp_col] = time_to_datetime(
-            df[time_stamp_col],
-            dst,
-        )
-
-    elif "Name" in df.columns or groupby:
-        groupby = groupby or "Name"
-        # once we group by name, the time series for each group is no longer ambiguous
-        df[time_stamp_col] = df.groupby(groupby, group_keys=False)[
-            time_stamp_col
-        ].apply(
-            time_to_datetime,
-            "infer",
-        )
-    else:
-        df[time_stamp_col] = time_to_datetime(
-            df[time_stamp_col],
-            "infer",
-        )
-
-    df = df.rename(columns={time_stamp_col: "Time"})
-
-    if time_type != "instantaneous":
-        interval_duration = pd.Timedelta(minutes=interval_duration_minutes)
-        if time_type == "start":
-            df["Interval Start"] = df["Time"]
-            df["Interval End"] = df["Interval Start"] + interval_duration
-        elif time_type == "end":
-            df["Interval Start"] = df["Time"] - interval_duration
-            df["Interval End"] = df["Time"]
-            df["Time"] = df["Interval Start"]
-
-        utils.move_cols_to_front(
-            df,
-            ["Time", "Interval Start", "Interval End"],
-        )
-
-    return df
-
-
 class NYISO(ISOBase):
     """New York Independent System Operator (NYISO)"""
 
@@ -127,6 +67,66 @@ class NYISO(ISOBase):
     markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
     status_homepage = "https://www.nyiso.com/system-conditions"
     interconnection_homepage = "https://www.nyiso.com/interconnections"
+
+    def _handle_time(
+        self,
+        df: pd.DataFrame,
+        dataset_name: str,
+        groupby: str | None = None,
+    ) -> pd.DataFrame:
+        time_type, interval_duration_minutes = DATASET_INTERVAL_MAP[dataset_name]
+
+        if "Time Stamp" in df.columns:
+            time_stamp_col = "Time Stamp"
+        elif "Timestamp" in df.columns:
+            time_stamp_col = "Timestamp"
+
+        def time_to_datetime(s: pd.Series, dst: str = "infer") -> pd.Series:
+            return pd.to_datetime(s).dt.tz_localize(
+                self.default_timezone,
+                ambiguous=dst,
+            )
+
+        if "Time Zone" in df.columns:
+            dst = df["Time Zone"] == "EDT"
+            df[time_stamp_col] = time_to_datetime(
+                df[time_stamp_col],
+                dst,
+            )
+
+        elif "Name" in df.columns or groupby:
+            groupby = groupby or "Name"
+            # once we group by name, the time series for each group is no longer ambiguous
+            df[time_stamp_col] = df.groupby(groupby, group_keys=False)[
+                time_stamp_col
+            ].apply(
+                time_to_datetime,
+                "infer",
+            )
+        else:
+            df[time_stamp_col] = time_to_datetime(
+                df[time_stamp_col],
+                "infer",
+            )
+
+        df = df.rename(columns={time_stamp_col: "Time"})
+
+        if time_type != "instantaneous":
+            interval_duration = pd.Timedelta(minutes=interval_duration_minutes)
+            if time_type == "start":
+                df["Interval Start"] = df["Time"]
+                df["Interval End"] = df["Interval Start"] + interval_duration
+            elif time_type == "end":
+                df["Interval Start"] = df["Time"] - interval_duration
+                df["Interval End"] = df["Time"]
+                df["Time"] = df["Interval Start"]
+
+            utils.move_cols_to_front(
+                df,
+                ["Time", "Interval Start", "Interval End"],
+            )
+
+        return df
 
     @support_date_range(frequency="MONTH_START")
     def get_status(
@@ -422,7 +422,7 @@ class NYISO(ISOBase):
             data = pd.read_csv(
                 "https://mis.nyiso.com/public/csv/ExternalLimitsFlows/currentExternalLimitsFlows.csv",  # noqa
             )
-            data = _handle_time(
+            data = self._handle_time(
                 data,
                 INTERFACE_LIMITS_AND_FLOWS_DATASET,
                 groupby="Interface Name",
@@ -1091,7 +1091,7 @@ class NYISO(ISOBase):
         if filename is None:
             filename = dataset_name
 
-        # We need to add the file date to the load forecast dataset to get the
+        # NB: need to add the file date to the load forecast dataset to get the
         # forecast publish time.
         add_file_date = LOAD_FORECAST_DATASET == dataset_name
 
@@ -1099,13 +1099,13 @@ class NYISO(ISOBase):
         month = date.strftime("%Y%m01")
         day = date.strftime("%Y%m%d")
 
-        # if same day, we can just download the single file
+        # NB: if requesting the same day then just download the single file
         if end is not None and date.normalize() == end.normalize():
             end = None
             date = date.normalize()
 
-        # the last 7 days of file are hosted directly as csv
-        # todo this can probably be optimized to down single csv if
+        # NB: the last 7 days of file are hosted directly as csv
+        # todo this can probably be optimized to a single csv in
         # a range and all files are in the last 7 days
         if end is None and date > pd.Timestamp.now(
             tz=self.default_timezone,
@@ -1115,7 +1115,7 @@ class NYISO(ISOBase):
             logger.info(f"Requesting {csv_url}")
 
             df = pd.read_csv(csv_url)
-            df = _handle_time(df, dataset_name, groupby=groupby)
+            df = self._handle_time(df, dataset_name, groupby=groupby)
             if add_file_date:
                 df["File Date"] = self._get_load_forecast_file_date(date, verbose)
         else:
@@ -1133,8 +1133,7 @@ class NYISO(ISOBase):
                     inclusive="left",
                 ).tolist()
 
-                # if end month is not same as start month, don't add to list
-                # this handles case where end is the first of the next month
+                # NB: this handles case where end is the first of the next month
                 # this pops up from the support_date_range decorator
                 # and that date will be handled in the next month's zip file
                 if end.month == date.month:
@@ -1152,12 +1151,12 @@ class NYISO(ISOBase):
                 df = pd.read_csv(z.open(csv_filename))
 
                 if add_file_date:
-                    # The File Date is the last modified time of the individual csv file
+                    # NB: The File Date is the last modified time of the individual csv file
                     df["File Date"] = pd.Timestamp(
                         *z.getinfo(csv_filename).date_time,
                         tz=self.default_timezone,
                     )
-                df = _handle_time(df, dataset_name, groupby=groupby)
+                df = self._handle_time(df, dataset_name, groupby=groupby)
                 all_dfs.append(df)
 
             df = pd.concat(all_dfs)
@@ -1257,6 +1256,15 @@ class NYISO(ISOBase):
             date (pandas.Timestamp): date that will be used to pull latest capacity
                 report (will refer to month and year)
         """
+
+        df = self._download_nyiso_archive(
+            date=date,
+            verbose=verbose,
+            dataset_name="damasp",
+        )
+        # df = df.rename(columns={"Unnamed: 0": "Time"})
+
+        return df
 
     @support_date_range(frequency=None)
     def get_as_prices_real_time_5_min(
