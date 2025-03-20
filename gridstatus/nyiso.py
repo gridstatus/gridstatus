@@ -31,6 +31,8 @@ BTM_SOLAR_FORECAST_DATASET = "btmdaforecast"
 INTERFACE_LIMITS_AND_FLOWS_DATASET = "ExternalLimitsFlows"
 LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET = "eriecirculationrt"
 LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET = "eriecirculationda"
+AS_PRICES_DAY_AHEAD_HOURLY_DATASET = "damasp"
+AS_PRICES_REAL_TIME_5_MIN_DATASET = "rtasp"
 
 """
 Pricing data:
@@ -55,6 +57,8 @@ DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
     INTERFACE_LIMITS_AND_FLOWS_DATASET: DatasetInterval("start", 5),
     LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET: DatasetInterval("instantaneous", None),
     LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("instantaneous", None),
+    AS_PRICES_DAY_AHEAD_HOURLY_DATASET: DatasetInterval("start", 60),
+    AS_PRICES_REAL_TIME_5_MIN_DATASET: DatasetInterval("start", 5),
 }
 
 
