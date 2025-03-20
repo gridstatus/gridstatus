@@ -7,7 +7,7 @@ from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
-api_vcr = setup_vcr(
+nyiso_vcr = setup_vcr(
     source="nyiso",
     record_mode=RECORD_MODE,
 )
@@ -18,38 +18,44 @@ class TestNYISO(BaseTestISO):
 
     """"get_capacity_prices"""
 
-    @pytest.mark.integration
-    def test_get_capacity_prices(self):
-        # test 2022, 2023, 2024, and 2025
-        df = self.iso.get_capacity_prices(date="Dec 1, 2022", verbose=True)
-        assert not df.empty, "DataFrame came back empty"
-
-        df = self.iso.get_capacity_prices(date="Jan 1, 2023", verbose=True)
-        assert not df.empty, "DataFrame came back empty"
-
-        df = self.iso.get_capacity_prices(date="Jan 1, 2024", verbose=True)
-        assert not df.empty, "DataFrame came back empty"
-
-        df = self.iso.get_capacity_prices(date="Jan 1, 2025", verbose=True)
-        assert not df.empty, "DataFrame came back empty"
-
-        # TODO: missing report: https://github.com/gridstatus/gridstatus/issues/309
-        # df = self.iso.get_capacity_prices(date="today", verbose=True)
-        # assert not df.empty, "DataFrame came back empty"
+    @pytest.mark.parametrize(
+        "date",
+        ["Dec 1, 2022", "Jan 1, 2023", "Jan 1, 2024", "Jan 1, 2025", "today"],
+    )
+    def test_get_capacity_prices(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_get_capacity_prices_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_capacity_prices(date=date, verbose=True)
+            assert not df.empty, "DataFrame came back empty"
+            # TODO: missing report: https://github.com/gridstatus/gridstatus/issues/309
 
     """get_fuel_mix"""
 
-    @pytest.mark.integration
-    def test_get_fuel_mix_date_range(self):
-        df = self.iso.get_fuel_mix(start="Aug 1, 2022", end="Oct 22, 2022")
-        assert df.shape[0] >= 0
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            ("Aug 1, 2022", "Oct 22, 2022"),
+        ],
+    )
+    def test_get_fuel_mix_date_range(self, date, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_fuel_mix_date_range_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_fuel_mix(start=date, end=end)
+            assert df.shape[0] >= 0
 
-    @pytest.mark.integration
     def test_range_two_days_across_month(self):
         today = gridstatus.utils._handle_date("today", self.iso.default_timezone)
         first_day_of_month = today.replace(day=1, hour=5, minute=0, second=0)
         last_day_of_prev_month = first_day_of_month - pd.Timedelta(days=1)
-        df = self.iso.get_fuel_mix(start=last_day_of_prev_month, end=first_day_of_month)
+        with nyiso_vcr.use_cassette(
+            f"test_get_fuel_mix_range_two_days_across_month_{last_day_of_prev_month.strftime('%Y-%m-%d')}_{first_day_of_month.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_fuel_mix(
+                start=last_day_of_prev_month,
+                end=first_day_of_month,
+            )
 
         # Midnight of the end date
         assert df["Time"].max() == first_day_of_month.normalize() + pd.Timedelta(days=1)
@@ -61,71 +67,102 @@ class TestNYISO(BaseTestISO):
         assert df["Time"].dt.date.nunique() == 3  # 2 days in range + 1 day for midnight
         self._check_fuel_mix(df)
 
-    @pytest.mark.integration
-    def test_month_start_multiple_months(self):
-        start_date = pd.Timestamp("2022-01-01T06:00:00Z", tz=self.iso.default_timezone)
-        end_date = pd.Timestamp("2022-03-01T06:00:00Z", tz=self.iso.default_timezone)
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            ("2022-01-01T06:00:00Z", "2022-03-01T06:00:00Z"),
+        ],
+    )
+    def test_month_start_multiple_months(self, start_date, end_date):
+        start_date = pd.Timestamp(start_date, tz=self.iso.default_timezone)
+        end_date = pd.Timestamp(end_date, tz=self.iso.default_timezone)
+        with nyiso_vcr.use_cassette(
+            f"test_month_start_multiple_months_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_fuel_mix(start=start_date, end=end_date)
 
-        df = self.iso.get_fuel_mix(start=start_date, end=end_date)
-
-        # Midnight of the end date
-        assert df["Time"].max() == end_date.replace(minute=0, hour=0) + pd.Timedelta(
-            days=1,
-        )
-        # First 5 minute interval of the start date
-        assert df["Time"].min() == start_date.replace(minute=5, hour=0)
-
-        assert (df["Time"].dt.month.unique() == [1, 2, 3]).all()
-
-        self._check_fuel_mix(df)
+            # Midnight of the end date
+            assert df["Time"].max() == end_date.replace(
+                minute=0,
+                hour=0,
+            ) + pd.Timedelta(
+                days=1,
+            )
+            # First 5 minute interval of the start date
+            assert df["Time"].min() == start_date.replace(minute=5, hour=0)
+            assert (df["Time"].dt.month.unique() == [1, 2, 3]).all()
+            self._check_fuel_mix(df)
 
     """get_generators"""
 
-    @pytest.mark.integration
-    def test_get_generators(self):
-        df = self.iso.get_generators()
-        columns = [
-            "Generator Name",
-            "PTID",
-            "Subzone",
-            "Zone",
-            "Latitude",
-            "Longitude",
-        ]
-        assert set(df.columns).issuperset(set(columns))
-        assert df.shape[0] >= 0
+    @pytest.mark.parametrize(
+        "date",
+        ["today", "latest"],
+    )
+    def test_get_generators(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_get_generators_{date}.yaml",
+        ):
+            df = self.iso.get_generators(date=date)
+            columns = [
+                "Generator Name",
+                "PTID",
+                "Subzone",
+                "Zone",
+                "Latitude",
+                "Longitude",
+            ]
+            assert set(df.columns).issuperset(set(columns))
+            assert df.shape[0] >= 0
 
     """get_load"""
 
-    @pytest.mark.integration
-    def test_get_load_contains_zones(self):
-        df = self.iso.get_load("today")
-        nyiso_load_cols = [
-            "Time",
-            "Load",
-            "CAPITL",
-            "CENTRL",
-            "DUNWOD",
-            "GENESE",
-            "HUD VL",
-            "LONGIL",
-            "MHK VL",
-            "MILLWD",
-            "N.Y.C.",
-            "NORTH",
-            "WEST",
-        ]
-        assert df.columns.tolist() == nyiso_load_cols
+    @pytest.mark.parametrize(
+        "date",
+        ["today", "latest"],
+    )
+    def test_get_load_contains_zones(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_get_load_contains_zones_{date}.yaml",
+        ):
+            df = self.iso.get_load(date=date)
+            nyiso_load_cols = [
+                "Time",
+                "Load",
+                "CAPITL",
+                "CENTRL",
+                "DUNWOD",
+                "GENESE",
+                "HUD VL",
+                "LONGIL",
+                "MHK VL",
+                "MILLWD",
+                "N.Y.C.",
+                "NORTH",
+                "WEST",
+            ]
+            assert df.columns.tolist() == nyiso_load_cols
 
-    @pytest.mark.integration
-    def test_get_load_month_range(self):
-        df = self.iso.get_load(start="2023-04-01", end="2023-05-16")
-        assert df.shape[0] >= 0
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            ("2023-04-01", "2023-05-16"),
+        ],
+    )
+    def test_get_load_month_range(self, date, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_load_month_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load(start=date, end=end)
+            assert df.shape[0] >= 0
 
-    @pytest.mark.integration
-    def test_get_load_historical(self):
+    @pytest.mark.parametrize(
+        "lookback_days",
+        [8],
+    )
+    def test_get_load_historical(self, lookback_days):
         # TODO: why does this not work more than 8 days in the past
-        super().test_get_load_historical(lookback_days=8)
+        super().test_get_load_historical(lookback_days=lookback_days)
 
     """get_lmp"""
 
@@ -163,54 +200,49 @@ class TestNYISO(BaseTestISO):
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market=market)
 
-    @pytest.mark.integration
-    def test_get_lmp_real_time_5_and_15_min_today(self):
-        df_5 = self.iso.get_lmp("today", market=Markets.REAL_TIME_5_MIN)
-        df_15 = self.iso.get_lmp("today", market=Markets.REAL_TIME_15_MIN)
+    @pytest.mark.parametrize(
+        "market, interval_duration_minutes",
+        [(Markets.REAL_TIME_5_MIN, 5), (Markets.REAL_TIME_15_MIN, 15)],
+    )
+    def test_get_lmp_real_time_today(self, market, interval_duration_minutes):
+        with nyiso_vcr.use_cassette(
+            f"test_get_lmp_real_time_{interval_duration_minutes}_min_today.yaml",
+        ):
+            df = self.iso.get_lmp("today", market=market)
 
-        assert df_5["Interval End"].max() < df_15["Interval End"].min()
+            assert (
+                df["Interval End"] - df["Interval Start"]
+                == pd.Timedelta(minutes=interval_duration_minutes)
+            ).all()
 
-        assert (
-            df_5["Interval End"] - df_5["Interval Start"] == pd.Timedelta(minutes=5)
-        ).all()
-        assert (
-            df_15["Interval End"] - df_15["Interval Start"] == pd.Timedelta(minutes=15)
-        ).all()
+            diffs = df["Interval End"].diff()
+            assert diffs[diffs > pd.Timedelta(minutes=0)].min() <= pd.Timedelta(
+                minutes=interval_duration_minutes,
+            )
+            assert diffs.max() == pd.Timedelta(minutes=interval_duration_minutes)
 
-        diffs_5 = df_5["Interval End"].diff()
-        # We can't check the min of diffs_5 is equal to 5 minutes because the intervals
-        # are not always exact
-        assert diffs_5[diffs_5 > pd.Timedelta(minutes=0)].min() <= pd.Timedelta(
-            minutes=5,
-        )
-        assert diffs_5.max() == pd.Timedelta(minutes=5)
+    @pytest.mark.parametrize(
+        "market, interval_duration_minutes",
+        [(Markets.REAL_TIME_5_MIN, 5), (Markets.REAL_TIME_15_MIN, 15)],
+    )
+    def test_get_lmp_real_time_5_and_15_min_latest(
+        self,
+        market,
+        interval_duration_minutes,
+    ):
+        with nyiso_vcr.use_cassette(
+            f"test_get_lmp_real_time_{interval_duration_minutes}_min_latest.yaml",
+        ):
+            df = self.iso.get_lmp("latest", market=market)
 
-        diffs_15 = df_15["Interval End"].diff()
-        assert diffs_15[diffs_15 > pd.Timedelta(minutes=0)].min() == pd.Timedelta(
-            minutes=15,
-        )
-        assert diffs_15.max() == pd.Timedelta(minutes=15)
+            assert (
+                df["Interval End"] - df["Interval Start"]
+                == pd.Timedelta(minutes=interval_duration_minutes)
+            ).all()
 
-    @pytest.mark.integration
-    def test_get_lmp_real_time_5_and_15_min_latest(self):
-        df_5 = self.iso.get_lmp("latest", market=Markets.REAL_TIME_5_MIN)
-        df_15 = self.iso.get_lmp("latest", market=Markets.REAL_TIME_15_MIN)
-
-        assert df_5["Interval End"].max() < df_15["Interval End"].min()
-
-        assert (
-            df_5["Interval End"] - df_5["Interval Start"] == pd.Timedelta(minutes=5)
-        ).all()
-        assert (
-            df_15["Interval End"] - df_15["Interval Start"] == pd.Timedelta(minutes=15)
-        ).all()
-
-        diffs_5 = df_5["Interval End"].diff().dropna()
-        # There is only one interval, so the diff is 0
-        assert (diffs_5 == pd.Timedelta(minutes=0)).all()
-
-        diffs_15 = df_15["Interval End"].diff().dropna()
-        assert (diffs_15 == pd.Timedelta(minutes=0)).all()
+            diffs = df["Interval End"].diff().dropna()
+            # There is only one interval, so the diff is 0
+            assert (diffs == pd.Timedelta(minutes=0)).all()
 
     @pytest.mark.integration
     def test_get_lmp_historical_with_range(self):
@@ -551,7 +583,7 @@ class TestNYISO(BaseTestISO):
         start = self.local_start_of_today() - pd.DateOffset(days=10)
         end = start + pd.Timedelta(days=1)
 
-        with api_vcr.use_cassette(
+        with nyiso_vcr.use_cassette(
             f"test_get_interface_limits_and_flows_5_min_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(start, end)
@@ -574,7 +606,7 @@ class TestNYISO(BaseTestISO):
         start = self.local_start_of_day("2024-11-03")
         end = start + pd.DateOffset(days=1)
 
-        with api_vcr.use_cassette(
+        with nyiso_vcr.use_cassette(
             f"test_get_interface_limits_and_flows_dst_end_{start.date()}_{end.date()}.yaml",  # noqa: E501
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(start, end)
@@ -597,7 +629,7 @@ class TestNYISO(BaseTestISO):
         start = self.local_start_of_day("2024-03-10")
         end = start + pd.DateOffset(days=1)
 
-        with api_vcr.use_cassette(
+        with nyiso_vcr.use_cassette(
             f"test_get_interface_limits_and_flows_dst_start_{start.date()}_{end.date()}.yaml",  # noqa: E501
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(start, end)
@@ -622,7 +654,7 @@ class TestNYISO(BaseTestISO):
         start = self.local_start_of_today() - pd.DateOffset(days=30)
         end = start + pd.DateOffset(days=2)
 
-        with api_vcr.use_cassette(
+        with nyiso_vcr.use_cassette(
             f"test_get_lake_erie_circulation_real_time_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
         ):
             df = self.iso.get_lake_erie_circulation_real_time(start, end)
@@ -642,7 +674,7 @@ class TestNYISO(BaseTestISO):
         start = self.local_start_of_today() - pd.DateOffset(days=60)
         end = start + pd.DateOffset(days=2)
 
-        with api_vcr.use_cassette(
+        with nyiso_vcr.use_cassette(
             f"test_get_lake_erie_circulation_day_ahead_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
         ):
             df = self.iso.get_lake_erie_circulation_day_ahead(start, end)

@@ -1168,7 +1168,11 @@ class NYISO(ISOBase):
 
         return df.sort_values("Time").reset_index(drop=True)
 
-    def _get_load_forecast_file_date(self, date: pd.Timestamp) -> pd.Timestamp:
+    def _get_load_forecast_file_date(
+        self,
+        date: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.Timestamp:
         """Retrieves the last updated time for load forecast file from the archive"""
         data = pd.read_html(
             "http://mis.nyiso.com/public/P-7list.htm",
