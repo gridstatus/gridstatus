@@ -1252,7 +1252,7 @@ class NYISO(ISOBase):
         df.set_index("", inplace=True)
         return df.dropna(how="any", axis="columns")
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="DAY_START")
     def get_as_prices_day_ahead_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -1284,7 +1284,7 @@ class NYISO(ISOBase):
         df = self._handle_as_prices(df, 60)
         return df
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="DAY_START")
     def get_as_prices_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
