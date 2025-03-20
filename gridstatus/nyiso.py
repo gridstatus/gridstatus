@@ -1244,9 +1244,11 @@ class NYISO(ISOBase):
         df.set_index("", inplace=True)
         return df.dropna(how="any", axis="columns")
 
-    def get_as_prices_day_ahead(
+    @support_date_range(frequency=None)
+    def get_as_prices_day_ahead_hourly(
         self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Pull the most recent ancillary service market report's market clearing prices
@@ -1255,3 +1257,12 @@ class NYISO(ISOBase):
             date (pandas.Timestamp): date that will be used to pull latest capacity
                 report (will refer to month and year)
         """
+
+    @support_date_range(frequency=None)
+    def get_as_prices_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        pass
