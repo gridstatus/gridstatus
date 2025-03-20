@@ -1,3 +1,4 @@
+import urllib.error
 from typing import BinaryIO, Dict, Literal, NamedTuple
 
 import pandas as pd
@@ -1260,15 +1261,44 @@ class NYISO(ISOBase):
             date (pandas.Timestamp): date that will be used to pull latest capacity
                 report (will refer to month and year)
         """
+        if date == "latest":
+            try:
+                return self.get_as_prices_day_ahead_hourly(
+                    (
+                        pd.Timestamp.now(tz=self.default_timezone).normalize()
+                        + pd.DateOffset(days=1)
+                    ).strftime("%Y-%m-%d"),
+                )
+            except urllib.error.HTTPError:
+                return self.get_as_prices_day_ahead_hourly("today")
 
         df = self._download_nyiso_archive(
             date=date,
             verbose=verbose,
             dataset_name="damasp",
         )
-        # df = df.rename(columns={"Unnamed: 0": "Time"})
+        df = df.rename(
+            columns={
+                "Name": "Zone",
+                "10 Min Spinning Reserve ($/MWHr)": "10 Min Spin Reserves",
+                "10 Min Non-Synchronous Reserve ($/MWHr)": "10 Min Non-Spin Reserves",
+                "30 Min Operating Reserve ($/MWHr)": "30 Min Reserves",
+                "NYCA Regulation Capacity ($/MWHr)": "Regulation Capacity",
+            },
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
-        return df
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Zone",
+                "10 Min Spin Reserves",
+                "10 Min Non-Spin Reserves",
+                "30 Min Reserves",
+                "Regulation Capacity",
+            ]
+        ]
 
     @support_date_range(frequency=None)
     def get_as_prices_real_time_5_min(
