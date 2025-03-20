@@ -73,37 +73,33 @@ class TestNYISO(BaseTestISO):
             ("2022-01-01T06:00:00Z", "2022-03-01T06:00:00Z"),
         ],
     )
-    def test_month_start_multiple_months(self, start_date, end_date):
-        start_date = pd.Timestamp(start_date, tz=self.iso.default_timezone)
-        end_date = pd.Timestamp(end_date, tz=self.iso.default_timezone)
+    def test_month_start_multiple_months(self, date, end):
+        date = pd.Timestamp(date, tz=self.iso.default_timezone)
+        end = pd.Timestamp(end, tz=self.iso.default_timezone)
         with nyiso_vcr.use_cassette(
-            f"test_month_start_multiple_months_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+            f"test_month_start_multiple_months_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_fuel_mix(start=start_date, end=end_date)
+            df = self.iso.get_fuel_mix(start=date, end=end)
 
             # Midnight of the end date
-            assert df["Time"].max() == end_date.replace(
+            assert df["Time"].max() == end.replace(
                 minute=0,
                 hour=0,
             ) + pd.Timedelta(
                 days=1,
             )
             # First 5 minute interval of the start date
-            assert df["Time"].min() == start_date.replace(minute=5, hour=0)
+            assert df["Time"].min() == date.replace(minute=5, hour=0)
             assert (df["Time"].dt.month.unique() == [1, 2, 3]).all()
             self._check_fuel_mix(df)
 
     """get_generators"""
 
-    @pytest.mark.parametrize(
-        "date",
-        ["today", "latest"],
-    )
-    def test_get_generators(self, date):
+    def test_get_generators(self):
         with nyiso_vcr.use_cassette(
-            f"test_get_generators_{date}.yaml",
+            "test_get_generators.yaml",
         ):
-            df = self.iso.get_generators(date=date)
+            df = self.iso.get_generators()
             columns = [
                 "Generator Name",
                 "PTID",
@@ -151,7 +147,7 @@ class TestNYISO(BaseTestISO):
     )
     def test_get_load_month_range(self, date, end):
         with nyiso_vcr.use_cassette(
-            f"test_get_load_month_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_load_month_range_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_load(start=date, end=end)
             assert df.shape[0] >= 0
@@ -166,39 +162,47 @@ class TestNYISO(BaseTestISO):
 
     """get_lmp"""
 
-    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
     )
     def test_lmp_date_range(self, market):
-        super().test_lmp_date_range(market=market)
+        with nyiso_vcr.use_cassette(
+            f"test_lmp_date_range_{market}.yaml",
+        ):
+            super().test_lmp_date_range(market=market)
 
-    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
         # Markets.REAL_TIME_15_MIN, # Not supported
     )
     def test_get_lmp_historical(self, market):
-        super().test_get_lmp_historical(market=market)
+        with nyiso_vcr.use_cassette(
+            f"test_get_lmp_historical_{market}.yaml",
+        ):
+            super().test_get_lmp_historical(market=market)
 
-    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_15_MIN,
     )
     def test_get_lmp_today(self, market):
-        super().test_get_lmp_today(market=market)
+        with nyiso_vcr.use_cassette(
+            f"test_get_lmp_today_{market}.yaml",
+        ):
+            super().test_get_lmp_today(market=market)
 
-    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_15_MIN,
     )
     def test_get_lmp_latest(self, market):
-        super().test_get_lmp_latest(market=market)
+        with nyiso_vcr.use_cassette(
+            f"test_get_lmp_latest_{market}.yaml",
+        ):
+            super().test_get_lmp_latest(market=market)
 
     @pytest.mark.parametrize(
         "market, interval_duration_minutes",
@@ -244,161 +248,308 @@ class TestNYISO(BaseTestISO):
             # There is only one interval, so the diff is 0
             assert (diffs == pd.Timedelta(minutes=0)).all()
 
-    @pytest.mark.integration
-    def test_get_lmp_historical_with_range(self):
-        start = "2021-12-01"
-        end = "2022-02-02"
-        df = self.iso.get_lmp(
-            start=start,
-            end=end,
-            market=Markets.REAL_TIME_5_MIN,
-        )
-        assert df.shape[0] >= 0
+    @pytest.mark.parametrize(
+        "start,end",
+        [
+            ("2021-12-01", "2022-02-02"),
+        ],
+    )
+    def test_get_lmp_historical_with_range(self, start, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_lmp_historical_with_range_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_lmp(
+                start=start,
+                end=end,
+                market=Markets.REAL_TIME_5_MIN,
+            )
+            assert df.shape[0] >= 0
 
-    @pytest.mark.integration
-    def test_get_lmp_location_type_parameter(self):
-        date = "2022-06-09"
+    @pytest.mark.parametrize(
+        "date",
+        ["2022-06-09"],
+    )
+    def test_get_lmp_location_type_zone_historical_date(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_get_lmp_location_type_zone_historical_date_{date}.yaml",
+        ):
+            df_zone = self.iso.get_lmp(
+                date=date,
+                market=Markets.DAY_AHEAD_HOURLY,
+                location_type="zone",
+            )
+            assert (df_zone["Location Type"] == "Zone").all()
 
-        df_zone = self.iso.get_lmp(
-            date=date,
-            market=Markets.DAY_AHEAD_HOURLY,
-            location_type="zone",
-        )
-        assert (df_zone["Location Type"] == "Zone").all()
-        df_gen = self.iso.get_lmp(
-            date=date,
-            market=Markets.DAY_AHEAD_HOURLY,
-            location_type="generator",
-        )
-        assert (df_gen["Location Type"] == "Generator").all()
+    def test_get_lmp_location_type_zone_today(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_lmp_location_type_zone_today.yaml",
+        ):
+            df_zone = self.iso.get_lmp(
+                date="today",
+                market=Markets.DAY_AHEAD_HOURLY,
+                location_type="zone",
+            )
+            assert (df_zone["Location Type"] == "Zone").all()
 
-        df_zone = self.iso.get_lmp(
-            date="today",
-            market=Markets.DAY_AHEAD_HOURLY,
-            location_type="zone",
-        )
-        assert (df_zone["Location Type"] == "Zone").all()
-        df_gen = self.iso.get_lmp(
-            date="today",
-            market=Markets.DAY_AHEAD_HOURLY,
-            location_type="generator",
-        )
-        assert (df_gen["Location Type"] == "Generator").all()
-
-        df_zone = self.iso.get_lmp(
-            date="latest",
-            market=Markets.DAY_AHEAD_HOURLY,
-            location_type="zone",
-        )
-        assert (df_zone["Location Type"] == "Zone").all()
-        df_gen = self.iso.get_lmp(
-            date="latest",
-            market=Markets.DAY_AHEAD_HOURLY,
-            location_type="generator",
-        )
-        assert (df_gen["Location Type"] == "Generator").all()
-
-        with pytest.raises(ValueError):
-            self.iso.get_lmp(
+    def test_get_lmp_location_type_zone_latest(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_lmp_location_type_zone_latest.yaml",
+        ):
+            df_zone = self.iso.get_lmp(
                 date="latest",
                 market=Markets.DAY_AHEAD_HOURLY,
-                location_type="dummy",
+                location_type="zone",
+            )
+            assert (df_zone["Location Type"] == "Zone").all()
+
+    @pytest.mark.parametrize(
+        "date",
+        ["2022-06-09"],
+    )
+    def test_get_lmp_location_type_generator_historical_date(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_get_lmp_location_type_parameter_{date}.yaml",
+        ):
+            df_gen = self.iso.get_lmp(
+                date=date,
+                market=Markets.DAY_AHEAD_HOURLY,
+                location_type="generator",
+            )
+            assert (df_gen["Location Type"] == "Generator").all()
+
+    def test_get_lmp_location_type_generator_today(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_lmp_location_type_generator_today.yaml",
+        ):
+            df_gen = self.iso.get_lmp(
+                date="today",
+                market=Markets.DAY_AHEAD_HOURLY,
+                location_type="generator",
+            )
+            assert (df_gen["Location Type"] == "Generator").all()
+
+    def test_get_lmp_location_type_generator_latest(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_lmp_location_type_generator_latest.yaml",
+        ):
+            df_gen = self.iso.get_lmp(
+                date="latest",
+                market=Markets.DAY_AHEAD_HOURLY,
+                location_type="generator",
+            )
+            assert (df_gen["Location Type"] == "Generator").all()
+
+    @pytest.mark.parametrize(
+        "date,market,location_type",
+        [
+            ("latest", Markets.DAY_AHEAD_HOURLY, "dummy"),
+        ],
+    )
+    def test_get_lmp_location_type_dummy(self, date, market, location_type):
+        with pytest.raises(ValueError):
+            self.iso.get_lmp(
+                date=date,
+                market=market,
+                location_type=location_type,
             )
 
     """get_interconnection_queue"""
 
     # This test is in addition to the base_test_iso test
-    @pytest.mark.integration
     def test_get_interconnection_queue_handles_new_file(self):
-        df = self.iso.get_interconnection_queue()
-        # There are a few missing values, but a small percentage
-        assert df["Interconnection Location"].isna().sum() < 0.01 * df.shape[0]
+        with nyiso_vcr.use_cassette(
+            "test_get_interconnection_queue_handles_new_file.yaml",
+        ):
+            df = self.iso.get_interconnection_queue()
+            # There are a few missing values, but a small percentage
+            assert df["Interconnection Location"].isna().sum() < 0.01 * df.shape[0]
 
     """get_loads"""
 
-    @pytest.mark.integration
     def test_get_loads(self):
-        df = self.iso.get_loads()
-        columns = [
-            "Load Name",
-            "PTID",
-            "Subzone",
-            "Zone",
-        ]
-        assert set(df.columns) == set(columns)
-        assert df.shape[0] >= 0
+        with nyiso_vcr.use_cassette(
+            "test_get_loads.yaml",
+        ):
+            df = self.iso.get_loads()
+            columns = [
+                "Load Name",
+                "PTID",
+                "Subzone",
+                "Zone",
+            ]
+            assert set(df.columns) == set(columns)
+            assert df.shape[0] >= 0
 
     """get_status"""
 
-    @pytest.mark.integration
-    def test_get_status_historical_status(self):
-        date = "20220609"
-        status = self.iso.get_status(date)
-        self._check_status(status)
+    @pytest.mark.parametrize(
+        "date",
+        ["20220609"],
+    )
+    def test_get_status_historical_status(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_get_status_historical_status_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            status = self.iso.get_status(date)
+            self._check_status(status)
 
-        start = "2022-05-01"
-        end = "2022-10-02"
-        status = self.iso.get_status(start=start, end=end)
-        self._check_status(status)
+    @pytest.mark.parametrize(
+        "start,end",
+        [
+            ("2022-05-01", "2022-10-02"),
+        ],
+    )
+    def test_get_status_historical_status_range(self, start, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_status_historical_status_range_{start}_{end}.yaml",
+        ):
+            status = self.iso.get_status(start=start, end=end)
+            self._check_status(status)
 
-    """get_storage"""
-
-    @pytest.mark.integration
     def test_get_storage_historical(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_historical()
 
-    @pytest.mark.integration
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
-    @pytest.mark.integration
-    def test_various_edt_to_est(self):
+    @pytest.mark.parametrize(
+        "date",
+        ["Nov 7, 2021"],
+    )
+    def test_status_edt_to_est(self, date):
         # number of rows hardcoded based on when this test was written. should stay same
-        date = "Nov 7, 2021"
+        with nyiso_vcr.use_cassette(
+            f"test_status_edt_to_est_{date}.yaml",
+        ):
+            df = self.iso.get_status(date=date)
+            assert df.shape[0] >= 1
 
-        df = self.iso.get_status(date=date)
-        assert df.shape[0] >= 1
+    @pytest.mark.parametrize(
+        "date",
+        ["Nov 7, 2021"],
+    )
+    def test_fuel_mix_edt_to_est(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_fuel_mix_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_fuel_mix(date=date)
+            assert df.shape[0] >= 307
 
-        df = self.iso.get_fuel_mix(date=date)
-        assert df.shape[0] >= 307
+    @pytest.mark.parametrize(
+        "date",
+        ["Nov 7, 2021"],
+    )
+    def test_load_forecast_edt_to_est(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_load_forecast_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load_forecast(date=date)
+            assert df.shape[0] >= 145
 
-        df = self.iso.get_load_forecast(date=date)
-        assert df.shape[0] >= 145
-        df = self.iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
-        assert df.shape[0] >= 4605
-        df = self.iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
-        assert df.shape[0] >= 375
+    @pytest.mark.parametrize(
+        "date",
+        ["Nov 7, 2021"],
+    )
+    def test_lmp_rt_5_min_edt_to_est(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_lmp_rt_5_min_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
+            assert df.shape[0] >= 4605
 
-        df = self.iso.get_load(date=date)
-        assert df.shape[0] >= 307
+    @pytest.mark.parametrize(
+        "date",
+        ["Nov 7, 2021"],
+    )
+    def test_lmp_da_edt_to_est(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_lmp_da_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
+            assert df.shape[0] >= 375
 
-    @pytest.mark.integration
-    def test_various_est_to_edt(self):
+    @pytest.mark.parametrize(
+        "date",
+        ["Nov 7, 2021"],
+    )
+    def test_load_edt_to_est(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_load_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load(date=date)
+            assert df.shape[0] >= 307
+
+    @pytest.mark.parametrize(
+        "date",
+        ["March 14, 2021"],
+    )
+    def test_status_est_to_edt(self, date):
         # number of rows hardcoded based on when this test was written. should stay same
+        with nyiso_vcr.use_cassette(
+            f"test_status_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_status(date=date)
+            assert df.shape[0] >= 5
 
-        date = "March 14, 2021"
+    @pytest.mark.parametrize(
+        "date",
+        ["March 14, 2021"],
+    )
+    def test_lmp_rt_5_min_est_to_edt(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_lmp_rt_5_min_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
+            assert df.shape[0] >= 4215
 
-        df = self.iso.get_status(date=date)
-        assert df.shape[0] >= 5
+    @pytest.mark.parametrize(
+        "date",
+        ["March 14, 2021"],
+    )
+    def test_lmp_da_est_to_edt(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_lmp_da_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
+            assert df.shape[0] >= 345
 
-        df = self.iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
-        assert df.shape[0] >= 4215
+    @pytest.mark.parametrize(
+        "date",
+        ["March 14, 2021"],
+    )
+    def test_load_forecast_est_to_edt(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_load_forecast_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load_forecast(date=date)
+            assert df.shape[0] >= 143
 
-        df = self.iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
-        assert df.shape[0] >= 345
+    @pytest.mark.parametrize(
+        "date",
+        ["March 14, 2021"],
+    )
+    def test_fuel_mix_est_to_edt(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_fuel_mix_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_fuel_mix(date=date)
+            assert df.shape[0] >= 281
 
-        df = self.iso.get_load_forecast(date=date)
-        assert df.shape[0] >= 143
+    @pytest.mark.parametrize(
+        "date",
+        ["March 14, 2021"],
+    )
+    def test_load_est_to_edt(self, date):
+        with nyiso_vcr.use_cassette(
+            f"test_load_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load(date=date)
+            assert df.shape[0] >= 281
 
-        df = self.iso.get_fuel_mix(date=date)
-        assert df.shape[0] >= 281
+    """get_btm_solar"""
 
-        df = self.iso.get_load(date=date)
-        assert df.shape[0] >= 281
-
-    # test btm solar
     @pytest.mark.integration
     def test_get_btm_solar(self):
         # published ~8 hours after finish of previous day
