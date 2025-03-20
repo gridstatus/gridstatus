@@ -883,3 +883,87 @@ class TestNYISO(BaseTestISO):
         assert set(df.columns) == set(
             ["Time", "Status", "Notes"],
         )
+
+    def _check_as_prices(
+        self,
+        df: pd.DataFrame,
+        interval_duration_minutes: int,
+        start: pd.Timestamp | None = None,
+        end: pd.Timestamp | None = None,
+    ):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Zone",
+            "10 Min Spin Reserves",
+            "10 Min Non-Spin Reserves",
+            "30 Min Reserves",
+            "Regulation Capacity",
+        ]
+
+        assert df.shape[0] >= 0
+        assert (
+            df["Interval End"] - df["Interval Start"]
+            == pd.Timedelta(minutes=interval_duration_minutes)
+        ).all()
+
+        if start is not None:
+            assert df["Interval Start"].min() >= pd.Timestamp(
+                start,
+                tz=self.iso.default_timezone,
+            )
+
+        if end is not None:
+            assert df["Interval End"].max() <= pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            ) + pd.Timedelta(days=1)
+
+    """get_as_prices_day_ahead_hourly"""
+
+    def test_get_as_prices_day_ahead_hourly_latest(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_as_prices_day_ahead_hourly_latest.yaml",
+        ):
+            df = self.iso.get_as_prices_day_ahead_hourly(date="latest")
+            self._check_as_prices(df, interval_duration_minutes=60)
+
+    @pytest.mark.parametrize(
+        "start,end",
+        [
+            ("2023-04-01", "2023-04-03"),
+        ],
+    )
+    def test_get_as_prices_day_ahead_hourly_historical_range(self, start, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_as_prices_day_ahead_hourly_historical_range_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_as_prices_day_ahead_hourly(start=start, end=end)
+            self._check_as_prices(
+                df,
+                interval_duration_minutes=60,
+                start=start,
+                end=end,
+            )
+
+    """get_as_prices_real_time_5_min"""
+
+    def test_get_as_prices_real_time_5_min_latest(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_as_prices_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_as_prices_real_time_5_min(date="latest")
+            self._check_as_prices(df, interval_duration_minutes=5)
+
+    @pytest.mark.parametrize(
+        "start,end",
+        [
+            ("2023-04-01", "2023-04-02"),
+        ],
+    )
+    def test_get_as_prices_real_time_5_min_historical_range(self, start, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_as_prices_real_time_5_min_historical_range_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_as_prices_real_time_5_min(start=start, end=end)
+            self._check_as_prices(df, interval_duration_minutes=5, start=start, end=end)
