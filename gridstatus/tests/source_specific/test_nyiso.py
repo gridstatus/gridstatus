@@ -550,183 +550,212 @@ class TestNYISO(BaseTestISO):
 
     """get_btm_solar"""
 
-    @pytest.mark.integration
     def test_get_btm_solar(self):
         # published ~8 hours after finish of previous day
         two_days_ago = pd.Timestamp.now(tz="US/Eastern").date() - pd.Timedelta(days=2)
-        df = self.iso.get_btm_solar(
-            date=two_days_ago,
-            verbose=True,
-        )
 
-        columns = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "SYSTEM",
-            "CAPITL",
-            "CENTRL",
-            "DUNWOD",
-            "GENESE",
-            "HUD VL",
-            "LONGIL",
-            "MHK VL",
-            "MILLWD",
-            "N.Y.C.",
-            "NORTH",
-            "WEST",
-        ]
+        with nyiso_vcr.use_cassette(
+            f"test_get_btm_solar_{two_days_ago}.yaml",
+        ):
+            df = self.iso.get_btm_solar(
+                date=two_days_ago,
+                verbose=True,
+            )
 
-        assert df.columns.tolist() == columns
-        assert df.shape[0] >= 0
+            columns = [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "SYSTEM",
+                "CAPITL",
+                "CENTRL",
+                "DUNWOD",
+                "GENESE",
+                "HUD VL",
+                "LONGIL",
+                "MHK VL",
+                "MILLWD",
+                "N.Y.C.",
+                "NORTH",
+                "WEST",
+            ]
 
-        # test range last month
-        start = "2023-04-30"
-        end = "2023-05-02"
-        df = self.iso.get_btm_solar(
-            start=start,
-            end=end,
-            verbose=True,
-        )
+            assert df.columns.tolist() == columns
+            assert df.shape[0] >= 0
 
-        assert df["Time"].dt.date.nunique() == 3
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2023-04-30", "2023-05-02"),
+        ],
+    )
+    def test_get_btm_solar_historical_date_range(self, date, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_btm_solar_historical_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_btm_solar(
+                start=date,
+                end=end,
+                verbose=True,
+            )
+            assert df["Time"].dt.date.nunique() == 3
 
-    @pytest.mark.integration
-    def test_get_btm_solar_forecast(self):
-        df = self.iso.get_btm_solar_forecast(
-            date="today",
-            verbose=True,
-        )
+    """get_btm_solar_forecast"""
 
-        columns = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "SYSTEM",
-            "CAPITL",
-            "CENTRL",
-            "DUNWOD",
-            "GENESE",
-            "HUD VL",
-            "LONGIL",
-            "MHK VL",
-            "MILLWD",
-            "N.Y.C.",
-            "NORTH",
-            "WEST",
-        ]
+    def test_get_btm_solar_forecast_today(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_btm_solar_forecast_today.yaml",
+        ):
+            df = self.iso.get_btm_solar_forecast(
+                date="today",
+                verbose=True,
+            )
 
-        assert df.columns.tolist() == columns
-        assert df.shape[0] >= 0
+            columns = [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "SYSTEM",
+                "CAPITL",
+                "CENTRL",
+                "DUNWOD",
+                "GENESE",
+                "HUD VL",
+                "LONGIL",
+                "MHK VL",
+                "MILLWD",
+                "N.Y.C.",
+                "NORTH",
+                "WEST",
+            ]
 
-        # test range last month
-        start = "2023-04-30"
-        end = "2023-05-02"
-        df = self.iso.get_btm_solar_forecast(
-            start=start,
-            end=end,
-            verbose=True,
-        )
+            assert df.columns.tolist() == columns
+            assert df.shape[0] >= 0
 
-        assert df["Time"].dt.date.nunique() == 3
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2023-04-30", "2023-05-02"),
+        ],
+    )
+    def test_get_btm_solar_forecast_historical_date_range(self, date, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_btm_solar_forecast_historical_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_btm_solar_forecast(
+                start=date,
+                end=end,
+                verbose=True,
+            )
+            assert df["Time"].dt.date.nunique() == 3
 
     """get_load_forecast"""
 
-    @pytest.mark.integration
     def test_load_forecast_today(self):
-        forecast = self.iso.get_load_forecast("today")
+        with nyiso_vcr.use_cassette(
+            "test_load_forecast_today.yaml",
+        ):
+            forecast = self.iso.get_load_forecast("today")
+            self._check_forecast(
+                forecast,
+                expected_columns=[
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Forecast Time",
+                    "Load Forecast",
+                ],
+            )
 
-        self._check_forecast(
-            forecast,
-            expected_columns=[
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Forecast Time",
-                "Load Forecast",
-            ],
-        )
-
-    @pytest.mark.integration
     def test_load_forecast_historical_date_range(self):
         end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
-        start = (end - pd.Timedelta(days=7)).date()
-        forecast = self.iso.get_load_forecast(
-            start,
-            end=end,
-        )
+        date = (end - pd.Timedelta(days=7)).date()
+        with nyiso_vcr.use_cassette(
+            f"test_load_forecast_historical_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            forecast = self.iso.get_load_forecast(
+                start=date,
+                end=end,
+            )
 
-        self._check_forecast(
-            forecast,
-            expected_columns=[
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Forecast Time",
-                "Load Forecast",
-            ],
-        )
+            self._check_forecast(
+                forecast,
+                expected_columns=[
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Forecast Time",
+                    "Load Forecast",
+                ],
+            )
 
     """get_zonal_load_forecast"""
 
-    @pytest.mark.integration
     def test_zonal_load_forecast_today(self):
-        df = self.iso.get_zonal_load_forecast("today")
+        with nyiso_vcr.use_cassette(
+            "test_zonal_load_forecast_today.yaml",
+        ):
+            df = self.iso.get_zonal_load_forecast("today")
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "NYISO",
-            "Capitl",
-            "Centrl",
-            "Dunwod",
-            "Genese",
-            "Hud Vl",
-            "Longil",
-            "Mhk Vl",
-            "Millwd",
-            "N.Y.C.",
-            "North",
-            "West",
-        ]
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "NYISO",
+                "Capitl",
+                "Centrl",
+                "Dunwod",
+                "Genese",
+                "Hud Vl",
+                "Longil",
+                "Mhk Vl",
+                "Millwd",
+                "N.Y.C.",
+                "North",
+                "West",
+            ]
 
-        assert df["Publish Time"].nunique() == 1
-        assert df["Interval Start"].min() == self.local_start_of_today()
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
-        ).all()
+            assert df["Publish Time"].nunique() == 1
+            assert df["Interval Start"].min() == self.local_start_of_today()
+            assert (
+                (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
+            ).all()
 
-    @pytest.mark.integration
     def test_zonal_load_forecast_historical_date_range(self):
         end = self.local_start_of_today() - pd.Timedelta(days=14)
-        start = end - pd.Timedelta(days=7)
+        date = end - pd.Timedelta(days=7)
 
-        df = self.iso.get_zonal_load_forecast(start, end=end)
+        with nyiso_vcr.use_cassette(
+            f"test_zonal_load_forecast_historical_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_zonal_load_forecast(
+                start=date,
+                end=end,
+            )
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "NYISO",
-            "Capitl",
-            "Centrl",
-            "Dunwod",
-            "Genese",
-            "Hud Vl",
-            "Longil",
-            "Mhk Vl",
-            "Millwd",
-            "N.Y.C.",
-            "North",
-            "West",
-        ]
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "NYISO",
+                "Capitl",
+                "Centrl",
+                "Dunwod",
+                "Genese",
+                "Hud Vl",
+                "Longil",
+                "Mhk Vl",
+                "Millwd",
+                "N.Y.C.",
+                "North",
+                "West",
+            ]
 
-        assert df["Publish Time"].nunique() == 8
-        assert df["Interval Start"].min() == self.local_start_of_day(start.date())
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
-        ).all()
+            assert df["Publish Time"].nunique() == 8
+            assert df["Interval Start"].min() == self.local_start_of_day(date.date())
+            assert (
+                (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
+            ).all()
 
     """get_interface_limits_and_flows_5_min"""
 
@@ -735,32 +764,38 @@ class TestNYISO(BaseTestISO):
         end = start + pd.Timedelta(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_5_min_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
+            f"test_get_interface_limits_and_flows_5_min_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
         ):
-            df = self.iso.get_interface_limits_and_flows_5_min(start, end)
+            df = self.iso.get_interface_limits_and_flows_5_min(
+                start=start,
+                end=end,
+            )
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Interface Name",
-            "Point ID",
-            "Flow MW",
-            "Positive Limit MW",
-            "Negative Limit MW",
-        ]
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Interface Name",
+                "Point ID",
+                "Flow MW",
+                "Positive Limit MW",
+                "Negative Limit MW",
+            ]
 
-        assert df["Interval Start"].min() == start
-        # NYISO is inclusive of the end date
-        assert df["Interval End"].max() == end + pd.DateOffset(days=1)
+            assert df["Interval Start"].min() == start
+            # NYISO is inclusive of the end date
+            assert df["Interval End"].max() == end + pd.DateOffset(days=1)
 
     def test_get_interface_limits_and_flows_dst_end(self):
         start = self.local_start_of_day("2024-11-03")
         end = start + pd.DateOffset(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_dst_end_{start.date()}_{end.date()}.yaml",  # noqa: E501
+            f"test_get_interface_limits_and_flows_dst_end_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
         ):
-            df = self.iso.get_interface_limits_and_flows_5_min(start, end)
+            df = self.iso.get_interface_limits_and_flows_5_min(
+                start=start,
+                end=end,
+            )
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -781,9 +816,12 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_dst_start_{start.date()}_{end.date()}.yaml",  # noqa: E501
+            f"test_get_interface_limits_and_flows_dst_start_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
         ):
-            df = self.iso.get_interface_limits_and_flows_5_min(start, end)
+            df = self.iso.get_interface_limits_and_flows_5_min(
+                start=start,
+                end=end,
+            )
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -806,14 +844,14 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_lake_erie_circulation_real_time_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
+            f"test_get_lake_erie_circulation_real_time_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
         ):
-            df = self.iso.get_lake_erie_circulation_real_time(start, end)
-
+            df = self.iso.get_lake_erie_circulation_real_time(
+                start=start,
+                end=end,
+            )
         assert df.columns.tolist() == ["Time", "MW"]
-
         assert df["Time"].min() == start
-
         # NYISO is inclusive of the end date
         assert df["Time"].max() == self.local_start_of_day(
             end.date(),
@@ -826,14 +864,15 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_lake_erie_circulation_day_ahead_historical_date_range_{start.date()}_{end.date()}.yaml",  # noqa: E501
+            f"test_get_lake_erie_circulation_day_ahead_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
         ):
-            df = self.iso.get_lake_erie_circulation_day_ahead(start, end)
+            df = self.iso.get_lake_erie_circulation_day_ahead(
+                start=start,
+                end=end,
+            )
 
         assert df.columns.tolist() == ["Time", "MW"]
-
         assert df["Time"].min() == start
-
         # NYISO is inclusive of the end date
         assert df["Time"].max() == self.local_start_of_day(
             end.date(),
