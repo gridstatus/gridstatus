@@ -1277,6 +1277,46 @@ class NYISO(ISOBase):
             verbose=verbose,
             dataset_name="damasp",
         )
+        df = self._handle_as_prices(df, 60)
+        return df
+
+    @support_date_range(frequency=None)
+    def get_as_prices_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Pull the most recent ancillary service market report's market clearing prices
+
+        Arguments:
+            date (pandas.Timestamp): date that will be used to pull latest capacity
+                report (will refer to month and year)
+        """
+        if date == "latest":
+            try:
+                return self.get_as_prices_real_time_5_min(
+                    (
+                        pd.Timestamp.now(tz=self.default_timezone).normalize()
+                        + pd.DateOffset(days=1)
+                    ).strftime("%Y-%m-%d"),
+                )
+            except urllib.error.HTTPError:
+                return self.get_as_prices_real_time_5_min("today")
+
+        df = self._download_nyiso_archive(
+            date=date,
+            verbose=verbose,
+            dataset_name="rtasp",
+        )
+        df = self._handle_as_prices(df, 5)
+        return df
+
+    def _handle_as_prices(
+        self,
+        df: pd.DataFrame,
+        interval_duration_minutes: int,
+    ) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "Name": "Zone",
@@ -1286,7 +1326,9 @@ class NYISO(ISOBase):
                 "NYCA Regulation Capacity ($/MWHr)": "Regulation Capacity",
             },
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=interval_duration_minutes,
+        )
 
         return df[
             [
@@ -1299,12 +1341,3 @@ class NYISO(ISOBase):
                 "Regulation Capacity",
             ]
         ]
-
-    @support_date_range(frequency=None)
-    def get_as_prices_real_time_5_min(
-        self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-        end: str | pd.Timestamp | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        pass
