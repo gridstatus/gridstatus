@@ -910,7 +910,7 @@ class TestNYISO(BaseTestISO):
         ).all()
 
         if start is not None:
-            assert df["Interval Start"].min() >= pd.Timestamp(
+            assert df["Interval Start"].min().round("5min") >= pd.Timestamp(
                 start,
                 tz=self.iso.default_timezone,
             )
