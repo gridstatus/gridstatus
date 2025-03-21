@@ -9,6 +9,7 @@ import gridstatus
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
 from gridstatus.eia_constants import (
     CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
+    EIA_FUEL_MIX_COLUMNS,
     GENERATOR_FLOAT_COLUMNS,
     GENERATOR_INT_COLUMNS,
     OPERATING_GENERATOR_COLUMNS,
@@ -76,31 +77,10 @@ def _check_region_subba_data(df):
 
 
 def _check_fuel_type(df):
-    columns = [
-        "Interval Start",
-        "Interval End",
-        "Respondent",
-        "Respondent Name",
-        "Battery Storage",
-        "Coal",
-        "Geothermal",
-        "Hydro",
-        "Natural Gas",
-        "Nuclear",
-        "Other",
-        "Other Energy Storage",
-        "Petroleum",
-        "Pumped Storage",
-        "Solar",
-        "Solar With Integrated Battery Storage",
-        "Unknown Energy Storage",
-        "Wind",
-    ]
-
     assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
     assert df["Interval End"].dtype == "datetime64[ns, UTC]"
     assert df.shape[0] > 0
-    assert df.columns.tolist() == columns
+    assert df.columns.tolist() == EIA_FUEL_MIX_COLUMNS
 
 
 @pytest.mark.integration
@@ -223,26 +203,7 @@ def test_facets():
 
     assert (df["Respondent Name"] == "PacifiCorp East").all()
 
-    # We can't use check_fuel_type because the respondent will not have all the fuel
-    # types so the column set will be different
-    assert df.columns.tolist() == [
-        "Interval Start",
-        "Interval End",
-        "Respondent",
-        "Respondent Name",
-        "Battery Storage",
-        "Coal",
-        "Hydro",
-        "Natural Gas",
-        "Nuclear",
-        "Other",
-        "Petroleum",
-        "Pumped Storage",
-        "Solar",
-        "Solar With Integrated Battery Storage",
-        "Unknown Energy Storage",
-        "Wind",
-    ]
+    assert df.columns.tolist() == EIA_FUEL_MIX_COLUMNS
 
 
 @pytest.mark.integration

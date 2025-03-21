@@ -18,6 +18,8 @@ import gridstatus
 from gridstatus import NoDataFoundException, utils
 from gridstatus.eia_constants import (
     CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
+    EIA_FUEL_MIX_COLUMNS,
+    EIA_FUEL_TYPES,
     GENERATOR_FLOAT_COLUMNS,
     GENERATOR_INT_COLUMNS,
     OPERATING_GENERATOR_COLUMNS,
@@ -940,6 +942,7 @@ def _handle_fuel_type_data(df):
             "battery": "battery storage",
             "solar battery": "solar with integrated battery storage",
             "unknown energy": "unknown energy storage",
+            "unknown": "other",
         },
     )
 
@@ -955,24 +958,7 @@ def _handle_fuel_type_data(df):
 
     df.columns = df.columns.str.title()
 
-    # These are the known columns as of 2024-11-11. EIA has an observed trend of adding
-    # new columns to this dataset.
-    known_fuel_mix_columns = [
-        "Battery Storage",
-        "Coal",
-        "Hydro",
-        "Natural Gas",
-        "Nuclear",
-        "Other",
-        "Petroleum",
-        "Pumped Storage",
-        "Solar",
-        "Solar With Integrated Battery Storage",
-        "Unknown Energy Storage",
-        "Wind",
-    ]
-
-    for col in known_fuel_mix_columns:
+    for col in EIA_FUEL_TYPES:
         if col not in df.columns:
             # This has to be np.nan not pd.NA because we are converting to float
             df[col] = np.nan
@@ -986,7 +972,7 @@ def _handle_fuel_type_data(df):
     df = df[fixed_cols + sorted(fuel_mix_cols)]
 
     # Find any unknown columns and log them
-    unknown_columns = set(df.columns) - set(known_fuel_mix_columns) - set(fixed_cols)
+    unknown_columns = set(df.columns) - set(EIA_FUEL_MIX_COLUMNS)
 
     if unknown_columns:
         logger.warning(f"Unknown columns found in fuel type data: {unknown_columns}")
