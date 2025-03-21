@@ -906,7 +906,7 @@ class TestNYISO(BaseTestISO):
         assert df.shape[0] >= 0
         assert (
             df["Interval End"] - df["Interval Start"]
-            == pd.Timedelta(minutes=60 if rt_or_dam == "rt" else 5)
+            == pd.Timedelta(minutes=60 if rt_or_dam == "dam" else 5)
         ).all()
 
         if start is not None:
