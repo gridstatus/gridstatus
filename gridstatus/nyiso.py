@@ -1298,15 +1298,7 @@ class NYISO(ISOBase):
                 report (will refer to month and year)
         """
         if date == "latest":
-            try:
-                return self.get_as_prices_real_time_5_min(
-                    (
-                        pd.Timestamp.now(tz=self.default_timezone).normalize()
-                        + pd.DateOffset(days=1)
-                    ).strftime("%Y-%m-%d"),
-                )
-            except urllib.error.HTTPError:
-                return self.get_as_prices_real_time_5_min("today")
+            return self.get_as_prices_real_time_5_min("today")
 
         df = self._download_nyiso_archive(
             date=date,
