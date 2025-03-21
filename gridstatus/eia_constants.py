@@ -3,6 +3,7 @@
 EIA_FUEL_TYPES = [
     "Battery Storage",
     "Coal",
+    "Geothermal",
     "Hydro",
     "Natural Gas",
     "Nuclear",
