@@ -203,8 +203,6 @@ def test_facets():
 
     assert (df["Respondent Name"] == "PacifiCorp East").all()
 
-    # We can't use check_fuel_type because the respondent will not have all the fuel
-    # types so the column set will be different
     assert df.columns.tolist() == EIA_FUEL_MIX_COLUMNS
 
 

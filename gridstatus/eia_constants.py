@@ -8,6 +8,7 @@ EIA_FUEL_TYPES = [
     "Natural Gas",
     "Nuclear",
     "Other",
+    "Other Energy Storage",
     "Petroleum",
     "Pumped Storage",
     "Solar",

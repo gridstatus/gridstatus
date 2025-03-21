@@ -942,7 +942,6 @@ def _handle_fuel_type_data(df):
             "battery": "battery storage",
             "solar battery": "solar with integrated battery storage",
             "unknown energy": "unknown energy storage",
-            "other energy storage": "unknown energy storage",
             "unknown": "other",
         },
     )
