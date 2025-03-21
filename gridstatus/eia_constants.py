@@ -1,3 +1,28 @@
+# These are the known columns as of 2025-03-22. EIA has an observed trend of adding
+# new fuel types to this dataset.
+EIA_FUEL_TYPES = [
+    "Battery Storage",
+    "Coal",
+    "Hydro",
+    "Natural Gas",
+    "Nuclear",
+    "Other",
+    "Petroleum",
+    "Pumped Storage",
+    "Solar",
+    "Solar With Integrated Battery Storage",
+    "Unknown Energy Storage",
+    "Wind",
+    "Wind With Integrated Battery Storage",
+]
+
+EIA_FUEL_MIX_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Respondent",
+    "Respondent Name",
+] + EIA_FUEL_TYPES[:]
+
 OPERATING_GENERATOR_COLUMNS = [
     "Period",
     "Updated At",
