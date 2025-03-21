@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pandas as pd
 import pytest
 
@@ -887,7 +889,7 @@ class TestNYISO(BaseTestISO):
     def _check_as_prices(
         self,
         df: pd.DataFrame,
-        interval_duration_minutes: int,
+        rt_or_dam: Literal["rt", "dam"],
         start: pd.Timestamp | None = None,
         end: pd.Timestamp | None = None,
     ):
@@ -904,7 +906,7 @@ class TestNYISO(BaseTestISO):
         assert df.shape[0] >= 0
         assert (
             df["Interval End"] - df["Interval Start"]
-            == pd.Timedelta(minutes=interval_duration_minutes)
+            == pd.Timedelta(minutes=60 if rt_or_dam == "rt" else 5)
         ).all()
 
         if start is not None:
@@ -926,7 +928,7 @@ class TestNYISO(BaseTestISO):
             "test_get_as_prices_day_ahead_hourly_latest.yaml",
         ):
             df = self.iso.get_as_prices_day_ahead_hourly(date="latest")
-            self._check_as_prices(df, interval_duration_minutes=60)
+            self._check_as_prices(df, rt_or_dam="dam")
 
     @pytest.mark.parametrize(
         "start,end",
@@ -941,7 +943,7 @@ class TestNYISO(BaseTestISO):
             df = self.iso.get_as_prices_day_ahead_hourly(start=start, end=end)
             self._check_as_prices(
                 df,
-                interval_duration_minutes=60,
+                rt_or_dam="dam",
                 start=start,
                 end=end,
             )
@@ -953,7 +955,7 @@ class TestNYISO(BaseTestISO):
             "test_get_as_prices_real_time_5_min_latest.yaml",
         ):
             df = self.iso.get_as_prices_real_time_5_min(date="latest")
-            self._check_as_prices(df, interval_duration_minutes=5)
+            self._check_as_prices(df, rt_or_dam="rt")
 
     @pytest.mark.parametrize(
         "start,end",
@@ -966,4 +968,4 @@ class TestNYISO(BaseTestISO):
             f"test_get_as_prices_real_time_5_min_historical_range_{start}_{end}.yaml",
         ):
             df = self.iso.get_as_prices_real_time_5_min(start=start, end=end)
-            self._check_as_prices(df, interval_duration_minutes=5, start=start, end=end)
+            self._check_as_prices(df, rt_or_dam="rt", start=start, end=end)

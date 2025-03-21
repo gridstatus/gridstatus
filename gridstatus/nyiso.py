@@ -1281,7 +1281,7 @@ class NYISO(ISOBase):
             verbose=verbose,
             dataset_name="damasp",
         )
-        df = self._handle_as_prices(df, 60)
+        df = self._handle_as_prices(df, rt_or_dam="dam")
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -1313,7 +1313,7 @@ class NYISO(ISOBase):
             verbose=verbose,
             dataset_name="rtasp",
         )
-        df = self._handle_as_prices(df, 5)
+        df = self._handle_as_prices(df, rt_or_dam="rt")
         return df
 
     def _handle_as_prices(
