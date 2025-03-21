@@ -1319,7 +1319,7 @@ class NYISO(ISOBase):
     def _handle_as_prices(
         self,
         df: pd.DataFrame,
-        interval_duration_minutes: int,
+        rt_or_dam: Literal["rt", "dam"],
     ) -> pd.DataFrame:
         df = df.rename(
             columns={
@@ -1330,9 +1330,13 @@ class NYISO(ISOBase):
                 "NYCA Regulation Capacity ($/MWHr)": "Regulation Capacity",
             },
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_duration_minutes,
-        )
+        if rt_or_dam == "rt":
+            df["Interval End"] = df["Interval Start"]
+            df["Interval Start"] = df["Interval Start"] - pd.Timedelta(minutes=5)
+        else:
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+                minutes=60,
+            )
 
         return df[
             [
