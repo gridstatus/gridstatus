@@ -769,8 +769,8 @@ class TestErcot(BaseTestISO):
         gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
         smne = df_dict[SCED_SMNE_KEY]
 
-        assert load_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
-        assert gen_resource["SCED Time Stamp"].dt.date.unique()[0] == days_ago_65
+        assert load_resource["SCED Timestamp"].dt.date.unique()[0] == days_ago_65
+        assert gen_resource["SCED Timestamp"].dt.date.unique()[0] == days_ago_65
         assert smne["Interval Time"].dt.date.unique()[0] == days_ago_65
 
         check_60_day_sced_disclosure(df_dict)
@@ -805,12 +805,12 @@ class TestErcot(BaseTestISO):
 
         self._check_60_day_sced_disclosure(df_dict)
 
-        assert load_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
+        assert load_resource["SCED Timestamp"].dt.date.unique().tolist() == [
             days_ago_66,
             days_ago_65,
         ]
 
-        assert gen_resource["SCED Time Stamp"].dt.date.unique().tolist() == [
+        assert gen_resource["SCED Timestamp"].dt.date.unique().tolist() == [
             days_ago_66,
             days_ago_65,
         ]

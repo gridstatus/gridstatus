@@ -1704,8 +1704,8 @@ class Ercot(ISOBase):
 
             return df
 
-        load_resource = handle_time(load_resource, time_col="SCED Time Stamp")
-        gen_resource = handle_time(gen_resource, time_col="SCED Time Stamp")
+        load_resource = handle_time(load_resource, time_col="SCED Timestamp")
+        gen_resource = handle_time(gen_resource, time_col="SCED Timestamp")
         # no repeated hour flag like other ERCOT data
         # likely will error on DST change
         smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
