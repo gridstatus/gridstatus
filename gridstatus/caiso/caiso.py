@@ -2248,17 +2248,9 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of solar and wind generation HASP hourly data
         """
         if date == "latest":
-            try:
-                df = self.get_hasp_renewable_forecast_hourly(
-                    pd.Timestamp.now(tz=self.default_timezone).normalize()
-                    + pd.Timedelta(days=1),
-                )
-            except KeyError:
-                df = self.get_hasp_renewable_forecast_hourly(
-                    "today",
-                )
-
-            return df
+            return self.get_hasp_renewable_forecast_hourly(
+                pd.Timestamp.now(tz=self.default_timezone) + pd.Timedelta(minutes=60),
+            )
 
         df = self.get_oasis_dataset(
             dataset="hasp_renewable_forecast_hourly",
