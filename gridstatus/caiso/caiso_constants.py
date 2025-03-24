@@ -302,4 +302,18 @@ OASIS_DATASET_CONFIG = {
             "market_run_id": DAY_AHEAD_MARKET_MARKET_RUN_ID,
         },
     },
+    "hasp_renewable_forecast_hourly": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "SLD_REN_FCST",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": "HASP",
+        },
+        "meta": {
+            "max_query_frequency": "1h",
+        },
+    },
 }

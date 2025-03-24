@@ -2209,3 +2209,72 @@ class CAISO(ISOBase):
                 "GHG",
             ]
         ]
+
+    def get_hasp_renewable_forecast_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get solar generation HASP hourly data from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of solar generation HASP hourly data
+        """
+        if date == "latest":
+            try:
+                df = self.get_hasp_renewable_forecast_hourly(
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
+                    + pd.Timedelta(days=1),
+                )
+            except KeyError:
+                df = self.get_hasp_renewable_forecast_hourly(
+                    "today",
+                )
+
+            return df
+
+        df = self.get_oasis_dataset(
+            dataset="hasp_renewable_forecast_hourly",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_hasp_renewable_forecast_hourly(df)
+
+    def _handle_hasp_renewable_forecast_hourly(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "TRADING_HUB": "Location",
+                "RENEWABLE_TYPE": "Renewable Type",
+            },
+        )
+
+        df = df.pivot_table(
+            index=[
+                "Interval Start",
+                "Interval End",
+                "Location",
+            ],
+            columns="Renewable Type",
+            values="MW",
+            aggfunc="first",
+        ).reset_index()
+
+        df.columns.name = None
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Renewable Type",
+                "MW",
+            ]
+        ]
