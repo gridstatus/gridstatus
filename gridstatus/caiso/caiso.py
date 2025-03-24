@@ -2236,7 +2236,7 @@ class CAISO(ISOBase):
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get solar generation HASP hourly data from CAISO.
+        """Get solar and wind generation HASP hourly data from CAISO.
 
         Args:
             date (str | pd.Timestamp): date to return data
@@ -2245,7 +2245,7 @@ class CAISO(ISOBase):
             verbose (bool, optional): print out url being fetched. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame of solar generation HASP hourly data
+            pandas.DataFrame: A DataFrame of solar and wind generation HASP hourly data
         """
         if date == "latest":
             try:
