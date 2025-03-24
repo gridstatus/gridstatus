@@ -2289,10 +2289,12 @@ class CAISO(ISOBase):
         ).reset_index()
 
         df.columns.name = None
+        df["Publish Time"] = df["Interval Start"] - pd.Timedelta(minutes=90)
         return df[
             [
                 "Interval Start",
                 "Interval End",
+                "Publish Time",
                 "Location",
                 "Solar",
                 "Wind",

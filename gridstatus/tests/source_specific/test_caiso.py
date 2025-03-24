@@ -990,10 +990,14 @@ class TestCAISO(BaseTestISO):
             assert df.columns.tolist() == [
                 "Interval Start",
                 "Interval End",
+                "Publish Time",
                 "Location",
                 "Solar",
                 "Wind",
             ]
+            assert (
+                (df["Interval Start"] - df["Publish Time"]) == pd.Timedelta(minutes=90)
+            ).all()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1013,6 +1017,7 @@ class TestCAISO(BaseTestISO):
             assert df.columns.tolist() == [
                 "Interval Start",
                 "Interval End",
+                "Publish Time",
                 "Location",
                 "Solar",
                 "Wind",
@@ -1025,6 +1030,9 @@ class TestCAISO(BaseTestISO):
                 end,
                 tz=self.iso.default_timezone,
             )
+            assert (
+                (df["Interval Start"] - df["Publish Time"]) == pd.Timedelta(minutes=90)
+            ).all()
 
     def test_get_tie_flows_real_time_15_min_latest(self):
         with caiso_vcr.use_cassette("test_get_tie_flows_real_time_15_min_latest.yaml"):
