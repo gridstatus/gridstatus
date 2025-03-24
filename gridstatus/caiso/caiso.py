@@ -2274,7 +2274,7 @@ class CAISO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Renewable Type",
-                "MW",
+                "Solar",
+                "Wind",
             ]
         ]
