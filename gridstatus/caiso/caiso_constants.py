@@ -3,6 +3,7 @@ HISTORY_BASE = "https://www.caiso.com/outlook/history"
 
 DAY_AHEAD_MARKET_MARKET_RUN_ID = "DAM"
 REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
+REAL_TIME_DISPATCH_15_MIN_MARKET_RUN_ID = "RTPD"
 
 OASIS_DATASET_CONFIG = {
     "transmission_interface_usage": {
@@ -289,6 +290,18 @@ OASIS_DATASET_CONFIG = {
         "params": {
             "baa_grp_id": "ALL",
             "market_run_id": REAL_TIME_DISPATCH_MARKET_RUN_ID,
+        },
+    },
+    "tie_flows_real_time_15_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_EIM_TRANSFER_TIE",
+            "version": 4,
+        },
+        "params": {
+            "baa_grp_id": "ALL",
+            "market_run_id": REAL_TIME_DISPATCH_15_MIN_MARKET_RUN_ID,
         },
     },
     "tie_schedule_day_ahead_hourly": {

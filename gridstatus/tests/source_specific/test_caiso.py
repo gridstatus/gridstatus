@@ -980,3 +980,80 @@ class TestCAISO(BaseTestISO):
             assert df["Interval End"].max() <= self.local_start_of_day(
                 end,
             ) + pd.Timedelta(days=1)
+
+    def test_get_hasp_renewable_forecast_hourly_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_hasp_renewable_forecast_hourly_latest.yaml",
+        ):
+            df = self.iso.get_hasp_renewable_forecast_hourly("latest")
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                "2025-03-20",
+                "2025-03-22",
+            ),
+        ],
+    )
+    def test_get_hasp_renewable_forecast_hourly_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_hasp_renewable_forecast_hourly_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_hasp_renewable_forecast_hourly(date, end=end)
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+
+    def test_get_tie_flows_real_time_15_min_latest(self):
+        with caiso_vcr.use_cassette("test_get_tie_flows_real_time_15_min_latest.yaml"):
+            df = self.iso.get_tie_flows_real_time_15_min("latest")
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Interface ID",
+                "Tie Name",
+                "From BAA",
+                "To BAA",
+                "Market",
+                "MW",
+            ]
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2025-03-20", "2025-03-22"),
+        ],
+    )
+    def test_get_tie_flows_real_time_15_min_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_tie_flows_real_time_15_min_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_tie_flows_real_time_15_min(date, end=end)
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Interface ID",
+                "Tie Name",
+                "From BAA",
+                "To BAA",
+                "Market",
+                "MW",
+            ]
+            assert df["Interval Start"].min() >= date
+            assert df["Interval End"].max() <= end

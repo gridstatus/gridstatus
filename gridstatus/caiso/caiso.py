@@ -1865,6 +1865,26 @@ class CAISO(ISOBase):
 
         return self._process_tie_flows_data(df)
 
+    def get_tie_flows_real_time_15_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.utcnow().round("15min")
+            end = date + pd.Timedelta(minutes=15)
+
+        df = self.get_oasis_dataset(
+            dataset="tie_flows_real_time_15_min",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        return self._process_tie_flows_data(df)
+
     def _process_tie_flows_data(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.drop(
             columns=[
