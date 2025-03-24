@@ -1865,6 +1865,26 @@ class CAISO(ISOBase):
 
         return self._process_tie_flows_data(df)
 
+    def get_tie_flows_real_time_15_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.utcnow().round("15min")
+            end = date + pd.Timedelta(minutes=15)
+
+        df = self.get_oasis_dataset(
+            dataset="tie_flows_real_time_15_min",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        return self._process_tie_flows_data(df)
+
     def _process_tie_flows_data(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.drop(
             columns=[
@@ -2207,5 +2227,73 @@ class CAISO(ISOBase):
                 "Congestion",
                 "Loss",
                 "GHG",
+            ]
+        ]
+
+    def get_hasp_renewable_forecast_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get solar and wind generation HASP hourly data from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of solar and wind generation HASP hourly data
+        """
+        if date == "latest":
+            try:
+                return self.get_hasp_renewable_forecast_hourly(
+                    pd.Timestamp.now(tz=self.default_timezone) + pd.Timedelta(hours=2),
+                )  # NB: This is a hack to get the latest forecast
+            except KeyError:
+                return self.get_hasp_renewable_forecast_hourly(
+                    pd.Timestamp.now(tz=self.default_timezone) + pd.Timedelta(hours=1),
+                )
+
+        df = self.get_oasis_dataset(
+            dataset="hasp_renewable_forecast_hourly",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_hasp_renewable_forecast_hourly(df)
+
+    def _handle_hasp_renewable_forecast_hourly(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "TRADING_HUB": "Location",
+                "RENEWABLE_TYPE": "Renewable Type",
+            },
+        )
+
+        df = df.pivot_table(
+            index=[
+                "Interval Start",
+                "Interval End",
+                "Location",
+            ],
+            columns="Renewable Type",
+            values="MW",
+            aggfunc="first",
+        ).reset_index()
+
+        df.columns.name = None
+        df["Publish Time"] = df["Interval Start"] - pd.Timedelta(minutes=90)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Location",
+                "Solar",
+                "Wind",
             ]
         ]
