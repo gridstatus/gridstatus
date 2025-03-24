@@ -1017,6 +1017,14 @@ class TestCAISO(BaseTestISO):
                 "Solar",
                 "Wind",
             ]
+            assert df["Interval Start"].min() >= pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() <= pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            )
 
     def test_get_tie_flows_real_time_15_min_latest(self):
         with caiso_vcr.use_cassette("test_get_tie_flows_real_time_15_min_latest.yaml"):
@@ -1055,5 +1063,11 @@ class TestCAISO(BaseTestISO):
                 "Market",
                 "MW",
             ]
-            assert df["Interval Start"].min() >= date
-            assert df["Interval End"].max() <= end
+            assert df["Interval Start"].min() >= pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() <= pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            )

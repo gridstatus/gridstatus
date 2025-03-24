@@ -326,7 +326,7 @@ OASIS_DATASET_CONFIG = {
             "market_run_id": "HASP",
         },
         "meta": {
-            "max_query_frequency": "1h",
+            "max_query_frequency": "1d",
         },
     },
 }
