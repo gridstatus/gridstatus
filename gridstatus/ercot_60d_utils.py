@@ -182,7 +182,7 @@ DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS = DAM_PTP_OBLIGATION_OPTION_COLUMNS[:-1
 SCED_GEN_RESOURCE_COLUMNS = [
     "Interval Start",
     "Interval End",
-    "SCED Time Stamp",
+    "SCED Timestamp",
     "QSE",
     "DME",
     "Resource Name",
@@ -214,7 +214,7 @@ SCED_GEN_RESOURCE_COLUMNS = [
 SCED_LOAD_RESOURCE_COLUMNS = [
     "Interval Start",
     "Interval End",
-    "SCED Time Stamp",
+    "SCED Timestamp",
     "QSE",
     "DME",
     "Resource Name",
@@ -755,7 +755,7 @@ def process_sced_gen(df):
     time_cols = [
         "Interval Start",
         "Interval End",
-        "SCED Time Stamp",
+        "SCED Timestamp",
     ]
 
     resource_cols = ["QSE", "DME", "Resource Name", "Resource Type"]
@@ -825,7 +825,7 @@ def process_sced_load(df):
     time_cols = [
         "Interval Start",
         "Interval End",
-        "SCED Time Stamp",
+        "SCED Timestamp",
     ]
 
     resource_cols = ["QSE", "DME", "Resource Name"]
