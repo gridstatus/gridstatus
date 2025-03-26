@@ -1704,6 +1704,13 @@ class Ercot(ISOBase):
 
             return df
 
+        load_resource = load_resource.rename(
+            columns={"SCED Time Stamp": "SCED Timestamp"},
+        )
+        gen_resource = gen_resource.rename(
+            columns={"SCED Time Stamp": "SCED Timestamp"},
+        )
+
         load_resource = handle_time(load_resource, time_col="SCED Timestamp")
         gen_resource = handle_time(gen_resource, time_col="SCED Timestamp")
         # no repeated hour flag like other ERCOT data
