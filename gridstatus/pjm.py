@@ -2829,8 +2829,33 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/reg_market_results/definition
         """
         if date == "latest":
-            date = "today"
-
+            try:
+                date = (
+                    pd.Timestamp.now(self.default_timezone)
+                    .replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    .strftime("%Y-%m-%d")
+                )
+                return self.get_regulation_market_monthly(
+                    date=date,
+                    end=end,
+                    verbose=verbose,
+                )
+            except NoDataFoundException:
+                date = (
+                    pd.Timestamp.now(self.default_timezone).replace(
+                        day=1,
+                        hour=0,
+                        minute=0,
+                        second=0,
+                        microsecond=0,
+                    )
+                    - pd.DateOffset(months=1)
+                ).strftime("%Y-%m-%d")
+                return self.get_regulation_market_monthly(
+                    date=date,
+                    end=end,
+                    verbose=verbose,
+                )
         df = self._get_pjm_json(
             "reg_market_results",
             start=date,
