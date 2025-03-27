@@ -310,7 +310,7 @@ class TestCAISO(BaseTestISO):
 
     @pytest.mark.parametrize("date", ["2022-03-15"])
     def test_get_curtailment_2_pages(self, date):
-        # test that the function can handle 3 pages of data
+        # test that the function can handle 2 pages of data
         with caiso_vcr.use_cassette(f"test_get_curtailment_2_pages_{date}.yaml"):
             df = self.iso.get_curtailment(date)
             assert df.shape == (55, 8)
@@ -322,6 +322,12 @@ class TestCAISO(BaseTestISO):
         with caiso_vcr.use_cassette(f"test_get_curtailment_3_pages_{date}.yaml"):
             df = self.iso.get_curtailment(date)
             assert df.shape == (76, 8)
+            self._check_curtailment(df)
+
+    @pytest.mark.parametrize("date", ["2021-12-02", "2025-01-02"])
+    def test_get_curtailment_special_dates(self, date):
+        with caiso_vcr.use_cassette(f"test_get_curtailment_special_dates_{date}.yaml"):
+            df = self.iso.get_curtailment(date)
             self._check_curtailment(df)
 
     """get_gas_prices"""
