@@ -1554,8 +1554,6 @@ class CAISO(ISOBase):
 
         df = pd.concat(tables).reset_index(drop=True)
 
-        print(df)
-        print(df.columns)
         rename = {
             "DATE": "Date",
             "HOU\nR": "Hour",
