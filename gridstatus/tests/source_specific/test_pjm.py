@@ -2349,7 +2349,7 @@ class TestPJM(BaseTestISO):
                 assert df[col].dtype in [np.float64, np.int64]
 
     def test_get_regulation_market_monthly_historical_range(self):
-        past_date = self.local_today() - pd.DateOffset(months=3)
+        past_date = self.local_today() - pd.DateOffset(months=4)
         past_end_date = past_date + pd.DateOffset(months=2)
 
         with pjm_vcr.use_cassette(
