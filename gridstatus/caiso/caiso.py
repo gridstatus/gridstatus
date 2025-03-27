@@ -1503,17 +1503,16 @@ class CAISO(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame of curtailment data
         """
-        # round to beginning of day
         date = date.normalize()
 
-        # todo handle not always just 4th pge
+        # TODO: handle not always just 4th pge
         date_str = date.strftime("%b-%d-%Y").lower()
 
         if date < pd.Timestamp("2024-05-31", tz=date.tzinfo):
             base_url = "https://www.caiso.com/documents/wind_solarreal-timedispatchcurtailmentreport"
             date_str = date.strftime("%b%d_%Y").lower()
         else:
-            base_url = "http://www.caiso.com/documents/wind-solar-real-time-dispatch-curtailment-report-"  # noqa
+            base_url = "http://www.caiso.com/documents/wind-solar-real-time-dispatch-curtailment-report-"
 
         # Handle specific case where dec 02, 2021 has wrong year in file name
         if date_str == "dec02_2021":
