@@ -42,7 +42,7 @@ When submitting a pull request, please make sure to:
 
 To set up a development environment for this project, you will need to:
 
-* Install Python 3.11 or higher and make sure java is installed on your system
+* Install Python 3.11 or higher
 
 * Fork the repository and clone it to your local machine. For a PR, create a new branch in your fork.
 

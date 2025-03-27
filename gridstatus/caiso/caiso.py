@@ -2,13 +2,12 @@ import copy
 import io
 import time
 import warnings
-from contextlib import redirect_stderr
 from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
+import pdfplumber
 import requests
-import tabula
 from tabulate import tabulate
 from termcolor import colored
 
@@ -1491,9 +1490,7 @@ class CAISO(ISOBase):
         """Return curtailment data for a given date
 
         Notes:
-            * requires java to be installed in order to run
             * Data available from June 30, 2016 to present
-
 
         Arguments:
             date (datetime.date, str): date to return data
@@ -1506,80 +1503,59 @@ class CAISO(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame of curtailment data
         """
-        # round to beginning of day
         date = date.normalize()
 
-        # todo handle not always just 4th pge
+        # TODO: handle not always just 4th pge
         date_str = date.strftime("%b-%d-%Y").lower()
 
-        pdf = None
-        base_url = "http://www.caiso.com/documents/wind-solar-real-time-dispatch-curtailment-report-"  # noqa
-
-        # Base url and date string format change for dates prior to May 31, 2024
         if date < pd.Timestamp("2024-05-31", tz=date.tzinfo):
-            base_url = "https://www.caiso.com/documents/wind_solarreal-timedispatchcurtailmentreport"  # noqa
-
+            base_url = "https://www.caiso.com/documents/wind_solarreal-timedispatchcurtailmentreport"
             date_str = date.strftime("%b%d_%Y").lower()
+        else:
+            base_url = "http://www.caiso.com/documents/wind-solar-real-time-dispatch-curtailment-report-"
 
-        # # handle specfic case where dec 02, 2021 has wrong year in file name
+        # Handle specific case where dec 02, 2021 has wrong year in file name
         if date_str == "dec02_2021":
             date_str = "02dec_2020"
 
         url = f"{base_url}{date_str}.pdf"
-
         logger.info(f"Fetching URL: {url}")
 
         r = requests.get(url)
         if r.status_code == 404:
-            raise ValueError(
-                f"Could not find curtailment PDF for {date}",
-            )
+            raise ValueError(f"Could not find curtailment PDF for {date}")
+
         pdf = io.BytesIO(r.content)
-
         if pdf is None:
-            raise ValueError(
-                "Could not find curtailment PDF for {}".format(date),
-            )
+            raise ValueError(f"Could not find curtailment PDF for {date}")
 
-        with io.StringIO() as buf, redirect_stderr(buf):
-            try:
-                tables = tabula.read_pdf(pdf, pages="all")
-            except Exception:
-                print(buf.getvalue())
-                raise RuntimeError("Problem Reading PDF")
+        tables = []
+        header = None
+        with pdfplumber.open(pdf) as pdf_doc:
+            for page in pdf_doc.pages:
+                extracted_tables = page.extract_tables()
+                for table in extracted_tables:
+                    if not table:
+                        continue
 
-        index_curtailment_table = list(
-            map(lambda df: "FUEL TYPE" in df.columns, tables),
-        ).index(True)
-        tables = tables[index_curtailment_table:]
+                    # First page - get header and data
+                    if any("FUEL TYPE" in str(col) for col in table[0]):
+                        header = table[0]
+                        df = pd.DataFrame(table[1:], columns=header)
+                        tables.append(df)
+                    # Subsequent pages - use saved header
+                    elif header is not None:
+                        df = pd.DataFrame(table, columns=header)
+                        tables.append(df)
+
         if len(tables) == 0:
             raise ValueError("No tables found")
-        elif len(tables) == 1:
-            df = tables[0]
-        else:
-            # this is case where there was a continuation of the
-            # curtailment table
-            # on a second page. there is no header,
-            # make parsed header of extra table the first row
 
-            def _handle_extra_table(extra_table):
-                extra_table = pd.concat(
-                    [
-                        extra_table.columns.to_frame().T.replace("Unnamed: 0", None),
-                        extra_table,
-                    ],
-                )
-                extra_table.columns = tables[0].columns
-
-                return extra_table
-
-            extra_tables = [tables[0]] + [_handle_extra_table(t) for t in tables[1:]]
-
-            df = pd.concat(extra_tables).reset_index()
+        df = pd.concat(tables).reset_index(drop=True)
 
         rename = {
             "DATE": "Date",
-            "HOU\rR": "Hour",
+            "HOU\nR": "Hour",
             "HOUR": "Hour",
             "CURT TYPE": "Curtailment Type",
             "REASON": "Curtailment Reason",
@@ -1594,7 +1570,6 @@ class CAISO(ISOBase):
 
         # convert from hour ending to hour beginning
         df["Hour"] = df["Hour"].astype(int) - 1
-
         df["Time"] = df["Hour"].apply(
             lambda x, date=date: date + pd.Timedelta(hours=x),
         )
@@ -1623,7 +1598,7 @@ class CAISO(ISOBase):
                 "Curtailment (MW)",
             ]
         ]
-
+        df = df.replace("", np.nan)
         return df
 
     @support_date_range(frequency="DAY_START")
