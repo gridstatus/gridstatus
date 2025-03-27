@@ -1598,7 +1598,7 @@ class CAISO(ISOBase):
                 "Curtailment (MW)",
             ]
         ]
-
+        df = df.replace("", np.nan)
         return df
 
     @support_date_range(frequency="DAY_START")
