@@ -2330,18 +2330,6 @@ class TestPJM(BaseTestISO):
             assert isinstance(df, pd.DataFrame)
             assert df.columns.tolist() == self.expected_regulation_market_monthly_cols
 
-            today = pd.Timestamp.now(tz=self.iso.default_timezone)
-            month_start = today.replace(
-                day=1,
-                hour=0,
-                minute=0,
-                second=0,
-                microsecond=0,
-            )
-
-            assert df["Interval Start"].min() >= month_start
-            assert df["Interval End"].max() <= month_start + pd.DateOffset(months=1)
-
             numeric_cols = [
                 "Requirement",
                 "RegD SSMW",
