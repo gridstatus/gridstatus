@@ -1221,7 +1221,9 @@ class PJM(ISOBase):
 
         if "datetime_beginning_utc" in df.columns:
             df["Interval Start"] = (
-                pd.to_datetime(df["datetime_beginning_utc"])
+                # Some datetimes from the source have milliseconds. Parsing these
+                # requires specifying the format.
+                pd.to_datetime(df["datetime_beginning_utc"], format="ISO8601")
                 .dt.tz_localize(
                     "UTC",
                 )
@@ -1242,7 +1244,7 @@ class PJM(ISOBase):
 
             if "datetime_ending_utc" in df.columns:
                 df["Interval End"] = (
-                    pd.to_datetime(df["datetime_ending_utc"])
+                    pd.to_datetime(df["datetime_ending_utc"], format="ISO8601")
                     .dt.tz_localize(
                         "UTC",
                     )
