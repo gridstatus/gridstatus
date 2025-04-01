@@ -5,6 +5,7 @@ import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Literal
+from urllib.error import HTTPError
 
 import pandas as pd
 import requests
@@ -82,6 +83,26 @@ HOUR_INTERVAL = 1
 
 # Default namespace used in the XML files
 NAMESPACES_FOR_XML = {"": "http://www.ieso.ca/schema"}
+
+# Maps abbreviations used in the MCP real time data to the full names
+# used in the historical data
+IESO_ZONE_MAPPING = {
+    "MBSI": "Manitoba",
+    "PQSK": "Manitoba SK",
+    "MISI": "Michigan",
+    "MNSI": "Minnesota",
+    "NYSI": "New-York",
+    "ONZN": "Ontario",
+    "PQAT": "Quebec AT",
+    "PQBE": "Quebec B5D.B31L",
+    "PQDZ": "Quebec D4Z",
+    "PQDA": "Quebec D5A",
+    "PQHZ": "Quebec H4Z",
+    "PQHA": "Quebec H9A",
+    "PQPC": "Quebec P33C",
+    "PQQC": "Quebec Q4C",
+    "PQXY": "Quebec X2Y",
+}
 
 
 class IESO(ISOBase):
@@ -883,6 +904,188 @@ class IESO(ISOBase):
                 )
 
         return interval_load_demand_triples
+
+    @support_date_range(frequency="HOUR_START")
+    def get_mcp_real_time_5_min(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
+        # This file always has the latest data for the current hour
+        if date == "latest":
+            url = "https://reports-public.ieso.ca/public/RealtimeMktPrice/PUB_RealtimeMktPrice.csv"  # noqa: E501
+        else:
+            hour = date.hour
+            # The report has the hour ending in the filename so we need to add 1 to
+            # get the file for the hour ending
+            url = f"https://reports-public.ieso.ca/public/RealtimeMktPrice/PUB_RealtimeMktPrice_{date.strftime('%Y%m%d')}{hour + 1:02d}.csv"  # noqa: E501
+
+        try:
+            data = pd.read_csv(
+                url,
+                skiprows=4,
+                header=None,
+                usecols=[0, 1, 2, 3, 4],
+                names=["Hour Ending", "Interval", "Component", "Location", "Price"],
+            )
+        except HTTPError as e:
+            if e.code == 404:
+                raise NotSupported(
+                    f"MCP data is not available for the requested date {date}. Try using the historical method.",  # noqa: E501
+                )
+
+        data["Delivery Date"] = date.date()
+        data["Location"] = data["Location"].map(IESO_ZONE_MAPPING)
+
+        return self._handle_mcp_data(data)
+
+    @support_date_range(frequency="YEAR_START")
+    def get_mcp_historical_5_min(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
+        url = f"https://reports-public.ieso.ca/public/RealtimeMktPriceYear/PUB_RealtimeMktPriceYear_{date.year}.csv"
+
+        raw_data = pd.read_csv(url, skiprows=3, header=[0, 1])
+
+        # Columns are multi-level
+        data = raw_data.melt(
+            id_vars=[
+                ("Unnamed: 0_level_0", "DELIVERY_DATE"),
+                ("Unnamed: 1_level_0", "DELIVERY_HOUR"),
+                ("Unnamed: 2_level_0", "INTERVAL"),
+            ],
+        )
+
+        data.columns = [
+            "Delivery Date",
+            "Hour Ending",
+            "Interval",
+            "Location",
+            "Component",
+            "Price",
+        ]
+
+        return self._handle_mcp_data(data)
+
+    def _handle_mcp_data(self, data: pd.DataFrame) -> pd.DataFrame:
+        data["Interval End"] = (
+            pd.to_datetime(data["Delivery Date"])
+            + pd.to_timedelta(data["Hour Ending"] - 1, unit="h")
+            # Each interval is 5 minutes
+            + (5 * pd.to_timedelta(data["Interval"], unit="m"))
+        ).dt.tz_localize(self.default_timezone)
+
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+
+        # Pivot so each component is a column
+        data = data.pivot_table(
+            index=["Interval Start", "Interval End", "Location"],
+            columns="Component",
+            values="Price",
+        ).reset_index()
+
+        data = data.rename(
+            columns={
+                "10N": "Non-sync 10 Min",
+                "10S": "Sync 10 Min",
+                "30R": "Reserves 30 Min",
+                "ENGY": "Energy",
+            },
+        )
+
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Non-sync 10 Min",
+                "Sync 10 Min",
+                "Reserves 30 Min",
+                "Energy",
+            ]
+        ]
+
+        return data.sort_values(["Interval Start", "Location"])
+
+    @support_date_range(frequency="DAY_START")
+    def get_hoep_real_time_hourly(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            return self.get_hoep_real_time_hourly("today", verbose=verbose)
+
+        if utils.is_today(date, tz=self.default_timezone):
+            # This file always contains the most recent file for today
+            url = "https://reports-public.ieso.ca/public/DispUnconsHOEP/PUB_DispUnconsHOEP.csv"  # noqa: E501
+        else:
+            # The most recent file for a give date does not have a version number
+            url = f"https://reports-public.ieso.ca/public/DispUnconsHOEP/PUB_DispUnconsHOEP_{date.strftime('%Y%m%d')}.csv"  # noqa: E501
+
+        # Data is only available for a limited number of days through this method
+        try:
+            data = pd.read_csv(
+                url,
+                skiprows=4,
+                usecols=[0, 1],
+                header=None,
+                names=["Hour Ending", "HOEP"],
+            )
+        except HTTPError as e:
+            if e.code == 404:
+                raise NotSupported(
+                    f"HOEP data is not available for the requested date {date}. Try using the historical method.",  # noqa: E501
+                )
+            raise
+
+        data["Interval End"] = (
+            date.normalize().tz_localize(None)
+            + pd.to_timedelta(data["Hour Ending"].astype(int), unit="h")
+        ).dt.tz_localize(self.default_timezone)
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+
+        data = data[["Interval Start", "Interval End", "HOEP"]]
+
+        return data.sort_values("Interval Start")
+
+    @support_date_range(frequency="YEAR_START")
+    def get_hoep_historical_hourly(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
+        url = f"https://reports-public.ieso.ca/public/PriceHOEPPredispOR/PUB_PriceHOEPPredispOR_{date.year}.csv"  # noqa: E501
+
+        data = pd.read_csv(url, skiprows=1, header=2)
+
+        data["Interval End"] = (
+            pd.to_datetime(data["Date"]) + pd.to_timedelta(data["Hour"], unit="h")
+        ).dt.tz_localize(self.default_timezone)
+
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "HOEP",
+                "Hour 1 Predispatch",
+                "Hour 2 Predispatch",
+                "Hour 3 Predispatch",
+                "OR 10 Min Sync",
+                "OR 10 Min non-sync",
+                "OR 30 Min",
+            ]
+        ]
+
+        return data.sort_values("Interval Start")
 
     def _request(self, url: str, verbose: bool = False):
         logger.info(f"Fetching URL: {url}")

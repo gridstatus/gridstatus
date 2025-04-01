@@ -18,7 +18,10 @@ from gridstatus.ercot_constants import (
     WIND_ACTUAL_AND_FORECAST_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
-from gridstatus.tests.source_specific.test_ercot import TestErcot
+from gridstatus.tests.source_specific.test_ercot import (
+    check_60_day_dam_disclosure,
+    check_60_day_sced_disclosure,
+)
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
@@ -368,25 +371,24 @@ class TestErcotAPI(TestHelperMixin):
     """get_as_reports"""
 
     def _check_as_reports(self, df, before_full_columns=False):
-        shared_columns = [
-            "Interval Start",
-            "Interval End",
-            "Total Cleared AS - RegUp",
-            "Total Cleared AS - RegDown",
-            "Total Cleared AS - NonSpin",
-            "Total Self-Arranged AS - RegUp",
-            "Total Self-Arranged AS - RegDown",
-            "Total Self-Arranged AS - NonSpin",
-            "Bid Curve - REGUP",
-            "Bid Curve - REGDN",
-            "Bid Curve - ONNS",
-            "Bid Curve - OFFNS",
-        ]
-
+        # Earlier datasets only have these limited columns
         if before_full_columns:
-            assert df.columns.tolist() == shared_columns
+            columns = [
+                "Interval Start",
+                "Interval End",
+                "Total Cleared AS - RegUp",
+                "Total Cleared AS - RegDown",
+                "Total Cleared AS - NonSpin",
+                "Total Self-Arranged AS - RegUp",
+                "Total Self-Arranged AS - RegDown",
+                "Total Self-Arranged AS - NonSpin",
+                "Bid Curve - REGUP",
+                "Bid Curve - REGDN",
+                "Bid Curve - ONNS",
+                "Bid Curve - OFFNS",
+            ]
         else:
-            full_columns = [
+            columns = [
                 "Interval Start",
                 "Interval End",
                 "Total Cleared AS - RRSPFR",
@@ -417,7 +419,26 @@ class TestErcotAPI(TestHelperMixin):
                 "Bid Curve - OFFNS",
             ]
 
-            assert df.columns.tolist() == full_columns
+        assert df.columns.tolist() == columns
+
+        bid_curve_columns = [
+            "Bid Curve - RRSPFR",
+            "Bid Curve - RRSUFR",
+            "Bid Curve - RRSFFR",
+            "Bid Curve - ECRSM",
+            "Bid Curve - ECRSS",
+            "Bid Curve - REGUP",
+            "Bid Curve - REGDN",
+            "Bid Curve - ONNS",
+            "Bid Curve - OFFNS",
+        ]
+
+        for column in bid_curve_columns:
+            if column in df.columns:
+                # Column should be a list of lists
+                first_non_null_value = df[column].dropna().iloc[0]
+                assert isinstance(first_non_null_value, list)
+                assert all(isinstance(x, list) for x in first_non_null_value)
 
         self._check_time_columns(
             df,
@@ -1196,7 +1217,7 @@ class TestErcotAPI(TestHelperMixin):
             end_date,
         )
 
-        TestErcot()._check_60_day_dam_disclosure(df_dict)
+        check_60_day_dam_disclosure(df_dict)
 
         for df in df_dict.values():
             assert df["Interval Start"].min() == start_date
@@ -1213,6 +1234,8 @@ class TestErcotAPI(TestHelperMixin):
         df_dict = ErcotAPI().get_60_day_dam_disclosure(
             date_with_issue,
         )
+
+        check_60_day_dam_disclosure(df_dict)
 
         df_load = df_dict["dam_load_resource_as_offers"]
         df_gen = df_dict["dam_gen_resource_as_offers"]
@@ -1231,6 +1254,26 @@ class TestErcotAPI(TestHelperMixin):
             )
 
             assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
+
+    """get_60_day_sced_disclosure"""
+
+    def test_get_60_day_sced_disclosure_historical(self):
+        start_date = self.local_start_of_today() - pd.DateOffset(days=1000)
+        end_date = start_date + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_60_day_sced_disclosure_historical_{start_date.date()}_{end_date.date()}.yaml",
+        ):
+            df_dict = ErcotAPI().get_60_day_sced_disclosure(
+                start_date,
+                end_date,
+            )
+
+        check_60_day_sced_disclosure(df_dict)
+
+        for df in df_dict.values():
+            assert df["Interval Start"].min() == start_date
+            assert df["Interval End"].max() == end_date
 
     """get_historical_data"""
 

@@ -772,7 +772,6 @@ class SPP(ISOBase):
             "Cessation Date",
             "Current Cluster",
             "Cluster Group",
-            "Replacement Generator Commercial Op Date",
             "Service Type",
             "Status (Original)",
         ]

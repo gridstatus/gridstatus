@@ -5,7 +5,7 @@ import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException
-from gridstatus.caiso import REAL_TIME_DISPATCH_MARKET_RUN_ID
+from gridstatus.caiso.caiso_constants import REAL_TIME_DISPATCH_MARKET_RUN_ID
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -792,3 +792,194 @@ class TestCAISO(BaseTestISO):
         with caiso_vcr.use_cassette("test_get_pnodes.yaml"):
             df = self.iso.get_pnodes()
             assert df.shape[0] > 0
+
+    """get_lmp_scheduling_point_tie_combination"""
+
+    def _check_lmp_scheduling_point_tie(self, df: pd.DataFrame):
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Market",
+            "Node",
+            "Tie",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+            "GHG",
+        ]
+
+        assert (df["Location"] == df["Node"] + " " + df["Tie"]).all()
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    @pytest.mark.parametrize("date", ["2022-10-15"])
+    def test_get_lmp_scheduling_point_tie_real_time_5_min(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_scheduling_point_tie_real_time_5_min_{date}.yaml",
+        ):
+            df = self.iso.get_lmp_scheduling_point_tie_real_time_5_min(date)
+            self._check_lmp_scheduling_point_tie(df)
+
+            interval_minutes = (
+                df["Interval End"] - df["Interval Start"]
+            ).dt.total_seconds() / 60
+            assert (interval_minutes == 5).all()
+
+    @pytest.mark.parametrize("date", ["2022-10-15"])
+    def test_get_lmp_scheduling_point_tie_real_time_15_min(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_scheduling_point_tie_real_time_15_min_{date}.yaml",
+        ):
+            df = self.iso.get_lmp_scheduling_point_tie_real_time_15_min(date)
+            self._check_lmp_scheduling_point_tie(df)
+
+            interval_minutes = (
+                df["Interval End"] - df["Interval Start"]
+            ).dt.total_seconds() / 60
+            assert (interval_minutes == 15).all()
+
+    @pytest.mark.parametrize("date", ["2022-10-15"])
+    def test_get_lmp_scheduling_point_tie_day_ahead_hourly(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_scheduling_point_tie_day_ahead_hourly_{date}.yaml",
+        ):
+            df = self.iso.get_lmp_scheduling_point_tie_day_ahead_hourly(date)
+            self._check_lmp_scheduling_point_tie(df)
+
+            interval_minutes = (
+                df["Interval End"] - df["Interval Start"]
+            ).dt.total_seconds() / 60
+            assert (interval_minutes == 60).all()
+
+    @pytest.mark.parametrize(
+        "start, end",
+        [
+            (
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+            ),
+        ],
+    )
+    def test_get_lmp_scheduling_point_tie_day_ahead_hourly_min_date_range(
+        self,
+        start,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_scheduling_point_tie_day_ahead_hourly_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_scheduling_point_tie_day_ahead_hourly(
+                start,
+                end=end,
+            )
+            self._check_lmp_scheduling_point_tie(df)
+
+            assert df["Interval Start"].min() >= self.local_start_of_day(start)
+
+    @pytest.mark.parametrize(
+        "start, end",
+        [
+            (
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+            ),
+        ],
+    )
+    def test_get_lmp_scheduling_point_tie_real_time_5_min_date_range(
+        self,
+        start,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_scheduling_point_tie_real_time_5_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_scheduling_point_tie_real_time_5_min(
+                start,
+                end=end,
+            )
+            self._check_lmp_scheduling_point_tie(df)
+
+            assert df["Interval Start"].min() >= self.local_start_of_day(start)
+
+    @pytest.mark.parametrize(
+        "start, end",
+        [
+            (
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+            ),
+        ],
+    )
+    def test_get_lmp_scheduling_point_tie_real_time_15_min_date_range(
+        self,
+        start,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_scheduling_point_tie_real_time_15_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_scheduling_point_tie_real_time_15_min(
+                start,
+                end=end,
+            )
+            self._check_lmp_scheduling_point_tie(df)
+
+            assert df["Interval Start"].min() >= self.local_start_of_day(start)
+
+    @pytest.mark.parametrize("date", ["2022-10-15"])
+    def test_get_lmp_hasp_15_min(self, date):
+        with caiso_vcr.use_cassette(f"test_get_lmp_hasp_15_min_{date}.yaml"):
+            df = self.iso.get_lmp_hasp_15_min(date)
+            self._check_lmp_hasp_15_min(df)
+
+            interval_minutes = (
+                df["Interval End"] - df["Interval Start"]
+            ).dt.total_seconds() / 60
+            assert (interval_minutes == 15).all()
+
+    def _check_lmp_hasp_15_min(self, df: pd.DataFrame):
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+            "GHG",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    @pytest.mark.parametrize(
+        "start, end",
+        [
+            (
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
+                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+            ),
+        ],
+    )
+    def test_get_lmp_hasp_15_min_date_range(self, start, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_lmp_hasp_15_min_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_hasp_15_min(start, end=end)
+            self._check_lmp_hasp_15_min(df)
+
+            assert df["Interval Start"].min() >= self.local_start_of_day(start)
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                end,
+            ) + pd.Timedelta(days=1)

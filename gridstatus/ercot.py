@@ -3,6 +3,7 @@ import io
 import time
 from dataclasses import dataclass
 from enum import Enum
+from typing import List
 from zipfile import ZipFile
 
 import pandas as pd
@@ -395,22 +396,12 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrame with columns; Time and columns for each fuel \
                 type
         """
-
-        if date != "latest":
-            date_parsed = utils._handle_date(date, tz=self.default_timezone)
-            check_yesterday = date_parsed + pd.DateOffset(days=1)
-            if not (
-                utils.is_today(date, tz=self.default_timezone)
-                or utils.is_today(check_yesterday, tz=self.default_timezone)
-            ):
-                raise NotSupported()
-
-        url = self.BASE + "/fuel-mix.json"
-        data = self._get_json(url, verbose=verbose)
+        data = self._get_fuel_mix(date, verbose=verbose)
 
         dfs = []
         for day in data["data"].keys():
             df = pd.DataFrame(data["data"][day])
+            # Only care about the gen for this method
             df_transformed = df.apply(
                 lambda col: col.apply(
                     lambda x: x.get("gen") if isinstance(x, dict) else pd.NA,
@@ -419,21 +410,10 @@ class Ercot(ISOBase):
             dfs.append(df_transformed)
 
         mix = pd.concat(dfs)
-        mix.index.name = "Time"
-        mix = mix.reset_index()
 
-        # need to use apply since there can be mixed
-        # fixed offsets during dst transition
-        # that result in object dtypes in pandas
-        mix["Time"] = mix["Time"].apply(lambda x: pd.to_datetime(x).tz_convert("UTC"))
-
-        # most timestamps are a few seconds off round 5 minute ticks
-        # round to nearest minute. must do in utc to avoid dst issues
-        mix["Time"] = mix["Time"].round("min")
-
-        mix["Time"] = mix["Time"].dt.tz_convert(self.default_timezone)
-
-        mix = mix[
+        return self._handle_fuel_mix(
+            date,
+            mix,
             [
                 "Time",
                 "Coal and Lignite",
@@ -444,15 +424,114 @@ class Ercot(ISOBase):
                 "Wind",
                 "Natural Gas",
                 "Other",
-            ]
-        ]
+            ],
+        )
+
+    def _get_fuel_mix(
+        self,
+        date: str | datetime.datetime | pd.Timestamp,
+        verbose: bool,
+    ):
+        if date != "latest":
+            if not (
+                utils.is_today(date, tz=self.default_timezone)
+                or utils.is_yesterday(date, tz=self.default_timezone)
+            ):
+                raise NotSupported()
+
+        url = self.BASE + "/fuel-mix.json"
+        data = self._get_json(url, verbose=verbose)
+
+        return data
+
+    def _handle_fuel_mix(
+        self,
+        date: str | datetime.datetime | pd.Timestamp,
+        data: pd.DataFrame,
+        columns: List[str],
+    ):
+        data.index.name = "Time"
+        data = data.reset_index()
+
+        # need to use apply since there can be mixed
+        # fixed offsets during dst transition
+        # that result in object dtypes in pandas
+        data["Time"] = data["Time"].apply(lambda x: pd.to_datetime(x).tz_convert("UTC"))
+
+        # most timestamps are a few seconds off round 5 minute ticks
+        # round to nearest minute. must do in utc to avoid dst issues
+        data["Time"] = data["Time"].round("min").dt.tz_convert(self.default_timezone)
+
+        data = data[columns]
 
         if date == "latest":
-            return mix
+            return data
 
-        # return where date_parsed matches mix["Time"]
+        parsed_date = utils._handle_date(date, self.default_timezone)
 
-        return mix[mix["Time"].dt.date == date_parsed.date()].reset_index(drop=True)
+        return data[data["Time"].dt.date == parsed_date.date()].reset_index(drop=True)
+
+    def get_fuel_mix_detailed(
+        self,
+        date: str | datetime.datetime | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """The fuel mix with gen, hsl, and seasonal capacity for each fuel type."""
+        data = self._get_fuel_mix(date, verbose=verbose)
+
+        dfs = []
+
+        for day in data["data"].keys():
+            df = pd.DataFrame(data["data"][day])
+            df_transformed = df.T
+            dfs.append(df_transformed)
+
+        mix = pd.concat(dfs)
+
+        # Each col is a tuple of (gen, hsl, seasonalCapacity). We want to split this
+        # to separate columns
+        cols_to_drop = []
+        for col in mix.columns:
+            mix[col + " Gen"] = mix[col].apply(lambda x: x.get("gen"))
+            mix[col + " HSL"] = mix[col].apply(lambda x: x.get("hsl"))
+            mix[col + " Seasonal Capacity"] = mix[col].apply(
+                lambda x: x.get("seasonalCapacity"),
+            )
+            cols_to_drop.append(col)
+
+        mix = mix.drop(columns=cols_to_drop)
+
+        return self._handle_fuel_mix(
+            date,
+            mix,
+            [
+                "Time",
+                "Coal and Lignite Gen",
+                "Coal and Lignite HSL",
+                "Coal and Lignite Seasonal Capacity",
+                "Hydro Gen",
+                "Hydro HSL",
+                "Hydro Seasonal Capacity",
+                "Nuclear Gen",
+                "Nuclear HSL",
+                "Nuclear Seasonal Capacity",
+                "Power Storage Gen",
+                "Power Storage HSL",
+                "Power Storage Seasonal Capacity",
+                "Solar Gen",
+                "Solar HSL",
+                "Solar Seasonal Capacity",
+                "Wind Gen",
+                "Wind HSL",
+                "Wind Seasonal Capacity",
+                "Natural Gas Gen",
+                "Natural Gas HSL",
+                "Natural Gas Seasonal Capacity",
+                "Other Gen",
+                "Other HSL",
+                "Other Seasonal Capacity",
+            ],
+        )
 
     @support_date_range("DAY_START")
     def get_load(self, date, end=None, verbose=False):
@@ -2485,7 +2564,7 @@ class Ercot(ISOBase):
 
         def _make_bid_curve(df):
             return [
-                tuple(x)
+                list(x)
                 for x in df[["MW Offered", f"{as_name} Offer Price"]].values.tolist()
             ]
 

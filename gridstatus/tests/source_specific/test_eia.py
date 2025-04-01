@@ -1,9 +1,21 @@
+import datetime
+from typing import List
+
 import numpy as np
 import pandas as pd
 import pytest
 
 import gridstatus
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
+from gridstatus.eia_constants import (
+    CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
+    EIA_FUEL_MIX_COLUMNS,
+    GENERATOR_FLOAT_COLUMNS,
+    GENERATOR_INT_COLUMNS,
+    OPERATING_GENERATOR_COLUMNS,
+    PLANNED_GENERATOR_COLUMNS,
+    RETIRED_GENERATOR_COLUMNS,
+)
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
@@ -65,31 +77,10 @@ def _check_region_subba_data(df):
 
 
 def _check_fuel_type(df):
-    columns = [
-        "Interval Start",
-        "Interval End",
-        "Respondent",
-        "Respondent Name",
-        "Battery Storage",
-        "Coal",
-        "Geothermal",
-        "Hydro",
-        "Natural Gas",
-        "Nuclear",
-        "Other",
-        "Other Energy Storage",
-        "Petroleum",
-        "Pumped Storage",
-        "Solar",
-        "Solar With Integrated Battery Storage",
-        "Unknown Energy Storage",
-        "Wind",
-    ]
-
     assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
     assert df["Interval End"].dtype == "datetime64[ns, UTC]"
     assert df.shape[0] > 0
-    assert df.columns.tolist() == columns
+    assert df.columns.tolist() == EIA_FUEL_MIX_COLUMNS
 
 
 @pytest.mark.integration
@@ -212,26 +203,7 @@ def test_facets():
 
     assert (df["Respondent Name"] == "PacifiCorp East").all()
 
-    # We can't use check_fuel_type because the respondent will not have all the fuel
-    # types so the column set will be different
-    assert df.columns.tolist() == [
-        "Interval Start",
-        "Interval End",
-        "Respondent",
-        "Respondent Name",
-        "Battery Storage",
-        "Coal",
-        "Hydro",
-        "Natural Gas",
-        "Nuclear",
-        "Other",
-        "Petroleum",
-        "Pumped Storage",
-        "Solar",
-        "Solar With Integrated Battery Storage",
-        "Unknown Energy Storage",
-        "Wind",
-    ]
+    assert df.columns.tolist() == EIA_FUEL_MIX_COLUMNS
 
 
 @pytest.mark.integration
@@ -418,3 +390,152 @@ def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
         tz=HENRY_HUB_TIMEZONE,
     )
     assert df["Interval End"].max() == pd.Timestamp("2024-01-03", tz=HENRY_HUB_TIMEZONE)
+
+
+def _check_generators_data(
+    df: pd.DataFrame,
+    generator_status: str,
+    columns: List[str] = None,
+    expected_rows: int = None,
+    expected_period: datetime.date = None,
+    expected_updated_at: pd.Timestamp = None,
+    expected_all_na_columns: List[str] = None,
+):
+    assert df.columns.tolist() == columns
+    if expected_rows is not None:
+        assert df.shape[0] == expected_rows
+
+    assert df["Period"].unique() == expected_period
+    assert df["Entity ID"].notna().all()
+    assert df["Plant ID"].notna().all()
+    assert df["Generator ID"].notna().all()
+
+    if expected_updated_at is not None:
+        assert df["Updated At"].unique() == expected_updated_at
+
+    # These columns should not be all empty
+    if generator_status in ["operating", "retired"]:
+        for col in [
+            "Balancing Authority Code",
+            "DC Net Capacity",
+            "Nameplate Capacity",
+            "Nameplate Energy Capacity",
+            "Net Winter Capacity",
+            "Unit Code",
+        ]:
+            # Earlier datasets may not have all columns so we add them as pd.NA values
+            if expected_all_na_columns is not None and col in expected_all_na_columns:
+                assert df[col].isna().all()
+            else:
+                assert df[col].notna().any()
+
+    # Different generator_status datasets have different columns
+    elif generator_status in ["planned", "canceled_or_postponed"]:
+        for col in [
+            "Balancing Authority Code",
+            "Nameplate Capacity",
+            "Net Winter Capacity",
+            "Unit Code",
+        ]:
+            if expected_all_na_columns is not None and col in expected_all_na_columns:
+                assert df[col].isna().all()
+            else:
+                assert df[col].notna().any()
+
+    for col in GENERATOR_FLOAT_COLUMNS:
+        if col in df.columns:
+            assert pd.api.types.is_float_dtype(df[col])
+
+    for col in GENERATOR_INT_COLUMNS:
+        if col in df.columns:
+            assert pd.api.types.is_integer_dtype(df[col])
+
+
+def test_get_generators_relative_date():
+    # The files for the most recent month are generally available 24-26 days
+    # after the end of the month.
+    date = pd.Timestamp.utcnow() - pd.DateOffset(days=60)
+
+    with api_vcr.use_cassette(f"test_get_generators_relative_date_{date.date()}"):
+        data = EIA().get_generators(date)
+
+    for generator_status, columns in [
+        ("operating", OPERATING_GENERATOR_COLUMNS),
+        ("planned", PLANNED_GENERATOR_COLUMNS),
+        ("retired", RETIRED_GENERATOR_COLUMNS),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS),
+    ]:
+        dataset = data[generator_status]
+        _check_generators_data(
+            df=dataset,
+            generator_status=generator_status,
+            columns=columns,
+            expected_period=date.replace(day=1).date(),
+        )
+
+
+def test_get_generators_absolute_date():
+    # This is a relatively recent file with all columns filled in
+    date = pd.Timestamp("2024-10-01")
+
+    with api_vcr.use_cassette(f"test_get_generators_absolute_date_{date.date()}"):
+        data = EIA().get_generators(date)
+
+    for generator_status, columns, expected_rows in [
+        # The row values come from inspecting the spreadsheet
+        ("operating", OPERATING_GENERATOR_COLUMNS, 26_455),
+        ("planned", PLANNED_GENERATOR_COLUMNS, 1_864),
+        ("retired", RETIRED_GENERATOR_COLUMNS, 6_715),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS, 1_480),
+    ]:
+        dataset = data[generator_status]
+        _check_generators_data(
+            df=dataset,
+            generator_status=generator_status,
+            columns=columns,
+            expected_rows=expected_rows,
+            expected_period=pd.Timestamp("2024-10-01").date(),
+            expected_updated_at=pd.Timestamp(
+                "11/21/2024, 20:19:25",
+                tz="UTC",
+            ),
+        )
+
+
+def test_get_generators_absolute_date_with_missing_columns():
+    # Older month where we have to fill in some columns with np.nan. This is also the
+    # first month with data that works in our parsing.
+    date = pd.Timestamp("2015-12-22")
+
+    with api_vcr.use_cassette(
+        f"test_get_generators_absolute_date_with_missing_columns_{date.date()}",
+    ):
+        data = EIA().get_generators(date)
+
+    for generator_status, columns, expected_rows in [
+        # The row values come from inspecting the spreadsheet
+        ("operating", OPERATING_GENERATOR_COLUMNS, 20_070),
+        ("planned", PLANNED_GENERATOR_COLUMNS, 1_028),
+        ("retired", RETIRED_GENERATOR_COLUMNS, 3_053),
+        ("canceled_or_postponed", CANCELED_OR_POSTPONED_GENERATOR_COLUMNS, 717),
+    ]:
+        dataset = data[generator_status]
+        _check_generators_data(
+            df=dataset,
+            generator_status=generator_status,
+            columns=columns,
+            expected_rows=expected_rows,
+            expected_period=pd.Timestamp("2015-12-01").date(),
+            expected_updated_at=pd.Timestamp(
+                "02/25/2016, 17:09:16",
+                tz="UTC",
+            ),
+            expected_all_na_columns=[
+                "Balancing Authority Code",
+                "DC Net Capacity",
+                "Nameplate Capacity",
+                "Nameplate Energy Capacity",
+                "Net Winter Capacity",
+                "Unit Code",
+            ],
+        )

@@ -5,6 +5,8 @@ import os
 import re
 import warnings
 from pathlib import Path
+from typing import Dict
+from zipfile import BadZipFile
 
 import numpy as np
 import pandas as pd
@@ -13,7 +15,17 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 import gridstatus
-from gridstatus import utils
+from gridstatus import NoDataFoundException, utils
+from gridstatus.eia_constants import (
+    CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
+    EIA_FUEL_MIX_COLUMNS,
+    EIA_FUEL_TYPES,
+    GENERATOR_FLOAT_COLUMNS,
+    GENERATOR_INT_COLUMNS,
+    OPERATING_GENERATOR_COLUMNS,
+    PLANNED_GENERATOR_COLUMNS,
+    RETIRED_GENERATOR_COLUMNS,
+)
 from gridstatus.gs_logging import setup_gs_logger
 
 logger = setup_gs_logger()
@@ -25,6 +37,7 @@ HENRY_HUB_TIMEZONE = "US/Central"
 
 class EIA:
     BASE_URL = "https://api.eia.gov/v2/"
+    default_timezone = HENRY_HUB_TIMEZONE
 
     def __init__(self, api_key=None):
         """Initialize EIA API object
@@ -53,8 +66,7 @@ class EIA:
             facet_list = response["facets"]
         except KeyError:
             msg = (
-                f"'facets' not found in keys. \n"
-                f"Data route: {route} is not an endpoint."
+                f"'facets' not found in keys. \nData route: {route} is not an endpoint."
             )
             warnings.warn(msg, UserWarning)
             return
@@ -625,6 +637,170 @@ class EIA:
 
         return data
 
+    def get_generators(
+        self,
+        date: str | datetime.datetime,
+        end: str | datetime.datetime = None,
+        verbose: bool = False,
+    ) -> Dict[str, pd.DataFrame]:
+        date = utils._handle_date(date, "UTC")
+        month_name = date.strftime("%B").lower()
+        year = date.year
+        # The most recent file doesn't have "archive" in the path. Since we don't know
+        # exactly when a file comes out, use a try and except approach to the URL.
+        url = f"https://www.eia.gov/electricity/data/eia860m/archive/xls/{month_name}_generator{year}.xlsx"
+
+        if verbose:
+            logger.info(f"Downloading EIA generator data from {url}")
+
+        # Test if the file exists
+        try:
+            file = pd.ExcelFile(url, engine="openpyxl")
+        except BadZipFile:
+            url = url.replace("archive/", "")
+            try:
+                if verbose:
+                    logger.info(f"Downloading EIA generator data from {url}")
+                file = pd.ExcelFile(url, engine="openpyxl")
+            except BadZipFile:
+                raise NoDataFoundException(
+                    f"EIA generator data not found for {date}",
+                ) from None
+
+        updated_at = pd.to_datetime(file.book.properties.modified, utc=True)
+
+        # Beginning of the month as a date
+        period = date.replace(day=1).date()
+
+        # Some files we have to skip 2 rows, others only 1. We test for the first
+        # column to determine the rows to skip. For the footer, we drop NAs while
+        # processing the data
+        skiprows = 1
+        shared_args = {"skiprows": skiprows, "skipfooter": 1}
+        operating_data = file.parse("Operating", **shared_args)
+
+        if operating_data.columns[0] == "Unnamed: 0":
+            operating_data.columns = operating_data.iloc[0].values
+            operating_data = operating_data.iloc[1:]
+            skiprows = 2
+            shared_args.update({"skiprows": skiprows})
+
+        planned_data = file.parse("Planned", **shared_args)
+        retired_data = file.parse("Retired", **shared_args)
+        canceled_or_postponed_data = file.parse("Canceled or Postponed", **shared_args)
+
+        return {
+            key: self._handle_generator_data(
+                df=dataset,
+                period=period,
+                updated_at=updated_at,
+                columns=columns,
+                generator_status=key,
+                verbose=verbose,
+            )
+            for key, dataset, columns in zip(
+                ["operating", "planned", "retired", "canceled_or_postponed"],
+                [
+                    operating_data,
+                    planned_data,
+                    retired_data,
+                    canceled_or_postponed_data,
+                ],
+                [
+                    OPERATING_GENERATOR_COLUMNS,
+                    PLANNED_GENERATOR_COLUMNS,
+                    RETIRED_GENERATOR_COLUMNS,
+                    CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
+                ],
+            )
+        }
+
+    def _handle_generator_data(
+        self,
+        df: pd.DataFrame,
+        period: datetime.date,
+        updated_at: datetime.datetime,
+        columns: list[str],
+        generator_status: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df.insert(0, "Period", period)
+        df.insert(1, "Updated At", updated_at)
+
+        df.columns = df.columns.str.strip()
+
+        cols_to_drop = [col for col in ["Google Map", "Bing Map"] if col in df.columns]
+
+        df = (
+            df.rename(
+                columns={
+                    "Nameplate Capacity (MW)": "Nameplate Capacity",
+                    "Net Summer Capacity (MW)": "Net Summer Capacity",
+                    "Net Winter Capacity (MW)": "Net Winter Capacity",
+                    "Nameplate Energy Capacity (MWh)": "Nameplate Energy Capacity",
+                    "DC Net Capacity (MW)": "DC Net Capacity",
+                    "Planned Derate of Summer Capacity (MW)": "Planned Derate of Summer Capacity",
+                    "Planned Uprate of Summer Capacity (MW)": "Planned Uprate of Summer Capacity",
+                },
+            )
+            .drop(
+                columns=cols_to_drop,
+            )
+            # Dropna values to remove extra footer rows
+            .dropna(subset=["Plant ID"])
+        )
+
+        # Older files may not have all the columns. These are the columns we want to
+        # fill with np.nan if they don't exist.
+        columns_to_fill = [
+            "Balancing Authority Code",
+            "DC Net Capacity",
+            "Nameplate Capacity",
+            "Nameplate Energy Capacity",
+            "Net Winter Capacity",
+            "Unit Code",
+        ]
+
+        for col in columns_to_fill:
+            # If this column is not in the dataframe but should be, add it with np.nan
+            if col not in df.columns and col in columns:
+                if verbose:
+                    logger.warning(
+                        f"Column {col} not found in data for {generator_status} generators. Adding and filling with np.nan values.",  # noqa
+                    )
+                df[col] = np.nan
+
+        for col in GENERATOR_FLOAT_COLUMNS:
+            if col in df.columns and df[col].dtype == "object":
+                df[col] = (
+                    df[col].astype(str).str.strip().replace({"": np.nan}).astype(float)
+                )
+
+        for col in GENERATOR_INT_COLUMNS:
+            if col in df.columns and (
+                df[col].dtype == "object" or df[col].dtype == "float"
+            ):
+                df[col] = (
+                    df[col]
+                    .astype(str)
+                    .str.strip()
+                    .str.replace(".0", "")
+                    .replace({"": None, "nan": None})
+                    .astype("Int64")
+                )
+
+        null_generator_id_rows = df.loc[df["Generator ID"].isnull()]
+
+        # There are some rows with null Generator IDs. We drop these rows
+        if not null_generator_id_rows.empty:
+            logger.warning(
+                f"Found rows with null Generator Ids for {generator_status} "
+                + f"power plants. {null_generator_id_rows}",
+            )
+            df = df.dropna(subset=["Generator ID"])
+
+        return df[columns]
+
 
 def _handle_time(df, frequency="1h"):
     df.insert(0, "Interval End", pd.to_datetime(df["period"], utc=True))
@@ -766,6 +942,7 @@ def _handle_fuel_type_data(df):
             "battery": "battery storage",
             "solar battery": "solar with integrated battery storage",
             "unknown energy": "unknown energy storage",
+            "unknown": "other",
         },
     )
 
@@ -781,24 +958,7 @@ def _handle_fuel_type_data(df):
 
     df.columns = df.columns.str.title()
 
-    # These are the known columns as of 2024-11-11. EIA has an observed trend of adding
-    # new columns to this dataset.
-    known_fuel_mix_columns = [
-        "Battery Storage",
-        "Coal",
-        "Hydro",
-        "Natural Gas",
-        "Nuclear",
-        "Other",
-        "Petroleum",
-        "Pumped Storage",
-        "Solar",
-        "Solar With Integrated Battery Storage",
-        "Unknown Energy Storage",
-        "Wind",
-    ]
-
-    for col in known_fuel_mix_columns:
+    for col in EIA_FUEL_TYPES:
         if col not in df.columns:
             # This has to be np.nan not pd.NA because we are converting to float
             df[col] = np.nan
@@ -812,7 +972,7 @@ def _handle_fuel_type_data(df):
     df = df[fixed_cols + sorted(fuel_mix_cols)]
 
     # Find any unknown columns and log them
-    unknown_columns = set(df.columns) - set(known_fuel_mix_columns) - set(fixed_cols)
+    unknown_columns = set(df.columns) - set(EIA_FUEL_MIX_COLUMNS)
 
     if unknown_columns:
         logger.warning(f"Unknown columns found in fuel type data: {unknown_columns}")

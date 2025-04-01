@@ -37,17 +37,17 @@ class TestISONEAPI(TestHelperMixin):
         for zone, location_id in ZONE_LOCATIONID_MAP.items():
             assert ZONE_LOCATIONID_MAP[zone] == location_id
 
-    @api_vcr.use_cassette("test_get_locations.yaml")
     def test_get_locations(self):
-        result = self.iso.get_locations()
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 20
-        assert list(result.columns) == [
-            "LocationID",
-            "LocationType",
-            "LocationName",
-            "AreaType",
-        ]
+        with api_vcr.use_cassette("test_get_locations.yaml"):
+            result = self.iso.get_locations()
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 20
+            assert list(result.columns) == [
+                "LocationID",
+                "LocationType",
+                "LocationName",
+                "AreaType",
+            ]
 
     @pytest.mark.parametrize(
         "location",
@@ -75,24 +75,24 @@ class TestISONEAPI(TestHelperMixin):
             assert result["Location Id"].iloc[0] == ZONE_LOCATIONID_MAP[location]
             assert isinstance(result["Load"].iloc[0], (int, float))
 
-    @api_vcr.use_cassette("test_get_dayahead_hourly_demand_latest.yaml")
     def test_get_dayahead_hourly_demand_latest(self):
-        result = self.iso.get_dayahead_hourly_demand(
-            date="latest",
-            locations=["NEPOOL AREA"],
-        )
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 1
-        assert list(result.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Location",
-            "Location Id",
-            "Load",
-        ]
-        assert result["Location"].iloc[0] == "NEPOOL AREA"
-        assert result["Location Id"].iloc[0] == 32
-        assert isinstance(result["Load"].iloc[0], np.number)
+        with api_vcr.use_cassette("test_get_dayahead_hourly_demand_latest.yaml"):
+            result = self.iso.get_dayahead_hourly_demand(
+                date="latest",
+                locations=["NEPOOL AREA"],
+            )
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 1
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Id",
+                "Load",
+            ]
+            assert result["Location"].iloc[0] == "NEPOOL AREA"
+            assert result["Location Id"].iloc[0] == 32
+            assert isinstance(result["Load"].iloc[0], np.number)
 
     # NOTE(kladar): These two are not super useful as tests go, but starting to think about API failure modes and
     # how to catch them.
@@ -210,27 +210,28 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_hourly_load_forecast(date=date, end=end)
 
-        assert isinstance(result, pd.DataFrame)
-        assert list(result.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Load Forecast",
-            "Net Load Forecast",
-        ]
-        assert (
-            min(result["Interval Start"]).date()
-            == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
-        )
-        assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
-            self.iso.default_timezone,
-        )
-        assert result["Load Forecast"].dtype in [np.int64, np.float64]
-        assert result["Net Load Forecast"].dtype in [np.int64, np.float64]
-        assert (result["Load Forecast"] > 0).all()
-        assert (
-            (result["Interval End"] - result["Interval Start"]) == pd.Timedelta(hours=1)
-        ).all()
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Load Forecast",
+                "Net Load Forecast",
+            ]
+            assert (
+                min(result["Interval Start"]).date()
+                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
+            )
+            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
+                self.iso.default_timezone,
+            )
+            assert result["Load Forecast"].dtype in [np.int64, np.float64]
+            assert result["Net Load Forecast"].dtype in [np.int64, np.float64]
+            assert (result["Load Forecast"] > 0).all()
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(hours=1)
+            ).all()
 
     @pytest.mark.parametrize(
         "date,end",
@@ -281,19 +282,19 @@ class TestISONEAPI(TestHelperMixin):
             grouped = result.groupby(["Interval Start", "Publish Time"])
             assert (grouped["Regional Percentage"].sum().between(99.9, 100.1)).all()
 
-    @api_vcr.use_cassette("test_get_fuel_mix_latest.yaml")
     def test_get_fuel_mix_latest(self):
-        result = self.iso.get_fuel_mix(date="latest")
+        with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
+            result = self.iso.get_fuel_mix(date="latest")
 
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 1
-        assert "Time" in result.columns
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 1
+            assert "Time" in result.columns
 
-        assert isinstance(result["Time"].iloc[0], pd.Timestamp)
-        numeric_cols = [col for col in result.columns if col != "Time"]
-        for col in numeric_cols:
-            assert result[col].dtype in [np.int64, np.float64]
-            assert (result[col] >= 0).all()
+            assert isinstance(result["Time"].iloc[0], pd.Timestamp)
+            numeric_cols = [col for col in result.columns if col != "Time"]
+            for col in numeric_cols:
+                assert result[col].dtype in [np.int64, np.float64]
+                assert (result[col] >= 0).all()
 
     @pytest.mark.parametrize(
         "date,end",
@@ -351,7 +352,6 @@ class TestISONEAPI(TestHelperMixin):
         end,
     ):
         cassette_name = f"test_get_load_hourly_{date}_{end}.yaml"
-
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_load_hourly(date=date, end=end)
 
@@ -384,190 +384,427 @@ class TestISONEAPI(TestHelperMixin):
     def test_get_interchange_hourly_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=10)
         end = start + pd.DateOffset(days=1)
+        with api_vcr.use_cassette(
+            f"test_get_interchange_hourly_date_range_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_interchange_hourly(start, end)
 
-        df = self.iso.get_interchange_hourly(start, end)
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Id",
+                "Actual Interchange",
+                "Purchase",
+                "Sale",
+            ]
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Location",
-            "Location Id",
-            "Actual Interchange",
-            "Purchase",
-            "Sale",
-        ]
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max()
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max()
+            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+                hours=1,
+            )
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            hours=1,
-        )
+            assert sorted(df["Location"].unique()) == [
+                ".I.HQHIGATE120 2",
+                ".I.HQ_P1_P2345 5",
+                ".I.NRTHPORT138 5",
+                ".I.ROSETON 345 1",
+                ".I.SALBRYNB345 1",
+                ".I.SHOREHAM138 99",
+            ]
 
-        assert sorted(df["Location"].unique()) == [
-            ".I.HQHIGATE120 2",
-            ".I.HQ_P1_P2345 5",
-            ".I.NRTHPORT138 5",
-            ".I.ROSETON 345 1",
-            ".I.SALBRYNB345 1",
-            ".I.SHOREHAM138 99",
-        ]
-
-    @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_interchange_hourly_dst_end.yaml")
     def test_get_interchange_hourly_dst_end(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][1])
+        with api_vcr.use_cassette(
+            f"test_get_interchange_hourly_dst_end_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_interchange_hourly(start, end)
 
-        df = self.iso.get_interchange_hourly(start, end)
+            # ISONE does publish data for the repeated hour so there is one extra data point
+            # for each location
+            # 24 hours * 2 days * 6 locations + 6 locations
+            assert len(df) == 24 * 2 * 6 + 6
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
 
-        # ISONE does publish data for the repeated hour so there is one extra data point
-        # for each location
-        # 24 hours * 2 days * 6 locations + 6 locations
-        assert len(df) == 24 * 2 * 6 + 6
-
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
-
-    @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_interchange_hourly_dst_start.yaml")
     def test_get_interchange_hourly_dst_start(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][1])
+        with api_vcr.use_cassette(
+            f"test_get_interchange_hourly_dst_start_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_interchange_hourly(start, end)
 
-        df = self.iso.get_interchange_hourly(start, end)
+            # 24 hours * 2 days * 6 locations - 6 locations
+            assert len(df) == 24 * 2 * 6 - 6
 
-        # 24 hours * 2 days * 6 locations - 6 locations
-        assert len(df) == 24 * 2 * 6 - 6
-
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
 
     """get_interchange_15_min"""
 
-    @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_interchange_15_min_date_range.yaml")
     def test_get_interchange_15_min_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=10)
         end = start + pd.DateOffset(days=1)
+        with api_vcr.use_cassette(
+            f"test_get_interchange_15_min_date_range_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_interchange_15_min(start, end)
 
-        df = self.iso.get_interchange_15_min(start, end)
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Id",
+                "Actual Interchange",
+                "Purchase",
+                "Sale",
+            ]
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Location",
-            "Location Id",
-            "Actual Interchange",
-            "Purchase",
-            "Sale",
-        ]
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
+            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+                minutes=15,
+            )
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            minutes=15,
-        )
+            assert sorted(df["Location"].unique()) == [".I.ROSETON 345 1"]
 
-        assert sorted(df["Location"].unique()) == [".I.ROSETON 345 1"]
-
-    @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_interchange_15_min_dst_end.yaml")
     def test_get_interchange_15_min_dst_end(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][1])
+        with api_vcr.use_cassette(
+            f"test_get_interchange_15_min_dst_end_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_interchange_15_min(start, end)
 
-        df = self.iso.get_interchange_15_min(start, end)
+            # ISONE does not publish data for the repeated hour so there are no extra
+            # data points. 24 hours * 4 intervals per hour * 2 days
+            assert len(df) == 24 * 4 * 2
 
-        # ISONE does not publish data for the repeated hour so there are no extra
-        # data points. 24 hours * 4 intervals per hour * 2 days
-        assert len(df) == 24 * 4 * 2
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
-
-    @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_interchange_15_min_dst_start.yaml")
     def test_get_interchange_15_min_dst_start(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][1])
+        with api_vcr.use_cassette(
+            f"test_get_interchange_15_min_dst_start_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_interchange_15_min(start, end)
 
-        df = self.iso.get_interchange_15_min(start, end)
+            # 24 hours * 4 intervals per hour * 2 days - (1 hour * 4 intervals per hour)
+            assert len(df) == 24 * 4 * 2 - 4
 
-        # 24 hours * 4 intervals per hour * 2 days - (1 hour * 4 intervals per hour)
-        assert len(df) == 24 * 4 * 2 - 4
-
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
 
     """get_external_flows_5_min"""
 
-    @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_external_flows_5_min_date_range.yaml")
     def test_get_external_flows_5_min_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=10)
         end = start + pd.DateOffset(days=1)
+        with api_vcr.use_cassette(
+            f"test_get_external_flows_5_min_date_range_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_external_flows_5_min(start, end)
 
-        df = self.iso.get_external_flows_5_min(start, end)
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Id",
+                "Actual Flow",
+                "Import Limit",
+                "Export Limit",
+                "Current Schedule",
+                "Purchase",
+                "Sale",
+                "Total Exports",
+                "Total Imports",
+            ]
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Location",
-            "Location Id",
-            "Actual Flow",
-            "Import Limit",
-            "Export Limit",
-            "Current Schedule",
-            "Purchase",
-            "Sale",
-            "Total Exports",
-            "Total Imports",
-        ]
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
+            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+                minutes=5,
+            )
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            minutes=5,
-        )
+            assert sorted(df["Location"].unique()) == [
+                ".I.HQHIGATE120 2",
+                ".I.HQ_P1_P2345 5",
+                ".I.NRTHPORT138 5",
+                ".I.ROSETON 345 1",
+                ".I.SALBRYNB345 1",
+                ".I.SHOREHAM138 99",
+            ]
 
-        assert sorted(df["Location"].unique()) == [
-            ".I.HQHIGATE120 2",
-            ".I.HQ_P1_P2345 5",
-            ".I.NRTHPORT138 5",
-            ".I.ROSETON 345 1",
-            ".I.SALBRYNB345 1",
-            ".I.SHOREHAM138 99",
-        ]
-
-    @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_external_flows_5_min_dst_end.yaml")
     def test_get_external_flows_5_min_dst_end(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][1])
+        with api_vcr.use_cassette(
+            f"test_get_external_flows_5_min_dst_end_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_external_flows_5_min(start, end)
 
-        df = self.iso.get_external_flows_5_min(start, end)
+            # 12 intervals per hour * 24 hours * 2 days * 6 locations + (6 locations * 12
+            # intervals per hour * 1 extra hour)
+            assert len(df) == 12 * 24 * 2 * 6 + 6 * 12
 
-        # 12 intervals per hour * 24 hours * 2 days * 6 locations + (6 locations * 12
-        # intervals per hour * 1 extra hour)
-        assert len(df) == 12 * 24 * 2 * 6 + 6 * 12
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
-
-    @pytest.mark.integration
-    @api_vcr.use_cassette("test_get_external_flows_5_min_dst_start.yaml")
     def test_get_external_flows_5_min_dst_start(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][0])
         end = self.local_start_of_day(DST_CHANGE_TEST_DATES[1][1])
+        with api_vcr.use_cassette(
+            f"test_get_external_flows_5_min_dst_start_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_external_flows_5_min(start, end)
 
-        df = self.iso.get_external_flows_5_min(start, end)
+            # 12 intervals per hour * 24 hours * 2 days * 6 locations - (6 locations * 12
+            # intervals per hour)
+            assert len(df) == 12 * 24 * 2 * 6 - 6 * 12
 
-        # 12 intervals per hour * 24 hours * 2 days * 6 locations - (6 locations * 12
-        # intervals per hour)
-        assert len(df) == 12 * 24 * 2 * 6 - 6 * 12
+            assert df["Interval Start"].min() == start
+            assert df["Interval End"].max() == end
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
+    def test_get_lmp_real_time_hourly_prelim_latest(self):
+        with api_vcr.use_cassette("test_get_lmp_real_time_hourly_prelim_latest.yaml"):
+            result = self.iso.get_lmp_real_time_hourly_prelim(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) > 0
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_lmp_real_time_hourly_prelim_date_range(self, date, end):
+        cassette_name = f"test_get_lmp_real_time_hourly_prelim_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_lmp_real_time_hourly_prelim(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert (
+                min(result["Interval Start"]).date()
+                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
+            )
+            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
+                self.iso.default_timezone,
+            )
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(hours=1)
+            ).all()
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+
+    def test_get_lmp_real_time_hourly_final_latest(self):
+        with api_vcr.use_cassette("test_get_lmp_real_time_hourly_final_latest.yaml"):
+            result = self.iso.get_lmp_real_time_hourly_final(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) > 0
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_lmp_real_time_hourly_final_date_range(self, date, end):
+        cassette_name = f"test_get_lmp_real_time_hourly_final_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_lmp_real_time_hourly_final(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert (
+                min(result["Interval Start"]).date()
+                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
+            )
+            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
+                self.iso.default_timezone,
+            )
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(hours=1)
+            ).all()
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+
+    def test_get_lmp_real_time_5_min_prelim_latest(self):
+        with api_vcr.use_cassette("test_get_lmp_real_time_5_min_prelim_latest.yaml"):
+            result = self.iso.get_lmp_real_time_5_min_prelim(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) > 0
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(minutes=5)
+            ).all()
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_lmp_real_time_5_min_prelim_date_range(self, date: str, end: str):
+        cassette_name = f"test_get_lmp_real_time_5_min_prelim_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_lmp_real_time_5_min_prelim(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert (
+                min(result["Interval Start"]).date()
+                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
+            )
+            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
+                self.iso.default_timezone,
+            )
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(minutes=5)
+            ).all()
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+
+    def test_get_lmp_real_time_5_min_final_latest(self):
+        with api_vcr.use_cassette("test_get_lmp_real_time_5_min_final_latest.yaml"):
+            result = self.iso.get_lmp_real_time_5_min_final(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) > 0
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(minutes=5)
+            ).all()
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_lmp_real_time_5_min_final_date_range(self, date: str, end: str):
+        cassette_name = f"test_get_lmp_real_time_5_min_final_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_lmp_real_time_5_min_final(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+            assert (
+                min(result["Interval Start"]).date()
+                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
+            )
+            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
+                self.iso.default_timezone,
+            )
+            assert (
+                (result["Interval End"] - result["Interval Start"])
+                == pd.Timedelta(minutes=5)
+            ).all()
+            assert result["LMP"].dtype in [np.int64, np.float64]
+            assert result["Energy"].dtype in [np.int64, np.float64]
+            assert result["Congestion"].dtype in [np.int64, np.float64]
+            assert result["Loss"].dtype in [np.int64, np.float64]

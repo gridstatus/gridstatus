@@ -2109,3 +2109,197 @@ class TestPJM(BaseTestISO):
             assert df["Time"].max() <= self.local_start_of_today() + pd.Timedelta(
                 days=1,
             )
+
+    """get_dispatched_reserves_prelim"""
+
+    expected_dispatched_reserves_prelim_cols = [
+        "Interval Start",
+        "Interval End",
+        "Ancillary Service",
+        "Area",
+        "Reserve Type",
+        "Reserve Quantity",
+        "Reserve Requirement",
+        "Reliability Requirement",
+        "Extended Requirement",
+        "MW Adjustment",
+        "Market Clearing Price",
+        "Shortage Indicator",
+    ]
+
+    expected_reserve_areas = [
+        "PJM RTO Reserve Zone",
+        "Mid-Atlantic/Dominion Reserve Subzone",
+    ]
+    expected_ancillary_services = [
+        "MAD-Primary Reserve",
+        "MAD-Synchronized Reserve",
+        "PJM_RTO-Primary Reserve",
+        "PJM_RTO-Synchronized Reserve",
+        "PJM_RTO-Thirty-Minute Reserve",
+    ]
+
+    @pytest.mark.parametrize(
+        "date",
+        [
+            "today",
+            "latest",
+        ],
+    )
+    def test_get_dispatched_reserves_prelim_today_or_latest(self, date):
+        with pjm_vcr.use_cassette(
+            f"test_get_dispatched_reserves_prelim_today_or_latest_{date}.yaml",
+        ):
+            df = self.iso.get_dispatched_reserves_prelim(date)
+
+            assert isinstance(df, pd.DataFrame)
+            assert df.columns.tolist() == self.expected_dispatched_reserves_prelim_cols
+
+            assert df["Interval Start"].min() >= self.local_start_of_today()
+            assert df[
+                "Interval End"
+            ].max() <= self.local_start_of_today() + pd.Timedelta(days=1)
+
+            assert df["Ancillary Service"].dtype == object
+            assert df["Area"].dtype == object
+            assert (
+                df["Area"].unique().tolist().sort()
+                == self.expected_reserve_areas.sort()
+            )
+            assert (
+                df["Ancillary Service"].unique().tolist().sort()
+                == self.expected_ancillary_services.sort()
+            )
+            assert df["Reserve Type"].dtype == object
+            assert df["Reserve Quantity"].dtype in [np.float64, np.int64]
+            assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
+            assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
+            assert df["Extended Requirement"].dtype in [np.float64, np.int64]
+            assert df["MW Adjustment"].dtype in [np.float64, np.int64]
+            assert df["Market Clearing Price"].dtype in [np.float64, np.int64]
+            assert df["Shortage Indicator"].dtype in [bool]
+
+    def test_get_dispatched_reserves_prelim_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        with pjm_vcr.use_cassette(
+            f"test_get_dispatched_reserves_prelim_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_dispatched_reserves_prelim(past_date, past_end_date)
+
+            assert isinstance(df, pd.DataFrame)
+            assert df.columns.tolist() == self.expected_dispatched_reserves_prelim_cols
+
+            assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                past_end_date,
+            ) + pd.Timedelta(days=1)
+
+            assert df["Ancillary Service"].dtype == object
+            assert df["Area"].dtype == object
+            assert (
+                df["Area"].unique().tolist().sort()
+                == self.expected_reserve_areas.sort()
+            )
+            assert (
+                df["Ancillary Service"].unique().tolist().sort()
+                == self.expected_ancillary_services.sort()
+            )
+            assert df["Reserve Type"].dtype == object
+            assert df["Reserve Quantity"].dtype in [np.float64, np.int64]
+            assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
+            assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
+            assert df["Extended Requirement"].dtype in [np.float64, np.int64]
+            assert df["MW Adjustment"].dtype in [np.float64, np.int64]
+            assert df["Market Clearing Price"].dtype in [np.float64, np.int64]
+            assert df["Shortage Indicator"].dtype in [bool]
+
+    """get_dispatched_reserves_verified"""
+
+    expected_dispatched_reserves_verified_cols = [
+        "Interval Start",
+        "Interval End",
+        "Ancillary Service",
+        "Area",
+        "Reserve Type",
+        "Total Reserve",
+        "Reserve Requirement",
+        "Reliability Requirement",
+        "Extended Requirement",
+        "Additional Extended Requirement",
+        "Deficit",
+    ]
+
+    @pytest.mark.parametrize(
+        "date",
+        [
+            "latest",
+        ],
+    )
+    def test_get_dispatched_reserves_verified_latest(self, date):
+        with pjm_vcr.use_cassette(f"test_get_dispatched_reserves_verified_{date}.yaml"):
+            df = self.iso.get_dispatched_reserves_verified(date)
+
+            assert isinstance(df, pd.DataFrame)
+            assert (
+                df.columns.tolist() == self.expected_dispatched_reserves_verified_cols
+            )
+
+            assert df[
+                "Interval Start"
+            ].min() >= self.local_start_of_today() - pd.Timedelta(days=1)
+            assert df["Interval End"].max() <= self.local_start_of_today()
+
+            assert df["Ancillary Service"].dtype == object
+            assert df["Area"].dtype == object
+            assert (
+                df["Area"].unique().tolist().sort()
+                == self.expected_reserve_areas.sort()
+            )
+            assert (
+                df["Ancillary Service"].unique().tolist().sort()
+                == self.expected_ancillary_services.sort()
+            )
+            assert df["Reserve Type"].dtype == object
+            assert df["Total Reserve"].dtype in [np.float64, np.int64]
+            assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
+            assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
+            assert df["Extended Requirement"].dtype in [np.float64, np.int64]
+            assert df["Additional Extended Requirement"].dtype in [np.float64, np.int64]
+            assert df["Deficit"].dtype in [np.float64, np.int64]
+
+    def test_get_dispatched_reserves_verified_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        with pjm_vcr.use_cassette(
+            f"test_get_dispatched_reserves_verified_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_dispatched_reserves_verified(past_date, past_end_date)
+
+            assert isinstance(df, pd.DataFrame)
+            assert (
+                df.columns.tolist() == self.expected_dispatched_reserves_verified_cols
+            )
+
+            assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                past_end_date,
+            ) + pd.Timedelta(days=1)
+
+            assert df["Ancillary Service"].dtype == object
+            assert df["Area"].dtype == object
+            assert (
+                df["Area"].unique().tolist().sort()
+                == self.expected_reserve_areas.sort()
+            )
+            assert (
+                df["Ancillary Service"].unique().tolist().sort()
+                == self.expected_ancillary_services.sort()
+            )
+            assert df["Reserve Type"].dtype == object
+            assert df["Total Reserve"].dtype in [np.float64, np.int64]
+            assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
+            assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
+            assert df["Extended Requirement"].dtype in [np.float64, np.int64]
+            assert df["Additional Extended Requirement"].dtype in [np.float64, np.int64]
+            assert df["Deficit"].dtype in [np.float64, np.int64]
