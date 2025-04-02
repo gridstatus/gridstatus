@@ -925,14 +925,13 @@ class TestMISO(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Publish Time",
-            "LRZ1 Load",
-            "LRZ2 7 Load",
-            "LRZ3 5 Load",
-            "LRZ4 Load",
-            "LRZ6 Load",
-            "LRZ8 9 10 Load",
-            "MISO Load",
+            "LRZ1",
+            "LRZ2 7",
+            "LRZ3 5",
+            "LRZ4",
+            "LRZ6",
+            "LRZ8 9 10",
+            "MISO",
         ]
 
         assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
@@ -946,7 +945,6 @@ class TestMISO(BaseTestISO):
             self._check_load_zonal_hourly(df)
 
             expected_start_date = self.local_start_of_today() - pd.DateOffset(days=1)
-            assert df["Publish Time"].unique() == self.local_start_of_today()
             assert df["Interval Start"].min() == expected_start_date
             assert df["Interval End"].max() == expected_start_date + pd.DateOffset(
                 days=1,

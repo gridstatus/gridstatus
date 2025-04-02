@@ -216,13 +216,13 @@ class MISO(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "LRZ1 Load",
-                "LRZ2 7 Load",
-                "LRZ3 5 Load",
-                "LRZ4 Load",
-                "LRZ6 Load",
-                "LRZ8 9 10 Load",
-                "MISO Load",
+                "LRZ1",
+                "LRZ2 7",
+                "LRZ3 5",
+                "LRZ4",
+                "LRZ6",
+                "LRZ8 9 10",
+                "MISO",
             ]
         ]
 
