@@ -212,6 +212,17 @@ class MISO(ISOBase):
 
         df = df.sort_values("Interval Start").reset_index(drop=True)
         df = df.dropna()
+        df = df.astype(
+            {
+                "LRZ1": float,
+                "LRZ2 7": float,
+                "LRZ3 5": float,
+                "LRZ4": float,
+                "LRZ6": float,
+                "LRZ8 9 10": float,
+                "MISO": float,
+            },
+        )
         return df[
             [
                 "Interval Start",
