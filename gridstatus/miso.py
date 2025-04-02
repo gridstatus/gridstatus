@@ -323,7 +323,7 @@ class MISO(ISOBase):
             columns="LoadResource Zone",
             values="ActualLoad (MWh)",
         ).reset_index()
-        print(df_pivoted.columns)
+
         df_pivoted = df_pivoted.rename(
             columns={
                 "LRZ2_7": "LRZ2 7",
