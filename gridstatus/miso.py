@@ -325,6 +325,9 @@ class MISO(ISOBase):
         ).reset_index()
 
         df_pivoted.columns.name = None
+        if year in [2013, 2014]:
+            df_pivoted["LRZ8_9_10"] = None
+
         df_pivoted = df_pivoted.rename(
             columns={
                 "LRZ2_7": "LRZ2 7",
