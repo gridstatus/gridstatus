@@ -207,7 +207,7 @@ class MISO(ISOBase):
 
         df = utils.move_cols_to_front(
             df,
-            ["Interval Start", "Interval End", "Publish Time"],
+            ["Interval Start", "Interval End"],
         ).drop(columns=["Market Day", "HourEnding"])
 
         df = df.sort_values("Interval Start").reset_index(drop=True)
@@ -216,7 +216,6 @@ class MISO(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "Publish Time",
                 "LRZ1 Load",
                 "LRZ2 7 Load",
                 "LRZ3 5 Load",
