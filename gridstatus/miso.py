@@ -183,8 +183,11 @@ class MISO(ISOBase):
         https://docs.misoenergy.org/marketreports/YYYYMMDD_df_al.xls
         """
         if date == "latest":
-            return self.get_load_zonal_hourly(date="today", verbose=verbose)
+            yesterday = pd.Timestamp.today() - pd.Timedelta(days=1)
+            return self.get_load_zonal_hourly(date=yesterday, verbose=verbose)
 
+        # NB: Report available is based on publish time, which is 12am the next day
+        date = date + pd.Timedelta(days=1)
         df = self._get_load_forecast_file(date)
 
         df = df.rename(
@@ -205,7 +208,7 @@ class MISO(ISOBase):
         ).drop(columns=["Market Day", "HourEnding"])
 
         df = df.sort_values("Interval Start").reset_index(drop=True)
-        df = df[df["Interval Start"] <= date]
+        df = df.dropna()
         return df[
             [
                 "Interval Start",
