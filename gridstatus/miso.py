@@ -164,11 +164,67 @@ class MISO(ISOBase):
         if date == "latest":
             return self.get_load_forecast(date="today", verbose=verbose)
 
+        df = self._get_load_forecast_file(date)
+        df = df.loc[
+            df["Interval Start"] >= date,
+            [col for col in df if "ActualLoad" not in col],
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_load_zonal_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        https://docs.misoenergy.org/marketreports/YYYYMMDD_df_al.xls
+        """
+        if date == "latest":
+            return self.get_load_zonal_hourly(date="today", verbose=verbose)
+
+        df = self._get_load_forecast_file(date)
+
+        df = df.rename(
+            columns={
+                "LRZ1 ActualLoad": "LRZ1 Load",
+                "LRZ2_7 ActualLoad": "LRZ2 7 Load",
+                "LRZ3_5 ActualLoad": "LRZ3 5 Load",
+                "LRZ4 ActualLoad": "LRZ4 Load",
+                "LRZ6 ActualLoad": "LRZ6 Load",
+                "LRZ8_9_10 ActualLoad": "LRZ8 9 10 Load",
+                "MISO ActualLoad": "MISO Load",
+            },
+        )
+
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time"],
+        ).drop(columns=["Market Day", "HourEnding"])
+
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+        df = df[df["Interval Start"] <= date]
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "LRZ1 Load",
+                "LRZ2 7 Load",
+                "LRZ3 5 Load",
+                "LRZ4 Load",
+                "LRZ6 Load",
+                "LRZ8 9 10 Load",
+                "MISO Load",
+            ]
+        ]
+
+    def _get_load_forecast_file(self, date: str | pd.Timestamp) -> pd.DataFrame:
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_df_al.xls"  # noqa
-
-        logger.info(f"Downloading load forecast data from {url}")
+        logger.info(f"Downloading hourly load and load forecast data from {url}")
         df = pd.read_excel(url, sheet_name="Sheet1", skiprows=4, skipfooter=1)
-
         df = df.dropna(subset=["HourEnding"])
         df = df.loc[df["HourEnding"] != "HourEnding"]
         df.loc[:, "HourEnding"] = df["HourEnding"].astype(int)
@@ -186,19 +242,7 @@ class MISO(ISOBase):
         df["Publish Time"] = date.normalize()
 
         df.columns = df.columns.map(lambda x: x.replace("(MWh)", "").strip())
-
-        df = utils.move_cols_to_front(
-            df,
-            ["Interval Start", "Interval End", "Publish Time"],
-        ).drop(columns=["Market Day", "HourEnding"])
-
-        # Include only forecasts for the current day into the future
-        df = df.loc[
-            df["Interval Start"] >= date,
-            [col for col in df if "ActualLoad" not in col],
-        ]
-
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df
 
     def _get_load_data(self, verbose: bool = False) -> dict:
         url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"  # noqa
