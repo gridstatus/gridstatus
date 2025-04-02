@@ -918,3 +918,53 @@ class TestMISO(BaseTestISO):
                 pd.Timedelta(hours=1),
             ]
             assert min(df["Interval Start"]).date() == pd.Timestamp(date).date()
+
+    """get_zonal_load_hourly"""
+
+    def _check_zonal_load_hourly(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "LRZ1",
+            "LRZ2 7",
+            "LRZ3 5",
+            "LRZ4",
+            "LRZ6",
+            "LRZ8 9 10",
+            "MISO",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            "1h",
+        )
+
+    def test_get_zonal_load_hourly_latest(self):
+        cassette_name = "test_get_zonal_load_hourly_latest.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_zonal_load_hourly("latest")
+            self._check_zonal_load_hourly(df)
+
+            expected_start_date = self.local_start_of_today() - pd.DateOffset(days=1)
+            assert df["Interval Start"].min() == expected_start_date
+            assert df["Interval End"].max() == expected_start_date + pd.DateOffset(
+                days=1,
+            )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        test_dates,
+    )
+    def test_get_zonal_load_hourly_historical_date_range(self, date, end):
+        cassette_name = f"test_get_zonal_load_hourly_historical_date_range_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_zonal_load_hourly(
+                start=date,
+                end=end,
+            )
+
+            self._check_zonal_load_hourly(df)
+
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                end,
+            )
