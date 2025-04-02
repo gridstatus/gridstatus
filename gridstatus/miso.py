@@ -191,8 +191,6 @@ class MISO(ISOBase):
             yesterday = pd.Timestamp.today() - pd.Timedelta(days=1)
             return self.get_zonal_load_hourly(date=yesterday, verbose=verbose)
 
-        # NB: Report available is based on publish time, which is 12am the next day
-        date = date + pd.Timedelta(days=1)
         if date.year < 2023:
             logger.info(
                 f"Date is before 2023, getting historical zonal load data for {date.year}",
@@ -204,6 +202,8 @@ class MISO(ISOBase):
                 df = df[(df["Interval Start"] >= date) & (df["Interval Start"] <= end)]
             return df
 
+        # NB: Report available is based on publish time, which is 12am the next day
+        date = date + pd.Timedelta(days=1)
         df = self._get_load_forecast_file(date)
 
         df = df.rename(
@@ -318,27 +318,30 @@ class MISO(ISOBase):
         ) + pd.to_timedelta(df["HourEnding"], unit="h")
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
 
-        resource_mapping = {
-            "LRZ1": "LRZ1",
-            "LRZ2_7": "LRZ2 7",
-            "LRZ3_5": "LRZ3 5",
-            "LRZ4": "LRZ4",
-            "LRZ6": "LRZ6",
-            "LRZ8_9_10": "LRZ8 9 10",
-            "MISO": "MISO",
-        }
-        df["LoadResource"] = df["LoadResource Zone"].map(resource_mapping)
-
         df_pivoted = df.pivot(
             index=["Interval Start", "Interval End"],
-            columns="LoadResource",
+            columns="LoadResource Zone",
             values="ActualLoad (MWh)",
         ).reset_index()
-
-        for col in resource_mapping.values():
-            if col not in df_pivoted.columns:
-                df_pivoted[col] = pd.NA
-
+        print(df_pivoted.columns)
+        df_pivoted = df_pivoted.rename(
+            columns={
+                "LRZ2_7": "LRZ2 7",
+                "LRZ3_5": "LRZ3 5",
+                "LRZ8_9_10": "LRZ8 9 10",
+            },
+        )
+        df_pivoted = df_pivoted.astype(
+            {
+                "LRZ1": float,
+                "LRZ2 7": float,
+                "LRZ3 5": float,
+                "LRZ4": float,
+                "LRZ6": float,
+                "LRZ8 9 10": float,
+                "MISO": float,
+            },
+        )
         return (
             df_pivoted[
                 [

@@ -959,7 +959,10 @@ class TestMISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date,end",
-        test_dates,
+        [
+            ("2022-01-01", "2022-01-03"),
+            *test_dates,
+        ],
     )
     def test_get_zonal_load_hourly_historical_date_range(self, date, end):
         cassette_name = f"test_get_zonal_load_hourly_historical_date_range_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml"
@@ -972,6 +975,4 @@ class TestMISO(BaseTestISO):
             self._check_zonal_load_hourly(df)
 
             assert df["Interval Start"].min() == self.local_start_of_day(date)
-            assert df["Interval End"].max() == self.local_start_of_day(
-                end,
-            )
+            assert df["Interval End"].max() == self.local_start_of_day(end)
