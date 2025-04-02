@@ -176,7 +176,7 @@ class MISO(ISOBase):
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
-    def get_load_zonal_hourly(
+    def get_zonal_load_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | None = None,
@@ -187,7 +187,7 @@ class MISO(ISOBase):
         """
         if date == "latest":
             yesterday = pd.Timestamp.today() - pd.Timedelta(days=1)
-            return self.get_load_zonal_hourly(date=yesterday, verbose=verbose)
+            return self.get_zonal_load_hourly(date=yesterday, verbose=verbose)
 
         # NB: Report available is based on publish time, which is 12am the next day
         date = date + pd.Timedelta(days=1)
