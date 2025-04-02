@@ -193,6 +193,17 @@ class MISO(ISOBase):
 
         # NB: Report available is based on publish time, which is 12am the next day
         date = date + pd.Timedelta(days=1)
+        if date.year < 2023:
+            logger.info(
+                f"Date is before 2023, getting historical zonal load data for {date.year}",
+            )
+            df = self.get_historical_zonal_load_hourly(date.year)
+            if end is None:
+                df = df[df["Interval Start"].dt.date == date.date()]
+            else:
+                df = df[(df["Interval Start"] >= date) & (df["Interval Start"] <= end)]
+            return df
+
         df = self._get_load_forecast_file(date)
 
         df = df.rename(
