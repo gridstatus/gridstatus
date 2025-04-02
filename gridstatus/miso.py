@@ -169,7 +169,10 @@ class MISO(ISOBase):
             df["Interval Start"] >= date,
             [col for col in df if "ActualLoad" not in col],
         ]
-
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time"],
+        ).drop(columns=["Market Day", "HourEnding"])
         return df.sort_values("Interval Start").reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
