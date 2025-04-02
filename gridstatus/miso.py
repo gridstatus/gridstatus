@@ -324,6 +324,7 @@ class MISO(ISOBase):
             values="ActualLoad (MWh)",
         ).reset_index()
 
+        df_pivoted.columns.name = None
         df_pivoted = df_pivoted.rename(
             columns={
                 "LRZ2_7": "LRZ2 7",
