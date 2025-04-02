@@ -937,6 +937,13 @@ class TestMISO(BaseTestISO):
         assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
             "1h",
         )
+        assert df["LRZ1"].dtype == float
+        assert df["LRZ2 7"].dtype == float
+        assert df["LRZ3 5"].dtype == float
+        assert df["LRZ4"].dtype == float
+        assert df["LRZ6"].dtype == float
+        assert df["LRZ8 9 10"].dtype == float
+        assert df["MISO"].dtype == float
 
     def test_get_zonal_load_hourly_latest(self):
         cassette_name = "test_get_zonal_load_hourly_latest.yaml"
