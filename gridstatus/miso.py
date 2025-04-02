@@ -1,7 +1,9 @@
+import io
 import json
 import re
 import urllib
 import warnings
+import zipfile
 from typing import BinaryIO
 
 import pandas as pd
@@ -189,6 +191,17 @@ class MISO(ISOBase):
             yesterday = pd.Timestamp.today() - pd.Timedelta(days=1)
             return self.get_zonal_load_hourly(date=yesterday, verbose=verbose)
 
+        if date.year < 2023:
+            logger.info(
+                f"Date is before 2023, getting historical zonal load data for {date.year}",
+            )
+            df = self.get_historical_zonal_load_hourly(date.year)
+            if end is None:
+                df = df[df["Interval Start"].dt.date == date.date()]
+            else:
+                df = df[(df["Interval Start"] >= date) & (df["Interval Start"] <= end)]
+            return df.reset_index(drop=True)
+
         # NB: Report available is based on publish time, which is 12am the next day
         date = date + pd.Timedelta(days=1)
         df = self._get_load_forecast_file(date)
@@ -264,6 +277,92 @@ class MISO(ISOBase):
         url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"  # noqa
         r = self._get_json(url, verbose=verbose)
         return r
+
+    def get_historical_zonal_load_hourly(self, year: int) -> pd.DataFrame:
+        url = f"https://docs.misoenergy.org/marketreports/{year}12_dfal_HIST_xls.zip"
+        logger.info(f"Downloading historical zonal load data from {url}")
+
+        try:
+            response = requests.get(url)
+            if response.status_code == 404:
+                raise NoDataFoundException(
+                    f"No historical zonal load data found for year {year}",
+                )
+
+            zip_data = io.BytesIO(response.content)
+
+            with zipfile.ZipFile(zip_data) as z:
+                excel_filename = z.namelist()[0]
+                with z.open(excel_filename) as excel_file:
+                    df = pd.read_excel(
+                        excel_file,
+                        skiprows=5,
+                        skipfooter=2,
+                        dtype={"MarketDay": str, "HourEnding": str},
+                    )
+        except urllib.error.HTTPError:
+            raise NoDataFoundException(
+                f"No historical zonal load data found for year {year}",
+            )
+        except Exception as e:
+            raise NoDataFoundException(
+                f"Error reading historical zonal load data for year {year}: {str(e)}",
+            )
+
+        # NB: The first row is sometimes a header row, so we drop it
+        df = df[df["MarketDay"] != "MarketDay"]
+        df["MarketDay"] = pd.to_datetime(df["MarketDay"], format="%Y-%m-%d %H:%M:%S")
+        df["HourEnding"] = df["HourEnding"].astype(int)
+        df["Interval End"] = df["MarketDay"].dt.tz_localize(
+            self.default_timezone,
+        ) + pd.to_timedelta(df["HourEnding"], unit="h")
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
+
+        df_pivoted = df.pivot(
+            index=["Interval Start", "Interval End"],
+            columns="LoadResource Zone",
+            values="ActualLoad (MWh)",
+        ).reset_index()
+
+        df_pivoted.columns.name = None
+        if year in [2013, 2014]:
+            df_pivoted["LRZ8_9_10"] = None
+
+        df_pivoted = df_pivoted.rename(
+            columns={
+                "LRZ2_7": "LRZ2 7",
+                "LRZ3_5": "LRZ3 5",
+                "LRZ8_9_10": "LRZ8 9 10",
+            },
+        )
+        df_pivoted = df_pivoted.astype(
+            {
+                "LRZ1": float,
+                "LRZ2 7": float,
+                "LRZ3 5": float,
+                "LRZ4": float,
+                "LRZ6": float,
+                "LRZ8 9 10": float,
+                "MISO": float,
+            },
+        )
+        return (
+            df_pivoted[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "LRZ1",
+                    "LRZ2 7",
+                    "LRZ3 5",
+                    "LRZ4",
+                    "LRZ6",
+                    "LRZ8 9 10",
+                    "MISO",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
 
     # Older datasets do not have every region. In that case, we insert the column
     # as null
