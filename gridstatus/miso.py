@@ -200,7 +200,7 @@ class MISO(ISOBase):
                 df = df[df["Interval Start"].dt.date == date.date()]
             else:
                 df = df[(df["Interval Start"] >= date) & (df["Interval Start"] <= end)]
-            return df
+            return df.reset_index(drop=True)
 
         # NB: Report available is based on publish time, which is 12am the next day
         date = date + pd.Timedelta(days=1)
