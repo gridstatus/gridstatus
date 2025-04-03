@@ -2817,7 +2817,7 @@ class PJM(ISOBase):
             ]
         ]
 
-    @support_date_range(frequency="MONTH_START")
+    @support_date_range(frequency=None)
     def get_regulation_market_monthly(
         self,
         date: str | pd.Timestamp,
