@@ -2887,6 +2887,24 @@ class PJM(ISOBase):
             },
         )
 
+        df = df.astype(
+            {
+                "RegD SSMW": float,
+                "RegA SSMW": float,
+                "RegD Procure": float,
+                "RegA Procure": float,
+                "Total MW": float,
+                "Deficiency": float,
+                "RTO Perfscore": float,
+                "RegA Mileage": float,
+                "RegD Mileage": float,
+                "RegA Hourly": float,
+                "RegD Hourly": float,
+                "Is Approved": bool,
+            },
+        )
+        df["Modified Datetime UTC"] = pd.to_datetime(df["Modified Datetime UTC"])
+
         return df[
             [
                 "Interval Start",
