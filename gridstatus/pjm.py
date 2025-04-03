@@ -2829,33 +2829,27 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/reg_market_results/definition
         """
         if date == "latest":
-            try:
-                date = (
-                    pd.Timestamp.now(self.default_timezone)
-                    .replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                    .strftime("%Y-%m-%d")
-                )
-                return self.get_regulation_market_monthly(
-                    date=date,
-                    end=end,
-                    verbose=verbose,
-                )
-            except NoDataFoundException:
-                date = (
-                    pd.Timestamp.now(self.default_timezone).replace(
-                        day=1,
-                        hour=0,
-                        minute=0,
-                        second=0,
-                        microsecond=0,
+            current_date = pd.Timestamp.now(self.default_timezone).replace(
+                day=1,
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+
+            while True:
+                try:
+                    return self.get_regulation_market_monthly(
+                        date=current_date.strftime("%Y-%m-%d"),
+                        end=end,
+                        verbose=verbose,
                     )
-                    - pd.DateOffset(months=1)
-                ).strftime("%Y-%m-%d")
-                return self.get_regulation_market_monthly(
-                    date=date,
-                    end=end,
-                    verbose=verbose,
-                )
+                except NoDataFoundException:
+                    logger.warning(
+                        f"No regulation market monthly data found for {current_date.strftime('%Y-%m-%d')}, trying previous month",
+                    )
+                    current_date = current_date - pd.DateOffset(months=1)
+
         df = self._get_pjm_json(
             "reg_market_results",
             start=date,
@@ -2900,7 +2894,7 @@ class PJM(ISOBase):
                 "RegD Mileage": float,
                 "RegA Hourly": float,
                 "RegD Hourly": float,
-                "Is Approved": bool,
+                "Is Approved": int,
             },
         )
         df["Modified Datetime UTC"] = pd.to_datetime(df["Modified Datetime UTC"])
