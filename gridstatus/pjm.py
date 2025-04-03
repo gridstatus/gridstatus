@@ -2818,3 +2818,108 @@ class PJM(ISOBase):
                 "Deficit",
             ]
         ]
+
+    @support_date_range(frequency=None)
+    def get_regulation_market_monthly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the PJM Regulation Market Monthly data from:
+        https://dataminer2.pjm.com/feed/reg_market_results/definition
+        """
+        if date == "latest":
+            current_date = pd.Timestamp.now(self.default_timezone).replace(
+                day=1,
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
+            ) + pd.tseries.offsets.MonthEnd(0)
+
+            while current_date > pd.Timestamp("2024-01-01").tz_localize(
+                self.default_timezone,
+            ):
+                try:
+                    return self.get_regulation_market_monthly(
+                        date=current_date.strftime("%Y-%m-%d"),
+                        end=end,
+                        verbose=verbose,
+                    )
+                except NoDataFoundException:
+                    logger.warning(
+                        f"No regulation market monthly data found for {current_date.strftime('%Y-%m-%d')}, trying previous month",
+                    )
+                    current_date = current_date - pd.DateOffset(months=1)
+
+        df = self._get_pjm_json(
+            "reg_market_results",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,rega_procure,regd_procure,rega_ssmw,regd_ssmw,requirement,total_mw,deficiency,rto_perfscore,rega_mileage,regd_mileage,rega_hourly,regd_hourly,is_approved,modified_datetime_utc",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=60)
+        df = df.rename(
+            columns={
+                "datetime_beginning_utc": "Interval Start",
+                "rega_procure": "RegA Procure",
+                "regd_procure": "RegD Procure",
+                "rega_ssmw": "RegA SSMW",
+                "regd_ssmw": "RegD SSMW",
+                "requirement": "Requirement",
+                "total_mw": "Total MW",
+                "deficiency": "Deficiency",
+                "rto_perfscore": "RTO Perfscore",
+                "rega_mileage": "RegA Mileage",
+                "regd_mileage": "RegD Mileage",
+                "rega_hourly": "RegA Hourly",
+                "regd_hourly": "RegD Hourly",
+                "is_approved": "Is Approved",
+                "modified_datetime_utc": "Modified Datetime UTC",
+            },
+        )
+
+        df = df.astype(
+            {
+                "RegD SSMW": float,
+                "RegA SSMW": float,
+                "RegD Procure": float,
+                "RegA Procure": float,
+                "Total MW": float,
+                "Deficiency": float,
+                "RTO Perfscore": float,
+                "RegA Mileage": float,
+                "RegD Mileage": float,
+                "RegA Hourly": float,
+                "RegD Hourly": float,
+                "Is Approved": int,
+            },
+        )
+        df["Modified Datetime UTC"] = pd.to_datetime(df["Modified Datetime UTC"])
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Requirement",
+                "RegD SSMW",
+                "RegA SSMW",
+                "RegD Procure",
+                "RegA Procure",
+                "Total MW",
+                "Deficiency",
+                "RTO Perfscore",
+                "RegA Mileage",
+                "RegD Mileage",
+                "RegA Hourly",
+                "RegD Hourly",
+                "Is Approved",
+                "Modified Datetime UTC",
+            ]
+        ]

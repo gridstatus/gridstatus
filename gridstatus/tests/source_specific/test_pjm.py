@@ -2303,3 +2303,80 @@ class TestPJM(BaseTestISO):
             assert df["Extended Requirement"].dtype in [np.float64, np.int64]
             assert df["Additional Extended Requirement"].dtype in [np.float64, np.int64]
             assert df["Deficit"].dtype in [np.float64, np.int64]
+
+    expected_regulation_market_monthly_cols = [
+        "Interval Start",
+        "Interval End",
+        "Requirement",
+        "RegD SSMW",
+        "RegA SSMW",
+        "RegD Procure",
+        "RegA Procure",
+        "Total MW",
+        "Deficiency",
+        "RTO Perfscore",
+        "RegA Mileage",
+        "RegD Mileage",
+        "RegA Hourly",
+        "RegD Hourly",
+        "Is Approved",
+        "Modified Datetime UTC",
+    ]
+
+    def test_get_regulation_market_monthly_latest(self):
+        with pjm_vcr.use_cassette("test_get_regulation_market_monthly_latest.yaml"):
+            df = self.iso.get_regulation_market_monthly("latest")
+
+            assert isinstance(df, pd.DataFrame)
+            assert df.columns.tolist() == self.expected_regulation_market_monthly_cols
+
+            numeric_cols = [
+                "Requirement",
+                "RegD SSMW",
+                "RegA SSMW",
+                "RegD Procure",
+                "RegA Procure",
+                "Total MW",
+                "Deficiency",
+                "RTO Perfscore",
+                "RegA Mileage",
+                "RegD Mileage",
+                "RegA Hourly",
+                "RegD Hourly",
+                "Is Approved",
+            ]
+            for col in numeric_cols:
+                assert df[col].dtype in [np.float64, np.int64]
+
+    def test_get_regulation_market_monthly_historical_range(self):
+        past_date = self.local_today() - pd.DateOffset(months=4)
+        past_end_date = past_date + pd.DateOffset(months=2)
+
+        with pjm_vcr.use_cassette(
+            f"test_get_regulation_market_monthly_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_regulation_market_monthly(past_date, past_end_date)
+
+            assert isinstance(df, pd.DataFrame)
+            assert df.columns.tolist() == self.expected_regulation_market_monthly_cols
+
+            assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+            assert df["Interval End"].max() <= self.local_start_of_day(past_end_date)
+
+            numeric_cols = [
+                "Requirement",
+                "RegD SSMW",
+                "RegA SSMW",
+                "RegD Procure",
+                "RegA Procure",
+                "Total MW",
+                "Deficiency",
+                "RTO Perfscore",
+                "RegA Mileage",
+                "RegD Mileage",
+                "RegA Hourly",
+                "RegD Hourly",
+                "Is Approved",
+            ]
+            for col in numeric_cols:
+                assert df[col].dtype in [np.float64, np.int64]
