@@ -2837,7 +2837,9 @@ class PJM(ISOBase):
                 microsecond=0,
             )
 
-            while current_date > pd.Timestamp("2024-01-01"):
+            while current_date > pd.Timestamp("2024-01-01").tz_localize(
+                self.default_timezone,
+            ):
                 try:
                     return self.get_regulation_market_monthly(
                         date=current_date.strftime("%Y-%m-%d"),
