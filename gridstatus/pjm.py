@@ -2835,7 +2835,7 @@ class PJM(ISOBase):
                 minute=0,
                 second=0,
                 microsecond=0,
-            )
+            ) + pd.tseries.offsets.MonthEnd(0)
 
             while current_date > pd.Timestamp("2024-01-01").tz_localize(
                 self.default_timezone,
