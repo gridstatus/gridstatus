@@ -539,8 +539,8 @@ class PJM(ISOBase):
         # round to nearest minute
         # need to round in utc time
         # important to do this before pivoting
-        # since sometimes there seconds/ms
-        # in the data
+        # since sometimes there are
+        # seconds/ms in the data
         load["Interval Start"] = (
             load["Interval Start"]
             .dt.tz_convert("UTC")
