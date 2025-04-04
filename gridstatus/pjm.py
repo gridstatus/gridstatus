@@ -536,16 +536,11 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        # pivot on area
-        load = load.pivot_table(
-            index=["Time", "Interval Start"],
-            columns="area",
-            values="instantaneous_load",
-            aggfunc="first",
-        ).reset_index()
-
         # round to nearest minute
         # need to round in utc time
+        # important to do this before pivoting
+        # since sometimes there seconds/ms
+        # in the data
         load["Interval Start"] = (
             load["Interval Start"]
             .dt.tz_convert("UTC")
@@ -553,6 +548,14 @@ class PJM(ISOBase):
             .dt.tz_convert(self.default_timezone)
         )
         load["Time"] = load["Interval Start"]
+
+        # pivot on area
+        load = load.pivot_table(
+            index=["Time", "Interval Start"],
+            columns="area",
+            values="instantaneous_load",
+            aggfunc="first",
+        ).reset_index()
 
         load["Interval End"] = load["Interval Start"] + pd.Timedelta(minutes=5)
 
