@@ -1040,6 +1040,7 @@ class ISONEAPI:
             },
         )
 
+        # NB: These are often missing, but they can be present, so we set them to None here
         for col in [
             "Available Realtime Emergency Generation",
             "Load Relief Actions Anticipated",
