@@ -808,3 +808,108 @@ class TestISONEAPI(TestHelperMixin):
             assert result["Energy"].dtype in [np.int64, np.float64]
             assert result["Congestion"].dtype in [np.int64, np.float64]
             assert result["Loss"].dtype in [np.int64, np.float64]
+
+    """get_capacity_forecast_7_day"""
+    capacity_forecast_7_day_columns = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "High Temperature Boston",
+        "Dew Point Boston",
+        "High Temperature Hartford",
+        "Dew Point Hartford",
+        "Generating Capacity Position",
+        "Total Capacity Supply Obligation",
+        "Anticipated Cold Weather Outages",
+        "Other Generation Outages",
+        "Anticipated Delist MW Offered",
+        "Total Generation Available",
+        "Import at Time of Peak",
+        "Total Available Generation and Imports",
+        "Projected Peak Load",
+        "Replacement Reserve Requirement",
+        "Required Reserve",
+        "Required Reserve Including Replacement",
+        "Total Load Plus Required Reserve",
+        "Projected Surplus or Deficiency",
+        "Available Demand Response Resources",
+        "Available Realtime Emergency Generation",
+        "Load Relief Actions Anticipated",
+        "Power Watch",
+        "Power Warning",
+        "Cold Weather Watch",
+        "Cold Weather Warning",
+        "Cold Weather Event",
+    ]
+
+    def test_get_capacity_forecast_7_day_latest(self):
+        with api_vcr.use_cassette("test_get_capacity_forecast_7_day_latest.yaml"):
+            result = self.iso.get_capacity_forecast_7_day(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) > 0
+            assert list(result.columns) == self.capacity_forecast_7_day_columns
+            assert result["High Temperature Boston"].dtype == np.int64
+            assert result["Dew Point Boston"].dtype == np.int64
+            assert result["High Temperature Hartford"].dtype == np.int64
+            assert result["Dew Point Hartford"].dtype == np.int64
+            assert result["Generating Capacity Position"].dtype == object
+            assert result["Total Capacity Supply Obligation"].dtype == np.int64
+            assert result["Anticipated Cold Weather Outages"].dtype == np.int64
+            assert result["Other Generation Outages"].dtype == np.int64
+            assert result["Anticipated Delist MW Offered"].dtype == np.int64
+            assert result["Total Generation Available"].dtype == np.int64
+            assert result["Import at Time of Peak"].dtype == np.int64
+            assert result["Total Available Generation and Imports"].dtype == np.int64
+            assert result["Projected Peak Load"].dtype == np.int64
+            assert result["Replacement Reserve Requirement"].dtype == np.int64
+            assert result["Required Reserve"].dtype == np.int64
+            assert result["Required Reserve Including Replacement"].dtype == np.int64
+            assert result["Total Load Plus Required Reserve"].dtype == np.int64
+            assert result["Projected Surplus or Deficiency"].dtype == np.int64
+            assert result["Available Demand Response Resources"].dtype == np.int64
+            assert result["Available Realtime Emergency Generation"].dtype == object
+            assert result["Load Relief Actions Anticipated"].dtype == object
+            assert result["Power Watch"].dtype == object
+            assert result["Power Warning"].dtype == object
+            assert result["Cold Weather Watch"].dtype == object
+            assert result["Cold Weather Warning"].dtype == object
+            assert result["Cold Weather Event"].dtype == object
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_capacity_forecast_7_day_date_range(self, date: str, end: str):
+        cassette_name = f"test_get_capacity_forecast_7_day_{pd.Timestamp(date).strftime('%Y%m%d')}_{pd.Timestamp(end).strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_capacity_forecast_7_day(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert list(result.columns) == self.capacity_forecast_7_day_columns
+            assert result["High Temperature Boston"].dtype == np.int64
+            assert result["Dew Point Boston"].dtype == np.int64
+            assert result["High Temperature Hartford"].dtype == np.int64
+            assert result["Dew Point Hartford"].dtype == np.int64
+            assert result["Generating Capacity Position"].dtype == object
+            assert result["Total Capacity Supply Obligation"].dtype == np.int64
+            assert result["Anticipated Cold Weather Outages"].dtype == np.int64
+            assert result["Other Generation Outages"].dtype == np.int64
+            assert result["Anticipated Delist MW Offered"].dtype == np.int64
+            assert result["Total Generation Available"].dtype == np.int64
+            assert result["Import at Time of Peak"].dtype == np.int64
+            assert result["Total Available Generation and Imports"].dtype == np.int64
+            assert result["Projected Peak Load"].dtype == np.int64
+            assert result["Replacement Reserve Requirement"].dtype == np.int64
+            assert result["Required Reserve"].dtype == np.int64
+            assert result["Required Reserve Including Replacement"].dtype == np.int64
+            assert result["Total Load Plus Required Reserve"].dtype == np.int64
+            assert result["Projected Surplus or Deficiency"].dtype == np.int64
+            assert result["Available Demand Response Resources"].dtype == np.int64
+            assert result["Available Realtime Emergency Generation"].dtype == object
+            assert result["Load Relief Actions Anticipated"].dtype == object
+            assert result["Power Watch"].dtype == object
+            assert result["Power Warning"].dtype == object
+            assert result["Cold Weather Watch"].dtype == object
+            assert result["Cold Weather Warning"].dtype == object
+            assert result["Cold Weather Event"].dtype == object

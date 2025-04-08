@@ -1076,6 +1076,7 @@ class ISONEAPI:
             [
                 "Interval Start",
                 "Interval End",
+                "Publish Time",
                 "High Temperature Boston",
                 "Dew Point Boston",
                 "High Temperature Hartford",
