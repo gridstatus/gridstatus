@@ -6,7 +6,7 @@ clean:
 	find . -name '*~' -delete
 	find . -name '.coverage.*' -delete
 
-PYTEST_CMD := poetry run pytest -s -vv -n auto --reruns 5 --reruns-delay 3 --durations=25
+PYTEST_CMD := uv run pytest -s -vv -n auto --reruns 5 --reruns-delay 3 --durations=25
 NOT_SLOW := -m "not slow"
 UNIT_ONLY := -m "not integration"
 
@@ -64,24 +64,24 @@ test-cov:
 
 .PHONY: test-slow
 test-slow:
-	pip install vcrpy
+	uv pip install vcrpy
 	$(PYTEST_CMD) -m "slow"
 
 .PHONY: test-unit
 test-unit:
-	pip install vcrpy
+	uv pip install vcrpy
 	$(PYTEST_CMD) $(UNIT_ONLY)
 
 .PHONY: installdeps-dev
 installdeps-dev:
-	poetry install --all-extras
-	pip install vcrpy
-	poetry run pre-commit install
+	uv sync
+	uv pip install vcrpy
+	uv pre-commit install
 
 .PHONY: installdeps-test
 installdeps-test:
-	poetry run pip install vcrpy
-	poetry install --all-extras
+	uv pip install vcrpy
+	uv sync
 
 .PHONY: installdeps-docs
 installdeps-docs:
@@ -89,34 +89,34 @@ installdeps-docs:
 
 .PHONY: lint
 lint:
-	poetry run ruff check gridstatus/
-	poetry run ruff format gridstatus/ --check
+	uv ruff check gridstatus/
+	uv ruff format gridstatus/ --check
 
 .PHONY: lint-fix
 lint-fix:
-	poetry run ruff check gridstatus/ --fix
-	poetry run ruff format gridstatus/
+	uv ruff check gridstatus/ --fix
+	uv ruff format gridstatus/
 
 .PHONY: upgradepip
 upgradepip:
-	poetry run python -m pip install --upgrade pip
+	uv pip install --upgrade pip
 
 .PHONY: upgradebuild
 upgradebuild:
-	poetry run python -m pip install --upgrade build
+	uv pip install --upgrade build
 
 .PHONY: upgradesetuptools
 upgradesetuptools:
-	poetry run python -m pip install --upgrade setuptools
+	uv pip install --upgrade setuptools
 
 .PHONY: package
 package: upgradepip upgradebuild upgradesetuptools
-	poetry build
+	uv build
 
 .PHONY: docs
 docs: clean
-	poetry run make -C docs/ -e "SPHINXOPTS=-j auto" clean html
+	uv run make -C docs/ -e "SPHINXOPTS=-j auto" clean html
 
 .PHONY: mypy-coverage
 mypy-coverage:
-	poetry run mypy --html-report mypy_report gridstatus/
+	uv run mypy --html-report mypy_report gridstatus/
