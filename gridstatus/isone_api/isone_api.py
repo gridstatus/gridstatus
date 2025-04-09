@@ -11,6 +11,9 @@ from gridstatus import utils
 from gridstatus.base import NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
+from gridstatus.isone_api.isone_api_constants import (
+    ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
+)
 
 # Default page size for API requests
 DEFAULT_PAGE_SIZE = 1000
@@ -1073,36 +1076,4 @@ class ISONEAPI:
             ),
         )
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "High Temperature Boston",
-                "Dew Point Boston",
-                "High Temperature Hartford",
-                "Dew Point Hartford",
-                "Generating Capacity Position",
-                "Total Capacity Supply Obligation",
-                "Anticipated Cold Weather Outages",
-                "Other Generation Outages",
-                "Anticipated Delist MW Offered",
-                "Total Generation Available",
-                "Import at Time of Peak",
-                "Total Available Generation and Imports",
-                "Projected Peak Load",
-                "Replacement Reserve Requirement",
-                "Required Reserve",
-                "Required Reserve Including Replacement",
-                "Total Load Plus Required Reserve",
-                "Projected Surplus or Deficiency",
-                "Available Demand Response Resources",
-                "Available Realtime Emergency Generation",
-                "Load Relief Actions Anticipated",
-                "Power Watch",
-                "Power Warning",
-                "Cold Weather Watch",
-                "Cold Weather Warning",
-                "Cold Weather Event",
-            ]
-        ]
+        return df[ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS]
