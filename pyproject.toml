@@ -12,7 +12,6 @@ authors = [
 
 keywords = ["energy", "independent system operator"]
 license = { file = "LICENSE" }
-
 dependencies = [
     "requests >= 2.32.2",
     "pandas >= 2.2.1",
@@ -64,6 +63,11 @@ dev-dependencies = [
     "jinja2 >= 3.1.6",
 ]
 
+
+[project.urls]
+"Source Code" = "https://github.com/gridstatus/gridstatus/"
+"Changes" = "https://github.com/gridstatus/gridstatus/blob/main/CHANGELOG.md"
+"Issue Tracker" = "https://github.com/gridstatus/gridstatus/issues"
 
 [build-system]
 requires = ["hatchling"]
