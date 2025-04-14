@@ -16,6 +16,6 @@ jobs:
         run: |
           uv sync
       - name: Navigate to gridstatus
-        run: cd ..
+        run: cd .. && pwd
       - name: Run lint check
         run: make lint
