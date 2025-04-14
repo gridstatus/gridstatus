@@ -15,5 +15,7 @@ jobs:
       - name: Install package with dev deps
         run: |
           uv sync
+      - name: pwd
+        run: pwd
       - name: Run lint check
         run: make lint
