@@ -1,4 +1,5 @@
 import datetime
+import http.client
 import os
 import re
 import time
@@ -1318,6 +1319,9 @@ class IESO(ISOBase):
             )
 
         json_data_with_times = []
+        max_retries = 3
+        retry_delay = 2
+
         with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
             future_to_file = {
                 executor.submit(self._fetch_and_parse_file, base_url, file): (
@@ -1329,13 +1333,32 @@ class IESO(ISOBase):
 
             for future in as_completed(future_to_file):
                 file, time = future_to_file[future]
-                try:
-                    json_data = future.result()
-                    json_data_with_times.append(
-                        (json_data, pd.Timestamp(time, tz=self.default_timezone)),
-                    )
-                except Exception as e:
-                    logger.error(f"Error processing file {file}: {str(e)}")
+                retries = 0
+                while retries < max_retries:
+                    try:
+                        logger.info(f"Processing file {file}...")
+                        json_data = future.result()
+                        json_data_with_times.append(
+                            (json_data, pd.Timestamp(time, tz=self.default_timezone)),
+                        )
+                        break
+                    except http.client.RemoteDisconnected as e:
+                        retries += 1
+                        if retries == max_retries:
+                            logger.error(
+                                f"Remote connection closed for file {file}: {str(e)}",
+                            )
+                            break
+                        logger.warning(
+                            f"Remote connection closed for file {file}: {str(e)}. Retrying in {retry_delay} seconds...",
+                        )
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                    except Exception as e:
+                        logger.error(
+                            f"Unexpected error processing file {file}: {str(e)}",
+                        )
+                        break
 
         return json_data_with_times
 
@@ -1355,6 +1378,7 @@ class IESO(ISOBase):
                 data = data[key]
             return data
 
+        logger.debug("Parsing resource adequacy report file json...")
         for section_name, section_data in data_map.items():
             if "hourly" in section_data:
                 for metric_name, config in section_data["hourly"].items():
