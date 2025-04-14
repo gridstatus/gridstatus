@@ -480,7 +480,7 @@ class ISONE(ISOBase):
         elif market == Markets.REAL_TIME_HOURLY:
             if date.date() > now.date():
                 raise RuntimeError(
-                    f"date {date.date()} is in the future and cannot be used to query real-time data"
+                    f"date {date.date()} is in the future and cannot be used to query real-time data",
                 )
 
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
@@ -878,7 +878,7 @@ def _make_request(url, skiprows, verbose):
             if response.status_code == 200 and content_type == "text/csv":
                 break
 
-            print(f"Attempt {attempt+1} failed. Retrying...")
+            print(f"Attempt {attempt + 1} failed. Retrying...")
             attempt += 1
 
     if response.status_code != 200 or content_type != "text/csv":
