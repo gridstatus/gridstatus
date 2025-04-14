@@ -15,7 +15,5 @@ jobs:
       - name: Install package with dev deps
         run: |
           uv sync
-      - name: Navigate to gridstatus
-        run: cd .. && pwd && ls -la
       - name: Run lint check
-        run: make lint
+        run: pwd && make lint
