@@ -10,10 +10,6 @@ PYTEST_CMD := uv run pytest -s -vv -n auto --reruns 5 --reruns-delay 3 --duratio
 NOT_SLOW := -m "not slow"
 UNIT_ONLY := -m "not integration"
 
-.PHONY: test-unit
-test-unit:
-	$(PYTEST_CMD) $(UNIT_ONLY)
-
 .PHONY: test-base
 test-base:
 	$(PYTEST_CMD) gridstatus/tests/test_*.py --ignore=gridstatus/tests/source_specific/
@@ -76,30 +72,27 @@ test-unit:
 installdeps-dev:
 	uv sync
 	uv pip install vcrpy
-	uv pre-commit install
+	uv run pre-commit install
 
 .PHONY: installdeps-test
 installdeps-test:
-	uv venv .venv
-	source .venv/bin/activate
-	uv pip install vcrpy
 	uv sync
+	uv pip install vcrpy
+
 
 .PHONY: installdeps-docs
 installdeps-docs:
-	uv venv .venv
-	source .venv/bin/activate
 	uv sync
 
 .PHONY: lint
 lint:
-	uv ruff check gridstatus/
-	uv ruff format gridstatus/ --check
+	ruff check gridstatus/
+	ruff format gridstatus/ --check
 
 .PHONY: lint-fix
 lint-fix:
-	uv ruff check gridstatus/ --fix
-	uv ruff format gridstatus/
+	ruff check gridstatus/ --fix
+	ruff format gridstatus/
 
 .PHONY: upgradepip
 upgradepip:
