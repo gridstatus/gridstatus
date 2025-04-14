@@ -43,29 +43,41 @@ def dam_heat_map(df):
 
 
 def load_over_time(df, iso=None):
-    """Create a line graph of load dataframe"""
-    y = "Load"
-    if len(df.columns) > 3:
-        y = df.columns[2:]
+    """Create a line graph of load dataframe, focusing on numerical values over time"""
+    # find all columns with numeric data types (int, float etc.)
+    # need this to avoid trying to plot chart with mixed data types or without any numeric data types
+    # previous implementation would hard code the columns, this approach will be more dynamic
+    numeric_columns = df.select_dtypes(include=["number"]).columns
+    fig = None
+    if len(numeric_columns) > 0 and "Time" in df.columns:
+        # found numeric columns, continue..
+        y = "Load"
+        if len(df.columns) > 3:
+            y = numeric_columns
 
-    title = "Load Over Time"
-    if iso:
-        title += " - " + iso
+        title = "Load Over Time"
+        if iso:
+            title += " - " + iso
 
-    fig = px.line(
-        df,
-        x=df["Time"],
-        y=y,
-        title=title,
-    )
-    # show legend
-    fig.update_layout(
-        legend=dict(
-            orientation="h",
-            title_text=None,
-            y=-0.2,
-        ),
-    )
-    fig.update_yaxes(title_text="MW")
+        fig = px.line(
+            df,
+            x=df["Time"],
+            y=y,
+            title=title,
+        )
+        # show legend
+        fig.update_layout(
+            legend=dict(
+                orientation="h",
+                title_text=None,
+                y=-0.2,
+            ),
+        )
+        fig.update_yaxes(title_text="MW")
 
-    return fig
+        return fig
+
+    else:
+        # no numeric columns, so cannot plot the figure
+        print("Need numeric columns and a 'Time' column.")
+        return fig
