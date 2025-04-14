@@ -16,4 +16,4 @@ jobs:
         run: |
           uv sync
       - name: Run lint check
-        run: pwd && make lint
+        run: cd .. && make lint
