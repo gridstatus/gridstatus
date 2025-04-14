@@ -1,4 +1,5 @@
 import datetime
+import http.client
 import os
 import re
 import time
@@ -1341,13 +1342,15 @@ class IESO(ISOBase):
                             (json_data, pd.Timestamp(time, tz=self.default_timezone)),
                         )
                         break
-                    except requests.exceptions.ConnectionError as e:
+                    except http.client.RemoteDisconnected as e:
                         retries += 1
                         if retries == max_retries:
-                            logger.error(f"Error processing file {file}: {str(e)}")
+                            logger.error(
+                                f"Remote connection closed for file {file}: {str(e)}",
+                            )
                             break
                         logger.warning(
-                            f"Connection error processing file {file}: {str(e)}. Retrying in {retry_delay} seconds...",
+                            f"Remote connection closed for file {file}: {str(e)}. Retrying in {retry_delay} seconds...",
                         )
                         time.sleep(retry_delay)
                         retry_delay *= 2
