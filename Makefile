@@ -80,12 +80,16 @@ installdeps-dev:
 
 .PHONY: installdeps-test
 installdeps-test:
+	uv venv .venv
+	source .venv/bin/activate
 	uv pip install vcrpy
 	uv sync
 
 .PHONY: installdeps-docs
 installdeps-docs:
-	poetry install --all-extras
+	uv venv .venv
+	source .venv/bin/activate
+	uv sync
 
 .PHONY: lint
 lint:
