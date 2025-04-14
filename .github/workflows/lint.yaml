@@ -16,4 +16,4 @@ jobs:
         run: |
           uv sync
       - name: Run lint check
-        run: uv run ruff check gridstatus/
+        run: make lint

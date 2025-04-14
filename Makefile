@@ -86,13 +86,13 @@ installdeps-docs:
 
 .PHONY: lint
 lint:
-	ruff check gridstatus/
-	ruff format gridstatus/ --check
+	uv run ruff check gridstatus/
+	uv run ruff format gridstatus/ --check
 
 .PHONY: lint-fix
 lint-fix:
-	ruff check gridstatus/ --fix
-	ruff format gridstatus/
+	uv run ruff check gridstatus/ --fix
+	uv run ruff format gridstatus/
 
 .PHONY: upgradepip
 upgradepip:
