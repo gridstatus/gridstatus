@@ -14,6 +14,6 @@ jobs:
         uses: astral-sh/setup-uv@v5
       - name: Install package with dev deps
         run: |
-          uv pip install .
+          uv sync
       - name: Run lint check
-        run: make lint
+        run: ruff check ../gridstatus
