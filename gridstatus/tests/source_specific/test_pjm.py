@@ -375,15 +375,9 @@ class TestPJM(BaseTestISO):
         "WESTERN_REGION",
     ]
 
-    @pytest.mark.parametrize(
-        "date",
-        [
-            "today",
-        ],
-    )
-    def test_get_load_forecast_today(self, date: str):
+    def test_get_load_forecast_today(self):
         with pjm_vcr.use_cassette("test_get_load_forecast_today.yaml"):
-            df = self.iso.get_load_forecast(date)
+            df = self.iso.get_load_forecast("today")
             assert df.columns.tolist() == self.load_forecast_columns
             assert df["Interval Start"].min() == self.local_start_of_today()
             assert df[
@@ -739,7 +733,7 @@ class TestPJM(BaseTestISO):
             # doesn't include forecast on the next day
             assert df["Publish Time"].max() < self.local_start_of_day(
                 past_date,
-            ) + pd.Timedelta(hours=5)
+            ) + pd.Timedelta(days=1)
 
     def test_get_solar_forecast_5_min_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=12)
@@ -1648,7 +1642,7 @@ class TestPJM(BaseTestISO):
                 end=range_end,
             )
 
-    def test_get_dam_as_market_results_historical_range(self, date):
+    def test_get_dam_as_market_results_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
         past_end_date = past_date + pd.Timedelta(days=3)
         range_start = self.local_start_of_day(past_date)
