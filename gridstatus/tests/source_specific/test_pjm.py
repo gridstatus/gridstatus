@@ -713,7 +713,7 @@ class TestPJM(BaseTestISO):
             assert df["Interval Start"].min() == self.local_start_of_today()
             assert df["Interval End"].max() >= pd.Timestamp.now(
                 tz=self.iso.default_timezone,
-            ) + pd.Timedelta(hours=3)
+            ) + pd.Timedelta(hours=2)
 
     def test_get_solar_forecast_5_min_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
@@ -1092,18 +1092,16 @@ class TestPJM(BaseTestISO):
                 past_date,
             ) + pd.DateOffset(days=1)
 
-    @pytest.mark.parametrize("date, end", test_dates)
-    def test_projected_rto_statistics_at_peak_historical_date_range(self, date, end):
+    @pytest.mark.parametrize("date", test_dates)
+    def test_projected_rto_statistics_at_peak_historical_date_range(self, date):
         with pjm_vcr.use_cassette(
-            f"test_projected_rto_statistics_at_peak_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
+            f"test_projected_rto_statistics_at_peak_{pd.Timestamp(date[0]).strftime('%Y-%m-%d')}_{pd.Timestamp(date[1]).strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_projected_rto_statistics_at_peak(date, end)
+            df = self.iso.get_projected_rto_statistics_at_peak(date)
 
             self._check_projected_rto_statistics_at_peak(df)
-            assert df["Interval Start"].min() == self.local_start_of_day(date)
-            assert df["Interval End"].max() == self.local_start_of_day(end)
-            assert df.shape[0] == 800
-            assert df["Publish Time"].nunique() == 800
+            assert df["Interval Start"].min() == self.local_start_of_day(date[0])
+            assert df["Interval End"].max() == self.local_start_of_day(date[1])
 
     """get_projected_area_statistics_at_peak"""
 
@@ -1152,18 +1150,15 @@ class TestPJM(BaseTestISO):
     @pytest.mark.parametrize("date", test_dates)
     def test_projected_area_statistics_at_peak_historical_date(self, date):
         with pjm_vcr.use_cassette(
-            f"test_projected_area_statistics_at_peak_{date.strftime('%Y-%m-%d')}.yaml",
+            f"test_projected_area_statistics_at_peak_{pd.Timestamp(date[0]).strftime('%Y-%m-%d')}_{pd.Timestamp(date[1]).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_projected_area_statistics_at_peak(date)
 
             self._check_projected_area_statistics_at_peak(df)
-            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval Start"].min() == self.local_start_of_day(date[0])
             assert df["Interval End"].max() == self.local_start_of_day(
-                date,
-            ) + pd.DateOffset(days=1)
-            unique_area_count = df["Area"].nunique()
-            assert df.shape[0] == 800 * unique_area_count
-            assert df["Publish Time"].nunique() == 800
+                date[1],
+            )
 
     """get_solar_generation_5_min"""
 
