@@ -517,24 +517,13 @@ class PJM(ISOBase):
             if "No data found" not in str(e):
                 raise e
 
-            match market_endpoint:
-                case "rt_fivemin_hrl_lmps":
-                    market_endpoint = "rt_unverified_fivemin_lmps"
-                    params["fields"] = (
-                        "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
-                    )
-                    # remove this field because it's not supported in this endpoint
-                    del params["row_is_current"]
-
-                case "rt_hrl_lmps":
-                    market_endpoint = "rt_unverified_hrl_lmps"
-                    params["fields"] = (
-                        "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
-                    )
-                    # remove this field because it's not supported in this endpoint
-                    del params["row_is_current"]
-                case _:
-                    raise ValueError(f"Unsupported market endpoint: {market_endpoint}")
+            if market_endpoint == "rt_fivemin_hrl_lmps":
+                market_endpoint = "rt_unverified_fivemin_lmps"
+                params["fields"] = (
+                    "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
+                )
+                # remove this field because it's not supported in this endpoint
+                del params["row_is_current"]
 
             data = self._get_pjm_json(
                 market_endpoint,
