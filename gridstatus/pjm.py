@@ -618,46 +618,60 @@ class PJM(ISOBase):
             return self.get_lmp_real_time_unverified_hourly("today", verbose=verbose)
 
         params = {
-            "fields": "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type",  # noqa: E501
+            "fields": "datetime_beginning_utc, datetime_beginning_ept, pnode_name, type, total_lmp_rt, congestion_price_rt, marginal_loss_price_rt",  # noqa: E501
         }
+        if location_type:
+            location_type = location_type.upper()
+            if location_type not in self.location_types:
+                raise ValueError(
+                    f"location_type must be one of {self.location_types}",
+                )
+            params["type"] = f"{location_type}"
 
         data = self._get_pjm_json(
             "rt_unverified_hrl_lmps",
             start=date,
             end=end,
             params=params,
+            interval_duration_min=60,
             verbose=verbose,
         )
+        if locations == "hubs":
+            locations = self.hub_node_ids
+        elif locations == "zones":
+            locations = self.zone_node_ids
         if locations is not None and locations != "ALL":
-            # make sure Location is defined
-            data["Location"] = data["pnode_id"]
+            data["Location"] = data["pnode_name"]
             data = utils.filter_lmp_locations(
                 data,
                 map(int, locations),
             )
 
-        data = self._add_pnode_info_to_lmp_data(data)
+        data["system_energy_price_rt"] = (
+            data["total_lmp_rt"]
+            - data["congestion_price_rt"]
+            - data["marginal_loss_price_rt"]
+        )
+        print(data)
+        print(data.columns)
+        print(data.dtypes)
 
         df = data.rename(
             columns={
-                "pnode_id": "Location Id",
                 "pnode_name": "Location Name",
-                "pnode_short_name": "Location Short Name",
-                "datetime_beginning_utc": "Interval Start",
                 "total_lmp_rt": "LMP",
                 "system_energy_price_rt": "Energy",
                 "congestion_price_rt": "Congestion",
                 "marginal_loss_price_rt": "Loss",
             },
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+
         return df[
             [
                 "Interval Start",
                 "Interval End",
-                "Location Id",
                 "Location Name",
-                "Location Short Name",
                 "LMP",
                 "Energy",
                 "Congestion",
