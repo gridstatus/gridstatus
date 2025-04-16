@@ -603,6 +603,68 @@ class PJM(ISOBase):
 
         return data
 
+    @support_date_range(frequency="365D")
+    def get_lmp_real_time_unverified_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        locations: str | None = None,
+        location_type: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time unverified hourly LMPs"""
+
+        if date == "latest":
+            return self.get_lmp_real_time_unverified_hourly("today", verbose=verbose)
+
+        params = {
+            "fields": "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type",  # noqa: E501
+        }
+
+        data = self._get_pjm_json(
+            "rt_unverified_hrl_lmps",
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+        )
+        if locations is not None and locations != "ALL":
+            # make sure Location is defined
+            data["Location"] = data["pnode_id"]
+            data = utils.filter_lmp_locations(
+                data,
+                map(int, locations),
+            )
+
+        data = self._add_pnode_info_to_lmp_data(data)
+
+        df = data.rename(
+            columns={
+                "pnode_id": "Location Id",
+                "pnode_name": "Location Name",
+                "pnode_short_name": "Location Short Name",
+                "datetime_beginning_utc": "Interval Start",
+                "total_lmp_rt": "LMP",
+                "system_energy_price_rt": "Energy",
+                "congestion_price_rt": "Congestion",
+                "marginal_loss_price_rt": "Loss",
+            },
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location Id",
+                "Location Name",
+                "Location Short Name",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
+
     @support_date_range(frequency=None)
     def get_it_sced_lmp_5_min(
         self,
