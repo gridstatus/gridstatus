@@ -615,7 +615,7 @@ class PJM(ISOBase):
         """Get real-time unverified hourly LMPs"""
 
         if date == "latest":
-            return self.get_lmp_real_time_unverified_hourly("today", verbose=verbose)
+            date = "today"
 
         params = {
             "fields": "datetime_beginning_utc, datetime_beginning_ept, pnode_name, type, total_lmp_rt, congestion_price_rt, marginal_loss_price_rt",  # noqa: E501
@@ -652,9 +652,6 @@ class PJM(ISOBase):
             - data["congestion_price_rt"]
             - data["marginal_loss_price_rt"]
         )
-        print(data)
-        print(data.columns)
-        print(data.dtypes)
 
         df = data.rename(
             columns={

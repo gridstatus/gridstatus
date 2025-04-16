@@ -2449,3 +2449,46 @@ class TestPJM(BaseTestISO):
             ]
             for col in numeric_cols:
                 assert df[col].dtype in [np.float64, np.int64]
+
+    expected_lmp_real_time_unverified_hourly_cols = [
+        "Interval Start",
+        "Interval End",
+        "Location Name",
+        "LMP",
+        "Energy",
+        "Congestion",
+        "Loss",
+    ]
+
+    def _check_lmp_real_time_unverified_hourly(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self.expected_lmp_real_time_unverified_hourly_cols
+        numeric_cols = ["LMP", "Energy", "Congestion", "Loss"]
+        for col in numeric_cols:
+            assert df[col].dtype in [np.float64, np.int64]
+
+    @pytest.mark.parametrize("date", ["latest", "today"])
+    def test_get_lmp_real_time_unverified_hourly_latest(self, date):
+        with pjm_vcr.use_cassette(
+            f"test_get_lmp_real_time_unverified_hourly_{date}.yaml",
+        ):
+            df = self.iso.get_lmp_real_time_unverified_hourly(date)
+
+            self._check_lmp_real_time_unverified_hourly(df)
+            assert df["Interval Start"].min() == self.local_start_of_day("today")
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                "today",
+            ) + pd.Timedelta(hours=24)
+
+    def test_get_lmp_real_time_unverified_hourly_historical_range(self):
+        past_date = self.local_today() - pd.DateOffset(days=4)
+        past_end_date = past_date + pd.DateOffset(days=2)
+
+        with pjm_vcr.use_cassette(
+            f"test_get_lmp_real_time_unverified_hourly_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_real_time_unverified_hourly(past_date, past_end_date)
+
+            self._check_lmp_real_time_unverified_hourly(df)
+            assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+            assert df["Interval End"].max() <= self.local_start_of_day(past_end_date)
