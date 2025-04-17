@@ -524,6 +524,9 @@ class IESO(ISOBase):
 
             data = pivoted.copy()
 
+        if "Other" not in data.columns:
+            data["Other"] = pd.NA
+
         data = utils.move_cols_to_front(
             data,
             [
@@ -535,6 +538,7 @@ class IESO(ISOBase):
                 "Nuclear",
                 "Solar",
                 "Wind",
+                "Other",
             ],
         )
 
