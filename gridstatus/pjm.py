@@ -668,7 +668,8 @@ class PJM(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "Location Name",
+                "Location",
+                "Location Type",
                 "LMP",
                 "Energy",
                 "Congestion",
