@@ -2448,7 +2448,8 @@ class TestPJM(BaseTestISO):
     expected_lmp_real_time_unverified_hourly_cols = [
         "Interval Start",
         "Interval End",
-        "Location Name",
+        "Location",
+        "Location Type",
         "LMP",
         "Energy",
         "Congestion",
