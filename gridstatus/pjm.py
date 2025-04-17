@@ -655,7 +655,8 @@ class PJM(ISOBase):
 
         df = data.rename(
             columns={
-                "pnode_name": "Location Name",
+                "pnode_name": "Location",
+                "type": "Location Type",
                 "total_lmp_rt": "LMP",
                 "system_energy_price_rt": "Energy",
                 "congestion_price_rt": "Congestion",
