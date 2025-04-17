@@ -1,7 +1,7 @@
 # PJM requires retries because the API is flaky
 DEFAULT_RETRIES: int = 3
 
-LOCATION_TYPES: list[str] = [
+LOCATION_TYPES: tuple[str, ...] = (
     "ZONE",
     "LOAD",
     "GEN",
@@ -12,9 +12,9 @@ LOCATION_TYPES: list[str] = [
     "EHV",
     "TIE",
     "RESIDUAL_METERED_EDC",
-]
+)
 
-HUB_NODE_IDS = [
+HUB_NODE_IDS: tuple[str, ...] = (
     "51217",
     "116013751",
     "35010337",
@@ -27,9 +27,9 @@ HUB_NODE_IDS = [
     "4669664",
     "51288",
     "51287",
-]
+)
 
-ZONE_NODE_IDS: list[str] = [
+ZONE_NODE_IDS: tuple[str, ...] = (
     "1",
     "3",
     "51291",
@@ -53,9 +53,9 @@ ZONE_NODE_IDS: list[str] = [
     "124076095",
     "970242670",
     "1709725933",
-]
+)
 
-PRICE_NODE_IDS: list[str] = [
+PRICE_NODE_IDS: tuple[str, ...] = (
     "5021703",
     "5021704",
     "5021723",
@@ -380,4 +380,4 @@ PRICE_NODE_IDS: list[str] = [
     "93353961",
     "93353963",
     "93353965",
-]
+)

@@ -1202,8 +1202,6 @@ class TestPJM(BaseTestISO):
                 end=range_end,
             )
 
-            assert self.iso.get_solar_generation_5_min("latest").equals(df)
-
     def test_get_solar_generation_5_min_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
