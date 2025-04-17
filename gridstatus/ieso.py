@@ -1046,6 +1046,7 @@ class IESO(ISOBase):
             raise
 
         # On this date, IESO published duplicates for hour ending instead of going 1-24
+        # Assuming rows are published in order, we can use the index for hour ending
         if date.date() == datetime.date(2025, 4, 16):
             data["Hour Ending"] = data.index
 
