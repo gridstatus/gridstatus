@@ -3,7 +3,7 @@ name = "gridstatus"
 version = "0.30.0"
 readme = "README.md"
 description = "API to access energy data"
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.10,<3.13"
 authors = [
     { name = "Max Kanter", email = "kmax12@gmail.com" },
     { name = "Will Koehrsen", email = "will@gridstatus.com"},

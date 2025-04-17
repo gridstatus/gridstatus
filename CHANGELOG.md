@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.30.0 - April 17, 2025
+
+* Forthcoming...
+
 ## v0.29.1 - January 26, 2025
 
 * PJM Hourly Demand Bid Data [#527](https://github.com/gridstatus/gridstatus/pull/527)
