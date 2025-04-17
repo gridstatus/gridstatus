@@ -1045,6 +1045,10 @@ class IESO(ISOBase):
                 )
             raise
 
+        # On this date, IESO published duplicates for hour ending instead of going 1-24
+        if date.date() == datetime.date(2025, 4, 16):
+            data["Hour Ending"] = data.index
+
         data["Interval End"] = (
             date.normalize().tz_localize(None)
             + pd.to_timedelta(data["Hour Ending"].astype(int), unit="h")
