@@ -524,6 +524,9 @@ class IESO(ISOBase):
 
             data = pivoted.copy()
 
+        if "Other" not in data.columns:
+            data["Other"] = pd.NA
+
         data = utils.move_cols_to_front(
             data,
             [
@@ -535,6 +538,7 @@ class IESO(ISOBase):
                 "Nuclear",
                 "Solar",
                 "Wind",
+                "Other",
             ],
         )
 
@@ -1044,6 +1048,11 @@ class IESO(ISOBase):
                     f"HOEP data is not available for the requested date {date}. Try using the historical method.",  # noqa: E501
                 )
             raise
+
+        # On this date, IESO published duplicates for hour ending instead of going 1-24
+        # Assuming rows are published in order, we can use the index for hour ending
+        if date.date() == datetime.date(2025, 4, 16):
+            data["Hour Ending"] = data.index
 
         data["Interval End"] = (
             date.normalize().tz_localize(None)
