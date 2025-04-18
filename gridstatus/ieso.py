@@ -2097,40 +2097,46 @@ class IESO(ISOBase):
                 row = next(r for r in report_data if r["DeliveryHour"] == hour)
                 row[column_name] = None
 
-    @support_date_range(frequency="DAY_START")
+    @support_date_range(frequency="DAY")
     def get_forecast_surplus_baseload(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get the forecast surplus baseload for a given date.
+        """Get forecast surplus baseload generation.
 
         Args:
-            date: Date to get the forecast surplus baseload for
-            end: End date for range
-            verbose: Whether to print verbose output
+            date: The publish date to get data for. The forecast will be for the day after this date.
+            end: The end date to get data for. If None, only get data for the start date.
+            verbose: Whether to print verbose output.
 
         Returns:
-            pd.DataFrame: DataFrame containing the forecast surplus baseload data with columns:
-                - Interval Start: Start time of the interval
-                - Interval End: End time of the interval
-                - Publish Time: When the forecast was published
-                - Surplus Baseload MW: Amount of surplus baseload generation
-                - Surplus State: State of surplus (No Surplus, Managed with Exports, Nuclear Dispatch, Nuclear Shutdown)
-                - Action: Raw action field from the report
-                - Export Forecast MW: Forecasted exports
-                - Minimum Generation Status: Status of minimum generation
+            DataFrame with columns:
+                - Interval Start: The start of the interval
+                - Interval End: The end of the interval
+                - Publish Time: The time the forecast was published
+                - Surplus Baseload MW: The forecast surplus baseload generation in MW
+                - Surplus State: The state of the surplus baseload generation
+                - Action: The action taken for the surplus baseload generation
+                - Export Forecast MW: The forecast export in MW
+                - Minimum Generation Status: The minimum generation status
         """
         if date == "latest":
-            return self.get_forecast_surplus_baseload("today", verbose)
+            yesterday = pd.Timestamp.now(
+                tz=self.default_timezone,
+            ).normalize() - pd.Timedelta(days=1)
+            return self.get_forecast_surplus_baseload(yesterday)
 
         if isinstance(date, tuple):
-            date_str = pd.Timestamp(date[0]).strftime("%Y%m%d")
+            publish_date_str = pd.Timestamp(date[0]).strftime("%Y%m%d")
         else:
-            date_str = pd.Timestamp(date).strftime("%Y%m%d")
+            publish_date_str = pd.Timestamp(date).strftime("%Y%m%d")
 
-        url = f"https://www.ieso.ca/-/media/Files/IESO/uploaded/sbg/PUB_SurplusBaseloadGen_{date_str}_v1"
+        logger.info(
+            f"Getting forecast surplus baseload for {pd.Timestamp(date).strftime('%Y-%m-%d')}",
+        )
+        url = f"https://www.ieso.ca/-/media/Files/IESO/uploaded/sbg/PUB_SurplusBaseloadGen_{publish_date_str}_v1"
         r = self._request(url)
         json_data = xmltodict.parse(r.text)
 

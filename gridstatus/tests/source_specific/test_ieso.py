@@ -961,3 +961,91 @@ class TestIESO(BaseTestISO):
         assert report_data[0]["Test Capacity"] == 100.0
         assert report_data[1]["DeliveryHour"] == 2
         assert report_data[1]["Test Capacity"] == 200.0
+
+    """get_forecast_surplus_baseload"""
+
+    def test_get_forecast_surplus_baseload_single_date(self):
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        yesterday = today - pd.Timedelta(days=1)
+        with file_vcr.use_cassette(
+            "test_get_forecast_surplus_baseload_single_date.yaml",
+        ):
+            df = self.iso.get_forecast_surplus_baseload(yesterday)
+
+        assert isinstance(df, pd.DataFrame)
+        self._check_forecast_surplus_baseload(df)
+
+        assert df["Interval Start"].min().date() == today.date()
+        assert df["Interval End"].max().date() == today.date() + pd.Timedelta(days=10)
+
+    def test_get_forecast_surplus_baseload_date_range(self):
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        start = today - pd.Timedelta(days=3)
+        end = today
+        with file_vcr.use_cassette(
+            "test_get_forecast_surplus_baseload_date_range.yaml",
+        ):
+            df = self.iso.get_forecast_surplus_baseload(start, end=end)
+
+        assert isinstance(df, pd.DataFrame)
+        self._check_forecast_surplus_baseload(df)
+
+        assert df["Interval Start"].min().date() == start.date() + pd.Timedelta(days=1)
+        assert df["Interval End"].max().date() == end.date() + pd.Timedelta(days=10)
+
+    def test_get_forecast_surplus_baseload_latest(self):
+        with file_vcr.use_cassette("test_get_forecast_surplus_baseload_latest.yaml"):
+            df = self.iso.get_forecast_surplus_baseload("latest")
+
+        assert isinstance(df, pd.DataFrame)
+        self._check_forecast_surplus_baseload(df)
+
+    def _check_forecast_surplus_baseload(self, df: pd.DataFrame) -> None:
+        required_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Surplus Baseload MW",
+            "Surplus State",
+            "Action",
+            "Export Forecast MW",
+            "Minimum Generation Status",
+        ]
+        assert all(col in df.columns for col in required_columns)
+
+        assert self._check_is_datetime_type(df["Interval Start"])
+        assert self._check_is_datetime_type(df["Interval End"])
+        assert self._check_is_datetime_type(df["Publish Time"])
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        assert (
+            df["Surplus State"]
+            .isin(
+                [
+                    "No Surplus",
+                    "Managed with Exports",
+                    "Nuclear Dispatch",
+                    "Nuclear Shutdown",
+                ],
+            )
+            .all()
+        )
+
+        assert df["Action"].isin(["Other", "Manoeuvre", "Shutdown", None]).all()
+
+        assert is_numeric_dtype(df["Surplus Baseload MW"])
+        assert is_numeric_dtype(df["Export Forecast MW"])
+
+        assert df["Publish Time"].nunique() == len(
+            pd.date_range(
+                df["Publish Time"].min().date(),
+                df["Publish Time"].max().date(),
+                freq="D",
+            ),
+        )
+        assert df["Publish Time"].iloc[0].date() == df[
+            "Interval Start"
+        ].min().date() - pd.Timedelta(days=1)
