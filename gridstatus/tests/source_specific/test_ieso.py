@@ -1041,7 +1041,8 @@ class TestIESO(BaseTestISO):
         assert is_numeric_dtype(df["Surplus Baseload MW"])
         assert is_numeric_dtype(df["Export Forecast MW"])
 
-        assert df["Publish Time"].nunique() == len(
+        publish_days = df["Publish Time"].nunique()
+        assert publish_days == len(
             pd.date_range(
                 df["Publish Time"].min().date(),
                 df["Publish Time"].max().date(),
@@ -1051,3 +1052,5 @@ class TestIESO(BaseTestISO):
         assert df["Publish Time"].iloc[0].date() == df[
             "Interval Start"
         ].min().date() - pd.Timedelta(days=1)
+        assert len(df) == 24 * 10 * publish_days
+        assert len(df.columns) == 8

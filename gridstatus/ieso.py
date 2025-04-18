@@ -2188,8 +2188,10 @@ class IESO(ISOBase):
                 )
 
         df = pd.DataFrame(data)
-        df = utils.move_cols_to_front(
-            df,
+        df.sort_values("Interval Start", inplace=True)
+        df.reset_index(drop=True, inplace=True)
+
+        return df[
             [
                 "Interval Start",
                 "Interval End",
@@ -2199,7 +2201,5 @@ class IESO(ISOBase):
                 "Action",
                 "Export Forecast MW",
                 "Minimum Generation Status",
-            ],
-        )
-
-        return df.sort_values("Interval Start")
+            ]
+        ]
