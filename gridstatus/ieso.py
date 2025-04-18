@@ -5,6 +5,7 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from enum import Enum
 from typing import Literal
 from urllib.error import HTTPError
 
@@ -104,6 +105,22 @@ IESO_ZONE_MAPPING = {
     "PQQC": "Quebec Q4C",
     "PQXY": "Quebec X2Y",
 }
+
+
+class SurplusState(str, Enum):
+    """Enum for surplus baseload generation states.
+
+    The state is determined by the Action field in the report:
+    - No Action (empty/null) -> No Surplus (white)
+    - Other -> Managed with exports/curtailments/VG dispatch (green)
+    - Manoeuvre -> Potential to dispatch nuclear units (yellow)
+    - Shutdown -> Potential to shutdown nuclear units (red)
+    """
+
+    NO_SURPLUS = "No Surplus"
+    MANAGED_WITH_EXPORTS = "Managed with Exports"
+    NUCLEAR_DISPATCH = "Nuclear Dispatch"
+    NUCLEAR_SHUTDOWN = "Nuclear Shutdown"
 
 
 class IESO(ISOBase):
@@ -2079,3 +2096,104 @@ class IESO(ISOBase):
             if hour not in hours_with_values:
                 row = next(r for r in report_data if r["DeliveryHour"] == hour)
                 row[column_name] = None
+
+    @support_date_range(frequency="DAY_START")
+    def get_forecast_surplus_baseload(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the forecast surplus baseload for a given date.
+
+        Args:
+            date: Date to get the forecast surplus baseload for
+            end: End date for range
+            verbose: Whether to print verbose output
+
+        Returns:
+            pd.DataFrame: DataFrame containing the forecast surplus baseload data with columns:
+                - Interval Start: Start time of the interval
+                - Interval End: End time of the interval
+                - Publish Time: When the forecast was published
+                - Surplus Baseload MW: Amount of surplus baseload generation
+                - Surplus State: State of surplus (No Surplus, Managed with Exports, Nuclear Dispatch, Nuclear Shutdown)
+                - Action: Raw action field from the report
+                - Export Forecast MW: Forecasted exports
+                - Minimum Generation Status: Status of minimum generation
+        """
+        if date == "latest":
+            return self.get_forecast_surplus_baseload("today", verbose)
+
+        if isinstance(date, tuple):
+            date_str = pd.Timestamp(date[0]).strftime("%Y%m%d")
+        else:
+            date_str = pd.Timestamp(date).strftime("%Y%m%d")
+
+        url = f"https://www.ieso.ca/-/media/Files/IESO/uploaded/sbg/PUB_SurplusBaseloadGen_{date_str}_v1"
+        r = self._request(url)
+        json_data = xmltodict.parse(r.text)
+
+        publish_time = pd.Timestamp(
+            json_data["Document"]["DocHeader"]["CreatedAt"],
+            tz=self.default_timezone,
+        )
+
+        data = []
+        for daily_forecast in json_data["Document"]["DocBody"]["DailyForecast"]:
+            date_forecast = pd.Timestamp(daily_forecast["DateForecast"])
+            export_forecast = float(daily_forecast["ExportForecast"])
+            min_gen_status = daily_forecast["MinGenerationStatus"]
+
+            for hourly_forecast in daily_forecast["HourlyForecast"]:
+                hour = int(hourly_forecast["Hour"])
+                energy_mw = (
+                    float(hourly_forecast["EnergyMW"])
+                    if hourly_forecast["EnergyMW"]
+                    else None
+                )
+                action = hourly_forecast.get("Action")
+
+                if not energy_mw or energy_mw == 0:
+                    surplus_state = SurplusState.NO_SURPLUS.value
+                elif action == "Manoeuvre":
+                    surplus_state = SurplusState.NUCLEAR_DISPATCH.value
+                elif action == "Shutdown":
+                    surplus_state = SurplusState.NUCLEAR_SHUTDOWN.value
+                elif action == "Other":
+                    surplus_state = SurplusState.MANAGED_WITH_EXPORTS.value
+                else:
+                    surplus_state = SurplusState.NO_SURPLUS.value
+
+                interval_start = date_forecast + pd.Timedelta(hours=hour - 1)
+                interval_end = interval_start + pd.Timedelta(hours=1)
+
+                data.append(
+                    {
+                        "Interval Start": interval_start,
+                        "Interval End": interval_end,
+                        "Publish Time": publish_time,
+                        "Surplus Baseload MW": energy_mw,
+                        "Surplus State": surplus_state,
+                        "Action": action,
+                        "Export Forecast MW": export_forecast,
+                        "Minimum Generation Status": min_gen_status,
+                    },
+                )
+
+        df = pd.DataFrame(data)
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Surplus Baseload MW",
+                "Surplus State",
+                "Action",
+                "Export Forecast MW",
+                "Minimum Generation Status",
+            ],
+        )
+
+        return df.sort_values("Interval Start")
