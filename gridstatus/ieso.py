@@ -524,6 +524,10 @@ class IESO(ISOBase):
 
             data = pivoted.copy()
 
+        # Older data does not have the other fuel type
+        if "Other" not in data.columns:
+            data["Other"] = pd.NA
+
         data = utils.move_cols_to_front(
             data,
             [
