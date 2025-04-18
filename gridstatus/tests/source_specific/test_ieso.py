@@ -964,13 +964,13 @@ class TestIESO(BaseTestISO):
 
     """get_forecast_surplus_baseload"""
 
-    def test_get_forecast_surplus_baseload_single_date(self):
+    def test_get_forecast_surplus_baseload_generation_single_date(self):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         yesterday = today - pd.Timedelta(days=1)
         with file_vcr.use_cassette(
-            "test_get_forecast_surplus_baseload_single_date.yaml",
+            f"test_get_forecast_surplus_baseload_generation_{yesterday.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_forecast_surplus_baseload(yesterday)
+            df = self.iso.get_forecast_surplus_baseload_generation(yesterday)
 
         assert isinstance(df, pd.DataFrame)
         self._check_forecast_surplus_baseload(df)
@@ -978,14 +978,14 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].min().date() == today.date()
         assert df["Interval End"].max().date() == today.date() + pd.Timedelta(days=10)
 
-    def test_get_forecast_surplus_baseload_date_range(self):
+    def test_get_forecast_surplus_baseload_generation_date_range(self):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         start = today - pd.Timedelta(days=3)
         end = today
         with file_vcr.use_cassette(
-            "test_get_forecast_surplus_baseload_date_range.yaml",
+            f"test_get_forecast_surplus_baseload_generation_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_forecast_surplus_baseload(start, end=end)
+            df = self.iso.get_forecast_surplus_baseload_generation(start, end=end)
 
         assert isinstance(df, pd.DataFrame)
         self._check_forecast_surplus_baseload(df)
@@ -993,9 +993,11 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].min().date() == start.date() + pd.Timedelta(days=1)
         assert df["Interval End"].max().date() == end.date() + pd.Timedelta(days=10)
 
-    def test_get_forecast_surplus_baseload_latest(self):
-        with file_vcr.use_cassette("test_get_forecast_surplus_baseload_latest.yaml"):
-            df = self.iso.get_forecast_surplus_baseload("latest")
+    def test_get_forecast_surplus_baseload_generation_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_forecast_surplus_baseload_generation_latest.yaml",
+        ):
+            df = self.iso.get_forecast_surplus_baseload_generation("latest")
 
         assert isinstance(df, pd.DataFrame)
         self._check_forecast_surplus_baseload(df)

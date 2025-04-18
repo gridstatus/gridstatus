@@ -2097,8 +2097,8 @@ class IESO(ISOBase):
                 row = next(r for r in report_data if r["DeliveryHour"] == hour)
                 row[column_name] = None
 
-    @support_date_range(frequency="DAY")
-    def get_forecast_surplus_baseload(
+    @support_date_range(frequency="DAY_START")
+    def get_forecast_surplus_baseload_generation(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -2126,7 +2126,7 @@ class IESO(ISOBase):
             yesterday = pd.Timestamp.now(
                 tz=self.default_timezone,
             ).normalize() - pd.Timedelta(days=1)
-            return self.get_forecast_surplus_baseload(yesterday)
+            return self.get_forecast_surplus_baseload_generation(yesterday)
 
         if isinstance(date, tuple):
             publish_date_str = pd.Timestamp(date[0]).strftime("%Y%m%d")
