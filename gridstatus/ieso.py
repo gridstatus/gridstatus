@@ -2324,12 +2324,6 @@ class IESO(ISOBase):
                 last_modified_time = pd.Timestamp(file_time, tz=self.default_timezone)
             else:
                 versioned_files = [f for f in files if "_v" in f]
-                if not versioned_files:
-                    logger.warning(
-                        f"No intertie schedule flow files found for year {year}",
-                    )
-                    return pd.DataFrame()
-
                 latest_file = max(
                     versioned_files,
                     key=lambda x: int(x.split("_v")[1].replace(".csv", "")),
@@ -2357,13 +2351,9 @@ class IESO(ISOBase):
         elif vintage == "all":
             pattern = f'href="(PUB_IntertieScheduleFlowYear_{year}.*?.csv)"'
             files = re.findall(pattern, r.text)
-
+            logger.info(f"Found {len(files)} files for year {year}")
             pattern_with_time = f'href="(PUB_IntertieScheduleFlowYear_{year}.*?.csv)">.*?</a>\\s+(\\d{{2}}-\\w{{3}}-\\d{{4}} \\d{{2}}:\\d{{2}})'
             files_with_times = re.findall(pattern_with_time, r.text)
-
-            if not files_with_times:
-                logger.warning(f"No intertie schedule flow files found for year {year}")
-                return pd.DataFrame()
 
             if last_modified:
                 filtered_files = [
@@ -2376,10 +2366,6 @@ class IESO(ISOBase):
                 )
                 files_with_times = filtered_files
 
-            if not files_with_times:
-                logger.info(f"No files for year {year} modified after {last_modified}")
-                return pd.DataFrame()
-
             all_data = []
             for file, time in files_with_times:
                 url = f"{base_url}/{file}"
@@ -2391,11 +2377,14 @@ class IESO(ISOBase):
                     verbose,
                 )
                 all_data.append(df)
-
-            if not all_data:
-                return pd.DataFrame()
-
-            return pd.concat(all_data)
+            df_final = pd.concat(all_data)
+            logger.info(
+                f"Dropping duplicates from vintage {vintage} concatenation of files",
+            )
+            df_final.drop_duplicates(inplace=True)
+            return df_final.sort_values(["Interval Start", "Publish Time"]).reset_index(
+                drop=True,
+            )
 
     def _parse_intertie_schedule_flow_file(
         self,
@@ -2411,42 +2400,68 @@ class IESO(ISOBase):
         Returns:
             DataFrame containing the parsed data
         """
+        raw_df = pd.read_csv(url, header=None, nrows=10)
 
-        df = pd.read_csv(url, skiprows=5)
+        zones_row = raw_df.iloc[3]
+        metrics_row = raw_df.iloc[4]
 
-        zone_cols = [
-            "MANITOBA",
-            "MANITOBA SK",
-            "MICHIGAN",
-            "MINNESOTA",
-            "NEW-YORK",
-            "PQ.AT",
-            "PQ.B5D.B31L",
-            "PQ.D4Z",
-            "PQ.D5A",
-            "PQ.H4Z",
-            "PQ.H9A",
-            "PQ.P33C",
-            "PQ.Q4C",
-            "PQ.X2Y",
-            "Total",
+        headers = []
+        for i in range(len(metrics_row)):
+            if i < 2:
+                headers.append(metrics_row[i])
+            else:
+                zone = zones_row[i]
+                metric = metrics_row[i]
+                if pd.notna(zone) and pd.notna(metric):
+                    if isinstance(zone, str) and zone.startswith("PQ."):
+                        zone = zone.replace(".", "")
+                    else:
+                        zone = str(zone).replace(".", " ")
+
+                    if metric == "Imp":
+                        metric = "Import"
+                    elif metric == "Exp":
+                        metric = "Export"
+
+                    header = f"{zone} {metric}"
+                    headers.append(header)
+                elif pd.notna(metric):
+                    headers.append(metric)
+                else:
+                    headers.append(f"col_{i}")
+
+        df = pd.read_csv(url, skiprows=5, names=headers)
+        df = df.loc[:, ~df.columns.str.startswith("col_")]
+
+        new_columns = []
+        for col in df.columns:
+            if col.startswith("PQ"):
+                col_parts = col.split(" ", 1)
+                if len(col_parts) > 1:
+                    col = col_parts[0].replace(".", "") + " " + col_parts[1]
+                else:
+                    col = col.replace(".", "")
+            else:
+                col = col.replace("-", " ")
+                parts = col.split()
+                if len(parts) > 1:
+                    for j in range(len(parts) - 1):
+                        parts[j] = parts[j].capitalize()
+                    col = " ".join(parts)
+                else:
+                    col = col.capitalize()
+            new_columns.append(col)
+        df.columns = new_columns
+
+        flow_columns = [
+            col
+            for col in df.columns
+            if any(x in col for x in ["Import", "Export", "Flow"])
         ]
-
-        flow_types = ["Imp", "Exp", "Flow"]
-
-        renamed_cols = {}
-        for zone in zone_cols:
-            for flow_type in flow_types:
-                old_col = f"{zone}.{flow_type}" if flow_type != "Flow" else f"{zone}"
-                new_col = (
-                    f"{zone} {flow_type}" if zone != "Total" else f"Total {flow_type}"
-                )
-                renamed_cols[old_col] = new_col
-
-        df = df.rename(columns=renamed_cols)
+        for col in flow_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
         df["Hour"] = df["Hour"].astype(int)
-
         df["Interval Start"] = pd.to_datetime(df["Date"]) + pd.to_timedelta(
             df["Hour"] - 1,
             unit="h",
@@ -2455,27 +2470,11 @@ class IESO(ISOBase):
             self.default_timezone,
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-
         df["Publish Time"] = last_modified_time
 
-        flow_columns = [
-            col for col in df.columns if any(x in col for x in ["Imp", "Exp", "Flow"])
-        ]
-        for col in flow_columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        key_cols = ["Interval Start", "Interval End", "Publish Time"]
+        total_cols = sorted([col for col in df.columns if "Total" in col])
+        df = utils.move_cols_to_front(df, key_cols + total_cols)
 
-        df = utils.move_cols_to_front(
-            df,
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Total Flow",
-                "Total Imp",
-                "Total Exp",
-            ],
-        )
-
-        df = df.drop(columns=["Date", "Hour"])
-
+        df.drop(columns=["Date", "Hour"], inplace=True)
         return df
