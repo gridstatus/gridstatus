@@ -515,7 +515,6 @@ class TestIESO(BaseTestISO):
             "Nuclear",
             "Solar",
             "Wind",
-            "Other",
         ]
 
     def _check_get_generator_report_hourly(self, df):
@@ -543,7 +542,6 @@ class TestIESO(BaseTestISO):
             "GAS",
             "HYDRO",
             "NUCLEAR",
-            "OTHER",
             "SOLAR",
             "WIND",
         ]
