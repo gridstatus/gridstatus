@@ -565,11 +565,9 @@ class CAISO(ISOBase):
             raw_data=False,
             verbose=verbose,
             sleep=sleep,
-            params={"market_run_id": "RTM"},
+            params={"market_run_id": "RTM", "execution_type": "RTD"},
         )
-        df = df[
-            ((df["Interval End"] - df["Interval Start"]).dt.total_seconds() / 60) == 5
-        ]
+
         df = df.rename(
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
@@ -618,11 +616,8 @@ class CAISO(ISOBase):
             raw_data=False,
             verbose=verbose,
             sleep=sleep,
-            params={"market_run_id": "RTM"},
+            params={"market_run_id": "RTM", "execution_type": "RTPD"},
         )
-        df = df[
-            ((df["Interval End"] - df["Interval Start"]).dt.total_seconds() / 60) == 15
-        ]
         df = df.rename(
             columns={"MW": "Load Forecast", "TAC_AREA_NAME": "TAC Area Name"},
         )
@@ -1318,9 +1313,7 @@ class CAISO(ISOBase):
     def get_fuel_regions(self, verbose: bool = False) -> pd.DataFrame:
         """Retrieves the (mostly static) list of fuel regions with associated data.
         This file can be joined to the gas prices on Fuel Region Id"""
-        url = (
-            "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
-        )
+        url = "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
 
         logger.info(f"Fetching {url}")
 
