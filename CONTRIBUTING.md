@@ -49,12 +49,15 @@ To set up a development environment for this project, you will need to:
 * Install the project dependencies by running:
 
 ```shell
-# Configure poetry to use a virtual environment
-poetry config virtualenvs.in-project true
+# Configure uv to use a virtual environment
+uv venv .venv
+
+# Activate the virtual environment
+source .venv/bin/activate
+
 # Install the project dependencies
-poetry install --all-extras
+uv sync
 ```
-* Activate the poetry shell by running `poetry shell`. This will run in a virtual environment with all the dependencies installed.
 
 * Installing the dev dependencies enables a pre-commit hook that ensures linting has been run before committing
 
@@ -63,7 +66,7 @@ The best way to ensure everything is installed correctly by running running the 
 ## Environment Variables
 
 * Copy `.env.template` into a new file called `.env` and fill in the appropriate values for the environment variables. `.env` should not be committed to the repository.
-* Fill out these variables if you want to use the EIA or ERCOT APIs. They should be available in the `pipenv shell` thanks to the `poetry-dotenv-plugin` plugin.
+* Fill out these variables if you want to use the EIA or ERCOT APIs. To make sure your .env is accessible to the uv runtime environment, you can set the `UV_ENV_FILE` environment variable to the path of your .env file. `export UV_ENV_FILE=path/to/.env`
 
 
 ## Running Tests and Linting
@@ -84,7 +87,7 @@ make lint
 make lint-fix
 ```
 
-We use `pytest` for testing, so you can also run the test directly with the `pytest` command from within the `poetry shell`.
+We use `pytest` for testing, so you can also run the test directly with the `pytest` command.
 
 
 ## Adding Documentation and Examples

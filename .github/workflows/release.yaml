@@ -24,12 +24,12 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install Poetry
-      uses: snok/install-poetry@v1
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
 
     - name: Check version match
       run: |
-        PACKAGE_VERSION=$(poetry version -s)
+        PACKAGE_VERSION=$(uv version -s)
         TAG_VERSION=${GITHUB_REF#refs/tags/v}
         if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
           echo "Package version ($PACKAGE_VERSION) does not match tag version ($TAG_VERSION)"
@@ -37,10 +37,10 @@ jobs:
         fi
 
     - name: Install dependencies
-      run: poetry install
+      run: uv sync
 
     - name: Build package
-      run: poetry build
+      run: uv build
 
     # https://github.com/pypa/gh-action-pypi-publish
     - name: Publish package distributions to PyPI

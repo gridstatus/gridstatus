@@ -127,11 +127,11 @@ class support_date_range:
                 default_timezone,
             )
 
-            assert (
-                args_dict["end"] > args_dict["date"]
-            ), "End date {} must be after start date {}".format(
-                args_dict["end"],
-                args_dict["date"],
+            assert args_dict["end"] > args_dict["date"], (
+                "End date {} must be after start date {}".format(
+                    args_dict["end"],
+                    args_dict["date"],
+                )
             )
 
             # if frequency is callable, then use it to get the frequency

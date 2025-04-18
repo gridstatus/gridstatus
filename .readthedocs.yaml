@@ -1,7 +1,6 @@
 # .readthedocs.yaml
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details.
-# This specific version is copied from https://docs.readthedocs.io/en/stable/build-customization.html#install-dependencies-with-poetry with modifications
 version: 2
 
 build:
@@ -10,14 +9,14 @@ build:
     python: "3.10"
   jobs:
     post_create_environment:
-      # Install poetry
-      # https://python-poetry.org/docs/#installing-manually
-      - pip install poetry
+      # Install uv
+      # https://docs.astral.sh/uv/getting-started/installation/
+      - pip install uv
     post_install:
       # Install dependencies with all dependencies
       # VIRTUAL_ENV needs to be set manually for now.
       # See https://github.com/readthedocs/readthedocs.org/pull/11152/
-      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install --all-extras
+      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH uv sync
 
 sphinx:
   configuration: docs/conf.py
