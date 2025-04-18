@@ -11,6 +11,9 @@ from gridstatus import utils
 from gridstatus.base import NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
+from gridstatus.isone_api.isone_api_constants import (
+    ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
+)
 
 # Default page size for API requests
 DEFAULT_PAGE_SIZE = 1000
@@ -982,3 +985,95 @@ class ISONEAPI:
                 "Loss",
             ]
         ].sort_values(["Interval Start", "Location"])
+
+    @support_date_range("DAY_START")
+    def get_capacity_forecast_7_day(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the capacity forecast for the next 7 days.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/sevendayforecast/current"
+        else:
+            url = f"{self.base_url}/sevendayforecast/day/{date.strftime('%Y%m%d')}/all"
+
+        return self._handle_capacity_forecast(url, verbose)
+
+    def _handle_capacity_forecast(
+        self,
+        url: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        response = self.make_api_call(url)
+        df = pd.json_normalize(
+            response["SevenDayForecasts"]["SevenDayForecast"],
+            record_path=["MarketDay"],
+            meta=["CreationDate"],
+        )
+
+        df["Publish Time"] = pd.to_datetime(df["CreationDate"])
+        df["Interval Start"] = pd.to_datetime(df["MarketDate"])
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
+
+        df = df.rename(
+            columns={
+                "TotAvailGenMw": "Total Generation Available",
+                "CsoMw": "Total Capacity Supply Obligation",
+                "ColdWeatherOutagesMw": "Anticipated Cold Weather Outages",
+                "OtherGenOutagesMw": "Other Generation Outages",
+                "DelistMw": "Anticipated Delist MW Offered",
+                "PeakImportMw": "Import at Time of Peak",
+                "TotAvailGenImportMw": "Total Available Generation and Imports",
+                "PeakLoadMw": "Projected Peak Load",
+                "ReplReserveReqMw": "Replacement Reserve Requirement",
+                "ReqdReserveMw": "Required Reserve",
+                "ReqdReserveInclReplMw": "Required Reserve Including Replacement",
+                "TotLoadPlusReqdReserveMw": "Total Load Plus Required Reserve",
+                "SurplusDeficiencyMw": "Projected Surplus or Deficiency",
+                "DrrMw": "Available Demand Response Resources",
+                "PowerWatch": "Power Watch",
+                "PowerWarn": "Power Warning",
+                "ColdWeatherWatch": "Cold Weather Watch",
+                "ColdWeatherWarn": "Cold Weather Warning",
+                "ColdWeatherEvent": "Cold Weather Event",
+            },
+        )
+
+        # NB: These are often missing, but they can be present, so we set them to None here
+        for col in [
+            "Available Realtime Emergency Generation",
+            "Load Relief Actions Anticipated",
+            "Generating Capacity Position",
+        ]:
+            df[col] = None
+
+        df["High Temperature Boston"] = df["Weather.CityWeather"].apply(
+            lambda x: next(
+                (city["HighTempF"] for city in x if city["CityName"] == "Boston"),
+                None,
+            ),
+        )
+        df["High Temperature Hartford"] = df["Weather.CityWeather"].apply(
+            lambda x: next(
+                (city["HighTempF"] for city in x if city["CityName"] == "Hartford"),
+                None,
+            ),
+        )
+        df["Dew Point Boston"] = df["Weather.CityWeather"].apply(
+            lambda x: next(
+                (city["DewPointF"] for city in x if city["CityName"] == "Boston"),
+                None,
+            ),
+        )
+        df["Dew Point Hartford"] = df["Weather.CityWeather"].apply(
+            lambda x: next(
+                (city["DewPointF"] for city in x if city["CityName"] == "Hartford"),
+                None,
+            ),
+        )
+
+        return df[ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS]

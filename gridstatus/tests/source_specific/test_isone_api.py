@@ -3,6 +3,9 @@ import pandas as pd
 import pytest
 
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
+from gridstatus.isone_api.isone_api_constants import (
+    ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
+)
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
@@ -808,3 +811,71 @@ class TestISONEAPI(TestHelperMixin):
             assert result["Energy"].dtype in [np.int64, np.float64]
             assert result["Congestion"].dtype in [np.int64, np.float64]
             assert result["Loss"].dtype in [np.int64, np.float64]
+
+    """get_capacity_forecast_7_day"""
+
+    def _check_capacity_forecast_7_day_columns(self, result: pd.DataFrame) -> None:
+        """Validate the DataFrame columns against the Pydantic model fields."""
+        assert list(result.columns) == ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS
+        assert result["High Temperature Boston"].dtype in [np.int64, np.float64]
+        assert result["Dew Point Boston"].dtype in [np.int64, np.float64]
+        assert result["High Temperature Hartford"].dtype in [np.int64, np.float64]
+        assert result["Dew Point Hartford"].dtype in [np.int64, np.float64]
+        assert result["Total Capacity Supply Obligation"].dtype in [
+            np.int64,
+            np.float64,
+        ]
+        assert result["Anticipated Cold Weather Outages"].dtype in [
+            np.int64,
+            np.float64,
+        ]
+        assert result["Other Generation Outages"].dtype in [np.int64, np.float64]
+        assert result["Anticipated Delist MW Offered"].dtype in [np.int64, np.float64]
+        assert result["Total Generation Available"].dtype in [np.int64, np.float64]
+        assert result["Import at Time of Peak"].dtype in [np.int64, np.float64]
+        assert result["Total Available Generation and Imports"].dtype in [
+            np.int64,
+            np.float64,
+        ]
+        assert result["Projected Peak Load"].dtype in [np.int64, np.float64]
+        assert result["Replacement Reserve Requirement"].dtype in [np.int64, np.float64]
+        assert result["Required Reserve"].dtype in [np.int64, np.float64]
+        assert result["Required Reserve Including Replacement"].dtype in [
+            np.int64,
+            np.float64,
+        ]
+        assert result["Total Load Plus Required Reserve"].dtype in [
+            np.int64,
+            np.float64,
+        ]
+        assert result["Projected Surplus or Deficiency"].dtype in [np.int64, np.float64]
+        assert result["Available Demand Response Resources"].dtype in [
+            np.int64,
+            np.float64,
+        ]
+        assert result["Load Relief Actions Anticipated"].dtype == object
+        assert result["Power Watch"].dtype == object
+        assert result["Power Warning"].dtype == object
+        assert result["Cold Weather Watch"].dtype == object
+        assert result["Cold Weather Warning"].dtype == object
+        assert result["Cold Weather Event"].dtype == object
+
+    def test_get_capacity_forecast_7_day_latest(self):
+        with api_vcr.use_cassette("test_get_capacity_forecast_7_day_latest.yaml"):
+            result = self.iso.get_capacity_forecast_7_day(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) > 0
+            self._check_capacity_forecast_7_day_columns(result)
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_capacity_forecast_7_day_date_range(self, date: str, end: str):
+        cassette_name = f"test_get_capacity_forecast_7_day_{pd.Timestamp(date).strftime('%Y%m%d')}_{pd.Timestamp(end).strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_capacity_forecast_7_day(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            self._check_capacity_forecast_7_day_columns(result)
