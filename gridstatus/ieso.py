@@ -2171,7 +2171,9 @@ class IESO(ISOBase):
                 else:
                     surplus_state = SurplusState.NO_SURPLUS.value
 
-                interval_start = date_forecast + pd.Timedelta(hours=hour - 1)
+                interval_start = (
+                    date_forecast + pd.Timedelta(hours=hour - 1)
+                ).tz_localize(self.default_timezone)
                 interval_end = interval_start + pd.Timedelta(hours=1)
 
                 data.append(
