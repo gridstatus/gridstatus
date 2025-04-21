@@ -2400,66 +2400,42 @@ class IESO(ISOBase):
         Returns:
             DataFrame containing the parsed data
         """
-        raw_df = pd.read_csv(url, header=None, nrows=10)
+        df = pd.read_csv(
+            url,
+            skiprows=3,
+            header=[0, 1],
+        )
 
-        zones_row = raw_df.iloc[3]
-        metrics_row = raw_df.iloc[4]
+        df = df.melt(
+            id_vars=[("Unnamed: 0_level_0", "Date"), ("Unnamed: 1_level_0", "Hour")],
+        )
 
-        headers = []
-        for i in range(len(metrics_row)):
-            if i < 2:
-                headers.append(metrics_row[i])
-            else:
-                zone = zones_row[i]
-                metric = metrics_row[i]
-                if pd.notna(zone) and pd.notna(metric):
-                    if isinstance(zone, str) and zone.startswith("PQ."):
-                        zone = zone.replace(".", "")
-                    else:
-                        zone = str(zone).replace(".", " ")
+        df.columns = ["Date", "Hour", "Zone", "Metric", "Value"]
+        df["Metric"] = df["Metric"].replace({"Imp": "Import", "Exp": "Export"})
 
-                    if metric == "Imp":
-                        metric = "Import"
-                    elif metric == "Exp":
-                        metric = "Export"
+        df["Zone"] = df["Zone"].apply(
+            lambda x: x.replace(".", "")
+            if isinstance(x, str) and x.startswith("PQ")
+            else (x.replace("-", " ").title() if isinstance(x, str) else x),
+        )
 
-                    header = f"{zone} {metric}"
-                    headers.append(header)
-                elif pd.notna(metric):
-                    headers.append(metric)
-                else:
-                    headers.append(f"col_{i}")
+        df = df.pivot_table(
+            index=["Date", "Hour"],
+            columns=["Zone", "Metric"],
+            values="Value",
+        ).reset_index()
 
-        df = pd.read_csv(url, skiprows=5, names=headers)
-        df = df.loc[:, ~df.columns.str.startswith("col_")]
-
-        new_columns = []
-        for col in df.columns:
-            if col.startswith("PQ"):
-                col_parts = col.split(" ", 1)
-                if len(col_parts) > 1:
-                    col = col_parts[0].replace(".", "") + " " + col_parts[1]
-                else:
-                    col = col.replace(".", "")
-            else:
-                col = col.replace("-", " ")
-                parts = col.split()
-                if len(parts) > 1:
-                    for j in range(len(parts) - 1):
-                        parts[j] = parts[j].capitalize()
-                    col = " ".join(parts)
-                else:
-                    col = col.capitalize()
-            new_columns.append(col)
-        df.columns = new_columns
+        df.columns = [
+            f"{col[0]} {col[1]}" if col[1] != "" else col[0] for col in df.columns
+        ]
 
         flow_columns = [
-            col
-            for col in df.columns
-            if any(x in col for x in ["Import", "Export", "Flow"])
+            column
+            for column in df.columns
+            if any(x in column for x in ["Import", "Export", "Flow"])
         ]
-        for col in flow_columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        for column in flow_columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
 
         df["Hour"] = df["Hour"].astype(int)
         df["Interval Start"] = pd.to_datetime(df["Date"]) + pd.to_timedelta(
@@ -2472,9 +2448,9 @@ class IESO(ISOBase):
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
         df["Publish Time"] = last_modified_time
 
-        key_cols = ["Interval Start", "Interval End", "Publish Time"]
-        total_cols = sorted([col for col in df.columns if "Total" in col])
-        df = utils.move_cols_to_front(df, key_cols + total_cols)
+        key_columns = ["Interval Start", "Interval End", "Publish Time"]
+        total_columns = sorted([column for column in df.columns if "Total" in column])
+        df = utils.move_cols_to_front(df, key_columns + total_columns)
 
         df.drop(columns=["Date", "Hour"], inplace=True)
         return df
