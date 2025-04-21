@@ -2200,3 +2200,282 @@ class IESO(ISOBase):
                 "Minimum Generation Status",
             ]
         ]
+
+    @support_date_range(frequency="YEAR_START")
+    def get_intertie_actual_schedule_flow_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+        vintage: Literal["all", "latest"] = "latest",
+        last_modified: str | datetime.date | datetime.datetime | None = None,
+    ) -> pd.DataFrame:
+        """Get yearly intertie actual schedule flow hourly.
+        Args:
+            date: The date to get the data for.
+            end: The end date to get the data for.
+            verbose: Whether to print verbose output.
+            vintage: Whether to get the latest version or all versions of the report.
+            last_modified: Only return reports modified after this date.
+        Returns:
+            DataFrame with hourly intertie schedule flow data.
+        """
+        if last_modified:
+            last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
+
+        today = utils._handle_date("today", tz=self.default_timezone)
+
+        if date == "latest":
+            target_year = today.year
+            return self._get_intertie_schedule_flow_data(
+                target_year,
+                vintage=vintage,
+                last_modified=last_modified,
+                verbose=verbose,
+            )
+
+        if isinstance(date, str) and date not in ["today", "latest"]:
+            date = utils._handle_date(date, tz=self.default_timezone)
+        elif date == "today":
+            date = today
+
+        if isinstance(date, tuple):
+            start_date, end_date = date
+            start_year = pd.Timestamp(start_date).year
+            end_year = pd.Timestamp(end_date).year
+
+            all_data = []
+            for year in range(start_year, end_year + 1):
+                df = self._get_intertie_schedule_flow_data(
+                    year,
+                    vintage=vintage,
+                    last_modified=last_modified,
+                    verbose=verbose,
+                )
+                all_data.append(df)
+
+            if not all_data:
+                return pd.DataFrame()
+
+            result_df = pd.concat(all_data)
+
+            result_df = result_df[
+                (result_df["Interval Start"] >= pd.Timestamp(start_date))
+                & (result_df["Interval Start"] <= pd.Timestamp(end_date))
+            ]
+
+            return result_df.sort_values(["Interval Start", "Publish Time"])
+
+        year = pd.Timestamp(date).year
+        df = self._get_intertie_schedule_flow_data(
+            year,
+            vintage=vintage,
+            last_modified=last_modified,
+            verbose=verbose,
+        )
+
+        if end:
+            end_date = utils._handle_date(end, tz=self.default_timezone)
+            df = df[
+                (df["Interval Start"] >= pd.Timestamp(date))
+                & (df["Interval Start"] <= end_date)
+            ]
+        else:
+            target_date = pd.Timestamp(date).date()
+            df = df[df["Interval Start"].dt.date == target_date]
+
+        return df
+
+    def _get_intertie_schedule_flow_data(
+        self,
+        year: int,
+        vintage: Literal["all", "latest"] = "latest",
+        last_modified: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Fetch and parse intertie schedule flow data for a specific year.
+        Args:
+            year: The year to fetch data for
+            vintage: Whether to fetch the latest version or all versions
+            last_modified: Only return reports modified after this date
+            verbose: Whether to print verbose output
+        Returns:
+            DataFrame containing the parsed data
+        """
+        base_url = "https://reports-public.ieso.ca/public/IntertieScheduleFlowYear"
+
+        r = self._request(base_url, verbose)
+
+        if vintage == "latest":
+            file_name = f"PUB_IntertieScheduleFlowYear_{year}.csv"
+
+            pattern = f'href="(PUB_IntertieScheduleFlowYear_{year}.*?.csv)"'
+            files = re.findall(pattern, r.text)
+
+            pattern_with_time = f'href="(PUB_IntertieScheduleFlowYear_{year}.*?.csv)">.*?</a>\\s+(\\d{{2}}-\\w{{3}}-\\d{{4}} \\d{{2}}:\\d{{2}})'
+            files_with_times = re.findall(pattern_with_time, r.text)
+
+            if file_name in files:
+                for file, time in files_with_times:
+                    if file == file_name:
+                        file_time = time
+                        break
+                url = f"{base_url}/{file_name}"
+                last_modified_time = pd.Timestamp(file_time, tz=self.default_timezone)
+            else:
+                versioned_files = [f for f in files if "_v" in f]
+                if not versioned_files:
+                    logger.warning(
+                        f"No intertie schedule flow files found for year {year}",
+                    )
+                    return pd.DataFrame()
+
+                latest_file = max(
+                    versioned_files,
+                    key=lambda x: int(x.split("_v")[1].replace(".csv", "")),
+                )
+
+                for file, time in files_with_times:
+                    if file == latest_file:
+                        file_time = time
+                        break
+
+                url = f"{base_url}/{latest_file}"
+                last_modified_time = pd.Timestamp(file_time, tz=self.default_timezone)
+
+            if last_modified and last_modified_time < last_modified:
+                logger.info(f"No files for year {year} modified after {last_modified}")
+                return pd.DataFrame()
+
+            logger.info(f"Fetching intertie schedule flow data from {url}")
+            return self._parse_intertie_schedule_flow_file(
+                url,
+                last_modified_time,
+                verbose,
+            )
+
+        elif vintage == "all":
+            pattern = f'href="(PUB_IntertieScheduleFlowYear_{year}.*?.csv)"'
+            files = re.findall(pattern, r.text)
+
+            pattern_with_time = f'href="(PUB_IntertieScheduleFlowYear_{year}.*?.csv)">.*?</a>\\s+(\\d{{2}}-\\w{{3}}-\\d{{4}} \\d{{2}}:\\d{{2}})'
+            files_with_times = re.findall(pattern_with_time, r.text)
+
+            if not files_with_times:
+                logger.warning(f"No intertie schedule flow files found for year {year}")
+                return pd.DataFrame()
+
+            if last_modified:
+                filtered_files = [
+                    (file, time)
+                    for file, time in files_with_times
+                    if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
+                ]
+                logger.info(
+                    f"Found {len(filtered_files)} files after last modified time {last_modified}",
+                )
+                files_with_times = filtered_files
+
+            if not files_with_times:
+                logger.info(f"No files for year {year} modified after {last_modified}")
+                return pd.DataFrame()
+
+            all_data = []
+            for file, time in files_with_times:
+                url = f"{base_url}/{file}"
+                logger.info(f"Fetching intertie schedule flow data from {url}")
+                modified_time = pd.Timestamp(time, tz=self.default_timezone)
+                df = self._parse_intertie_schedule_flow_file(
+                    url,
+                    modified_time,
+                    verbose,
+                )
+                all_data.append(df)
+
+            if not all_data:
+                return pd.DataFrame()
+
+            return pd.concat(all_data)
+
+    def _parse_intertie_schedule_flow_file(
+        self,
+        url: str,
+        last_modified_time: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Parse a single intertie schedule flow CSV file.
+        Args:
+            url: URL of the CSV file to parse
+            last_modified_time: Last modified time of the file
+            verbose: Whether to print verbose output
+        Returns:
+            DataFrame containing the parsed data
+        """
+
+        df = pd.read_csv(url, skiprows=5)
+
+        zone_cols = [
+            "MANITOBA",
+            "MANITOBA SK",
+            "MICHIGAN",
+            "MINNESOTA",
+            "NEW-YORK",
+            "PQ.AT",
+            "PQ.B5D.B31L",
+            "PQ.D4Z",
+            "PQ.D5A",
+            "PQ.H4Z",
+            "PQ.H9A",
+            "PQ.P33C",
+            "PQ.Q4C",
+            "PQ.X2Y",
+            "Total",
+        ]
+
+        flow_types = ["Imp", "Exp", "Flow"]
+
+        renamed_cols = {}
+        for zone in zone_cols:
+            for flow_type in flow_types:
+                old_col = f"{zone}.{flow_type}" if flow_type != "Flow" else f"{zone}"
+                new_col = (
+                    f"{zone} {flow_type}" if zone != "Total" else f"Total {flow_type}"
+                )
+                renamed_cols[old_col] = new_col
+
+        df = df.rename(columns=renamed_cols)
+
+        df["Hour"] = df["Hour"].astype(int)
+
+        df["Interval Start"] = pd.to_datetime(df["Date"]) + pd.to_timedelta(
+            df["Hour"] - 1,
+            unit="h",
+        )
+        df["Interval Start"] = df["Interval Start"].dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        df["Publish Time"] = last_modified_time
+
+        flow_columns = [
+            col for col in df.columns if any(x in col for x in ["Imp", "Exp", "Flow"])
+        ]
+        for col in flow_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Total Flow",
+                "Total Imp",
+                "Total Exp",
+            ],
+        )
+
+        df = df.drop(columns=["Date", "Hour"])
+
+        return df
