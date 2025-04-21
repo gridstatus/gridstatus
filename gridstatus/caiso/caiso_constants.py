@@ -231,6 +231,7 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {
             "market_run_id": ["7DA", "2DA", "DAM", "ACTUAL", "RTM"],
+            "execution_type": [None, "RTPD", "RTD"],
         },
     },
     "as_results": {
