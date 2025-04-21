@@ -1313,7 +1313,9 @@ class CAISO(ISOBase):
     def get_fuel_regions(self, verbose: bool = False) -> pd.DataFrame:
         """Retrieves the (mostly static) list of fuel regions with associated data.
         This file can be joined to the gas prices on Fuel Region Id"""
-        url = "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
+        url = (
+            "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
+        )
 
         logger.info(f"Fetching {url}")
 
