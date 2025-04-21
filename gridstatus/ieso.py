@@ -2259,9 +2259,6 @@ class IESO(ISOBase):
                 )
                 all_data.append(df)
 
-            if not all_data:
-                return pd.DataFrame()
-
             result_df = pd.concat(all_data)
 
             result_df = result_df[
