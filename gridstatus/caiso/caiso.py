@@ -359,9 +359,10 @@ class CAISO(ISOBase):
             )
 
             time.sleep(sleep)
+            sleep *= retry_num
 
         if r.status_code == 429:
-            logger.warning("CAISO rate limit exceeded..")
+            logger.warning(f"CAISO rate limit exceeded. Tried {retry_num} times.")
             return None
 
         # this is when no data is available
