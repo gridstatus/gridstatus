@@ -29,7 +29,7 @@ jobs:
 
     - name: Check version match
       run: |
-        PACKAGE_VERSION=$(uv version -s)
+        PACKAGE_VERSION=$(uv version)
         TAG_VERSION=${GITHUB_REF#refs/tags/v}
         if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
           echo "Package version ($PACKAGE_VERSION) does not match tag version ($TAG_VERSION)"
