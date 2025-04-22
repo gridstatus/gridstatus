@@ -12,6 +12,7 @@ from urllib.error import HTTPError
 import pandas as pd
 import requests
 import xmltodict
+from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import ISOBase, NotSupported
@@ -2453,4 +2454,210 @@ class IESO(ISOBase):
         df = utils.move_cols_to_front(df, key_columns + total_columns)
 
         df.drop(columns=["Date", "Hour"], inplace=True)
+        return df
+
+    @support_date_range(frequency="HOUR_START")
+    def get_lmp_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            url = "https://reports-public-sandbox.ieso.ca/public/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP.csv"
+            date = pd.Timestamp.now(tz=self.default_timezone)
+        else:
+            hour = date.hour
+            # Hour numbers are 1-24, so we need to add 1
+            file_hour = hour + 1
+            url = f"https://reports-public-sandbox.ieso.ca/public/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP_{date.strftime('%Y%m%d')}{file_hour}.csv"
+
+        return self._get_lmp_data(
+            url,
+            date,
+            interval_duration="minute",
+            minutes_per_interval=5,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_lmp_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead LMP data.
+        Args:
+            date: The date to get the data for.
+            end: The end date to get the data for.
+            verbose: Whether to print verbose output.
+        Returns:
+            DataFrame with LMP data.
+        """
+        if date == "latest":
+            url = "https://reports-public-sandbox.ieso.ca/public/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP.csv"
+            date = pd.Timestamp.now(tz=self.default_timezone)
+        else:
+            url = f"https://reports-public-sandbox.ieso.ca/public/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP_{date.strftime('%Y%m%d')}.csv"
+
+        return self._get_lmp_data(
+            url,
+            date,
+            interval_duration="hour",
+            minutes_per_interval=60,
+        )
+
+    def _get_lmp_data(
+        self,
+        url: str,
+        date: pd.Timestamp,
+        interval_duration: str = "hour",
+        minutes_per_interval: int = 60,
+    ):
+        """Common method to fetch and process LMP data.
+
+        Args:
+            url: The URL to fetch data from.
+            date: The date to process data for.
+            interval_duration: Duration unit for interval ('hour' or 'minute').
+            minutes_per_interval: Number of minutes per interval.
+
+        Returns:
+            DataFrame with processed LMP data.
+        """
+        data = pd.read_csv(url, skiprows=1)
+
+        # Create interval timestamps
+        if interval_duration == "minute":
+            data["Interval Start"] = pd.to_datetime(
+                date.normalize()
+                + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour")
+                + pd.to_timedelta(
+                    (data["Interval"] - 1) * minutes_per_interval,
+                    unit="minute",
+                ),
+            )
+        elif interval_duration == "hour":
+            data["Interval Start"] = pd.to_datetime(
+                date.normalize()
+                + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour"),
+            )
+
+        data["Interval End"] = data["Interval Start"] + pd.Timedelta(
+            minutes=minutes_per_interval,
+        )
+
+        # Standardize column names
+        data = data.rename(
+            columns={
+                "Energy Loss Price": "Loss",
+                "Energy Congestion Price": "Congestion",
+                "Pricing Location": "Location",
+            },
+        )
+
+        # Calculate Energy component
+        data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
+
+        # Select and sort columns
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "LMP",
+            "Energy",
+            "Loss",
+            "Congestion",
+        ]
+
+        data = data[columns].sort_values(["Interval Start", "Location"])
+
+        return data
+
+    @support_date_range(frequency="HOUR_START")
+    def get_lmp_zonal_virtual_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            url = "https://reports-public-sandbox.ieso.ca/public/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices.xml"
+        else:
+            hour = date.hour
+            # Hour numbers are 1-24, so we need to add 1
+            file_hour = hour + 1
+            url = f"https://reports-public-sandbox.ieso.ca/public/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices_{date.strftime('%Y%m%d')}{file_hour}.xml"
+
+        xml_content = self._request(url, verbose).text
+
+        # Parse the XML content
+        soup = BeautifulSoup(xml_content, "xml")
+
+        # Extract delivery date and hour from the XML
+        delivery_date = soup.find("DELIVERYDATE").text
+        delivery_hour = int(soup.find("DELIVERYHOUR").text)
+
+        # Create base datetime for intervals
+        base_datetime = (
+            pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
+        ).tz_localize(self.default_timezone)
+
+        # Create a list to hold all data rows
+        data_rows = []
+
+        # Iterate through each transaction zone
+        for zone in soup.find_all("TransactionZone"):
+            zone_name = zone.find("ZoneName").text
+
+            # Process each interval within the zone
+            for interval in zone.find_all("IntervalPrice"):
+                interval_num = int(interval.find("Interval").text)
+
+                # Skip if any of the price elements are empty
+                zonal_price_elem = interval.find("ZonalPrice")
+                loss_price_elem = interval.find("EnergyLossPrice")
+                cong_price_elem = interval.find("EnergyCongPrice")
+
+                if (
+                    not zonal_price_elem.text.strip()
+                    or not loss_price_elem.text.strip()
+                    or not cong_price_elem.text.strip()
+                ):
+                    continue
+
+                # Extract prices
+                zonal_price = float(zonal_price_elem.text)
+                loss_price = float(loss_price_elem.text)
+                cong_price = float(cong_price_elem.text)
+
+                # Calculate energy price
+                energy_price = zonal_price - loss_price - cong_price
+
+                # Calculate interval start and end times
+                # Each interval is 5 minutes, starting from the base hour
+                interval_start = base_datetime + pd.Timedelta(
+                    minutes=(interval_num - 1) * 5,
+                )
+                interval_end = interval_start + pd.Timedelta(minutes=5)
+
+                # Add row to data
+                data_rows.append(
+                    {
+                        "Interval Start": interval_start,
+                        "Interval End": interval_end,
+                        "Location": zone_name,
+                        "LMP": zonal_price,
+                        "Loss": loss_price,
+                        "Congestion": cong_price,
+                        "Energy": energy_price,
+                    },
+                )
+
+        # Create DataFrame from the rows
+        df = pd.DataFrame(data_rows)
+
+        # Sort by interval start and zone
+        df = df.sort_values(["Interval Start", "Location"])
+
         return df
