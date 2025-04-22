@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.30.1 - April 22, 2025
+
+### What's Changed
+
+* Fix PyPI Publishing in [#581](https://github.com/gridstatus/gridstatus/pull/581)
+
 ## v0.30.0 - April 18, 2025
 
 ### What's Changed
