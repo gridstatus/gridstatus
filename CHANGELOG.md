@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.30.0 - April 18, 2025
+
+### What's Changed
+
+* Add py.typed File in [#531](https://github.com/gridstatus/gridstatus/pull/531)
+* Add NYISO interconnection queue cluster projects in [#537](https://github.com/gridstatus/gridstatus/pull/537)
+* ERCOT 60 Day DAM Disclosure Additions in [#533](https://github.com/gridstatus/gridstatus/pull/533)
+* Fix ERCOT 60 Day DAM Columns in [#538](https://github.com/gridstatus/gridstatus/pull/538)
+* ISONE Interchange Data in [#540](https://github.com/gridstatus/gridstatus/pull/540)
+* CAISO GHG component of LMP in [#529](https://github.com/gridstatus/gridstatus/pull/529)
+* ERCOT Solar and Wind Actual and Forecast Hourly Reports Update in [#541](https://github.com/gridstatus/gridstatus/pull/541)
+* PJM Area Control Error in [#542](https://github.com/gridstatus/gridstatus/pull/542)
+* NYISO Interface Flows and Lake Erie Circulation in [#539](https://github.com/gridstatus/gridstatus/pull/539)
+* IESO MCP and HOEP in [#543](https://github.com/gridstatus/gridstatus/pull/543)
+* ERCOT API SCED 60 Day Disclosure in [#545](https://github.com/gridstatus/gridstatus/pull/545)
+* MISO Look Ahead outages in [#546](https://github.com/gridstatus/gridstatus/pull/546)
+* EIA Generators in [#544](https://github.com/gridstatus/gridstatus/pull/544)
+* ISONE Real Time Hourly LMPs in [#547](https://github.com/gridstatus/gridstatus/pull/547)
+* Ercot Fuel Mix Detailed in [#550](https://github.com/gridstatus/gridstatus/pull/550)
+* EIA Generators Fix Data Types in [#549](https://github.com/gridstatus/gridstatus/pull/549)
+* ISONE 5 Min LMPs (via API) in [#551](https://github.com/gridstatus/gridstatus/pull/551)
+* ERCOT AS Reports Bid Curve Column Type Update in [#552](https://github.com/gridstatus/gridstatus/pull/552)
+* PJM dispatch reserves in [#553](https://github.com/gridstatus/gridstatus/pull/553)
+* Keep reserve type in [#554](https://github.com/gridstatus/gridstatus/pull/554)
+* Remove missing column in SPP interconnection queue in [#556](https://github.com/gridstatus/gridstatus/pull/556)
+* CAISO Scheduling Point / Tie Combo LMPs in [#555](https://github.com/gridstatus/gridstatus/pull/555)
+* CAISO Hasp LMP in [#557](https://github.com/gridstatus/gridstatus/pull/557)
+* NYISO AS Prices in [#558](https://github.com/gridstatus/gridstatus/pull/558)
+* EIA Handle More Fuel Mix Types in [#559](https://github.com/gridstatus/gridstatus/pull/559)
+* CAISO 15 Min Tie Flows and Renewable Forecast in [#561](https://github.com/gridstatus/gridstatus/pull/561)
+* Consistent SCED Timestamp Column Naming in [#560](https://github.com/gridstatus/gridstatus/pull/560)
+* ERCOT SCED Timestamp Column Rename Fix in [#562](https://github.com/gridstatus/gridstatus/pull/562)
+* Replace tabula (java) dependency in [#563](https://github.com/gridstatus/gridstatus/pull/563)
+* Specify Format for PJM Datetimes in [#565](https://github.com/gridstatus/gridstatus/pull/565)
+* MISO Load Zonal Hourly in [#567](https://github.com/gridstatus/gridstatus/pull/567)
+* MISO Zonal Load Numeric Cols in [#568](https://github.com/gridstatus/gridstatus/pull/568)
+* Security Updates April 2025 in [#566](https://github.com/gridstatus/gridstatus/pull/566)
+* Historical data for MISO Zonal Load in [#569](https://github.com/gridstatus/gridstatus/pull/569)
+* PJM Regulation Market in [#564](https://github.com/gridstatus/gridstatus/pull/564)
+* PJM Round before Pivot in [#570](https://github.com/gridstatus/gridstatus/pull/570)
+* ISONE Capacity 7 Day in [#572](https://github.com/gridstatus/gridstatus/pull/572)
+* IESO Resource Adequacy Retry Logic in [#573](https://github.com/gridstatus/gridstatus/pull/573)
+* IESO HOEP Real Time Fix Duplicates in [#576](https://github.com/gridstatus/gridstatus/pull/576)
+* PJM LMP Real Time Hourly Unverified in [#575](https://github.com/gridstatus/gridstatus/pull/575)
+* Revert "IESO HOEP Real Time Fix Duplicates" but Keep Test Updates in [#578](https://github.com/gridstatus/gridstatus/pull/578)
+* Use params for caiso load forecast in [#577](https://github.com/gridstatus/gridstatus/pull/577)
+* IESO Forecast Surplus Baseload in [#579](https://github.com/gridstatus/gridstatus/pull/579)
+* IESO Intertie Actual Schedule Flow Hourly in [#580](https://github.com/gridstatus/gridstatus/pull/580)
+
+
+
 ## v0.29.1 - January 26, 2025
 
 * PJM Hourly Demand Bid Data [#527](https://github.com/gridstatus/gridstatus/pull/527)

@@ -1704,8 +1704,15 @@ class Ercot(ISOBase):
 
             return df
 
-        load_resource = handle_time(load_resource, time_col="SCED Time Stamp")
-        gen_resource = handle_time(gen_resource, time_col="SCED Time Stamp")
+        load_resource = load_resource.rename(
+            columns={"SCED Time Stamp": "SCED Timestamp"},
+        )
+        gen_resource = gen_resource.rename(
+            columns={"SCED Time Stamp": "SCED Timestamp"},
+        )
+
+        load_resource = handle_time(load_resource, time_col="SCED Timestamp")
+        gen_resource = handle_time(gen_resource, time_col="SCED Timestamp")
         # no repeated hour flag like other ERCOT data
         # likely will error on DST change
         smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
@@ -3527,9 +3534,9 @@ class Ercot(ISOBase):
                 # Sometimes ERCOT handles DST end by putting 25 hours in HourEnding
                 # which makes IntervalStart where HourEnding >= 3 an hour later than
                 # they should be. We correct this by subtracting an hour.
-                assert (
-                    doc["HourEnding"].max() == 25
-                ), f"Time parsing error. Did not find HourEnding = 25. {e}"
+                assert doc["HourEnding"].max() == 25, (
+                    f"Time parsing error. Did not find HourEnding = 25. {e}"
+                )
                 doc.loc[doc["HourEnding"] >= 3, "Interval Start"] = doc.loc[
                     doc["HourEnding"] >= 3,
                     "Interval Start",

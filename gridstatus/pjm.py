@@ -18,9 +18,13 @@ from gridstatus.decorators import (
 )
 from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
-
-# PJM requires retries because the API is flaky
-DEFAULT_RETRIES = 3
+from gridstatus.pjm_constants import (
+    DEFAULT_RETRIES,
+    HUB_NODE_IDS,
+    LOCATION_TYPES,
+    PRICE_NODE_IDS,
+    ZONE_NODE_IDS,
+)
 
 
 class PJM(ISOBase):
@@ -34,387 +38,10 @@ class PJM(ISOBase):
         "https://www.pjm.com/planning/service-requests/services-request-status"
     )
 
-    location_types = [
-        "ZONE",
-        "LOAD",
-        "GEN",
-        "AGGREGATE",
-        "INTERFACE",
-        "EXT",
-        "HUB",
-        "EHV",
-        "TIE",
-        "RESIDUAL_METERED_EDC",
-    ]
-
-    hub_node_ids = [
-        "51217",
-        "116013751",
-        "35010337",
-        "34497151",
-        "34497127",
-        "34497125",
-        "33092315",
-        "33092313",
-        "33092311",
-        "4669664",
-        "51288",
-        "51287",
-    ]
-
-    zone_node_ids = [
-        "1",
-        "3",
-        "51291",
-        "51292",
-        "51293",
-        "51295",
-        "51296",
-        "51297",
-        "51298",
-        "51299",
-        "51300",
-        "51301",
-        "7633629",
-        "8394954",
-        "8445784",
-        "33092371",
-        "34508503",
-        "34964545",
-        "37737283",
-        "116013753",
-        "124076095",
-        "970242670",
-        "1709725933",
-    ]
-
-    price_node_ids = [
-        "5021703",
-        "5021704",
-        "5021723",
-        "5021724",
-        "93354015",
-        "93354017",
-        "93354019",
-        "34887765",
-        "34887767",
-        "34887769",
-        "34887771",
-        "34887773",
-        "34887775",
-        "34887777",
-        "2156111970",
-        "34887779",
-        "34887781",
-        "34887783",
-        "34887787",
-        "34887789",
-        "34887791",
-        "34887793",
-        "74008711",
-        "34887819",
-        "34887821",
-        "34887823",
-        "2156112027",
-        "34887845",
-        "1439658151",
-        "34887847",
-        "34887849",
-        "74008743",
-        "34887851",
-        "34887853",
-        "1123180720",
-        "34887857",
-        "1123180722",
-        "34887859",
-        "1123180723",
-        "34887861",
-        "1123180721",
-        "34887871",
-        "34887873",
-        "34887887",
-        "34887889",
-        "34887891",
-        "34887893",
-        "34887895",
-        "1207075032",
-        "34887897",
-        "34887899",
-        "34887901",
-        "34887911",
-        "34887913",
-        "34887915",
-        "34887917",
-        "34887923",
-        "1097732340",
-        "34887925",
-        "34887927",
-        "34887929",
-        "34887935",
-        "34887937",
-        "34887939",
-        "34887941",
-        "34887949",
-        "34887951",
-        "34887953",
-        "34887955",
-        "1552845076",
-        "34887957",
-        "1552845077",
-        "34887959",
-        "1552845078",
-        "34887961",
-        "34887963",
-        "34887965",
-        "34887967",
-        "34887969",
-        "34887971",
-        "1305131304",
-        "34887977",
-        "1305131306",
-        "34887993",
-        "34887997",
-        "34887999",
-        "34888001",
-        "119118151",
-        "2156114262",
-        "1379266905",
-        "1379266906",
-        "1097732449",
-        "1292915048",
-        "1132294512",
-        "1132294513",
-        "1132294514",
-        "1132294515",
-        "1552845186",
-        "106856851",
-        "2156112284",
-        "1305131444",
-        "119118263",
-        "119118265",
-        "119118267",
-        "119118269",
-        "119118271",
-        "106856905",
-        "2156110343",
-        "40243747",
-        "71856675",
-        "40243749",
-        "71856677",
-        "40243751",
-        "40243753",
-        "40243755",
-        "40243757",
-        "40243759",
-        "40243761",
-        "40243763",
-        "40243765",
-        "40243767",
-        "40243769",
-        "40243771",
-        "40243773",
-        "40243775",
-        "40243777",
-        "40243779",
-        "1248991825",
-        "1248991826",
-        "1248991827",
-        "40243801",
-        "40243803",
-        "40243805",
-        "40243807",
-        "135389793",
-        "135389819",
-        "40243837",
-        "1666116222",
-        "1666116223",
-        "1666116224",
-        "1666116225",
-        "40243839",
-        "1356163765",
-        "38367965",
-        "38367967",
-        "38367969",
-        "1218915048",
-        "1218915049",
-        "1218915050",
-        "1218915051",
-        "1388614399",
-        "2156110624",
-        "32418611",
-        "32418613",
-        "32418615",
-        "32418617",
-        "1388614460",
-        "1084390238",
-        "1218915186",
-        "1218915187",
-        "1369011076",
-        "1369011077",
-        "1369011078",
-        "1268571042",
-        "98370477",
-        "1084390354",
-        "93140",
-        "93141",
-        "93142",
-        "93143",
-        "93144",
-        "93145",
-        "98370523",
-        "98370525",
-        "98370527",
-        "98370529",
-        "98370531",
-        "98370533",
-        "98370535",
-        "1552843818",
-        "57967665",
-        "1552843913",
-        "1552843915",
-        "1552843916",
-        "1356162213",
-        "1356162214",
-        "50401",
-        "48934161",
-        "48934163",
-        "48934165",
-        "48934167",
-        "48934169",
-        "36181299",
-        "50488",
-        "50489",
-        "50490",
-        "36181325",
-        "2156113262",
-        "50542",
-        "50543",
-        "50557",
-        "50558",
-        "2156113284",
-        "50578",
-        "50579",
-        "50581",
-        "50621",
-        "50622",
-        "87901631",
-        "50628",
-        "50629",
-        "50654",
-        "50655",
-        "50659",
-        "50660",
-        "50661",
-        "50662",
-        "2156111333",
-        "1048047",
-        "1048049",
-        "1048050",
-        "1048051",
-        "1048052",
-        "21601782",
-        "21601783",
-        "21601784",
-        "21601785",
-        "21601786",
-        "50695",
-        "50696",
-        "50697",
-        "50698",
-        "50699",
-        "2041990671",
-        "123901459",
-        "123901461",
-        "123901463",
-        "123901465",
-        "123901467",
-        "50715",
-        "50716",
-        "50717",
-        "50727",
-        "50728",
-        "50729",
-        "50730",
-        "2156113457",
-        "2156113469",
-        "50764",
-        "2156113488",
-        "50769",
-        "50770",
-        "50771",
-        "50777",
-        "50778",
-        "50779",
-        "123901537",
-        "123901539",
-        "123901543",
-        "31020649",
-        "123901545",
-        "31020651",
-        "31020653",
-        "50809",
-        "50810",
-        "50811",
-        "50812",
-        "50813",
-        "50814",
-        "50817",
-        "50818",
-        "1165479564",
-        "2156109456",
-        "50887",
-        "50888",
-        "50893",
-        "50894",
-        "50911",
-        "50915",
-        "32417525",
-        "32417527",
-        "2156111608",
-        "1218914041",
-        "1218914042",
-        "1218914043",
-        "32417545",
-        "32417547",
-        "1183231801",
-        "32417599",
-        "32417601",
-        "32417603",
-        "32417605",
-        "51019",
-        "51020",
-        "51021",
-        "1348263767",
-        "32417625",
-        "32417627",
-        "32417629",
-        "32417631",
-        "32417633",
-        "32417635",
-        "1379268471",
-        "1379268472",
-        "1379268473",
-        "1379268474",
-        "1379268475",
-        "1379268476",
-        "63381383",
-        "63381385",
-        "2156111770",
-        "2156109760",
-        "2156109763",
-        "2156109765",
-        "2156109768",
-        "2156109772",
-        "2156109777",
-        "5021665",
-        "5021666",
-        "5021667",
-        "2156111847",
-        "93353961",
-        "93353963",
-        "93353965",
-    ]
-
+    location_types = LOCATION_TYPES
+    hub_node_ids = HUB_NODE_IDS
+    zone_node_ids = ZONE_NODE_IDS
+    price_node_ids = PRICE_NODE_IDS
     markets = [
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
@@ -536,15 +163,7 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        # pivot on area
-        load = load.pivot_table(
-            index=["Time", "Interval Start"],
-            columns="area",
-            values="instantaneous_load",
-            aggfunc="first",
-        ).reset_index()
-
-        # round to nearest minute
+        # round to nearest minute before the pivot
         # need to round in utc time
         load["Interval Start"] = (
             load["Interval Start"]
@@ -553,6 +172,14 @@ class PJM(ISOBase):
             .dt.tz_convert(self.default_timezone)
         )
         load["Time"] = load["Interval Start"]
+
+        # pivot on area
+        load = load.pivot_table(
+            index=["Time", "Interval Start"],
+            columns="area",
+            values="instantaneous_load",
+            aggfunc="first",
+        ).reset_index()
 
         load["Interval End"] = load["Interval Start"] + pd.Timedelta(minutes=5)
 
@@ -726,7 +353,7 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
-        # this is needed because rt_unverified_fivemin_lmps
+        # NB: this is needed because rt_unverified_fivemin_lmps
         # doesn't have short name
         # so we need to extract it from full name
         # other LMP datasets have but do it this way
@@ -820,12 +447,12 @@ class PJM(ISOBase):
             market_type = "rt"
             interval_duration_min = 5
         elif market == Markets.REAL_TIME_HOURLY:
-            # todo implemlement location type filter
+            # TODO implement location type filter
             market_endpoint = "rt_hrl_lmps"
             market_type = "rt"
             interval_duration_min = 60
         elif market == Markets.DAY_AHEAD_HOURLY:
-            # todo implemlement location type filter
+            # TODO implement location type filter
             market_endpoint = "da_hrl_lmps"
             market_type = "da"
             interval_duration_min = 60
@@ -975,6 +602,81 @@ class PJM(ISOBase):
         data = data.merge(p_nodes, on="pnode_id")
 
         return data
+
+    @support_date_range(frequency="365D")
+    def get_lmp_real_time_unverified_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        locations: str | None = None,
+        location_type: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time unverified hourly LMPs"""
+
+        if date == "latest":
+            date = "today"
+
+        params = {
+            "fields": "datetime_beginning_utc, datetime_beginning_ept, pnode_name, type, total_lmp_rt, congestion_price_rt, marginal_loss_price_rt",  # noqa: E501
+        }
+        if location_type:
+            location_type = location_type.upper()
+            if location_type not in self.location_types:
+                raise ValueError(
+                    f"location_type must be one of {self.location_types}",
+                )
+            params["type"] = f"{location_type}"
+
+        data = self._get_pjm_json(
+            "rt_unverified_hrl_lmps",
+            start=date,
+            end=end,
+            params=params,
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        if locations == "hubs":
+            locations = self.hub_node_ids
+        elif locations == "zones":
+            locations = self.zone_node_ids
+        if locations is not None and locations != "ALL":
+            data["Location"] = data["pnode_name"]
+            data = utils.filter_lmp_locations(
+                data,
+                map(int, locations),
+            )
+
+        data["system_energy_price_rt"] = (
+            data["total_lmp_rt"]
+            - data["congestion_price_rt"]
+            - data["marginal_loss_price_rt"]
+        )
+
+        df = data.rename(
+            columns={
+                "pnode_name": "Location",
+                "type": "Location Type",
+                "total_lmp_rt": "LMP",
+                "system_energy_price_rt": "Energy",
+                "congestion_price_rt": "Congestion",
+                "marginal_loss_price_rt": "Loss",
+            },
+        )
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
 
     @support_date_range(frequency=None)
     def get_it_sced_lmp_5_min(
@@ -1221,7 +923,9 @@ class PJM(ISOBase):
 
         if "datetime_beginning_utc" in df.columns:
             df["Interval Start"] = (
-                pd.to_datetime(df["datetime_beginning_utc"])
+                # Some datetimes from the source have milliseconds. Parsing these
+                # requires specifying the format.
+                pd.to_datetime(df["datetime_beginning_utc"], format="ISO8601")
                 .dt.tz_localize(
                     "UTC",
                 )
@@ -1242,7 +946,7 @@ class PJM(ISOBase):
 
             if "datetime_ending_utc" in df.columns:
                 df["Interval End"] = (
-                    pd.to_datetime(df["datetime_ending_utc"])
+                    pd.to_datetime(df["datetime_ending_utc"], format="ISO8601")
                     .dt.tz_localize(
                         "UTC",
                     )
@@ -2814,5 +2518,110 @@ class PJM(ISOBase):
                 "Extended Requirement",
                 "Additional Extended Requirement",
                 "Deficit",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_regulation_market_monthly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the PJM Regulation Market Monthly data from:
+        https://dataminer2.pjm.com/feed/reg_market_results/definition
+        """
+        if date == "latest":
+            current_date = pd.Timestamp.now(self.default_timezone).replace(
+                day=1,
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
+            ) + pd.tseries.offsets.MonthEnd(0)
+
+            while current_date > pd.Timestamp("2024-01-01").tz_localize(
+                self.default_timezone,
+            ):
+                try:
+                    return self.get_regulation_market_monthly(
+                        date=current_date.strftime("%Y-%m-%d"),
+                        end=end,
+                        verbose=verbose,
+                    )
+                except NoDataFoundException:
+                    logger.warning(
+                        f"No regulation market monthly data found for {current_date.strftime('%Y-%m-%d')}, trying previous month",
+                    )
+                    current_date = current_date - pd.DateOffset(months=1)
+
+        df = self._get_pjm_json(
+            "reg_market_results",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,rega_procure,regd_procure,rega_ssmw,regd_ssmw,requirement,total_mw,deficiency,rto_perfscore,rega_mileage,regd_mileage,rega_hourly,regd_hourly,is_approved,modified_datetime_utc",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=60)
+        df = df.rename(
+            columns={
+                "datetime_beginning_utc": "Interval Start",
+                "rega_procure": "RegA Procure",
+                "regd_procure": "RegD Procure",
+                "rega_ssmw": "RegA SSMW",
+                "regd_ssmw": "RegD SSMW",
+                "requirement": "Requirement",
+                "total_mw": "Total MW",
+                "deficiency": "Deficiency",
+                "rto_perfscore": "RTO Perfscore",
+                "rega_mileage": "RegA Mileage",
+                "regd_mileage": "RegD Mileage",
+                "rega_hourly": "RegA Hourly",
+                "regd_hourly": "RegD Hourly",
+                "is_approved": "Is Approved",
+                "modified_datetime_utc": "Modified Datetime UTC",
+            },
+        )
+
+        df = df.astype(
+            {
+                "RegD SSMW": float,
+                "RegA SSMW": float,
+                "RegD Procure": float,
+                "RegA Procure": float,
+                "Total MW": float,
+                "Deficiency": float,
+                "RTO Perfscore": float,
+                "RegA Mileage": float,
+                "RegD Mileage": float,
+                "RegA Hourly": float,
+                "RegD Hourly": float,
+                "Is Approved": int,
+            },
+        )
+        df["Modified Datetime UTC"] = pd.to_datetime(df["Modified Datetime UTC"])
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Requirement",
+                "RegD SSMW",
+                "RegA SSMW",
+                "RegD Procure",
+                "RegA Procure",
+                "Total MW",
+                "Deficiency",
+                "RTO Perfscore",
+                "RegA Mileage",
+                "RegD Mileage",
+                "RegA Hourly",
+                "RegD Hourly",
+                "Is Approved",
+                "Modified Datetime UTC",
             ]
         ]

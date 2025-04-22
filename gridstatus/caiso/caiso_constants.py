@@ -3,6 +3,7 @@ HISTORY_BASE = "https://www.caiso.com/outlook/history"
 
 DAY_AHEAD_MARKET_MARKET_RUN_ID = "DAM"
 REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
+REAL_TIME_DISPATCH_15_MIN_MARKET_RUN_ID = "RTPD"
 
 OASIS_DATASET_CONFIG = {
     "transmission_interface_usage": {
@@ -230,6 +231,7 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {
             "market_run_id": ["7DA", "2DA", "DAM", "ACTUAL", "RTM"],
+            "execution_type": [None, "RTPD", "RTD"],
         },
     },
     "as_results": {
@@ -291,6 +293,18 @@ OASIS_DATASET_CONFIG = {
             "market_run_id": REAL_TIME_DISPATCH_MARKET_RUN_ID,
         },
     },
+    "tie_flows_real_time_15_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_EIM_TRANSFER_TIE",
+            "version": 4,
+        },
+        "params": {
+            "baa_grp_id": "ALL",
+            "market_run_id": REAL_TIME_DISPATCH_15_MIN_MARKET_RUN_ID,
+        },
+    },
     "tie_schedule_day_ahead_hourly": {
         "query": {
             "path": "GroupZip",
@@ -300,6 +314,20 @@ OASIS_DATASET_CONFIG = {
         "params": {
             "groupid": ["DAM_ENE_SCH_BY_TIE_GRP"],
             "market_run_id": DAY_AHEAD_MARKET_MARKET_RUN_ID,
+        },
+    },
+    "hasp_renewable_forecast_hourly": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "SLD_REN_FCST",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": "HASP",
+        },
+        "meta": {
+            "max_query_frequency": "1d",
         },
     },
 }
