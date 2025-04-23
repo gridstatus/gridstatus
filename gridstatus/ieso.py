@@ -2994,8 +2994,7 @@ class IESO(ISOBase):
                     external_congestion = hourly_external_congestion.get(hour, 0)
                     nisl = hourly_nisl.get(hour, 0)
 
-                    # Energy Price component (calculated as per requirements)
-                    energy = lmp - congestion - loss - external_congestion - nisl
+                    energy = lmp - congestion - loss
 
                     data_rows.append(
                         {
@@ -3156,14 +3155,14 @@ class IESO(ISOBase):
         for component in hourly_components:
             # Extract hour, prices, and flags
             hour = int(component.find("ieso:PricingHour", ns).text)
-            zonal_price = float(component.find("ieso:ZonalPrice", ns).text)
+            lmp = float(component.find("ieso:ZonalPrice", ns).text)
             loss_price = float(component.find("ieso:LossPriceCapped", ns).text)
             congestion_price = float(
                 component.find("ieso:CongestionPriceCapped", ns).text,
             )
 
             # Calculate the Energy component
-            energy = zonal_price - loss_price - congestion_price
+            energy = lmp - loss_price - congestion_price
 
             interval_start = delivery_date + pd.Timedelta(hours=hour - 1)
             interval_end = interval_start + pd.Timedelta(hours=1)
@@ -3173,7 +3172,7 @@ class IESO(ISOBase):
                 {
                     "Interval Start": interval_start,
                     "Interval End": interval_end,
-                    "LMP": zonal_price,
+                    "LMP": lmp,
                     "Energy": energy,
                     "Congestion": congestion_price,
                     "Loss": loss_price,

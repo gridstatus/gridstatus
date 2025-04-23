@@ -1332,3 +1332,198 @@ class TestIESO(BaseTestISO):
         # Check that the data is for the specified date range
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
+
+    """get_lmp_real_time_5_min_intertie"""
+
+    def _check_lmp_intertie(
+        self,
+        data: pd.DataFrame,
+        interval_minutes: int,
+    ) -> None:
+        assert data.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+            "External Congestion",
+            "Interchange Scheduling Limit Price",
+        ]
+
+        time_type = "interval"
+        self._check_time_columns(data, instant_or_interval=time_type)
+
+        assert np.allclose(
+            data["LMP"],
+            data["Energy"] + data["Loss"] + data["Congestion"],
+        )
+
+        assert (
+            data["Interval End"] - data["Interval Start"]
+            == pd.Timedelta(minutes=interval_minutes)
+        ).all()
+
+        assert data[TIME_COLUMN].is_monotonic_increasing
+
+    def test_get_lmp_real_time_5_min_intertie_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_lmp_real_time_5_min_intertie_latest.yaml",
+        ):
+            data = self.iso.get_lmp_real_time_5_min_intertie("latest")
+
+        self._check_lmp_intertie(data, interval_minutes=5)
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+
+    def test_get_lmp_real_time_5_min_intertie_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.Timedelta(hours=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_lmp_real_time_5_min_intertie_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_real_time_5_min_intertie(start, end=end)
+
+        self._check_lmp_intertie(data, interval_minutes=5)
+
+        # Check that the data is for the specified date range
+        assert data[TIME_COLUMN].min() == start
+        assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=5)
+
+    """get_lmp_day_ahead_hourly_intertie"""
+
+    def test_get_lmp_day_ahead_hourly_intertie_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_lmp_day_ahead_hourly_intertie_latest.yaml",
+        ):
+            data = self.iso.get_lmp_day_ahead_hourly_intertie("latest")
+
+        self._check_lmp_intertie(data, interval_minutes=60)
+
+        # Check that the data is all for one day. We can't check for a specific date
+        # because, based on the time of day, the latest file will have data for
+        # today or tomorrow.
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        tomorrow = today + pd.Timedelta(days=1)
+        assert ((data[TIME_COLUMN].dt.date == today.date()).all()) or (
+            (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
+        )
+
+    def test_get_lmp_day_ahead_hourly_intertie_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=1)
+
+        with file_vcr.use_cassette(
+            f"test_get_lmp_day_ahead_hourly_intertie_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_day_ahead_hourly_intertie(start, end=end)
+
+        self._check_lmp_intertie(data, interval_minutes=60)
+
+        # Check that the data is for the specified date range
+        assert data[TIME_COLUMN].min() == start
+        assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
+
+    """get_lmp_real_time_5_min_ontario_zonal"""
+
+    def _check_lmp_ontario_zonal_data(
+        self,
+        data: pd.DataFrame,
+        interval_minutes: int,
+    ) -> None:
+        assert data.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        time_type = "interval"
+        self._check_time_columns(data, instant_or_interval=time_type)
+
+        assert np.allclose(
+            data["LMP"],
+            data["Energy"] + data["Loss"] + data["Congestion"],
+        )
+
+        assert (
+            data["Interval End"] - data["Interval Start"]
+            == pd.Timedelta(minutes=interval_minutes)
+        ).all()
+
+        assert data[TIME_COLUMN].is_monotonic_increasing
+
+    def test_get_lmp_real_time_5_min_ontario_zonal_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_lmp_real_time_5_min_ontario_zonal_latest.yaml",
+        ):
+            data = self.iso.get_lmp_real_time_5_min_ontario_zonal("latest")
+
+        self._check_lmp_ontario_zonal_data(data, interval_minutes=5)
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+
+    def test_get_lmp_real_time_5_min_ontario_zonal_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.Timedelta(hours=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_lmp_real_time_5_min_ontario_zonal_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_real_time_5_min_ontario_zonal(start, end=end)
+
+        self._check_lmp_ontario_zonal_data(data, interval_minutes=5)
+
+        # Check that the data is for the specified date range
+        assert data[TIME_COLUMN].min() == start
+        assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=5)
+
+    """get_lmp_day_ahead_hourly_ontario_zonal"""
+
+    def test_get_lmp_day_ahead_hourly_ontario_zonal_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_lmp_day_ahead_hourly_ontario_zonal_latest.yaml",
+        ):
+            data = self.iso.get_lmp_day_ahead_hourly_ontario_zonal("latest")
+
+        self._check_lmp_ontario_zonal_data(data, interval_minutes=60)
+
+        # Check that the data is all for one day. We can't check for a specific date
+        # because, based on the time of day, the latest file will have data for
+        # today or tomorrow.
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        tomorrow = today + pd.Timedelta(days=1)
+        assert ((data[TIME_COLUMN].dt.date == today.date()).all()) or (
+            (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
+        )
+
+    def test_get_lmp_day_ahead_hourly_ontario_zonal_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=1)
+
+        with file_vcr.use_cassette(
+            f"test_get_lmp_day_ahead_hourly_ontario_zonal_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_day_ahead_hourly_ontario_zonal(start, end=end)
+
+        self._check_lmp_ontario_zonal_data(data, interval_minutes=60)
+
+        # Check that the data is for the specified date range
+        assert data[TIME_COLUMN].min() == start
+        assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
