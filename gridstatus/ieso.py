@@ -2843,22 +2843,25 @@ class IESO(ISOBase):
                     )
                     interval_end = interval_start + pd.Timedelta(minutes=5)
 
-                    energy_price = (
-                        lmp_values[interval_num]
-                        - energy_congestion_values[interval_num]
-                        - loss_values[interval_num]
-                    )
+                    lmp = lmp_values[interval_num]
+                    congestion = energy_congestion_values[interval_num]
+                    loss = loss_values[interval_num]
+                    external_congestion = external_congestion_values[interval_num]
+                    nisl_value = nisl_values[interval_num]
+
+                    # Note that inertie LMP includes external congestion and NISL
+                    energy = lmp - congestion - loss - external_congestion - nisl_value
 
                     row = {
                         "Interval Start": interval_start,
                         "Interval End": interval_end,
                         "Location": location,
-                        "LMP": lmp_values[interval_num],
-                        "Energy": energy_price,
-                        "Congestion": energy_congestion_values[interval_num],
-                        "Loss": loss_values[interval_num],
-                        "External Congestion": external_congestion_values[interval_num],
-                        "Interchange Scheduling Limit Price": nisl_values[interval_num],
+                        "LMP": lmp,
+                        "Energy": energy,
+                        "Congestion": congestion,
+                        "Loss": loss,
+                        "External Congestion": external_congestion,
+                        "Interchange Scheduling Limit Price": nisl_value,
                     }
 
                     data_rows.append(row)
@@ -2960,9 +2963,10 @@ class IESO(ISOBase):
                     congestion = hourly_congestion.get(hour, 0)
                     loss = hourly_loss.get(hour, 0)
                     external_congestion = hourly_external_congestion.get(hour, 0)
-                    nisl = hourly_nisl.get(hour, 0)
+                    nisl_value = hourly_nisl.get(hour, 0)
 
-                    energy = lmp - congestion - loss
+                    # Note that inertie LMP includes external congestion and NISL
+                    energy = lmp - congestion - loss - external_congestion - nisl_value
 
                     data_rows.append(
                         {
@@ -2974,7 +2978,7 @@ class IESO(ISOBase):
                             "Congestion": congestion,
                             "Loss": loss,
                             "External Congestion": external_congestion,
-                            "Interchange Scheduling Limit Price": nisl,
+                            "Interchange Scheduling Limit Price": nisl_value,
                         },
                     )
 

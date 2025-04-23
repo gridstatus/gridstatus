@@ -1357,7 +1357,11 @@ class TestIESO(BaseTestISO):
 
         assert np.allclose(
             data["LMP"],
-            data["Energy"] + data["Loss"] + data["Congestion"],
+            data["Energy"]
+            + data["Loss"]
+            + data["Congestion"]
+            + data["External Congestion"]
+            + data["Interchange Scheduling Limit Price"],
         )
 
         assert (
