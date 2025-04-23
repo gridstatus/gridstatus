@@ -809,7 +809,7 @@ class IESO(ISOBase):
         r = self._request(url, verbose)
 
         root = ElementTree.fromstring(r.content)
-        ns = NAMESPACES_FOR_XML
+        ns = NAMESPACES_FOR_XML.copy()
         data = []
 
         # Iterate through each day
@@ -2528,11 +2528,12 @@ class IESO(ISOBase):
         """
         data = pd.read_csv(url, skiprows=1)
 
-        # Create interval timestamps
         if interval_duration == "minute":
             data["Interval Start"] = pd.to_datetime(
                 date.normalize()
+                # Need to subtract 1 from the hour because the hour is 1-indexed
                 + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour")
+                # The interval is 1-indexed, so we need to subtract 1 from the interval
                 + pd.to_timedelta(
                     (data["Interval"] - 1) * minutes_per_interval,
                     unit="minute",
@@ -2557,10 +2558,9 @@ class IESO(ISOBase):
             },
         )
 
-        # Calculate Energy component
+        # Calculate energy from definition of LMP
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
 
-        # Select and sort columns
         columns = [
             "Interval Start",
             "Interval End",
@@ -2571,7 +2571,7 @@ class IESO(ISOBase):
             "Loss",
         ]
 
-        data = data[columns].sort_values(["Interval Start", "Location"])
+        data = data[columns].sort_values(["Interval Start", "Location"]).reset_index()
 
         return data
 
@@ -2593,34 +2593,28 @@ class IESO(ISOBase):
 
         xml_content = self._request(url, verbose).text
 
-        # Parse the XML content
         soup = BeautifulSoup(xml_content, "xml")
 
-        # Extract delivery date and hour from the XML
         delivery_date = soup.find("DELIVERYDATE").text
         delivery_hour = int(soup.find("DELIVERYHOUR").text)
 
-        # Create base datetime for intervals
         base_datetime = (
             pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
         ).tz_localize(self.default_timezone)
 
-        # Create a list to hold all data rows
         data_rows = []
 
-        # Iterate through each transaction zone
         for zone in soup.find_all("TransactionZone"):
             zone_name = zone.find("ZoneName").text
 
-            # Process each interval within the zone
             for interval in zone.find_all("IntervalPrice"):
                 interval_num = int(interval.find("Interval").text)
 
-                # Skip if any of the price elements are empty
                 zonal_price_elem = interval.find("ZonalPrice")
                 loss_price_elem = interval.find("EnergyLossPrice")
                 cong_price_elem = interval.find("EnergyCongPrice")
 
+                # If any of the prices are null, skip to the next interval
                 if (
                     not zonal_price_elem.text.strip()
                     or not loss_price_elem.text.strip()
@@ -2628,22 +2622,19 @@ class IESO(ISOBase):
                 ):
                     continue
 
-                # Extract prices
                 zonal_price = float(zonal_price_elem.text)
                 loss_price = float(loss_price_elem.text)
                 cong_price = float(cong_price_elem.text)
 
-                # Calculate energy price
+                # Calculate energy price from definition
                 energy_price = zonal_price - loss_price - cong_price
 
-                # Calculate interval start and end times
-                # Each interval is 5 minutes, starting from the base hour
+                # Subtract 1 from the interval number because it's 1-indexed
                 interval_start = base_datetime + pd.Timedelta(
                     minutes=(interval_num - 1) * 5,
                 )
                 interval_end = interval_start + pd.Timedelta(minutes=5)
 
-                # Add row to data
                 data_rows.append(
                     {
                         "Interval Start": interval_start,
@@ -2656,11 +2647,11 @@ class IESO(ISOBase):
                     },
                 )
 
-        # Create DataFrame from the rows
-        df = pd.DataFrame(data_rows)
-
-        # Sort by interval start and zone
-        df = df.sort_values(["Interval Start", "Location"])
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start", "Location"])
+            .reset_index()
+        )
 
         return df
 
@@ -2686,43 +2677,32 @@ class IESO(ISOBase):
 
         xml_content = self._request(url, verbose).text
 
-        # Parse the XML content
         soup = BeautifulSoup(xml_content, "xml")
 
-        # Extract delivery date and hour from the XML
         delivery_date = soup.find("DeliveryDate").text
 
-        # Create base datetime for intervals
         base_datetime = (pd.to_datetime(delivery_date)).tz_localize(
             self.default_timezone,
         )
 
-        # Create a list to hold all data rows
         data_rows = []
 
-        # Iterate through each transaction zone
         for zone in soup.find_all("TransactionZone"):
             zone_name = zone.find("ZoneName").text
 
-            # Find all components (Zonal Price, Energy Loss Price, Energy Congestion Price)
             components = zone.find_all("Components")
 
-            # Extract data for each component
             zonal_prices = {}
             loss_prices = {}
             congestion_prices = {}
 
-            # Process each component
             for component in components:
-                # Get component type
                 component_type = component.find("PriceComponent").text
 
-                # Process each hour's data
                 for hour in component.find_all("DeliveryHour"):
                     hour_num = int(hour.find("Hour").text)
                     price = float(hour.find("LMP").text)
 
-                    # Store price in appropriate dictionary
                     if component_type == "Zonal Price":
                         zonal_prices[hour_num] = price
                     elif component_type == "Energy Loss Price":
@@ -2730,26 +2710,23 @@ class IESO(ISOBase):
                     elif component_type == "Energy Congestion Price":
                         congestion_prices[hour_num] = price
 
-            # Create data rows for each hour
-            for hour_num in range(1, 25):  # Hours 1-24
+            # Hours are 1-indexed, so we loop from 1 to 24
+            for hour_num in range(1, 25):
                 if (
                     hour_num in zonal_prices
                     and hour_num in loss_prices
                     and hour_num in congestion_prices
                 ):
-                    # Calculate interval start and end times
                     interval_start = base_datetime + pd.Timedelta(hours=hour_num - 1)
                     interval_end = interval_start + pd.Timedelta(hours=1)
 
-                    # Get the prices
                     lmp = zonal_prices[hour_num]
                     loss = loss_prices[hour_num]
                     congestion = congestion_prices[hour_num]
 
-                    # Calculate energy component
+                    # Calculate energy component from definition
                     energy = lmp - loss - congestion
 
-                    # Add row to data
                     data_rows.append(
                         {
                             "Interval Start": interval_start,
@@ -2762,11 +2739,12 @@ class IESO(ISOBase):
                         },
                     )
 
-        # Create DataFrame from the rows
-        df = pd.DataFrame(data_rows)
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start", "Location"])
+            .reset_index()
+        )
 
-        # Sort by interval start and zone
-        df = df.sort_values(["Interval Start", "Location"])
         return df
 
     @support_date_range(frequency="HOUR_START")
@@ -2790,49 +2768,39 @@ class IESO(ISOBase):
 
         root = ElementTree.fromstring(xml_content)
 
-        # Define namespace to properly navigate the XML
-        namespaces = {"ns": "http://www.ieso.ca/schema"}
+        ns = NAMESPACES_FOR_XML.copy()
 
-        # Get the delivery date and hour
-        delivery_date = root.find(".//ns:DeliveryDate", namespaces).text
-        delivery_hour = int(root.find(".//ns:DeliveryHour", namespaces).text)
+        delivery_date = root.find(".//ns:DeliveryDate", ns).text
+        delivery_hour = int(root.find(".//ns:DeliveryHour", ns).text)
 
-        # Parse the date to create interval timestamps
         base_datetime = (
             pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
         ).tz_localize(self.default_timezone)
 
-        # Create a list to store all data rows
         data_rows = []
 
-        # Find all IntertieLMPrice elements
-        intertie_prices = root.findall(".//ns:IntertieLMPrice", namespaces)
+        intertie_prices = root.findall(".//ns:IntertieLMPrice", ns)
 
         for intertie_price in intertie_prices:
-            # Get the location name
-            location = intertie_price.find("ns:IntertiePLName", namespaces).text
+            location = intertie_price.find("ns:IntertiePLName", ns).text
 
-            # Get all components
-            components = intertie_price.findall("ns:Components", namespaces)
+            components = intertie_price.findall("ns:Components", ns)
 
-            # Initialize dictionaries to store values for each interval
             lmp_values = {}
             loss_values = {}
             energy_congestion_values = {}
             external_congestion_values = {}
-            nisl_values = {}  # Net Interchange Scheduling Limit
+            # Net Interchange Scheduling Limit
+            nisl_values = {}
 
-            # Process each component type
             for component in components:
-                component_type = component.find("ns:LMPComponent", namespaces).text
-                intervals = component.findall("ns:IntervalLMP", namespaces)
+                component_type = component.find("ns:LMPComponent", ns).text
+                intervals = component.findall("ns:IntervalLMP", ns)
 
-                # Process each interval for this component
                 for interval in intervals:
-                    interval_num = interval.find("ns:Interval", namespaces).text
-                    lmp_value_elem = interval.find("ns:LMP", namespaces)
+                    interval_num = interval.find("ns:Interval", ns).text
+                    lmp_value_elem = interval.find("ns:LMP", ns)
 
-                    # Skip if no value (empty interval)
                     if (
                         lmp_value_elem is None
                         or lmp_value_elem.text is None
@@ -2842,7 +2810,6 @@ class IESO(ISOBase):
 
                     lmp_value = float(lmp_value_elem.text)
 
-                    # Store value in appropriate dictionary based on component type
                     if component_type == "Intertie LMP":
                         lmp_values[interval_num] = lmp_value
                     elif component_type == "Energy Loss Price":
@@ -2857,29 +2824,24 @@ class IESO(ISOBase):
                     ):
                         nisl_values[interval_num] = lmp_value
 
-            # Create a row for each interval that has complete data
             for interval_num in lmp_values.keys():
-                # Check if we have all required values for this interval
                 if (
                     interval_num in loss_values
                     and interval_num in energy_congestion_values
                     and interval_num in external_congestion_values
                     and interval_num in nisl_values
                 ):
-                    # Calculate interval start and end times
                     interval_start = base_datetime + pd.Timedelta(
                         minutes=(int(interval_num) - 1) * 5,
                     )
                     interval_end = interval_start + pd.Timedelta(minutes=5)
 
-                    # Calculate the energy price component
                     energy_price = (
                         lmp_values[interval_num]
                         - energy_congestion_values[interval_num]
                         - loss_values[interval_num]
                     )
 
-                    # Create a data row
                     row = {
                         "Interval Start": interval_start,
                         "Interval End": interval_end,
@@ -2894,8 +2856,11 @@ class IESO(ISOBase):
 
                     data_rows.append(row)
 
-        df = pd.DataFrame(data_rows)
-        df = df.sort_values(["Interval Start", "Location"])
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start", "Location"])
+            .reset_index()
+        )
 
         return df
 
@@ -2906,7 +2871,8 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get day-ahead zonal virtual LMP data for interties.
+        """Get day-ahead LMP intertie data
+
         Args:
             date: The date to get the data for.
             end: The end date to get the data for.
@@ -2921,11 +2887,9 @@ class IESO(ISOBase):
 
         xml_content = self._request(url, verbose).text
 
-        # Parse the XML content
         root = ElementTree.fromstring(xml_content)
 
-        # Define the namespace
-        ns = {"ieso": "http://www.ieso.ca/schema"}
+        ns = NAMESPACES_FOR_XML.copy()
 
         # Get the delivery date
         delivery_date = root.find(".//ieso:DeliveryDate", ns).text
@@ -2980,14 +2944,11 @@ class IESO(ISOBase):
                     ):
                         hourly_nisl[hour] = value
 
-            # Create data rows for each hour
             for hour in range(1, 25):
                 if hour in hourly_lmp:
-                    # Calculate start and end times for the interval
                     interval_start = base_date + pd.Timedelta(hours=hour - 1)
                     interval_end = interval_start + pd.Timedelta(hours=1)
 
-                    # Calculate "Energy" as LMP - Congestion - Loss
                     lmp = hourly_lmp.get(hour, 0)
                     congestion = hourly_congestion.get(hour, 0)
                     loss = hourly_loss.get(hour, 0)
@@ -3010,11 +2971,11 @@ class IESO(ISOBase):
                         },
                     )
 
-        # Create DataFrame from the collected data
-        df = pd.DataFrame(data_rows)
-
-        # Sort the DataFrame by Interval Start and Location
-        df = df.sort_values(["Interval Start", "Location"])
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start", "Location"])
+            .reset_index()
+        )
 
         return df
 
@@ -3036,13 +2997,10 @@ class IESO(ISOBase):
 
         xml_content = self._request(url, verbose).text
 
-        # Parse the XML content
         root = ElementTree.fromstring(xml_content)
 
-        # Define the namespace
-        ns = {"ieso": "http://www.ieso.ca/schema"}
+        ns = NAMESPACES_FOR_XML.copy()
 
-        # Get the delivery date and hour
         delivery_date_text = root.find(".//ieso:DeliveryDate", ns).text
         # Extract date and hour from the text (e.g., "For 2025-04-23 - Hour 12")
         delivery_date = pd.Timestamp(
@@ -3054,19 +3012,16 @@ class IESO(ISOBase):
             pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
         ).tz_localize(self.default_timezone)
 
-        # Find all price component groups
         price_components = root.findall(".//ieso:RealTimePriceComponents", ns)
 
-        # Initialize dictionaries to store data for each interval
         zonal_prices = {}
         loss_prices = {}
         congestion_prices = {}
 
-        # Process each component group
         for component in price_components:
             component_type = component.find("ieso:OntarioZonalPrice", ns).text
 
-            # Process each interval (now using range 1-12 for all 12 intervals)
+            # Intervals are 1-indexed, so we loop from 1 to 12
             for interval in range(1, 13):
                 interval_element_name = f"ieso:OntarioZonalPriceInterval{interval}"
                 interval_value_name = f"ieso:Interval{interval}"
@@ -3083,23 +3038,18 @@ class IESO(ISOBase):
                             loss_prices[interval] = value
                         elif component_type == "Energy Congestion Price":
                             congestion_prices[interval] = value
-
-        # Create data rows for each interval
         data_rows = []
 
-        for interval in range(1, 13):  # Process all 12 intervals
+        for interval in range(1, 13):
             if interval in zonal_prices:
-                # Calculate the start and end time for each 5-minute interval
                 minutes_offset = (interval - 1) * 5
                 interval_start = base_datetime + pd.Timedelta(minutes=minutes_offset)
                 interval_end = interval_start + pd.Timedelta(minutes=5)
 
-                # Get the component values
                 lmp = zonal_prices.get(interval, 0)
                 loss = loss_prices.get(interval, 0)
                 congestion = congestion_prices.get(interval, 0)
 
-                # Calculate Energy component (LMP - Congestion - Loss)
                 energy = lmp - congestion - loss
 
                 data_rows.append(
@@ -3113,11 +3063,7 @@ class IESO(ISOBase):
                     },
                 )
 
-        # Create DataFrame from the collected data
-        df = pd.DataFrame(data_rows)
-
-        # Sort the DataFrame by Interval Start
-        df = df.sort_values(["Interval Start"])
+        df = pd.DataFrame(data_rows).sort_values(["Interval Start"]).reset_index()
 
         return df
 
@@ -3135,25 +3081,18 @@ class IESO(ISOBase):
 
         xml_content = self._request(url, verbose).text
 
-        # Parse the XML content
         root = ElementTree.fromstring(xml_content)
+        ns = NAMESPACES_FOR_XML.copy()
 
-        # Define the namespace
-        ns = {"ieso": "http://www.ieso.ca/schema"}
-
-        # Get the delivery date
         delivery_date = pd.Timestamp(
             root.find(".//ieso:DeliveryDate", ns).text,
         ).tz_localize(self.default_timezone)
 
-        # Initialize list to store data
         data_rows = []
 
-        # Find all hourly price components
         hourly_components = root.findall(".//ieso:HourlyPriceComponents", ns)
 
         for component in hourly_components:
-            # Extract hour, prices, and flags
             hour = int(component.find("ieso:PricingHour", ns).text)
             lmp = float(component.find("ieso:ZonalPrice", ns).text)
             loss_price = float(component.find("ieso:LossPriceCapped", ns).text)
@@ -3161,13 +3100,11 @@ class IESO(ISOBase):
                 component.find("ieso:CongestionPriceCapped", ns).text,
             )
 
-            # Calculate the Energy component
             energy = lmp - loss_price - congestion_price
 
             interval_start = delivery_date + pd.Timedelta(hours=hour - 1)
             interval_end = interval_start + pd.Timedelta(hours=1)
 
-            # Create data row
             data_rows.append(
                 {
                     "Interval Start": interval_start,
@@ -3179,10 +3116,6 @@ class IESO(ISOBase):
                 },
             )
 
-        # Create DataFrame from the collected data
-        df = pd.DataFrame(data_rows)
-
-        # Sort the DataFrame by Interval Start
-        df = df.sort_values(["Interval Start"])
+        df = pd.DataFrame(data_rows).sort_values(["Interval Start"]).reset_index()
 
         return df
