@@ -1210,9 +1210,14 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_data(data, interval_minutes=60)
 
-        # Check that the data is for today
+        # Check that the data is all for one day. We can't check for a specific date
+        # because, based on the time of day, the latest file will have data for
+        # today or tomorrow.
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+        tomorrow = today + pd.Timedelta(days=1)
+        assert ((data[TIME_COLUMN].dt.date == today.date()).all()) or (
+            (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
+        )
 
     def test_get_lmp_day_ahead_hourly_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1302,9 +1307,14 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_zonal_virtual_data(data, interval_minutes=60)
 
-        # Check that the data is for tomorrow
+        # Check that the data is all for one day. We can't check for a specific date
+        # because, based on the time of day, the latest file will have data for
+        # today or tomorrow.
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date() + pd.Timedelta(days=1)).all()
+        tomorrow = today + pd.Timedelta(days=1)
+        assert ((data[TIME_COLUMN].dt.date == today.date()).all()) or (
+            (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
+        )
 
     def test_get_lmp_zonal_virtual_day_ahead_hourly_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
