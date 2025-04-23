@@ -331,6 +331,7 @@ class CAISO(ISOBase):
         raw_data: bool = False,
         verbose: bool = False,
         sleep: int = 5,
+        max_retries: int = 3,
     ) -> pd.DataFrame | None:
         start, end = _caiso_handle_start_end(start, end)
         config = copy.deepcopy(config)
@@ -346,16 +347,23 @@ class CAISO(ISOBase):
         logger.info(f"Fetching URL: {url}")
 
         retry_num = 0
-        while retry_num < 3:
+        while retry_num < max_retries:
             r = requests.get(url)
 
             if r.status_code == 200:
                 break
 
             retry_num += 1
-            logger.error(f"Failed to get data from CAISO. Error: {r.status_code}")
-            logger.error(f"Retrying {retry_num}...")
+            logger.info(
+                f"Failed to get data from CAISO. Error: {r.status_code}. Retrying...{retry_num} / {max_retries}",
+            )
+
             time.sleep(sleep)
+            sleep *= retry_num
+
+        if r.status_code == 429:
+            logger.warning(f"CAISO rate limit exceeded. Tried {retry_num} times.")
+            return None
 
         # this is when no data is available
         if (
