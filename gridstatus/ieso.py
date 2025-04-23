@@ -25,6 +25,9 @@ CERTIFICATES_CHAIN_FILE = os.path.join(
     "public_certificates/ieso/intermediate_and_root.pem",
 )
 
+# TODO (Will) Update when the new data goes live
+PUBLIC_REPORTS_URL_PREFIX = "https://reports-public-sandbox.ieso.ca/public"
+
 """LOAD CONSTANTS"""
 # Load hourly files go back 30 days
 MAXIMUM_DAYS_IN_PAST_FOR_LOAD = 30
@@ -2464,14 +2467,14 @@ class IESO(ISOBase):
         verbose: bool = False,
     ):
         if date == "latest":
-            url = "https://reports-public-sandbox.ieso.ca/public/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP.csv"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP.csv"
             date = pd.Timestamp.now(tz=self.default_timezone)
         else:
             hour = date.hour
             # Hour numbers are 1-24, so we need to add 1
             file_hour = f"{hour + 1}".zfill(2)
 
-            url = f"https://reports-public-sandbox.ieso.ca/public/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP_{date.strftime('%Y%m%d')}{file_hour}.csv"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP_{date.strftime('%Y%m%d')}{file_hour}.csv"
 
         return self._get_lmp_data(
             url,
@@ -2496,10 +2499,10 @@ class IESO(ISOBase):
             DataFrame with LMP data.
         """
         if date == "latest":
-            url = "https://reports-public-sandbox.ieso.ca/public/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP.csv"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP.csv"
             date = pd.Timestamp.now(tz=self.default_timezone)
         else:
-            url = f"https://reports-public-sandbox.ieso.ca/public/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP_{date.strftime('%Y%m%d')}.csv"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP_{date.strftime('%Y%m%d')}.csv"
 
         return self._get_lmp_data(
             url,
@@ -2571,7 +2574,11 @@ class IESO(ISOBase):
             "Loss",
         ]
 
-        data = data[columns].sort_values(["Interval Start", "Location"]).reset_index()
+        data = (
+            data[columns]
+            .sort_values(["Interval Start", "Location"])
+            .reset_index(drop=True)
+        )
 
         return data
 
@@ -2583,13 +2590,13 @@ class IESO(ISOBase):
         verbose: bool = False,
     ):
         if date == "latest":
-            url = "https://reports-public-sandbox.ieso.ca/public/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices.xml"
         else:
             hour = date.hour
             # Hour numbers are 1-24, so we need to add 1
             file_hour = f"{hour + 1}".zfill(2)
 
-            url = f"https://reports-public-sandbox.ieso.ca/public/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices_{date.strftime('%Y%m%d')}{file_hour}.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices_{date.strftime('%Y%m%d')}{file_hour}.xml"
 
         xml_content = self._request(url, verbose).text
 
@@ -2650,7 +2657,7 @@ class IESO(ISOBase):
         df = (
             pd.DataFrame(data_rows)
             .sort_values(["Interval Start", "Location"])
-            .reset_index()
+            .reset_index(drop=True)
         )
 
         return df
@@ -2671,9 +2678,9 @@ class IESO(ISOBase):
             DataFrame with LMP data.
         """
         if date == "latest":
-            url = "https://reports-public-sandbox.ieso.ca/public/DAHourlyZonal/PUB_DAHourlyZonal.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyZonal/PUB_DAHourlyZonal.xml"
         else:
-            url = f"https://reports-public-sandbox.ieso.ca/public/DAHourlyZonal/PUB_DAHourlyZonal_{date.strftime('%Y%m%d')}.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyZonal/PUB_DAHourlyZonal_{date.strftime('%Y%m%d')}.xml"
 
         xml_content = self._request(url, verbose).text
 
@@ -2742,7 +2749,7 @@ class IESO(ISOBase):
         df = (
             pd.DataFrame(data_rows)
             .sort_values(["Interval Start", "Location"])
-            .reset_index()
+            .reset_index(drop=True)
         )
 
         return df
@@ -2755,23 +2762,23 @@ class IESO(ISOBase):
         verbose: bool = False,
     ):
         if date == "latest":
-            url = "https://reports-public-sandbox.ieso.ca/public/RealTimeIntertieLMP/PUB_RealTimeIntertieLMP.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealTimeIntertieLMP/PUB_RealTimeIntertieLMP.xml"
             date = pd.Timestamp.now(tz=self.default_timezone)
         else:
             hour = date.hour
             # Hour numbers are 1-24, so we need to add 1
             file_hour = f"{hour + 1}".zfill(2)
 
-            url = f"https://reports-public-sandbox.ieso.ca/public/RealTimeIntertieLMP/PUB_RealTimeIntertieLMP_{date.strftime('%Y%m%d')}{file_hour}.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealTimeIntertieLMP/PUB_RealTimeIntertieLMP_{date.strftime('%Y%m%d')}{file_hour}.xml"
 
         xml_content = self._request(url, verbose).text
 
         root = ElementTree.fromstring(xml_content)
 
-        ns = NAMESPACES_FOR_XML.copy()
+        ns = {"": "http://www.ieso.ca/schema"}
 
-        delivery_date = root.find(".//ns:DeliveryDate", ns).text
-        delivery_hour = int(root.find(".//ns:DeliveryHour", ns).text)
+        delivery_date = root.find(".//DeliveryDate", ns).text
+        delivery_hour = int(root.find(".//DeliveryHour", ns).text)
 
         base_datetime = (
             pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
@@ -2779,12 +2786,12 @@ class IESO(ISOBase):
 
         data_rows = []
 
-        intertie_prices = root.findall(".//ns:IntertieLMPrice", ns)
+        intertie_prices = root.findall(".//IntertieLMPrice", ns)
 
         for intertie_price in intertie_prices:
-            location = intertie_price.find("ns:IntertiePLName", ns).text
+            location = intertie_price.find("IntertiePLName", ns).text
 
-            components = intertie_price.findall("ns:Components", ns)
+            components = intertie_price.findall("Components", ns)
 
             lmp_values = {}
             loss_values = {}
@@ -2794,12 +2801,12 @@ class IESO(ISOBase):
             nisl_values = {}
 
             for component in components:
-                component_type = component.find("ns:LMPComponent", ns).text
-                intervals = component.findall("ns:IntervalLMP", ns)
+                component_type = component.find("LMPComponent", ns).text
+                intervals = component.findall("IntervalLMP", ns)
 
                 for interval in intervals:
-                    interval_num = interval.find("ns:Interval", ns).text
-                    lmp_value_elem = interval.find("ns:LMP", ns)
+                    interval_num = interval.find("Interval", ns).text
+                    lmp_value_elem = interval.find("LMP", ns)
 
                     if (
                         lmp_value_elem is None
@@ -2859,7 +2866,7 @@ class IESO(ISOBase):
         df = (
             pd.DataFrame(data_rows)
             .sort_values(["Interval Start", "Location"])
-            .reset_index()
+            .reset_index(drop=True)
         )
 
         return df
@@ -2881,9 +2888,9 @@ class IESO(ISOBase):
             DataFrame with LMP data.
         """
         if date == "latest":
-            url = "https://reports-public-sandbox.ieso.ca/public/DAHourlyIntertieLMP/PUB_DAHourlyIntertieLMP.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyIntertieLMP/PUB_DAHourlyIntertieLMP.xml"
         else:
-            url = f"https://reports-public-sandbox.ieso.ca/public/DAHourlyIntertieLMP/PUB_DAHourlyIntertieLMP_{date.strftime('%Y%m%d')}.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyIntertieLMP/PUB_DAHourlyIntertieLMP_{date.strftime('%Y%m%d')}.xml"
 
         xml_content = self._request(url, verbose).text
 
@@ -2892,18 +2899,18 @@ class IESO(ISOBase):
         ns = NAMESPACES_FOR_XML.copy()
 
         # Get the delivery date
-        delivery_date = root.find(".//ieso:DeliveryDate", ns).text
+        delivery_date = root.find(".//DeliveryDate", ns).text
         base_date = pd.Timestamp(delivery_date).tz_localize(self.default_timezone)
 
         # Initialize empty lists to store data
         data_rows = []
 
         # Find all IntertieLMPrice elements
-        intertie_prices = root.findall(".//ieso:IntertieLMPrice", ns)
+        intertie_prices = root.findall(".//IntertieLMPrice", ns)
 
         for intertie in intertie_prices:
             # Get location name
-            location = intertie.find("ieso:IntertiePLName", ns).text
+            location = intertie.find("IntertiePLName", ns).text
 
             # Extract location code
             if ":LMP" in location:
@@ -2912,7 +2919,7 @@ class IESO(ISOBase):
                 location_code = location
 
             # Find all component groups
-            components = intertie.findall("ieso:Components", ns)
+            components = intertie.findall("Components", ns)
 
             # Initialize dictionaries to store hourly data
             hourly_lmp = {}
@@ -2923,12 +2930,12 @@ class IESO(ISOBase):
 
             # Process each component group
             for comp in components:
-                component_type = comp.find("ieso:LMPComponent", ns).text
-                hourly_values = comp.findall("ieso:HourlyLMP", ns)
+                component_type = comp.find("LMPComponent", ns).text
+                hourly_values = comp.findall("HourlyLMP", ns)
 
                 for hour_data in hourly_values:
-                    hour = int(hour_data.find("ieso:DeliveryHour", ns).text)
-                    value = float(hour_data.find("ieso:LMP", ns).text)
+                    hour = int(hour_data.find("DeliveryHour", ns).text)
+                    value = float(hour_data.find("LMP", ns).text)
 
                     if component_type == "Intertie LMP":
                         hourly_lmp[hour] = value
@@ -2974,7 +2981,7 @@ class IESO(ISOBase):
         df = (
             pd.DataFrame(data_rows)
             .sort_values(["Interval Start", "Location"])
-            .reset_index()
+            .reset_index(drop=True)
         )
 
         return df
@@ -2987,13 +2994,13 @@ class IESO(ISOBase):
         verbose: bool = False,
     ):
         if date == "latest":
-            url = "https://reports-public-sandbox.ieso.ca/public/RealtimeOntarioZonalPrice/PUB_RealtimeOntarioZonalPrice.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeOntarioZonalPrice/PUB_RealtimeOntarioZonalPrice.xml"
         else:
             hour = date.hour
             # Hour numbers are 1-24, so we need to add 1
             file_hour = f"{hour + 1}".zfill(2)
 
-            url = f"https://reports-public-sandbox.ieso.ca/public/RealtimeOntarioZonalPrice/PUB_RealtimeOntarioZonalPrice_{date.strftime('%Y%m%d')}{file_hour}.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeOntarioZonalPrice/PUB_RealtimeOntarioZonalPrice_{date.strftime('%Y%m%d')}{file_hour}.xml"
 
         xml_content = self._request(url, verbose).text
 
@@ -3001,7 +3008,7 @@ class IESO(ISOBase):
 
         ns = NAMESPACES_FOR_XML.copy()
 
-        delivery_date_text = root.find(".//ieso:DeliveryDate", ns).text
+        delivery_date_text = root.find(".//DeliveryDate", ns).text
         # Extract date and hour from the text (e.g., "For 2025-04-23 - Hour 12")
         delivery_date = pd.Timestamp(
             delivery_date_text.split(" - ")[0].replace("For ", ""),
@@ -3012,19 +3019,19 @@ class IESO(ISOBase):
             pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
         ).tz_localize(self.default_timezone)
 
-        price_components = root.findall(".//ieso:RealTimePriceComponents", ns)
+        price_components = root.findall(".//RealTimePriceComponents", ns)
 
         zonal_prices = {}
         loss_prices = {}
         congestion_prices = {}
 
         for component in price_components:
-            component_type = component.find("ieso:OntarioZonalPrice", ns).text
+            component_type = component.find("OntarioZonalPrice", ns).text
 
             # Intervals are 1-indexed, so we loop from 1 to 12
             for interval in range(1, 13):
-                interval_element_name = f"ieso:OntarioZonalPriceInterval{interval}"
-                interval_value_name = f"ieso:Interval{interval}"
+                interval_element_name = f"OntarioZonalPriceInterval{interval}"
+                interval_value_name = f"Interval{interval}"
 
                 interval_element = component.find(interval_element_name, ns)
                 if interval_element is not None:
@@ -3063,7 +3070,11 @@ class IESO(ISOBase):
                     },
                 )
 
-        df = pd.DataFrame(data_rows).sort_values(["Interval Start"]).reset_index()
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+        )
 
         return df
 
@@ -3075,9 +3086,9 @@ class IESO(ISOBase):
         verbose: bool = False,
     ):
         if date == "latest":
-            url = "https://reports-public-sandbox.ieso.ca/public/DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice.xml"
         else:
-            url = f"https://reports-public-sandbox.ieso.ca/public/DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice_{date.strftime('%Y%m%d')}.xml"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice_{date.strftime('%Y%m%d')}.xml"
 
         xml_content = self._request(url, verbose).text
 
@@ -3085,19 +3096,19 @@ class IESO(ISOBase):
         ns = NAMESPACES_FOR_XML.copy()
 
         delivery_date = pd.Timestamp(
-            root.find(".//ieso:DeliveryDate", ns).text,
+            root.find(".//DeliveryDate", ns).text,
         ).tz_localize(self.default_timezone)
 
         data_rows = []
 
-        hourly_components = root.findall(".//ieso:HourlyPriceComponents", ns)
+        hourly_components = root.findall(".//HourlyPriceComponents", ns)
 
         for component in hourly_components:
-            hour = int(component.find("ieso:PricingHour", ns).text)
-            lmp = float(component.find("ieso:ZonalPrice", ns).text)
-            loss_price = float(component.find("ieso:LossPriceCapped", ns).text)
+            hour = int(component.find("PricingHour", ns).text)
+            lmp = float(component.find("ZonalPrice", ns).text)
+            loss_price = float(component.find("LossPriceCapped", ns).text)
             congestion_price = float(
-                component.find("ieso:CongestionPriceCapped", ns).text,
+                component.find("CongestionPriceCapped", ns).text,
             )
 
             energy = lmp - loss_price - congestion_price
@@ -3116,6 +3127,10 @@ class IESO(ISOBase):
                 },
             )
 
-        df = pd.DataFrame(data_rows).sort_values(["Interval Start"]).reset_index()
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+        )
 
         return df
