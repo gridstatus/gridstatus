@@ -7,11 +7,12 @@ from pandas.core.dtypes.common import is_numeric_dtype
 
 from gridstatus import IESO, utils
 from gridstatus.base import NotSupported
-from gridstatus.ieso import (
+from gridstatus.ieso_constants import (
     MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
     MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
     MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
     ONTARIO_LOCATION,
+    RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -899,7 +900,7 @@ class TestIESO(BaseTestISO):
             assert "DeliveryDate" in doc_body
 
     def test_get_resource_adequacy_data_structure_map(self):
-        data_map = self.iso._get_resource_adequacy_data_structure_map()
+        data_map = RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP
 
         assert isinstance(data_map, dict)
         assert "supply" in data_map
