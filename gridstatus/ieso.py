@@ -2583,7 +2583,7 @@ class IESO(ISOBase):
         return data
 
     @support_date_range(frequency="HOUR_START")
-    def get_lmp_real_time_5_min_zonal_virtual(
+    def get_lmp_real_time_5_min_virtual_zonal(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -2663,7 +2663,7 @@ class IESO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_lmp_day_ahead_hourly_zonal_virtual(
+    def get_lmp_day_ahead_hourly_virtual_zonal(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,

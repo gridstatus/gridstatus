@@ -1236,9 +1236,9 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
 
-    """get_lmp_real_time_5_min_zonal_virtual"""
+    """get_lmp_real_time_5_min_virtual_zonal"""
 
-    def _check_lmp_zonal_virtual_data(
+    def _check_lmp_virtual_zonal_data(
         self,
         data: pd.DataFrame,
         interval_minutes: int,
@@ -1268,44 +1268,44 @@ class TestIESO(BaseTestISO):
 
         assert data[TIME_COLUMN].is_monotonic_increasing
 
-    def test_get_lmp_real_time_5_min_zonal_virtual_latest(self):
+    def test_get_lmp_real_time_5_min_virtual_zonal_latest(self):
         with file_vcr.use_cassette(
-            "test_get_lmp_real_time_5_min_zonal_virtual_latest.yaml",
+            "test_get_lmp_real_time_5_min_virtual_zonal_latest.yaml",
         ):
-            data = self.iso.get_lmp_real_time_5_min_zonal_virtual("latest")
+            data = self.iso.get_lmp_real_time_5_min_virtual_zonal("latest")
 
-        self._check_lmp_zonal_virtual_data(data, interval_minutes=5)
+        self._check_lmp_virtual_zonal_data(data, interval_minutes=5)
 
         # Check that the data is for tomorrow
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
-    def test_get_lmp_real_time_5_min_zonal_virtual_historical_date_range(self):
+    def test_get_lmp_real_time_5_min_virtual_zonal_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
             days=3,
         )
         end = start + pd.Timedelta(hours=2)
 
         with file_vcr.use_cassette(
-            f"test_get_lmp_real_time_5_min_zonal_virtual_historical_date_range_{start.date()}_{end.date()}.yaml",
+            f"test_get_lmp_real_time_5_min_virtual_zonal_historical_date_range_{start.date()}_{end.date()}.yaml",
         ):
-            data = self.iso.get_lmp_real_time_5_min_zonal_virtual(start, end=end)
+            data = self.iso.get_lmp_real_time_5_min_virtual_zonal(start, end=end)
 
-        self._check_lmp_zonal_virtual_data(data, interval_minutes=5)
+        self._check_lmp_virtual_zonal_data(data, interval_minutes=5)
 
         # Check that the data is for the specified date range
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=5)
 
-    """get_lmp_day_ahead_hourly_zonal_virtual"""
+    """get_lmp_day_ahead_hourly_virtual_zonal"""
 
-    def test_get_lmp_day_ahead_hourly_zonal_virtual_latest(self):
+    def test_get_lmp_day_ahead_hourly_virtual_zonal_latest(self):
         with file_vcr.use_cassette(
-            "test_get_lmp_day_ahead_hourly_zonal_virtual_latest.yaml",
+            "test_get_lmp_day_ahead_hourly_virtual_zonal_latest.yaml",
         ):
-            data = self.iso.get_lmp_day_ahead_hourly_zonal_virtual("latest")
+            data = self.iso.get_lmp_day_ahead_hourly_virtual_zonal("latest")
 
-        self._check_lmp_zonal_virtual_data(data, interval_minutes=60)
+        self._check_lmp_virtual_zonal_data(data, interval_minutes=60)
 
         # Check that the data is all for one day. We can't check for a specific date
         # because, based on the time of day, the latest file will have data for
@@ -1316,18 +1316,18 @@ class TestIESO(BaseTestISO):
             (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
         )
 
-    def test_get_lmp_day_ahead_hourly_zonal_virtual_historical_date_range(self):
+    def test_get_lmp_day_ahead_hourly_virtual_zonal_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
             days=3,
         )
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
-            f"test_get_lmp_day_ahead_hourly_zonal_virtual_historical_date_range_{start.date()}_{end.date()}.yaml",
+            f"test_get_lmp_day_ahead_hourly_virtual_zonal_historical_date_range_{start.date()}_{end.date()}.yaml",
         ):
-            data = self.iso.get_lmp_day_ahead_hourly_zonal_virtual(start, end=end)
+            data = self.iso.get_lmp_day_ahead_hourly_virtual_zonal(start, end=end)
 
-        self._check_lmp_zonal_virtual_data(data, interval_minutes=60)
+        self._check_lmp_virtual_zonal_data(data, interval_minutes=60)
 
         # Check that the data is for the specified date range
         assert data[TIME_COLUMN].min() == start
