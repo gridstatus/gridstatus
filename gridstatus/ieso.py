@@ -27,6 +27,7 @@ CERTIFICATES_CHAIN_FILE = os.path.join(
 
 # TODO (Will) Update when the new data goes live
 PUBLIC_REPORTS_URL_PREFIX = "https://reports-public-sandbox.ieso.ca/public"
+ONTARIO_LOCATION = "ONZP"
 
 """LOAD CONSTANTS"""
 # Load hourly files go back 30 days
@@ -3067,6 +3068,7 @@ class IESO(ISOBase):
                     {
                         "Interval Start": interval_start,
                         "Interval End": interval_end,
+                        "Location": ONTARIO_LOCATION,
                         "LMP": lmp,
                         "Energy": energy,
                         "Congestion": congestion,
@@ -3124,6 +3126,7 @@ class IESO(ISOBase):
                 {
                     "Interval Start": interval_start,
                     "Interval End": interval_end,
+                    "Location": ONTARIO_LOCATION,
                     "LMP": lmp,
                     "Energy": energy,
                     "Congestion": congestion_price,

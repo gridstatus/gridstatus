@@ -11,6 +11,7 @@ from gridstatus.ieso import (
     MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
     MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
     MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
+    ONTARIO_LOCATION,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -1446,6 +1447,7 @@ class TestIESO(BaseTestISO):
         assert data.columns.tolist() == [
             "Interval Start",
             "Interval End",
+            "Location",
             "LMP",
             "Energy",
             "Congestion",
@@ -1466,6 +1468,8 @@ class TestIESO(BaseTestISO):
         ).all()
 
         assert data[TIME_COLUMN].is_monotonic_increasing
+
+        assert (data["Location"] == ONTARIO_LOCATION).all()
 
     def test_get_lmp_real_time_5_min_ontario_zonal_latest(self):
         with file_vcr.use_cassette(
