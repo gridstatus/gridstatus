@@ -31,6 +31,7 @@ dependencies = [
     "cryptography >= 43.0.1",
     "urllib3 >= 2.2.2",
     "virtualenv >= 20.26.6",
+    "frozendict>=2.4.6",
 ]
 
 [tool.uv]
