@@ -1,5 +1,9 @@
 import frozendict
 
+# TODO (Will) Update when the new data goes live
+PUBLIC_REPORTS_URL_PREFIX = "https://reports-public-sandbox.ieso.ca/public"
+ONTARIO_LOCATION = "ONZP"
+
 """LOAD CONSTANTS"""
 # Load hourly files go back 30 days
 MAXIMUM_DAYS_IN_PAST_FOR_LOAD: int = 30

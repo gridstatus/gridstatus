@@ -3,15 +3,16 @@ import http.client
 import os
 import re
 import time
-import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from typing import Literal
 from urllib.error import HTTPError
+from xml.etree import ElementTree
 
 import pandas as pd
 import requests
 import xmltodict
+from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import ISOBase, NotSupported
@@ -31,6 +32,8 @@ from gridstatus.ieso_constants import (
     MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST,
     MINUTES_INTERVAL,
     NAMESPACES_FOR_XML,
+    ONTARIO_LOCATION,
+    PUBLIC_REPORTS_URL_PREFIX,
     RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP,
     ZONAL_LOAD_FORECAST_TEMPLATE_URL,
 )
@@ -153,7 +156,7 @@ class IESO(ISOBase):
 
         r = self._request(url, verbose)
 
-        root = ET.fromstring(r.text)
+        root = ElementTree.fromstring(r.text)
 
         # Extracting all triples of Interval, Market Total Load, and Ontario Load
         interval_loads_and_demands = self._find_loads_at_each_interval_from_xml(root)
@@ -205,7 +208,7 @@ class IESO(ISOBase):
                 "Only 'today' and 'latest' are supported for load forecasts.",
             )
 
-        root = ET.fromstring(self._request(LOAD_FORECAST_URL, verbose).text)
+        root = ElementTree.fromstring(self._request(LOAD_FORECAST_URL, verbose).text)
 
         # Extract values from <DataSet Series="Projected">
         projected_values = []
@@ -321,7 +324,7 @@ class IESO(ISOBase):
         data = []
 
         # Parse the XML file
-        root = ET.fromstring(r.content)
+        root = ElementTree.fromstring(r.content)
 
         published_time = root.find(".//CreatedAt", NAMESPACES_FOR_XML).text
 
@@ -610,7 +613,7 @@ class IESO(ISOBase):
 
         r = self._request(url, verbose)
 
-        root = ET.fromstring(r.content)
+        root = ElementTree.fromstring(r.content)
 
         # Define the namespace map. This is different than all the other XML files
         ns = {"": "http://www.theIMO.com/schema"}
@@ -742,8 +745,8 @@ class IESO(ISOBase):
 
         r = self._request(url, verbose)
 
-        root = ET.fromstring(r.content)
-        ns = NAMESPACES_FOR_XML
+        root = ElementTree.fromstring(r.content)
+        ns = NAMESPACES_FOR_XML.copy()
         data = []
 
         # Iterate through each day
@@ -825,7 +828,7 @@ class IESO(ISOBase):
     # Function to extract data for a specific Market Quantity considering namespace
     def _extract_load_in_market_quantity(
         self,
-        market_quantity_element: ET.Element,
+        market_quantity_element: ElementTree.Element,
         market_quantity_name: str,
     ):
         for mq in market_quantity_element.findall("MQ", NAMESPACES_FOR_XML):
@@ -838,7 +841,7 @@ class IESO(ISOBase):
 
     # Function to find all triples of 'Interval', 'Market Total Load', and
     # 'Ontario Load' in the XML file
-    def _find_loads_at_each_interval_from_xml(self, root_element: ET.Element):
+    def _find_loads_at_each_interval_from_xml(self, root_element: ElementTree.Element):
         interval_load_demand_triples = []
 
         for interval_energy in root_element.findall(
@@ -1929,4 +1932,686 @@ class IESO(ISOBase):
         df = utils.move_cols_to_front(df, key_columns + total_columns)
 
         df.drop(columns=["Date", "Hour"], inplace=True)
+        return df
+
+    @support_date_range(frequency="HOUR_START")
+    def get_lmp_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP.csv"
+            date = pd.Timestamp.now(tz=self.default_timezone)
+        else:
+            hour = date.hour
+            # Hour numbers are 1-24, so we need to add 1
+            file_hour = f"{hour + 1}".zfill(2)
+
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP_{date.strftime('%Y%m%d')}{file_hour}.csv"
+
+        return self._get_lmp_data(
+            url,
+            date,
+            interval_duration="minute",
+            minutes_per_interval=5,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_lmp_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead LMP data.
+        Args:
+            date: The date to get the data for.
+            end: The end date to get the data for.
+            verbose: Whether to print verbose output.
+        Returns:
+            DataFrame with LMP data.
+        """
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP.csv"
+            date = pd.Timestamp.now(tz=self.default_timezone)
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP_{date.strftime('%Y%m%d')}.csv"
+
+        return self._get_lmp_data(
+            url,
+            date,
+            interval_duration="hour",
+            minutes_per_interval=60,
+        )
+
+    def _get_lmp_data(
+        self,
+        url: str,
+        date: pd.Timestamp,
+        interval_duration: str = "hour",
+        minutes_per_interval: int = 60,
+    ):
+        """Common method to fetch and process LMP data.
+
+        Args:
+            url: The URL to fetch data from.
+            date: The date to process data for.
+            interval_duration: Duration unit for interval ('hour' or 'minute').
+            minutes_per_interval: Number of minutes per interval.
+
+        Returns:
+            DataFrame with processed LMP data.
+        """
+        data = pd.read_csv(url, skiprows=1)
+
+        if interval_duration == "minute":
+            data["Interval Start"] = pd.to_datetime(
+                date.normalize()
+                # Need to subtract 1 from the hour because the hour is 1-indexed
+                + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour")
+                # The interval is 1-indexed, so we need to subtract 1 from the interval
+                + pd.to_timedelta(
+                    (data["Interval"] - 1) * minutes_per_interval,
+                    unit="minute",
+                ),
+            )
+        elif interval_duration == "hour":
+            data["Interval Start"] = pd.to_datetime(
+                date.normalize()
+                + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour"),
+            )
+
+        data["Interval End"] = data["Interval Start"] + pd.Timedelta(
+            minutes=minutes_per_interval,
+        )
+
+        # Standardize column names
+        data = data.rename(
+            columns={
+                "Energy Loss Price": "Loss",
+                "Energy Congestion Price": "Congestion",
+                "Pricing Location": "Location",
+            },
+        )
+
+        # Calculate energy from definition of LMP
+        data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
+
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        data = (
+            data[columns]
+            .sort_values(["Interval Start", "Location"])
+            .reset_index(drop=True)
+        )
+
+        return data
+
+    @support_date_range(frequency="HOUR_START")
+    def get_lmp_real_time_5_min_virtual_zonal(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices.xml"
+        else:
+            hour = date.hour
+            # Hour numbers are 1-24, so we need to add 1
+            file_hour = f"{hour + 1}".zfill(2)
+
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices_{date.strftime('%Y%m%d')}{file_hour}.xml"
+
+        xml_content = self._request(url, verbose).text
+
+        soup = BeautifulSoup(xml_content, "xml")
+
+        delivery_date = soup.find("DELIVERYDATE").text
+        delivery_hour = int(soup.find("DELIVERYHOUR").text)
+
+        base_datetime = (
+            pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
+        ).tz_localize(self.default_timezone)
+
+        data_rows = []
+
+        for zone in soup.find_all("TransactionZone"):
+            zone_name = zone.find("ZoneName").text
+
+            for interval in zone.find_all("IntervalPrice"):
+                interval_num = int(interval.find("Interval").text)
+
+                zonal_price_elem = interval.find("ZonalPrice")
+                loss_price_elem = interval.find("EnergyLossPrice")
+                cong_price_elem = interval.find("EnergyCongPrice")
+
+                # If any of the prices are null, skip to the next interval
+                if (
+                    not zonal_price_elem.text.strip()
+                    or not loss_price_elem.text.strip()
+                    or not cong_price_elem.text.strip()
+                ):
+                    continue
+
+                zonal_price = float(zonal_price_elem.text)
+                loss_price = float(loss_price_elem.text)
+                cong_price = float(cong_price_elem.text)
+
+                # Calculate energy price from definition
+                energy_price = zonal_price - loss_price - cong_price
+
+                # Subtract 1 from the interval number because it's 1-indexed
+                interval_start = base_datetime + pd.Timedelta(
+                    minutes=(interval_num - 1) * 5,
+                )
+                interval_end = interval_start + pd.Timedelta(minutes=5)
+
+                data_rows.append(
+                    {
+                        "Interval Start": interval_start,
+                        "Interval End": interval_end,
+                        "Location": zone_name,
+                        "LMP": zonal_price,
+                        "Energy": energy_price,
+                        "Congestion": cong_price,
+                        "Loss": loss_price,
+                    },
+                )
+
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start", "Location"])
+            .reset_index(drop=True)
+        )
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_lmp_day_ahead_hourly_virtual_zonal(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead zonal virtual LMP data.
+        Args:
+            date: The date to get the data for.
+            end: The end date to get the data for.
+            verbose: Whether to print verbose output.
+        Returns:
+            DataFrame with LMP data.
+        """
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyZonal/PUB_DAHourlyZonal.xml"
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyZonal/PUB_DAHourlyZonal_{date.strftime('%Y%m%d')}.xml"
+
+        xml_content = self._request(url, verbose).text
+
+        soup = BeautifulSoup(xml_content, "xml")
+
+        delivery_date = soup.find("DeliveryDate").text
+
+        base_datetime = (pd.to_datetime(delivery_date)).tz_localize(
+            self.default_timezone,
+        )
+
+        data_rows = []
+
+        for zone in soup.find_all("TransactionZone"):
+            zone_name = zone.find("ZoneName").text
+
+            components = zone.find_all("Components")
+
+            zonal_prices = {}
+            loss_prices = {}
+            congestion_prices = {}
+
+            for component in components:
+                component_type = component.find("PriceComponent").text
+
+                for hour in component.find_all("DeliveryHour"):
+                    hour_num = int(hour.find("Hour").text)
+                    price = float(hour.find("LMP").text)
+
+                    if component_type == "Zonal Price":
+                        zonal_prices[hour_num] = price
+                    elif component_type == "Energy Loss Price":
+                        loss_prices[hour_num] = price
+                    elif component_type == "Energy Congestion Price":
+                        congestion_prices[hour_num] = price
+
+            # Hours are 1-indexed, so we loop from 1 to 24
+            for hour_num in range(1, 25):
+                if (
+                    hour_num in zonal_prices
+                    and hour_num in loss_prices
+                    and hour_num in congestion_prices
+                ):
+                    interval_start = base_datetime + pd.Timedelta(hours=hour_num - 1)
+                    interval_end = interval_start + pd.Timedelta(hours=1)
+
+                    lmp = zonal_prices[hour_num]
+                    loss = loss_prices[hour_num]
+                    congestion = congestion_prices[hour_num]
+
+                    # Calculate energy component from definition
+                    energy = lmp - loss - congestion
+
+                    data_rows.append(
+                        {
+                            "Interval Start": interval_start,
+                            "Interval End": interval_end,
+                            "Location": zone_name,
+                            "LMP": lmp,
+                            "Energy": energy,
+                            "Congestion": congestion,
+                            "Loss": loss,
+                        },
+                    )
+
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start", "Location"])
+            .reset_index(drop=True)
+        )
+
+        return df
+
+    @support_date_range(frequency="HOUR_START")
+    def get_lmp_real_time_5_min_intertie(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealTimeIntertieLMP/PUB_RealTimeIntertieLMP.xml"
+            date = pd.Timestamp.now(tz=self.default_timezone)
+        else:
+            hour = date.hour
+            # Hour numbers are 1-24, so we need to add 1
+            file_hour = f"{hour + 1}".zfill(2)
+
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealTimeIntertieLMP/PUB_RealTimeIntertieLMP_{date.strftime('%Y%m%d')}{file_hour}.xml"
+
+        xml_content = self._request(url, verbose).text
+
+        root = ElementTree.fromstring(xml_content)
+
+        ns = {"": "http://www.ieso.ca/schema"}
+
+        delivery_date = root.find(".//DeliveryDate", ns).text
+        delivery_hour = int(root.find(".//DeliveryHour", ns).text)
+
+        base_datetime = (
+            pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
+        ).tz_localize(self.default_timezone)
+
+        data_rows = []
+
+        intertie_prices = root.findall(".//IntertieLMPrice", ns)
+
+        for intertie_price in intertie_prices:
+            location = intertie_price.find("IntertiePLName", ns).text
+
+            components = intertie_price.findall("Components", ns)
+
+            lmp_values = {}
+            loss_values = {}
+            energy_congestion_values = {}
+            external_congestion_values = {}
+            # Net Interchange Scheduling Limit
+            nisl_values = {}
+
+            for component in components:
+                component_type = component.find("LMPComponent", ns).text
+                intervals = component.findall("IntervalLMP", ns)
+
+                for interval in intervals:
+                    interval_num = interval.find("Interval", ns).text
+                    lmp_value_elem = interval.find("LMP", ns)
+
+                    if (
+                        lmp_value_elem is None
+                        or lmp_value_elem.text is None
+                        or lmp_value_elem.text.strip() == ""
+                    ):
+                        continue
+
+                    lmp_value = float(lmp_value_elem.text)
+
+                    if component_type == "Intertie LMP":
+                        lmp_values[interval_num] = lmp_value
+                    elif component_type == "Energy Loss Price":
+                        loss_values[interval_num] = lmp_value
+                    elif component_type == "Energy Congestion Price":
+                        energy_congestion_values[interval_num] = lmp_value
+                    elif component_type == "External Congestion Price":
+                        external_congestion_values[interval_num] = lmp_value
+                    elif (
+                        component_type
+                        == "Net Interchange Scheduling Limit (NISL) Price"
+                    ):
+                        nisl_values[interval_num] = lmp_value
+
+            for interval_num in lmp_values.keys():
+                if (
+                    interval_num in loss_values
+                    and interval_num in energy_congestion_values
+                    and interval_num in external_congestion_values
+                    and interval_num in nisl_values
+                ):
+                    interval_start = base_datetime + pd.Timedelta(
+                        minutes=(int(interval_num) - 1) * 5,
+                    )
+                    interval_end = interval_start + pd.Timedelta(minutes=5)
+
+                    lmp = lmp_values[interval_num]
+                    congestion = energy_congestion_values[interval_num]
+                    loss = loss_values[interval_num]
+                    external_congestion = external_congestion_values[interval_num]
+                    nisl_value = nisl_values[interval_num]
+
+                    # Note that inertie LMP includes external congestion and NISL
+                    energy = lmp - congestion - loss - external_congestion - nisl_value
+
+                    row = {
+                        "Interval Start": interval_start,
+                        "Interval End": interval_end,
+                        "Location": location,
+                        "LMP": lmp,
+                        "Energy": energy,
+                        "Congestion": congestion,
+                        "Loss": loss,
+                        "External Congestion": external_congestion,
+                        "Interchange Scheduling Limit Price": nisl_value,
+                    }
+
+                    data_rows.append(row)
+
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start", "Location"])
+            .reset_index(drop=True)
+        )
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_lmp_day_ahead_hourly_intertie(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead LMP intertie data
+
+        Args:
+            date: The date to get the data for.
+            end: The end date to get the data for.
+            verbose: Whether to print verbose output.
+        Returns:
+            DataFrame with LMP data.
+        """
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyIntertieLMP/PUB_DAHourlyIntertieLMP.xml"
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyIntertieLMP/PUB_DAHourlyIntertieLMP_{date.strftime('%Y%m%d')}.xml"
+
+        xml_content = self._request(url, verbose).text
+
+        root = ElementTree.fromstring(xml_content)
+
+        ns = NAMESPACES_FOR_XML.copy()
+
+        # Get the delivery date
+        delivery_date = root.find(".//DeliveryDate", ns).text
+        base_date = pd.Timestamp(delivery_date).tz_localize(self.default_timezone)
+
+        # Initialize empty lists to store data
+        data_rows = []
+
+        # Find all IntertieLMPrice elements
+        intertie_prices = root.findall(".//IntertieLMPrice", ns)
+
+        for intertie in intertie_prices:
+            # Get location name
+            location = intertie.find("IntertiePLName", ns).text
+
+            # Extract location code
+            if ":LMP" in location:
+                location_code = location.split(":LMP")[0]
+            else:
+                location_code = location
+
+            # Find all component groups
+            components = intertie.findall("Components", ns)
+
+            # Initialize dictionaries to store hourly data
+            hourly_lmp = {}
+            hourly_loss = {}
+            hourly_congestion = {}
+            hourly_external_congestion = {}
+            hourly_nisl = {}  # Net Interchange Scheduling Limit
+
+            # Process each component group
+            for comp in components:
+                component_type = comp.find("LMPComponent", ns).text
+                hourly_values = comp.findall("HourlyLMP", ns)
+
+                for hour_data in hourly_values:
+                    hour = int(hour_data.find("DeliveryHour", ns).text)
+                    value = float(hour_data.find("LMP", ns).text)
+
+                    if component_type == "Intertie LMP":
+                        hourly_lmp[hour] = value
+                    elif component_type == "Energy Loss Price":
+                        hourly_loss[hour] = value
+                    elif component_type == "Energy Congestion Price":
+                        hourly_congestion[hour] = value
+                    elif component_type == "External Congestion Price":
+                        hourly_external_congestion[hour] = value
+                    elif (
+                        component_type
+                        == "Net Interchange Scheduling Limit (NISL) Price"
+                    ):
+                        hourly_nisl[hour] = value
+
+            for hour in range(1, 25):
+                if hour in hourly_lmp:
+                    interval_start = base_date + pd.Timedelta(hours=hour - 1)
+                    interval_end = interval_start + pd.Timedelta(hours=1)
+
+                    lmp = hourly_lmp.get(hour, 0)
+                    congestion = hourly_congestion.get(hour, 0)
+                    loss = hourly_loss.get(hour, 0)
+                    external_congestion = hourly_external_congestion.get(hour, 0)
+                    nisl_value = hourly_nisl.get(hour, 0)
+
+                    # Note that inertie LMP includes external congestion and NISL
+                    energy = lmp - congestion - loss - external_congestion - nisl_value
+
+                    data_rows.append(
+                        {
+                            "Interval Start": interval_start,
+                            "Interval End": interval_end,
+                            "Location": location_code,
+                            "LMP": lmp,
+                            "Energy": energy,
+                            "Congestion": congestion,
+                            "Loss": loss,
+                            "External Congestion": external_congestion,
+                            "Interchange Scheduling Limit Price": nisl_value,
+                        },
+                    )
+
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start", "Location"])
+            .reset_index(drop=True)
+        )
+
+        return df
+
+    @support_date_range(frequency="HOUR_START")
+    def get_lmp_real_time_5_min_ontario_zonal(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeOntarioZonalPrice/PUB_RealtimeOntarioZonalPrice.xml"
+        else:
+            hour = date.hour
+            # Hour numbers are 1-24, so we need to add 1
+            file_hour = f"{hour + 1}".zfill(2)
+
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeOntarioZonalPrice/PUB_RealtimeOntarioZonalPrice_{date.strftime('%Y%m%d')}{file_hour}.xml"
+
+        xml_content = self._request(url, verbose).text
+
+        root = ElementTree.fromstring(xml_content)
+
+        ns = NAMESPACES_FOR_XML.copy()
+
+        delivery_date_text = root.find(".//DeliveryDate", ns).text
+        # Extract date and hour from the text (e.g., "For 2025-04-23 - Hour 12")
+        delivery_date = pd.Timestamp(
+            delivery_date_text.split(" - ")[0].replace("For ", ""),
+        )
+        delivery_hour = int(delivery_date_text.split(" - ")[1].replace("Hour ", ""))
+
+        base_datetime = (
+            pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
+        ).tz_localize(self.default_timezone)
+
+        price_components = root.findall(".//RealTimePriceComponents", ns)
+
+        zonal_prices = {}
+        loss_prices = {}
+        congestion_prices = {}
+
+        for component in price_components:
+            component_type = component.find("OntarioZonalPrice", ns).text
+
+            # Intervals are 1-indexed, so we loop from 1 to 12
+            for interval in range(1, 13):
+                interval_element_name = f"OntarioZonalPriceInterval{interval}"
+                interval_value_name = f"Interval{interval}"
+
+                interval_element = component.find(interval_element_name, ns)
+                if interval_element is not None:
+                    interval_value_elem = interval_element.find(interval_value_name, ns)
+                    if interval_value_elem is not None and interval_value_elem.text:
+                        value = float(interval_value_elem.text)
+
+                        if component_type == "Zonal Price":
+                            zonal_prices[interval] = value
+                        elif component_type == "Energy Loss Price":
+                            loss_prices[interval] = value
+                        elif component_type == "Energy Congestion Price":
+                            congestion_prices[interval] = value
+        data_rows = []
+
+        for interval in range(1, 13):
+            if interval in zonal_prices:
+                minutes_offset = (interval - 1) * 5
+                interval_start = base_datetime + pd.Timedelta(minutes=minutes_offset)
+                interval_end = interval_start + pd.Timedelta(minutes=5)
+
+                lmp = zonal_prices.get(interval, 0)
+                loss = loss_prices.get(interval, 0)
+                congestion = congestion_prices.get(interval, 0)
+
+                energy = lmp - congestion - loss
+
+                data_rows.append(
+                    {
+                        "Interval Start": interval_start,
+                        "Interval End": interval_end,
+                        "Location": ONTARIO_LOCATION,
+                        "LMP": lmp,
+                        "Energy": energy,
+                        "Congestion": congestion,
+                        "Loss": loss,
+                    },
+                )
+
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+        )
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_lmp_day_ahead_hourly_ontario_zonal(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice.xml"
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice_{date.strftime('%Y%m%d')}.xml"
+
+        xml_content = self._request(url, verbose).text
+
+        root = ElementTree.fromstring(xml_content)
+        ns = NAMESPACES_FOR_XML.copy()
+
+        delivery_date = pd.Timestamp(
+            root.find(".//DeliveryDate", ns).text,
+        ).tz_localize(self.default_timezone)
+
+        data_rows = []
+
+        hourly_components = root.findall(".//HourlyPriceComponents", ns)
+
+        for component in hourly_components:
+            hour = int(component.find("PricingHour", ns).text)
+            lmp = float(component.find("ZonalPrice", ns).text)
+            loss_price = float(component.find("LossPriceCapped", ns).text)
+            congestion_price = float(
+                component.find("CongestionPriceCapped", ns).text,
+            )
+
+            energy = lmp - loss_price - congestion_price
+
+            interval_start = delivery_date + pd.Timedelta(hours=hour - 1)
+            interval_end = interval_start + pd.Timedelta(hours=1)
+
+            data_rows.append(
+                {
+                    "Interval Start": interval_start,
+                    "Interval End": interval_end,
+                    "Location": ONTARIO_LOCATION,
+                    "LMP": lmp,
+                    "Energy": energy,
+                    "Congestion": congestion_price,
+                    "Loss": loss_price,
+                },
+            )
+
+        df = (
+            pd.DataFrame(data_rows)
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+        )
+
         return df
