@@ -479,6 +479,8 @@ class Ercot(ISOBase):
         """The fuel mix with gen, hsl, and seasonal capacity for each fuel type."""
         data = self._get_fuel_mix(date, verbose=verbose)
 
+        capacity = data["monthlyCapacity"]
+
         dfs = []
 
         for day in data["data"].keys():
@@ -494,9 +496,7 @@ class Ercot(ISOBase):
         for col in mix.columns:
             mix[col + " Gen"] = mix[col].apply(lambda x: x.get("gen"))
             mix[col + " HSL"] = mix[col].apply(lambda x: x.get("hsl"))
-            mix[col + " Seasonal Capacity"] = mix[col].apply(
-                lambda x: x.get("seasonalCapacity"),
-            )
+            mix[col + " Seasonal Capacity"] = capacity[col]
             cols_to_drop.append(col)
 
         mix = mix.drop(columns=cols_to_drop)
@@ -3534,9 +3534,9 @@ class Ercot(ISOBase):
                 # Sometimes ERCOT handles DST end by putting 25 hours in HourEnding
                 # which makes IntervalStart where HourEnding >= 3 an hour later than
                 # they should be. We correct this by subtracting an hour.
-                assert doc["HourEnding"].max() == 25, (
-                    f"Time parsing error. Did not find HourEnding = 25. {e}"
-                )
+                assert (
+                    doc["HourEnding"].max() == 25
+                ), f"Time parsing error. Did not find HourEnding = 25. {e}"
                 doc.loc[doc["HourEnding"] >= 3, "Interval Start"] = doc.loc[
                     doc["HourEnding"] >= 3,
                     "Interval Start",
