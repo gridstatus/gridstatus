@@ -1,3 +1,5 @@
+# flake8: noqa: E501
+
 import datetime
 import http.client
 import os
@@ -15,7 +17,7 @@ import xmltodict
 from bs4 import BeautifulSoup
 
 from gridstatus import utils
-from gridstatus.base import ISOBase, NotSupported
+from gridstatus.base import ISOBase, NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
 from gridstatus.ieso_constants import (
@@ -1067,6 +1069,12 @@ class IESO(ISOBase):
 
             if r.ok:
                 break
+
+            # If the file is not found, there is no need to retry
+            if r.status_code == 404:
+                raise NoDataFoundException(
+                    f"File not found at {url}. Please check the URL.",
+                )
 
             retry_num += 1
             logger.info(f"Request failed. Error: {r.reason}. Retrying {retry_num}...")
@@ -2634,6 +2642,8 @@ class IESO(ISOBase):
         else:
             date_fmt = "%Y%m%d"
             urls = [
+                # The offset for each file is the minimum days - 1. So the file for
+                # 31 to 90 days planned is 30 days from the date, and so on.
                 f"https://reports-public-sandbox.ieso.ca/public/TxOutagesTodayAll/PUB_TxOutagesTodayAll_{date.strftime(date_fmt)}.xml",
                 f"https://reports-public-sandbox.ieso.ca/public/TxOutages1to30DaysPlanned/PUB_TxOutages1to30DaysPlanned_{date.strftime(date_fmt)}.xml",
                 f"https://reports-public-sandbox.ieso.ca/public/TxOutages31to90DaysPlanned/PUB_TxOutages31to90DaysPlanned_{(date + pd.DateOffset(days=30)).strftime(date_fmt)}.xml",
@@ -2645,12 +2655,9 @@ class IESO(ISOBase):
 
         for url in urls:
             xml_content = self._request(url, verbose).text
-
-            from xml.etree import ElementTree
-
             root = ElementTree.fromstring(xml_content)
 
-            ns = {"": "http://www.ieso.ca/schema"}
+            ns = NAMESPACES_FOR_XML.copy()
 
             publish_time = pd.Timestamp(root.find(".//CreatedAt", ns).text).tz_localize(
                 self.default_timezone,
@@ -2707,13 +2714,11 @@ class IESO(ISOBase):
 
         # There will be overlap between the reports so we need to drop duplicates,
         # keeping the latest publish time
-        data = data.sort_values(["Publish Time"], ascending=[False])
+        data = data.sort_values(["Interval Start", "Outage ID", "Publish Time"])
+
         data = data.drop_duplicates(
             subset=[c for c in data.columns if c != "Publish Time"],
-        )
-
-        data = data.sort_values(
-            ["Interval Start", "Publish Time", "Outage ID"],
+            keep="last",
         ).reset_index(drop=True)
 
         return data
