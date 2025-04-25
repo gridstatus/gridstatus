@@ -1,3 +1,5 @@
+# flake8: noqa: E501
+
 import datetime
 import http.client
 import os
@@ -15,7 +17,7 @@ import xmltodict
 from bs4 import BeautifulSoup
 
 from gridstatus import utils
-from gridstatus.base import ISOBase, NotSupported
+from gridstatus.base import ISOBase, NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
 from gridstatus.ieso_constants import (
@@ -1067,6 +1069,12 @@ class IESO(ISOBase):
 
             if r.ok:
                 break
+
+            # If the file is not found, there is no need to retry
+            if r.status_code == 404:
+                raise NoDataFoundException(
+                    f"File not found at {url}. Please check the URL.",
+                )
 
             retry_num += 1
             logger.info(f"Request failed. Error: {r.reason}. Retrying {retry_num}...")
@@ -2615,3 +2623,102 @@ class IESO(ISOBase):
         )
 
         return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_transmission_outages_planned(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            urls = [
+                "https://reports-public-sandbox.ieso.ca/public/TxOutagesTodayAll/PUB_TxOutagesTodayAll.xml",
+                "https://reports-public-sandbox.ieso.ca/public/TxOutages1to30DaysPlanned/PUB_TxOutages1to30DaysPlanned.xml",
+                "https://reports-public-sandbox.ieso.ca/public/TxOutages31to90DaysPlanned/PUB_TxOutages31to90DaysPlanned.xml",
+                "https://reports-public-sandbox.ieso.ca/public/TxOutages91to180DaysPlanned/PUB_TxOutages91to180DaysPlanned.xml",
+                "https://reports-public-sandbox.ieso.ca/public/TxOutages181to730DaysPlanned/PUB_TxOutages181to730DaysPlanned.xml",
+            ]
+        else:
+            date_fmt = "%Y%m%d"
+            urls = [
+                # The offset for each file is the minimum days - 1. So the file for
+                # 31 to 90 days planned is 30 days from the date, and so on.
+                f"https://reports-public-sandbox.ieso.ca/public/TxOutagesTodayAll/PUB_TxOutagesTodayAll_{date.strftime(date_fmt)}.xml",
+                f"https://reports-public-sandbox.ieso.ca/public/TxOutages1to30DaysPlanned/PUB_TxOutages1to30DaysPlanned_{date.strftime(date_fmt)}.xml",
+                f"https://reports-public-sandbox.ieso.ca/public/TxOutages31to90DaysPlanned/PUB_TxOutages31to90DaysPlanned_{(date + pd.DateOffset(days=30)).strftime(date_fmt)}.xml",
+                f"https://reports-public-sandbox.ieso.ca/public/TxOutages91to180DaysPlanned/PUB_TxOutages91to180DaysPlanned_{(date + pd.DateOffset(days=90)).strftime(date_fmt)}.xml",
+                f"https://reports-public-sandbox.ieso.ca/public/TxOutages181to730DaysPlanned/PUB_TxOutages181to730DaysPlanned_{(date + pd.DateOffset(days=180)).strftime(date_fmt)}.xml",
+            ]
+
+        outage_data = []
+
+        for url in urls:
+            xml_content = self._request(url, verbose).text
+            root = ElementTree.fromstring(xml_content)
+
+            ns = NAMESPACES_FOR_XML.copy()
+
+            publish_time = pd.Timestamp(root.find(".//CreatedAt", ns).text).tz_localize(
+                self.default_timezone,
+            )
+            outage_requests = root.findall(".//OutageRequest", ns)
+
+            for outage in outage_requests:
+                outage_id = outage.find("OutageID", ns).text
+
+                planned_start = pd.Timestamp(
+                    outage.find("PlannedStart", ns).text,
+                ).tz_localize(
+                    self.default_timezone,
+                )
+                planned_end = pd.Timestamp(
+                    outage.find("PlannedEnd", ns).text,
+                ).tz_localize(
+                    self.default_timezone,
+                )
+
+                priority = outage.find("Priority", ns).text
+                recurrence = outage.find("Recurrence", ns).text
+                recall_time = outage.find("EquipmentRecallTime", ns).text
+                status = outage.find("OutageRequestStatus", ns).text
+
+                # Get equipment details
+                equipment_list = outage.findall("EquipmentRequested", ns)
+
+                for equipment in equipment_list:
+                    name = equipment.find("EquipmentName", ns).text
+                    eq_type = equipment.find("EquipmentType", ns).text
+                    voltage = equipment.find("EquipmentVoltage", ns).text
+                    constraint = equipment.find("ConstraintType", ns).text
+
+                    # Add to data list
+                    outage_data.append(
+                        {
+                            "Interval Start": planned_start,
+                            "Interval End": planned_end,
+                            "Publish Time": publish_time,
+                            "Outage ID": outage_id,
+                            "Name": name,
+                            "Priority": priority,
+                            "Recurrence": recurrence,
+                            "Type": eq_type,
+                            "Voltage": voltage,
+                            "Constraint": constraint,
+                            "Recall Time": recall_time,
+                            "Status": status,
+                        },
+                    )
+
+        data = pd.DataFrame(outage_data)
+
+        # There will be overlap between the reports so we need to drop duplicates,
+        # keeping the latest publish time
+        data = data.sort_values(["Interval Start", "Outage ID", "Publish Time"])
+
+        data = data.drop_duplicates(
+            subset=[c for c in data.columns if c != "Publish Time"],
+            keep="last",
+        ).reset_index(drop=True)
+
+        return data
