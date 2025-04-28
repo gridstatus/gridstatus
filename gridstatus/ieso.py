@@ -2724,7 +2724,7 @@ class IESO(ISOBase):
         return data
 
     @support_date_range(frequency="DAY_START")
-    def get_load_daily_zonal_5_min(
+    def get_load_zonal_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -2735,20 +2735,10 @@ class IESO(ISOBase):
         else:
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{date.year}.csv"
 
-        df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
-        df["Interval Start"] = (
-            df["Date"]
-            + pd.to_timedelta(df["Hour"] - 1, unit="h")
-            + pd.to_timedelta((df["Interval"] - 1) * 5, unit="m")
-        ).dt.tz_localize(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
-        df = df.drop(columns=["Date", "Hour", "Interval"])
-        df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
-        df.columns = df.columns.str.title()
-        return df.reset_index(drop=True)
+        return self._parse_load_zonal_data(url, date, end)
 
     @support_date_range(frequency="DAY_START")
-    def get_load_daily_zonal_hourly(
+    def get_load_zonal_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -2759,11 +2749,57 @@ class IESO(ISOBase):
         else:
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
 
+        return self._parse_load_zonal_data(url, date, end)
+
+    def _parse_load_zonal_data(
+        self,
+        url: str,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
         df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
-        df["Interval Start"] = (
-            df["Date"] + pd.to_timedelta(df["Hour"] - 1, unit="h")
-        ).dt.tz_localize(self.default_timezone)
+
+        if "Interval" in df.columns:
+            df["Interval Start"] = (
+                df["Date"]
+                + pd.to_timedelta(df["Hour"] - 1, unit="h")
+                + pd.to_timedelta((df["Interval"] - 1) * 5, unit="m")
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+        else:
+            df["Interval Start"] = (
+                df["Date"] + pd.to_timedelta(df["Hour"] - 1, unit="h")
+            ).dt.tz_localize(self.default_timezone)
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-        df = df.drop(columns=["Date", "Hour"])
-        df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
-        return df.reset_index(drop=True)
+
+        df.columns = df.columns.str.title()
+        filter_date = (
+            pd.Timestamp.now(tz=self.default_timezone).normalize().date()
+            if date == "latest"
+            else date
+        )
+        filter_end = end or filter_date
+        df = df[
+            (df["Interval Start"].dt.date >= filter_date.date())
+            & (df["Interval Start"].dt.date <= filter_end.date())
+        ]
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Ontario Demand",
+                "Northwest",
+                "Northeast",
+                "Ottawa",
+                "East",
+                "Toronto",
+                "Essa",
+                "Bruce",
+                "Southwest",
+                "Niagara",
+                "West",
+                "Zone Total",
+                "Diff",
+            ]
+        ]
