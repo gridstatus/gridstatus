@@ -2722,3 +2722,38 @@ class IESO(ISOBase):
         ).reset_index(drop=True)
 
         return data
+
+    @support_date_range(frequency="DAY_START")
+    def get_load_daily_zonal_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal.csv"
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{date.year}.csv"
+
+        df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
+        df = self._parse_daily_zonal_5_min_csv(df)
+        df.columns = df.columns.str.title()
+        return df
+
+    def _parse_daily_zonal_5_min_csv(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        df["Date"] = pd.to_datetime(df["Date"], format="%m/%d/%y")
+        df["Hour"] = df["Hour"].astype(int)
+        df["Interval"] = df["Interval"].astype(int)
+        base_time = (
+            df["Date"]
+            + pd.to_timedelta(df["Hour"] - 1, unit="h")
+            + pd.to_timedelta((df["Interval"] - 1) * 5, unit="m")
+        )
+        df["Interval Start"] = base_time.dt.tz_localize(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+        drop_cols = ["Date", "Hour", "Interval"]
+        df = df.drop(columns=[col for col in drop_cols if col in df.columns])
+        cols_to_front = ["Interval Start", "Interval End"]
+        df = utils.move_cols_to_front(df, cols_to_front)
+        return df.reset_index(drop=True)
