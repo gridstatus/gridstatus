@@ -2736,11 +2736,6 @@ class IESO(ISOBase):
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{date.year}.csv"
 
         df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
-        df = self._parse_daily_zonal_5_min_csv(df)
-        df.columns = df.columns.str.title()
-        return df
-
-    def _parse_daily_zonal_5_min_csv(self, df: pd.DataFrame) -> pd.DataFrame:
         df["Interval Start"] = (
             df["Date"]
             + pd.to_timedelta(df["Hour"] - 1, unit="h")
@@ -2748,5 +2743,27 @@ class IESO(ISOBase):
         ).dt.tz_localize(self.default_timezone)
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
         df = df.drop(columns=["Date", "Hour", "Interval"])
+        df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
+        df.columns = df.columns.str.title()
+        return df.reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_load_daily_zonal_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal.csv"
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
+
+        df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
+        df["Interval Start"] = (
+            df["Date"] + pd.to_timedelta(df["Hour"] - 1, unit="h")
+        ).dt.tz_localize(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.drop(columns=["Date", "Hour"])
         df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
         return df.reset_index(drop=True)
