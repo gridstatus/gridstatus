@@ -2745,7 +2745,7 @@ class IESO(ISOBase):
             df["Date"]
             + pd.to_timedelta(df["Hour"] - 1, unit="h")
             + pd.to_timedelta((df["Interval"] - 1) * 5, unit="m")
-        ).tz_localize(self.default_timezone)
+        ).dt.tz_localize(self.default_timezone)
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
         df = df.drop(columns=["Date", "Hour", "Interval"])
         df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
