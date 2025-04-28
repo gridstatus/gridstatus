@@ -2741,19 +2741,12 @@ class IESO(ISOBase):
         return df
 
     def _parse_daily_zonal_5_min_csv(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-        df["Date"] = pd.to_datetime(df["Date"], format="%m/%d/%y")
-        df["Hour"] = df["Hour"].astype(int)
-        df["Interval"] = df["Interval"].astype(int)
-        base_time = (
+        df["Interval Start"] = (
             df["Date"]
             + pd.to_timedelta(df["Hour"] - 1, unit="h")
             + pd.to_timedelta((df["Interval"] - 1) * 5, unit="m")
-        )
-        df["Interval Start"] = base_time.dt.tz_localize(self.default_timezone)
+        ).tz_localize(self.default_timezone)
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
-        drop_cols = ["Date", "Hour", "Interval"]
-        df = df.drop(columns=[col for col in drop_cols if col in df.columns])
-        cols_to_front = ["Interval Start", "Interval End"]
-        df = utils.move_cols_to_front(df, cols_to_front)
+        df = df.drop(columns=["Date", "Hour", "Interval"])
+        df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
         return df.reset_index(drop=True)
