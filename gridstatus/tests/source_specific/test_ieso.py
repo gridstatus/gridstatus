@@ -13,6 +13,7 @@ from gridstatus.ieso_constants import (
     MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
     ONTARIO_LOCATION,
     RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP,
+    ZONAL_LOAD_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -1602,11 +1603,13 @@ class TestIESO(BaseTestISO):
 
     """get_load_daily_zonal_5_min"""
 
-    def _check_load_zonal_5_min(self, data: pd.DataFrame) -> None:
+    def _check_load_zonal(self, data: pd.DataFrame, frequency_minutes: int) -> None:
         assert isinstance(data, pd.DataFrame)
         assert data.shape[0] >= 0
+        assert set(data.columns) == set(ZONAL_LOAD_COLUMNS)
         assert (
-            data["Interval End"] - data["Interval Start"] == pd.Timedelta(minutes=5)
+            data["Interval End"] - data["Interval Start"]
+            == pd.Timedelta(minutes=frequency_minutes)
         ).all()
 
         numeric_cols = [
@@ -1618,64 +1621,41 @@ class TestIESO(BaseTestISO):
     def test_get_load_daily_zonal_5_min_latest(self):
         with file_vcr.use_cassette("test_get_load_zonal_5_min_latest.yaml"):
             data = self.iso.get_load_zonal_5_min("latest")
-
-        self._check_load_zonal_5_min(data)
-
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data["Interval Start"].dt.date == today.date()).all()
+        self._check_load_zonal(data, 5)
 
     def test_get_load_zonal_5_min_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
-        end = start + pd.DateOffset(days=1)
+        # NB: Data stopped updating here
+        start = pd.Timestamp("2025-04-20", tz=self.default_timezone)
+        end = pd.Timestamp("2025-04-22", tz=self.default_timezone)
 
         with file_vcr.use_cassette(
             f"test_get_load_zonal_5_min_historical_date_range_{start.date()}_{end.date()}.yaml",
         ):
             data = self.iso.get_load_zonal_5_min(start, end=end)
 
-        self._check_load_zonal_5_min(data)
+        self._check_load_zonal(data, 5)
 
         assert data["Interval Start"].min() == start
         assert data["Interval End"].max() == end
 
     """get_load_daily_zonal_hourly"""
 
-    def _check_load_zonal_hourly(self, data: pd.DataFrame) -> None:
-        assert isinstance(data, pd.DataFrame)
-        assert data.shape[0] >= 0
-        assert (
-            data["Interval End"] - data["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+    def test_get_load_zonal_hourly_latest(self):
+        with file_vcr.use_cassette("test_get_load_zonal_hourly_latest.yaml"):
+            data = self.iso.get_load_zonal_hourly("latest")
+        self._check_load_zonal(data, 60)
 
-        numeric_cols = [
-            col for col in data.columns if col not in ["Interval Start", "Interval End"]
-        ]
-        for col in numeric_cols:
-            assert is_numeric_dtype(data[col])
-
-    def test_get_load_daily_zonal_hourly_latest(self):
-        with file_vcr.use_cassette("test_get_load_daily_zonal_hourly_latest.yaml"):
-            data = self.iso.get_load_daily_zonal_hourly("latest")
-
-        self._check_load_daily_zonal_hourly(data)
-
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data["Interval Start"].dt.date == today.date()).all()
-
-    def test_get_load_daily_zonal_hourly_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
-        end = start + pd.DateOffset(days=1)
+    def test_get_load_zonal_hourly_historical_date_range(self):
+        # NB: Data stopped updating here
+        start = pd.Timestamp("2025-04-20", tz=self.default_timezone)
+        end = pd.Timestamp("2025-04-22", tz=self.default_timezone)
 
         with file_vcr.use_cassette(
-            f"test_get_load_daily_zonal_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",
+            f"test_get_load_zonal_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",
         ):
-            data = self.iso.get_load_daily_zonal_hourly(start, end=end)
+            data = self.iso.get_load_zonal_hourly(start, end=end)
 
-        self._check_load_daily_zonal_hourly(data)
+        self._check_load_zonal(data, 60)
 
         assert data["Interval Start"].min() == start
         assert data["Interval End"].max() == end

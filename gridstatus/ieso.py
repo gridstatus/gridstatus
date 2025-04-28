@@ -37,6 +37,7 @@ from gridstatus.ieso_constants import (
     ONTARIO_LOCATION,
     PUBLIC_REPORTS_URL_PREFIX,
     RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP,
+    ZONAL_LOAD_COLUMNS,
     ZONAL_LOAD_FORECAST_TEMPLATE_URL,
 )
 
@@ -2723,7 +2724,7 @@ class IESO(ISOBase):
 
         return data
 
-    @support_date_range(frequency="DAY_START")
+    @support_date_range(frequency=None)
     def get_load_zonal_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -2737,7 +2738,7 @@ class IESO(ISOBase):
 
         return self._parse_load_zonal_data(url, date, end)
 
-    @support_date_range(frequency="DAY_START")
+    @support_date_range(frequency=None)
     def get_load_zonal_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -2748,7 +2749,6 @@ class IESO(ISOBase):
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal.csv"
         else:
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
-
         return self._parse_load_zonal_data(url, date, end)
 
     def _parse_load_zonal_data(
@@ -2770,36 +2770,25 @@ class IESO(ISOBase):
             df["Interval Start"] = (
                 df["Date"] + pd.to_timedelta(df["Hour"] - 1, unit="h")
             ).dt.tz_localize(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+            df.rename(columns={"Zone Total": "Zones Total"}, inplace=True)
         df.columns = df.columns.str.title()
-        filter_date = (
-            pd.Timestamp.now(tz=self.default_timezone).normalize().date()
-            if date == "latest"
-            else date
+        if date == "latest":
+            latest_date = df["Interval Start"].dt.date.max()
+            df = df[df["Interval Start"].dt.date == latest_date]
+        else:
+            if isinstance(date, str):
+                date = pd.Timestamp(date, tz=self.default_timezone)
+            if end is None:
+                mask = (df["Interval Start"] >= date) & (
+                    df["Interval Start"] < (date + pd.DateOffset(days=1))
+                )
+                df = df[mask]
+            else:
+                mask = (df["Interval Start"] >= date) & (df["Interval Start"] < end)
+                df = df[mask]
+        return (
+            df[[col for col in ZONAL_LOAD_COLUMNS if col in df.columns]]
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
         )
-        filter_end = end or filter_date
-        df = df[
-            (df["Interval Start"].dt.date >= filter_date.date())
-            & (df["Interval Start"].dt.date <= filter_end.date())
-        ]
-
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Ontario Demand",
-                "Northwest",
-                "Northeast",
-                "Ottawa",
-                "East",
-                "Toronto",
-                "Essa",
-                "Bruce",
-                "Southwest",
-                "Niagara",
-                "West",
-                "Zone Total",
-                "Diff",
-            ]
-        ]
