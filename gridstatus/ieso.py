@@ -2788,7 +2788,7 @@ class IESO(ISOBase):
                 mask = (df["Interval Start"] >= date) & (df["Interval Start"] < end)
                 df = df[mask]
         return (
-            df[[col for col in ZONAL_LOAD_COLUMNS if col in df.columns]]
+            df[ZONAL_LOAD_COLUMNS]
             .sort_values(["Interval Start"])
             .reset_index(drop=True)
         )
