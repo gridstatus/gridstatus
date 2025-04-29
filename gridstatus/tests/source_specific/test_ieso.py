@@ -1271,6 +1271,18 @@ class TestIESO(BaseTestISO):
 
         assert data[TIME_COLUMN].is_monotonic_increasing
 
+        assert list(data["Location"].unique()) == [
+            "EAST",
+            "ESSA",
+            "NIAGARA",
+            "NORTHEAST",
+            "NORTHWEST",
+            "OTTAWA",
+            "SOUTHWEST",
+            "TORONTO",
+            "WEST",
+        ]
+
     def test_get_lmp_real_time_5_min_virtual_zonal_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_real_time_5_min_virtual_zonal_latest.yaml",
@@ -1374,6 +1386,27 @@ class TestIESO(BaseTestISO):
 
         assert data[TIME_COLUMN].is_monotonic_increasing
 
+        assert list(data["Location"].unique()) == [
+            "EC.MARITIMES_NYSI",
+            "MB.SEVENSISTERS_MBSK",
+            "MB.WHITESHELL_MBSI",
+            "MD.CALVERTCLIFF_MISI",
+            "MD.CALVERTCLIFF_NYSI",
+            "MI.LUDINGTON_MISI",
+            "MN.INTFALLS_MNSI",
+            "NY.ROSETON_NYSI",
+            "PQ.BEAUHARNOIS_PQBE",
+            "PQ.BRYSON_PQXY",
+            "PQ.KIPAWA_PQHZ",
+            "PQ.MACLAREN_PQDA",
+            "PQ.MASSON_PQHA",
+            "PQ.OUTAOUAIS_PQAT",
+            "PQ.PAUGAN_PQPC",
+            "PQ.QUYON_PQQC",
+            "PQ.RAPIDDESISLE_PQDZ",
+            "WC.PRAIRERANGES_MISI",
+        ]
+
     def test_get_lmp_real_time_5_min_intertie_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_real_time_5_min_intertie_latest.yaml",
@@ -1470,7 +1503,6 @@ class TestIESO(BaseTestISO):
         ).all()
 
         assert data[TIME_COLUMN].is_monotonic_increasing
-
         assert (data["Location"] == ONTARIO_LOCATION).all()
 
     def test_get_lmp_real_time_5_min_ontario_zonal_latest(self):
