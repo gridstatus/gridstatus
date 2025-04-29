@@ -2064,6 +2064,9 @@ class IESO(ISOBase):
             .reset_index(drop=True)
         )
 
+        # Remove :LMP from the location
+        data["Location"] = data["Location"].str.replace(":LMP", "")
+
         return data
 
     @support_date_range(frequency="HOUR_START")
