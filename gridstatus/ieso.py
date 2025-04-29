@@ -2144,6 +2144,9 @@ class IESO(ISOBase):
             .reset_index(drop=True)
         )
 
+        # Strip out the :HUB from the location
+        df["Location"] = df["Location"].str.replace(":HUB", "")
+
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -2235,6 +2238,9 @@ class IESO(ISOBase):
             .sort_values(["Interval Start", "Location"])
             .reset_index(drop=True)
         )
+
+        # Strip out the :HUB from the location
+        df["Location"] = df["Location"].str.replace(":HUB", "")
 
         return df
 
@@ -2356,6 +2362,9 @@ class IESO(ISOBase):
             .reset_index(drop=True)
         )
 
+        # Strip out the :LMP from the location
+        df["Location"] = df["Location"].str.replace(":LMP", "")
+
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -2471,6 +2480,9 @@ class IESO(ISOBase):
             .sort_values(["Interval Start", "Location"])
             .reset_index(drop=True)
         )
+
+        # Strip out the :LMP from the location
+        df["Location"] = df["Location"].str.replace(":LMP", "")
 
         return df
 
