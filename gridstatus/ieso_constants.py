@@ -140,6 +140,24 @@ INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS: list[str] = [
     "PQX2Y Import",
 ]
 
+ZONAL_LOAD_COLUMNS: list[str] = [
+    "Interval Start",
+    "Interval End",
+    "Ontario Demand",
+    "Northwest",
+    "Northeast",
+    "Ottawa",
+    "East",
+    "Toronto",
+    "Essa",
+    "Bruce",
+    "Southwest",
+    "Niagara",
+    "West",
+    "Zones Total",
+    "Diff",
+]
+
 RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP = frozendict.frozendict(
     {
         "supply": {

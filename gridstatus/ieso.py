@@ -37,6 +37,7 @@ from gridstatus.ieso_constants import (
     ONTARIO_LOCATION,
     PUBLIC_REPORTS_URL_PREFIX,
     RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP,
+    ZONAL_LOAD_COLUMNS,
     ZONAL_LOAD_FORECAST_TEMPLATE_URL,
 )
 
@@ -2722,3 +2723,72 @@ class IESO(ISOBase):
         ).reset_index(drop=True)
 
         return data
+
+    @support_date_range(frequency=None)
+    def get_load_zonal_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal.csv"
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{date.year}.csv"
+
+        return self._parse_load_zonal_data(url, date, end)
+
+    @support_date_range(frequency=None)
+    def get_load_zonal_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal.csv"
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
+        return self._parse_load_zonal_data(url, date, end)
+
+    def _parse_load_zonal_data(
+        self,
+        url: str,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
+
+        if "Interval" in df.columns:
+            df["Interval Start"] = (
+                df["Date"]
+                + pd.to_timedelta(df["Hour"] - 1, unit="h")
+                + pd.to_timedelta((df["Interval"] - 1) * 5, unit="m")
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+        else:
+            df["Interval Start"] = (
+                df["Date"] + pd.to_timedelta(df["Hour"] - 1, unit="h")
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+            df.rename(columns={"Zone Total": "Zones Total"}, inplace=True)
+        df.columns = df.columns.str.title()
+        if date == "latest":
+            latest_date = df["Interval Start"].dt.date.max()
+            df = df[df["Interval Start"].dt.date == latest_date]
+        else:
+            if isinstance(date, str):
+                date = pd.Timestamp(date, tz=self.default_timezone)
+            if end is None:
+                mask = (df["Interval Start"] >= date) & (
+                    df["Interval Start"] < (date + pd.DateOffset(days=1))
+                )
+                df = df[mask]
+            else:
+                mask = (df["Interval Start"] >= date) & (df["Interval Start"] < end)
+                df = df[mask]
+        return (
+            df[ZONAL_LOAD_COLUMNS]
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+        )
