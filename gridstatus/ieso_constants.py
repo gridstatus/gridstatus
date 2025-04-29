@@ -473,6 +473,54 @@ RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP = frozendict.frozendict(
                         "path": ["AverageDemand", "Demand"],
                         "value_key": "EnergyMW",
                     },
+                    "Ontario Northeast Peak Demand": {
+                        "path": ["AreaPeakDemand", "NortheastPeakDemand", "Demand"],
+                        "value_key": "PkDemand",
+                    },
+                    "Ontario Southwest Peak Demand": {
+                        "path": ["AreaPeakDemand", "SouthwestPeakDemand", "Demand"],
+                        "value_key": "PkDemand",
+                    },
+                    "Ontario Northwest Peak Demand": {
+                        "path": ["AreaPeakDemand", "NorthwestPeakDemand", "Demand"],
+                        "value_key": "PkDemand",
+                    },
+                    "Ontario Southeast Peak Demand": {
+                        "path": ["AreaPeakDemand", "SoutheastPeakDemand", "Demand"],
+                        "value_key": "PkDemand",
+                    },
+                    "Ontario Northeast Average Demand": {
+                        "path": [
+                            "AreaAverageDemand",
+                            "NortheastAverageDemand",
+                            "Demand",
+                        ],
+                        "value_key": "AvgDemand",
+                    },
+                    "Ontario Southwest Average Demand": {
+                        "path": [
+                            "AreaAverageDemand",
+                            "SouthwestAverageDemand",
+                            "Demand",
+                        ],
+                        "value_key": "AvgDemand",
+                    },
+                    "Ontario Northwest Average Demand": {
+                        "path": [
+                            "AreaAverageDemand",
+                            "NorthwestAverageDemand",
+                            "Demand",
+                        ],
+                        "value_key": "AvgDemand",
+                    },
+                    "Ontario Southeast Average Demand": {
+                        "path": [
+                            "AreaAverageDemand",
+                            "SoutheastAverageDemand",
+                            "Demand",
+                        ],
+                        "value_key": "AvgDemand",
+                    },
                     "Ontario Wind Embedded Forecast": {
                         "path": ["WindEmbedded", "Embedded"],
                         "value_key": "EnergyMW",
