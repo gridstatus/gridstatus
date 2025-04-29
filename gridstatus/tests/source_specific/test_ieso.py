@@ -1178,6 +1178,10 @@ class TestIESO(BaseTestISO):
 
         assert data[TIME_COLUMN].is_monotonic_increasing
 
+        # Make sure none of the locations have :LMP or :HUB in them
+        assert not data["Location"].str.contains(":LMP").any()
+        assert not data["Location"].str.contains(":HUB").any()
+
     def test_get_lmp_real_time_5_min_latest(self):
         with file_vcr.use_cassette("test_get_lmp_real_time_5_min_latest.yaml"):
             data = self.iso.get_lmp_real_time_5_min("latest")
