@@ -1,7 +1,6 @@
 import frozendict
 
-# TODO (Will) Update when the new data goes live
-PUBLIC_REPORTS_URL_PREFIX = "https://reports-public-sandbox.ieso.ca/public"
+PUBLIC_REPORTS_URL_PREFIX = "https://reports-public.ieso.ca/public"
 ONTARIO_LOCATION = "ONZP"
 
 """LOAD CONSTANTS"""
