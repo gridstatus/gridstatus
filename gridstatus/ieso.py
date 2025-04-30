@@ -15,6 +15,7 @@ import pandas as pd
 import requests
 import xmltodict
 from bs4 import BeautifulSoup
+from lxml import etree as lxml_etree
 
 from gridstatus import utils
 from gridstatus.base import ISOBase, NoDataFoundException, NotSupported
@@ -2738,6 +2739,129 @@ class IESO(ISOBase):
         ).reset_index(drop=True)
 
         return data
+
+    @support_date_range(frequency="DAY_START")
+    def get_in_service_transmission_limits(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/TxLimitsAllInService0to34Days/PUB_TxLimitsAllInService0to34Days.xml"
+            date = pd.Timestamp.now(tz=self.default_timezone)
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/TxLimitsAllInService0to34Days/PUB_TxLimitsAllInService0to34Days_{date.strftime('%Y%m%d')}.xml"
+
+        xml_content = self._request(url, verbose).text
+
+        return self._process_transmission_limits(
+            xml_content,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_outage_transmission_limits(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            urls = [
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxLimitsOutage0to2Days/PUB_TxLimitsOutage0to2Days.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxLimitsOutage3to34Days/PUB_TxLimitsOutage3to34Days.xml",
+            ]
+        else:
+            urls = [
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxLimitsOutage0to2Days/PUB_TxLimitsOutage0to2Days_{date.strftime('%Y%m%d')}.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxLimitsOutage3to34Days/PUB_TxLimitsOutage3to34Days_{date.strftime('%Y%m%d')}.xml",
+            ]
+
+        data_list = []
+        for url in urls:
+            xml_content = self._request(url, verbose).text
+            data_list.append(self._process_transmission_limits(xml_content))
+
+        data = pd.concat(data_list)
+
+        # Drop rows duplicated on every column except Publish Time
+        data = data.drop_duplicates(
+            subset=[c for c in data.columns if c != "Publish Time"],
+            keep="last",
+        ).reset_index(drop=True)
+
+        return data
+
+    def _process_transmission_limits(self, xml_content: str) -> pd.DataFrame:
+        parser = lxml_etree.XMLParser(remove_blank_text=True)
+        tree = lxml_etree.fromstring(xml_content.encode(), parser)
+
+        ns = {"ns": "http://www.ieso.ca/schema"}
+
+        created_at = pd.Timestamp(
+            str(tree.xpath("//ns:CreatedAt/text()", namespaces=ns)[0]),
+        ).tz_localize(
+            self.default_timezone,
+        )
+
+        data = []
+
+        facility_types = ["Internal", "Intertie"]
+
+        for facility_type in facility_types:
+            xpath = f"//ns:TransmissionFacilityData[ns:TransmissionFacility='{facility_type}']"
+            facilities = tree.xpath(xpath, namespaces=ns)
+
+            for facility in facilities:
+                # Find all interface data within this facility
+                interfaces = facility.xpath("./ns:InterfaceData", namespaces=ns)
+
+                for interface in interfaces:
+                    # Extract field values
+                    name = interface.xpath("./ns:InterfaceName/text()", namespaces=ns)[
+                        0
+                    ]
+                    issued = pd.Timestamp(
+                        str(interface.xpath("./ns:IssueDate/text()", namespaces=ns)[0]),
+                    ).tz_localize(
+                        self.default_timezone,
+                    )
+                    start = pd.Timestamp(
+                        str(interface.xpath("./ns:StartDate/text()", namespaces=ns)[0]),
+                    ).tz_localize(
+                        self.default_timezone,
+                    )
+                    end = pd.Timestamp(
+                        str(interface.xpath("./ns:EndDate/text()", namespaces=ns)[0]),
+                    ).tz_localize(
+                        self.default_timezone,
+                    )
+                    limit = interface.xpath(
+                        "./ns:OperatingLimit/text()",
+                        namespaces=ns,
+                    )[0]
+                    comments = interface.xpath("./ns:Comments/text()", namespaces=ns)[0]
+
+                    data.append(
+                        {
+                            "Interval Start": start,
+                            "Interval End": end,
+                            "Publish Time": created_at,
+                            "Issue Time": issued,
+                            "Type": facility_type,
+                            "Facility": name,
+                            "Operating Limit": int(limit),
+                            "Comments": comments,
+                        },
+                    )
+
+        df = (
+            pd.DataFrame(data)
+            .sort_values(["Interval Start", "Publish Time", "Facility"])
+            .reset_index(drop=True)
+        )
+
+        return df
 
     @support_date_range(frequency=None)
     def get_load_zonal_5_min(

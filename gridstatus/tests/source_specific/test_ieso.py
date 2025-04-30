@@ -1637,6 +1637,76 @@ class TestIESO(BaseTestISO):
             ).any()
         )
 
+    """get_in_service_transmission_limits"""
+
+    def _check_transmission_limits(self, data: pd.DataFrame) -> None:
+        assert set(data.columns) == {
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Issue Time",
+            "Type",
+            "Facility",
+            "Operating Limit",
+            "Comments",
+        }
+
+        assert self._check_is_datetime_type(data["Interval Start"])
+        assert self._check_is_datetime_type(data["Interval End"])
+        assert self._check_is_datetime_type(data["Publish Time"])
+        assert self._check_is_datetime_type(data["Issue Time"])
+
+        assert data["Facility"].dtype == "object"
+        assert data["Type"].dtype == "object"
+        assert data["Operating Limit"].dtype == "int64"
+        assert data["Comments"].dtype == "object"
+
+        assert not (
+            data.duplicated(
+                subset=[c for c in data.columns if c != "Publish Time"],
+            ).any()
+        )
+
+    def test_get_in_service_transmission_limits_latest(self):
+        with file_vcr.use_cassette(
+            "in_service_transmission_limits_latest.yaml",
+        ):
+            data = self.iso.get_in_service_transmission_limits("latest")
+
+        self._check_transmission_limits(data)
+
+    def test_get_in_service_transmission_limits_historical_date(self):
+        # Only date for which data is available
+        start = pd.Timestamp("2025-04-17")
+
+        with file_vcr.use_cassette(
+            f"in_service_transmission_limits_historical_date_range_{start.date()}.yaml",
+        ):
+            data = self.iso.get_in_service_transmission_limits(start)
+
+        self._check_transmission_limits(data)
+
+    """get_outage_transmission_limits"""
+
+    def test_get_outage_transmission_limits_latest(self):
+        with file_vcr.use_cassette(
+            "outage_transmission_limits_latest.yaml",
+        ):
+            data = self.iso.get_outage_transmission_limits("latest")
+
+        self._check_transmission_limits(data)
+
+    def test_get_outage_transmission_limits_historical_date(self):
+        # Only date for which data is available
+        start = pd.Timestamp("2025-04-17")
+
+        with file_vcr.use_cassette(
+            f"outage_transmission_limits_historical_date_range_{start.date()}.yaml",
+        ):
+            data = self.iso.get_outage_transmission_limits(start)
+
+        self._check_transmission_limits(data)
+
     """get_load_daily_zonal_5_min"""
 
     def _check_load_zonal(self, data: pd.DataFrame, frequency_minutes: int) -> None:
