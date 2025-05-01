@@ -3093,7 +3093,7 @@ class IESO(ISOBase):
         )
         base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/VGForecastSummary"
 
-        if isinstance(date, (datetime.datetime, datetime.date)):
+        if isinstance(date, (pd.Timestamp, pd.Timestamp)):
             date_str = date.strftime("%Y%m%d")
         else:
             date_str = date.replace("-", "")
@@ -3191,7 +3191,11 @@ class IESO(ISOBase):
                             forecast["ForecastDate"],
                         ).tz_localize(self.default_timezone)
 
-                        for interval in forecast["ForecastInterval"]:
+                        intervals = forecast["ForecastInterval"]
+                        if not isinstance(intervals, list):
+                            intervals = [intervals]
+
+                        for interval in intervals:
                             hour = int(interval["ForecastHour"])
                             output = float(interval["MWOutput"])
 
