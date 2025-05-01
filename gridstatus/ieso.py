@@ -2859,7 +2859,15 @@ class IESO(ISOBase):
                         "./ns:OperatingLimit/text()",
                         namespaces=ns,
                     )[0]
-                    comments = interface.xpath("./ns:Comments/text()", namespaces=ns)[0]
+
+                    comments_text = interface.xpath(
+                        "./ns:Comments/text()",
+                        namespaces=ns,
+                    )
+
+                    # Explicitly use a string here so we can use comments for the
+                    # primary key
+                    comments = comments_text[0] if comments_text else "None"
 
                     data.append(
                         {
