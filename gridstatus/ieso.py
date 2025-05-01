@@ -3165,18 +3165,6 @@ class IESO(ISOBase):
         json_data: dict,
         last_modified_time: pd.Timestamp,
     ) -> pd.DataFrame:
-        """Parse variable generation forecast data from XML/JSON.
-
-        Args:
-            json_data: The JSON data to parse
-            last_modified_time: The last modified time of the file
-
-        Returns:
-            DataFrame with parsed forecast data
-        """
-        logger.info(
-            f"Parsing variable generation forecast data from file {last_modified_time}...",
-        )
         document_body = json_data["Document"]["DocBody"]
         publish_time = pd.Timestamp(document_body["ForecastTimeStamp"]).tz_localize(
             self.default_timezone,
@@ -3192,6 +3180,11 @@ class IESO(ISOBase):
 
                 for resource in fuel_data["ResourceData"]:
                     zone = resource["ZoneName"]
+
+                    if zone == "OntarioTotal":
+                        zone = "Ontario Total"
+                    else:
+                        zone = zone.replace("-", " ").title()
 
                     for forecast in resource["EnergyForecast"]:
                         forecast_date = pd.Timestamp(
@@ -3213,14 +3206,19 @@ class IESO(ISOBase):
                                     "Interval End": interval_end,
                                     "Publish Time": publish_time,
                                     "Last Modified": last_modified_time,
-                                    "Organization Type": org_type,
-                                    "Fuel Type": fuel_type,
-                                    "Zone": zone,
+                                    "Column": f"{org_type.title()} {fuel_type.title()} {zone}",
                                     "Output MW": output,
                                 },
                             )
 
         df = pd.DataFrame(data)
-        df = df.sort_values(["Interval Start", "Zone"]).reset_index(drop=True)
 
-        return df
+        df_wide = df.pivot_table(
+            index=["Interval Start", "Interval End", "Publish Time", "Last Modified"],
+            columns="Column",
+            values="Output MW",
+        ).reset_index()
+
+        df_wide.columns.name = None
+
+        return df_wide.sort_values(["Interval Start"]).reset_index(drop=True)
