@@ -1827,3 +1827,168 @@ class TestIESO(BaseTestISO):
 
         assert data["Interval Start"].min() == pd.Timestamp(start_date)
         assert data["Interval End"].max() == pd.Timestamp(end_date)
+
+    """get_variable_generation_forecast"""
+
+    def _check_variable_generation_forecast(self, df: pd.DataFrame) -> None:
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+
+        required_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Last Modified",
+        ]
+        assert all(col in df.columns for col in required_columns)
+
+        assert self._check_is_datetime_type(df["Interval Start"])
+        assert self._check_is_datetime_type(df["Interval End"])
+        assert self._check_is_datetime_type(df["Publish Time"])
+        assert self._check_is_datetime_type(df["Last Modified"])
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        expected_cols = [
+            "Embedded Solar East",
+            "Embedded Solar Essa",
+            "Embedded Solar Northeast",
+            "Embedded Solar Northwest",
+            "Embedded Solar Ontario Total",
+            "Embedded Solar Ottawa",
+            "Embedded Solar Southwest",
+            "Embedded Solar Toronto",
+            "Embedded Solar West",
+            "Embedded Wind East",
+            "Embedded Wind Ontario Total",
+            "Embedded Wind Southwest",
+            "Embedded Wind West",
+            "Market Participant Solar Northeast",
+            "Market Participant Solar Ontario Total",
+            "Market Participant Solar Southwest",
+            "Market Participant Wind Bruce",
+            "Market Participant Wind Northeast",
+            "Market Participant Wind Ontario Total",
+            "Market Participant Wind Southwest",
+            "Market Participant Wind West",
+        ]
+        assert all(col in df.columns for col in expected_cols)
+
+        numeric_cols = [col for col in df.columns if col not in required_columns]
+        for col in numeric_cols:
+            assert is_numeric_dtype(df[col])
+
+    def test_get_variable_generation_forecast_latest(self):
+        with file_vcr.use_cassette("test_get_variable_generation_forecast_latest.yaml"):
+            df = self.iso.get_variable_generation_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (df["Interval Start"].dt.date == today.date()).all()
+        assert len(df) == 24
+
+    def test_get_variable_generation_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_variable_generation_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_variable_generation_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end + pd.Timedelta(hours=1)
+
+        expected_hours = (end - start).days * 24 + 24
+        assert len(df) == expected_hours
+
+    def test_get_variable_generation_forecast_all_versions(self):
+        date = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=1,
+        )
+
+        with file_vcr.use_cassette(
+            f"test_get_variable_generation_forecast_all_{date.date()}.yaml",
+        ):
+            df = self.iso.get_variable_generation_forecast(date, vintage="all")
+
+        self._check_variable_generation_forecast(df)
+
+        assert df["Publish Time"].nunique() > 1
+
+        for publish_time in df["Publish Time"].unique():
+            subset = df[df["Publish Time"] == publish_time]
+            assert len(subset) == 24
+
+    def test_get_variable_generation_forecast_json(self):
+        date = pd.Timestamp.now(tz=self.default_timezone)
+
+        with file_vcr.use_cassette("test_get_variable_generation_forecast_json.yaml"):
+            json_data_with_times = self.iso._get_variable_generation_forecast_json(
+                date,
+                vintage="latest",
+            )
+
+        assert isinstance(json_data_with_times, list)
+        assert len(json_data_with_times) == 1
+
+        json_data, last_modified = json_data_with_times[0]
+        assert isinstance(json_data, dict)
+        assert isinstance(last_modified, pd.Timestamp)
+
+        assert "Document" in json_data
+        assert "DocBody" in json_data["Document"]
+        doc_body = json_data["Document"]["DocBody"]
+        assert "OrganizationData" in doc_body
+        assert "ForecastTimeStamp" in doc_body
+
+    def test_parse_variable_generation_forecast(self):
+        test_json = {
+            "Document": {
+                "DocBody": {
+                    "ForecastTimeStamp": "2024-03-21T12:00:00",
+                    "OrganizationData": [
+                        {
+                            "OrganizationType": "Embedded",
+                            "FuelData": [
+                                {
+                                    "FuelType": "WIND",
+                                    "ResourceData": [
+                                        {
+                                            "ZoneName": "Northeast",
+                                            "EnergyForecast": [
+                                                {
+                                                    "ForecastDate": "2024-03-21",
+                                                    "ForecastInterval": [
+                                                        {
+                                                            "ForecastHour": "1",
+                                                            "MWOutput": "100",
+                                                        },
+                                                    ],
+                                                },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            },
+        }
+
+        last_modified = pd.Timestamp.now(tz=self.default_timezone)
+        df = self.iso._parse_variable_generation_forecast(test_json, last_modified)
+
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert "Embedded Wind Northeast" in df.columns
+        assert df["Publish Time"].dt.tz == self.default_timezone
+        assert df["Last Modified"].dt.tz == self.default_timezone
