@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from typing import Literal
 from urllib.error import HTTPError
+from warnings import warn
 from xml.etree import ElementTree
 
 import pandas as pd
@@ -47,6 +48,16 @@ CERTIFICATES_CHAIN_FILE = os.path.join(
     CURRENT_DIR,
     "public_certificates/ieso/intermediate_and_root.pem",
 )
+
+# Date when IESO switched to new market and retired several datasets
+RETIRED_DATE = datetime.date(2025, 5, 1)
+
+
+def retired_data_warning():
+    warn(
+        f"This dataset was retired on {RETIRED_DATE}. Only data prior to that date is available",
+        UserWarning,
+    )
 
 
 class SurplusState(str, Enum):
@@ -104,6 +115,8 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: zonal load as a wide table with columns for each zone
         """
+        retired_data_warning()
+
         today = utils._handle_date("today", tz=self.default_timezone)
 
         if date != "latest":
@@ -876,6 +889,8 @@ class IESO(ISOBase):
         end: datetime.date | datetime.datetime | None = None,
         verbose: bool = False,
     ):
+        retired_data_warning()
+
         # This file always has the latest data for the current hour
         if date == "latest":
             url = "https://reports-public.ieso.ca/public/RealtimeMktPrice/PUB_RealtimeMktPrice.csv"  # noqa: E501
@@ -982,6 +997,8 @@ class IESO(ISOBase):
         end: datetime.date | datetime.datetime | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        retired_data_warning()
+
         if date == "latest":
             return self.get_hoep_real_time_hourly("today", verbose=verbose)
 
@@ -1025,6 +1042,8 @@ class IESO(ISOBase):
         end: datetime.date | datetime.datetime | None = None,
         verbose: bool = False,
     ):
+        retired_data_warning()
+
         url = f"https://reports-public.ieso.ca/public/PriceHOEPPredispOR/PUB_PriceHOEPPredispOR_{date.year}.csv"  # noqa: E501
 
         data = pd.read_csv(url, skiprows=1, header=2)
@@ -2931,3 +2950,93 @@ class IESO(ISOBase):
             .sort_values(["Interval Start"])
             .reset_index(drop=True)
         )
+
+    @support_date_range(frequency="HOUR_START")
+    def get_real_time_totals(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeTotals/PUB_RealtimeTotals.xml"
+        else:
+            hour = date.hour
+            # Hour numbers are 1-24, so we need to add 1
+            file_hour = f"{hour + 1}".zfill(2)
+
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeTotals/PUB_RealtimeTotals_{date.strftime('%Y%m%d')}{file_hour}.xml"
+
+        xml_content = self._request(url, verbose).text
+
+        root = ElementTree.fromstring(xml_content)
+
+        ns = NAMESPACES_FOR_XML.copy()
+
+        # Extract delivery date and hour
+        delivery_date = root.find(".//DeliveryDate", ns).text
+        delivery_hour = int(root.find(".//DeliveryHour", ns).text)
+
+        base_datetime = (
+            pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
+        ).tz_localize(self.default_timezone)
+
+        data = []
+
+        for interval_energy in root.findall(".//IntervalEnergy", ns):
+            interval = int(interval_energy.find("Interval", ns).text)
+
+            interval_start = base_datetime + pd.Timedelta(minutes=(interval - 1) * 5)
+            interval_end = interval_start + pd.Timedelta(minutes=5)
+
+            row = {"Interval Start": interval_start, "Interval End": interval_end}
+
+            for mq in interval_energy.findall("MQ", ns):
+                quantity_name = mq.find("MarketQuantity", ns).text
+                energy_mw = float(mq.find("EnergyMW", ns).text)
+
+                if quantity_name == "Total Energy":
+                    row["Total Energy"] = energy_mw
+                elif quantity_name == "Total Loss":
+                    row["Total Loss"] = energy_mw
+                elif quantity_name == "Total Load":
+                    row["Market Total Load"] = energy_mw
+                elif quantity_name == "Total Dispatch Load Scheduled OFF":
+                    row["Total Dispatchable Load Scheduled Off"] = energy_mw
+                elif quantity_name == "Total 10S":
+                    row["Total 10S"] = energy_mw
+                elif quantity_name == "Total 10N":
+                    row["Total 10N"] = energy_mw
+                elif quantity_name == "Total 30R":
+                    row["Total 30R"] = energy_mw
+                elif quantity_name == "ONTARIO DEMAND":
+                    row["Ontario Load"] = energy_mw
+
+            # Extract flag
+            flag = interval_energy.find("Flag", ns).text
+            row["Flag"] = flag
+
+            data.append(row)
+
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "Total Energy",
+            "Total Loss",
+            "Market Total Load",
+            "Total Dispatchable Load Scheduled Off",
+            "Total 10S",
+            "Total 10N",
+            "Total 30R",
+            "Ontario Load",
+            "Flag",
+        ]
+
+        # Create DataFrame
+        data = (
+            pd.DataFrame(data)[columns]
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+        )
+
+        return data

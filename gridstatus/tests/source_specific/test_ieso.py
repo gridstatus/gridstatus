@@ -1765,3 +1765,65 @@ class TestIESO(BaseTestISO):
 
         assert data["Interval Start"].min() == start
         assert data["Interval End"].max() == end
+
+    """get_real_time_totals"""
+
+    def _check_real_time_totals(self, data: pd.DataFrame) -> None:
+        assert list(data.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Total Energy",
+            "Total Loss",
+            "Market Total Load",
+            "Total Dispatchable Load Scheduled Off",
+            "Total 10S",
+            "Total 10N",
+            "Total 30R",
+            "Ontario Load",
+            "Flag",
+        ]
+
+        assert self._check_is_datetime_type(data["Interval Start"])
+        assert self._check_is_datetime_type(data["Interval End"])
+
+        assert data["Total Energy"].dtype == "float64"
+        assert data["Total Loss"].dtype == "float64"
+        assert data["Market Total Load"].dtype == "float64"
+        assert data["Total Dispatchable Load Scheduled Off"].dtype == "float64"
+        assert data["Total 10S"].dtype == "float64"
+        assert data["Total 10N"].dtype == "float64"
+        assert data["Total 30R"].dtype == "float64"
+        assert data["Ontario Load"].dtype == "float64"
+
+        assert data["Flag"].dtype == "object"
+
+        assert (
+            data["Interval End"] - data["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+        assert data["Interval Start"].is_monotonic_increasing
+
+    def test_get_real_time_totals_latest(self):
+        with file_vcr.use_cassette("test_get_real_time_totals_latest.yaml"):
+            data = self.iso.get_real_time_totals("latest")
+
+        self._check_real_time_totals(data)
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data["Interval Start"].dt.date == today.date()).all()
+
+    def test_get_real_time_totals_historical_date_range(self):
+        # Only date for which data is available
+        start_date = "2025-05-01T09:00:00Z"
+        end_date = "2025-05-01T12:00:00Z"
+
+        with file_vcr.use_cassette(
+            f"test_get_real_time_totals_historical_date_range_{start_date}_{end_date}.yaml",
+        ):
+            data = self.iso.get_real_time_totals(start_date, end=end_date)
+
+        self._check_real_time_totals(data)
+
+        assert data["Interval Start"].min() == pd.Timestamp(start_date)
+        assert data["Interval End"].max() == pd.Timestamp(end_date)

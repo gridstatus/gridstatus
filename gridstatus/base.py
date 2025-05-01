@@ -22,6 +22,10 @@ class NoDataFoundException(Exception):
     pass
 
 
+class RetiredDataException(Exception):
+    pass
+
+
 class Markets(Enum):
     """Names of LMP Markets"""
 
