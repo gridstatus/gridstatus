@@ -3091,16 +3091,7 @@ class IESO(ISOBase):
         ]
         df = pd.concat(dfs).reset_index(drop=True)
         df.drop_duplicates(inplace=True)
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Last Modified",
-                "Column",
-                "Output MW",
-            ]
-        ]
+        return df
 
     def _get_variable_generation_forecast_json(
         self,
@@ -3204,7 +3195,7 @@ class IESO(ISOBase):
         data = []
 
         for org in document_body["OrganizationData"]:
-            org_type = org["OrganizationType"]
+            org_type = org["OrganizationType"].title()
 
             for fuel_data in org["FuelData"]:
                 for resource in fuel_data["ResourceData"]:
@@ -3260,4 +3251,6 @@ class IESO(ISOBase):
 
         df_wide.columns.name = None
 
-        return df_wide.sort_values(["Interval Start", "Zone"]).reset_index(drop=True)
+        return df_wide.sort_values(
+            ["Interval Start", "Publish Time", "Last Modified", "Zone"],
+        ).reset_index(drop=True)
