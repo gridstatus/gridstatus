@@ -2669,22 +2669,22 @@ class IESO(ISOBase):
     ):
         if date == "latest":
             urls = [
-                "https://reports-public-sandbox.ieso.ca/public/TxOutagesTodayAll/PUB_TxOutagesTodayAll.xml",
-                "https://reports-public-sandbox.ieso.ca/public/TxOutages1to30DaysPlanned/PUB_TxOutages1to30DaysPlanned.xml",
-                "https://reports-public-sandbox.ieso.ca/public/TxOutages31to90DaysPlanned/PUB_TxOutages31to90DaysPlanned.xml",
-                "https://reports-public-sandbox.ieso.ca/public/TxOutages91to180DaysPlanned/PUB_TxOutages91to180DaysPlanned.xml",
-                "https://reports-public-sandbox.ieso.ca/public/TxOutages181to730DaysPlanned/PUB_TxOutages181to730DaysPlanned.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutagesTodayAll/PUB_TxOutagesTodayAll.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutages1to30DaysPlanned/PUB_TxOutages1to30DaysPlanned.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutages31to90DaysPlanned/PUB_TxOutages31to90DaysPlanned.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutages91to180DaysPlanned/PUB_TxOutages91to180DaysPlanned.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutages181to730DaysPlanned/PUB_TxOutages181to730DaysPlanned.xml",
             ]
         else:
             date_fmt = "%Y%m%d"
             urls = [
                 # The offset for each file is the minimum days - 1. So the file for
                 # 31 to 90 days planned is 30 days from the date, and so on.
-                f"https://reports-public-sandbox.ieso.ca/public/TxOutagesTodayAll/PUB_TxOutagesTodayAll_{date.strftime(date_fmt)}.xml",
-                f"https://reports-public-sandbox.ieso.ca/public/TxOutages1to30DaysPlanned/PUB_TxOutages1to30DaysPlanned_{date.strftime(date_fmt)}.xml",
-                f"https://reports-public-sandbox.ieso.ca/public/TxOutages31to90DaysPlanned/PUB_TxOutages31to90DaysPlanned_{(date + pd.DateOffset(days=30)).strftime(date_fmt)}.xml",
-                f"https://reports-public-sandbox.ieso.ca/public/TxOutages91to180DaysPlanned/PUB_TxOutages91to180DaysPlanned_{(date + pd.DateOffset(days=90)).strftime(date_fmt)}.xml",
-                f"https://reports-public-sandbox.ieso.ca/public/TxOutages181to730DaysPlanned/PUB_TxOutages181to730DaysPlanned_{(date + pd.DateOffset(days=180)).strftime(date_fmt)}.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutagesTodayAll/PUB_TxOutagesTodayAll_{date.strftime(date_fmt)}.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutages1to30DaysPlanned/PUB_TxOutages1to30DaysPlanned_{date.strftime(date_fmt)}.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutages31to90DaysPlanned/PUB_TxOutages31to90DaysPlanned_{(date + pd.DateOffset(days=30)).strftime(date_fmt)}.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutages91to180DaysPlanned/PUB_TxOutages91to180DaysPlanned_{(date + pd.DateOffset(days=90)).strftime(date_fmt)}.xml",
+                f"{PUBLIC_REPORTS_URL_PREFIX}/TxOutages181to730DaysPlanned/PUB_TxOutages181to730DaysPlanned_{(date + pd.DateOffset(days=180)).strftime(date_fmt)}.xml",
             ]
 
         outage_data = []
