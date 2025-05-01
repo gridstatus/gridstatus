@@ -3050,7 +3050,7 @@ class IESO(ISOBase):
         return data
 
     @support_date_range(frequency="DAY_START")
-    def get_variable_generation_forecast(
+    def get_solar_generation_forecast(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -3070,6 +3070,37 @@ class IESO(ISOBase):
         df = pd.concat(dfs).reset_index(drop=True)
         df.drop_duplicates(inplace=True)
         return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_wind_generation_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        json_data_with_times = self._get_variable_generation_forecast_json(
+            date,
+            end,
+            vintage,
+        )
+
+        dfs = [
+            self._parse_variable_generation_forecast(json_data, last_modified_time)
+            for json_data, last_modified_time in json_data_with_times
+        ]
+        df = pd.concat(dfs).reset_index(drop=True)
+        df.drop_duplicates(inplace=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Last Modified",
+                "Column",
+                "Output MW",
+            ]
+        ]
 
     def _get_variable_generation_forecast_json(
         self,
@@ -3176,11 +3207,8 @@ class IESO(ISOBase):
             org_type = org["OrganizationType"]
 
             for fuel_data in org["FuelData"]:
-                fuel_type = fuel_data["FuelType"]
-
                 for resource in fuel_data["ResourceData"]:
                     zone = resource["ZoneName"]
-
                     if zone == "OntarioTotal":
                         zone = "Ontario Total"
                     else:
@@ -3210,7 +3238,8 @@ class IESO(ISOBase):
                                     "Interval End": interval_end,
                                     "Publish Time": publish_time,
                                     "Last Modified": last_modified_time,
-                                    "Column": f"{org_type.title()} {fuel_type.title()} {zone}",
+                                    "Organization Type": org_type,
+                                    "Zone": zone,
                                     "Output MW": output,
                                 },
                             )
@@ -3218,11 +3247,17 @@ class IESO(ISOBase):
         df = pd.DataFrame(data)
 
         df_wide = df.pivot_table(
-            index=["Interval Start", "Interval End", "Publish Time", "Last Modified"],
-            columns="Column",
+            index=[
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Last Modified",
+                "Zone",
+            ],
+            columns="Organization Type",
             values="Output MW",
         ).reset_index()
 
         df_wide.columns.name = None
 
-        return df_wide.sort_values(["Interval Start"]).reset_index(drop=True)
+        return df_wide.sort_values(["Interval Start", "Zone"]).reset_index(drop=True)

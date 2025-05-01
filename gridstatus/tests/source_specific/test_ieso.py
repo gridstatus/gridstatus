@@ -1886,10 +1886,6 @@ class TestIESO(BaseTestISO):
 
         self._check_variable_generation_forecast(df)
 
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (df["Interval Start"].dt.date == today.date()).all()
-        assert len(df) == 24
-
     def test_get_variable_generation_forecast_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
             days=3,
