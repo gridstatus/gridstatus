@@ -1170,6 +1170,10 @@ class TestIESO(BaseTestISO):
 
         assert data[TIME_COLUMN].is_monotonic_increasing
 
+        # Make sure none of the locations have :LMP or :HUB in them
+        assert not data["Location"].str.contains(":LMP").any()
+        assert not data["Location"].str.contains(":HUB").any()
+
     def test_get_lmp_real_time_5_min_latest(self):
         with file_vcr.use_cassette("test_get_lmp_real_time_5_min_latest.yaml"):
             data = self.iso.get_lmp_real_time_5_min("latest")
@@ -1262,6 +1266,18 @@ class TestIESO(BaseTestISO):
         ).all()
 
         assert data[TIME_COLUMN].is_monotonic_increasing
+
+        assert list(data["Location"].unique()) == [
+            "EAST",
+            "ESSA",
+            "NIAGARA",
+            "NORTHEAST",
+            "NORTHWEST",
+            "OTTAWA",
+            "SOUTHWEST",
+            "TORONTO",
+            "WEST",
+        ]
 
     def test_get_lmp_real_time_5_min_virtual_zonal_latest(self):
         with file_vcr.use_cassette(
@@ -1366,6 +1382,27 @@ class TestIESO(BaseTestISO):
 
         assert data[TIME_COLUMN].is_monotonic_increasing
 
+        assert list(data["Location"].unique()) == [
+            "EC.MARITIMES_NYSI",
+            "MB.SEVENSISTERS_MBSK",
+            "MB.WHITESHELL_MBSI",
+            "MD.CALVERTCLIFF_MISI",
+            "MD.CALVERTCLIFF_NYSI",
+            "MI.LUDINGTON_MISI",
+            "MN.INTFALLS_MNSI",
+            "NY.ROSETON_NYSI",
+            "PQ.BEAUHARNOIS_PQBE",
+            "PQ.BRYSON_PQXY",
+            "PQ.KIPAWA_PQHZ",
+            "PQ.MACLAREN_PQDA",
+            "PQ.MASSON_PQHA",
+            "PQ.OUTAOUAIS_PQAT",
+            "PQ.PAUGAN_PQPC",
+            "PQ.QUYON_PQQC",
+            "PQ.RAPIDDESISLE_PQDZ",
+            "WC.PRAIRERANGES_MISI",
+        ]
+
     def test_get_lmp_real_time_5_min_intertie_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_real_time_5_min_intertie_latest.yaml",
@@ -1462,7 +1499,6 @@ class TestIESO(BaseTestISO):
         ).all()
 
         assert data[TIME_COLUMN].is_monotonic_increasing
-
         assert (data["Location"] == ONTARIO_LOCATION).all()
 
     def test_get_lmp_real_time_5_min_ontario_zonal_latest(self):
@@ -1593,6 +1629,76 @@ class TestIESO(BaseTestISO):
             ).any()
         )
 
+    """get_in_service_transmission_limits"""
+
+    def _check_transmission_limits(self, data: pd.DataFrame) -> None:
+        assert set(data.columns) == {
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Issue Time",
+            "Type",
+            "Facility",
+            "Operating Limit",
+            "Comments",
+        }
+
+        assert self._check_is_datetime_type(data["Interval Start"])
+        assert self._check_is_datetime_type(data["Interval End"])
+        assert self._check_is_datetime_type(data["Publish Time"])
+        assert self._check_is_datetime_type(data["Issue Time"])
+
+        assert data["Facility"].dtype == "object"
+        assert data["Type"].dtype == "object"
+        assert data["Operating Limit"].dtype == "int64"
+        assert data["Comments"].dtype == "object"
+
+        assert not (
+            data.duplicated(
+                subset=[c for c in data.columns if c != "Publish Time"],
+            ).any()
+        )
+
+    def test_get_in_service_transmission_limits_latest(self):
+        with file_vcr.use_cassette(
+            "in_service_transmission_limits_latest.yaml",
+        ):
+            data = self.iso.get_in_service_transmission_limits("latest")
+
+        self._check_transmission_limits(data)
+
+    def test_get_in_service_transmission_limits_historical_date(self):
+        # Only date for which data is available
+        start = pd.Timestamp("2025-04-17")
+
+        with file_vcr.use_cassette(
+            f"in_service_transmission_limits_historical_date_range_{start.date()}.yaml",
+        ):
+            data = self.iso.get_in_service_transmission_limits(start)
+
+        self._check_transmission_limits(data)
+
+    """get_outage_transmission_limits"""
+
+    def test_get_outage_transmission_limits_latest(self):
+        with file_vcr.use_cassette(
+            "outage_transmission_limits_latest.yaml",
+        ):
+            data = self.iso.get_outage_transmission_limits("latest")
+
+        self._check_transmission_limits(data)
+
+    def test_get_outage_transmission_limits_historical_date(self):
+        # Only date for which data is available
+        start = pd.Timestamp("2025-04-17")
+
+        with file_vcr.use_cassette(
+            f"outage_transmission_limits_historical_date_range_{start.date()}.yaml",
+        ):
+            data = self.iso.get_outage_transmission_limits(start)
+
+        self._check_transmission_limits(data)
+
     """get_load_daily_zonal_5_min"""
 
     def _check_load_zonal(self, data: pd.DataFrame, frequency_minutes: int) -> None:
@@ -1651,3 +1757,65 @@ class TestIESO(BaseTestISO):
 
         assert data["Interval Start"].min() == start
         assert data["Interval End"].max() == end
+
+    """get_real_time_totals"""
+
+    def _check_real_time_totals(self, data: pd.DataFrame) -> None:
+        assert list(data.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Total Energy",
+            "Total Loss",
+            "Market Total Load",
+            "Total Dispatchable Load Scheduled Off",
+            "Total 10S",
+            "Total 10N",
+            "Total 30R",
+            "Ontario Load",
+            "Flag",
+        ]
+
+        assert self._check_is_datetime_type(data["Interval Start"])
+        assert self._check_is_datetime_type(data["Interval End"])
+
+        assert data["Total Energy"].dtype == "float64"
+        assert data["Total Loss"].dtype == "float64"
+        assert data["Market Total Load"].dtype == "float64"
+        assert data["Total Dispatchable Load Scheduled Off"].dtype == "float64"
+        assert data["Total 10S"].dtype == "float64"
+        assert data["Total 10N"].dtype == "float64"
+        assert data["Total 30R"].dtype == "float64"
+        assert data["Ontario Load"].dtype == "float64"
+
+        assert data["Flag"].dtype == "object"
+
+        assert (
+            data["Interval End"] - data["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+        assert data["Interval Start"].is_monotonic_increasing
+
+    def test_get_real_time_totals_latest(self):
+        with file_vcr.use_cassette("test_get_real_time_totals_latest.yaml"):
+            data = self.iso.get_real_time_totals("latest")
+
+        self._check_real_time_totals(data)
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data["Interval Start"].dt.date == today.date()).all()
+
+    def test_get_real_time_totals_historical_date_range(self):
+        # Only date for which data is available
+        start_date = "2025-05-01T09:00:00Z"
+        end_date = "2025-05-01T12:00:00Z"
+
+        with file_vcr.use_cassette(
+            f"test_get_real_time_totals_historical_date_range_{start_date}_{end_date}.yaml",
+        ):
+            data = self.iso.get_real_time_totals(start_date, end=end_date)
+
+        self._check_real_time_totals(data)
+
+        assert data["Interval Start"].min() == pd.Timestamp(start_date)
+        assert data["Interval End"].max() == pd.Timestamp(end_date)
