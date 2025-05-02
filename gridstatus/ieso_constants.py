@@ -157,9 +157,8 @@ ZONAL_LOAD_COLUMNS: list[str] = [
     "Diff",
 ]
 
-# TODO(kladar): Update to non-sandbox URL when the new data goes live
 RESOURCE_ADEQUACY_REPORT_BASE_URL: str = (
-    "https://reports-public-sandbox.ieso.ca/public/Adequacy3"
+    "https://reports-public.ieso.ca/public/Adequacy3"
 )
 
 RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP = frozendict.frozendict(
