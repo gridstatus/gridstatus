@@ -38,6 +38,7 @@ from gridstatus.ieso_constants import (
     NAMESPACES_FOR_XML,
     ONTARIO_LOCATION,
     PUBLIC_REPORTS_URL_PREFIX,
+    RESOURCE_ADEQUACY_REPORT_BASE_URL,
     RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP,
     ZONAL_LOAD_COLUMNS,
     ZONAL_LOAD_FORECAST_TEMPLATE_URL,
@@ -1182,14 +1183,14 @@ class IESO(ISOBase):
         Returns:
             tuple[dict, datetime.datetime]: The Resource Adequacy Report JSON and its last modified time
         """
-        base_url = "https://reports-public.ieso.ca/public/Adequacy2"
+        base_url = RESOURCE_ADEQUACY_REPORT_BASE_URL
 
         if isinstance(date, (datetime.datetime, datetime.date)):
             date_str = date.strftime("%Y%m%d")
         else:
             date_str = date.replace("-", "")
 
-        file_prefix = f"PUB_Adequacy2_{date_str}"
+        file_prefix = f"PUB_Adequacy3_{date_str}"
 
         r = self._request(base_url)
         files = re.findall(f'href="({file_prefix}.*?.xml)"', r.text)
@@ -1265,14 +1266,14 @@ class IESO(ISOBase):
         Returns:
             dict: The Resource Adequacy Report JSON for the given date
         """
-        base_url = "https://reports-public.ieso.ca/public/Adequacy2"
+        base_url = RESOURCE_ADEQUACY_REPORT_BASE_URL
 
         if isinstance(date, (datetime.datetime, datetime.date)):
             date_str = date.strftime("%Y%m%d")
         else:
             date_str = date.replace("-", "")
 
-        file_prefix = f"PUB_Adequacy2_{date_str}"
+        file_prefix = f"PUB_Adequacy3_{date_str}"
 
         r = self._request(base_url)
 

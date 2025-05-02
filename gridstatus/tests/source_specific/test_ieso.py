@@ -674,14 +674,6 @@ class TestIESO(BaseTestISO):
     # NOTE(kladar, 2024-12-11): Tests rolled off, earliest is currently 2024-09-10, 92 days ago
     RESOURCE_ADEQUACY_TEST_DATES = [
         (
-            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=91)).strftime(
-                "%Y-%m-%d",
-            ),
-            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=89)).strftime(
-                "%Y-%m-%d",
-            ),
-        ),
-        (
             (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=3)).strftime(
                 "%Y-%m-%d",
             ),
@@ -700,14 +692,6 @@ class TestIESO(BaseTestISO):
                 "%Y-%m-%d",
             ),
             (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=3)).strftime(
-                "%Y-%m-%d",
-            ),
-        ),
-        (
-            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=31)).strftime(
-                "%Y-%m-%d",
-            ),
-            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=34)).strftime(
                 "%Y-%m-%d",
             ),
         ),
@@ -794,7 +778,15 @@ class TestIESO(BaseTestISO):
         "Additional Contingency Allowances",
         "Ontario Demand Forecast",
         "Ontario Peak Demand",
+        "Ontario Northeast Peak Demand",
+        "Ontario Southwest Peak Demand",
+        "Ontario Northwest Peak Demand",
+        "Ontario Southeast Peak Demand",
         "Ontario Average Demand",
+        "Ontario Northeast Average Demand",
+        "Ontario Southwest Average Demand",
+        "Ontario Northwest Average Demand",
+        "Ontario Southeast Average Demand",
         "Ontario Wind Embedded Forecast",
         "Ontario Solar Embedded Forecast",
         "Ontario Dispatchable Load Capacity",
@@ -819,7 +811,7 @@ class TestIESO(BaseTestISO):
             df = self.iso.get_resource_adequacy_report(date, vintage="latest")
 
         assert isinstance(df, pd.DataFrame)
-        assert df.shape == (24, 91)  # 24 rows and 91 columns for each file
+        assert df.shape == (24, 99)  # 24 rows and 99 columns for each file
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
 
@@ -841,7 +833,7 @@ class TestIESO(BaseTestISO):
             df = self.iso.get_resource_adequacy_report(date, end=end, vintage="latest")
 
         assert isinstance(df, pd.DataFrame)
-        assert df.shape[1] == 91
+        assert df.shape[1] == 99
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
         expected_rows = ((pd.Timestamp(end) - pd.Timestamp(date)).days) * 24
@@ -858,7 +850,7 @@ class TestIESO(BaseTestISO):
             df = self.iso.get_resource_adequacy_report(date, end=end, vintage="all")
 
         assert isinstance(df, pd.DataFrame)
-        assert df.shape[1] == 91
+        assert df.shape[1] == 99
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
 
