@@ -2405,7 +2405,7 @@ class IESO(ISOBase):
 
             files_and_timestamps = self._get_directory_files_and_timestamps(
                 file_directory,
-                "PUB_PredispHourlyZonal",
+                file_name_prefix="PUB_PredispHourlyZonal",
             )
 
             urls = [

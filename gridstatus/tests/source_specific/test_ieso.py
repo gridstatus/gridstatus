@@ -1235,6 +1235,10 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
 
+    """get_lmp_dispatch_hourly"""
+
+    pass
+
     """get_lmp_real_time_5_min_virtual_zonal"""
 
     def _check_lmp_virtual_zonal_data(
@@ -1343,6 +1347,10 @@ class TestIESO(BaseTestISO):
         # Check that the data is for the specified date range
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
+
+    """get_lmp_dispatch_hourly_virtual_zonal"""
+
+    pass
 
     """get_lmp_real_time_5_min_intertie"""
 
@@ -1468,6 +1476,10 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
 
+    """get_lmp_predispatch_hourly_intertie"""
+
+    pass
+
     """get_lmp_real_time_5_min_ontario_zonal"""
 
     def _check_lmp_ontario_zonal_data(
@@ -1565,6 +1577,10 @@ class TestIESO(BaseTestISO):
         # Check that the data is for the specified date range
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
+
+    """get_lmp_predispatch_hourly_ontario_zonal"""
+
+    pass
 
     """get_transmission_outages_planned"""
 
