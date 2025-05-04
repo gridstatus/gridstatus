@@ -2054,17 +2054,11 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly LMP data found for {date} to {end}",
             )
 
-        data = []
+        data_list = []
 
         for url in tqdm.tqdm(urls):
-            file_data = self._get_lmp_csv_data(
-                url,
-                date,
-                minutes_per_interval=60,
-                verbose=verbose,
-            )
-
             # We need to get the file created date from the first line of the csv
+            # Example: CREATED AT 2025/05/01 23:14:53 FOR 2025/05/02
             text = self._request(url, verbose=False).text
             first_line = text.splitlines()[0]
 
@@ -2073,17 +2067,28 @@ class IESO(ISOBase):
                 first_line,
             )
 
-            timestamp_str = match.group(1)
+            publish_timestamp_str = match.group(1)
 
             publish_time = pd.Timestamp(
-                timestamp_str,
+                publish_timestamp_str,
                 tz=self.default_timezone,
             )
 
-            file_data["Publish Time"] = publish_time
-            data.append(file_data)
+            # Now get the date the file is FOR to use  as the base date
+            match = re.search(r"FOR (\d{4}/\d{2}/\d{2})", first_line)
+            delivery_date = pd.Timestamp(match.group(1), tz=self.default_timezone)
 
-        data = pd.concat(data)
+            file_data = self._get_lmp_csv_data(
+                url,
+                delivery_date=delivery_date,
+                minutes_per_interval=60,
+                verbose=verbose,
+            )
+
+            file_data["Publish Time"] = publish_time
+            data_list.append(file_data)
+
+        data = pd.concat(data_list)
 
         data = (
             # It's possible we may have duplicates since some of the files are the same.
@@ -2117,7 +2122,7 @@ class IESO(ISOBase):
     def _get_lmp_csv_data(
         self,
         url: str,
-        date: pd.Timestamp,
+        base_date: pd.Timestamp,
         minutes_per_interval: int = 60,
         verbose: bool = False,
     ):
@@ -2125,7 +2130,7 @@ class IESO(ISOBase):
 
         Args:
             url: The URL to fetch data from.
-            date: The date to process data for.
+            base_date: The date to process data for.
             minutes_per_interval: Number of minutes per interval.
 
         Returns:
@@ -2139,7 +2144,7 @@ class IESO(ISOBase):
 
         if minutes_per_interval == 5:
             data["Interval Start"] = pd.to_datetime(
-                date.normalize()
+                base_date.normalize()
                 # Need to subtract 1 from the hour because the hour is 1-indexed
                 + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour")
                 # The interval is 1-indexed, so we need to subtract 1 from the interval
@@ -2150,7 +2155,7 @@ class IESO(ISOBase):
             )
         elif minutes_per_interval == 60:
             data["Interval Start"] = pd.to_datetime(
-                date.normalize()
+                base_date.normalize()
                 + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour"),
             )
         else:
