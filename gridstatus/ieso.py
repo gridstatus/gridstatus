@@ -14,6 +14,7 @@ from xml.etree import ElementTree
 
 import pandas as pd
 import requests
+import tqdm
 import xmltodict
 from bs4 import BeautifulSoup
 from lxml import etree as lxml_etree
@@ -1971,20 +1972,22 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ):
+        directory_path = "RealtimeEnergyLMP"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
         if date == "latest":
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP.csv"
+            url = f"{file_directory}/PUB_{directory_path}.csv"
             date = pd.Timestamp.now(tz=self.default_timezone)
         else:
             hour = date.hour
             # Hour numbers are 1-24, so we need to add 1
             file_hour = f"{hour + 1}".zfill(2)
 
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeEnergyLMP/PUB_RealtimeEnergyLMP_{date.strftime('%Y%m%d')}{file_hour}.csv"
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}{file_hour}.csv"
 
-        return self._get_lmp_data(
+        return self._get_lmp_csv_data(
             url,
             date,
-            interval_duration="minute",
             minutes_per_interval=5,
         )
 
@@ -2003,38 +2006,41 @@ class IESO(ISOBase):
         Returns:
             DataFrame with LMP data.
         """
+        directory_path = "DAHourlyEnergyLMP"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
         if date == "latest":
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP.csv"
+            url = f"{file_directory}/PUB_{directory_path}.csv"
             date = pd.Timestamp.now(tz=self.default_timezone)
         else:
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP_{date.strftime('%Y%m%d')}.csv"
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}.csv"
 
-        return self._get_lmp_data(
+        return self._get_lmp_csv_data(
             url,
             date,
-            interval_duration="hour",
             minutes_per_interval=60,
         )
 
-    @support_date_range(frequency="HOUR_START")
+    @support_date_range(frequency=None)
     def get_lmp_predispatch_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        directory_path = "PredispHourlyEnergyLMP"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
         if date == "latest":
-            urls = [
-                f"{PUBLIC_REPORTS_URL_PREFIX}/PredispHourlyEnergyLMP/PUB_PredispHourlyEnergyLMP.csv",
-            ]
+            urls = [f"{file_directory}/PUB_{directory_path}.csv"]
             date = pd.Timestamp.now(tz=self.default_timezone)
         else:
-            file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/PredispHourlyEnergyLMP"
             files_and_times = self._get_directory_files_and_timestamps(
                 file_directory,
-                "PredispHourlyEnergyLMP",
+                file_name_prefix=f"PUB_{directory_path}",
             )
 
+            # If no end provided, use a default of 1 hour
             end = end or (date + pd.Timedelta(hours=1))
 
             urls = [
@@ -2045,24 +2051,23 @@ class IESO(ISOBase):
 
         if not urls:
             raise NoDataFoundException(
-                f"No Predispatch LMP data found for {date} to {end}",
+                f"No Predispatch Hourly LMP data found for {date} to {end}",
             )
 
         data = []
 
-        for url in urls:
-            file_data = self._get_lmp_data(
+        for url in tqdm.tqdm(urls):
+            file_data = self._get_lmp_csv_data(
                 url,
                 date,
-                interval_duration="hour",
                 minutes_per_interval=60,
+                verbose=verbose,
             )
 
             # We need to get the file created date from the first line of the csv
             text = self._request(url, verbose=False).text
             first_line = text.splitlines()[0]
 
-            # Extract the timestamp using regex
             match = re.search(
                 r"CREATED AT (\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})",
                 first_line,
@@ -2081,8 +2086,22 @@ class IESO(ISOBase):
         data = pd.concat(data)
 
         data = (
+            # It's possible we may have duplicates since some of the files are the same.
+            # We remove these by dropping duplicate rows based on a subset
             data.drop_duplicates(
                 subset=["Interval Start", "Location", "Publish Time"],
+            )
+        )
+
+        data = (
+            utils.move_cols_to_front(
+                data,
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Location",
+                ],
             )
             .sort_values(
                 ["Interval Start", "Location", "Publish Time"],
@@ -2090,42 +2109,35 @@ class IESO(ISOBase):
             .reset_index(drop=True)
         )
 
-        data = utils.move_cols_to_front(
-            data,
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Location",
-            ],
-        )
-
         # Remove :LMP from the location
         data["Location"] = data["Location"].str.replace(":LMP", "")
 
         return data
 
-    def _get_lmp_data(
+    def _get_lmp_csv_data(
         self,
         url: str,
         date: pd.Timestamp,
-        interval_duration: str = "hour",
         minutes_per_interval: int = 60,
+        verbose: bool = False,
     ):
         """Common method to fetch and process LMP data.
 
         Args:
             url: The URL to fetch data from.
             date: The date to process data for.
-            interval_duration: Duration unit for interval ('hour' or 'minute').
             minutes_per_interval: Number of minutes per interval.
 
         Returns:
             DataFrame with processed LMP data.
         """
+        if verbose:
+            logger.info(f"Fetching LMP data from {url}")
+
+        # Skip first line of the csv which contains the file created time
         data = pd.read_csv(url, skiprows=1)
 
-        if interval_duration == "minute":
+        if minutes_per_interval == 5:
             data["Interval Start"] = pd.to_datetime(
                 date.normalize()
                 # Need to subtract 1 from the hour because the hour is 1-indexed
@@ -2136,11 +2148,13 @@ class IESO(ISOBase):
                     unit="minute",
                 ),
             )
-        elif interval_duration == "hour":
+        elif minutes_per_interval == 60:
             data["Interval Start"] = pd.to_datetime(
                 date.normalize()
                 + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour"),
             )
+        else:
+            raise ValueError("Invalid minutes_per_interval. Must be 5 or 60.")
 
         data["Interval End"] = data["Interval Start"] + pd.Timedelta(
             minutes=minutes_per_interval,
@@ -2186,14 +2200,17 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ):
+        directory_path = "RealtimeZonalEnergyPrices"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
         if date == "latest":
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices.xml"
+            url = f"{file_directory}/PUB_{directory_path}.xml"
         else:
             hour = date.hour
             # Hour numbers are 1-24, so we need to add 1
             file_hour = f"{hour + 1}".zfill(2)
 
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeZonalEnergyPrices/PUB_RealtimeZonalEnergyPrices_{date.strftime('%Y%m%d')}{file_hour}.xml"
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}{file_hour}.xml"
 
         xml_content = self._request(url, verbose).text
 
@@ -2277,33 +2294,91 @@ class IESO(ISOBase):
         Returns:
             DataFrame with LMP data.
         """
-        if date == "latest":
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyZonal/PUB_DAHourlyZonal.xml"
-        else:
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyZonal/PUB_DAHourlyZonal_{date.strftime('%Y%m%d')}.xml"
+        directory_path = "DAHourlyZonal"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
 
-        return self._parse_lmp_day_ahead_hourly_virtual_zonal(
+        if date == "latest":
+            url = f"{file_directory}/PUB_{directory_path}.xml"
+        else:
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}.xml"
+
+        return self._parse_lmp_hourly_virtual_zonal(
             url,
             verbose=verbose,
         )
 
-    def _parse_lmp_day_ahead_hourly_virtual_zonal(
+    @support_date_range(frequency=None)
+    def get_lmp_predispatch_hourly_virtual_zonal(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        directory_path = "PredispHourlyZonal"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
+        if date == "latest":
+            urls = [f"{file_directory}/PUB_{directory_path}.xml"]
+        else:
+            end = end or (date + pd.Timedelta(hours=1))
+
+            files_and_timestamps = self._get_directory_files_and_timestamps(
+                file_directory,
+                file_name_prefix=f"PUB_{directory_path}",
+            )
+
+            urls = [
+                f"{file_directory}/{file}"
+                for file, file_time in files_and_timestamps
+                if date <= file_time < end
+            ]
+
+        if not urls:
+            raise NoDataFoundException(
+                f"No Predispatch Hourly Virtual Zonal LMP data found for {date} to {end}",
+            )
+
+        data_list = []
+
+        for url in tqdm.tqdm(urls):
+            file_data = self._parse_lmp_hourly_virtual_zonal(
+                url,
+                verbose=verbose,
+                predispatch=True,
+            )
+
+            data_list.append(file_data)
+
+        data = pd.concat(data_list)
+
+        data = (
+            # It's possible we may have duplicates if some of the files are the same.
+            data.drop_duplicates(
+                subset=["Interval Start", "Location", "Publish Time"],
+            )
+            .sort_values(
+                ["Interval Start", "Location", "Publish Time"],
+            )
+            .reset_index(drop=True)
+        )
+
+        return data
+
+    def _parse_lmp_hourly_virtual_zonal(
         self,
         url: str,
         verbose: bool = False,
         predispatch: bool = False,
     ) -> pd.DataFrame:
         xml_content = self._request(url, verbose).text
-
         soup = BeautifulSoup(xml_content, "xml")
 
         delivery_date = soup.find("DeliveryDate").text
-
-        created_at = pd.Timestamp(soup.find("CreatedAt").text, tz=self.default_timezone)
-
         base_datetime = (pd.to_datetime(delivery_date)).tz_localize(
             self.default_timezone,
         )
+
+        created_at = pd.Timestamp(soup.find("CreatedAt").text, tz=self.default_timezone)
 
         data_rows = []
 
@@ -2319,6 +2394,7 @@ class IESO(ISOBase):
             for component in components:
                 component_type = component.find("PriceComponent").text
 
+                # Predispatch xml has slightly different tags
                 for hour in component.find_all(
                     "DeliveryHour" if not predispatch else "DeliveryHourLMP",
                 ):
@@ -2388,77 +2464,23 @@ class IESO(ISOBase):
         return df
 
     @support_date_range(frequency="HOUR_START")
-    def get_lmp_predispatch_hourly_virtual_zonal(
-        self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        end: pd.Timestamp | None = None,
-        verbose: bool = False,
-    ):
-        if date == "latest":
-            urls = [
-                f"{PUBLIC_REPORTS_URL_PREFIX}/PredispHourlyZonal/PUB_PredispHourlyZonal.xml",
-            ]
-            date = pd.Timestamp.now(tz=self.default_timezone)
-        else:
-            end = end or (date + pd.Timedelta(hours=1))
-            file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/PredispHourlyZonal/"
-
-            files_and_timestamps = self._get_directory_files_and_timestamps(
-                file_directory,
-                file_name_prefix="PUB_PredispHourlyZonal",
-            )
-
-            urls = [
-                f"{file_directory}/{file}"
-                for file, file_time in files_and_timestamps
-                if date <= file_time < end
-            ]
-
-        if not urls:
-            raise NoDataFoundException(
-                f"No Predispatch LMP data found for {date} to {end}",
-            )
-
-        data = []
-        for url in urls:
-            file_data = self._parse_lmp_day_ahead_hourly_virtual_zonal(
-                url,
-                verbose=verbose,
-                predispatch=True,
-            )
-
-            data.append(file_data)
-
-        data = pd.concat(data)
-
-        data = (
-            data.drop_duplicates(
-                subset=["Interval Start", "Location", "Publish Time"],
-            )
-            .sort_values(
-                ["Interval Start", "Location", "Publish Time"],
-            )
-            .reset_index(drop=True)
-        )
-
-        return data
-
-    @support_date_range(frequency="HOUR_START")
     def get_lmp_real_time_5_min_intertie(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ):
+        directory_path = "RealTimeIntertieLMP"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
         if date == "latest":
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealTimeIntertieLMP/PUB_RealTimeIntertieLMP.xml"
-            date = pd.Timestamp.now(tz=self.default_timezone)
+            url = f"{file_directory}/PUB_{directory_path}.xml"
         else:
             hour = date.hour
             # Hour numbers are 1-24, so we need to add 1
             file_hour = f"{hour + 1}".zfill(2)
 
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealTimeIntertieLMP/PUB_RealTimeIntertieLMP_{date.strftime('%Y%m%d')}{file_hour}.xml"
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}{file_hour}.xml"
 
         xml_content = self._request(url, verbose).text
 
@@ -2573,45 +2595,36 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        directory_path = "DAHourlyIntertieLMP"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
         if date == "latest":
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyIntertieLMP/PUB_DAHourlyIntertieLMP.xml"
+            url = f"{file_directory}/PUB_{directory_path}.xml"
         else:
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyIntertieLMP/PUB_DAHourlyIntertieLMP_{date.strftime('%Y%m%d')}.xml"
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}.xml"
 
-        xml_content = self._request(url, verbose).text
+        return self._parse_lmp_hourly_intertie(url, verbose=verbose)
 
-        return self._parse_lmp_hourly_intertie(xml_content)
-
-    @support_date_range(frequency="HOUR_START")
+    @support_date_range(frequency=None)
     def get_lmp_predispatch_hourly_intertie(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
-        vintage: Literal["all", "latest"] = "latest",
         verbose: bool = False,
     ) -> pd.DataFrame:
-        file_directory = (
-            "https://reports-public.ieso.ca/public/PredispHourlyIntertieLMP/"
-        )
-
-        file_name_prefix = "PUB_PredispHourlyIntertieLMP"
-
-        # Get all links matching the date and there corresponding last modified time
-        files_and_datetimes = self._get_directory_files_and_timestamps(
-            file_directory,
-            file_name_prefix,
-        )
+        directory_path = "PredispHourlyIntertieLMP"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
 
         if date == "latest":
-            latest_file_name = "PUB_PredispHourlyIntertieLMP.xml"
-
-            urls = [
-                f"{file_directory}/{latest_file_name}"
-                for file, _ in files_and_datetimes
-                if file == latest_file_name
-            ]
+            urls = [f"{file_directory}/PUB_{directory_path}.xml"]
         else:
             end = end or (date + pd.Timedelta(hours=1))
+
+            # Get all links matching the date and there corresponding last modified time
+            files_and_datetimes = self._get_directory_files_and_timestamps(
+                file_directory,
+                file_name_prefix=f"PUB_{directory_path}",
+            )
 
             urls = [
                 f"{file_directory}/{file}"
@@ -2619,82 +2632,59 @@ class IESO(ISOBase):
                 if date <= date_time <= end
             ]
 
-        data = []
+        if not urls:
+            raise NoDataFoundException(
+                f"No Predispatch Hourly Intertie LMP data found for {date} to {end}",
+            )
 
-        for url in urls:
-            xml_content = self._request(url, verbose).text
-            url_data = self._parse_lmp_hourly_intertie(xml_content, predispatch=True)
-            data.append(url_data)
+        data_list = []
 
-        data = pd.concat(data, ignore_index=True)
+        for url in tqdm.tqdm(urls):
+            url_data = self._parse_lmp_hourly_intertie(
+                url,
+                verbose=verbose,
+                predispatch=True,
+            )
+            data_list.append(url_data)
+
+        data = pd.concat(data_list)
 
         # It's possible we will have duplicates because we may have multiple files
         # published at the same time
-        return (
-            data.drop_duplicates()
+        data = (
+            data.drop_duplicates(subset=["Interval Start", "Location", "Publish Time"])
             .sort_values(["Interval Start", "Location", "Publish Time"])
             .reset_index(drop=True)
         )
 
-    def _get_directory_files_and_timestamps(
-        self,
-        file_directory: str,
-        file_name_prefix: str,
-    ):
-        html_content = self._request(file_directory).text
-        soup = BeautifulSoup(html_content, "html.parser")
-        files = []
-
-        for a_tag in soup.find_all("a"):
-            href = a_tag.get("href")
-            if href and href.startswith(file_name_prefix):
-                parent_tr = a_tag.parent
-                if parent_tr:
-                    date_time_text = a_tag.next_sibling
-                    if date_time_text:
-                        date_time_match = re.search(
-                            r"(\d{2}-\w{3}-\d{4} \d{2}:\d{2})",
-                            date_time_text,
-                        )
-                        if date_time_match:
-                            date_time_str = date_time_match.group(1)
-                            date_time = pd.Timestamp(date_time_str).tz_localize(
-                                self.default_timezone,
-                            )
-                            files.append((href, date_time))
-
-        return sorted(files, key=lambda x: x[1], reverse=True)
+        return data
 
     def _parse_lmp_hourly_intertie(
         self,
-        xml_content: str,
+        url: str,
+        verbose: bool = False,
         predispatch: bool = False,
     ) -> pd.DataFrame:
+        xml_content = self._request(url, verbose).text
         root = ElementTree.fromstring(xml_content)
 
         ns = NAMESPACES_FOR_XML.copy()
+
+        delivery_date = root.find(".//DeliveryDate", ns).text
+        base_date = pd.Timestamp(delivery_date).tz_localize(self.default_timezone)
 
         created_at = pd.Timestamp(root.find(".//CreatedAt", ns).text).tz_localize(
             self.default_timezone,
         )
 
-        delivery_date = root.find(".//DeliveryDate", ns).text
-        base_date = pd.Timestamp(delivery_date).tz_localize(self.default_timezone)
-
-        # Initialize empty lists to store data
         data_rows = []
 
-        # Find all IntertieLMPrice elements
         intertie_prices = root.findall(".//IntertieLMPrice", ns)
 
         for intertie in intertie_prices:
-            # Get location name
             location = intertie.find("IntertiePLName", ns).text
-
-            # Find all component groups
             components = intertie.findall("Components", ns)
 
-            # Initialize dictionaries to store hourly data
             hourly_lmp = {}
             hourly_loss = {}
             hourly_congestion = {}
@@ -2781,22 +2771,25 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ):
+        directory_path = "RealtimeOntarioZonalPrice"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
         if date == "latest":
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeOntarioZonalPrice/PUB_RealtimeOntarioZonalPrice.xml"
+            url = f"{file_directory}/PUB_{directory_path}.xml"
         else:
             hour = date.hour
             # Hour numbers are 1-24, so we need to add 1
             file_hour = f"{hour + 1}".zfill(2)
 
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeOntarioZonalPrice/PUB_RealtimeOntarioZonalPrice_{date.strftime('%Y%m%d')}{file_hour}.xml"
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}{file_hour}.xml"
 
         xml_content = self._request(url, verbose).text
-
         root = ElementTree.fromstring(xml_content)
 
         ns = NAMESPACES_FOR_XML.copy()
 
         delivery_date_text = root.find(".//DeliveryDate", ns).text
+
         # Extract date and hour from the text (e.g., "For 2025-04-23 - Hour 12")
         delivery_date = pd.Timestamp(
             delivery_date_text.split(" - ")[0].replace("For ", ""),
@@ -2874,12 +2867,72 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ):
+        directory_path = "DAHourlyOntarioZonalPrice"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
         if date == "latest":
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice.xml"
+            url = f"{file_directory}/PUB_{directory_path}.xml"
         else:
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAHourlyOntarioZonalPrice/PUB_DAHourlyOntarioZonalPrice_{date.strftime('%Y%m%d')}.xml"
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}.xml"
 
         return self._process_lmp_hourly_ontario_zonal(url, verbose)
+
+    @support_date_range(frequency=None)
+    def get_lmp_predispatch_hourly_ontario_zonal(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        directory_path = "PredispHourlyOntarioZonalPrice"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
+        if date == "latest":
+            urls = [f"{file_directory}/PUB_{directory_path}.xml"]
+        else:
+            files_and_datetimes = self._get_directory_files_and_timestamps(
+                file_directory,
+                file_name_prefix=f"PUB_{directory_path}",
+            )
+
+            # Default to using 1 hour if no end is provided
+            end = end or (date + pd.Timedelta(hours=1))
+
+            urls = [
+                f"{file_directory}/{file}"
+                for file, date_time in files_and_datetimes
+                if date <= date_time <= end
+            ]
+
+        if not urls:
+            raise NoDataFoundException(
+                f"No Predispatch Hourly Ontario Zonal LMP data found for {date} to {end}",
+            )
+
+        data_list = []
+
+        for url in urls:
+            url_data = self._process_lmp_hourly_ontario_zonal(
+                url,
+                verbose,
+                predispatch=True,
+            )
+            data_list.append(url_data)
+
+        data = pd.concat(data_list)
+
+        # It's possible we will have duplicates because we may have multiple files
+        # published at the same time
+        data = (
+            data.drop_duplicates(
+                subset=["Interval Start", "Location", "Publish Time"],
+                keep="last",
+            )
+            .sort_values(["Interval Start", "Location", "Publish Time"])
+            .reset_index(drop=True)
+        )
+
+        return data
 
     def _process_lmp_hourly_ontario_zonal(
         self,
@@ -2896,8 +2949,10 @@ class IESO(ISOBase):
             root.find(".//CreatedAt", ns).text,
         ).tz_localize(self.default_timezone)
 
-        delivery_date = pd.Timestamp(
-            root.find(".//DeliveryDate", ns).text,
+        delivery_date = root.find(".//DeliveryDate", ns).text
+
+        base_datetime = pd.Timestamp(
+            delivery_date,
         ).tz_localize(self.default_timezone)
 
         data_rows = []
@@ -2912,9 +2967,10 @@ class IESO(ISOBase):
                 component.find("CongestionPriceCapped", ns).text,
             )
 
+            # Definition of LMP
             energy = lmp - loss_price - congestion_price
 
-            interval_start = delivery_date + pd.Timedelta(hours=hour - 1)
+            interval_start = base_datetime + pd.Timedelta(hours=hour - 1)
             interval_end = interval_start + pd.Timedelta(hours=1)
 
             data_rows.append(
@@ -2944,61 +3000,35 @@ class IESO(ISOBase):
 
         return df
 
-    @support_date_range(frequency="HOUR_START")
-    def get_lmp_predispatch_hourly_ontario_zonal(
+    def _get_directory_files_and_timestamps(
         self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        end: pd.Timestamp | None = None,
-        verbose: bool = False,
+        file_directory: str,
+        file_name_prefix: str,
     ):
-        if date == "latest":
-            urls = [
-                f"{PUBLIC_REPORTS_URL_PREFIX}/PredispHourlyOntarioZonalPrice/PUB_PredispHourlyOntarioZonalPrice.xml",
-            ]
-        else:
-            file_directory = (
-                f"{PUBLIC_REPORTS_URL_PREFIX}//PredispHourlyOntarioZonalPrice/"
-            )
+        html_content = self._request(file_directory, verbose=False).text
+        soup = BeautifulSoup(html_content, "html.parser")
+        files = []
 
-            files_and_datetimes = self._get_directory_files_and_timestamps(
-                file_directory,
-                "PUB_PredispHourlyOntarioZonalPrice",
-            )
+        for a_tag in soup.find_all("a"):
+            href = a_tag.get("href")
+            if href and href.startswith(file_name_prefix):
+                parent_tr = a_tag.parent
+                if parent_tr:
+                    # Extract the "Last modified" datetime
+                    date_time_text = a_tag.next_sibling
+                    if date_time_text:
+                        date_time_match = re.search(
+                            r"(\d{2}-\w{3}-\d{4} \d{2}:\d{2})",
+                            date_time_text,
+                        )
+                        if date_time_match:
+                            date_time_str = date_time_match.group(1)
+                            date_time = pd.Timestamp(date_time_str).tz_localize(
+                                self.default_timezone,
+                            )
+                            files.append((href, date_time))
 
-            end = end or (date + pd.Timedelta(hours=1))
-
-            urls = [
-                f"{file_directory}/{file}"
-                for file, date_time in files_and_datetimes
-                if date <= date_time <= end
-            ]
-
-        data = []
-        for url in urls:
-            url_data = self._process_lmp_hourly_ontario_zonal(
-                url,
-                verbose,
-                predispatch=True,
-            )
-            data.append(url_data)
-
-        if data:
-            data = pd.concat(data, ignore_index=True)
-        else:
-            return None
-
-        # It's possible we will have duplicates because we may have multiple files
-        # published at the same time
-        data = (
-            data.drop_duplicates(
-                subset=["Interval Start", "Location", "Publish Time"],
-                keep="last",
-            )
-            .sort_values(["Interval Start", "Location", "Publish Time"])
-            .reset_index(drop=True)
-        )
-
-        return data
+        return sorted(files, key=lambda x: x[1], reverse=True)
 
     @support_date_range(frequency="DAY_START")
     def get_transmission_outages_planned(
