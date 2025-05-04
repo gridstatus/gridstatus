@@ -2080,7 +2080,7 @@ class IESO(ISOBase):
 
             file_data = self._get_lmp_csv_data(
                 url,
-                delivery_date=delivery_date,
+                base_date=delivery_date,
                 minutes_per_interval=60,
                 verbose=verbose,
             )
