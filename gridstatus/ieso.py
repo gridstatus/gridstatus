@@ -3049,3 +3049,186 @@ class IESO(ISOBase):
         )
 
         return data
+
+    @support_date_range(frequency="HOUR_START")
+    def get_shadow_prices_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+        last_modified: str | pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        if last_modified:
+            last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
+        if date == "latest":
+            # TODO(kladar): Remove this once the link is available
+            # base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
+            base_url = "https://reports-public-sandbox.ieso.ca/public/RealtimeConstrShadowPrices"
+            file = "PUB_RealtimeConstrShadowPrices.xml"
+            r = self._request(base_url)
+            file_last_modified = pd.Timestamp(
+                re.search(
+                    r'<a href="PUB_RealtimeConstrShadowPrices\.xml">.*?</a>\s+(\d{2}-\w{3}-\d{4} \d{2}:\d{2})',
+                    r.text,
+                ).group(1),
+                tz=self.default_timezone,
+            )
+            json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
+            df = self._parse_shadow_prices_report(json_data)
+            df["Last Modified"] = file_last_modified
+            df.sort_values(
+                ["Interval Start", "Publish Time", "Last Modified", "Constraint"],
+                inplace=True,
+            )
+            return df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Last Modified",
+                    "Constraint",
+                    "Shadow Price",
+                ]
+            ].reset_index(drop=True)
+
+        json_data_with_times = self._get_all_shadow_prices_jsons(date, last_modified)
+        dfs = []
+        for json_data, file_last_modified in json_data_with_times:
+            df = self._parse_shadow_prices_report(json_data)
+            df["Last Modified"] = file_last_modified
+            dfs.append(df)
+        df = pd.concat(dfs)
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time", "Last Modified"],
+        )
+        df.sort_values(
+            ["Interval Start", "Publish Time", "Last Modified", "Constraint"],
+            inplace=True,
+        )
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Last Modified",
+                "Constraint",
+                "Shadow Price",
+            ]
+        ].reset_index(drop=True)
+
+    def _fetch_and_parse_shadow_prices_file(self, base_url: str, file: str) -> dict:
+        url = f"{base_url}/{file}"
+        r = self._request(url)
+        return xmltodict.parse(r.text)
+
+    def _get_all_shadow_prices_jsons(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        last_modified: pd.Timestamp | None = None,
+    ) -> list[tuple[dict, datetime.datetime]]:
+        # TODO(kladar): Remove this once the link is available
+        # base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
+        base_url = (
+            "https://reports-public-sandbox.ieso.ca/public/RealtimeConstrShadowPrices"
+        )
+
+        if isinstance(date, (datetime.datetime, datetime.date)):
+            date_str = date.strftime("%Y%m%d")
+        else:
+            date_str = date.replace("-", "")
+        file_prefix = f"PUB_RealtimeConstrShadowPrices_{date_str}"
+        r = self._request(base_url)
+        pattern = '<a href="({}.*?.xml)">.*?</a>\\s+(\\d{{2}}-\\w{{3}}-\\d{{4}} \\d{{2}}:\\d{{2}})'
+        file_rows = re.findall(pattern.format(file_prefix), r.text)
+        if not file_rows:
+            raise FileNotFoundError(f"No shadow price files found for date {date_str}")
+        if last_modified:
+            if last_modified.tz is None:
+                last_modified = utils._handle_date(
+                    last_modified,
+                    tz=self.default_timezone,
+                )
+            filtered_files = [
+                (file, time)
+                for file, time in file_rows
+                if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
+            ]
+        else:
+            filtered_files = file_rows
+        if not filtered_files:
+            raise FileNotFoundError(
+                f"No files found for date {date_str} after last modified time {last_modified}",
+            )
+        json_data_with_times = []
+        max_retries = 3
+        retry_delay = 2
+
+        with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
+            future_to_file = {
+                executor.submit(
+                    self._fetch_and_parse_shadow_prices_file,
+                    base_url,
+                    file,
+                ): (file, time)
+                for file, time in filtered_files
+            }
+            for future in as_completed(future_to_file):
+                file, time = future_to_file[future]
+                retries = 0
+                while retries < max_retries:
+                    try:
+                        json_data = future.result()
+                        json_data_with_times.append(
+                            (json_data, pd.Timestamp(time, tz=self.default_timezone)),
+                        )
+                        break
+                    except http.client.RemoteDisconnected as e:
+                        retries += 1
+                        if retries == max_retries:
+                            logger.error(
+                                f"Remote connection closed for file {file}: {str(e)}",
+                            )
+                            break
+                        logger.warning(
+                            f"Remote connection closed for file {file}: {str(e)}. Retrying in {retry_delay} seconds...",
+                        )
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                    except Exception as e:
+                        logger.error(
+                            f"Unexpected error processing file {file}: {str(e)}",
+                        )
+                        break
+        return json_data_with_times
+
+    def _parse_shadow_prices_report(self, json_data: dict) -> pd.DataFrame:
+        doc_header = json_data["Document"]["DocHeader"]
+        doc_body = json_data["Document"]["DocBody"]
+        publish_time = pd.Timestamp(doc_header["CreatedAt"], tz=self.default_timezone)
+        delivery_date = pd.Timestamp(doc_body["DELIVERYDATE"], tz=self.default_timezone)
+        rows = []
+        for hourly in doc_body["HourlyPrice"]:
+            constraint = " ".join(hourly["ConstraintName"].split())
+            hour = int(hourly["DeliveryHour"])
+            intervals = hourly["IntervalShadowPrices"]["Interval"]
+            prices = hourly["IntervalShadowPrices"]["ShadowPrice"]
+            for interval, price in zip(intervals, prices):
+                interval_num = int(interval)
+                interval_start = (
+                    delivery_date
+                    + pd.Timedelta(hours=hour - 1)
+                    + pd.Timedelta(minutes=(interval_num - 1) * 5)
+                )
+                interval_end = interval_start + pd.Timedelta(minutes=5)
+                rows.append(
+                    {
+                        "Interval Start": interval_start,
+                        "Interval End": interval_end,
+                        "Publish Time": publish_time,
+                        "Constraint": constraint,
+                        "Shadow Price": float(price),
+                    },
+                )
+        df = pd.DataFrame(rows)
+        return df
