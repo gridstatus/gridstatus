@@ -2123,7 +2123,7 @@ class IESO(ISOBase):
         self,
         url: str,
         base_date: pd.Timestamp,
-        minutes_per_interval: int = 60,
+        minutes_per_interval: Literal[5, 60] = 60,
         verbose: bool = False,
     ):
         """Common method to fetch and process LMP data.
