@@ -3100,13 +3100,6 @@ class IESO(ISOBase):
         ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
 
-        if end:
-            df = df[
-                (df["Interval Start"] >= date) & (df["Interval Start"] <= end)
-            ].reset_index(drop=True)
-        elif date != "latest":
-            df = df[df["Interval Start"] >= date].reset_index(drop=True)
-
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -3133,14 +3126,6 @@ class IESO(ISOBase):
             (df["Organization Type"] == "Market Participant") & (df["Type"] == "Solar")
         ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
-
-        if end:
-            df = df[
-                (df["Interval Start"] >= date) & (df["Interval Start"] <= end)
-            ].reset_index(drop=True)
-        elif date != "latest":
-            df = df[df["Interval Start"] >= date].reset_index(drop=True)
-
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -3166,13 +3151,6 @@ class IESO(ISOBase):
             (df["Organization Type"] == "Market Participant") & (df["Type"] == "Wind")
         ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
-
-        if end:
-            df = df[
-                (df["Interval Start"] >= date) & (df["Interval Start"] <= end)
-            ].reset_index(drop=True)
-        elif date != "latest":
-            df = df[df["Interval Start"] >= date].reset_index(drop=True)
 
         return df
 
