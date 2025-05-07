@@ -3474,7 +3474,6 @@ class IESO(ISOBase):
             (df["Organization Type"] == "Embedded") & (df["Type"] == "Wind")
         ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
-
         return df
 
     @support_date_range(frequency="DAY_START")
