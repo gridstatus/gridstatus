@@ -3104,6 +3104,11 @@ class IESO(ISOBase):
             ["Interval Start", "Publish Time", "Last Modified", "Constraint"],
             inplace=True,
         )
+        df.drop_duplicates(
+            subset=["Interval Start", "Publish Time", "Constraint"],
+            inplace=True,
+            keep="last",
+        )
         return df[
             [
                 "Interval Start",
