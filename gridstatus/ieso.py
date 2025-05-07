@@ -278,6 +278,9 @@ class IESO(ISOBase):
             ],
         )
 
+    # NOTE(kladar): This method is deprecated as the source has changed. Zonal load forecast
+    # are now available in the resource adequacy report and can be retrieved using the
+    # get_resource_adequacy_report method.
     @support_date_range(frequency="DAY_START")
     def get_zonal_load_forecast(
         self,
