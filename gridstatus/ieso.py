@@ -3050,7 +3050,7 @@ class IESO(ISOBase):
         return data
 
     @support_date_range(frequency="DAY_START")
-    def get_solar_generation_forecast(
+    def get_solar_generation_embedded_forecast(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -3069,10 +3069,12 @@ class IESO(ISOBase):
         ]
         df = pd.concat(dfs).reset_index(drop=True)
         df.drop_duplicates(inplace=True)
+        df = df[df["Organization Type"] == "Embedded" & df["Type"] == "Solar"]
+        df.drop(columns=["Organization Type", "Type"], inplace=True)
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_wind_generation_forecast(
+    def get_wind_generation_embedded_forecast(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -3090,6 +3092,56 @@ class IESO(ISOBase):
             for json_data, last_modified_time in json_data_with_times
         ]
         df = pd.concat(dfs).reset_index(drop=True)
+        df.drop_duplicates(inplace=True)
+        df = df[df["Organization Type"] == "Embedded" & df["Type"] == "Wind"]
+        df.drop(columns=["Organization Type", "Type"], inplace=True)
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_solar_generation_market_participant_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        json_data_with_times = self._get_variable_generation_forecast_json(
+            date,
+            end,
+            vintage,
+        )
+
+        dfs = [
+            self._parse_variable_generation_forecast(json_data, last_modified_time)
+            for json_data, last_modified_time in json_data_with_times
+        ]
+        df = pd.concat(dfs).reset_index(drop=True)
+        df.drop_duplicates(inplace=True)
+        df = df[df["Organization Type"] == "Market Participant" & df["Type"] == "Solar"]
+        df.drop(columns=["Organization Type", "Type"], inplace=True)
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_wind_generation_market_participant_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        json_data_with_times = self._get_variable_generation_forecast_json(
+            date,
+            end,
+            vintage,
+        )
+
+        dfs = [
+            self._parse_variable_generation_forecast(json_data, last_modified_time)
+            for json_data, last_modified_time in json_data_with_times
+        ]
+        df = pd.concat(dfs).reset_index(drop=True)
+        df = df[df["Organization Type"] == "Market Participant" & df["Type"] == "Wind"]
+        df.drop(columns=["Organization Type", "Type"], inplace=True)
         df.drop_duplicates(inplace=True)
         return df
 
