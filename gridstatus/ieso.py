@@ -3099,6 +3099,14 @@ class IESO(ISOBase):
             (df["Organization Type"] == "Embedded") & (df["Type"] == "Wind")
         ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
+
+        if end:
+            df = df[
+                (df["Interval Start"] >= date) & (df["Interval Start"] <= end)
+            ].reset_index(drop=True)
+        elif date != "latest":
+            df = df[df["Interval Start"] >= date].reset_index(drop=True)
+
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -3125,6 +3133,14 @@ class IESO(ISOBase):
             (df["Organization Type"] == "Market Participant") & (df["Type"] == "Solar")
         ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
+
+        if end:
+            df = df[
+                (df["Interval Start"] >= date) & (df["Interval Start"] <= end)
+            ].reset_index(drop=True)
+        elif date != "latest":
+            df = df[df["Interval Start"] >= date].reset_index(drop=True)
+
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -3150,6 +3166,14 @@ class IESO(ISOBase):
             (df["Organization Type"] == "Market Participant") & (df["Type"] == "Wind")
         ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
+
+        if end:
+            df = df[
+                (df["Interval Start"] >= date) & (df["Interval Start"] <= end)
+            ].reset_index(drop=True)
+        elif date != "latest":
+            df = df[df["Interval Start"] >= date].reset_index(drop=True)
+
         return df
 
     def _get_variable_generation_forecast_json(
@@ -3173,13 +3197,15 @@ class IESO(ISOBase):
             f"Getting variable generation forecast for {date} to {end} for {vintage} vintage...",
         )
         base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/VGForecastSummary"
-
-        if isinstance(date, (pd.Timestamp, pd.Timestamp)):
-            date_str = date.strftime("%Y%m%d")
+        if date == "latest":
+            file_prefix = "PUB_VGForecastSummary"
         else:
-            date_str = date.replace("-", "")
+            if isinstance(date, (pd.Timestamp, pd.Timestamp)):
+                date_str = date.strftime("%Y%m%d")
+            else:
+                date_str = date.replace("-", "")
 
-        file_prefix = f"PUB_VGForecastSummary_{date_str}"
+            file_prefix = f"PUB_VGForecastSummary_{date_str}"
 
         r = self._request(base_url)
 

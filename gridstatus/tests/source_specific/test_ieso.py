@@ -1833,15 +1833,6 @@ class TestIESO(BaseTestISO):
     def _check_variable_generation_forecast(self, df: pd.DataFrame) -> None:
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
-
-        required_columns = [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Last Modified",
-        ]
-        assert all(col in df.columns for col in required_columns)
-
         assert self._check_is_datetime_type(df["Interval Start"])
         assert self._check_is_datetime_type(df["Interval End"])
         assert self._check_is_datetime_type(df["Publish Time"])
@@ -1852,68 +1843,47 @@ class TestIESO(BaseTestISO):
         ).all()
 
         expected_cols = [
-            "Embedded Solar East",
-            "Embedded Solar Essa",
-            "Embedded Solar Northeast",
-            "Embedded Solar Northwest",
-            "Embedded Solar Ontario Total",
-            "Embedded Solar Ottawa",
-            "Embedded Solar Southwest",
-            "Embedded Solar Toronto",
-            "Embedded Solar West",
-            "Embedded Wind East",
-            "Embedded Wind Ontario Total",
-            "Embedded Wind Southwest",
-            "Embedded Wind West",
-            "Market Participant Solar Northeast",
-            "Market Participant Solar Ontario Total",
-            "Market Participant Solar Southwest",
-            "Market Participant Wind Bruce",
-            "Market Participant Wind Northeast",
-            "Market Participant Wind Ontario Total",
-            "Market Participant Wind Southwest",
-            "Market Participant Wind West",
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Last Modified",
+            "Zone",
+            "Generation Forecast",
         ]
         assert all(col in df.columns for col in expected_cols)
+        assert is_numeric_dtype(df["Generation Forecast"])
 
-        numeric_cols = [col for col in df.columns if col not in required_columns]
-        for col in numeric_cols:
-            assert is_numeric_dtype(df[col])
-
-    def test_get_variable_generation_forecast_latest(self):
-        with file_vcr.use_cassette("test_get_variable_generation_forecast_latest.yaml"):
-            df = self.iso.get_variable_generation_forecast("latest")
+    def test_get_solar_embedded_forecast_latest(self):
+        with file_vcr.use_cassette("test_get_solar_embedded_forecast_latest.yaml"):
+            df = self.iso.get_solar_embedded_forecast("latest")
 
         self._check_variable_generation_forecast(df)
 
-    def test_get_variable_generation_forecast_historical_date_range(self):
+    def test_get_solar_embedded_forecast_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
             days=3,
         )
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
-            f"test_get_variable_generation_forecast_historical_{start.date()}_{end.date()}.yaml",
+            f"test_get_solar_embedded_forecast_historical_{start.date()}_{end.date()}.yaml",
         ):
-            df = self.iso.get_variable_generation_forecast(start, end=end)
+            df = self.iso.get_solar_embedded_forecast(start, end=end)
 
         self._check_variable_generation_forecast(df)
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end + pd.Timedelta(hours=1)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
-        expected_hours = (end - start).days * 24 + 24
-        assert len(df) == expected_hours
-
-    def test_get_variable_generation_forecast_all_versions(self):
+    def test_get_solar_embedded_forecast_all_versions(self):
         date = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
             days=1,
         )
 
         with file_vcr.use_cassette(
-            f"test_get_variable_generation_forecast_all_{date.date()}.yaml",
+            f"test_get_solar_embedded_forecast_all_{date.date()}.yaml",
         ):
-            df = self.iso.get_variable_generation_forecast(date, vintage="all")
+            df = self.iso.get_solar_embedded_forecast(date, vintage="all")
 
         self._check_variable_generation_forecast(df)
 
@@ -1923,68 +1893,69 @@ class TestIESO(BaseTestISO):
             subset = df[df["Publish Time"] == publish_time]
             assert len(subset) == 24
 
-    def test_get_variable_generation_forecast_json(self):
-        date = pd.Timestamp.now(tz=self.default_timezone)
+    def test_get_wind_embedded_forecast_latest(self):
+        with file_vcr.use_cassette("test_get_wind_embedded_forecast_latest.yaml"):
+            df = self.iso.get_wind_embedded_forecast("latest")
 
-        with file_vcr.use_cassette("test_get_variable_generation_forecast_json.yaml"):
-            json_data_with_times = self.iso._get_variable_generation_forecast_json(
-                date,
-                vintage="latest",
-            )
+        self._check_variable_generation_forecast(df)
 
-        assert isinstance(json_data_with_times, list)
-        assert len(json_data_with_times) == 1
+    def test_get_wind_embedded_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
 
-        json_data, last_modified = json_data_with_times[0]
-        assert isinstance(json_data, dict)
-        assert isinstance(last_modified, pd.Timestamp)
+        with file_vcr.use_cassette(
+            f"test_get_wind_embedded_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_wind_embedded_forecast(start, end=end)
 
-        assert "Document" in json_data
-        assert "DocBody" in json_data["Document"]
-        doc_body = json_data["Document"]["DocBody"]
-        assert "OrganizationData" in doc_body
-        assert "ForecastTimeStamp" in doc_body
+        self._check_variable_generation_forecast(df)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
-    def test_parse_variable_generation_forecast(self):
-        test_json = {
-            "Document": {
-                "DocBody": {
-                    "ForecastTimeStamp": "2024-03-21T12:00:00",
-                    "OrganizationData": [
-                        {
-                            "OrganizationType": "Embedded",
-                            "FuelData": [
-                                {
-                                    "FuelType": "WIND",
-                                    "ResourceData": [
-                                        {
-                                            "ZoneName": "Northeast",
-                                            "EnergyForecast": [
-                                                {
-                                                    "ForecastDate": "2024-03-21",
-                                                    "ForecastInterval": [
-                                                        {
-                                                            "ForecastHour": "1",
-                                                            "MWOutput": "100",
-                                                        },
-                                                    ],
-                                                },
-                                            ],
-                                        },
-                                    ],
-                                },
-                            ],
-                        },
-                    ],
-                },
-            },
-        }
+    def test_get_wind_market_participant_forecast_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_wind_market_participant_forecast_latest.yaml",
+        ):
+            df = self.iso.get_wind_market_participant_forecast("latest")
 
-        last_modified = pd.Timestamp.now(tz=self.default_timezone)
-        df = self.iso._parse_variable_generation_forecast(test_json, last_modified)
+        self._check_variable_generation_forecast(df)
 
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        assert "Embedded Wind Northeast" in df.columns
-        assert df["Publish Time"].dt.tz == self.default_timezone
-        assert df["Last Modified"].dt.tz == self.default_timezone
+    def test_get_wind_market_participant_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_wind_market_participant_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_wind_market_participant_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
+
+    def test_get_solar_market_participant_forecast_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_solar_market_participant_forecast_latest.yaml",
+        ):
+            df = self.iso.get_solar_market_participant_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+    def test_get_solar_market_participant_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_solar_market_participant_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_solar_market_participant_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
