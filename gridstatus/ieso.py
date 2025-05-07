@@ -3050,7 +3050,7 @@ class IESO(ISOBase):
 
         return data
 
-    @support_date_range(frequency="HOUR_START")
+    @support_date_range(frequency="DAY_START")
     def get_shadow_prices_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
