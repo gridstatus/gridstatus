@@ -3061,9 +3061,7 @@ class IESO(ISOBase):
         if last_modified:
             last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
         if date == "latest":
-            # TODO(kladar): Remove this once the link is available
-            # base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
-            base_url = "https://reports-public-sandbox.ieso.ca/public/RealtimeConstrShadowPrices"
+            base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
             file = "PUB_RealtimeConstrShadowPrices.xml"
             r = self._request(base_url)
             file_last_modified = pd.Timestamp(
@@ -3127,11 +3125,7 @@ class IESO(ISOBase):
         date: str | datetime.date | datetime.datetime,
         last_modified: pd.Timestamp | None = None,
     ) -> list[tuple[dict, datetime.datetime]]:
-        # TODO(kladar): Remove this once the link is available
-        # base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
-        base_url = (
-            "https://reports-public-sandbox.ieso.ca/public/RealtimeConstrShadowPrices"
-        )
+        base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
 
         if isinstance(date, (datetime.datetime, datetime.date)):
             date_str = date.strftime("%Y%m%d")
