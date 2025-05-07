@@ -3118,7 +3118,8 @@ class IESO(ISOBase):
     def _fetch_and_parse_shadow_prices_file(self, base_url: str, file: str) -> dict:
         url = f"{base_url}/{file}"
         r = self._request(url)
-        return xmltodict.parse(r.text)
+        json_data = xmltodict.parse(r.text)
+        return json_data
 
     def _get_all_shadow_prices_jsons(
         self,
@@ -3202,6 +3203,20 @@ class IESO(ISOBase):
         publish_time = pd.Timestamp(doc_header["CreatedAt"], tz=self.default_timezone)
         delivery_date = pd.Timestamp(doc_body["DELIVERYDATE"], tz=self.default_timezone)
         rows = []
+
+        # NB: Handle the case where there is no hourly price data in the report
+        if "HourlyPrice" not in doc_body or not doc_body["HourlyPrice"]:
+            logger.debug(f"No hourly price data in report for {delivery_date}")
+            return pd.DataFrame(
+                {
+                    "Interval Start": pd.Series(dtype="datetime64[ns, EST]"),
+                    "Interval End": pd.Series(dtype="datetime64[ns, EST]"),
+                    "Publish Time": pd.Series(dtype="datetime64[ns, EST]"),
+                    "Constraint": pd.Series(dtype="string"),
+                    "Shadow Price": pd.Series(dtype="float64"),
+                },
+            )
+
         for hourly in doc_body["HourlyPrice"]:
             constraint = " ".join(hourly["ConstraintName"].split())
             hour = int(hourly["DeliveryHour"])
