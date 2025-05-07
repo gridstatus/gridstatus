@@ -2020,3 +2020,135 @@ class TestIESO(BaseTestISO):
 
         assert data["Interval Start"].min() == pd.Timestamp(start_date)
         assert data["Interval End"].max() == pd.Timestamp(end_date)
+
+    """get_variable_generation_forecast"""
+
+    def _check_variable_generation_forecast(self, df: pd.DataFrame) -> None:
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert self._check_is_datetime_type(df["Interval Start"])
+        assert self._check_is_datetime_type(df["Interval End"])
+        assert self._check_is_datetime_type(df["Publish Time"])
+        assert self._check_is_datetime_type(df["Last Modified"])
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        expected_cols = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Last Modified",
+            "Zone",
+            "Generation Forecast",
+        ]
+        assert all(col in df.columns for col in expected_cols)
+        assert is_numeric_dtype(df["Generation Forecast"])
+
+    def test_get_solar_embedded_forecast_latest(self):
+        with file_vcr.use_cassette("test_get_solar_embedded_forecast_latest.yaml"):
+            df = self.iso.get_solar_embedded_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+    def test_get_solar_embedded_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_solar_embedded_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_solar_embedded_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
+
+    def test_get_solar_embedded_forecast_all_versions(self):
+        date = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=1,
+        )
+
+        with file_vcr.use_cassette(
+            f"test_get_solar_embedded_forecast_all_{date.date()}.yaml",
+        ):
+            df = self.iso.get_solar_embedded_forecast(date, vintage="all")
+
+        self._check_variable_generation_forecast(df)
+
+        assert df["Publish Time"].nunique() > 1
+
+        for publish_time in df["Publish Time"].unique():
+            subset = df[df["Publish Time"] == publish_time]
+            assert len(subset) == 24
+
+    def test_get_wind_embedded_forecast_latest(self):
+        with file_vcr.use_cassette("test_get_wind_embedded_forecast_latest.yaml"):
+            df = self.iso.get_wind_embedded_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+    def test_get_wind_embedded_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_wind_embedded_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_wind_embedded_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
+
+    def test_get_wind_market_participant_forecast_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_wind_market_participant_forecast_latest.yaml",
+        ):
+            df = self.iso.get_wind_market_participant_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+    def test_get_wind_market_participant_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_wind_market_participant_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_wind_market_participant_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
+
+    def test_get_solar_market_participant_forecast_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_solar_market_participant_forecast_latest.yaml",
+        ):
+            df = self.iso.get_solar_market_participant_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+    def test_get_solar_market_participant_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_solar_market_participant_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_solar_market_participant_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)

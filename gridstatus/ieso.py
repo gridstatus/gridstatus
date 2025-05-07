@@ -3423,3 +3423,282 @@ class IESO(ISOBase):
         )
 
         return data
+
+    @support_date_range(frequency="DAY_START")
+    def get_solar_embedded_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        json_data_with_times = self._get_variable_generation_forecast_json(
+            date,
+            end,
+            vintage,
+        )
+
+        dfs = [
+            self._parse_variable_generation_forecast(json_data, last_modified_time)
+            for json_data, last_modified_time in json_data_with_times
+        ]
+        df = pd.concat(dfs).reset_index(drop=True)
+        df.drop_duplicates(inplace=True)
+        df = df[
+            (df["Organization Type"] == "Embedded") & (df["Type"] == "Solar")
+        ].reset_index(drop=True)
+        df.drop(columns=["Organization Type", "Type"], inplace=True)
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_wind_embedded_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        json_data_with_times = self._get_variable_generation_forecast_json(
+            date,
+            end,
+            vintage,
+        )
+
+        dfs = [
+            self._parse_variable_generation_forecast(json_data, last_modified_time)
+            for json_data, last_modified_time in json_data_with_times
+        ]
+        df = pd.concat(dfs).reset_index(drop=True)
+        df.drop_duplicates(inplace=True)
+        df = df[
+            (df["Organization Type"] == "Embedded") & (df["Type"] == "Wind")
+        ].reset_index(drop=True)
+        df.drop(columns=["Organization Type", "Type"], inplace=True)
+
+        if end:
+            df = df[
+                (df["Interval Start"] >= date) & (df["Interval Start"] <= end)
+            ].reset_index(drop=True)
+        elif date != "latest":
+            df = df[df["Interval Start"] >= date].reset_index(drop=True)
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_solar_market_participant_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        json_data_with_times = self._get_variable_generation_forecast_json(
+            date,
+            end,
+            vintage,
+        )
+
+        dfs = [
+            self._parse_variable_generation_forecast(json_data, last_modified_time)
+            for json_data, last_modified_time in json_data_with_times
+        ]
+        df = pd.concat(dfs).reset_index(drop=True)
+        df.drop_duplicates(inplace=True)
+        df = df[
+            (df["Organization Type"] == "Market Participant") & (df["Type"] == "Solar")
+        ].reset_index(drop=True)
+        df.drop(columns=["Organization Type", "Type"], inplace=True)
+
+        if end:
+            df = df[
+                (df["Interval Start"] >= date) & (df["Interval Start"] <= end)
+            ].reset_index(drop=True)
+        elif date != "latest":
+            df = df[df["Interval Start"] >= date].reset_index(drop=True)
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_wind_market_participant_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        json_data_with_times = self._get_variable_generation_forecast_json(
+            date,
+            end,
+            vintage,
+        )
+
+        dfs = [
+            self._parse_variable_generation_forecast(json_data, last_modified_time)
+            for json_data, last_modified_time in json_data_with_times
+        ]
+        df = pd.concat(dfs).reset_index(drop=True)
+        df = df[
+            (df["Organization Type"] == "Market Participant") & (df["Type"] == "Wind")
+        ].reset_index(drop=True)
+        df.drop(columns=["Organization Type", "Type"], inplace=True)
+
+        if end:
+            df = df[
+                (df["Interval Start"] >= date) & (df["Interval Start"] <= end)
+            ].reset_index(drop=True)
+        elif date != "latest":
+            df = df[df["Interval Start"] >= date].reset_index(drop=True)
+
+        return df
+
+    def _get_variable_generation_forecast_json(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        vintage: Literal["latest", "all"] = "latest",
+    ) -> list[tuple[dict, pd.Timestamp]]:
+        """Get variable generation forecast JSON data.
+
+        Args:
+            date: The date to get data for
+            end: The end date to get data for
+            vintage: Whether to get latest or all versions
+            verbose: Whether to print verbose output
+
+        Returns:
+            List of tuples containing (json_data, last_modified_time)
+        """
+        logger.info(
+            f"Getting variable generation forecast for {date} to {end} for {vintage} vintage...",
+        )
+        base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/VGForecastSummary"
+        if date == "latest":
+            file_prefix = "PUB_VGForecastSummary"
+        else:
+            if isinstance(date, (pd.Timestamp, pd.Timestamp)):
+                date_str = date.strftime("%Y%m%d")
+            else:
+                date_str = date.replace("-", "")
+
+            file_prefix = f"PUB_VGForecastSummary_{date_str}"
+
+        r = self._request(base_url)
+
+        pattern = f'href="({file_prefix}.*?.xml)">.*?</a>\\s+(\\d{{2}}-\\w{{3}}-\\d{{4}} \\d{{2}}:\\d{{2}})'
+        files_with_times = re.findall(pattern, r.text)
+
+        if not files_with_times:
+            raise FileNotFoundError(
+                f"No variable generation forecast files found for date {date_str}",
+            )
+
+        if vintage == "latest":
+            unversioned_file = next(
+                ((f, t) for f, t in files_with_times if "_v" not in f),
+                None,
+            )
+
+            if unversioned_file:
+                file_name, file_time = unversioned_file
+            else:
+                file_name, file_time = max(
+                    files_with_times,
+                    key=lambda x: int(x[0].split("_v")[-1].replace(".xml", "")),
+                )
+
+            url = f"{base_url}/{file_name}"
+            logger.info(f"Getting latest variable generation forecast from {url}...")
+            r = self._request(url)
+            json_data = xmltodict.parse(r.text)
+            last_modified_time = pd.Timestamp(file_time, tz=self.default_timezone)
+
+            return [(json_data, last_modified_time)]
+
+        else:
+            json_data_with_times = []
+
+            with ThreadPoolExecutor(
+                max_workers=min(10, len(files_with_times)),
+            ) as executor:
+                future_to_file = {
+                    executor.submit(self._fetch_and_parse_file, base_url, file): (
+                        file,
+                        time,
+                    )
+                    for file, time in files_with_times
+                }
+
+                for future in as_completed(future_to_file):
+                    file, time = future_to_file[future]
+                    try:
+                        json_data = future.result()
+                        json_data_with_times.append(
+                            (json_data, pd.Timestamp(time, tz=self.default_timezone)),
+                        )
+                    except Exception as e:
+                        logger.error(f"Error processing file {file}: {str(e)}")
+            logger.info(
+                f"Found {len(json_data_with_times)} variable generation forecast files for {date_str}",
+            )
+            return json_data_with_times
+
+    def _parse_variable_generation_forecast(
+        self,
+        json_data: dict,
+        last_modified_time: pd.Timestamp,
+    ) -> pd.DataFrame:
+        document_body = json_data["Document"]["DocBody"]
+        publish_time = pd.Timestamp(document_body["ForecastTimeStamp"]).tz_localize(
+            self.default_timezone,
+        )
+
+        data = []
+
+        for org in document_body["OrganizationData"]:
+            org_type = org["OrganizationType"].title()
+
+            for fuel_data in org["FuelData"]:
+                fuel_type = fuel_data["FuelType"].title()
+
+                for resource in fuel_data["ResourceData"]:
+                    zone = resource["ZoneName"]
+                    if zone == "OntarioTotal":
+                        zone = "Ontario Total"
+                    else:
+                        zone = zone.replace("-", " ").title()
+
+                    for forecast in resource["EnergyForecast"]:
+                        forecast_date = pd.Timestamp(
+                            forecast["ForecastDate"],
+                        ).tz_localize(self.default_timezone)
+
+                        intervals = forecast["ForecastInterval"]
+                        if not isinstance(intervals, list):
+                            intervals = [intervals]
+
+                        for interval in intervals:
+                            hour = int(interval["ForecastHour"])
+                            output = float(interval["MWOutput"])
+
+                            interval_start = forecast_date + pd.Timedelta(
+                                hours=hour - 1,
+                            )
+                            interval_end = interval_start + pd.Timedelta(hours=1)
+
+                            data.append(
+                                {
+                                    "Interval Start": interval_start,
+                                    "Interval End": interval_end,
+                                    "Publish Time": publish_time,
+                                    "Last Modified": last_modified_time,
+                                    "Organization Type": org_type,
+                                    "Type": fuel_type,
+                                    "Zone": zone,
+                                    "Generation Forecast": output,
+                                },
+                            )
+
+        df = pd.DataFrame(data)
+        return df.sort_values(
+            ["Interval Start", "Publish Time", "Last Modified", "Zone"],
+        ).reset_index(drop=True)
