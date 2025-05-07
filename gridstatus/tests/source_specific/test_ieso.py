@@ -1144,8 +1144,13 @@ class TestIESO(BaseTestISO):
 
     """get_lmp_real_time_5_min"""
 
-    def _check_lmp_data(self, data: pd.DataFrame, interval_minutes: int) -> None:
-        assert data.columns.tolist() == [
+    def _check_lmp_data(
+        self,
+        data: pd.DataFrame,
+        interval_minutes: int,
+        predispatch: bool = False,
+    ) -> None:
+        column_list = [
             "Interval Start",
             "Interval End",
             "Location",
@@ -1154,6 +1159,11 @@ class TestIESO(BaseTestISO):
             "Congestion",
             "Loss",
         ]
+
+        if predispatch:
+            column_list.insert(column_list.index("Interval End") + 1, "Publish Time")
+
+        assert data.columns.tolist() == column_list
 
         time_type = "interval"
         self._check_time_columns(data, instant_or_interval=time_type)
@@ -1235,14 +1245,56 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
 
+    """get_lmp_predispatch_hourly"""
+
+    def test_get_lmp_predispatch_hourly_latest(self):
+        with file_vcr.use_cassette("test_get_lmp_dispatch_hourly_latest.yaml"):
+            data = self.iso.get_lmp_predispatch_hourly("latest")
+
+        self._check_lmp_data(data, interval_minutes=60, predispatch=True)
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+
+        assert not data.duplicated(
+            subset=["Interval Start", "Publish Time", "Location"],
+        ).any()
+
+    def test_get_lmp_predispatch_hourly_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=1)
+
+        with file_vcr.use_cassette(
+            f"test_get_lmp_predispatch_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_predispatch_hourly(start, end=end)
+
+        self._check_lmp_data(data, interval_minutes=60, predispatch=True)
+
+        assert not data.duplicated(
+            subset=["Interval Start", "Publish Time", "Location"],
+        ).any()
+
+        # Since we retrieve data by publish time, the data will go out 23 hours
+        # after the end.
+        assert data[TIME_COLUMN].min() == start
+        assert data[TIME_COLUMN].max() == end + pd.Timedelta(hours=23)
+
+        assert data["Publish Time"].min() > start
+        assert data["Publish Time"].max() < end
+
     """get_lmp_real_time_5_min_virtual_zonal"""
 
     def _check_lmp_virtual_zonal_data(
         self,
         data: pd.DataFrame,
         interval_minutes: int,
+        predispatch: bool = False,
     ) -> None:
-        assert data.columns.tolist() == [
+        column_list = [
             "Interval Start",
             "Interval End",
             "Location",
@@ -1251,6 +1303,11 @@ class TestIESO(BaseTestISO):
             "Congestion",
             "Loss",
         ]
+
+        if predispatch:
+            column_list.insert(column_list.index("Interval End") + 1, "Publish Time")
+
+        assert data.columns.tolist() == column_list
 
         time_type = "interval"
         self._check_time_columns(data, instant_or_interval=time_type)
@@ -1344,14 +1401,58 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
 
+    """get_lmp_predispatch_hourly_virtual_zonal"""
+
+    def test_get_lmp_predispatch_hourly_virtual_zonal_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_lmp_dispatch_hourly_virtual_zonal_latest.yaml",
+        ):
+            data = self.iso.get_lmp_predispatch_hourly_virtual_zonal("latest")
+
+        self._check_lmp_virtual_zonal_data(data, interval_minutes=60, predispatch=True)
+
+        assert not data.duplicated(
+            subset=["Interval Start", "Publish Time", "Location"],
+        ).any()
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+
+    def test_get_lmp_predispatch_hourly_virtual_zonal_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=1)
+
+        with file_vcr.use_cassette(
+            f"test_get_lmp_predispatch_hourly_virtual_zonal_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_predispatch_hourly_virtual_zonal(start, end=end)
+
+        self._check_lmp_virtual_zonal_data(data, interval_minutes=60, predispatch=True)
+
+        assert not data.duplicated(
+            subset=["Interval Start", "Publish Time", "Location"],
+        ).any()
+
+        assert data[TIME_COLUMN].min() == start
+        # Since we retrieve data by publish time, the actual data will extend
+        # beyond the end time by 23 hours
+        assert data[TIME_COLUMN].max() == end + pd.Timedelta(hours=23)
+
+        assert data["Publish Time"].min() > start
+        assert data["Publish Time"].max() < end
+
     """get_lmp_real_time_5_min_intertie"""
 
     def _check_lmp_intertie(
         self,
         data: pd.DataFrame,
         interval_minutes: int,
+        predispatch: bool = False,
     ) -> None:
-        assert data.columns.tolist() == [
+        column_list = [
             "Interval Start",
             "Interval End",
             "Location",
@@ -1362,6 +1463,15 @@ class TestIESO(BaseTestISO):
             "External Congestion",
             "Interchange Scheduling Limit Price",
         ]
+
+        if predispatch:
+            # Add Publish Time after the Interval End column
+            column_list.insert(
+                column_list.index("Interval End") + 1,
+                "Publish Time",
+            )
+
+        assert data.columns.tolist() == column_list
 
         time_type = "interval"
         self._check_time_columns(data, instant_or_interval=time_type)
@@ -1468,14 +1578,58 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
 
+    """get_lmp_predispatch_hourly_intertie"""
+
+    def test_get_lmp_predispatch_hourly_intertie_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_lmp_predispatch_hourly_intertie_latest.yaml",
+        ):
+            data = self.iso.get_lmp_predispatch_hourly_intertie("latest")
+
+        self._check_lmp_intertie(data, interval_minutes=60, predispatch=True)
+
+        assert not data.duplicated(
+            subset=["Interval Start", "Publish Time", "Location"],
+        ).any()
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+
+    def test_get_lmp_predispatch_hourly_intertie_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=1)
+
+        with file_vcr.use_cassette(
+            f"test_get_lmp_predispatch_hourly_intertie_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_predispatch_hourly_intertie(start, end=end)
+
+        self._check_lmp_intertie(data, interval_minutes=60, predispatch=True)
+
+        assert not data.duplicated(
+            subset=["Interval Start", "Publish Time", "Location"],
+        ).any()
+
+        assert data[TIME_COLUMN].min() == start
+        # Since we retrieve data by publish time, the actual data will extend
+        # beyond the end time by 23 hours
+        assert data[TIME_COLUMN].max() == end + pd.Timedelta(hours=23)
+
+        assert data["Publish Time"].min() > start
+        assert data["Publish Time"].max() < end
+
     """get_lmp_real_time_5_min_ontario_zonal"""
 
     def _check_lmp_ontario_zonal_data(
         self,
         data: pd.DataFrame,
         interval_minutes: int,
+        predispatch: bool = False,
     ) -> None:
-        assert data.columns.tolist() == [
+        column_list = [
             "Interval Start",
             "Interval End",
             "Location",
@@ -1484,6 +1638,10 @@ class TestIESO(BaseTestISO):
             "Congestion",
             "Loss",
         ]
+        if predispatch:
+            column_list.insert(column_list.index("Interval End") + 1, "Publish Time")
+
+        assert data.columns.tolist() == column_list
 
         time_type = "interval"
         self._check_time_columns(data, instant_or_interval=time_type)
@@ -1565,6 +1723,49 @@ class TestIESO(BaseTestISO):
         # Check that the data is for the specified date range
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=60)
+
+    """get_lmp_predispatch_hourly_ontario_zonal"""
+
+    def test_get_lmp_predispatch_hourly_ontario_zonal_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_lmp_predispatch_hourly_ontario_zonal_latest.yaml",
+        ):
+            data = self.iso.get_lmp_predispatch_hourly_ontario_zonal("latest")
+
+        self._check_lmp_ontario_zonal_data(data, interval_minutes=60, predispatch=True)
+
+        assert not data.duplicated(
+            subset=["Interval Start", "Publish Time", "Location"],
+        ).any()
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+
+    def test_get_lmp_predispatch_hourly_ontario_zonal_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=1)
+
+        with file_vcr.use_cassette(
+            f"test_get_lmp_predispatch_hourly_ontario_zonal_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_predispatch_hourly_ontario_zonal(start, end=end)
+
+        self._check_lmp_ontario_zonal_data(data, interval_minutes=60, predispatch=True)
+
+        assert not data.duplicated(
+            subset=["Interval Start", "Publish Time", "Location"],
+        ).any()
+
+        assert data[TIME_COLUMN].min() == start
+        # Since we retrieve data by publish time, the actual data will extend
+        # beyond the end time by 23 hours
+        assert data[TIME_COLUMN].max() == end + pd.Timedelta(hours=23)
+
+        assert data["Publish Time"].min() > start
+        assert data["Publish Time"].max() < end
 
     """get_transmission_outages_planned"""
 
@@ -1819,6 +2020,138 @@ class TestIESO(BaseTestISO):
 
         assert data["Interval Start"].min() == pd.Timestamp(start_date)
         assert data["Interval End"].max() == pd.Timestamp(end_date)
+
+    """get_variable_generation_forecast"""
+
+    def _check_variable_generation_forecast(self, df: pd.DataFrame) -> None:
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert self._check_is_datetime_type(df["Interval Start"])
+        assert self._check_is_datetime_type(df["Interval End"])
+        assert self._check_is_datetime_type(df["Publish Time"])
+        assert self._check_is_datetime_type(df["Last Modified"])
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        expected_cols = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Last Modified",
+            "Zone",
+            "Generation Forecast",
+        ]
+        assert all(col in df.columns for col in expected_cols)
+        assert is_numeric_dtype(df["Generation Forecast"])
+
+    def test_get_solar_embedded_forecast_latest(self):
+        with file_vcr.use_cassette("test_get_solar_embedded_forecast_latest.yaml"):
+            df = self.iso.get_solar_embedded_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+    def test_get_solar_embedded_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_solar_embedded_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_solar_embedded_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
+
+    def test_get_solar_embedded_forecast_all_versions(self):
+        date = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=1,
+        )
+
+        with file_vcr.use_cassette(
+            f"test_get_solar_embedded_forecast_all_{date.date()}.yaml",
+        ):
+            df = self.iso.get_solar_embedded_forecast(date, vintage="all")
+
+        self._check_variable_generation_forecast(df)
+
+        assert df["Publish Time"].nunique() > 1
+
+        for publish_time in df["Publish Time"].unique():
+            subset = df[df["Publish Time"] == publish_time]
+            assert len(subset) == 24
+
+    def test_get_wind_embedded_forecast_latest(self):
+        with file_vcr.use_cassette("test_get_wind_embedded_forecast_latest.yaml"):
+            df = self.iso.get_wind_embedded_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+    def test_get_wind_embedded_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_wind_embedded_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_wind_embedded_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
+
+    def test_get_wind_market_participant_forecast_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_wind_market_participant_forecast_latest.yaml",
+        ):
+            df = self.iso.get_wind_market_participant_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+    def test_get_wind_market_participant_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_wind_market_participant_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_wind_market_participant_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
+
+    def test_get_solar_market_participant_forecast_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_solar_market_participant_forecast_latest.yaml",
+        ):
+            df = self.iso.get_solar_market_participant_forecast("latest")
+
+        self._check_variable_generation_forecast(df)
+
+    def test_get_solar_market_participant_forecast_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_solar_market_participant_forecast_historical_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_solar_market_participant_forecast(start, end=end)
+
+        self._check_variable_generation_forecast(df)
+        assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
     def _check_shadow_prices(self, df: pd.DataFrame):
         assert isinstance(df, pd.DataFrame)
