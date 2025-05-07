@@ -3069,7 +3069,9 @@ class IESO(ISOBase):
         ]
         df = pd.concat(dfs).reset_index(drop=True)
         df.drop_duplicates(inplace=True)
-        df = df[df["Organization Type"] == "Embedded" & df["Type"] == "Solar"]
+        df = df[
+            (df["Organization Type"] == "Embedded") & (df["Type"] == "Solar")
+        ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
         return df
 
@@ -3093,7 +3095,9 @@ class IESO(ISOBase):
         ]
         df = pd.concat(dfs).reset_index(drop=True)
         df.drop_duplicates(inplace=True)
-        df = df[df["Organization Type"] == "Embedded" & df["Type"] == "Wind"]
+        df = df[
+            (df["Organization Type"] == "Embedded") & (df["Type"] == "Wind")
+        ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
         return df
 
@@ -3117,7 +3121,9 @@ class IESO(ISOBase):
         ]
         df = pd.concat(dfs).reset_index(drop=True)
         df.drop_duplicates(inplace=True)
-        df = df[df["Organization Type"] == "Market Participant" & df["Type"] == "Solar"]
+        df = df[
+            (df["Organization Type"] == "Market Participant") & (df["Type"] == "Solar")
+        ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
         return df
 
@@ -3140,9 +3146,10 @@ class IESO(ISOBase):
             for json_data, last_modified_time in json_data_with_times
         ]
         df = pd.concat(dfs).reset_index(drop=True)
-        df = df[df["Organization Type"] == "Market Participant" & df["Type"] == "Wind"]
+        df = df[
+            (df["Organization Type"] == "Market Participant") & (df["Type"] == "Wind")
+        ].reset_index(drop=True)
         df.drop(columns=["Organization Type", "Type"], inplace=True)
-        df.drop_duplicates(inplace=True)
         return df
 
     def _get_variable_generation_forecast_json(
@@ -3250,6 +3257,8 @@ class IESO(ISOBase):
             org_type = org["OrganizationType"].title()
 
             for fuel_data in org["FuelData"]:
+                fuel_type = fuel_data["FuelType"].title()
+
                 for resource in fuel_data["ResourceData"]:
                     zone = resource["ZoneName"]
                     if zone == "OntarioTotal":
@@ -3282,27 +3291,13 @@ class IESO(ISOBase):
                                     "Publish Time": publish_time,
                                     "Last Modified": last_modified_time,
                                     "Organization Type": org_type,
+                                    "Type": fuel_type,
                                     "Zone": zone,
-                                    "Output MW": output,
+                                    "Generation Forecast": output,
                                 },
                             )
 
         df = pd.DataFrame(data)
-
-        df_wide = df.pivot_table(
-            index=[
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Last Modified",
-                "Zone",
-            ],
-            columns="Organization Type",
-            values="Output MW",
-        ).reset_index()
-
-        df_wide.columns.name = None
-
-        return df_wide.sort_values(
+        return df.sort_values(
             ["Interval Start", "Publish Time", "Last Modified", "Zone"],
         ).reset_index(drop=True)
