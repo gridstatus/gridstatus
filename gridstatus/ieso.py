@@ -3050,7 +3050,7 @@ class IESO(ISOBase):
         return data
 
     @support_date_range(frequency="DAY_START")
-    def get_solar_generation_embedded_forecast(
+    def get_solar_embedded_forecast(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -3074,7 +3074,7 @@ class IESO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_wind_generation_embedded_forecast(
+    def get_wind_embedded_forecast(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -3098,7 +3098,7 @@ class IESO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_solar_generation_market_participant_forecast(
+    def get_solar_market_participant_forecast(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -3122,7 +3122,7 @@ class IESO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
-    def get_wind_generation_market_participant_forecast(
+    def get_wind_market_participant_forecast(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
