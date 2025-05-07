@@ -1848,7 +1848,7 @@ class TestIESO(BaseTestISO):
     @pytest.mark.parametrize(
         "date, end",
         [
-            ("2025-04-01", "2025-04-03"),
+            ("2025-05-01", "2025-05-03"),
         ],
     )
     def test_get_shadow_prices_real_time_5_min_historical_range(self, date, end):
