@@ -3098,10 +3098,10 @@ class IESO(ISOBase):
         df = pd.concat(dfs)
         df = utils.move_cols_to_front(
             df,
-            ["Interval Start", "Interval End", "Publish Time", "Last Modified"],
+            ["Interval Start", "Interval End", "Publish Time"],
         )
         df.sort_values(
-            ["Interval Start", "Publish Time", "Last Modified", "Constraint"],
+            ["Interval Start", "Publish Time", "Constraint"],
             inplace=True,
         )
         df.drop_duplicates(
@@ -3114,7 +3114,6 @@ class IESO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
-                "Last Modified",
                 "Constraint",
                 "Shadow Price",
             ]
@@ -3144,11 +3143,6 @@ class IESO(ISOBase):
         if not file_rows:
             raise FileNotFoundError(f"No shadow price files found for date {date_str}")
         if last_modified:
-            if last_modified.tz is None:
-                last_modified = utils._handle_date(
-                    last_modified,
-                    tz=self.default_timezone,
-                )
             filtered_files = [
                 (file, time)
                 for file, time in file_rows
