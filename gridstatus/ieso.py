@@ -3678,3 +3678,65 @@ class IESO(ISOBase):
         return df.sort_values(
             ["Interval Start", "Publish Time", "Last Modified", "Zone"],
         ).reset_index(drop=True)
+
+    @support_date_range(frequency="HOUR_START")
+    def get_lmp_real_time_operating_reserves(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        file_directory = "RealtimeORLMP"
+
+        if date == "latest":
+            url = (
+                f"{PUBLIC_REPORTS_URL_PREFIX}/{file_directory}/PUB_{file_directory}.csv"
+            )
+            date = pd.Timestamp.now(tz=self.default_timezone)
+        else:
+            hour = date.hour
+            # Hour numbers are 1-24, so we need to add 1
+            file_hour = f"{hour + 1}".zfill(2)
+
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/{file_directory}/PUB_{file_directory}_{date.strftime('%Y%m%d')}{file_hour}.csv"
+
+        data = pd.read_csv(url, skiprows=1)
+
+        base_datetime = pd.to_datetime(date).normalize()
+        data["Interval Start"] = (
+            base_datetime
+            + pd.to_timedelta(data["Delivery Hour"] - 1, unit="h")
+            + 5
+            * pd.to_timedelta(
+                data["Interval"] - 1,
+                unit="m",
+            )
+        )
+        data["Interval End"] = data["Interval Start"] + pd.Timedelta(minutes=5)
+
+        data = data.rename(
+            columns={
+                "Pricing Location": "Location",
+                "Congestion Price 10S": "Congestion 10S",
+                "Congestion Price 10N": "Congestion 10N",
+                "Congestion Price 30R": "Congestion 30R",
+            },
+        ).drop(
+            columns=[
+                "Delivery Hour",
+                "Interval",
+            ],
+        )
+
+        data = (
+            utils.move_cols_to_front(
+                data,
+                ["Interval Start", "Interval End", "Location"],
+            )
+            .sort_values(
+                ["Interval Start", "Location"],
+            )
+            .reset_index(drop=True)
+        )
+
+        return data

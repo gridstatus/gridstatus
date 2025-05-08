@@ -2152,3 +2152,66 @@ class TestIESO(BaseTestISO):
         self._check_variable_generation_forecast(df)
         assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
         assert df["Interval End"].max() == end + pd.Timedelta(days=2)
+
+        """get_lmp_real_time_operating_reserves"""
+
+    def _check_lmp_real_time_5_min_operating_reserves(self, data: pd.DataFrame) -> None:
+        assert data.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "LMP 10S",
+            "Congestion 10S",
+            "LMP 10N",
+            "Congestion 10N",
+            "LMP 30R",
+            "Congestion 30R",
+        ]
+
+        assert self._check_is_datetime_type(data["Interval Start"])
+        assert self._check_is_datetime_type(data["Interval End"])
+
+        assert data["Location"].dtype == "object"
+        for col in [
+            "LMP 10S",
+            "Congestion 10S",
+            "LMP 10N",
+            "Congestion 10N",
+            "LMP 30R",
+            "Congestion 30R",
+        ]:
+            assert data[col].dtype == "float64"
+
+        assert (
+            data["Interval End"] - data["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+    def test_get_lmp_real_time_operating_reserves_latest(self):
+        with file_vcr.use_cassette(
+            "test_lmp_get_real_time_5_min_operating_reserves_latest.yaml",
+        ):
+            data = self.iso.get_lmp_real_time_operating_reserves("latest")
+
+        self._check_lmp_real_time_5_min_operating_reserves(data)
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data["Interval Start"].dt.date == today.date()).all()
+
+    def test_get_lmp_real_time_operating_reserves_historical_date_range(self):
+        # Only date for which data is available
+        start_date = (pd.Timestamp.utcnow() - pd.DateOffset(days=3)).normalize()
+        end_date = start_date + pd.DateOffset(days=1)
+
+        with file_vcr.use_cassette(
+            f"test_lmp_get_real_time_5_min_operating_reserves_historical_date_range_{start_date.date()}_{end_date.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_real_time_operating_reserves(
+                start_date,
+                end=end_date,
+            )
+
+        self._check_lmp_real_time_5_min_operating_reserves(data)
+
+        assert data["Interval Start"].min() == start_date
+        assert data["Interval Start"].max() == end_date - pd.Timedelta(minutes=5)
