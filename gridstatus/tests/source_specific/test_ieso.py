@@ -2153,6 +2153,44 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
         assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
+    def _check_shadow_prices(self, df: pd.DataFrame):
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert set(df.columns) == {
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Last Modified",
+            "Constraint",
+            "Shadow Price",
+        }
+        assert self._check_is_datetime_type(df["Interval Start"])
+        assert self._check_is_datetime_type(df["Interval End"])
+        assert self._check_is_datetime_type(df["Publish Time"])
+        assert self._check_is_datetime_type(df["Last Modified"])
+        assert df["Shadow Price"].dtype == "float64"
+
+    def test_get_shadow_prices_real_time_5_min_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_shadow_prices_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_shadow_prices_real_time_5_min("latest")
+            self._check_shadow_prices(df)
+            assert df["Interval Start"].is_monotonic_increasing
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2025-05-01", "2025-05-03"),
+        ],
+    )
+    def test_get_shadow_prices_real_time_5_min_historical_range(self, date, end):
+        start = pd.Timestamp(date, tz=self.default_timezone).normalize()
+        end = pd.Timestamp(end, tz=self.default_timezone).normalize()
+        cassette_name = f"test_get_shadow_prices_real_time_5_min_historical_range_{start.date()}_{end.date()}.yaml"
+        with file_vcr.use_cassette(cassette_name):
+            df = self.iso.get_shadow_prices_real_time_5_min(start, end=end)
+            self._check_shadow_prices(df)
         """get_lmp_real_time_operating_reserves"""
 
     def _check_lmp_real_time_5_min_operating_reserves(self, data: pd.DataFrame) -> None:
