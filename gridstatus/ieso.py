@@ -29,6 +29,7 @@ from gridstatus.ieso_constants import (
     HOUR_INTERVAL,
     IESO_ZONE_MAPPING,
     INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS,
+    INTERTIE_FLOW_5_MIN_COLUMNS,
     LOAD_FORECAST_URL,
     LOAD_TEMPLATE_URL,
     MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
@@ -1981,7 +1982,7 @@ class IESO(ISOBase):
         )
 
     @support_date_range(frequency="DAY_START")
-    def get_intertie__flow_5_min(
+    def get_intertie_flow_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -2048,7 +2049,6 @@ class IESO(ISOBase):
 
                 zone_interval_records.append(
                     {
-                        "Publish Time": created_at,
                         "Zone": zone_name,
                         "Hour": hour,
                         "Interval": interval,
@@ -2065,17 +2065,19 @@ class IESO(ISOBase):
             values=["Import", "Export", "Flow"],
         )
 
-        # Flatten the multiindex columns
-        zone_five_minute_data.columns = [
-            f"{col[1].title().replace('.', '')} {col[0].title()}"
-            for col in zone_five_minute_data.columns
-        ]
+        columns = []
 
-        # Now order the columns alphabetically
-        zone_five_minute_data = zone_five_minute_data[
-            sorted(zone_five_minute_data.columns)
-        ]
+        for metric, zone in zone_five_minute_data.columns:
+            zone = zone.replace(".", "").replace("-", " ").title()
 
+            if zone.startswith("Pq"):
+                zone = zone.upper()
+
+            columns.append(
+                f"{zone} {metric.title()}",
+            )
+
+        zone_five_minute_data.columns = columns
         zone_five_minute_data = zone_five_minute_data.reset_index()
 
         totals = root.find(".//Totals", ns)
@@ -2139,12 +2141,10 @@ class IESO(ISOBase):
                 "Interval Start"
             ] + pd.Timedelta(minutes=5)
 
+            five_minute_data["Publish Time"] = created_at
+
             five_minute_data = (
-                utils.move_cols_to_front(
-                    five_minute_data,
-                    ["Interval Start", "Interval End"],
-                )
-                .drop(columns=["Hour", "Interval"])
+                five_minute_data[INTERTIE_FLOW_5_MIN_COLUMNS]
                 .sort_values(["Interval Start"])
                 .reset_index(drop=True)
             )
@@ -2165,9 +2165,10 @@ class IESO(ISOBase):
             hours=1,
         )
 
+        hourly_data["Publish Time"] = created_at
+
         hourly_data = (
-            utils.move_cols_to_front(hourly_data, ["Interval Start", "Interval End"])
-            .drop(columns=["Hour"])
+            hourly_data[INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS]
             .sort_values(["Interval Start"])
             .reset_index(drop=True)
         )

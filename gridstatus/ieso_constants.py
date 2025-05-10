@@ -139,6 +139,28 @@ INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS: list[str] = [
     "PQX2Y Import",
 ]
 
+INTERTIE_FLOW_5_MIN_COLUMNS: list[str] = [
+    "Interval Start",
+    "Interval End",
+    "Publish Time",
+    "Total Flow",
+    "Manitoba Flow",
+    "Manitoba Sk Flow",
+    "Michigan Flow",
+    "Minnesota Flow",
+    "New York Flow",
+    "PQAT Flow",
+    "PQB5DB31L Flow",
+    "PQD4Z Flow",
+    "PQD5A Flow",
+    "PQH4Z Flow",
+    "PQH9A Flow",
+    "PQP33C Flow",
+    "PQQ4C Flow",
+    "PQX2Y Flow",
+]
+
+
 ZONAL_LOAD_COLUMNS: list[str] = [
     "Interval Start",
     "Interval End",
