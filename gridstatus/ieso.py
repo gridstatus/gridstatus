@@ -1712,7 +1712,7 @@ class IESO(ISOBase):
         ]
 
     @support_date_range(frequency="YEAR_START")
-    def get_intertie_actual_schedule_flow_hourly(
+    def get_yearly_intertie_actual_schedule_flow_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -1720,7 +1720,9 @@ class IESO(ISOBase):
         vintage: Literal["all", "latest"] = "latest",
         last_modified: str | datetime.date | datetime.datetime | None = None,
     ) -> pd.DataFrame:
-        """Get yearly intertie actual schedule flow hourly.
+        """Get yearly intertie actual schedule flow hourly. Since this is a yearly file
+        it is updated less frequency than the daily files. These can be retrieved via
+        the get_intertie_schedule_flow_hourly method.
         Args:
             date: The date to get the data for.
             end: The end date to get the data for.
@@ -1964,6 +1966,208 @@ class IESO(ISOBase):
 
         df.drop(columns=["Date", "Hour"], inplace=True)
         return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_intertie_actual_schedule_flow_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_and_parse_intertie_schedule_flow(
+            date,
+            return_five_minute_data=False,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_intertie_actual_schedule_flow_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_and_parse_intertie_schedule_flow(
+            date,
+            return_five_minute_data=True,
+            verbose=verbose,
+        )
+
+    def _get_and_parse_intertie_schedule_flow(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        return_five_minute_data: bool = False,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        directory_path = "IntertieScheduleFlow"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
+        if date == "latest":
+            url = f"{file_directory}/PUB_{directory_path}.xml"
+        else:
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}.xml"
+
+        xml_content = self._request(url, verbose=verbose).text
+
+        ns = {"": "http://www.theIMO.com/schema"}
+        root = ElementTree.fromstring(xml_content)
+
+        created_at = pd.Timestamp(
+            root.find(".//CreatedAt", ns).text,
+            tz=self.default_timezone,
+        )
+
+        base_datetime = pd.Timestamp(
+            root.find(".//Date", ns).text,
+            tz=self.default_timezone,
+        )
+
+        zones = root.findall(".//IntertieZone", ns)
+        zone_interval_records = []
+
+        for zone in zones:
+            zone_name = zone.find(".//IntertieZoneName", ns).text
+
+            schedules = zone.findall(".//Schedule", ns)
+            schedule_data = {}
+
+            for schedule in schedules:
+                hour = int(schedule.find(".//Hour", ns).text)
+                imports = float(schedule.find(".//Import", ns).text)
+                exports = float(schedule.find(".//Export", ns).text)
+                schedule_data[hour] = {"import": imports, "export": exports}
+
+            actuals = zone.findall(".//Actual", ns)
+
+            for actual in actuals:
+                hour = int(actual.find(".//Hour", ns).text)
+                interval = int(actual.find(".//Interval", ns).text)
+                flow = float(actual.find(".//Flow", ns).text)
+
+                hour_schedule = schedule_data.get(hour, {})
+
+                zone_interval_records.append(
+                    {
+                        "Publish Time": created_at,
+                        "Zone": zone_name,
+                        "Hour": hour,
+                        "Interval": interval,
+                        "Flow": flow,
+                        "Import": hour_schedule.get("import"),
+                        "Export": hour_schedule.get("export"),
+                    },
+                )
+
+        zone_five_minute_data = pd.DataFrame(zone_interval_records)
+        zone_five_minute_data = zone_five_minute_data.pivot(
+            columns="Zone",
+            index=["Hour", "Interval"],
+            values=["Import", "Export", "Flow"],
+        )
+
+        # Flatten the multiindex columns
+        zone_five_minute_data.columns = [
+            f"{col[1].title()} {col[0].title()}"
+            for col in zone_five_minute_data.columns
+        ]
+
+        zone_five_minute_data = zone_five_minute_data.reset_index()
+
+        totals = root.find(".//Totals", ns)
+        total_schedules = totals.findall(".//Schedule", ns)
+        total_hourly_schedule_records = []
+
+        for schedule in total_schedules:
+            hour = int(schedule.find(".//Hour", ns).text)
+            imports = float(schedule.find(".//Import", ns).text)
+            exports = float(schedule.find(".//Export", ns).text)
+            total_hourly_schedule_records.append(
+                {
+                    "Hour": hour,
+                    "Total Import": imports,
+                    "Total Export": exports,
+                },
+            )
+
+        total_hourly_schedule_data = pd.DataFrame(total_hourly_schedule_records)
+
+        total_actuals = totals.findall(".//Actual", ns)
+        total_five_minute_actuals_records = []
+
+        for actual in total_actuals:
+            hour = int(actual.find(".//Hour", ns).text)
+            interval = int(actual.find(".//Interval", ns).text)
+            flow = float(actual.find(".//Flow", ns).text)
+            total_five_minute_actuals_records.append(
+                {
+                    "Hour": hour,
+                    "Interval": interval,
+                    "Total Flow": flow,
+                },
+            )
+
+        total_five_minute_actuals_data = pd.DataFrame(total_five_minute_actuals_records)
+
+        totals_five_minute_data = pd.merge(
+            total_hourly_schedule_data,
+            total_five_minute_actuals_data,
+            on="Hour",
+        )
+
+        five_minute_data = pd.merge(
+            zone_five_minute_data,
+            totals_five_minute_data,
+            on=["Hour", "Interval"],
+        )
+
+        if return_five_minute_data:
+            five_minute_data["Interval Start"] = (
+                base_datetime
+                + pd.to_timedelta(five_minute_data["Hour"] - 1, unit="h")
+                + pd.to_timedelta(
+                    5 * (five_minute_data["Interval"] - 1),
+                    unit="m",
+                )
+            )
+
+            five_minute_data["Interval End"] = five_minute_data[
+                "Interval Start"
+            ] + pd.Timedelta(minutes=5)
+
+            five_minute_data = (
+                utils.move_cols_to_front(
+                    five_minute_data,
+                    ["Interval Start", "Interval End"],
+                )
+                .drop(columns=["Hour", "Interval"])
+                .sort_values(["Interval Start"])
+                .reset_index(drop=True)
+            )
+
+            return five_minute_data
+
+        hourly_data = (
+            five_minute_data.drop(columns=["Interval"])
+            .groupby(["Hour"])
+            .mean()
+            .reset_index()
+        )
+        hourly_data["Interval Start"] = base_datetime + pd.to_timedelta(
+            hourly_data["Hour"] - 1,
+            unit="h",
+        )
+        hourly_data["Interval End"] = hourly_data["Interval Start"] + pd.Timedelta(
+            hours=1,
+        )
+
+        hourly_data = (
+            utils.move_cols_to_front(hourly_data, ["Interval Start", "Interval End"])
+            .drop(columns=["Hour"])
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+        )
+
+        return hourly_data
 
     @support_date_range(frequency="HOUR_START")
     def get_lmp_real_time_5_min(

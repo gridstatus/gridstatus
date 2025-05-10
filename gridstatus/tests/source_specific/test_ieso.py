@@ -1051,14 +1051,14 @@ class TestIESO(BaseTestISO):
         assert len(df) == 24 * 10 * publish_days
         assert len(df.columns) == 8
 
-    """get_intertie_actual_schedule_flow_hourly"""
+    """get_yearly_intertie_actual_schedule_flow_hourly"""
 
     @pytest.mark.parametrize("date", ["2024-01-01"])
-    def test_get_intertie_actual_schedule_flow_hourly_single_date(self, date):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_single_date(self, date):
         with file_vcr.use_cassette(
-            f"test_get_intertie_actual_schedule_flow_hourly_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+            f"test_get_yearly_intertie_actual_schedule_flow_hourly_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly(date)
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(date)
 
         self._check_intertie_schedule_flow(df)
         assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
@@ -1066,11 +1066,15 @@ class TestIESO(BaseTestISO):
         assert len(df) == 24
 
     @pytest.mark.parametrize("date, end", [("2023-01-01", "2023-01-03")])
-    def test_get_intertie_actual_schedule_flow_hourly_date_range(self, date, end):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_date_range(
+        self,
+        date,
+        end,
+    ):
         with file_vcr.use_cassette(
-            f"test_get_intertie_actual_schedule_flow_hourly_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
+            f"test_get_yearly_intertie_actual_schedule_flow_hourly_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly(
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(
                 date,
                 end=end,
                 vintage="latest",
@@ -1084,11 +1088,11 @@ class TestIESO(BaseTestISO):
             == 24 * (pd.Timestamp(end).date() - pd.Timestamp(date).date()).days + 1
         )
 
-    def test_get_intertie_actual_schedule_flow_hourly_latest(self):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_latest(self):
         with file_vcr.use_cassette(
-            "test_get_intertie_actual_schedule_flow_hourly_latest.yaml",
+            "test_get_yearly_intertie_actual_schedule_flow_hourly_latest.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly("latest")
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly("latest")
 
         self._check_intertie_schedule_flow(df)
         current_year = pd.Timestamp.now(tz=self.default_timezone).year
@@ -1096,22 +1100,29 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].max().year == current_year
 
     @pytest.mark.parametrize("date", ["2024-01-01"])
-    def test_get_intertie_actual_schedule_flow_hourly_all_vintage(self, date):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_all_vintage(self, date):
         with file_vcr.use_cassette(
-            f"test_get_intertie_actual_schedule_flow_hourly_all_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+            f"test_get_yearly_intertie_actual_schedule_flow_hourly_all_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly(date, vintage="all")
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(
+                date,
+                vintage="all",
+            )
         self._check_intertie_schedule_flow(df)
 
     @pytest.mark.parametrize(
         "date, end",
         [("2023-01-01", "2024-01-02"), ("2024-01-01", "2025-01-02")],
     )
-    def test_get_intertie_actual_schedule_flow_hourly_cross_year(self, date, end):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_cross_year(
+        self,
+        date,
+        end,
+    ):
         with file_vcr.use_cassette(
-            f"test_get_intertie_actual_schedule_flow_hourly_cross_year_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
+            f"test_get_yearly_intertie_actual_schedule_flow_hourly_cross_year_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly(date, end=end)
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(date, end=end)
 
         self._check_intertie_schedule_flow(df)
         assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
