@@ -1981,7 +1981,7 @@ class IESO(ISOBase):
         )
 
     @support_date_range(frequency="DAY_START")
-    def get_intertie_actual_schedule_flow_5_min(
+    def get_intertie__flow_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
@@ -2067,8 +2067,13 @@ class IESO(ISOBase):
 
         # Flatten the multiindex columns
         zone_five_minute_data.columns = [
-            f"{col[1].title()} {col[0].title()}"
+            f"{col[1].title().replace('.', '')} {col[0].title()}"
             for col in zone_five_minute_data.columns
+        ]
+
+        # Now order the columns alphabetically
+        zone_five_minute_data = zone_five_minute_data[
+            sorted(zone_five_minute_data.columns)
         ]
 
         zone_five_minute_data = zone_five_minute_data.reset_index()

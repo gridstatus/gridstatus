@@ -1153,6 +1153,24 @@ class TestIESO(BaseTestISO):
         assert len(pq_columns) > 0
         assert df[TIME_COLUMN].equals(df[TIME_COLUMN].sort_values())
 
+    """get_intertie_actual_schedule_flow_hourly"""
+
+    def _check_intertie_schedule_flow_hourly(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert self._check_is_datetime_type(df[TIME_COLUMN])
+        assert self._check_is_datetime_type(df["Interval End"])
+        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(hours=1)).all()
+
+        zone_prefixes = ["Manitoba", "Michigan", "Minnesota", "New York"]
+        flow_types = ["Flow", "Import", "Export"]
+
+        for zone in zone_prefixes:
+            for flow_type in flow_types:
+                col_name = f"{zone} {flow_type}"
+                assert col_name in df.columns
+                assert is_numeric_dtype(df[col_name])
+
     """get_lmp_real_time_5_min"""
 
     def _check_lmp_data(
