@@ -2486,3 +2486,28 @@ class TestPJM(BaseTestISO):
             self._check_lmp_real_time_unverified_hourly(df)
             assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
             assert df["Interval End"].max() <= self.local_start_of_day(past_end_date)
+
+    """get_load_forecast_5_min"""
+
+    def test_get_load_forecast_5_min_latest(self):
+        with pjm_vcr.use_cassette("test_get_load_forecast_5_min_latest.yaml"):
+            df = self.iso.get_load_forecast_5_min("latest")
+            assert isinstance(df, pd.DataFrame)
+            assert not df.empty
+            assert df.columns.tolist() == self.load_forecast_columns
+            assert df["Interval Start"].min() == self.local_start_of_day("today")
+
+    def test_get_load_forecast_5_min_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=29)
+        past_end_date = past_date + pd.Timedelta(days=2)
+        with pjm_vcr.use_cassette(
+            f"test_get_load_forecast_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load_forecast_5_min(past_date, past_end_date)
+            assert isinstance(df, pd.DataFrame)
+            assert not df.empty
+            assert df.columns.tolist() == self.load_forecast_columns
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                past_end_date,
+            ) + pd.Timedelta(hours=1)

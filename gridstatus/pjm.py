@@ -274,6 +274,42 @@ class PJM(ISOBase):
 
         return self._handle_load_forecast(data)
 
+    @support_date_range(frequency=None)
+    def get_load_forecast_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Load forecast made today extending for six days in 5 minute intervals.
+        """
+        if date == "latest":
+            return self.get_load_forecast_5_min(
+                # pd.Timestamp.now(tz=self.default_timezone).floor("5min"),
+                "today",
+                verbose=verbose,
+            )
+
+        params = {
+            "fields": (
+                "evaluated_at_utc,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"
+            ),
+        }
+
+        filter_timestamp_name = "forecast_datetime_beginning"
+
+        data = self._get_pjm_json(
+            self.load_forecast_5_min_endpoint_name,
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            filter_timestamp_name=filter_timestamp_name,
+        )
+
+        return self._handle_load_forecast(data)
+
     def _handle_load_forecast(self, data: pd.DataFrame) -> pd.DataFrame:
         data = data.rename(
             columns={
@@ -334,41 +370,6 @@ class PJM(ISOBase):
         return data.sort_values(["Interval Start", "Publish Time"]).reset_index(
             drop=True,
         )
-
-    @support_date_range(frequency=None)
-    def get_load_forecast_5_min(
-        self,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """
-        Load forecast made today extending for six days in 5 minute intervals.
-        """
-        if date == "latest":
-            return self.get_load_forecast_5_min(
-                pd.Timestamp.now(tz=self.default_timezone).floor("5min"),
-                verbose=verbose,
-            )
-
-        params = {
-            "fields": (
-                "evaluated_at_utc,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"
-            ),
-        }
-
-        filter_timestamp_name = "datetime_beginning"
-
-        data = self._get_pjm_json(
-            self.load_forecast_5_min_endpoint_name,
-            start=None,
-            end=end,
-            params=params,
-            verbose=verbose,
-            filter_timestamp_name=filter_timestamp_name,
-        )
-
-        return self._handle_load_forecast(data)
 
     def get_pnode_ids(self) -> pd.DataFrame:
         data = {

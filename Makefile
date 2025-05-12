@@ -68,6 +68,20 @@ test-unit:
 	uv pip install vcrpy
 	$(PYTEST_CMD) $(UNIT_ONLY)
 
+.PHONY: test-one-off
+test-one-off:
+ifndef market
+	$(error market parameter is required. Usage: make test-one-off market=MARKET test=TEST_NAME)
+endif
+ifndef test
+	$(error test parameter is required. Usage: make test-one-off market=MARKET test=TEST_NAME)
+endif
+ifeq ($(market),ercot)
+	uv run pytest gridstatus/tests/source_specific/test_$(market).py::TestErcot::$(test)
+else
+	uv run pytest gridstatus/tests/source_specific/test_$(market).py::Test$(shell echo $(market) | tr '[:lower:]' '[:upper:]')::$(test)
+endif
+
 .PHONY: installdeps-dev
 installdeps-dev:
 	uv sync
