@@ -4010,6 +4010,64 @@ class IESO(ISOBase):
             ]
         ].reset_index(drop=True)
 
+    @support_date_range(frequency="DAY_START")
+    def get_shadow_prices_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+        last_modified: str | pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        if last_modified:
+            last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
+        if date == "latest":
+            base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAConstrShadowPrices"
+            file = "PUB_DAConstrShadowPrices.xml"
+            json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
+            df = self._parse_shadow_prices_report(json_data)
+            df.sort_values(
+                ["Interval Start", "Publish Time", "Constraint"],
+                inplace=True,
+            )
+            return df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Constraint",
+                    "Shadow Price",
+                ]
+            ].reset_index(drop=True)
+
+        json_data_with_times = self._get_all_shadow_prices_jsons(date, last_modified)
+        dfs = []
+        for json_data, _ in json_data_with_times:
+            df = self._parse_shadow_prices_report(json_data)
+            dfs.append(df)
+        df = pd.concat(dfs)
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time"],
+        )
+        df.sort_values(
+            ["Interval Start", "Publish Time", "Constraint"],
+            inplace=True,
+        )
+        df.drop_duplicates(
+            subset=["Interval Start", "Publish Time", "Constraint"],
+            inplace=True,
+            keep="last",
+        )
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Constraint",
+                "Shadow Price",
+            ]
+        ].reset_index(drop=True)
+
     def _fetch_and_parse_shadow_prices_file(self, base_url: str, file: str) -> dict:
         url = f"{base_url}/{file}"
         r = self._request(url)
