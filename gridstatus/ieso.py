@@ -1797,7 +1797,7 @@ class IESO(ISOBase):
             target_date = pd.Timestamp(date).date()
             df = df[df["Interval Start"].dt.date == target_date]
 
-        return df[INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS]
+        return df[INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS].reset_index(drop=True)
 
     def _get_intertie_schedule_flow_data(
         self,
