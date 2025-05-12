@@ -8,6 +8,8 @@ from pandas.core.dtypes.common import is_numeric_dtype
 from gridstatus import IESO, utils
 from gridstatus.base import NotSupported
 from gridstatus.ieso_constants import (
+    INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS,
+    INTERTIE_FLOW_5_MIN_COLUMNS,
     MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
     MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
     MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
@@ -1051,14 +1053,14 @@ class TestIESO(BaseTestISO):
         assert len(df) == 24 * 10 * publish_days
         assert len(df.columns) == 8
 
-    """get_intertie_actual_schedule_flow_hourly"""
+    """get_yearly_intertie_actual_schedule_flow_hourly"""
 
     @pytest.mark.parametrize("date", ["2024-01-01"])
-    def test_get_intertie_actual_schedule_flow_hourly_single_date(self, date):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_single_date(self, date):
         with file_vcr.use_cassette(
-            f"test_get_intertie_actual_schedule_flow_hourly_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+            f"test_get_yearly_intertie_actual_schedule_flow_hourly_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly(date)
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(date)
 
         self._check_intertie_schedule_flow(df)
         assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
@@ -1066,11 +1068,15 @@ class TestIESO(BaseTestISO):
         assert len(df) == 24
 
     @pytest.mark.parametrize("date, end", [("2023-01-01", "2023-01-03")])
-    def test_get_intertie_actual_schedule_flow_hourly_date_range(self, date, end):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_date_range(
+        self,
+        date,
+        end,
+    ):
         with file_vcr.use_cassette(
-            f"test_get_intertie_actual_schedule_flow_hourly_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
+            f"test_get_yearly_intertie_actual_schedule_flow_hourly_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly(
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(
                 date,
                 end=end,
                 vintage="latest",
@@ -1084,11 +1090,11 @@ class TestIESO(BaseTestISO):
             == 24 * (pd.Timestamp(end).date() - pd.Timestamp(date).date()).days + 1
         )
 
-    def test_get_intertie_actual_schedule_flow_hourly_latest(self):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_latest(self):
         with file_vcr.use_cassette(
-            "test_get_intertie_actual_schedule_flow_hourly_latest.yaml",
+            "test_get_yearly_intertie_actual_schedule_flow_hourly_latest.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly("latest")
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly("latest")
 
         self._check_intertie_schedule_flow(df)
         current_year = pd.Timestamp.now(tz=self.default_timezone).year
@@ -1096,22 +1102,29 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].max().year == current_year
 
     @pytest.mark.parametrize("date", ["2024-01-01"])
-    def test_get_intertie_actual_schedule_flow_hourly_all_vintage(self, date):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_all_vintage(self, date):
         with file_vcr.use_cassette(
-            f"test_get_intertie_actual_schedule_flow_hourly_all_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+            f"test_get_yearly_intertie_actual_schedule_flow_hourly_all_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly(date, vintage="all")
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(
+                date,
+                vintage="all",
+            )
         self._check_intertie_schedule_flow(df)
 
     @pytest.mark.parametrize(
         "date, end",
         [("2023-01-01", "2024-01-02"), ("2024-01-01", "2025-01-02")],
     )
-    def test_get_intertie_actual_schedule_flow_hourly_cross_year(self, date, end):
+    def test_get_yearly_intertie_actual_schedule_flow_hourly_cross_year(
+        self,
+        date,
+        end,
+    ):
         with file_vcr.use_cassette(
-            f"test_get_intertie_actual_schedule_flow_hourly_cross_year_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
+            f"test_get_yearly_intertie_actual_schedule_flow_hourly_cross_year_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly(date, end=end)
+            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(date, end=end)
 
         self._check_intertie_schedule_flow(df)
         assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
@@ -1141,6 +1154,101 @@ class TestIESO(BaseTestISO):
         pq_columns = [col for col in df.columns if col.startswith("PQ")]
         assert len(pq_columns) > 0
         assert df[TIME_COLUMN].equals(df[TIME_COLUMN].sort_values())
+
+    """get_intertie_actual_schedule_flow_hourly"""
+
+    def _check_intertie_schedule_flow_hourly(self, df):
+        assert list(df.columns) == INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS
+
+        time_columns = [TIME_COLUMN, "Interval End", "Publish Time"]
+
+        for col in time_columns:
+            assert self._check_is_datetime_type(df[col])
+
+        assert df[TIME_COLUMN].is_monotonic_increasing
+
+        assert df[
+            [col for col in df.columns if col not in time_columns]
+        ].dtypes.unique() == np.dtype("float64")
+
+        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(hours=1)).all()
+
+    def test_get_intertie_actual_schedule_flow_hourly_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_intertie_actual_schedule_flow_hourly_latest.yaml",
+        ):
+            df = self.iso.get_intertie_actual_schedule_flow_hourly("latest")
+
+        self._check_intertie_schedule_flow_hourly(df)
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (df[TIME_COLUMN].dt.date == today.date()).all()
+
+    def test_get_intertie_actual_schedule_flow_hourly_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_intertie_actual_schedule_flow_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_intertie_actual_schedule_flow_hourly(start, end=end)
+
+        self._check_intertie_schedule_flow_hourly(df)
+
+        # Check that the data is for the specified date range
+        assert df[TIME_COLUMN].min() == start
+        assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
+
+    """get_intertie_flow_5_min"""
+
+    def _check_intertie_flow_5_min(self, df):
+        assert list(df.columns) == INTERTIE_FLOW_5_MIN_COLUMNS
+
+        time_columns = [TIME_COLUMN, "Interval End", "Publish Time"]
+
+        for col in time_columns:
+            assert self._check_is_datetime_type(df[col])
+
+        assert df[TIME_COLUMN].is_monotonic_increasing
+
+        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(minutes=5)).all()
+
+        # Make sure all columns except for the time columns are numeric
+        assert df[
+            [col for col in df.columns if col not in time_columns]
+        ].dtypes.unique() == np.dtype("float64")
+
+    def test_get_intertie_flow_5_min_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_intertie_flow_5_min_latest.yaml",
+        ):
+            df = self.iso.get_intertie_flow_5_min("latest")
+
+        self._check_intertie_flow_5_min(df)
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (df[TIME_COLUMN].dt.date == today.date()).all()
+
+    def test_get_intertie_flow_5_min_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_intertie_flow_5_min_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_intertie_flow_5_min(start, end=end)
+
+        self._check_intertie_flow_5_min(df)
+
+        # Check that the data is for the specified date range
+        assert df[TIME_COLUMN].min() == start
+        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
     """get_lmp_real_time_5_min"""
 
