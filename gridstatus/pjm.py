@@ -282,7 +282,7 @@ class PJM(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Load forecast made today extending for six days in 5 minute intervals.
+        Load forecast made today extending for 2 hours in 5 minute intervals.
         """
         if date == "latest":
             return self.get_load_forecast_5_min(
