@@ -3983,7 +3983,7 @@ class IESO(ISOBase):
         json_data_with_times = self._get_all_shadow_prices_jsons(date, last_modified)
         dfs = []
         for json_data, file_last_modified in json_data_with_times:
-            df = self._parse_shadow_prices_report(json_data)
+            df = self._parse_real_time_shadow_prices_report(json_data)
             df["Last Modified"] = file_last_modified
             dfs.append(df)
         df = pd.concat(dfs)
@@ -4039,10 +4039,14 @@ class IESO(ISOBase):
                 ]
             ].reset_index(drop=True)
 
-        json_data_with_times = self._get_all_shadow_prices_jsons(date, last_modified)
+        json_data_with_times = self._get_all_shadow_prices_jsons(
+            date,
+            market="DA",
+            last_modified=last_modified,
+        )
         dfs = []
         for json_data, _ in json_data_with_times:
-            df = self._parse_shadow_prices_report(json_data)
+            df = self._parse_day_ahead_shadow_prices_report(json_data)
             dfs.append(df)
         df = pd.concat(dfs)
         df = utils.move_cols_to_front(
@@ -4077,15 +4081,19 @@ class IESO(ISOBase):
     def _get_all_shadow_prices_jsons(
         self,
         date: str | datetime.date | datetime.datetime,
+        market: Literal["Realtime", "DA"] = "Realtime",
         last_modified: pd.Timestamp | None = None,
     ) -> list[tuple[dict, datetime.datetime]]:
-        base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
+        if market == "Realtime":
+            base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
+        else:
+            base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAConstrShadowPrices"
 
         if isinstance(date, (datetime.datetime, datetime.date)):
             date_str = date.strftime("%Y%m%d")
         else:
             date_str = date.replace("-", "")
-        file_prefix = f"PUB_RealtimeConstrShadowPrices_{date_str}"
+        file_prefix = f"PUB_{market}ConstrShadowPrices_{date_str}"
         r = self._request(base_url)
         pattern = '<a href="({}.*?.xml)">.*?</a>\\s+(\\d{{2}}-\\w{{3}}-\\d{{4}} \\d{{2}}:\\d{{2}})'
         file_rows = re.findall(pattern.format(file_prefix), r.text)
@@ -4145,7 +4153,34 @@ class IESO(ISOBase):
                         break
         return json_data_with_times
 
-    def _parse_shadow_prices_report(self, json_data: dict) -> pd.DataFrame:
+    def _parse_day_ahead_shadow_prices_report(self, json_data: dict) -> pd.DataFrame:
+        doc_header = json_data["Document"]["DocHeader"]
+        doc_body = json_data["Document"]["DocBody"]
+        shadow_prices = doc_body["HourlyPrice"]
+        publish_time = pd.Timestamp(doc_header["CreatedAt"], tz=self.default_timezone)
+        delivery_date = pd.Timestamp(doc_body["DELIVERYDATE"], tz=self.default_timezone)
+
+        rows = []
+        for shadow_price in shadow_prices:
+            constraint = " ".join(shadow_price["ConstraintName"].split())
+            hours = shadow_price["ShadowPrices"]["Hour"]
+            prices = shadow_price["ShadowPrices"]["ShadowPrice"]
+
+            for hour, price in zip(hours, prices):
+                interval_start = delivery_date + pd.Timedelta(hours=int(hour) - 1)
+                interval_end = interval_start + pd.Timedelta(hours=1)
+                rows.append(
+                    {
+                        "Interval Start": interval_start,
+                        "Interval End": interval_end,
+                        "Publish Time": publish_time,
+                        "Constraint": constraint,
+                        "Shadow Price": float(price),
+                    },
+                )
+        return pd.DataFrame(rows)
+
+    def _parse_real_time_shadow_prices_report(self, json_data: dict) -> pd.DataFrame:
         doc_header = json_data["Document"]["DocHeader"]
         doc_body = json_data["Document"]["DocBody"]
         publish_time = pd.Timestamp(doc_header["CreatedAt"], tz=self.default_timezone)
