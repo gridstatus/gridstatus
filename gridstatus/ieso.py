@@ -3965,7 +3965,7 @@ class IESO(ISOBase):
             base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
             file = "PUB_RealtimeConstrShadowPrices.xml"
             json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
-            df = self._parse_shadow_prices_report(json_data)
+            df = self._parse_real_time_shadow_prices_report(json_data)
             df.sort_values(
                 ["Interval Start", "Publish Time", "Constraint"],
                 inplace=True,
@@ -4024,7 +4024,7 @@ class IESO(ISOBase):
             base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAConstrShadowPrices"
             file = "PUB_DAConstrShadowPrices.xml"
             json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
-            df = self._parse_shadow_prices_report(json_data)
+            df = self._parse_day_ahead_shadow_prices_report(json_data)
             df.sort_values(
                 ["Interval Start", "Publish Time", "Constraint"],
                 inplace=True,
