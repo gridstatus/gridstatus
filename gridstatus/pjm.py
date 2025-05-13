@@ -286,7 +286,6 @@ class PJM(ISOBase):
         """
         if date == "latest":
             return self.get_load_forecast_5_min(
-                # pd.Timestamp.now(tz=self.default_timezone).floor("5min"),
                 "today",
                 verbose=verbose,
             )
