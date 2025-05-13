@@ -3980,7 +3980,11 @@ class IESO(ISOBase):
                 ]
             ].reset_index(drop=True)
 
-        json_data_with_times = self._get_all_shadow_prices_jsons(date, last_modified)
+        json_data_with_times = self._get_all_shadow_prices_jsons(
+            date,
+            market="Realtime",
+            last_modified=last_modified,
+        )
         dfs = []
         for json_data, file_last_modified in json_data_with_times:
             df = self._parse_real_time_shadow_prices_report(json_data)
