@@ -2299,6 +2299,31 @@ class TestIESO(BaseTestISO):
         with file_vcr.use_cassette(cassette_name):
             df = self.iso.get_shadow_prices_real_time_5_min(start, end=end)
             self._check_shadow_prices(df)
+
+    def test_get_shadow_prices_day_ahead_hourly_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_shadow_prices_day_ahead_hourly_latest.yaml",
+        ):
+            df = self.iso.get_shadow_prices_day_ahead_hourly("latest")
+            self._check_shadow_prices(df)
+            assert df["Interval Start"].is_monotonic_increasing
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2025-05-01", "2025-05-03"),
+        ],
+    )
+    def test_get_shadow_prices_day_ahead_hourly_historical_range(self, date, end):
+        start = pd.Timestamp(date, tz=self.default_timezone).normalize()
+        end = pd.Timestamp(end, tz=self.default_timezone).normalize()
+        cassette_name = (
+            f"test_get_shadow_prices_day_ahead_hourly_{start.date()}_{end.date()}.yaml"
+        )
+        with file_vcr.use_cassette(cassette_name):
+            df = self.iso.get_shadow_prices_day_ahead_hourly(start, end=end)
+            self._check_shadow_prices(df)
+
         """get_lmp_real_time_operating_reserves"""
 
     def _check_lmp_real_time_5_min_operating_reserves(self, data: pd.DataFrame) -> None:
