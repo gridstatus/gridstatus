@@ -296,7 +296,7 @@ class PJM(ISOBase):
             ),
         }
 
-        filter_timestamp_name = "forecast_datetime_beginning"
+        filter_timestamp_name = "evaluated_at"
 
         data = self._get_pjm_json(
             self.load_forecast_5_min_endpoint_name,
