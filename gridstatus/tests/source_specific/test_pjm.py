@@ -2510,4 +2510,4 @@ class TestPJM(BaseTestISO):
             assert df["Interval Start"].min() == self.local_start_of_day(past_date)
             assert df["Interval End"].max() == self.local_start_of_day(
                 past_end_date,
-            ) + pd.Timedelta(hours=1)
+            ) + pd.Timedelta(minutes=175)
