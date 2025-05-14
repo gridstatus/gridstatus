@@ -62,6 +62,7 @@ class PJM(ISOBase):
 
     load_forecast_endpoint_name = "load_frcstd_7_day"
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
+    load_forecast_5_min_endpoint_name = "very_short_load_frcst"
 
     def __init__(
         self,
@@ -264,6 +265,41 @@ class PJM(ISOBase):
 
         data = self._get_pjm_json(
             self.load_forecast_historical_endpoint_name,
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            filter_timestamp_name=filter_timestamp_name,
+        )
+
+        return self._handle_load_forecast(data)
+
+    @support_date_range(frequency=None)
+    def get_load_forecast_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Load forecast made today extending for 2 hours in 5 minute intervals.
+        """
+        if date == "latest":
+            return self.get_load_forecast_5_min(
+                "today",
+                verbose=verbose,
+            )
+
+        params = {
+            "fields": (
+                "evaluated_at_utc,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"
+            ),
+        }
+
+        filter_timestamp_name = "evaluated_at"
+
+        data = self._get_pjm_json(
+            self.load_forecast_5_min_endpoint_name,
             start=date,
             end=end,
             params=params,

@@ -68,6 +68,27 @@ test-unit:
 	uv pip install vcrpy
 	$(PYTEST_CMD) $(UNIT_ONLY)
 
+#TODO(kladar): Maybe gridstatus gets a CLI in the future for things like this.
+#NB: This is for running a single test without having to fully specify the
+#    path and the pytest command.
+#    Usage: make test-one-off market=MARKET test=TEST_NAME
+#    Example: make test-one-off market=pjm test=test_get_load_forecast_5_min_latest
+.PHONY: test-one-off
+test-one-off:
+#NB: First two blocks are for error checking.
+ifndef market
+	$(error market parameter is required. Usage: make test-one-off market=MARKET test=TEST_NAME)
+endif
+ifndef test
+	$(error test parameter is required. Usage: make test-one-off market=MARKET test=TEST_NAME)
+endif
+#NB: This puts the market in the right capitalization for the path. Ercot is not ALL CAPS like the other market test classes: TestErcot vs TestCAISO, etc.
+ifeq ($(market),ercot)
+	uv run pytest -vvv gridstatus/tests/source_specific/test_$(market).py::TestErcot::$(test)
+else
+	uv run pytest -vvv gridstatus/tests/source_specific/test_$(market).py::Test$(shell echo $(market) | tr '[:lower:]' '[:upper:]')::$(test)
+endif
+
 .PHONY: installdeps-dev
 installdeps-dev:
 	uv sync
