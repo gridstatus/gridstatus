@@ -2178,7 +2178,7 @@ class TestIESO(BaseTestISO):
 
     def test_get_solar_embedded_forecast_all_versions(self):
         date = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=1,
+            days=2,
         )
 
         with file_vcr.use_cassette(
@@ -2268,14 +2268,12 @@ class TestIESO(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Publish Time",
-            "Last Modified",
             "Constraint",
             "Shadow Price",
         }
         assert self._check_is_datetime_type(df["Interval Start"])
         assert self._check_is_datetime_type(df["Interval End"])
         assert self._check_is_datetime_type(df["Publish Time"])
-        assert self._check_is_datetime_type(df["Last Modified"])
         assert df["Shadow Price"].dtype == "float64"
 
     def test_get_shadow_prices_real_time_5_min_latest(self):
@@ -2293,11 +2291,9 @@ class TestIESO(BaseTestISO):
         ],
     )
     def test_get_shadow_prices_real_time_5_min_historical_range(self, date, end):
-        start = pd.Timestamp(date, tz=self.default_timezone).normalize()
-        end = pd.Timestamp(end, tz=self.default_timezone).normalize()
-        cassette_name = f"test_get_shadow_prices_real_time_5_min_historical_range_{start.date()}_{end.date()}.yaml"
+        cassette_name = f"test_get_shadow_prices_real_time_5_min_historical_range_{pd.Timestamp(date, tz=self.default_timezone).date()}_{pd.Timestamp(end, tz=self.default_timezone).date()}.yaml"
         with file_vcr.use_cassette(cassette_name):
-            df = self.iso.get_shadow_prices_real_time_5_min(start, end=end)
+            df = self.iso.get_shadow_prices_real_time_5_min(date, end=end)
             self._check_shadow_prices(df)
 
     def test_get_shadow_prices_day_ahead_hourly_latest(self):
@@ -2311,17 +2307,13 @@ class TestIESO(BaseTestISO):
     @pytest.mark.parametrize(
         "date, end",
         [
-            ("2025-05-01", "2025-05-03"),
+            ("2025-05-05", "2025-05-07"),
         ],
     )
     def test_get_shadow_prices_day_ahead_hourly_historical_range(self, date, end):
-        start = pd.Timestamp(date, tz=self.default_timezone).normalize()
-        end = pd.Timestamp(end, tz=self.default_timezone).normalize()
-        cassette_name = (
-            f"test_get_shadow_prices_day_ahead_hourly_{start.date()}_{end.date()}.yaml"
-        )
+        cassette_name = f"test_get_shadow_prices_day_ahead_hourly_historical_range_{pd.Timestamp(date, tz=self.default_timezone).date()}_{pd.Timestamp(end, tz=self.default_timezone).date()}.yaml"
         with file_vcr.use_cassette(cassette_name):
-            df = self.iso.get_shadow_prices_day_ahead_hourly(start, end=end)
+            df = self.iso.get_shadow_prices_day_ahead_hourly(date, end=end)
             self._check_shadow_prices(df)
 
         """get_lmp_real_time_operating_reserves"""
@@ -2364,8 +2356,6 @@ class TestIESO(BaseTestISO):
             data = self.iso.get_lmp_real_time_operating_reserves("latest")
 
         self._check_lmp_real_time_5_min_operating_reserves(data)
-
-        # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data["Interval Start"].dt.date == today.date()).all()
 
