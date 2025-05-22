@@ -234,11 +234,23 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.skip(reason="Method no longer supported after IESO Market Renewal")
     def test_get_load_today(self):
-        pass
+        with pytest.raises(NotSupported):
+            self.iso.get_load("today")
+
+    @pytest.mark.skip(reason="Method no longer supported after IESO Market Renewal")
+    def test_get_load_latest(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_load("latest")
+
+    @pytest.mark.skip(reason="Method no longer supported after IESO Market Renewal")
+    def test_get_load_historical(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_load("today")
 
     @pytest.mark.skip(reason="Method no longer supported after IESO Market Renewal")
     def test_get_load_historical_with_date_range(self):
-        pass
+        with pytest.raises(NotSupported):
+            self.iso.get_load("today")
 
     def test_get_load_not_supported(self):
         with pytest.raises(NotSupported):
@@ -377,18 +389,8 @@ class TestIESO(BaseTestISO):
         ).all()
 
     def test_get_mcp_real_time_5_min_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=3)
-        end = start + pd.Timedelta(hours=2)
-
-        with file_vcr.use_cassette(
-            f"test_get_mcp_real_time_5_min_date_range_{start.date()}_{end.date()}.yaml",
-        ):
-            df = self.iso.get_mcp_real_time_5_min(start, end)
-
-        self._check_mcp(df)
-
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
+        with pytest.raises(NotSupported):
+            self.iso.get_mcp_real_time_5_min()
 
     """get_mcp_historical_5_min"""
 
@@ -405,14 +407,25 @@ class TestIESO(BaseTestISO):
         # Historical data starts at the beginning of the year and runs through
         # the end of the previous day
         assert df["Interval Start"].min() == self.local_start_of_day("2025-01-01")
-        assert df["Interval End"].max() == self.local_start_of_today()
+        assert df["Interval End"].max() == pd.Timestamp(
+            "2025-04-30 23:10:00",
+            tz=self.default_timezone,
+        )
 
     """get_hoep_real_time_hourly"""
 
-    def test_get_hoep_real_time_hourly_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=3)
-        end = start + pd.Timedelta(hours=4)
-
+    @pytest.mark.parametrize(
+        "start, end",
+        [
+            (
+                pd.Timestamp("2025-04-01 00:00:00"),
+                pd.Timestamp("2025-04-01 04:00:00"),
+            ),
+        ],
+    )
+    def test_get_hoep_real_time_hourly_date_range(self, start, end):
+        start = start.tz_localize(self.default_timezone)
+        end = end.tz_localize(self.default_timezone)
         with file_vcr.use_cassette(
             f"test_get_hoep_real_time_hourly_date_range_{start.date()}_{end.date()}.yaml",
         ):
@@ -1452,6 +1465,7 @@ class TestIESO(BaseTestISO):
         # today or tomorrow.
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         tomorrow = today + pd.Timedelta(days=1)
+        print(data[TIME_COLUMN])
         assert ((data[TIME_COLUMN].dt.date == today.date()).all()) or (
             (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
         )

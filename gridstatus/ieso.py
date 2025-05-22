@@ -26,7 +26,6 @@ from gridstatus.gs_logging import logger
 from gridstatus.ieso_constants import (
     FUEL_MIX_TEMPLATE_URL,
     HISTORICAL_FUEL_MIX_TEMPLATE_URL,
-    IESO_ZONE_MAPPING,
     INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS,
     INTERTIE_FLOW_5_MIN_COLUMNS,
     MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
@@ -609,42 +608,10 @@ class IESO(ISOBase):
 
         return interval_load_demand_triples
 
-    @support_date_range(frequency="HOUR_START")
-    def get_mcp_real_time_5_min(
-        self,
-        date: str | datetime.date | datetime.datetime,
-        end: datetime.date | datetime.datetime | None = None,
-        verbose: bool = False,
-    ):
-        retired_data_warning()
-
-        # This file always has the latest data for the current hour
-        if date == "latest":
-            url = "https://reports-public.ieso.ca/public/RealtimeMktPrice/PUB_RealtimeMktPrice.csv"  # noqa: E501
-        else:
-            hour = date.hour
-            # The report has the hour ending in the filename so we need to add 1 to
-            # get the file for the hour ending
-            url = f"https://reports-public.ieso.ca/public/RealtimeMktPrice/PUB_RealtimeMktPrice_{date.strftime('%Y%m%d')}{hour + 1:02d}.csv"  # noqa: E501
-
-        try:
-            data = pd.read_csv(
-                url,
-                skiprows=4,
-                header=None,
-                usecols=[0, 1, 2, 3, 4],
-                names=["Hour Ending", "Interval", "Component", "Location", "Price"],
-            )
-        except HTTPError as e:
-            if e.code == 404:
-                raise NotSupported(
-                    f"MCP data is not available for the requested date {date}. Try using the historical method.",  # noqa: E501
-                )
-
-        data["Delivery Date"] = date.date()
-        data["Location"] = data["Location"].map(IESO_ZONE_MAPPING)
-
-        return self._handle_mcp_data(data)
+    def get_mcp_real_time_5_min(self):
+        raise NotSupported(
+            "MCP data is no longer available. For real time pricing information, use the `get_lmp_real_time_5_min` method instead. For historical MCP data, use the `get_mcp_historical_5_min` method.",
+        )
 
     @support_date_range(frequency="YEAR_START")
     def get_mcp_historical_5_min(
