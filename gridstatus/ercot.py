@@ -3392,10 +3392,13 @@ class Ercot(ISOBase):
     ):
         logger.debug(f"Reading {doc.url}")
 
-        response = requests.get(doc.url, **(request_kwargs or {})).content
-        df = pd.read_csv(
-            io.BytesIO(response), compression="zip", **(read_csv_kwargs or {})
-        )
+        if request_kwargs:
+            response = requests.get(doc.url, **(request_kwargs or {})).content
+            df = pd.read_csv(
+                io.BytesIO(response), compression="zip", **(read_csv_kwargs or {})
+            )
+        else:
+            df = pd.read_csv(doc.url, compression="zip", **(read_csv_kwargs or {}))
 
         if parse:
             df = self.parse_doc(df, verbose=verbose)
