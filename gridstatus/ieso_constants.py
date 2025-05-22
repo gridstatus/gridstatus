@@ -20,16 +20,6 @@ LOAD_FORECAST_URL: str = (
     "https://www.ieso.ca/-/media/Files/IESO/Power-Data/Ontario-Demand-multiday.ashx"
 )
 
-"""ZONAL LOAD FORECAST CONSTANTS"""
-ZONAL_LOAD_FORECAST_INDEX_URL: str = (
-    "https://reports-public.ieso.ca/public/OntarioZonalDemand"
-)
-
-# Each forecast file contains data from the day in the filename going forward for
-# 34 days. The most recent file does not have a date in the filename.
-ZONAL_LOAD_FORECAST_TEMPLATE_URL: str = (
-    f"{ZONAL_LOAD_FORECAST_INDEX_URL}/PUB_OntarioZonalDemand_YYYYMMDD.xml"
-)
 
 # The farthest in the past that forecast files are available
 MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST: int = 90
