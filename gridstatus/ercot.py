@@ -152,6 +152,12 @@ TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
 # https://data.ercot.com/data-product-archive/NP6-970-CD - for historical data
 ERCOT_INDICATIVE_LMP_BY_SETTLEMENT_POINT_RTID = 13073
 
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-192-cd
+DAM_TOTAL_ENERGY_PURCHASED_RTID = 12333
+
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-193-cd
+DAM_TOTAL_ENERGY_SOLD_RTID = 12334
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -3386,10 +3392,13 @@ class Ercot(ISOBase):
     ):
         logger.debug(f"Reading {doc.url}")
 
-        response = requests.get(doc.url, **(request_kwargs or {})).content
-        df = pd.read_csv(
-            io.BytesIO(response), compression="zip", **(read_csv_kwargs or {})
-        )
+        if request_kwargs:
+            response = requests.get(doc.url, **(request_kwargs or {})).content
+            df = pd.read_csv(
+                io.BytesIO(response), compression="zip", **(read_csv_kwargs or {})
+            )
+        else:
+            df = pd.read_csv(doc.url, compression="zip", **(read_csv_kwargs or {}))
 
         if parse:
             df = self.parse_doc(df, verbose=verbose)
@@ -3658,3 +3667,94 @@ class Ercot(ISOBase):
                 "LMP",
             ]
         ]
+
+    @support_date_range(frequency="DAY_START")
+    def get_dam_total_energy_purchased(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Total Energy Purchased
+
+        Arguments:
+            date (str, datetime): date to get data for
+            end (str, datetime): end time to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with DAM total energy purchased data
+        """
+        if date == "latest":
+            return self.get_dam_total_energy_purchased(
+                date="today",
+                verbose=verbose,
+            )
+
+        # DAM data so subtract one from the date
+        doc = self._get_document(
+            report_type_id=DAM_TOTAL_ENERGY_PURCHASED_RTID,
+            date=date - pd.DateOffset(days=1),
+            extension="csv",
+        )
+
+        return self._process_dam_total_energy(
+            doc,
+            verbose=verbose,
+        )
+
+    def _process_dam_total_energy(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return (
+            self.read_doc(doc, verbose=verbose)
+            .rename(
+                columns={
+                    "Settlement_Point": "Location",
+                    "TotalDAMEnergySold": "Total",
+                    "Total_DAM_Energy_Bought": "Total",
+                },
+            )
+            .drop(
+                columns=["Time"],
+            )
+            .sort_values(["Interval Start", "Location"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_dam_total_energy_sold(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Total Energy Sold
+
+        Arguments:
+            date (str, datetime): date to get data for
+            end (str, datetime): end time to get data for
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with DAM total energy sold data
+        """
+        if date == "latest":
+            return self.get_dam_total_energy_sold(
+                date="today",
+                verbose=verbose,
+            )
+
+        # DAM data so subtract one from the date
+        doc = self._get_document(
+            report_type_id=DAM_TOTAL_ENERGY_SOLD_RTID,
+            date=date - pd.DateOffset(days=1),
+            extension="csv",
+        )
+
+        return self._process_dam_total_energy(
+            doc,
+            verbose=verbose,
+        )
