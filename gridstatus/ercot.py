@@ -3695,18 +3695,31 @@ class Ercot(ISOBase):
             extension="csv",
         )
 
-        data = (
+        return self._process_dam_total_energy(
+            doc,
+            verbose=verbose,
+        )
+
+    def _process_dam_total_energy(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return (
             self.read_doc(doc, verbose=verbose)
             .rename(
                 columns={
                     "Settlement_Point": "Location",
+                    "TotalDAMEnergySold": "Total",
                     "Total_DAM_Energy_Bought": "Total",
                 },
             )
-            .drop(columns=["Time"])
-        ).sort_values(["Interval Start", "Location"])
-
-        return data
+            .drop(
+                columns=["Time"],
+            )
+            .sort_values(["Interval Start", "Location"])
+            .reset_index(drop=True)
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_dam_total_energy_sold(
@@ -3738,15 +3751,7 @@ class Ercot(ISOBase):
             extension="csv",
         )
 
-        data = (
-            self.read_doc(doc, verbose=verbose)
-            .rename(
-                columns={
-                    "Settlement_Point": "Location",
-                    "TotalDAMEnergySold": "Total",
-                },
-            )
-            .drop(columns=["Time"])
-        ).sort_values(["Interval Start", "Location"])
-
-        return data
+        return self._process_dam_total_energy(
+            doc,
+            verbose=verbose,
+        )
