@@ -3543,9 +3543,9 @@ class Ercot(ISOBase):
                 # Sometimes ERCOT handles DST end by putting 25 hours in HourEnding
                 # which makes IntervalStart where HourEnding >= 3 an hour later than
                 # they should be. We correct this by subtracting an hour.
-                assert (
-                    doc["HourEnding"].max() == 25
-                ), f"Time parsing error. Did not find HourEnding = 25. {e}"
+                assert doc["HourEnding"].max() == 25, (
+                    f"Time parsing error. Did not find HourEnding = 25. {e}"
+                )
                 doc.loc[doc["HourEnding"] >= 3, "Interval Start"] = doc.loc[
                     doc["HourEnding"] >= 3,
                     "Interval Start",
