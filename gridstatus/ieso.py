@@ -26,24 +26,16 @@ from gridstatus.gs_logging import logger
 from gridstatus.ieso_constants import (
     FUEL_MIX_TEMPLATE_URL,
     HISTORICAL_FUEL_MIX_TEMPLATE_URL,
-    HOUR_INTERVAL,
     IESO_ZONE_MAPPING,
     INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS,
     INTERTIE_FLOW_5_MIN_COLUMNS,
-    LOAD_FORECAST_URL,
-    LOAD_TEMPLATE_URL,
-    MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
     MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
-    MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
-    MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST,
-    MINUTES_INTERVAL,
     NAMESPACES_FOR_XML,
     ONTARIO_LOCATION,
     PUBLIC_REPORTS_URL_PREFIX,
     RESOURCE_ADEQUACY_REPORT_BASE_URL,
     RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP,
     ZONAL_LOAD_COLUMNS,
-    ZONAL_LOAD_FORECAST_TEMPLATE_URL,
 )
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -93,7 +85,6 @@ class IESO(ISOBase):
 
     status_homepage = "https://www.ieso.ca/en/Power-Data"
 
-    @support_date_range(frequency="HOUR_START")
     def get_load(
         self,
         date: str | datetime.date | datetime.datetime,
@@ -118,98 +109,9 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: zonal load as a wide table with columns for each zone
         """
-        retired_data_warning()
-
-        today = utils._handle_date("today", tz=self.default_timezone)
-
-        if date != "latest":
-            if date.date() > today.date():
-                raise NotSupported("Load data is not available for future dates.")
-
-            if date.date() < today.date() - pd.Timedelta(
-                days=MAXIMUM_DAYS_IN_PAST_FOR_LOAD,
-            ):
-                raise NotSupported(
-                    f"Load data is not available for dates more than "
-                    f"{MAXIMUM_DAYS_IN_PAST_FOR_LOAD} days in the past.",
-                )
-
-            # Return an empty dataframe when the date exceeds the current timestamp
-            # since there's no load available yet.
-            if date > pd.Timestamp.now(tz=self.default_timezone):
-                return pd.DataFrame()
-        elif date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone)
-
-        df = self._retrieve_5_minute_load(date, end, verbose)
-
-        cols_to_keep = [
-            "Interval Start",
-            "Interval End",
-            "Market Total Load",
-            "Ontario Load",
-        ]
-
-        df["Market Total Load"] = df["Market Total Load"].astype(float)
-        df["Ontario Load"] = df["Ontario Load"].astype(float)
-
-        return utils.move_cols_to_front(df, cols_to_keep)[cols_to_keep].reset_index(
-            drop=True,
+        raise NotSupported(
+            f"With the IESO Market Renewal on {RETIRED_DATE}, this method is no longer supported. To get load data, use the `get_real_time_totals` method instead.",
         )
-
-    def _retrieve_5_minute_load(
-        self,
-        date: datetime.datetime,
-        end: datetime.datetime | None = None,
-        verbose: bool = False,
-    ):
-        # We have to add 1 to the hour to get the file because the filename with
-        # hour x contains data for hour x-1. For example, to get data for
-        # 9:00 - 9:55, we need to request the file for hour 10.
-        # The hour should be in the range 1-24
-        hour = date.hour + 1
-
-        url = LOAD_TEMPLATE_URL.replace(
-            "YYYYMMDDHH",
-            f"{(date).strftime('%Y%m%d')}{hour:02d}",
-        )
-
-        r = self._request(url, verbose)
-
-        root = ElementTree.fromstring(r.text)
-
-        # Extracting all triples of Interval, Market Total Load, and Ontario Load
-        interval_loads_and_demands = self._find_loads_at_each_interval_from_xml(root)
-
-        df = pd.DataFrame(
-            interval_loads_and_demands,
-            columns=["Interval", "Market Total Load", "Ontario Load"],
-        )
-
-        delivery_date = root.find("DocBody/DeliveryDate", NAMESPACES_FOR_XML).text
-        delivery_hour = int(root.find("DocBody/DeliveryHour", NAMESPACES_FOR_XML).text)
-
-        df["Delivery Date"] = pd.Timestamp(delivery_date, tz=self.default_timezone)
-
-        # The starting hour is 1, so we subtract 1 to get the hour in the range 0-23
-        df["Delivery Hour Start"] = delivery_hour - 1
-        # Multiply the interval minus 1 by 5 to get the minutes in the range 0-55
-        df["Interval Minute Start"] = MINUTES_INTERVAL * (df["Interval"] - 1)
-
-        df["Interval Start"] = (
-            df["Delivery Date"]
-            + pd.to_timedelta(df["Delivery Hour Start"], unit="h")
-            + pd.to_timedelta(df["Interval Minute Start"], unit="m")
-        )
-
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=MINUTES_INTERVAL,
-        )
-
-        if end:
-            return df[df["Interval End"] <= pd.Timestamp(end)]
-
-        return df
 
     def get_load_forecast(self, date: str, verbose: bool = False):
         """
@@ -223,60 +125,8 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: Ontario load forecast
         """
-        if date not in ["today", "latest"]:
-            raise NotSupported(
-                "Only 'today' and 'latest' are supported for load forecasts.",
-            )
-
-        root = ElementTree.fromstring(self._request(LOAD_FORECAST_URL, verbose).text)
-
-        # Extract values from <DataSet Series="Projected">
-        projected_values = []
-
-        # Iterate through the XML to find the DataSet with Series="Projected"
-        for dataset in root.iter("DataSet"):
-            if dataset.attrib.get("Series") == "Projected":
-                for data in dataset.iter("Data"):
-                    for value in data.iter("Value"):
-                        projected_values.append(value.text)
-
-        created_at = pd.Timestamp(
-            root.find(".//CreatedAt").text,
-            tz=self.default_timezone,
-        )
-        start_date = pd.Timestamp(
-            root.find(".//StartDate").text,
-            tz=self.default_timezone,
-        )
-
-        # Create the range of interval starts based on the number of values at an
-        # hourly frequency
-        interval_starts = pd.date_range(
-            start_date,
-            periods=len(projected_values),
-            freq="h",
-            tz=self.default_timezone,
-        )
-
-        # Create a DataFrame with the projected values
-        df_projected = pd.DataFrame(projected_values, columns=["Ontario Load Forecast"])
-        df_projected["Ontario Load Forecast"] = df_projected[
-            "Ontario Load Forecast"
-        ].astype(float)
-        df_projected["Publish Time"] = created_at
-        df_projected["Interval Start"] = interval_starts
-        df_projected["Interval End"] = df_projected["Interval Start"] + pd.Timedelta(
-            hours=HOUR_INTERVAL,
-        )
-
-        return utils.move_cols_to_front(
-            df_projected,
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Ontario Load Forecast",
-            ],
+        raise NotSupported(
+            f"With the IESO Market Renewal on {RETIRED_DATE}, this method is no longer supported. To get load forecast data, use the `get_resource_adequacy_report` method instead.",
         )
 
     @support_date_range(frequency="DAY_START")
@@ -306,135 +156,9 @@ class IESO(ISOBase):
         Returns:
             pd.DataFrame: forecasted load as a wide table with columns for each zone
         """
-
-        today = utils._handle_date("today", tz=self.default_timezone)
-
-        if date != "latest":
-            date = utils._handle_date(date, tz=self.default_timezone)
-
-            if date.date() < today.date() - pd.Timedelta(
-                days=MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST,
-            ):
-                # Forecasts are not support for past dates
-                raise NotSupported(
-                    "Past dates are not support for load forecasts more than "
-                    f"{MAXIMUM_DAYS_IN_PAST_FOR_ZONAL_LOAD_FORECAST} days in the past.",
-                )
-
-            if date.date() > today.date() + pd.Timedelta(
-                days=MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST,
-            ):
-                raise NotSupported(
-                    f"Dates more than {MAXIMUM_DAYS_IN_FUTURE_FOR_ZONAL_LOAD_FORECAST} "
-                    "days in the future are not supported for load forecasts.",
-                )
-
-        # For future dates, the most recent forecast is used
-        if date == "latest" or date.date() > today.date():
-            url = ZONAL_LOAD_FORECAST_TEMPLATE_URL.replace("_YYYYMMDD", "")
-        else:
-            url = ZONAL_LOAD_FORECAST_TEMPLATE_URL.replace(
-                "YYYYMMDD",
-                date.strftime("%Y%m%d"),
-            )
-
-        r = self._request(url, verbose)
-
-        # Initialize a list to store the parsed data
-        data = []
-
-        # Parse the XML file
-        root = ElementTree.fromstring(r.content)
-
-        published_time = root.find(".//CreatedAt", NAMESPACES_FOR_XML).text
-
-        # Extracting data for each ZonalDemands within the Document
-        for zonal_demands in root.findall(".//ZonalDemands", NAMESPACES_FOR_XML):
-            delivery_date = zonal_demands.find(
-                ".//DeliveryDate",
-                NAMESPACES_FOR_XML,
-            ).text
-
-            for zonal_demand in zonal_demands.findall(
-                ".//ZonalDemand/*",
-                NAMESPACES_FOR_XML,
-            ):
-                # The zone name is the tag name without the namespace
-                zone_name = zonal_demand.tag[(zonal_demand.tag.rfind("}") + 1) :]
-
-                for demand in zonal_demand.findall(".//Demand", NAMESPACES_FOR_XML):
-                    hour = demand.find(".//DeliveryHour", NAMESPACES_FOR_XML).text
-                    energy_mw = demand.find(".//EnergyMW", NAMESPACES_FOR_XML).text
-
-                    data.append(
-                        {
-                            "DeliveryDate": delivery_date,
-                            "Zone": zone_name,
-                            "DeliveryHour": hour,
-                            "EnergyMW": energy_mw,
-                        },
-                    )
-
-        df = pd.DataFrame(data)
-
-        # Convert columns to appropriate data types
-        df["DeliveryHour"] = df["DeliveryHour"].astype(int)
-        df["EnergyMW"] = df["EnergyMW"].astype(float)
-        df["DeliveryDate"] = pd.to_datetime(df["DeliveryDate"])
-
-        df["Interval Start"] = (
-            # Need to subtract 1 from the DeliveryHour since that represents the
-            # ending hour of the interval. (1 represents 00:00 - 01:00)
-            df["DeliveryDate"] + pd.to_timedelta(df["DeliveryHour"] - 1, unit="h")
-        ).dt.tz_localize(self.default_timezone)
-
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=HOUR_INTERVAL)
-
-        # Pivot the table to wide
-        pivot_df = df.pivot_table(
-            index=["Interval Start", "Interval End"],
-            columns="Zone",
-            values="EnergyMW",
-            aggfunc="first",
-        ).reset_index()
-
-        pivot_df["Publish Time"] = pd.Timestamp(
-            published_time,
-            tz=self.default_timezone,
+        raise NotSupported(
+            f"With the IESO Market Renewal on {RETIRED_DATE}, this method is no longer supported. To get zonal load forecast data, use the `get_resource_adequacy_report` method instead.",
         )
-
-        pivot_df = utils.move_cols_to_front(
-            pivot_df,
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Ontario",
-            ],
-        )
-
-        pivot_df.columns.name = None
-
-        col_mapper = {
-            col: f"{col} Load Forecast" for col in ["Ontario", "East", "West"]
-        }
-
-        pivot_df = pivot_df.rename(columns=col_mapper)
-
-        # Return all the values from the latest forecast
-        if date == "latest":
-            return pivot_df
-
-        # If no end is provided, return data from single date
-        if not end:
-            return pivot_df[pivot_df["Publish Time"].dt.date == date.date()]
-
-        # Return data from date to end date
-        end_date = utils._handle_date(end, tz=self.default_timezone)
-
-        return pivot_df[
-            (pivot_df["Publish Time"] >= date) & (pivot_df["Publish Time"] <= end_date)
-        ]
 
     def get_fuel_mix(
         self,
