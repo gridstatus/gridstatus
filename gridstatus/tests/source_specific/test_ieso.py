@@ -1991,10 +1991,6 @@ class TestIESO(BaseTestISO):
 
         assert df["Publish Time"].nunique() > 1
 
-        for publish_time in df["Publish Time"].unique():
-            subset = df[df["Publish Time"] == publish_time]
-            assert len(subset) == 24
-
     def test_get_wind_embedded_forecast_latest(self):
         with file_vcr.use_cassette("test_get_wind_embedded_forecast_latest.yaml"):
             df = self.iso.get_wind_embedded_forecast("latest")

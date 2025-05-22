@@ -3554,8 +3554,21 @@ class IESO(ISOBase):
                             intervals = [intervals]
 
                         for interval in intervals:
-                            hour = int(interval["ForecastHour"])
-                            output = float(interval["MWOutput"])
+                            try:
+                                hour = int(interval["ForecastHour"])
+                                output = float(interval["MWOutput"])
+                            except KeyError:
+                                # NB: This logs the error once per file, rather than for each element in the file
+                                if not hasattr(self, "_logged_invalid_intervals"):
+                                    self._logged_invalid_intervals = set()
+
+                                file_key = f"{publish_time}_{last_modified_time}"
+                                if file_key not in self._logged_invalid_intervals:
+                                    logger.warning(
+                                        f"These files are known to be missing the occasional interval. File published at {publish_time} has a missing interval at {interval}. Continuing with data pull and parse...",
+                                    )
+                                    self._logged_invalid_intervals.add(file_key)
+                                continue
 
                             interval_start = forecast_date + pd.Timedelta(
                                 hours=hour - 1,
