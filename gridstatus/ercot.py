@@ -158,6 +158,9 @@ DAM_TOTAL_ENERGY_PURCHASED_RTID = 12333
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-193-cd
 DAM_TOTAL_ENERGY_SOLD_RTID = 12334
 
+# https://www.ercot.com/mp/data-products/data-product-details?id=np1-301
+COP_ADJUSTMENT_PERIOD_SNAPSHOT_RTID = 10038
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -3758,3 +3761,54 @@ class Ercot(ISOBase):
             doc,
             verbose=verbose,
         )
+
+    @support_date_range(frequency="DAY_START")
+    def get_cop_adjustment_period_snapshot_60_day(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest" or date > pd.Timestamp.now(
+            tz=self.default_timezone,
+        ) - pd.DateOffset(days=60):
+            raise ValueError(
+                "Cannot get COP Adjustment Period Snapshot for date < 60 days in the past",
+            )
+
+        # Data is delayed by 60 days. To get the report for a given day, we have to
+        # look 60 days in the future relative to the target date
+        report_date = date + pd.DateOffset(days=60)
+
+        # Delayed by 60 days
+        doc = self._get_document(
+            report_type_id=COP_ADJUSTMENT_PERIOD_SNAPSHOT_RTID,
+            date=report_date,
+        )
+
+        return self._process_cop_adjustment_period_snapshot_60_day(
+            doc,
+            verbose=verbose,
+        )
+
+    def _process_cop_adjustment_period_snapshot_60_day(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        data = (
+            self.read_doc(doc, verbose=verbose)
+            .rename(columns={"QSE Name": "QSE"})
+            .drop(
+                columns=["Time"],
+            )
+            .sort_values(["Interval Start", "Resource Name"])
+            .reset_index(drop=True)
+        )
+
+        data = utils.move_cols_to_front(
+            data,
+            ["Interval Start", "Interval End", "Resource Name", "QSE"],
+        )
+
+        return data
