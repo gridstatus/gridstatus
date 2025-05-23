@@ -2685,10 +2685,9 @@ class PJM(ISOBase):
             interval_duration_min=5,
             verbose=verbose,
         )
-
+        print(df)
         df = df.rename(
             columns={
-                "datetime_beginning_utc": "Interval Start",
                 "tie_flow_name": "Tie Flow Name",
                 "actual_mw": "Actual",
                 "scheduled_mw": "Scheduled",
