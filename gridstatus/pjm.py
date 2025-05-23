@@ -2685,7 +2685,6 @@ class PJM(ISOBase):
             interval_duration_min=5,
             verbose=verbose,
         )
-        print(df)
         df = df.rename(
             columns={
                 "tie_flow_name": "Tie Flow Name",
