@@ -2511,3 +2511,56 @@ class TestPJM(BaseTestISO):
             assert df["Interval End"].max() == self.local_start_of_day(
                 past_end_date,
             ) + pd.Timedelta(minutes=175)
+
+    """get_tie_flows_5_min"""
+
+    expected_tie_flows_5_min_cols = [
+        "Interval Start",
+        "Interval End",
+        "Tie Flow Name",
+        "Actual",
+        "Scheduled",
+    ]
+
+    def _check_tie_flows_5_min(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self.expected_tie_flows_5_min_cols
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+        assert df["Tie Flow Name"].dtype == object
+        assert df["Actual"].dtype in [np.float64, np.int64]
+        assert df["Scheduled"].dtype in [np.float64, np.int64]
+
+    @pytest.mark.parametrize("date", ["latest", "today"])
+    def test_get_tie_flows_5_min_today_or_latest(self, date):
+        with pjm_vcr.use_cassette(f"test_get_tie_flows_5_min_{date}.yaml"):
+            df = self.iso.get_tie_flows_5_min(date)
+            self._check_tie_flows_5_min(df)
+            assert df["Interval Start"].min() == self.local_start_of_today()
+            assert df[
+                "Interval End"
+            ].max() <= self.local_start_of_today() + pd.Timedelta(days=1)
+
+    def test_get_tie_flows_5_min_historical_date(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        with pjm_vcr.use_cassette(
+            f"test_get_tie_flows_5_min_historical_date_{past_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_tie_flows_5_min(past_date)
+            self._check_tie_flows_5_min(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                past_date,
+            ) + pd.Timedelta(days=1)
+
+    def test_get_tie_flows_5_min_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=5)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        with pjm_vcr.use_cassette(
+            f"test_get_tie_flows_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_tie_flows_5_min(past_date, past_end_date)
+            self._check_tie_flows_5_min(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(past_end_date)
