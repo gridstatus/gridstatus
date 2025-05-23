@@ -7,6 +7,8 @@ META_ENDPOINTS = {
     "/version",
     "/{emilId}",
     "/archive/{emilId}",
+    "/archive/{emilId}/download",
+    "/bundle/{emilId}/download",
 }
 
 
@@ -105,13 +107,15 @@ def _parse_schema(schema: dict) -> tuple[str, callable]:
     """
     t = schema["type"]
     if t == "string":
-        f = schema["format"]
-        if f == datetime_formats.TIMESTAMP:
-            return ("timestamp", _timestamp_parser)
-        elif f == datetime_formats.DATE:
-            return ("date", _date_parser)
-        elif f == datetime_formats.MINUTE_SECOND:
-            return ("minute+second mm:ss", _minute_second_parser)
+        if f := schema.get("format"):
+            if f == datetime_formats.TIMESTAMP:
+                return ("timestamp", _timestamp_parser)
+            elif f == datetime_formats.DATE:
+                return ("date", _date_parser)
+            elif f == datetime_formats.MINUTE_SECOND:
+                return ("minute+second mm:ss", _minute_second_parser)
+            else:
+                return ("string", lambda x: x)
         else:
             return ("string", lambda x: x)
     elif t == "boolean":

@@ -3786,19 +3786,20 @@ class Ercot(ISOBase):
             date=report_date,
         )
 
-        return self._process_cop_adjustment_period_snapshot_60_day(
-            doc,
+        data = self.read_doc(doc, verbose=verbose)
+
+        return self._process_cop_adjustment_period_snapshot_60_day_data(
+            data,
             verbose=verbose,
         )
 
-    def _process_cop_adjustment_period_snapshot_60_day(
+    def _process_cop_adjustment_period_snapshot_60_day_data(
         self,
-        doc: Document,
+        data: pd.DataFrame,
         verbose: bool = False,
     ) -> pd.DataFrame:
         data = (
-            self.read_doc(doc, verbose=verbose)
-            .rename(columns={"QSE Name": "QSE"})
+            data.rename(columns={"QSE Name": "QSE"})
             .drop(
                 columns=["Time"],
             )

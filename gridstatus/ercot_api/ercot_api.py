@@ -15,7 +15,10 @@ from tqdm import tqdm
 from gridstatus import utils
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
-from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE, Ercot
+from gridstatus.ercot import (
+    ELECTRICAL_BUS_LOCATION_TYPE,
+    Ercot,
+)
 from gridstatus.ercot_api.api_parser import _timestamp_parser, parse_all_endpoints
 from gridstatus.ercot_constants import (
     SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
@@ -129,6 +132,9 @@ SCED_60_DAY_SMNE_ENDPOINT = "/np3-965-er/60_sced_smne_gen_res"
 # Indicative LMP
 # https://data.ercot.com/data-product-archive/NP6-970-CD
 INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-970-cd/rtd_lmp_node_zone_hub"
+
+# https://data.ercot.com/data-product-archive/NP1-301
+COP_ADJUSTMENT_PERIOD_SNAPSHOT_ENDPOINT = "/np1-301/60_cop_adj_period_snapshot"
 
 
 class ErcotAPI:
@@ -1257,6 +1263,52 @@ class ErcotAPI:
 
         # Take the list of dictionaries and concat the dataframes for each key
         return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0].keys()}
+
+    @support_date_range(frequency=None)
+    def get_cop_adjustment_period_snapshot_60_day(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get the 60-day COP adjustment period snapshot reports from ERCOT.
+
+        Args:
+            date (datetime-like): Start date for the query
+            end (datetime-like, optional): End date for the query.
+                Defaults to date + 1 day
+            verbose (bool, optional): Whether to print progress messages. Defaults to
+                False
+
+        Returns:
+            pandas.DataFrame: Dataframe containing the COP adjustment period snapshot
+                data
+
+        NOTE: because data is delayed by 60 days, requesting data in the past 60 days
+        will return no data.
+        """
+        # Reports are delayed by 60 days
+        date = date + pd.DateOffset(days=60)
+
+        # End is required so set a default end date if not provided
+        if end:
+            end = end + pd.DateOffset(days=60)
+        else:
+            end = date + pd.DateOffset(days=1)
+
+        raw_data = self.get_historical_data(
+            endpoint=COP_ADJUSTMENT_PERIOD_SNAPSHOT_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            read_as_csv=True,
+            add_post_datetime=False,
+        )
+
+        data = Ercot().parse_doc(raw_data)
+
+        return Ercot()._process_cop_adjustment_period_snapshot_60_day_data(data)
 
     def get_historical_data(
         self,
