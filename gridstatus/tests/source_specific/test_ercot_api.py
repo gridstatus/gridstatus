@@ -1513,3 +1513,49 @@ class TestErcotAPI(TestHelperMixin):
             assert df["Interval End"].max() == pd.Timestamp(end).tz_localize(
                 self.iso.default_timezone,
             ) + pd.Timedelta(minutes=50)
+
+    """get_cop_adjustment_period_snapshot_60_day"""
+
+    def test_get_cop_adjustment_period_snapshot_60_day_historical_date_range(self):
+        start_date = self.local_start_of_today() - pd.DateOffset(days=500)
+        end_date = start_date + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_cop_adjustment_period_snapshot_60_day_historical_date_range_{start_date.date()}_{end_date.date()}.yaml",
+        ):
+            df = self.iso.get_cop_adjustment_period_snapshot_60_day(
+                start_date,
+                end_date,
+            )
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Resource Name",
+            "QSE",
+            "Status",
+            "High Sustained Limit",
+            "Low Sustained Limit",
+            "High Emergency Limit",
+            "Low Emergency Limit",
+            "Reg Up",
+            "Reg Down",
+            "RRSPFR",
+            "RRSFFR",
+            "RRSUFR",
+            "NSPIN",
+            "ECRS",
+            "Minimum SOC",
+            "Maximum SOC",
+            "Hour Beginning Planned SOC",
+        ]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        assert df["Resource Name"].dtype == object
+        assert df["QSE"].dtype == object
+
+        assert df["Interval Start"].min() == start_date
+        assert df["Interval Start"].max() == end_date - pd.Timedelta(hours=1)
