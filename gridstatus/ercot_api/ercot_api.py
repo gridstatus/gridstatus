@@ -1271,23 +1271,6 @@ class ErcotAPI:
         end: str | pd.Timestamp = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """
-        Get the 60-day COP adjustment period snapshot reports from ERCOT.
-
-        Args:
-            date (datetime-like): Start date for the query
-            end (datetime-like, optional): End date for the query.
-                Defaults to date + 1 day
-            verbose (bool, optional): Whether to print progress messages. Defaults to
-                False
-
-        Returns:
-            pandas.DataFrame: Dataframe containing the COP adjustment period snapshot
-                data
-
-        NOTE: because data is delayed by 60 days, requesting data in the past 60 days
-        will return no data.
-        """
         # Reports are delayed by 60 days
         date = date + pd.DateOffset(days=60)
 

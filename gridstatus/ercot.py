@@ -3807,6 +3807,11 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
+        # These columns are not in older data files
+        for col in ["Minimum SOC", "Maximum SOC", "Hour Beginning Planned SOC"]:
+            if col not in data.columns:
+                data[col] = pd.NA
+
         data = utils.move_cols_to_front(
             data,
             ["Interval Start", "Interval End", "Resource Name", "QSE"],
