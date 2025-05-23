@@ -2662,6 +2662,7 @@ class PJM(ISOBase):
             ]
         ]
 
+    @support_date_range(frequency=None)
     def get_tie_flows_5_min(
         self,
         date: str | pd.Timestamp,
