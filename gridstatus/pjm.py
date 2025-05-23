@@ -2661,3 +2661,43 @@ class PJM(ISOBase):
                 "Modified Datetime UTC",
             ]
         ]
+
+    def get_tie_flows_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the PJM Tie Flows 5 Minute data from:
+        https://dataminer2.pjm.com/feed/tie_flows/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "five_min_tie_flows",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,tie_flow_name, actual_mw, scheduled_mw",
+            },
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "datetime_beginning_utc": "Interval Start",
+                "tie_flow_name": "Tie Flow Name",
+                "actual_mw": "Actual",
+                "scheduled_mw": "Scheduled",
+            },
+        )
+        # NB: The data has an extra second on each timestamp like 2025-05-20 12:00:01, so we need to floor to the minute
+        df["Interval Start"] = pd.to_datetime(df["Interval Start"]).dt.floor("min")
+        df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.floor("min")
+
+        return df[
+            ["Interval Start", "Interval End", "Tie Flow Name", "Actual", "Scheduled"]
+        ]
