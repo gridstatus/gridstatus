@@ -1516,18 +1516,7 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_cop_adjustment_period_snapshot_60_day"""
 
-    def test_get_cop_adjustment_period_snapshot_60_day_historical_date_range(self):
-        start_date = self.local_start_of_today() - pd.DateOffset(days=500)
-        end_date = start_date + pd.DateOffset(days=2)
-
-        with api_vcr.use_cassette(
-            f"test_get_cop_adjustment_period_snapshot_60_day_historical_date_range_{start_date.date()}_{end_date.date()}.yaml",
-        ):
-            df = self.iso.get_cop_adjustment_period_snapshot_60_day(
-                start_date,
-                end_date,
-            )
-
+    def _check_cop_adjustment_period_snapshot_60_day(self, df: pd.DataFrame) -> None:
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -1540,6 +1529,7 @@ class TestErcotAPI(TestHelperMixin):
             "Low Emergency Limit",
             "Reg Up",
             "Reg Down",
+            "RRS",
             "RRSPFR",
             "RRSFFR",
             "RRSUFR",
@@ -1557,5 +1547,81 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Resource Name"].dtype == object
         assert df["QSE"].dtype == object
 
+    def test_get_cop_adjustment_period_snapshot_60_day_date(self):
+        # Check the most recent date that data is available
+        date = self.local_today() - pd.DateOffset(days=61)
+
+        with api_vcr.use_cassette(
+            f"test_get_cop_adjustment_period_snapshot_60_day_date_{date}.yaml",
+        ):
+            df = self.iso.get_cop_adjustment_period_snapshot_60_day(date)
+
+        self._check_cop_adjustment_period_snapshot_60_day(df)
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+
+        assert df["Interval Start"].max() == self.local_start_of_day(
+            date,
+        ) + pd.Timedelta(hours=23)
+
+        assert df["RRS"].isnull().all()
+
+        for col in [
+            "RRSPFR",
+            "RRSFFR",
+            "RRSUFR",
+            "ECRS",
+            "Minimum SOC",
+            "Maximum SOC",
+            "Hour Beginning Planned SOC",
+        ]:
+            assert df[col].notnull().all()
+
+    def test_get_cop_adjustment_period_snapshot_60_day_historical_date_range(self):
+        start_date = self.local_start_of_today() - pd.DateOffset(days=500)
+        end_date = start_date + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_cop_adjustment_period_snapshot_60_day_historical_date_range_{start_date.date()}_{end_date.date()}.yaml",
+        ):
+            df = self.iso.get_cop_adjustment_period_snapshot_60_day(
+                start_date,
+                end_date,
+            )
+
+        self._check_cop_adjustment_period_snapshot_60_day(df)
+
         assert df["Interval Start"].min() == start_date
         assert df["Interval Start"].max() == end_date - pd.Timedelta(hours=1)
+
+        # Column only present in older data. We add it as null to keep columns same
+        assert df["RRS"].isnull().all()
+
+    def test_get_cop_adjustment_period_snapshot_60_day_missing_columns_are_null(self):
+        # This is an early date when many columns were not present
+        date = "2012-01-01"
+
+        with api_vcr.use_cassette(
+            f"test_get_cop_adjustment_period_snapshot_60_day_missing_columns_are_null_{date}.yaml",
+        ):
+            df = self.iso.get_cop_adjustment_period_snapshot_60_day(date)
+
+        self._check_cop_adjustment_period_snapshot_60_day(df)
+
+        # Column not present in older data. We add it as null to keep columns same
+        for col in [
+            "RRSPFR",
+            "RRSFFR",
+            "RRSUFR",
+            "ECRS",
+            "Minimum SOC",
+            "Maximum SOC",
+            "Hour Beginning Planned SOC",
+        ]:
+            assert df[col].isnull().all()
+
+        assert df["RRS"].notna().all()
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval Start"].max() == self.local_start_of_day(
+            date,
+        ) + pd.Timedelta(hours=23)
