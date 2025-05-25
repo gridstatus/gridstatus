@@ -3807,14 +3807,46 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-        # Columns not in older data files. The columns first have data on 2024-06-28
-        for col in ["Minimum SOC", "Maximum SOC", "Hour Beginning Planned SOC"]:
+        # Columns not in older data files or not in newer data files.
+        for col in [
+            # Present in old data, but not new
+            "RRS",
+            # These four columns are present only in new data
+            "RRSPFR",
+            "RRSFFR",
+            "RRSUFR",
+            "ECRS",
+            # These three columns first have data on 2024-06-28
+            "Minimum SOC",
+            "Maximum SOC",
+            "Hour Beginning Planned SOC",
+        ]:
             if col not in data.columns:
                 data[col] = pd.NA
 
-        data = utils.move_cols_to_front(
-            data,
-            ["Interval Start", "Interval End", "Resource Name", "QSE"],
-        )
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Resource Name",
+                "QSE",
+                "Status",
+                "High Sustained Limit",
+                "Low Sustained Limit",
+                "High Emergency Limit",
+                "Low Emergency Limit",
+                "Reg Up",
+                "Reg Down",
+                "RRS",
+                "RRSPFR",
+                "RRSFFR",
+                "RRSUFR",
+                "NSPIN",
+                "ECRS",
+                "Minimum SOC",
+                "Maximum SOC",
+                "Hour Beginning Planned SOC",
+            ]
+        ]
 
         return data

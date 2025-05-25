@@ -2074,6 +2074,7 @@ class TestErcot(BaseTestISO):
             "Low Emergency Limit",
             "Reg Up",
             "Reg Down",
+            "RRS",
             "RRSPFR",
             "RRSFFR",
             "RRSUFR",
@@ -2090,6 +2091,25 @@ class TestErcot(BaseTestISO):
 
         assert df["Resource Name"].dtype == object
         assert df["QSE"].dtype == object
+
+        # Column not in newer data so it's added as null
+        assert df["RRS"].isnull().all()
+
+        # Columns not in older data but should be present in newer data
+        for col in [
+            "High Sustained Limit",
+            "Low Sustained Limit",
+            "High Emergency Limit",
+            "Low Emergency Limit",
+            "Reg Up",
+            "Reg Down",
+            "RRSPFR",
+            "RRSFFR",
+            "RRSUFR",
+            "NSPIN",
+            "ECRS",
+        ]:
+            assert df[col].notnull().all()
 
     def test_get_cop_adjustment_period_snapshot_60_day_raises_error(self):
         with pytest.raises(ValueError):
