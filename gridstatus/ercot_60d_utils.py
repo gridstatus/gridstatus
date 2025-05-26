@@ -597,22 +597,17 @@ def process_as_offer_curves(df):
             )
 
             if len(subset) > 1:
-                # We've identified an issue with these specific resource names where
+                # We've identified an issue where
                 # there are sometimes multiple offers for the same service at the same
                 # interval. In theory this should never happen. The QUANTITY MW are
                 # only different by 0.1, so we just take the row with the lowest
                 # quantity. This is a temporary fix until we can figure out why this
                 # is happening.
-                if resource_name in ("CANYONRO_LD1", "DARSCR_LD10"):
-                    logger.info(
-                        f"Found {len(subset)} rows for {resource_name}across columns "
-                        f"{column_list}. Taking the row with the lowest quantity",
-                    )
-                    subset = subset.sort_values("QUANTITY MW1").head(1)
-                else:
-                    raise ValueError(
-                        f"More than one row found for {column_list} for {resource_name}",  # noqa
-                    )
+                logger.info(
+                    f"Found {len(subset)} rows for {resource_name}across columns "
+                    f"{column_list}. Taking the row with the lowest quantity",
+                )
+                subset = subset.sort_values("QUANTITY MW1").head(1)
 
             # Only keep the number of block indicators that are non-null
             keep_block_count = subset[block_columns].notna().sum().sum()
