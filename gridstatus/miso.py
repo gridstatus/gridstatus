@@ -1611,6 +1611,8 @@ class MISO(ISOBase):
         )  # Add back hour from 1-24 to 0-23 conversion
         df_wide["Interval Start"] = df_wide["Interval End"] - pd.Timedelta(hours=1)
         df_wide["Publish Time"] = publish_time
+        df_wide["MTLF"] = df_wide["MTLF"] * 1000  # GW to MW
+        df_wide["Outage"] = df_wide["Outage"] * 1000  # GW to MW
 
         final_df = (
             df_wide[
