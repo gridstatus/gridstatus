@@ -208,10 +208,10 @@ class TestISONEAPI(TestHelperMixin):
         "date,end",
         DST_CHANGE_TEST_DATES,
     )
-    def test_get_hourly_load_forecast(self, date, end):
-        cassette_name = f"test_get_hourly_load_forecast_{date}_{end}.yaml"
+    def test_get_load_forecast_hourly(self, date, end):
+        cassette_name = f"test_get_load_forecast_hourly_{date}_{end}.yaml"
         with api_vcr.use_cassette(cassette_name):
-            result = self.iso.get_hourly_load_forecast(date=date, end=end)
+            result = self.iso.get_load_forecast_hourly(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
             assert list(result.columns) == [

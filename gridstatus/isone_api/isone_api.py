@@ -494,7 +494,7 @@ class ISONEAPI:
         return df[columns]
 
     @support_date_range("DAY_START")
-    def get_hourly_load_forecast(
+    def get_load_forecast_hourly(
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
