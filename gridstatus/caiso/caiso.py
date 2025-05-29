@@ -202,7 +202,7 @@ class CAISO(ISOBase):
         """
 
         for dataset_name, config in OASIS_DATASET_CONFIG.items():
-            if dataset is not None and dataset_name not in dataset:
+            if dataset is not None and dataset_name != dataset:
                 continue
             print(colored(f"Dataset: {dataset_name}", "cyan"))
             if len(config["params"]) == 0:
@@ -2275,3 +2275,163 @@ class CAISO(ISOBase):
                 "Wind",
             ]
         ]
+
+    @support_date_range(frequency="31D")
+    def get_nomogram_branch_shadow_prices_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns hourly day-ahead nomogram/branch shadow price forecast.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with the shadow price forecast
+        """
+        if date == "latest":
+            return self.get_nomogram_branch_shadow_prices_day_ahead_hourly(
+                pd.Timestamp.now(tz=self.default_timezone)
+            )
+
+        df = self.get_oasis_dataset(
+            dataset="nomogram_branch_shadow_prices",
+            date=date,
+            end=end,
+            params={"market_run_id": "DAM"},
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        df = df.rename(
+            columns={
+                "NOMOGRAM_ID": "Location",
+                "PRC": "Price",
+            },
+        )
+
+        return df[["Interval Start", "Interval End", "Location", "Price"]]
+
+    def get_nomogram_branch_shadow_prices_hasp_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns nomogram/branch shadow price HASP hourly data from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with the shadow price HASP data
+        """
+        if date == "latest":
+            return self.get_nomogram_branch_shadow_prices_hasp_hourly(
+                pd.Timestamp.now(tz=self.default_timezone)
+            )
+
+        df = self.get_oasis_dataset(
+            dataset="nomogram_branch_shadow_prices",
+            date=date,
+            end=end,
+            params={"market_run_id": "HASP"},
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        df = df.rename(
+            columns={
+                "NOMOGRAM_ID": "Location",
+                "PRC": "Price",
+            },
+        )
+
+        return df[["Interval Start", "Interval End", "Location", "Price"]]
+
+    def get_nomogram_branch_shadow_price_forecast_15_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns 15-minute nomogram/branch shadow price forecast from the Real-Time Pre-Dispatch Market.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with the shadow price forecast
+        """
+        if date == "latest":
+            return self.get_nomogram_branch_shadow_price_forecast_15_min(
+                pd.Timestamp.now(tz=self.default_timezone)
+            )
+
+        df = self.get_oasis_dataset(
+            dataset="nomogram_branch_shadow_prices",
+            date=date,
+            end=end,
+            params={"market_run_id": "RTM"},
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        df = df.rename(
+            columns={
+                "NOMOGRAM_ID": "Location",
+                "PRC": "Price",
+            },
+        )
+
+        return df[["Interval Start", "Interval End", "Location", "Price"]]
+
+    def get_interval_nomogram_branch_shadow_prices_real_time_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get 5-min nomogram/branch shadow prices from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with the shadow prices
+        """
+        if date == "latest":
+            return self.get_interval_nomogram_branch_shadow_prices_real_time_5_min(
+                pd.Timestamp.now(tz=self.default_timezone)
+            )
+
+        df = self.get_oasis_dataset(
+            dataset="interval_nomogram_branch_shadow_prices",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        df = df.rename(
+            columns={
+                "NOMOGRAM_ID": "Location",
+                "PRC": "Price",
+            },
+        )
+
+        return df[["Interval Start", "Interval End", "Location", "Price"]]

@@ -338,7 +338,16 @@ OASIS_DATASET_CONFIG = {
             "version": 1,
         },
         "params": {
-            "market_run_id": ["DAM", "HASP", "RTPD"],
+            "market_run_id": ["DAM", "HASP", "RTM"],
         },
+    },
+    "interval_nomogram_branch_shadow_prices": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_RTM_NOMOGRAM",
+            "version": 1,
+        },
+        "params": {},
     },
 }
