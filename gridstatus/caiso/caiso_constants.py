@@ -330,4 +330,24 @@ OASIS_DATASET_CONFIG = {
             "max_query_frequency": "1d",
         },
     },
+    "nomogram_branch_shadow_prices": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_NOMOGRAM",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": ["DAM", "HASP", "RTM"],
+        },
+    },
+    "interval_nomogram_branch_shadow_prices": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_RTM_NOMOGRAM",
+            "version": 1,
+        },
+        "params": {},
+    },
 }
