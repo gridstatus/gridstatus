@@ -3,6 +3,7 @@ import json
 import os
 import random
 import time
+from enum import StrEnum
 from typing import Dict
 from zipfile import ZipFile
 
@@ -30,7 +31,15 @@ from gridstatus.gs_logging import logger
 
 # API to hit with subscription key to get token
 TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
-BASE_URL = "https://api.ercot.com/api/public-reports"
+
+PUBLIC_BASE_URL = "https://api.ercot.com/api/public-reports"
+ESR_BASE_URL = "https://api.ercot.com/api/public-data"
+
+
+class APITypeEnum(StrEnum):
+    PUBLIC_API = "public"
+    ESR_API = "esr"
+
 
 # How long a token lasts for before needing to be refreshed
 TOKEN_EXPIRATION_SECONDS = 3600
@@ -52,7 +61,8 @@ HISTORICAL_DAYS_THRESHOLD = 90
 # "https://raw.githubusercontent.com/ercot/api-specs/main/pubapi/pubapi-apim-api.json"
 # Get the directory containing the current file (ercot_api.py)
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-ENDPOINTS_MAP_FILE = os.path.join(CURRENT_DIR, "pubapi-apim-api.json")
+PUBLIC_ENDPOINTS_MAP_FILE = os.path.join(CURRENT_DIR, "pubapi-apim-api.json")
+ESR_ENDPOINTS_MAP_FILE = os.path.join(CURRENT_DIR, "esrapi-apim-api.json")
 
 # https://data.ercot.com/data-product-archive/NP4-188-CD
 AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
@@ -136,6 +146,8 @@ INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-970-cd/rtd_lmp_node_zone_hub
 # https://data.ercot.com/data-product-archive/NP1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_ENDPOINT = "/np1-301/60_cop_adj_period_snapshot"
 
+ESR_ENDPOINT = "/rptesr-m/4_sec_esr_charging_mw"
+
 
 class ErcotAPI:
     """
@@ -155,24 +167,35 @@ class ErcotAPI:
         self,
         username: str = None,
         password: str = None,
-        subscription_key: str = None,
+        public_subscription_key: str = None,
+        esr_subscription_key: str = None,
         sleep_seconds: float = 0.2,
         max_retries: int = 3,
         batch_size: int = 1000,
     ):
         self.username = username or os.getenv("ERCOT_API_USERNAME")
         self.password = password or os.getenv("ERCOT_API_PASSWORD")
-        self.subscription_key = subscription_key or os.getenv(
-            "ERCOT_API_SUBSCRIPTION_KEY",
+        self.public_subscription_key = public_subscription_key or os.getenv(
+            "ERCOT_PUBLIC_API_SUBSCRIPTION_KEY",
+        )
+        self.esr_subscription_key = esr_subscription_key or os.getenv(
+            "ERCOT_ESR_API_SUBSCRIPTION_KEY",
         )
 
-        if not all([self.username, self.password, self.subscription_key]):
+        if not all(
+            [
+                self.username,
+                self.password,
+                self.public_subscription_key or self.esr_subscription_key,
+            ],
+        ):
             raise ValueError(
                 "Username, password, and subscription key must be provided or set as environment variables",  # noqa
             )
 
         self.client_id = "fec253ea-0d06-4272-a5e6-b478baeecd70"  # From the docs
-        self.endpoints_map = self._get_endpoints_map()
+        self.public_endpoints_map = self._get_public_endpoints_map()
+        self.esr_endpoints_map = self._get_esr_endpoints_map()
         self.token_url = TOKEN_URL
         self.token = None
         self.token_expiry = None
@@ -235,13 +258,15 @@ class ErcotAPI:
         if not self.token or time.time() >= self.token_expiry:
             self.get_token()
 
-    def headers(self):
+    def headers(self, api: APITypeEnum = APITypeEnum.PUBLIC_API) -> Dict[str, str]:
         self.refresh_token_if_needed()
 
         # Both forms of authentication are required
         headers = {
             "Authorization": f"Bearer {self.token}",
-            "Ocp-Apim-Subscription-Key": self.subscription_key,
+            "Ocp-Apim-Subscription-Key": self.public_subscription_key
+            if api == APITypeEnum.PUBLIC_API
+            else self.esr_subscription_key,
         }
 
         return headers
@@ -252,6 +277,7 @@ class ErcotAPI:
         api_params: dict = None,
         parse_json: bool = True,
         method: str = "GET",
+        api: APITypeEnum = APITypeEnum.PUBLIC_API,
     ):
         logger.info(
             f"Requesting url: {url} with params: {api_params}",
@@ -262,9 +288,17 @@ class ErcotAPI:
         delay = self.initial_delay
         while retries <= self.max_retries:
             if method == "POST":
-                response = requests.post(url, headers=self.headers(), json=api_params)
+                response = requests.post(
+                    url,
+                    headers=self.headers(api=api),
+                    json=api_params,
+                )
             else:
-                response = requests.get(url, headers=self.headers(), params=api_params)
+                response = requests.get(
+                    url,
+                    headers=self.headers(api=api),
+                    params=api_params,
+                )
 
             retries += 1
             if response.status_code == status_codes.codes.OK:
@@ -300,7 +334,7 @@ class ErcotAPI:
 
     def get_public_reports(self):
         # General information about the public reports
-        return self.make_api_call(BASE_URL)
+        return self.make_api_call(PUBLIC_BASE_URL)
 
     def get_wind_actual_and_forecast_hourly(self, date, end=None, verbose=False):
         """Get Wind Power Production - Hourly Averaged Actual and Forecasted Values
@@ -1293,6 +1327,50 @@ class ErcotAPI:
 
         return Ercot()._process_cop_adjustment_period_snapshot_60_day_data(data)
 
+    @support_date_range(frequency=None)
+    def get_system_load_charging_4_seconds(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            return self.get_system_load_charging_4_seconds(
+                "today",
+                verbose=verbose,
+            )
+
+        api_params = {"AGCExecTimeFrom": date, "AGCExecTimeTo": end}
+
+        data = self.hit_ercot_api(
+            endpoint=ESR_ENDPOINT,
+            api=APITypeEnum.ESR_API,
+            **api_params,
+        )
+
+        data = data.rename(
+            columns={
+                "AGCExecTime": "Timestamp",
+                "SystemDemand": "System Demand",
+                "ESRChargingMW": "ESR Charging MW",
+            },
+        )
+
+        ambiguous = Ercot().ambiguous_based_on_dstflag(data)
+
+        data["Timestamp"] = pd.to_datetime(data["Timestamp"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=ambiguous,
+        )
+
+        data = (
+            data.drop(columns=["DSTFlag", "AGCExecTimeUTC"])
+            .sort_values("Timestamp")
+            .reset_index(drop=True)
+        )
+
+        return data
+
     def get_historical_data(
         self,
         endpoint: str,
@@ -1302,6 +1380,7 @@ class ErcotAPI:
         add_post_datetime: bool = False,
         verbose: bool = False,
         bulk_download: bool = True,
+        api: APITypeEnum = APITypeEnum.PUBLIC_API,
     ) -> pd.DataFrame:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
@@ -1340,6 +1419,7 @@ class ErcotAPI:
             start_date,
             end_date,
             verbose,
+            api=api,
         )
         links = [link for link, _ in links_and_post_datetimes]
         doc_ids = [link.split("=")[-1] for link in links]
@@ -1353,7 +1433,11 @@ class ErcotAPI:
 
         if bulk_download:
             logger.debug("Bulk downloading historical data")
-            files = self._bulk_download_documents(doc_ids=doc_ids, emil_id=emil_id)
+            files = self._bulk_download_documents(
+                doc_ids=doc_ids,
+                emil_id=emil_id,
+                api=api,
+            )
         else:
             logger.debug("Individually downloading historical data")
             files = self._individually_download_documents(links=links, verbose=verbose)
@@ -1421,6 +1505,7 @@ class ErcotAPI:
         self,
         doc_ids: list[str],
         emil_id: str,
+        api: APITypeEnum = APITypeEnum.PUBLIC_API,
     ) -> list[pd.io.common.BytesIO]:
         documents = []
         doc_id_batches = [
@@ -1433,7 +1518,7 @@ class ErcotAPI:
         for batch in doc_id_batches:
             payload = {"docIds": batch}
             response = self.make_api_call(
-                f"{BASE_URL}/archive/{emil_id}/download",
+                f"{PUBLIC_BASE_URL if api == APITypeEnum.PUBLIC_API else ESR_BASE_URL}/archive/{emil_id}/download",
                 api_params=payload,
                 parse_json=False,
                 method="POST",
@@ -1466,6 +1551,7 @@ class ErcotAPI:
         start_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end_date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        api: APITypeEnum = APITypeEnum.PUBLIC_API,
     ) -> list[tuple[str, str]]:
         """Retrieves links to download historical data for the given emil_id from
         start to end date.
@@ -1473,7 +1559,11 @@ class ErcotAPI:
         Returns:
             [list]: a list of links to download historical data
         """
-        urlstring = f"{BASE_URL}/archive/{emil_id}"
+        urlstring = (
+            f"{PUBLIC_BASE_URL}/archive/{emil_id}"
+            if api == APITypeEnum.PUBLIC_API
+            else f"{ESR_BASE_URL}/archive/{emil_id}"
+        )
 
         page_num = 1
 
@@ -1525,6 +1615,7 @@ class ErcotAPI:
         page_size: int = DEFAULT_PAGE_SIZE,
         max_pages: int | None = None,
         verbose: bool = False,
+        api: APITypeEnum = APITypeEnum.PUBLIC_API,
         **api_params,
     ) -> pd.DataFrame:
         """Retrieves data from the given endpoint of the ERCOT API
@@ -1551,8 +1642,18 @@ class ErcotAPI:
             a dataframe of results
         """
         api_params = {k: v for k, v in api_params.items() if v is not None}
-        parsed_api_params = self._parse_api_params(endpoint, page_size, api_params)
-        urlstring = f"{BASE_URL}{endpoint}"
+        parsed_api_params = self._parse_api_params(
+            endpoint,
+            page_size,
+            api_params,
+            api=api,
+        )
+
+        urlstring = (
+            f"{PUBLIC_BASE_URL}{endpoint}"
+            if api == APITypeEnum.PUBLIC_API
+            else f"{ESR_BASE_URL}{endpoint}"
+        )
 
         current_page = 1
         # Make a first request to get the total number of pages and first data
@@ -1560,6 +1661,7 @@ class ErcotAPI:
         response = self.make_api_call(
             urlstring,
             api_params=parsed_api_params,
+            api=api,
         )
         # The data comes back as a list of lists. We get the columns to
         # create a dataframe after we have all the data
@@ -1627,16 +1729,31 @@ class ErcotAPI:
             days=HISTORICAL_DAYS_THRESHOLD,
         )
 
-    def list_all_endpoints(self) -> None:
-        """Prints all available endpoints"""
-        for endpoint, contents in sorted(self.endpoints_map.items()):
+    def list_all_public_endpoints(self) -> None:
+        """Prints all available public endpoints"""
+        for endpoint, contents in sorted(self.public_endpoints_map.items()):
             print(endpoint)
             print(f"    {contents['summary']}")
 
-    def describe_one_endpoint(self, endpoint: str) -> None:
-        """Prints details about a given endpoint"""
-        endpoint_contents = self.endpoints_map.get(endpoint, None)
+    def list_all_esr_endpoints(self) -> None:
+        """Prints all available ESR endpoints"""
+        for endpoint, contents in sorted(self.esr_endpoints_map.items()):
+            print(endpoint)
+            print(f"    {contents['summary']}")
 
+    def describe_one_public_endpoint(self, endpoint: str) -> None:
+        """Prints details about a given public endpoint"""
+        endpoint_contents = self.public_endpoints_map.get(endpoint, None)
+
+        self._display_endpoint_details(endpoint, endpoint_contents)
+
+    def describe_one_esr_endpoint(self, endpoint: str) -> None:
+        """Prints details about a given ESR endpoint"""
+        endpoint_contents = self.esr_endpoints_map.get(endpoint, None)
+
+        self._display_endpoint_details(endpoint, endpoint_contents)
+
+    def _display_endpoint_details(self, endpoint: str, endpoint_contents: dict) -> None:
         if endpoint_contents is None:
             print(f"{endpoint} is not a valid ERCOT API endpoint")
             return
@@ -1647,9 +1764,19 @@ class ErcotAPI:
         for param, details in sorted(endpoint_contents["parameters"].items()):
             print(f"    {param} - {details['value_type']}")
 
-    def _parse_api_params(self, endpoint, page_size, api_params):
+    def _parse_api_params(
+        self,
+        endpoint,
+        page_size,
+        api_params,
+        api: APITypeEnum = APITypeEnum.PUBLIC_API,
+    ) -> dict:
         # validate endpoint string
-        endpoint_contents = self.endpoints_map.get(endpoint, None)
+        endpoint_contents = (
+            self.public_endpoints_map.get(endpoint, None)
+            if api == APITypeEnum.PUBLIC_API
+            else self.esr_endpoints_map.get(endpoint, None)
+        )
 
         if endpoint_contents is None:
             raise KeyError(f"{endpoint} is not a valid ERCOT API endpoint")
@@ -1664,11 +1791,17 @@ class ErcotAPI:
 
         return parsed_api_params
 
-    def _get_endpoints_map(self):
-        endpoints = json.load(open(ENDPOINTS_MAP_FILE))
+    def _get_public_endpoints_map(self) -> dict:
+        endpoints = json.load(open(PUBLIC_ENDPOINTS_MAP_FILE))
         endpoints = parse_all_endpoints(apijson=endpoints)
 
         return endpoints
+
+    def _get_esr_endpoints_map(self) -> dict:
+        esr_endpoints = json.load(open(ESR_ENDPOINTS_MAP_FILE))
+        esr_endpoints = parse_all_endpoints(apijson=esr_endpoints)
+
+        return esr_endpoints
 
     def _create_progress_bar(
         self,
@@ -1691,9 +1824,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.action == "list":  # TODO avoid case match because lower python version
-        ErcotAPI(sleep_seconds=2.0).list_all_endpoints()
+        ErcotAPI(sleep_seconds=2.0).list_all_public_endpoints()
     elif args.action == "describe":
-        ErcotAPI(sleep_seconds=2.0).describe_one_endpoint(args.endpoint)
+        ErcotAPI(sleep_seconds=2.0).describe_one_public_endpoint(args.endpoint)
     else:
         print(f"{args.action} is not a valid action")
         print("Try 'list' or 'describe'")

@@ -3430,6 +3430,21 @@ class Ercot(ISOBase):
             )
         return pd.concat(dfs).reset_index(drop=True)
 
+    def ambiguous_based_on_dstflag(self, df: pd.DataFrame) -> pd.Series:
+        # DSTFlag is Y during the repeated hour (after the clock has been set back)
+        # so it's False/N during DST And True/Y during Standard Time.
+        # For ambiguous, Pandas wants True for DST and False for Standard Time
+        # during repeated hours. Therefore, ambgiuous should be True when
+        # DSTFlag is False/N
+
+        # Some ERCOT datasets use a boolean, some use a string
+        if df["DSTFlag"].dtype == bool:
+            return ~df["DSTFlag"]
+        # Assume that if the DSTFlag column is a string, it's "Y" or "N"
+        else:
+            assert set(df["DSTFlag"].unique()).issubset({"Y", "N"})
+            return df["DSTFlag"] == "N"
+
     def parse_doc(
         self,
         doc: pd.DataFrame,
@@ -3464,24 +3479,9 @@ class Ercot(ISOBase):
 
         ending_time_col_name = "HourEnding"
 
-        def ambiguous_based_on_dstflag(df: pd.DataFrame) -> pd.Series:
-            # DSTFlag is Y during the repeated hour (after the clock has been set back)
-            # so it's False/N during DST And True/Y during Standard Time.
-            # For ambiguous, Pandas wants True for DST and False for Standard Time
-            # during repeated hours. Therefore, ambgiuous should be True when
-            # DSTFlag is False/N
-
-            # Some ERCOT datasets use a boolean, some use a string
-            if df["DSTFlag"].dtype == bool:
-                return ~df["DSTFlag"]
-            # Assume that if the DSTFlag column is a string, it's "Y" or "N"
-            else:
-                assert set(df["DSTFlag"].unique()).issubset({"Y", "N"})
-                return df["DSTFlag"] == "N"
-
         ambiguous = dst_ambiguous_default
         if "DSTFlag" in doc.columns:
-            ambiguous = ambiguous_based_on_dstflag(doc)
+            ambiguous = self.ambiguous_based_on_dstflag(doc)
 
         # i think DeliveryInterval only shows up
         # in 15 minute data along with DeliveryHour
@@ -3505,7 +3505,7 @@ class Ercot(ISOBase):
                 doc["DeliveryDate"] + " " + doc["TimeEnding"] + ":00",
             )
             doc["Interval End"] = doc["Interval End"].dt.tz_localize(
-                "US/Central",
+                self.default_timezone,
                 ambiguous=ambiguous,
             )
             doc["Interval Start"] = doc["Interval End"] - interval_length

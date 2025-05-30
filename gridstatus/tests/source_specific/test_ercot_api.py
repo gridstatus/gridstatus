@@ -1625,3 +1625,48 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].max() == self.local_start_of_day(
             date,
         ) + pd.Timedelta(hours=23)
+
+    """get_system_load_charging_4_seconds"""
+
+    def _check_system_load_charging_4_seconds(self, df: pd.DataFrame) -> None:
+        assert df.columns.tolist() == [
+            "Timestamp",
+            "System Demand",
+            "ESR Charging MW",
+        ]
+
+        assert df.dtypes["Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["System Demand"] == "float64"
+        assert df.dtypes["ESR Charging MW"] == "float64"
+
+    def test_get_system_load_charging_4_seconds_today(self):
+        with api_vcr.use_cassette(
+            "test_get_system_load_charging_4_seconds_today.yaml",
+        ):
+            df = self.iso.get_system_load_charging_4_seconds("today", verbose=True)
+
+        self._check_system_load_charging_4_seconds(df)
+
+        assert df["Timestamp"].min() == self.local_start_of_today()
+        assert df["Timestamp"].max() <= self.local_now()
+
+    def test_get_system_load_charging_4_seconds_date_range(self):
+        # This dataset doesn't have historical data yet, so use recent data
+        start_date = self.local_today() - pd.DateOffset(days=1)
+        end_date = start_date + pd.DateOffset(days=1)
+
+        df = self.iso.get_system_load_charging_4_seconds(
+            date=start_date,
+            end=end_date,
+            verbose=True,
+        )
+
+        self._check_system_load_charging_4_seconds(df)
+
+        assert df["Timestamp"].min() >= self.local_start_of_day(start_date)
+
+        # Not inclusive of end date
+        assert df["Timestamp"].max() <= pd.Timestamp(
+            end_date,
+            tz=ErcotAPI().default_timezone,
+        )
