@@ -1644,12 +1644,12 @@ class TestErcotAPI(TestHelperMixin):
 
     def _check_system_load_charging_4_seconds(self, df: pd.DataFrame) -> None:
         assert df.columns.tolist() == [
-            "Timestamp",
+            "Time",
             "System Demand",
             "ESR Charging MW",
         ]
 
-        assert df.dtypes["Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
         assert df.dtypes["System Demand"] == "float64"
         assert df.dtypes["ESR Charging MW"] == "float64"
 
@@ -1661,8 +1661,8 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_system_load_charging_4_seconds(df)
 
-        assert df["Timestamp"].min() == self.local_start_of_today()
-        assert df["Timestamp"].max() <= self.local_now()
+        assert df["Time"].min() == self.local_start_of_today()
+        assert df["Time"].max() <= self.local_now()
 
     def test_get_system_load_charging_4_seconds_date_range(self):
         # This dataset doesn't have historical data yet, so use recent data
@@ -1677,10 +1677,10 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_system_load_charging_4_seconds(df)
 
-        assert df["Timestamp"].min() >= self.local_start_of_day(start_date)
+        assert df["Time"].min() >= self.local_start_of_day(start_date)
 
         # Not inclusive of end date
-        assert df["Timestamp"].max() <= pd.Timestamp(
+        assert df["Time"].max() <= pd.Timestamp(
             end_date,
             tz=ErcotAPI().default_timezone,
         )

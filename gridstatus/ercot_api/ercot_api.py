@@ -1348,24 +1348,24 @@ class ErcotAPI:
             **api_params,
         )
 
+        data["AGCExecTimeUTC"] = pd.to_datetime(
+            data["AGCExecTimeUTC"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+
         data = data.rename(
             columns={
-                "AGCExecTime": "Timestamp",
+                "AGCExecTimeUTC": "Time",
                 "SystemDemand": "System Demand",
                 "ESRChargingMW": "ESR Charging MW",
             },
         )
 
-        ambiguous = Ercot().ambiguous_based_on_dstflag(data)
-
-        data["Timestamp"] = pd.to_datetime(data["Timestamp"]).dt.tz_localize(
-            self.default_timezone,
-            ambiguous=ambiguous,
-        )
-
         data = (
-            data.drop(columns=["DSTFlag", "AGCExecTimeUTC"])
-            .sort_values("Timestamp")
+            data.drop(columns=["DSTFlag", "AGCExecTime"])
+            .sort_values("Time")
             .reset_index(drop=True)
         )
 
