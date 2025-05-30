@@ -1434,11 +1434,25 @@ class TestErcotAPI(TestHelperMixin):
     """endpoints_map"""
 
     @pytest.mark.integration
-    def test_get_endpoints_map(self):
-        endpoints_map = self.iso._get_endpoints_map()
+    def test_get_public_endpoints_map(self):
+        endpoints_map = self.iso._get_public_endpoints_map()
 
         # update this count as needed, if ercot api evolves to add/remove endpoints
-        assert len(endpoints_map) == 102
+        assert len(endpoints_map) == 106
+
+        # detailed check of all endpoints, fields, and values
+        issues = []
+        for endpoint, endpoint_dict in endpoints_map.items():
+            for issue in self._endpoints_map_check(endpoint_dict):
+                issues.append([f"{endpoint} - {issue}"])
+        assert len(issues) == 0
+
+    @pytest.mark.integration
+    def test_get_esr_endpoints_map(self):
+        endpoints_map = self.iso._get_esr_endpoints_map()
+
+        # update this count as needed, if ercot api evolves to add/remove endpoints
+        assert len(endpoints_map) == 1
 
         # detailed check of all endpoints, fields, and values
         issues = []
