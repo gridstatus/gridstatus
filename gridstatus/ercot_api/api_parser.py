@@ -9,6 +9,12 @@ META_ENDPOINTS = {
     "/archive/{emilId}",
     "/archive/{emilId}/download",
     "/bundle/{emilId}/download",
+    "/bundle/{emilId}",
+    "/{productId}",
+    "/archive/{productId}",
+    "/archive/{productId}/download",
+    "/bundle/{productId}/download",
+    "/bundle/{productId}",
 }
 
 

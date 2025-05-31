@@ -1434,11 +1434,25 @@ class TestErcotAPI(TestHelperMixin):
     """endpoints_map"""
 
     @pytest.mark.integration
-    def test_get_endpoints_map(self):
-        endpoints_map = self.iso._get_endpoints_map()
+    def test_get_public_endpoints_map(self):
+        endpoints_map = self.iso._get_public_endpoints_map()
 
         # update this count as needed, if ercot api evolves to add/remove endpoints
-        assert len(endpoints_map) == 102
+        assert len(endpoints_map) == 106
+
+        # detailed check of all endpoints, fields, and values
+        issues = []
+        for endpoint, endpoint_dict in endpoints_map.items():
+            for issue in self._endpoints_map_check(endpoint_dict):
+                issues.append([f"{endpoint} - {issue}"])
+        assert len(issues) == 0
+
+    @pytest.mark.integration
+    def test_get_esr_endpoints_map(self):
+        endpoints_map = self.iso._get_esr_endpoints_map()
+
+        # update this count as needed, if ercot api evolves to add/remove endpoints
+        assert len(endpoints_map) == 1
 
         # detailed check of all endpoints, fields, and values
         issues = []
@@ -1625,3 +1639,48 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].max() == self.local_start_of_day(
             date,
         ) + pd.Timedelta(hours=23)
+
+    """get_system_load_charging_4_seconds"""
+
+    def _check_system_load_charging_4_seconds(self, df: pd.DataFrame) -> None:
+        assert df.columns.tolist() == [
+            "Time",
+            "System Demand",
+            "ESR Charging MW",
+        ]
+
+        assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["System Demand"] == "float64"
+        assert df.dtypes["ESR Charging MW"] == "float64"
+
+    def test_get_system_load_charging_4_seconds_today(self):
+        with api_vcr.use_cassette(
+            "test_get_system_load_charging_4_seconds_today.yaml",
+        ):
+            df = self.iso.get_system_load_charging_4_seconds("today", verbose=True)
+
+        self._check_system_load_charging_4_seconds(df)
+
+        assert df["Time"].min() == self.local_start_of_today()
+        assert df["Time"].max() <= self.local_now()
+
+    def test_get_system_load_charging_4_seconds_date_range(self):
+        # This dataset doesn't have historical data yet, so use recent data
+        start_date = self.local_today() - pd.DateOffset(days=1)
+        end_date = start_date + pd.DateOffset(days=1)
+
+        df = self.iso.get_system_load_charging_4_seconds(
+            date=start_date,
+            end=end_date,
+            verbose=True,
+        )
+
+        self._check_system_load_charging_4_seconds(df)
+
+        assert df["Time"].min() >= self.local_start_of_day(start_date)
+
+        # Not inclusive of end date
+        assert df["Time"].max() <= pd.Timestamp(
+            end_date,
+            tz=ErcotAPI().default_timezone,
+        )

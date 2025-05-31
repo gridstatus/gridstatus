@@ -1,0 +1,1680 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "ERCOT ESR API Client/Developer Documentation",
+        "description": "Client/Developer RESTFul web services documentation for ERCOT Public Data products.",
+        "version": "1.0"
+    },
+    "servers": [
+        {
+            "url": "https://api.ercot.com/api/public-data"
+        }
+    ],
+    "paths": {
+        "/bundle/{productId}/download": {
+            "post": {
+                "tags": [
+                    "Data Products"
+                ],
+                "summary": "Download a Data Product historical archive.",
+                "description": "Download a Data Product bundle archive by generating a JSON request with a single 'docIds' element containing the document identifier you wish to download.",
+                "operationId": "getProductBundle",
+                "parameters": [
+                    {
+                        "name": "productId",
+                        "in": "path",
+                        "description": "The Data Product identifier for the desired archive bundle.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "NP3-566-CD"
+                    },
+                    {
+                        "name": "Ocp-Apim-Subscription-Key",
+                        "in": "header",
+                        "description": "The subscription key assigned to your ERCOT Public API account.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "35796ffc22254fa89ad8400d996c992f"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArchiveRequest"
+                            },
+                            "example": {
+                                "docIds": [
+                                    0
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK The operation completed successfully.",
+                        "content": {
+                            "application/zip": {
+                                "schema": {
+                                    "format": "binary"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": null
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request operation failed. The request and/or one or more of its parameters are invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The request operation failed. You do not have access to the requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The request operation failed. The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/archive/{productId}/download": {
+            "post": {
+                "tags": [
+                    "Data Products"
+                ],
+                "summary": "Download a collection of Data Product archives.",
+                "description": "Download a collection of Data Product archives by generating a JSON request with a single 'docIds' element containing the document identifiers you wish to download.",
+                "operationId": "getProductArchives",
+                "parameters": [
+                    {
+                        "name": "productId",
+                        "in": "path",
+                        "description": "The Data Product identifier for the desired set of archives.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "NP3-566-CD"
+                    },
+                    {
+                        "name": "Ocp-Apim-Subscription-Key",
+                        "in": "header",
+                        "description": "The subscription key assigned to your ERCOT Public API account.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "35796ffc22254fa89ad8400d996c992f"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ArchiveRequest"
+                            },
+                            "example": {
+                                "docIds": [
+                                    0
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK The operation completed successfully.",
+                        "content": {
+                            "application/zip": {
+                                "schema": {
+                                    "format": "binary"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": null
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request operation failed. The request and/or one or more of its parameters are invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The request operation failed. You do not have access to the requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The request operation failed. The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/{productId}": {
+            "get": {
+                "tags": [
+                    "Data Products"
+                ],
+                "summary": "Available report artifacts for a specified Data product.",
+                "description": "Available report artifacts for a specified Data product.",
+                "operationId": "getProduct",
+                "parameters": [
+                    {
+                        "name": "productId",
+                        "in": "path",
+                        "description": "The unique Data Product identifier.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "RPTESR-M"
+                    },
+                    {
+                        "name": "Ocp-Apim-Subscription-Key",
+                        "in": "header",
+                        "description": "The subscription key assigned to your ERCOT Public API account.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "35796ffc22254fa89ad8400d996c992f"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK The operation completed successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Product"
+                                },
+                                "example": {
+                                    "productId": "string",
+                                    "name": "string",
+                                    "description": "string",
+                                    "reportTypeId": 0,
+                                    "status": "string",
+                                    "audience": "string",
+                                    "generationFrequency": "string",
+                                    "securityClassification": "string",
+                                    "lastUpdated": "string",
+                                    "firstRun": "string",
+                                    "eceii": "string",
+                                    "channel": "string",
+                                    "userGuide": "string",
+                                    "postingType": "string",
+                                    "market": "string",
+                                    "extractSubscriber": "string",
+                                    "xsdName": "string",
+                                    "misPostingLocation": "string",
+                                    "certificateRole": "string",
+                                    "fileType": "string",
+                                    "ddlName": "string",
+                                    "misDisplayDuration": 0,
+                                    "archiveDuration": 0,
+                                    "notificationType": "string",
+                                    "contentType": "DATA",
+                                    "downloadLimit": 0,
+                                    "lastPostDatetime": "string",
+                                    "bundle": 0,
+                                    "protocolRules": {},
+                                    "links": [
+                                        {
+                                            "rel": "string",
+                                            "href": "string",
+                                            "hreflang": "string",
+                                            "media": "string",
+                                            "title": "string",
+                                            "type": "string",
+                                            "deprecation": "string",
+                                            "profile": "string",
+                                            "name": "string"
+                                        }
+                                    ],
+                                    "artifacts": [
+                                        {
+                                            "reportTypeId": 0,
+                                            "displayName": "string",
+                                            "links": [
+                                                {
+                                                    "rel": "string",
+                                                    "href": "string",
+                                                    "hreflang": "string",
+                                                    "media": "string",
+                                                    "title": "string",
+                                                    "type": "string",
+                                                    "deprecation": "string",
+                                                    "profile": "string",
+                                                    "name": "string"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request operation failed. The request and/or one or more of its parameters are invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The request operation failed. You do not have access to the requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The request operation failed. The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/version": {
+            "get": {
+                "tags": [
+                    "Versioning"
+                ],
+                "summary": "Retrieve the current version for the ERCOT ESR API Service.",
+                "description": "Retrieve the current version for the ERCOT ESR API Service.",
+                "operationId": "getVersion",
+                "responses": {
+                    "200": {
+                        "description": "OK The operation completed successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Version"
+                                },
+                                "example": {
+                                    "info": {
+                                        "title": "string",
+                                        "description": "string",
+                                        "version": "string",
+                                        "build": "string"
+                                    },
+                                    "openapi": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request operation failed. The request and/or one or more of its parameters are invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The request operation failed. You do not have access to the requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The request operation failed. The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/rptesr-m/4_sec_esr_charging_mw": {
+            "get": {
+                "tags": [
+                    "RPTESR-M"
+                ],
+                "summary": "Energy Storage Resource Four Second Data",
+                "description": "Energy Storage Resource Four Second Data",
+                "operationId": "getData",
+                "parameters": [
+                    {
+                        "name": "AGCExecTimeFrom",
+                        "in": "query",
+                        "description": "Format - yyyy-MM-ddTH24:mm:ss.",
+                        "schema": {
+                            "type": "string",
+                            "format": "yyyy-MM-ddTH24:mm:ss"
+                        }
+                    },
+                    {
+                        "name": "AGCExecTimeTo",
+                        "in": "query",
+                        "description": "Format - yyyy-MM-ddTH24:mm:ss.",
+                        "schema": {
+                            "type": "string",
+                            "format": "yyyy-MM-ddTH24:mm:ss"
+                        }
+                    },
+                    {
+                        "name": "DSTFlag",
+                        "in": "query",
+                        "description": "Format - true | false.",
+                        "schema": {
+                            "type": "boolean",
+                            "format": "true | false"
+                        }
+                    },
+                    {
+                        "name": "AGCExecTimeUTCFrom",
+                        "in": "query",
+                        "description": "Format - yyyy-MM-ddTH24:mm:ss.",
+                        "schema": {
+                            "type": "string",
+                            "format": "yyyy-MM-ddTH24:mm:ss"
+                        }
+                    },
+                    {
+                        "name": "AGCExecTimeUTCTo",
+                        "in": "query",
+                        "description": "Format - yyyy-MM-ddTH24:mm:ss.",
+                        "schema": {
+                            "type": "string",
+                            "format": "yyyy-MM-ddTH24:mm:ss"
+                        }
+                    },
+                    {
+                        "name": "systemDemandFrom",
+                        "in": "query",
+                        "description": "Format - ####.###.",
+                        "schema": {
+                            "type": "number",
+                            "format": "####.###"
+                        }
+                    },
+                    {
+                        "name": "systemDemandTo",
+                        "in": "query",
+                        "description": "Format - ####.###.",
+                        "schema": {
+                            "type": "number",
+                            "format": "####.###"
+                        }
+                    },
+                    {
+                        "name": "ESRChargingMWFrom",
+                        "in": "query",
+                        "description": "Format - ####.###.",
+                        "schema": {
+                            "type": "number",
+                            "format": "####.###"
+                        }
+                    },
+                    {
+                        "name": "ESRChargingMWTo",
+                        "in": "query",
+                        "description": "Format - ####.###.",
+                        "schema": {
+                            "type": "number",
+                            "format": "####.###"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Format - ###. Page number of returned values in the collection.",
+                        "schema": {
+                            "type": "integer",
+                            "format": "###"
+                        }
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "description": "Format - ###. Number of returned items per page.",
+                        "schema": {
+                            "type": "integer",
+                            "format": "###"
+                        }
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "description": "Format - abc123. Single or comma separated list of fields by which to sort the returned resource values. The default sort order for each field is ascending, but can be changed to descending by adding a '-' (minus) suffix to the field name.",
+                        "schema": {
+                            "type": "string",
+                            "format": "abc123"
+                        }
+                    },
+                    {
+                        "name": "dir",
+                        "in": "query",
+                        "description": "Format - abc123. Defines sort order of returned values based on a single field specified by the 'sort' parameter, or the primary business key of the resource if no sort field is specified. Valid values are 'asc' and 'desc'",
+                        "schema": {
+                            "type": "string",
+                            "format": "abc123"
+                        }
+                    },
+                    {
+                        "name": "Ocp-Apim-Subscription-Key",
+                        "in": "header",
+                        "description": "The subscription key assigned to your ERCOT Public API account.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "90796ffc22254fa89ad8400d996c992f"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK The operation completed successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Report"
+                                },
+                                "example": {
+                                    "_meta": {
+                                        "totalRecords": 0,
+                                        "pageSize": 0,
+                                        "totalPages": 0,
+                                        "currentPage": 0,
+                                        "query": {
+                                            "parameterCount": 0,
+                                            "parameters": {},
+                                            "sortedBy": "string"
+                                        }
+                                    },
+                                    "report": {
+                                        "reportProductId": "string",
+                                        "reportName": "string",
+                                        "reportDisplayName": "string",
+                                        "reportId": "string",
+                                        "downloadLimit": 0
+                                    },
+                                    "fields": [
+                                        {
+                                            "name": "string",
+                                            "label": "string",
+                                            "cardinality": 0,
+                                            "dataType": "BOOLEAN",
+                                            "searchable": true,
+                                            "sortable": true,
+                                            "hasRange": true
+                                        }
+                                    ],
+                                    "data": {},
+                                    "links": [
+                                        {
+                                            "rel": "string",
+                                            "href": "string",
+                                            "hreflang": "string",
+                                            "media": "string",
+                                            "title": "string",
+                                            "type": "string",
+                                            "deprecation": "string",
+                                            "profile": "string",
+                                            "name": "string"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request operation failed. The request and/or one or more of its parameters are invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The request operation failed. You do not have access to the requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The request operation failed. The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/bundle/{productId}": {
+            "get": {
+                "tags": [
+                    "Data Products"
+                ],
+                "summary": "Available historical report archives for a specified Data product.",
+                "description": "Available historical report archives for a specified Data product.",
+                "operationId": "getProductHistoryBundles",
+                "parameters": [
+                    {
+                        "name": "productId",
+                        "in": "path",
+                        "description": "The unique Data Product identifier.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "NP3-566-CD"
+                    },
+                    {
+                        "name": "Ocp-Apim-Subscription-Key",
+                        "in": "header",
+                        "description": "The subscription key assigned to your ERCOT Public API account.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "35796ffc22254fa89ad8400d996c992f"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK The operation completed successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Product"
+                                },
+                                "example": {
+                                    "productId": "string",
+                                    "name": "string",
+                                    "description": "string",
+                                    "reportTypeId": 0,
+                                    "status": "string",
+                                    "audience": "string",
+                                    "generationFrequency": "string",
+                                    "securityClassification": "string",
+                                    "lastUpdated": "string",
+                                    "firstRun": "string",
+                                    "eceii": "string",
+                                    "channel": "string",
+                                    "userGuide": "string",
+                                    "postingType": "string",
+                                    "market": "string",
+                                    "extractSubscriber": "string",
+                                    "xsdName": "string",
+                                    "misPostingLocation": "string",
+                                    "certificateRole": "string",
+                                    "fileType": "string",
+                                    "ddlName": "string",
+                                    "misDisplayDuration": 0,
+                                    "archiveDuration": 0,
+                                    "notificationType": "string",
+                                    "contentType": "DATA",
+                                    "downloadLimit": 0,
+                                    "lastPostDatetime": "string",
+                                    "bundle": 0,
+                                    "protocolRules": {},
+                                    "links": [
+                                        {
+                                            "rel": "string",
+                                            "href": "string",
+                                            "hreflang": "string",
+                                            "media": "string",
+                                            "title": "string",
+                                            "type": "string",
+                                            "deprecation": "string",
+                                            "profile": "string",
+                                            "name": "string"
+                                        }
+                                    ],
+                                    "artifacts": [
+                                        {
+                                            "reportTypeId": 0,
+                                            "displayName": "string",
+                                            "links": [
+                                                {
+                                                    "rel": "string",
+                                                    "href": "string",
+                                                    "hreflang": "string",
+                                                    "media": "string",
+                                                    "title": "string",
+                                                    "type": "string",
+                                                    "deprecation": "string",
+                                                    "profile": "string",
+                                                    "name": "string"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request operation failed. The request and/or one or more of its parameters are invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The request operation failed. You do not have access to the requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The request operation failed. The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/archive/{productId}": {
+            "get": {
+                "tags": [
+                    "Data Products"
+                ],
+                "summary": "Available report archives for a specified Data product.",
+                "description": "Available report archives for a specified Data product.",
+                "operationId": "getProductHistory",
+                "parameters": [
+                    {
+                        "name": "productId",
+                        "in": "path",
+                        "description": "The unique Data Product identifier.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "NP3-566-CD"
+                    },
+                    {
+                        "name": "Ocp-Apim-Subscription-Key",
+                        "in": "header",
+                        "description": "The subscription key assigned to your ERCOT Public API account.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "35796ffc22254fa89ad8400d996c992f"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK The operation completed successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProductHistory"
+                                },
+                                "example": {
+                                    "_meta": {
+                                        "totalRecords": 0,
+                                        "pageSize": 0,
+                                        "totalPages": 0,
+                                        "currentPage": 0,
+                                        "query": {
+                                            "parameterCount": 0,
+                                            "parameters": {},
+                                            "sortedBy": "string"
+                                        }
+                                    },
+                                    "product": {
+                                        "totalRecords": 0,
+                                        "pageSize": 0,
+                                        "totalPages": 0,
+                                        "currentPage": 0,
+                                        "query": {
+                                            "parameterCount": 0,
+                                            "parameters": {},
+                                            "sortedBy": "string"
+                                        }
+                                    },
+                                    "archives": [
+                                        {
+                                            "docId": 0,
+                                            "friendlyName": "string",
+                                            "postDatetime": "string",
+                                            "links": [
+                                                {
+                                                    "rel": "string",
+                                                    "href": "string",
+                                                    "hreflang": "string",
+                                                    "media": "string",
+                                                    "title": "string",
+                                                    "type": "string",
+                                                    "deprecation": "string",
+                                                    "profile": "string",
+                                                    "name": "string"
+                                                }
+                                            ]
+                                        }
+                                    ],
+                                    "bundles": [
+                                        {
+                                            "docId": 0,
+                                            "friendlyName": "string",
+                                            "postDatetime": "string",
+                                            "links": [
+                                                {
+                                                    "rel": "string",
+                                                    "href": "string",
+                                                    "hreflang": "string",
+                                                    "media": "string",
+                                                    "title": "string",
+                                                    "type": "string",
+                                                    "deprecation": "string",
+                                                    "profile": "string",
+                                                    "name": "string"
+                                                }
+                                            ]
+                                        }
+                                    ],
+                                    "links": [
+                                        {
+                                            "rel": "string",
+                                            "href": "string",
+                                            "hreflang": "string",
+                                            "media": "string",
+                                            "title": "string",
+                                            "type": "string",
+                                            "deprecation": "string",
+                                            "profile": "string",
+                                            "name": "string"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request operation failed. The request and/or one or more of its parameters are invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The request operation failed. You do not have access to the requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The request operation failed. The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/": {
+            "get": {
+                "tags": [
+                    "Data Products"
+                ],
+                "summary": "All available Data Products",
+                "description": "Retrieve all available (active) products in the current Data registry having public accessibility.",
+                "operationId": "getListForProducts",
+                "parameters": [
+                    {
+                        "name": "Ocp-Apim-Subscription-Key",
+                        "in": "header",
+                        "description": "The subscription key assigned to your ERCOT Public API account.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "35796ffc22254fa89ad8400d996c992f"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK The operation completed successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Product"
+                                },
+                                "example": {
+                                    "productId": "string",
+                                    "name": "string",
+                                    "description": "string",
+                                    "reportTypeId": 0,
+                                    "status": "string",
+                                    "audience": "string",
+                                    "generationFrequency": "string",
+                                    "securityClassification": "string",
+                                    "lastUpdated": "string",
+                                    "firstRun": "string",
+                                    "eceii": "string",
+                                    "channel": "string",
+                                    "userGuide": "string",
+                                    "postingType": "string",
+                                    "market": "string",
+                                    "extractSubscriber": "string",
+                                    "xsdName": "string",
+                                    "misPostingLocation": "string",
+                                    "certificateRole": "string",
+                                    "fileType": "string",
+                                    "ddlName": "string",
+                                    "misDisplayDuration": 0,
+                                    "archiveDuration": 0,
+                                    "notificationType": "string",
+                                    "contentType": "DATA",
+                                    "downloadLimit": 0,
+                                    "lastPostDatetime": "string",
+                                    "bundle": 0,
+                                    "protocolRules": {},
+                                    "links": [
+                                        {
+                                            "rel": "string",
+                                            "href": "string",
+                                            "hreflang": "string",
+                                            "media": "string",
+                                            "title": "string",
+                                            "type": "string",
+                                            "deprecation": "string",
+                                            "profile": "string",
+                                            "name": "string"
+                                        }
+                                    ],
+                                    "artifacts": [
+                                        {
+                                            "reportTypeId": 0,
+                                            "displayName": "string",
+                                            "links": [
+                                                {
+                                                    "rel": "string",
+                                                    "href": "string",
+                                                    "hreflang": "string",
+                                                    "media": "string",
+                                                    "title": "string",
+                                                    "type": "string",
+                                                    "deprecation": "string",
+                                                    "profile": "string",
+                                                    "name": "string"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request operation failed. The request and/or one or more of its parameters are invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The request operation failed. You do not have access to the requested resource.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The request operation failed. The requested resource does not exist.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Exception"
+                                },
+                                "example": {
+                                    "timestamp": "string",
+                                    "code": 0,
+                                    "status": "string",
+                                    "message": "string",
+                                    "data": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Archive": {
+                "properties": {
+                    "docId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "friendlyName": {
+                        "type": "string"
+                    },
+                    "postDatetime": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Link"
+                        }
+                    }
+                },
+                "description": "Represents a Data Product archive file."
+            },
+            "ArchiveRequest": {
+                "required": [
+                    "docIds"
+                ],
+                "properties": {
+                    "docIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                },
+                "description": "Represents a multi-document download request in JSON format."
+            },
+            "Artifact": {
+                "required": [
+                    "displayName"
+                ],
+                "type": "object",
+                "properties": {
+                    "reportTypeId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "displayName": {
+                        "type": "string"
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Link"
+                        }
+                    }
+                },
+                "description": "Each artifact represents a single report for the given time period designated by the Data Product metadata."
+            },
+            "Exception": {
+                "properties": {
+                    "timestamp": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "code": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "data": {
+                        "type": "object"
+                    }
+                },
+                "description": "Represents any exception encountered while access API endpoints."
+            },
+            "Field": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "cardinality": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "dataType": {
+                        "enum": [
+                            "BOOLEAN",
+                            "VARCHAR",
+                            "INTEGER",
+                            "LONG",
+                            "DOUBLE",
+                            "DATE",
+                            "DATETIME",
+                            "TIME"
+                        ],
+                        "type": "string"
+                    },
+                    "searchable": {
+                        "type": "boolean"
+                    },
+                    "sortable": {
+                        "type": "boolean"
+                    },
+                    "hasRange": {
+                        "type": "boolean"
+                    }
+                },
+                "description": "Represents report data field."
+            },
+            "Info": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "string"
+                    },
+                    "build": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Link": {
+                "type": "object",
+                "properties": {
+                    "rel": {
+                        "type": "string"
+                    },
+                    "href": {
+                        "type": "string"
+                    },
+                    "hreflang": {
+                        "type": "string"
+                    },
+                    "media": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "deprecation": {
+                        "type": "string"
+                    },
+                    "profile": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Product": {
+                "properties": {
+                    "productId": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "reportTypeId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "audience": {
+                        "type": "string"
+                    },
+                    "generationFrequency": {
+                        "type": "string"
+                    },
+                    "securityClassification": {
+                        "type": "string"
+                    },
+                    "lastUpdated": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "firstRun": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "eceii": {
+                        "type": "string"
+                    },
+                    "channel": {
+                        "type": "string"
+                    },
+                    "userGuide": {
+                        "type": "string"
+                    },
+                    "postingType": {
+                        "type": "string"
+                    },
+                    "market": {
+                        "type": "string"
+                    },
+                    "extractSubscriber": {
+                        "type": "string"
+                    },
+                    "xsdName": {
+                        "type": "string"
+                    },
+                    "misPostingLocation": {
+                        "type": "string"
+                    },
+                    "certificateRole": {
+                        "type": "string"
+                    },
+                    "fileType": {
+                        "type": "string"
+                    },
+                    "ddlName": {
+                        "type": "string"
+                    },
+                    "misDisplayDuration": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "archiveDuration": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "notificationType": {
+                        "type": "string"
+                    },
+                    "contentType": {
+                        "enum": [
+                            "DATA",
+                            "BINARY"
+                        ],
+                        "type": "string"
+                    },
+                    "downloadLimit": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "lastPostDatetime": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "bundle": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "protocolRules": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Link"
+                        }
+                    },
+                    "artifacts": {
+                        "uniqueItems": true,
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Artifact"
+                        }
+                    }
+                },
+                "description": "Represents a Data Product, which includes its metadata along with all Artifact information."
+            },
+            "ProductHistory": {
+                "properties": {
+                    "_meta": {
+                        "$ref": "#/components/schemas/ResultMetadata"
+                    },
+                    "product": {
+                        "$ref": "#/components/schemas/ProductHistoryMetadata"
+                    },
+                    "archives": {
+                        "uniqueItems": true,
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Archive"
+                        }
+                    },
+                    "bundles": {
+                        "uniqueItems": true,
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Archive"
+                        }
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Link"
+                        }
+                    }
+                },
+                "description": "Each archive represents a single Data Product archive (zip file)."
+            },
+            "ProductHistoryMetadata": {
+                "properties": {
+                    "totalRecords": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalPages": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "currentPage": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "query": {
+                        "$ref": "#/components/schemas/QueryMetadata"
+                    }
+                },
+                "description": "Represents record and paging summary for the specified query results."
+            },
+            "QueryMetadata": {
+                "properties": {
+                    "parameterCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "parameters": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object"
+                        }
+                    },
+                    "sortedBy": {
+                        "type": "string"
+                    }
+                },
+                "description": "Represents query parameter summary for the specified query results."
+            },
+            "Report": {
+                "properties": {
+                    "_meta": {
+                        "$ref": "#/components/schemas/ResultMetadata"
+                    },
+                    "report": {
+                        "$ref": "#/components/schemas/ReportMetadata"
+                    },
+                    "fields": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Field"
+                        }
+                    },
+                    "data": {
+                        "type": "object"
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Link"
+                        }
+                    }
+                },
+                "description": "Represents report data search results from any artifact report query."
+            },
+            "ReportMetadata": {
+                "properties": {
+                    "reportProductId": {
+                        "type": "string"
+                    },
+                    "reportName": {
+                        "type": "string"
+                    },
+                    "reportDisplayName": {
+                        "type": "string"
+                    },
+                    "reportId": {
+                        "type": "string"
+                    },
+                    "downloadLimit": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "description": "Represents general metadata for the specified report artifact, including the parent Data Product identifier."
+            },
+            "ResultMetadata": {
+                "properties": {
+                    "totalRecords": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "totalPages": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "currentPage": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "query": {
+                        "$ref": "#/components/schemas/QueryMetadata"
+                    }
+                },
+                "description": "Represents record and paging summary for the specified query results."
+            },
+            "Version": {
+                "type": "object",
+                "properties": {
+                    "info": {
+                        "$ref": "#/components/schemas/Info"
+                    },
+                    "openapi": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "securitySchemes": {
+            "apiKeyHeader": {
+                "type": "apiKey",
+                "name": "Ocp-Apim-Subscription-Key",
+                "in": "header"
+            },
+            "apiKeyQuery": {
+                "type": "apiKey",
+                "name": "subscription-key",
+                "in": "query"
+            }
+        }
+    },
+    "security": [
+        {
+            "apiKeyHeader": []
+        },
+        {
+            "apiKeyQuery": []
+        }
+    ],
+    "tags": [
+        {
+            "name": "RPTESR-M",
+            "description": "<b>Energy Storage Resource Four Second Data</b><br/><br/>"
+        }
+    ]
+}
