@@ -12,7 +12,7 @@ kernelspec:
 
 
 <p align="center">
-<img width=75% src="https://github.com/gridstatus/isodata/raw/c77f933e30bc24a33ef36496d5250da4605b214f/gridstatus-header.png" alt="gridstatus logo" />
+    <img width=75% src="https://github.com/gridstatus/gridstatus/raw/c77f933e30bc24a33ef36496d5250da4605b214f/gridstatus-header.png" alt="gridstatus logo" />
 </p>
 
 <p align="center">
