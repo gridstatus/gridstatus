@@ -39,8 +39,13 @@ class TestAESO(TestHelperMixin):
     def _check_fuel_mix(self, df: pd.DataFrame) -> None:
         expected_columns = list(FUEL_MIX_COLUMN_MAPPING.values())
         assert df.columns.tolist() == expected_columns
-
         assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+
+        numeric_cols = df.columns.drop("Time")
+        for col in numeric_cols:
+            assert pd.api.types.is_numeric_dtype(df[col]), (
+                f"Column {col} should be numeric"
+            )
 
     def test_get_fuel_mix(self):
         with api_vcr.use_cassette("test_get_fuel_mix.yaml"):

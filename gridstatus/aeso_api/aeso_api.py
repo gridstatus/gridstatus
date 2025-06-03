@@ -8,7 +8,6 @@ import pandas as pd
 from gridstatus import utils
 from gridstatus.aeso_api.aeso_api_constants import (
     ASSET_LIST_COLUMN_MAPPING,
-    FUEL_MIX_COLUMN_MAPPING,
     INTERCHANGE_COLUMN_MAPPING,
     RESERVES_COLUMN_MAPPING,
     SUPPLY_DEMAND_COLUMN_MAPPING,
@@ -138,7 +137,8 @@ class AESO:
         Get current generation by fuel type.
 
         Returns:
-            DataFrame containing generation data by fuel type
+            DataFrame containing generation data by fuel type, with each fuel type as a column
+            containing its net generation value
         """
         endpoint = "currentsupplydemand-api/v1/csd/summary/current"
         data = self._make_request(endpoint)
@@ -149,10 +149,13 @@ class AESO:
             format="%Y-%m-%d %H:%M%z",
         ).tz_convert(self.default_timezone)
 
-        df = df.rename(columns=FUEL_MIX_COLUMN_MAPPING)
-        df = df[list(FUEL_MIX_COLUMN_MAPPING.values())]
+        result_df = pd.DataFrame({"Time": [df["Time"].iloc[0]]})
 
-        return utils.move_cols_to_front(df, ["Time"])
+        for _, row in df.iterrows():
+            fuel_type = row["fuel_type"].title().replace(" ", " ")
+            result_df[fuel_type] = [row["aggregated_net_generation"]]
+
+        return result_df
 
     def get_interchange(self) -> pd.DataFrame:
         """
@@ -232,6 +235,10 @@ class AESO:
             endpoint += "?" + "&".join(params)
 
         data = self._make_request(endpoint)
+
+        if not data["return"]:
+            return pd.DataFrame(columns=list(ASSET_LIST_COLUMN_MAPPING.values()))
+
         df = pd.DataFrame(data["return"])
         df = df.rename(columns=ASSET_LIST_COLUMN_MAPPING)
         df = df[list(ASSET_LIST_COLUMN_MAPPING.values())]

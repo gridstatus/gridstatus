@@ -36,10 +36,15 @@ SUPPLY_DEMAND_COLUMN_MAPPING: dict[str, str] = {
 
 FUEL_MIX_COLUMN_MAPPING: dict[str, str] = {
     "time": "Time",
-    "fuel_type": "Fuel Type",
-    "aggregated_maximum_capability": "Maximum Capability",
-    "aggregated_net_generation": "Net Generation",
-    "aggregated_dispatched_contingency_reserve": "Dispatched Contingency Reserve",
+    "cogeneration": "Cogeneration",
+    "combined_cycle": "Combined Cycle",
+    "energy_storage": "Energy Storage",
+    "gas_fired_steam": "Gas Fired Steam",
+    "hydro": "Hydro",
+    "other": "Other",
+    "simple_cycle": "Simple Cycle",
+    "solar": "Solar",
+    "wind": "Wind",
 }
 
 INTERCHANGE_COLUMN_MAPPING: dict[str, str] = {
