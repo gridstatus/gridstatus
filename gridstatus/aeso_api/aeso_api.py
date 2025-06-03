@@ -8,8 +8,6 @@ import pandas as pd
 from gridstatus import utils
 from gridstatus.aeso_api.aeso_api_constants import (
     ASSET_LIST_COLUMN_MAPPING,
-    ASSET_LIST_COLUMNS,
-    COLUMNS_TO_DROP,
     FUEL_MIX_COLUMN_MAPPING,
     INTERCHANGE_COLUMN_MAPPING,
     RESERVES_COLUMN_MAPPING,
@@ -131,7 +129,7 @@ class AESO:
                 path = interchange["path"].title().replace(" ", " ")
                 df[f"{path} Flow"] = interchange["actual_flow"]
 
-        df = df.drop(columns=[col for col in COLUMNS_TO_DROP if col in df.columns])
+        df = df[list(SUPPLY_DEMAND_COLUMN_MAPPING.values())]
 
         return utils.move_cols_to_front(df, ["Time"])
 
@@ -152,6 +150,7 @@ class AESO:
         ).tz_convert(self.default_timezone)
 
         df = df.rename(columns=FUEL_MIX_COLUMN_MAPPING)
+        df = df[list(FUEL_MIX_COLUMN_MAPPING.values())]
 
         return utils.move_cols_to_front(df, ["Time"])
 
@@ -172,6 +171,7 @@ class AESO:
         ).tz_convert(self.default_timezone)
 
         df = df.rename(columns=INTERCHANGE_COLUMN_MAPPING)
+        df = df[list(INTERCHANGE_COLUMN_MAPPING.values())]
 
         return utils.move_cols_to_front(df, ["Time"])
 
@@ -190,15 +190,13 @@ class AESO:
             df["last_updated_datetime_utc"] + "+0000",
             format="%Y-%m-%d %H:%M%z",
         ).dt.tz_convert(self.default_timezone)
-        columns_to_keep = list(RESERVES_COLUMN_MAPPING.keys())
-        columns_to_keep.append("Time")
-        df = df[columns_to_keep]
 
-        # Rename the columns
         df = df.rename(columns=RESERVES_COLUMN_MAPPING)
+        df = df[list(RESERVES_COLUMN_MAPPING.values())]
 
         return utils.move_cols_to_front(df, ["Time"])
 
+    # TODO(kladar): WIP until asset datasets which are next
     def get_asset_list(
         self,
         asset_id: str | None = None,
@@ -236,7 +234,7 @@ class AESO:
         data = self._make_request(endpoint)
 
         if not data.get("return"):
-            return pd.DataFrame(columns=ASSET_LIST_COLUMNS)
+            return pd.DataFrame(columns=list(ASSET_LIST_COLUMN_MAPPING.values()))
 
         df = pd.DataFrame(data["return"])
 
@@ -245,37 +243,10 @@ class AESO:
         }
         df = df.rename(columns=rename_mapping)
 
+        # Get all columns that exist in the dataframe
+        columns_to_keep = [
+            col for col in ASSET_LIST_COLUMN_MAPPING.values() if col in df.columns
+        ]
+        df = df[columns_to_keep]
+
         return df
-
-
-if __name__ == "__main__":
-    try:
-        client = AESO()
-        from pprint import pprint
-
-        print("=== Supply and Demand Data ===")
-        supply_demand = client.get_supply_and_demand()
-        pprint(supply_demand)
-        pprint(supply_demand.columns)
-
-        print("\n=== Fuel Mix Data ===")
-        fuel_mix = client.get_fuel_mix()
-        pprint(fuel_mix)
-        pprint(fuel_mix.columns)
-
-        print("\n=== Interchange Data ===")
-        interchange = client.get_interchange()
-        pprint(interchange)
-        pprint(interchange.columns)
-
-        print("\n=== Reserves Data ===")
-        reserves = client.get_reserves()
-        pprint(reserves)
-        pprint(reserves.columns)
-
-        print("\n=== Asset List Data ===")
-        assets = client.get_asset_list()
-        pprint(assets)
-
-    except Exception as e:
-        print(f"Error: {e}")

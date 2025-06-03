@@ -25,7 +25,7 @@ class TestAESO(TestHelperMixin):
         cls.iso = AESO(api_key=os.getenv("AESO_API_KEY"))
 
     def _check_supply_and_demand(self, df: pd.DataFrame) -> None:
-        expected_columns = ["Time"] + list(SUPPLY_DEMAND_COLUMN_MAPPING.values())
+        expected_columns = list(SUPPLY_DEMAND_COLUMN_MAPPING.values())
         for col in expected_columns:
             assert col in df.columns, f"Expected column {col} not found in DataFrame"
 
@@ -37,7 +37,7 @@ class TestAESO(TestHelperMixin):
             self._check_supply_and_demand(df)
 
     def _check_fuel_mix(self, df: pd.DataFrame) -> None:
-        expected_columns = ["Time"] + list(FUEL_MIX_COLUMN_MAPPING.values())
+        expected_columns = list(FUEL_MIX_COLUMN_MAPPING.values())
         assert df.columns.tolist() == expected_columns
 
         assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
@@ -48,7 +48,7 @@ class TestAESO(TestHelperMixin):
             self._check_fuel_mix(df)
 
     def _check_interchange(self, df: pd.DataFrame) -> None:
-        expected_columns = ["Time"] + list(INTERCHANGE_COLUMN_MAPPING.values())
+        expected_columns = list(INTERCHANGE_COLUMN_MAPPING.values())
         assert df.columns.tolist() == expected_columns
 
         assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
@@ -59,7 +59,7 @@ class TestAESO(TestHelperMixin):
             self._check_interchange(df)
 
     def _check_reserves(self, df: pd.DataFrame) -> None:
-        expected_columns = ["Time"] + list(RESERVES_COLUMN_MAPPING.values())
+        expected_columns = list(RESERVES_COLUMN_MAPPING.values())
         assert df.columns.tolist() == expected_columns
 
         assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"

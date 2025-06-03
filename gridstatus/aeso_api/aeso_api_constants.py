@@ -1,21 +1,41 @@
 """Constants for AESO API client."""
 
 SUPPLY_DEMAND_COLUMN_MAPPING: dict[str, str] = {
-    "total_max_generation_capability": "Total Max Generation Capability",
-    "total_net_generation": "Total Net Generation",
-    "net_to_grid_generation": "Net Actual Generation",
-    "net_actual_interchange": "Net Actual Interchange",
-    "alberta_internal_load": "Alberta Internal Load",
-    "contingency_reserve_required": "Contingency Reserve Required",
-    "dispatched_contigency_reserve_total": "Dispatched Contingency Reserve Total",
-    "dispatched_contingency_reserve_gen": "Dispatched Contingency Reserve Gen",
-    "dispatched_contingency_reserve_other": "Dispatched Contingency Reserve Other",
-    "ffr_armed_dispatch": "FFR Armed Dispatch",
-    "ffr_offered_volume": "FFR Offered Volume",
-    "long_lead_time_volume": "Long Lead Time Volume",
+    "time": "Time",
+    "cogeneration_maximum_capability": "Cogeneration Maximum Capability",
+    "cogeneration_net_generation": "Cogeneration Net Generation",
+    "cogeneration_dispatched_contingency_reserve": "Cogeneration Dispatched Contingency Reserve",
+    "combined_cycle_maximum_capability": "Combined Cycle Maximum Capability",
+    "combined_cycle_net_generation": "Combined Cycle Net Generation",
+    "combined_cycle_dispatched_contingency_reserve": "Combined Cycle Dispatched Contingency Reserve",
+    "energy_storage_maximum_capability": "Energy Storage Maximum Capability",
+    "energy_storage_net_generation": "Energy Storage Net Generation",
+    "energy_storage_dispatched_contingency_reserve": "Energy Storage Dispatched Contingency Reserve",
+    "gas_fired_steam_maximum_capability": "Gas Fired Steam Maximum Capability",
+    "gas_fired_steam_net_generation": "Gas Fired Steam Net Generation",
+    "gas_fired_steam_dispatched_contingency_reserve": "Gas Fired Steam Dispatched Contingency Reserve",
+    "hydro_maximum_capability": "Hydro Maximum Capability",
+    "hydro_net_generation": "Hydro Net Generation",
+    "hydro_dispatched_contingency_reserve": "Hydro Dispatched Contingency Reserve",
+    "other_maximum_capability": "Other Maximum Capability",
+    "other_net_generation": "Other Net Generation",
+    "other_dispatched_contingency_reserve": "Other Dispatched Contingency Reserve",
+    "simple_cycle_maximum_capability": "Simple Cycle Maximum Capability",
+    "simple_cycle_net_generation": "Simple Cycle Net Generation",
+    "simple_cycle_dispatched_contingency_reserve": "Simple Cycle Dispatched Contingency Reserve",
+    "solar_maximum_capability": "Solar Maximum Capability",
+    "solar_net_generation": "Solar Net Generation",
+    "solar_dispatched_contingency_reserve": "Solar Dispatched Contingency Reserve",
+    "wind_maximum_capability": "Wind Maximum Capability",
+    "wind_net_generation": "Wind Net Generation",
+    "wind_dispatched_contingency_reserve": "Wind Dispatched Contingency Reserve",
+    "british_columbia_flow": "British Columbia Flow",
+    "montana_flow": "Montana Flow",
+    "saskatchewan_flow": "Saskatchewan Flow",
 }
 
 FUEL_MIX_COLUMN_MAPPING: dict[str, str] = {
+    "time": "Time",
     "fuel_type": "Fuel Type",
     "aggregated_maximum_capability": "Maximum Capability",
     "aggregated_net_generation": "Net Generation",
@@ -23,11 +43,13 @@ FUEL_MIX_COLUMN_MAPPING: dict[str, str] = {
 }
 
 INTERCHANGE_COLUMN_MAPPING: dict[str, str] = {
+    "time": "Time",
     "path": "Path",
     "actual_flow": "Actual Flow",
 }
 
 RESERVES_COLUMN_MAPPING: dict[str, str] = {
+    "time": "Time",
     "contingency_reserve_required": "Contingency Reserve Required",
     "dispatched_contigency_reserve_total": "Dispatched Contingency Reserve Total",
     "dispatched_contingency_reserve_gen": "Dispatched Contingency Reserve Gen",
@@ -47,22 +69,3 @@ ASSET_LIST_COLUMN_MAPPING: dict[str, str] = {
     "net_to_grid_asset_flag": "Net To Grid Asset Flag",
     "asset_incl_storage_flag": "Asset Include Storage Flag",
 }
-
-COLUMNS_TO_DROP: list[str] = [
-    "last_updated_datetime_utc",
-    "last_updated_datetime_mpt",
-    "generation_data_list",
-    "interchange_list",
-]
-
-ASSET_LIST_COLUMNS: list[str] = [
-    "Time",
-    "Asset ID",
-    "Asset Name",
-    "Asset Type",
-    "Operating Status",
-    "Pool Participant ID",
-    "Pool Participant Name",
-    "Net To Grid Asset Flag",
-    "Asset Include Storage Flag",
-]
