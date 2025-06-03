@@ -232,21 +232,8 @@ class AESO:
             endpoint += "?" + "&".join(params)
 
         data = self._make_request(endpoint)
-
-        if not data.get("return"):
-            return pd.DataFrame(columns=list(ASSET_LIST_COLUMN_MAPPING.values()))
-
         df = pd.DataFrame(data["return"])
-
-        rename_mapping = {
-            k: v for k, v in ASSET_LIST_COLUMN_MAPPING.items() if k in df.columns
-        }
-        df = df.rename(columns=rename_mapping)
-
-        # Get all columns that exist in the dataframe
-        columns_to_keep = [
-            col for col in ASSET_LIST_COLUMN_MAPPING.values() if col in df.columns
-        ]
-        df = df[columns_to_keep]
+        df = df.rename(columns=ASSET_LIST_COLUMN_MAPPING)
+        df = df[list(ASSET_LIST_COLUMN_MAPPING.values())]
 
         return df
