@@ -14,7 +14,7 @@ from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
 api_vcr = setup_vcr(
-    source="aeso_api",
+    source="aeso",
     record_mode=RECORD_MODE,
 )
 
