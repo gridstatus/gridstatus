@@ -6,7 +6,7 @@ from urllib.error import HTTPError, URLError
 import pandas as pd
 
 from gridstatus import utils
-from gridstatus.aeso_api.aeso_api_constants import (
+from gridstatus.aeso_api.aeso_constants import (
     ASSET_LIST_COLUMN_MAPPING,
     INTERCHANGE_COLUMN_MAPPING,
     RESERVES_COLUMN_MAPPING,

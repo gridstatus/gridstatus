@@ -2,8 +2,8 @@ import os
 
 import pandas as pd
 
-from gridstatus.aeso_api.aeso_api import AESO
-from gridstatus.aeso_api.aeso_api_constants import (
+from gridstatus.aeso.aeso import AESO
+from gridstatus.aeso.aeso_constants import (
     ASSET_LIST_COLUMN_MAPPING,
     FUEL_MIX_COLUMN_MAPPING,
     INTERCHANGE_COLUMN_MAPPING,

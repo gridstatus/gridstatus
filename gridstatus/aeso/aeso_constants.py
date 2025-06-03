@@ -1,4 +1,4 @@
-"""Constants for AESO API client."""
+"""Constants for AESO client."""
 
 SUPPLY_DEMAND_COLUMN_MAPPING: dict[str, str] = {
     "time": "Time",
