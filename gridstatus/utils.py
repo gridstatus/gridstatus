@@ -1,6 +1,7 @@
 import glob
 import io
 import os
+from typing import Callable
 from zipfile import ZipFile
 
 import pandas as pd
@@ -8,7 +9,7 @@ import requests
 import tqdm
 
 import gridstatus
-from gridstatus.base import Markets, NotSupported, _interconnection_columns
+from gridstatus.base import ISOBase, Markets, NotSupported, _interconnection_columns
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
 from gridstatus.gs_logging import log
@@ -20,13 +21,13 @@ from gridstatus.nyiso import NYISO
 from gridstatus.pjm import PJM
 from gridstatus.spp import SPP
 
-GREEN_CHECKMARK_HTML_ENTITY = "&#x2705;"
+GREEN_CHECKMARK_HTML_ENTITY: str = "&#x2705;"
 
-RED_X_HTML_ENTITY = "&#10060;"
-all_isos = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE, IESO]
+RED_X_HTML_ENTITY: str = "&#10060;"
+all_isos: list[ISOBase] = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE, IESO]
 
 
-def list_isos():
+def list_isos() -> pd.DataFrame:
     """List available ISOs"""
 
     isos = [[i.name, i.iso_id, i.__name__] for i in all_isos]
@@ -34,7 +35,7 @@ def list_isos():
     return pd.DataFrame(isos, columns=["Name", "Id", "Class"])
 
 
-def get_iso(iso_id):
+def get_iso(iso_id: str) -> ISOBase:
     """Get an ISO by its id"""
     for i in all_isos:
         if i.iso_id == iso_id:
@@ -43,7 +44,7 @@ def get_iso(iso_id):
     raise KeyError
 
 
-def make_availability_df():
+def make_availability_df() -> dict[str, pd.DataFrame]:
     methods = [
         "get_status",
         "get_fuel_mix",
@@ -85,7 +86,7 @@ def make_availability_df():
     return availability_dfs
 
 
-def make_availability_table():
+def make_availability_table() -> str:
     dfs = make_availability_df()
 
     markdown = ""
@@ -120,10 +121,10 @@ def _handle_date(
     return date
 
 
-LMP_METHOD_NAMES = ["get_lmp", "get_spp"]
+LMP_METHOD_NAMES: list[str] = ["get_lmp", "get_spp"]
 
 
-def make_lmp_availability_df():
+def make_lmp_availability_df() -> pd.DataFrame:
     availability = {}
     DOES_NOT_EXIST_SENTINEL = "dne"
     for iso in tqdm.tqdm(gridstatus.all_isos):
@@ -149,7 +150,7 @@ def make_lmp_availability_df():
     return pd.DataFrame(availability).fillna("-")
 
 
-def convert_bool_to_emoji(value):
+def convert_bool_to_emoji(value: bool) -> str:
     """If value is boolean, convert to Green Checkmark or Red X. Otherwise, leave be."""
     if isinstance(value, bool):
         if value:
@@ -160,7 +161,7 @@ def convert_bool_to_emoji(value):
         return value
 
 
-def make_lmp_availability_table():
+def make_lmp_availability_table() -> str:
     transposed = make_lmp_availability_df().transpose()
     transposed = transposed.rename(
         columns={
@@ -179,7 +180,11 @@ def make_lmp_availability_table():
 # todo require locations and location_type arguments
 
 
-def filter_lmp_locations(df, locations=None, location_type=None):
+def filter_lmp_locations(
+    df: pd.DataFrame,
+    locations: list[str] | None = None,
+    location_type: str | None = None,
+) -> pd.DataFrame:
     """
     Filters DataFrame by locations, which can be a list, "ALL" or None
 
@@ -199,12 +204,12 @@ def filter_lmp_locations(df, locations=None, location_type=None):
     return df
 
 
-def get_zip_file(url, verbose=False):
+def get_zip_file(url: str, verbose: bool = False) -> ZipFile:
     z = get_zip_folder(url, verbose=verbose)
     return z.open(z.namelist()[0])
 
 
-def get_zip_folder(url, verbose=False, **kwargs):
+def get_zip_folder(url: str, verbose: bool = False, **kwargs) -> ZipFile:
     msg = f"Requesting {url}"
     log(msg, verbose)
     r = requests.get(url, **kwargs)
@@ -219,10 +224,10 @@ def get_response_blob(resp: requests.Response) -> io.BytesIO:
 
 
 def download_csvs_from_zip_url(
-    url,
-    process_csv=None,
-    verbose=False,
-    strip_whitespace_from_cols=False,
+    url: str,
+    process_csv: Callable[[pd.DataFrame, str], pd.DataFrame] | None = None,
+    verbose: bool = False,
+    strip_whitespace_from_cols: bool = False,
 ):
     z = get_zip_folder(url, verbose=verbose)
 
@@ -249,13 +254,13 @@ def is_today(date: str | pd.Timestamp, tz: str) -> bool:
     return _handle_date(date, tz=tz).date() == pd.Timestamp.now(tz=tz).date()
 
 
-def is_yesterday(date, tz):
+def is_yesterday(date: pd.Timestamp, tz: str) -> bool:
     return _handle_date(date, tz=tz).date() == (
         pd.Timestamp.now(tz=tz).date() - pd.Timedelta(days=1)
     )
 
 
-def is_within_last_days(date, days, tz):
+def is_within_last_days(date: pd.Timestamp, days: int, tz: str) -> bool:
     """Returns whether date is within N days"""
     now = pd.Timestamp.now(tz=tz).date()
     date_value = _handle_date(date, tz=tz).date()
@@ -263,7 +268,12 @@ def is_within_last_days(date, days, tz):
     return date_value <= now and date_value >= period_start
 
 
-def format_interconnection_df(queue, rename, extra=None, missing=None):
+def format_interconnection_df(
+    queue: pd.DataFrame,
+    rename: dict[str, str],
+    extra: list[str] | None = None,
+    missing: list[str] | None = None,
+) -> pd.DataFrame:
     """Format interconnection queue data"""
     assert set(rename.keys()).issubset(queue.columns), set(
         rename.keys(),
@@ -285,11 +295,15 @@ def format_interconnection_df(queue, rename, extra=None, missing=None):
     return queue[columns].reset_index(drop=True)
 
 
-def is_dst_end(date):
+def is_dst_end(date: pd.Timestamp) -> bool:
     return (date.dst() - (date + pd.DateOffset(1)).dst()).seconds == 3600
 
 
-def load_folder(path, time_zone=None, verbose=True):
+def load_folder(
+    path: str,
+    time_zone: str | None = None,
+    verbose: bool = True,
+) -> pd.DataFrame:
     """Load a single DataFrame for same schema csv files in a folder
 
     Arguments:
@@ -323,7 +337,7 @@ def load_folder(path, time_zone=None, verbose=True):
     return data
 
 
-def get_interconnection_queues():
+def get_interconnection_queues() -> pd.DataFrame:
     """Get interconnection queue data for all ISOs"""
     all_queues = []
     for iso in tqdm.tqdm(all_isos):
@@ -339,7 +353,7 @@ def get_interconnection_queues():
     return all_queues
 
 
-def move_cols_to_front(df, cols_to_move):
+def move_cols_to_front(df: pd.DataFrame, cols_to_move: list[str]) -> pd.DataFrame:
     """Move columns to front of DataFrame"""
     cols = list(df.columns)
     for c in cols_to_move:
