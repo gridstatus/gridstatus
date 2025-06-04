@@ -233,7 +233,11 @@ class AESO:
             endpoint += "?" + "&".join(params)
 
         data = self._make_request(endpoint)
-        df = pd.DataFrame(data["return"])
+        df = pd.json_normalize(data["return"])
+
+        if df.empty:
+            return pd.DataFrame(columns=list(ASSET_LIST_COLUMN_MAPPING.values()))
+
         df = df.rename(columns=ASSET_LIST_COLUMN_MAPPING)
         df = df[list(ASSET_LIST_COLUMN_MAPPING.values())]
 
