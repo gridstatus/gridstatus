@@ -14,6 +14,10 @@ UNIT_ONLY := -m "not integration"
 test-base:
 	$(PYTEST_CMD) gridstatus/tests/test_*.py --ignore=gridstatus/tests/source_specific/
 
+.PHONY: test-aeso
+test-aeso:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_aeso.py
+
 .PHONY: test-caiso
 test-caiso:
 	$(PYTEST_CMD) gridstatus/tests/source_specific/test_caiso.py

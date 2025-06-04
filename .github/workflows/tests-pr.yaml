@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11"]
-        iso: [caiso, ercot, isone, miso, nyiso, pjm, spp, ieso, eia, misc]
+        iso: [aeso, caiso, ercot, isone, miso, nyiso, pjm, spp, ieso, eia, misc]
     env:
       EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
       PJM_API_KEY: ${{ secrets.PJM_API_KEY }}
@@ -41,6 +41,7 @@ jobs:
       MISO_API_PRICING_SUBSCRIPTION_KEY: ${{ secrets.MISO_API_PRICING_SUBSCRIPTION_KEY }}
       ISONE_API_USERNAME: ${{ secrets.ISONE_API_USERNAME }}
       ISONE_API_PASSWORD: ${{ secrets.ISONE_API_PASSWORD }}
+      AESO_API_KEY: ${{ secrets.AESO_API_KEY }}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
