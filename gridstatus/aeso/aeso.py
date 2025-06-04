@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 import requests
@@ -13,6 +13,7 @@ from gridstatus.aeso.aeso_constants import (
     RESERVES_COLUMN_MAPPING,
     SUPPLY_DEMAND_COLUMN_MAPPING,
 )
+from gridstatus.decorators import support_date_range
 
 
 class AESO:
@@ -242,3 +243,140 @@ class AESO:
         df = df[list(ASSET_LIST_COLUMN_MAPPING.values())]
 
         return df
+
+    @support_date_range(frequency=None)
+    def get_pool_price(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get pool price data.
+
+        Returns:
+            DataFrame containing pool price data
+        """
+        if date == "latest":
+            return self.get_pool_price(date="today")
+        return self._get_pool_price_data(date, end, actual_or_forecast="actual")
+
+    @support_date_range(frequency=None)
+    def get_forecast_pool_price(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get pool price data.
+
+        Returns:
+            DataFrame containing pool price data
+        """
+        if date == "latest":
+            return self.get_forecast_pool_price(date="today")
+        return self._get_pool_price_data(date, end, actual_or_forecast="forecast")
+
+    def _get_pool_price_data(
+        self,
+        start_date: str,
+        end_date: str | None = None,
+        actual_or_forecast: Literal["actual", "forecast"] = "actual",
+    ) -> pd.DataFrame:
+        """
+        Get pool price data.
+
+        Returns:
+            DataFrame containing pool price data
+        """
+        start_date = pd.Timestamp(start_date).strftime("%Y-%m-%d")
+        end_date = pd.Timestamp(end_date).strftime("%Y-%m-%d") if end_date else None
+
+        endpoint = f"poolprice-api/v1.1/price/poolPrice?startDate={start_date}"
+        if end_date:
+            endpoint += f"&endDate={end_date}"
+        data = self._make_request(endpoint)
+        df = pd.json_normalize(data["return"]["Pool Price Report"])
+        df["Interval Start"] = pd.to_datetime(
+            df["begin_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.rename(
+            columns={
+                "pool_price": "Pool Price",
+                "forecast_pool_price": "Forecast Pool Price",
+            },
+        )
+
+        if actual_or_forecast == "actual":
+            df["Pool Price"] = pd.to_numeric(df["Pool Price"], errors="coerce")
+            df = df[df["Pool Price"].notna()]
+            return df[["Interval Start", "Interval End", "Pool Price"]]
+        else:
+            df["Forecast Pool Price"] = pd.to_numeric(
+                df["Forecast Pool Price"],
+                errors="coerce",
+            )
+            # NB: Publish times are a bit opaque from AESO, so we calculate a best estimate here.
+            # Forecast pool price is provided for current and next two hours, updated every 5 minutes.
+            # For future intervals: use request time floored to 5 minutes
+            # For past/current intervals: use 5 minutes before interval start
+            request_time = pd.Timestamp.now(tz=self.default_timezone)
+            df["Publish Time"] = df.apply(
+                lambda row: (
+                    request_time.floor("5min")
+                    if row["Interval Start"] > request_time
+                    else row["Interval Start"] - pd.Timedelta(minutes=5)
+                ),
+                axis=1,
+            )
+            return df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Forecast Pool Price",
+                ]
+            ]
+
+    @support_date_range(frequency=None)
+    def get_system_marginal_price(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get system marginal price data.
+
+        Returns:
+            DataFrame containing system marginal price data
+        """
+        if date == "latest":
+            return self.get_system_marginal_price(date="today")
+
+        start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
+        end_date = pd.Timestamp(end).strftime("%Y-%m-%d") if end else None
+
+        endpoint = f"systemmarginalprice-api/v1.1/price/systemMarginalPrice?startDate={start_date}"
+        if end_date:
+            endpoint += f"&endDate={end_date}"
+        data = self._make_request(endpoint)
+        df = pd.json_normalize(data["return"]["System Marginal Price Report"])
+        df["Time"] = pd.to_datetime(df["begin_datetime_utc"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df = df.rename(
+            columns={
+                "system_marginal_price": "System Marginal Price",
+                "volume": "Volume",
+            },
+        )
+        df["System Marginal Price"] = pd.to_numeric(
+            df["System Marginal Price"],
+            errors="coerce",
+        )
+        df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
+        return df[["Time", "System Marginal Price", "Volume"]].sort_values(by="Time")

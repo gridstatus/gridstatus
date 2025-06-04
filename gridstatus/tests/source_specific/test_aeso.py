@@ -1,6 +1,7 @@
 import os
 
 import pandas as pd
+import pytest
 
 from gridstatus.aeso.aeso import AESO
 from gridstatus.aeso.aeso_constants import (
@@ -98,3 +99,161 @@ class TestAESO(TestHelperMixin):
             df = self.iso.get_asset_list(asset_id="NONEXISTENT")
             self._check_asset_list(df)
             assert len(df) == 0
+
+    def _check_pool_price(self, df: pd.DataFrame) -> None:
+        """Check pool price DataFrame structure and types."""
+        expected_columns = ["Interval Start", "Interval End", "Pool Price"]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert pd.api.types.is_numeric_dtype(df["Pool Price"])
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+    def _check_forecast_pool_price(self, df: pd.DataFrame) -> None:
+        """Check forecast pool price DataFrame structure and types."""
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Forecast Pool Price",
+        ]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert pd.api.types.is_numeric_dtype(df["Forecast Pool Price"])
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        request_time = pd.Timestamp.now(tz=self.iso.default_timezone)
+        for _, row in df.iterrows():
+            if row["Interval Start"] > request_time:
+                # For future intervals: use request time floored to 5 minutes
+                assert row["Publish Time"] == request_time.floor("5min")
+            else:
+                # For past/current intervals: use 5 minutes before interval start
+                assert row["Publish Time"] == row["Interval Start"] - pd.Timedelta(
+                    minutes=5,
+                )
+
+    def test_get_pool_price_latest(self):
+        """Test getting latest pool price data."""
+        with api_vcr.use_cassette("test_get_pool_price_latest.yaml"):
+            df = self.iso.get_pool_price(date="latest")
+            self._check_pool_price(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date,expected_hours",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+                96,
+            ),
+        ],
+    )
+    def test_get_pool_price_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+        expected_hours: int,
+    ) -> None:
+        """Test getting historical pool price data."""
+        with api_vcr.use_cassette(
+            f"test_get_pool_price_historical_range_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_pool_price(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_pool_price(df)
+            assert len(df) == expected_hours
+
+    def test_get_forecast_pool_price_latest(self):
+        """Test getting latest forecast pool price data."""
+        with api_vcr.use_cassette("test_get_forecast_pool_price_latest.yaml"):
+            df = self.iso.get_forecast_pool_price(date="latest")
+            self._check_forecast_pool_price(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date,expected_hours",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+                96,
+            ),
+        ],
+    )
+    def test_get_forecast_pool_price_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+        expected_hours: int,
+    ) -> None:
+        """Test getting historical forecast pool price data."""
+        with api_vcr.use_cassette(
+            f"test_get_forecast_pool_price_historical_range_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_forecast_pool_price(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_forecast_pool_price(df)
+            assert len(df) == expected_hours
+
+    def _check_system_marginal_price(self, df: pd.DataFrame) -> None:
+        """Check system marginal price DataFrame structure and types."""
+        expected_columns = ["Time", "System Marginal Price", "Volume"]
+        assert df.columns.tolist() == expected_columns
+        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        assert pd.api.types.is_numeric_dtype(df["System Marginal Price"])
+        assert pd.api.types.is_numeric_dtype(df["Volume"])
+
+    def test_get_system_marginal_price_latest(self):
+        """Test getting latest system marginal price data."""
+        with api_vcr.use_cassette("test_get_system_marginal_price_latest.yaml"):
+            df = self.iso.get_system_marginal_price(date="latest")
+            self._check_system_marginal_price(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+            ),
+        ],
+    )
+    def test_get_system_marginal_price_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical system marginal price data."""
+        with api_vcr.use_cassette(
+            f"test_get_system_marginal_price_historical_range_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_system_marginal_price(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_system_marginal_price(df)
