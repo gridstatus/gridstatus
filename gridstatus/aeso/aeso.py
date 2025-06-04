@@ -319,7 +319,21 @@ class AESO:
                 df["Forecast Pool Price"],
                 errors="coerce",
             )
-            df["Publish Time"] = df["Interval Start"] - pd.Timedelta(hours=3)
+            # NB: Publish times are a bit opaque from AESO, so we calculate a best estimate here.
+            # Earliest forecast is 3 hours before the interval.
+            # Then it can be updated continually within the next 2 hours after first publication.
+            # Forecasts are relatively unchanging 1 hour out from the interval.
+            request_time = pd.Timestamp.now(tz=self.default_timezone)
+            df["Publish Time"] = df.apply(
+                lambda row: (
+                    request_time
+                    if row["Interval Start"] - request_time > pd.Timedelta(hours=2)
+                    else row["Interval Start"] - pd.Timedelta(hours=2)
+                    if row["Interval Start"] - request_time > pd.Timedelta(hours=1)
+                    else row["Interval Start"] - pd.Timedelta(hours=1)
+                ),
+                axis=1,
+            )
             return df[
                 [
                     "Interval Start",
@@ -342,11 +356,11 @@ class AESO:
         Returns:
             DataFrame containing system marginal price data
         """
-        start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
-        end_date = pd.Timestamp(end).strftime("%Y-%m-%d") if end else None
-
         if date == "latest":
             return self.get_system_marginal_price(date="today")
+
+        start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
+        end_date = pd.Timestamp(end).strftime("%Y-%m-%d") if end else None
 
         endpoint = f"systemmarginalprice-api/v1.1/price/systemMarginalPrice?startDate={start_date}"
         if end_date:
@@ -362,4 +376,9 @@ class AESO:
                 "volume": "Volume",
             },
         )
+        df["System Marginal Price"] = pd.to_numeric(
+            df["System Marginal Price"],
+            errors="coerce",
+        )
+        df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
         return df[["Time", "System Marginal Price", "Volume"]]
