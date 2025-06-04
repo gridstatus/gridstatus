@@ -320,17 +320,15 @@ class AESO:
                 errors="coerce",
             )
             # NB: Publish times are a bit opaque from AESO, so we calculate a best estimate here.
-            # Earliest forecast is 3 hours before the interval.
-            # Then it can be updated continually within the next 2 hours after first publication.
-            # Forecasts are relatively unchanging 1 hour out from the interval.
+            # Forecast pool price is provided for current and next two hours, updated every 5 minutes.
+            # For future intervals: use request time floored to 5 minutes
+            # For past/current intervals: use 5 minutes before interval start
             request_time = pd.Timestamp.now(tz=self.default_timezone)
             df["Publish Time"] = df.apply(
                 lambda row: (
-                    request_time
-                    if row["Interval Start"] - request_time > pd.Timedelta(hours=2)
-                    else row["Interval Start"] - pd.Timedelta(hours=2)
-                    if row["Interval Start"] - request_time > pd.Timedelta(hours=1)
-                    else row["Interval Start"] - pd.Timedelta(hours=1)
+                    request_time.floor("5min")
+                    if row["Interval Start"] > request_time
+                    else row["Interval Start"] - pd.Timedelta(minutes=5)
                 ),
                 axis=1,
             )

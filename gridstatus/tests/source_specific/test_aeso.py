@@ -142,19 +142,13 @@ class TestAESO(TestHelperMixin):
 
         request_time = pd.Timestamp.now(tz=self.iso.default_timezone)
         for _, row in df.iterrows():
-            time_diff = row["Interval Start"] - request_time
-            if time_diff > pd.Timedelta(hours=2):
-                # More than 2 hours out: publish time is request time
-                assert row["Publish Time"] == request_time
-            elif time_diff > pd.Timedelta(hours=1):
-                # 1-2 hours out: publish time is 2 hours before interval
-                assert row["Publish Time"] == row["Interval Start"] - pd.Timedelta(
-                    hours=2,
-                )
+            if row["Interval Start"] > request_time:
+                # For future intervals: use request time floored to 5 minutes
+                assert row["Publish Time"] == request_time.floor("5min")
             else:
-                # Less than 1 hour out: publish time is 1 hour before interval
+                # For past/current intervals: use 5 minutes before interval start
                 assert row["Publish Time"] == row["Interval Start"] - pd.Timedelta(
-                    hours=1,
+                    minutes=5,
                 )
 
     def test_get_pool_price_latest(self):
