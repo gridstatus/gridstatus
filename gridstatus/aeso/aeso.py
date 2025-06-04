@@ -1,9 +1,10 @@
 import json
 import os
-import urllib.request
-from urllib.error import HTTPError, URLError
+from typing import Any
 
 import pandas as pd
+import requests
+from requests.exceptions import HTTPError, RequestException
 
 from gridstatus import utils
 from gridstatus.aeso.aeso_constants import (
@@ -44,7 +45,7 @@ class AESO:
             "API-KEY": self.api_key,
         }
 
-    def _make_request(self, endpoint: str, method: str = "GET") -> dict[str,]:
+    def _make_request(self, endpoint: str, method: str = "GET") -> dict[str, Any]:
         """
         Make a request to the AESO API.
 
@@ -57,36 +58,27 @@ class AESO:
 
         Raises:
             HTTPError: If the API returns an HTTP error status
-            URLError: If there's a network/connection error
+            RequestException: If there's a network/connection error
             ValueError: If the response is not valid JSON
         """
-        url = f"{self.base_url}/{endpoint.lstrip('/')}"
-
-        req = urllib.request.Request(url, headers=self.default_headers)
-        req.get_method = lambda: method
+        url = f"{self.base_url}/{endpoint}"
 
         try:
-            response = urllib.request.urlopen(req)
-            response_data = response.read()
-
-            if response.getcode() != 200:
-                raise HTTPError(
-                    url,
-                    response.getcode(),
-                    f"API request failed with status {response.getcode()}",
-                    response.headers,
-                    None,
-                )
-
-            try:
-                return json.loads(response_data.decode("utf-8"))
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON response from API: {e}")
-
-        except HTTPError:
-            raise
-        except URLError as e:
-            raise URLError(f"Failed to connect to AESO API: {e}")
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=self.default_headers,
+            )
+            response.raise_for_status()
+            return response.json()
+        except HTTPError as e:
+            raise HTTPError(
+                f"API request failed with status {response.status_code}: {str(e)}",
+            )
+        except RequestException as e:
+            raise RequestException(f"Failed to connect to AESO API: {str(e)}")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON response from API: {str(e)}")
 
     def get_supply_and_demand(self) -> pd.DataFrame:
         """
@@ -129,7 +121,6 @@ class AESO:
                 df[f"{path} Flow"] = interchange["actual_flow"]
 
         df = df[list(SUPPLY_DEMAND_COLUMN_MAPPING.values())]
-
         return utils.move_cols_to_front(df, ["Time"])
 
     def get_fuel_mix(self) -> pd.DataFrame:
@@ -143,19 +134,20 @@ class AESO:
         endpoint = "currentsupplydemand-api/v1/csd/summary/current"
         data = self._make_request(endpoint)
 
-        df = pd.DataFrame(data["return"]["generation_data_list"])
-        df["Time"] = pd.to_datetime(
+        df_data = pd.DataFrame(data["return"]["generation_data_list"])
+        df_data["Time"] = pd.to_datetime(
             data["return"]["last_updated_datetime_utc"] + "+0000",
             format="%Y-%m-%d %H:%M%z",
         ).tz_convert(self.default_timezone)
 
-        result_df = pd.DataFrame({"Time": [df["Time"].iloc[0]]})
+        df_data["fuel_type"] = df_data["fuel_type"].str.title()
+        df = df_data.pivot(
+            index="Time",
+            columns="fuel_type",
+            values="aggregated_net_generation",
+        ).reset_index()
 
-        for _, row in df.iterrows():
-            fuel_type = row["fuel_type"].title().replace(" ", " ")
-            result_df[fuel_type] = [row["aggregated_net_generation"]]
-
-        return result_df
+        return df
 
     def get_interchange(self) -> pd.DataFrame:
         """
