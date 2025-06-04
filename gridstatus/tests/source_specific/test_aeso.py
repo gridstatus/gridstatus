@@ -140,7 +140,7 @@ class TestAESO(TestHelperMixin):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
         assert (
-            df["Interval Start"] - df["Publish Time"] == pd.Timedelta(hours=4)
+            df["Interval Start"] - df["Publish Time"] == pd.Timedelta(hours=3)
         ).all()
 
     def test_get_pool_price_latest(self):

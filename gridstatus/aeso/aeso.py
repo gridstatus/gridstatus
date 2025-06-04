@@ -319,7 +319,7 @@ class AESO:
                 df["Forecast Pool Price"],
                 errors="coerce",
             )
-            df["Publish Time"] = df["Interval Start"] - pd.Timedelta(hours=4)
+            df["Publish Time"] = df["Interval Start"] - pd.Timedelta(hours=3)
             return df[
                 [
                     "Interval Start",
@@ -342,11 +342,11 @@ class AESO:
         Returns:
             DataFrame containing system marginal price data
         """
-        if date == "latest":
-            return self.get_system_marginal_price(date="today")
-
         start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
         end_date = pd.Timestamp(end).strftime("%Y-%m-%d") if end else None
+
+        if date == "latest":
+            return self.get_system_marginal_price(date="today")
 
         endpoint = f"systemmarginalprice-api/v1.1/price/systemMarginalPrice?startDate={start_date}"
         if end_date:
@@ -362,9 +362,4 @@ class AESO:
                 "volume": "Volume",
             },
         )
-        df["System Marginal Price"] = pd.to_numeric(
-            df["System Marginal Price"],
-            errors="coerce",
-        )
-        df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
         return df[["Time", "System Marginal Price", "Volume"]]
