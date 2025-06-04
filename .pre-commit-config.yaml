@@ -44,6 +44,7 @@ repos:
             setup\.py|
             gridstatus/__init__\.py|
             gridstatus/base\.py|
+            gridstatus/aeso/.*|
             gridstatus/caiso/caiso\.py|
             gridstatus/caiso/caiso_constants\.py|
             gridstatus/caiso/caiso_utils\.py|
