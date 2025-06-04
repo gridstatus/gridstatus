@@ -328,3 +328,43 @@ class AESO:
                     "Forecast Pool Price",
                 ]
             ]
+
+    @support_date_range(frequency=None)
+    def get_system_marginal_price(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get system marginal price data.
+
+        Returns:
+            DataFrame containing system marginal price data
+        """
+        if date == "latest":
+            return self.get_system_marginal_price(date="today")
+
+        start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
+        end_date = pd.Timestamp(end).strftime("%Y-%m-%d") if end else None
+
+        endpoint = f"systemmarginalprice-api/v1.1/price/systemMarginalPrice?startDate={start_date}"
+        if end_date:
+            endpoint += f"&endDate={end_date}"
+        data = self._make_request(endpoint)
+        df = pd.json_normalize(data["return"]["System Marginal Price Report"])
+        df["Time"] = pd.to_datetime(df["begin_datetime_utc"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df = df.rename(
+            columns={
+                "system_marginal_price": "System Marginal Price",
+                "volume": "Volume",
+            },
+        )
+        df["System Marginal Price"] = pd.to_numeric(
+            df["System Marginal Price"],
+            errors="coerce",
+        )
+        df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
+        return df[["Time", "System Marginal Price", "Volume"]]

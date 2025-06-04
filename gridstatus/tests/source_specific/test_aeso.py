@@ -210,3 +210,42 @@ class TestAESO(TestHelperMixin):
             )
             self._check_forecast_pool_price(df)
             assert len(df) == expected_hours
+
+    def _check_system_marginal_price(self, df: pd.DataFrame) -> None:
+        """Check system marginal price DataFrame structure and types."""
+        expected_columns = ["Time", "System Marginal Price", "Volume"]
+        assert df.columns.tolist() == expected_columns
+        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        assert pd.api.types.is_numeric_dtype(df["System Marginal Price"])
+        assert pd.api.types.is_numeric_dtype(df["Volume"])
+
+    def test_get_system_marginal_price_latest(self):
+        """Test getting latest system marginal price data."""
+        with api_vcr.use_cassette("test_get_system_marginal_price_latest.yaml"):
+            df = self.iso.get_system_marginal_price(date="latest")
+            self._check_system_marginal_price(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+            ),
+        ],
+    )
+    def test_get_system_marginal_price_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical system marginal price data."""
+        with api_vcr.use_cassette(
+            f"test_get_system_marginal_price_historical_range_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_system_marginal_price(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_system_marginal_price(df)
