@@ -18,6 +18,7 @@ import gridstatus.viz
 
 from gridstatus.utils import load_folder
 
+from gridstatus.aeso import AESO
 from gridstatus.nyiso import NYISO
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
@@ -28,10 +29,11 @@ from gridstatus.pjm import PJM
 from gridstatus.eia import EIA
 from gridstatus.ieso import IESO
 
-all_isos = [NYISO, CAISO, Ercot, ISONE, MISO, SPP, PJM, IESO]
+all_isos = [AESO, NYISO, CAISO, Ercot, ISONE, MISO, SPP, PJM, IESO]
 
 
 __all__ = [
+    "AESO",
     "NYISO",
     "CAISO",
     "Ercot",
