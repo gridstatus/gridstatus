@@ -379,4 +379,4 @@ class AESO:
             errors="coerce",
         )
         df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
-        return df[["Time", "System Marginal Price", "Volume"]]
+        return df[["Time", "System Marginal Price", "Volume"]].sort_values(by="Time")
