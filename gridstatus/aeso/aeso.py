@@ -23,7 +23,7 @@ class AESO:
     """
 
     # NB: Data is also typically provided in UTC
-    default_timezone = "America/Edmonton"
+    default_timezone = "US/Mountain"
 
     def __init__(self, api_key: str | None = None):
         """
