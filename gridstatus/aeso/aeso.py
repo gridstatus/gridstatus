@@ -91,10 +91,9 @@ class AESO:
         data = self._make_request(endpoint)
 
         df = pd.json_normalize(data["return"])
-
         df["Time"] = pd.to_datetime(
-            df["last_updated_datetime_utc"] + "+0000",
-            format="%Y-%m-%d %H:%M%z",
+            df["last_updated_datetime_utc"],
+            utc=True,
         ).dt.tz_convert(self.default_timezone)
 
         df = df.rename(
@@ -134,20 +133,24 @@ class AESO:
         endpoint = "currentsupplydemand-api/v1/csd/summary/current"
         data = self._make_request(endpoint)
 
-        df_data = pd.DataFrame(data["return"]["generation_data_list"])
-        df_data["Time"] = pd.to_datetime(
-            data["return"]["last_updated_datetime_utc"] + "+0000",
-            format="%Y-%m-%d %H:%M%z",
-        ).tz_convert(self.default_timezone)
+        df = pd.json_normalize(
+            data["return"],
+            record_path="generation_data_list",
+            meta=["last_updated_datetime_utc"],
+        )
+        df["Time"] = pd.to_datetime(
+            df["last_updated_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["fuel_type"] = df["fuel_type"].str.title()
 
-        df_data["fuel_type"] = df_data["fuel_type"].str.title()
-        df = df_data.pivot(
+        result_df = df.pivot(
             index="Time",
             columns="fuel_type",
             values="aggregated_net_generation",
         ).reset_index()
 
-        return df
+        return result_df
 
     def get_interchange(self) -> pd.DataFrame:
         """
@@ -159,12 +162,15 @@ class AESO:
         endpoint = "currentsupplydemand-api/v1/csd/summary/current"
         data = self._make_request(endpoint)
 
-        df = pd.DataFrame(data["return"]["interchange_list"])
+        df = pd.json_normalize(
+            data["return"],
+            record_path="interchange_list",
+            meta=["last_updated_datetime_utc"],
+        )
         df["Time"] = pd.to_datetime(
-            data["return"]["last_updated_datetime_utc"] + "+0000",
-            format="%Y-%m-%d %H:%M%z",
-        ).tz_convert(self.default_timezone)
-
+            df["last_updated_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
         df = df.rename(columns=INTERCHANGE_COLUMN_MAPPING)
         df = df[list(INTERCHANGE_COLUMN_MAPPING.values())]
 
@@ -182,8 +188,8 @@ class AESO:
 
         df = pd.json_normalize(data["return"])
         df["Time"] = pd.to_datetime(
-            df["last_updated_datetime_utc"] + "+0000",
-            format="%Y-%m-%d %H:%M%z",
+            df["last_updated_datetime_utc"],
+            utc=True,
         ).dt.tz_convert(self.default_timezone)
 
         df = df.rename(columns=RESERVES_COLUMN_MAPPING)
@@ -227,10 +233,6 @@ class AESO:
             endpoint += "?" + "&".join(params)
 
         data = self._make_request(endpoint)
-
-        if not data["return"]:
-            return pd.DataFrame(columns=list(ASSET_LIST_COLUMN_MAPPING.values()))
-
         df = pd.DataFrame(data["return"])
         df = df.rename(columns=ASSET_LIST_COLUMN_MAPPING)
         df = df[list(ASSET_LIST_COLUMN_MAPPING.values())]
