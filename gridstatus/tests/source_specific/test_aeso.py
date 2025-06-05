@@ -10,6 +10,7 @@ from gridstatus.aeso.aeso_constants import (
     INTERCHANGE_COLUMN_MAPPING,
     RESERVES_COLUMN_MAPPING,
     SUPPLY_DEMAND_COLUMN_MAPPING,
+    UNIT_STATUS_COLUMN_MAPPING,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -99,6 +100,78 @@ class TestAESO(TestHelperMixin):
             df = self.iso.get_asset_list(asset_id="NONEXISTENT")
             self._check_asset_list(df)
             assert len(df) == 0
+
+    def _check_unit_status(self, df: pd.DataFrame) -> None:
+        """Check unit status DataFrame structure and types."""
+        expected_columns = ["Time"] + list(UNIT_STATUS_COLUMN_MAPPING.values())
+        assert df.columns.tolist() == expected_columns
+        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+
+        # Check string columns
+        string_cols = [
+            "Asset ID",
+            "Asset Name",
+            "Asset Type",
+            "Operating Status",
+            "Pool Participant ID",
+            "Pool Participant Name",
+            "Net To Grid Asset Flag",
+            "Asset Include Storage Flag",
+        ]
+        for col in string_cols:
+            assert df[col].dtype == "object"
+
+    def test_get_unit_status(self):
+        """Test getting unit status data."""
+        with api_vcr.use_cassette("test_get_unit_status.yaml"):
+            df = self.iso.get_unit_status(date="latest")
+            self._check_unit_status(df)
+            assert len(df) > 0
+
+    def test_get_unit_status_latest(self):
+        """Test getting latest unit status data."""
+        with api_vcr.use_cassette("test_get_unit_status_latest.yaml"):
+            df = self.iso.get_unit_status(date="latest")
+            self._check_unit_status(df)
+            assert len(df) > 0
+
+            # Verify Time column is current
+            now = pd.Timestamp.now(tz=self.iso.default_timezone)
+            assert (now - df["Time"]).max() < pd.Timedelta(minutes=5)
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+            ),
+        ],
+    )
+    def test_get_unit_status_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical unit status data.
+
+        Note: This endpoint only returns current data, so we verify that
+        the returned data has the current timestamp regardless of the
+        requested date range.
+        """
+        with api_vcr.use_cassette(
+            f"test_get_unit_status_historical_range_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_unit_status(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_unit_status(df)
+            assert len(df) > 0
+
+            # Verify Time column is current despite historical request
+            now = pd.Timestamp.now(tz=self.iso.default_timezone)
+            assert (now - df["Time"]).max() < pd.Timedelta(minutes=5)
 
     def _check_pool_price(self, df: pd.DataFrame) -> None:
         """Check pool price DataFrame structure and types."""

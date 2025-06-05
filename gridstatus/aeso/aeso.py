@@ -12,6 +12,7 @@ from gridstatus.aeso.aeso_constants import (
     INTERCHANGE_COLUMN_MAPPING,
     RESERVES_COLUMN_MAPPING,
     SUPPLY_DEMAND_COLUMN_MAPPING,
+    UNIT_STATUS_COLUMN_MAPPING,
 )
 from gridstatus.decorators import support_date_range
 
@@ -243,6 +244,53 @@ class AESO:
         df = df[list(ASSET_LIST_COLUMN_MAPPING.values())]
 
         return df
+
+    @support_date_range(frequency=None)
+    def get_unit_status(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get current unit status data from AESO.
+
+        Note: This endpoint only returns current data, so date and end parameters are ignored.
+
+        Returns:
+            pd.DataFrame: DataFrame with unit status data including:
+                - Time: Current timestamp
+                - Asset ID: Unique identifier for the asset
+                - Asset Name: Name of the asset
+                - Asset Type: Type of asset (e.g. GEN, LOAD)
+                - Operating Status: Current operating status
+                - Pool Participant ID: ID of the pool participant
+                - Pool Participant Name: Name of the pool participant
+                - Net To Grid Asset Flag: Whether the asset is net to grid
+                - Asset Include Storage Flag: Whether the asset includes storage
+        """
+        endpoint = "assetlist-api/v1/assetlist"
+        response = self._make_request(endpoint)
+
+        if not response:
+            return pd.DataFrame()
+
+        # Convert to DataFrame
+        df = pd.DataFrame(response)
+
+        # Add current timestamp
+        df["Time"] = pd.Timestamp.now(tz=self.default_timezone)
+        df["Time"] = df["Time"].astype(f"datetime64[ns, {self.default_timezone}]")
+
+        # Rename columns
+        df = df.rename(columns=UNIT_STATUS_COLUMN_MAPPING)
+
+        # Ensure all expected columns exist
+        for col in UNIT_STATUS_COLUMN_MAPPING.values():
+            if col not in df.columns:
+                df[col] = None
+
+        # Return columns in correct order
+        return df[["Time"] + list(UNIT_STATUS_COLUMN_MAPPING.values())]
 
     @support_date_range(frequency=None)
     def get_pool_price(

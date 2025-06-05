@@ -74,3 +74,14 @@ ASSET_LIST_COLUMN_MAPPING: dict[str, str] = {
     "net_to_grid_asset_flag": "Net To Grid Asset Flag",
     "asset_incl_storage_flag": "Asset Include Storage Flag",
 }
+
+UNIT_STATUS_COLUMN_MAPPING: dict[str, str] = {
+    "asset_ID": "Asset ID",
+    "asset_name": "Asset Name",
+    "asset_type": "Asset Type",
+    "operating_status": "Operating Status",
+    "pool_participant_ID": "Pool Participant ID",
+    "pool_participant_name": "Pool Participant Name",
+    "net_to_grid_asset_flag": "Net To Grid Asset Flag",
+    "asset_incl_storage_flag": "Asset Include Storage Flag",
+}
