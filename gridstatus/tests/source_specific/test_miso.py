@@ -1008,6 +1008,10 @@ class TestMISO(BaseTestISO):
         # data does not go back as far as the scheduled data
         assert df["Net Actual Interchange"].isna()[0]
 
+        # The last value in Net Scheduled Interchange should be null because the
+        # scheduled data is one interval behind the actual data
+        assert df["Net Scheduled Interchange"].isna().iloc[-1]
+
     def test_get_interchange_5_min_latest(self):
         with miso_vcr.use_cassette("test_get_interchange_5_min_latest.yaml"):
             df = self.iso.get_interchange_5_min("latest")
