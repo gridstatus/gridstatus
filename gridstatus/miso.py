@@ -1630,3 +1630,92 @@ class MISO(ISOBase):
         )
 
         return final_df
+
+    @support_date_range(frequency=None)
+    def get_interchange_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date != "latest":
+            raise NotSupported(
+                "Only latest MISO interchange data is available. Use 'latest' as date.",
+            )
+
+        # The actuals are only available as JSON (the csv is empty). Data in this file
+        # is in UTC.
+        actual_url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getimporttotal5&returnType=json"
+
+        # Data in this file is in the default timezone
+        scheduled_url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getNSI5&returnType=csv"
+
+        logger.info(
+            f"Downloading interchange data from {scheduled_url} and {actual_url}",
+        )
+
+        actual_data = pd.read_json(actual_url)
+
+        actual_data["Time"] = pd.to_datetime(
+            actual_data["Time"],
+            utc=True,
+            # Example: 2025-06-05 8:20:00 PM
+            format="%Y-%m-%d %I:%M:%S %p",
+        ).dt.tz_convert(self.default_timezone)
+
+        scheduled_data = pd.read_csv(
+            scheduled_url,
+            skiprows=2,
+        )
+
+        scheduled_data["timestamp"] = pd.to_datetime(
+            scheduled_data["timestamp"],
+        ).dt.tz_localize(self.default_timezone)
+
+        data = scheduled_data.merge(
+            actual_data,
+            left_on="timestamp",
+            right_on="Time",
+            how="outer",
+        ).rename(
+            columns={
+                "timestamp": "Interval End",
+                "Value": "Net Actual Interchange",
+                "MISO": "Net Scheduled Interchange",
+            },
+        )
+
+        data["Interval End"] = data["Interval End"].fillna(data["Time"])
+        data = data.drop(columns=["Time"])
+
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+
+        # The actual data does not go as far back as the scheduled data so it has NAs.
+        # The scheduled data lags the actual by 1 interval so it has NAs as well.
+        # We must use Pandas nullable integer type to avoid issues with NAs.
+        # https://pandas.pydata.org/docs/user_guide/integer_na.html
+        for col in data:
+            if col not in ["Interval Start", "Interval End"]:
+                data[col] = data[col].astype("Int64")
+
+        return (
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Net Scheduled Interchange",
+                    "Net Actual Interchange",
+                    "AECI",
+                    "LGEE",
+                    "MHEB",
+                    "ONT",
+                    "PJM",
+                    "SOCO",
+                    "SPA",
+                    "SWPP",
+                    "TVA",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
