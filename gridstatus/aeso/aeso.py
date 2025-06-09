@@ -9,7 +9,6 @@ from requests.exceptions import HTTPError, RequestException
 from gridstatus import utils
 from gridstatus.aeso.aeso_constants import (
     ASSET_LIST_COLUMN_MAPPING,
-    INTERCHANGE_COLUMN_MAPPING,
     RESERVES_COLUMN_MAPPING,
     SUPPLY_DEMAND_COLUMN_MAPPING,
 )
@@ -158,7 +157,8 @@ class AESO:
         Get current interchange flows with neighboring regions.
 
         Returns:
-            DataFrame containing interchange data
+            DataFrame containing interchange data with separate columns for each region's flow
+            and a net interchange flow column
         """
         endpoint = "currentsupplydemand-api/v1/csd/summary/current"
         data = self._make_request(endpoint)
@@ -172,10 +172,28 @@ class AESO:
             df["last_updated_datetime_utc"],
             utc=True,
         ).dt.tz_convert(self.default_timezone)
-        df = df.rename(columns=INTERCHANGE_COLUMN_MAPPING)
-        df = df[list(INTERCHANGE_COLUMN_MAPPING.values())]
 
-        return utils.move_cols_to_front(df, ["Time"])
+        df = df.pivot(
+            index="Time",
+            columns="path",
+            values="actual_flow",
+        ).reset_index()
+
+        df = df.rename(
+            columns={
+                "British Columbia": "British Columbia Flow",
+                "Montana": "Montana Flow",
+                "Saskatchewan": "Saskatchewan Flow",
+            },
+        )
+
+        flow_columns = [col for col in df.columns if col != "Time"]
+        df["Net Interchange Flow"] = df[flow_columns].sum(axis=1)
+
+        cols = ["Time", "Net Interchange Flow"] + flow_columns
+        df = df[cols]
+
+        return df
 
     def get_reserves(self) -> pd.DataFrame:
         """
