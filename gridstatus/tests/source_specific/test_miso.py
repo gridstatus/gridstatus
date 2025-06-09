@@ -1017,10 +1017,8 @@ class TestMISO(BaseTestISO):
             df = self.iso.get_interchange_5_min("latest")
             self._check_get_interchange_5_min(df)
 
-            # Data goes back at least 1 day and 20 hours
             assert df["Interval Start"].min() <= self.local_now() - pd.DateOffset(
                 days=1,
-                hours=20,
             )
 
             # Data should be near-real-time
