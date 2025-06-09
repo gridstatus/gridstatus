@@ -132,9 +132,9 @@ class AESO:
 
         The AESO publishes load forecasts daily at 7am Mountain Time. The forecast covers
         the next 13 days. The publish time is determined as follows:
-        - If current time is after 7am, today at 7am is the publish time
-        - If current time is before 7am, yesterday at 7am is the publish time
-        - For future intervals, 7am on the day of acquisition is the publish time
+        - For historical data: 7am on the day of the interval if interval is after 7am,
+          otherwise 7am the previous day
+        - For future data: 7am today (if after 7am) or 7am yesterday (if before 7am)
 
         Returns:
             DataFrame containing load forecast data with publish times
@@ -169,15 +169,22 @@ class AESO:
         today_7am = current_time.floor("D") + pd.Timedelta(hours=7)
 
         def get_publish_time(row: pd.Series) -> pd.Timestamp:
+            interval_day_7am = row["Interval Start"].floor("D") + pd.Timedelta(hours=7)
+
             if row["Interval Start"] > current_time:
-                # NB: For future intervals, use 7am on the day of acquisition
-                return row["Interval Start"].floor("D") + pd.Timedelta(hours=7)
-            else:
-                # NB: For past/current intervals, use today's or yesterday's 7am, depending
+                # NB: For future intervals, use today's 7am if after 7am, otherwise yesterday's 7am
                 return (
                     today_7am
                     if current_time >= today_7am
                     else today_7am - pd.Timedelta(days=1)
+                )
+            else:
+                # NB: For historical data, use 7am on the day of the interval if after 7am,
+                # otherwise use 7am the previous day
+                return (
+                    interval_day_7am
+                    if row["Interval Start"] >= interval_day_7am
+                    else interval_day_7am - pd.Timedelta(days=1)
                 )
 
         df["Publish Time"] = df.apply(get_publish_time, axis=1)
