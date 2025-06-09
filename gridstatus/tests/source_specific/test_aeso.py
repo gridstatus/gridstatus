@@ -279,3 +279,104 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_system_marginal_price(df)
+
+    def _check_load(self, df: pd.DataFrame) -> None:
+        """Check load DataFrame structure and types."""
+        expected_columns = ["Interval Start", "Interval End", "Load"]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert pd.api.types.is_numeric_dtype(df["Load"])
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+    def _check_load_forecast(self, df: pd.DataFrame) -> None:
+        """Check load forecast DataFrame structure and types."""
+        expected_columns = ["Interval Start", "Interval End", "Load", "Forecast Load"]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert pd.api.types.is_numeric_dtype(df["Load"])
+        assert pd.api.types.is_numeric_dtype(df["Forecast Load"])
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_load_latest(self):
+        """Test getting latest load data."""
+        with api_vcr.use_cassette("test_get_load_latest.yaml"):
+            df = self.iso.get_load(date="latest")
+            self._check_load(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date,expected_hours",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+                96,
+            ),
+        ],
+    )
+    def test_get_load_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+        expected_hours: int,
+    ) -> None:
+        """Test getting historical load data."""
+        with api_vcr.use_cassette(
+            f"test_get_load_historical_range_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_load(df)
+            assert len(df) == expected_hours
+
+    def test_get_load_forecast_latest(self):
+        """Test getting latest load forecast data."""
+        with api_vcr.use_cassette("test_get_load_forecast_latest.yaml"):
+            df = self.iso.get_load_forecast(date="latest")
+            self._check_load_forecast(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date,expected_hours",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+                96,
+            ),
+        ],
+    )
+    def test_get_load_forecast_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+        expected_hours: int,
+    ) -> None:
+        """Test getting historical load forecast data."""
+        with api_vcr.use_cassette(
+            f"test_get_load_forecast_historical_range_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load_forecast(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_load_forecast(df)
+            assert len(df) == expected_hours

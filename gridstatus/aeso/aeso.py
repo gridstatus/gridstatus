@@ -80,6 +80,111 @@ class AESO:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON response from API: {str(e)}")
 
+    @support_date_range(frequency=None)
+    def get_load(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get current load data.
+
+        Returns:
+            DataFrame containing load data
+        """
+        if date == "latest":
+            return self.get_load(date="today")
+
+        start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
+        end_date = pd.Timestamp(end).strftime("%Y-%m-%d") if end else None
+
+        endpoint = (
+            f"actualforecast-api/v1/load/albertaInternalLoad?startDate={start_date}"
+        )
+        if end_date:
+            endpoint += f"&endDate={end_date}"
+
+        data = self._make_request(endpoint)
+
+        df = pd.json_normalize(data["return"]["Actual Forecast Report"])
+        df["Interval Start"] = pd.to_datetime(
+            df["begin_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.rename(
+            columns={
+                "alberta_internal_load": "Load",
+            },
+        )
+        return df[["Interval Start", "Interval End", "Load"]]
+
+    @support_date_range(frequency=None)
+    def get_load_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get load forecast data.
+
+        The AESO publishes load forecasts daily at 7am Mountain Time. The forecast covers
+        the next 13 days. The publish time is determined as follows:
+        - If current time is after 7am, today at 7am is the publish time
+        - If current time is before 7am, yesterday at 7am is the publish time
+        - For future intervals, 7am on the day of acquisition is the publish time
+
+        Returns:
+            DataFrame containing load forecast data with publish times
+        """
+        if date == "latest":
+            return self.get_load_forecast(date="today")
+
+        start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
+        end_date = pd.Timestamp(end).strftime("%Y-%m-%d") if end else None
+
+        endpoint = (
+            f"actualforecast-api/v1/load/albertaInternalLoad?startDate={start_date}"
+        )
+        if end_date:
+            endpoint += f"&endDate={end_date}"
+
+        data = self._make_request(endpoint)
+        df = pd.json_normalize(data["return"]["Actual Forecast Report"])
+        df["Interval Start"] = pd.to_datetime(
+            df["begin_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.rename(
+            columns={
+                "alberta_internal_load": "Load",
+                "forecast_alberta_internal_load": "Load Forecast",
+            },
+        )
+
+        current_time = pd.Timestamp.now(tz=self.default_timezone)
+        today_7am = current_time.floor("D") + pd.Timedelta(hours=7)
+
+        def get_publish_time(row: pd.Series) -> pd.Timestamp:
+            if row["Interval Start"] > current_time:
+                # NB: For future intervals, use 7am on the day of acquisition
+                return row["Interval Start"].floor("D") + pd.Timedelta(hours=7)
+            else:
+                # NB: For past/current intervals, use today's or yesterday's 7am, depending
+                return (
+                    today_7am
+                    if current_time >= today_7am
+                    else today_7am - pd.Timedelta(days=1)
+                )
+
+        df["Publish Time"] = df.apply(get_publish_time, axis=1)
+        return df[
+            ["Interval Start", "Interval End", "Publish Time", "Load", "Load Forecast"]
+        ]
+
     def get_supply_and_demand(self) -> pd.DataFrame:
         """
         Get current supply and demand summary data.
