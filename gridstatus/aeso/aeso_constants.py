@@ -47,20 +47,14 @@ FUEL_MIX_COLUMN_MAPPING: dict[str, str] = {
     "wind": "Wind",
 }
 
-INTERCHANGE_COLUMN_MAPPING: dict[str, str] = {
-    "time": "Time",
-    "path": "Path",
-    "actual_flow": "Actual Flow",
-}
-
 RESERVES_COLUMN_MAPPING: dict[str, str] = {
     "time": "Time",
     "contingency_reserve_required": "Contingency Reserve Required",
     "dispatched_contigency_reserve_total": "Dispatched Contingency Reserve Total",
-    "dispatched_contingency_reserve_gen": "Dispatched Contingency Reserve Gen",
+    "dispatched_contingency_reserve_gen": "Dispatched Contingency Reserve Generation",
     "dispatched_contingency_reserve_other": "Dispatched Contingency Reserve Other",
-    "ffr_armed_dispatch": "FFR Armed Dispatch",
-    "ffr_offered_volume": "FFR Offered Volume",
+    "ffr_armed_dispatch": "Fast Frequency Response Dispatched",
+    "ffr_offered_volume": "Fast Frequency Response Offered",
     "long_lead_time_volume": "Long Lead Time Volume",
 }
 
