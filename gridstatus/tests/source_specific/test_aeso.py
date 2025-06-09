@@ -119,7 +119,12 @@ class TestAESO(TestHelperMixin):
 
     def _check_pool_price(self, df: pd.DataFrame) -> None:
         """Check pool price DataFrame structure and types."""
-        expected_columns = ["Interval Start", "Interval End", "Pool Price"]
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Pool Price",
+            "Rolling 30 Day Average Pool Price",
+        ]
         assert df.columns.tolist() == expected_columns
         assert (
             df.dtypes["Interval Start"]

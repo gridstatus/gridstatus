@@ -325,13 +325,21 @@ class AESO:
             columns={
                 "pool_price": "Pool Price",
                 "forecast_pool_price": "Forecast Pool Price",
+                "rolling_30day_avg": "Rolling 30 Day Average Pool Price",
             },
         )
 
         if actual_or_forecast == "actual":
             df["Pool Price"] = pd.to_numeric(df["Pool Price"], errors="coerce")
             df = df[df["Pool Price"].notna()]
-            return df[["Interval Start", "Interval End", "Pool Price"]]
+            return df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Pool Price",
+                    "Rolling 30 Day Average Pool Price",
+                ]
+            ]
         else:
             df["Forecast Pool Price"] = pd.to_numeric(
                 df["Forecast Pool Price"],
