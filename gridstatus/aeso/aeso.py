@@ -118,6 +118,7 @@ class AESO:
                 "alberta_internal_load": "Load",
             },
         )
+        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
         return df[["Interval Start", "Interval End", "Load"]]
 
     @support_date_range(frequency=None)
@@ -170,7 +171,6 @@ class AESO:
 
         def get_publish_time(row: pd.Series) -> pd.Timestamp:
             interval_day_7am = row["Interval Start"].floor("D") + pd.Timedelta(hours=7)
-
             if row["Interval Start"] > current_time:
                 # NB: For future intervals, use today's 7am if after 7am, otherwise yesterday's 7am
                 return (
@@ -188,6 +188,8 @@ class AESO:
                 )
 
         df["Publish Time"] = df.apply(get_publish_time, axis=1)
+        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
+        df["Load Forecast"] = pd.to_numeric(df["Load Forecast"], errors="coerce")
         return df[
             ["Interval Start", "Interval End", "Publish Time", "Load", "Load Forecast"]
         ]
