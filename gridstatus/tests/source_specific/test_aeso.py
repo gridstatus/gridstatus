@@ -7,7 +7,6 @@ from gridstatus.aeso.aeso import AESO
 from gridstatus.aeso.aeso_constants import (
     ASSET_LIST_COLUMN_MAPPING,
     FUEL_MIX_COLUMN_MAPPING,
-    INTERCHANGE_COLUMN_MAPPING,
     RESERVES_COLUMN_MAPPING,
     SUPPLY_DEMAND_COLUMN_MAPPING,
 )
@@ -54,10 +53,28 @@ class TestAESO(TestHelperMixin):
             self._check_fuel_mix(df)
 
     def _check_interchange(self, df: pd.DataFrame) -> None:
-        expected_columns = list(INTERCHANGE_COLUMN_MAPPING.values())
+        expected_columns = [
+            "Time",
+            "Net Interchange Flow",
+            "British Columbia Flow",
+            "Montana Flow",
+            "Saskatchewan Flow",
+        ]
         assert df.columns.tolist() == expected_columns
-
         assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+
+        flow_columns = [col for col in df.columns if col != "Time"]
+        for col in flow_columns:
+            assert pd.api.types.is_numeric_dtype(df[col]), (
+                f"Column {col} should be numeric"
+            )
+
+        individual_flows = [
+            col for col in flow_columns if col != "Net Interchange Flow"
+        ]
+        assert (df["Net Interchange Flow"] == df[individual_flows].sum(axis=1)).all(), (
+            "Net Interchange Flow should be the sum of individual flows"
+        )
 
     def test_get_interchange(self):
         with api_vcr.use_cassette("test_get_interchange.yaml"):
