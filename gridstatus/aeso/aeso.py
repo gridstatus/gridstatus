@@ -142,9 +142,17 @@ class AESO:
             DataFrame containing load forecast data with publish times
         """
         if date == "latest":
-            today = pd.Timestamp.now(tz=self.default_timezone).floor("D")
-            end = today + pd.Timedelta(days=13)
-            return self.get_load_forecast(date=today, end=end)
+            current_time = pd.Timestamp.now(tz=self.default_timezone)
+            today_7am = current_time.floor("D") + pd.Timedelta(hours=7)
+            publish_time = (
+                today_7am
+                if current_time >= today_7am
+                else today_7am - pd.Timedelta(days=1)
+            )
+            end = publish_time + pd.Timedelta(days=13)
+            df = self.get_load_forecast(date=publish_time, end=end)
+            df = df[df["Publish Time"] == publish_time]
+            return df
 
         start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
         end_date = pd.Timestamp(end).strftime("%Y-%m-%d") if end else None
