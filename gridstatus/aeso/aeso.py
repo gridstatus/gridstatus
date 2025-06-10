@@ -119,6 +119,7 @@ class AESO:
             },
         )
         df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
+        df = df.dropna(subset=["Load"])
         return df[["Interval Start", "Interval End", "Load"]]
 
     @support_date_range(frequency=None)
@@ -141,7 +142,9 @@ class AESO:
             DataFrame containing load forecast data with publish times
         """
         if date == "latest":
-            return self.get_load_forecast(date="today")
+            today = pd.Timestamp.now(tz=self.default_timezone).floor("D")
+            end = today + pd.Timedelta(days=13)
+            return self.get_load_forecast(date=today, end=end)
 
         start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
         end_date = pd.Timestamp(end).strftime("%Y-%m-%d") if end else None

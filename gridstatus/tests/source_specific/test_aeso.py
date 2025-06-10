@@ -351,6 +351,7 @@ class TestAESO(TestHelperMixin):
             df = self.iso.get_load(date="latest")
             self._check_load(df)
             assert len(df) > 0
+            assert not df["Load"].isna().any()
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_hours",
