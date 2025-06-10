@@ -279,3 +279,186 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_system_marginal_price(df)
+
+    def _check_load(self, df: pd.DataFrame) -> None:
+        """Check load DataFrame structure and types."""
+        expected_columns = ["Interval Start", "Interval End", "Load"]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert pd.api.types.is_numeric_dtype(df["Load"])
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+    def _check_load_forecast(self, df: pd.DataFrame) -> None:
+        """Check load forecast DataFrame structure and types."""
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Load",
+            "Load Forecast",
+        ]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert pd.api.types.is_numeric_dtype(df["Load"])
+        assert pd.api.types.is_numeric_dtype(df["Load Forecast"])
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
+        today_7am = current_time.floor("D") + pd.Timedelta(hours=7)
+
+        for _, row in df.iterrows():
+            if row["Interval Start"] > current_time:
+                expected_publish = (
+                    today_7am
+                    if current_time >= today_7am
+                    else today_7am - pd.Timedelta(days=1)
+                )
+                assert row["Publish Time"] == expected_publish
+            else:
+                # Historical intervals should have 7am on their day or previous day
+                interval_day_7am = row["Interval Start"].floor("D") + pd.Timedelta(
+                    hours=7,
+                )
+                expected_publish = (
+                    interval_day_7am
+                    if row["Interval Start"] >= interval_day_7am
+                    else interval_day_7am - pd.Timedelta(days=1)
+                )
+                assert row["Publish Time"] == expected_publish
+
+    def test_get_load_latest(self):
+        """Test getting latest load data."""
+        with api_vcr.use_cassette("test_get_load_latest.yaml"):
+            df = self.iso.get_load(date="latest")
+            self._check_load(df)
+            assert len(df) > 0
+            assert not df["Load"].isna().any()
+
+    @pytest.mark.parametrize(
+        "start_date,end_date,expected_hours",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+                96,
+            ),
+        ],
+    )
+    def test_get_load_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+        expected_hours: int,
+    ) -> None:
+        """Test getting historical load data."""
+        with api_vcr.use_cassette(
+            f"test_get_load_historical_range_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_load(df)
+            assert len(df) == expected_hours
+
+    def test_get_load_forecast_latest(self):
+        """Test getting latest load forecast data."""
+        with api_vcr.use_cassette("test_get_load_forecast_latest.yaml"):
+            df = self.iso.get_load_forecast(date="latest")
+            self._check_load_forecast(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date,expected_hours",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+                96,
+            ),
+        ],
+    )
+    def test_get_load_forecast_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+        expected_hours: int,
+    ) -> None:
+        """Test getting historical load forecast data."""
+        with api_vcr.use_cassette(
+            f"test_get_load_forecast_historical_range_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_load_forecast(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_load_forecast(df)
+            assert len(df) == expected_hours
+
+    def test_get_load_forecast_future_publish_times(self):
+        """Test that future intervals have correct publish times."""
+        with api_vcr.use_cassette("test_get_load_forecast_future_publish_times.yaml"):
+            future_date = pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(
+                days=1,
+            )
+            df = self.iso.get_load_forecast(date=future_date)
+
+            current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
+            today_7am = current_time.floor("D") + pd.Timedelta(hours=7)
+            expected_publish = (
+                today_7am
+                if current_time >= today_7am
+                else today_7am - pd.Timedelta(days=1)
+            )
+
+            assert (df["Publish Time"] == expected_publish).all()
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+            ),
+        ],
+    )
+    def test_get_load_forecast_historical_publish_times(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
+    ):
+        """Test that historical intervals have correct publish times."""
+        with api_vcr.use_cassette(
+            "test_get_load_forecast_historical_publish_times.yaml",
+        ):
+            df = self.iso.get_load_forecast(date=date, end=end)
+
+            for _, row in df.iterrows():
+                interval_day_7am = row["Interval Start"].floor("D") + pd.Timedelta(
+                    hours=7,
+                )
+                expected_publish = (
+                    interval_day_7am
+                    if row["Interval Start"] >= interval_day_7am
+                    else interval_day_7am - pd.Timedelta(days=1)
+                )
+                assert row["Publish Time"] == expected_publish
