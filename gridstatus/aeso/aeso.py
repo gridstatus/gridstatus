@@ -12,6 +12,7 @@ from gridstatus.aeso.aeso_constants import (
     RESERVES_COLUMN_MAPPING,
     SUPPLY_DEMAND_COLUMN_MAPPING,
 )
+from gridstatus.base import NotSupported
 from gridstatus.decorators import support_date_range
 
 
@@ -532,7 +533,11 @@ class AESO:
         df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
         return df[["Time", "System Marginal Price", "Volume"]].sort_values(by="Time")
 
-    def get_unit_status(self) -> pd.DataFrame:
+    def get_unit_status(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Get current unit status data for all assets in the AESO system.
 
@@ -546,6 +551,9 @@ class AESO:
             - Net Generation: Current net generation in MW
             - Dispatched Contingency Reserve: Amount of contingency reserve dispatched in MW
         """
+        if date != "latest":
+            raise NotSupported()
+
         endpoint = "currentsupplydemand-api/v1/csd/generation/assets/current"
         data = self._make_request(endpoint)
 
