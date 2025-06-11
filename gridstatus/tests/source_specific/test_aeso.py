@@ -493,6 +493,6 @@ class TestAESO(TestHelperMixin):
     def test_get_unit_status(self):
         """Test getting current unit status data."""
         with api_vcr.use_cassette("test_get_unit_status.yaml"):
-            df = self.iso.get_unit_status()
+            df = self.iso.get_unit_status(date="latest")
             self._check_unit_status(df)
             assert len(df) > 0
