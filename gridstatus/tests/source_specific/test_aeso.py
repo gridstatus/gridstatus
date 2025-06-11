@@ -462,3 +462,37 @@ class TestAESO(TestHelperMixin):
                     else interval_day_7am - pd.Timedelta(days=1)
                 )
                 assert row["Publish Time"] == expected_publish
+
+    def _check_unit_status(self, df: pd.DataFrame) -> None:
+        """Check unit status DataFrame structure and types."""
+        expected_columns = [
+            "Time",
+            "Asset",
+            "Fuel Type",
+            "Sub Fuel Type",
+            "Maximum Capability",
+            "Net Generation",
+            "Dispatched Contingency Reserve",
+        ]
+        assert df.columns.tolist() == expected_columns
+        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        assert df["Asset"].dtype == "object"
+        assert df["Fuel Type"].dtype == "object"
+        assert df["Sub Fuel Type"].dtype == "object"
+
+        numeric_columns = [
+            "Maximum Capability",
+            "Net Generation",
+            "Dispatched Contingency Reserve",
+        ]
+        for col in numeric_columns:
+            assert pd.api.types.is_numeric_dtype(df[col]), (
+                f"Column {col} should be numeric"
+            )
+
+    def test_get_unit_status(self):
+        """Test getting current unit status data."""
+        with api_vcr.use_cassette("test_get_unit_status.yaml"):
+            df = self.iso.get_unit_status(date="latest")
+            self._check_unit_status(df)
+            assert len(df) > 0
