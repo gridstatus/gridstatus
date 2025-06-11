@@ -520,23 +520,15 @@ class AESO:
         df["Interval Start"] = pd.to_datetime(
             df["begin_datetime_utc"],
             utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
-        )
+        ).dt.tz_convert(self.default_timezone)
         df["Interval End"] = pd.to_datetime(
             df["end_datetime_utc"],
             utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
-        )
+        ).dt.tz_convert(self.default_timezone)
 
-        # NB: Handle end of day case - if end time is 23:59, make it 1 minute
-        df.loc[df["Interval End"].dt.strftime("%H:%M") == "23:59", "Interval End"] = (
-            df.loc[
-                df["Interval End"].dt.strftime("%H:%M") == "23:59",
-                "Interval Start",
-            ]
-            + pd.Timedelta(minutes=1)
+        mask = df["Interval End"].dt.strftime("%H:%M") == "23:59"
+        df.loc[mask, "Interval End"] = df.loc[mask, "Interval Start"] + pd.Timedelta(
+            minutes=1,
         )
 
         df = df.rename(
@@ -564,15 +556,9 @@ class AESO:
             last_row["Interval End"] = current_time
             df = pd.concat([df, pd.DataFrame([last_row])], ignore_index=True)
 
-        start_time = df["Interval Start"].min()
-        if end:
-            end_time = pd.Timestamp(end)
-        else:
-            end_time = df["Interval End"].max()
-
         all_minutes = pd.date_range(
-            start=start_time,
-            end=end_time,
+            start=df["Interval Start"].min(),
+            end=df["Interval End"].max(),
             freq="1min",
             tz=self.default_timezone,
             inclusive="left",
