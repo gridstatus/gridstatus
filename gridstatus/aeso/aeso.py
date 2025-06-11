@@ -503,7 +503,7 @@ class AESO:
         Get system marginal price data.
 
         Returns:
-            DataFrame containing system marginal price data
+            DataFrame containing system marginal price data with minutely intervals
         """
         if date == "latest":
             return self.get_system_marginal_price(date="today")
@@ -516,9 +516,29 @@ class AESO:
             endpoint += f"&endDate={end_date}"
         data = self._make_request(endpoint)
         df = pd.json_normalize(data["return"]["System Marginal Price Report"])
-        df["Time"] = pd.to_datetime(df["begin_datetime_utc"], utc=True).dt.tz_convert(
+
+        df["Interval Start"] = pd.to_datetime(
+            df["begin_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(
             self.default_timezone,
         )
+        df["Interval End"] = pd.to_datetime(
+            df["end_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        # NB: Handle end of day case - if end time is 23:59, make it 1 minute
+        df.loc[df["Interval End"].dt.strftime("%H:%M") == "23:59", "Interval End"] = (
+            df.loc[
+                df["Interval End"].dt.strftime("%H:%M") == "23:59",
+                "Interval Start",
+            ]
+            + pd.Timedelta(minutes=1)
+        )
+
         df = df.rename(
             columns={
                 "system_marginal_price": "System Marginal Price",
@@ -530,4 +550,37 @@ class AESO:
             errors="coerce",
         )
         df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
-        return df[["Time", "System Marginal Price", "Volume"]].sort_values(by="Time")
+        df = df.sort_values(by="Interval Start")
+
+        # NB: Add current time as final interval if needed
+        current_time = pd.Timestamp.now(tz=self.default_timezone)
+        if df["Interval End"].max() < current_time:
+            last_row = df.iloc[-1].copy()
+            last_row["Interval Start"] = df["Interval End"].max()
+            last_row["Interval End"] = current_time
+            df = pd.concat([df, pd.DataFrame([last_row])], ignore_index=True)
+
+        start_time = df["Interval Start"].min()
+        end_time = df["Interval End"].max()
+        all_minutes = pd.date_range(
+            start=start_time,
+            end=end_time,
+            freq="1min",
+            tz=self.default_timezone,
+        )
+
+        result_df = pd.DataFrame({"Interval Start": all_minutes})
+        result_df["Interval End"] = result_df["Interval Start"] + pd.Timedelta(
+            minutes=1,
+        )
+
+        result_df = pd.merge_asof(
+            result_df,
+            df[["Interval Start", "System Marginal Price", "Volume"]],
+            on="Interval Start",
+            direction="backward",
+        )
+
+        return result_df[
+            ["Interval Start", "Interval End", "System Marginal Price", "Volume"]
+        ]
