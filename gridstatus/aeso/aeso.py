@@ -556,9 +556,12 @@ class AESO:
             last_row["Interval End"] = current_time
             df = pd.concat([df, pd.DataFrame([last_row])], ignore_index=True)
 
+        start_time = df["Interval Start"].min()
+        end_time = pd.Timestamp(end) if end else df["Interval End"].max()
+
         all_minutes = pd.date_range(
-            start=df["Interval Start"].min(),
-            end=df["Interval End"].max(),
+            start=start_time,
+            end=end_time,
             freq="1min",
             tz=self.default_timezone,
             inclusive="left",
