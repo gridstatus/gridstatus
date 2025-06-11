@@ -531,3 +531,62 @@ class AESO:
         )
         df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
         return df[["Time", "System Marginal Price", "Volume"]].sort_values(by="Time")
+
+    def get_unit_status(self) -> pd.DataFrame:
+        """
+        Get current unit status data for all assets in the AESO system.
+
+        Returns:
+            DataFrame containing unit status data with columns:
+            - Time: Timestamp of the data
+            - Asset: Asset identifier
+            - Fuel Type: Type of fuel used
+            - Sub Fuel Type: Sub-category of fuel type
+            - Maximum Capability: Maximum generation capability in MW
+            - Net Generation: Current net generation in MW
+            - Dispatched Contingency Reserve: Amount of contingency reserve dispatched in MW
+        """
+        endpoint = "currentsupplydemand-api/v1/csd/generation/assets/current"
+        data = self._make_request(endpoint)
+
+        df = pd.json_normalize(
+            data["return"],
+            record_path="asset_list",
+            meta=["last_updated_datetime_utc"],
+        )
+
+        df["Time"] = pd.to_datetime(
+            df["last_updated_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+
+        df = df.rename(
+            columns={
+                "asset": "Asset",
+                "fuel_type": "Fuel Type",
+                "sub_fuel_type": "Sub Fuel Type",
+                "maximum_capability": "Maximum Capability",
+                "net_generation": "Net Generation",
+                "dispatched_contingency_reserve": "Dispatched Contingency Reserve",
+            },
+        )
+
+        numeric_columns = [
+            "Maximum Capability",
+            "Net Generation",
+            "Dispatched Contingency Reserve",
+        ]
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df[
+            [
+                "Time",
+                "Asset",
+                "Fuel Type",
+                "Sub Fuel Type",
+                "Maximum Capability",
+                "Net Generation",
+                "Dispatched Contingency Reserve",
+            ]
+        ]
