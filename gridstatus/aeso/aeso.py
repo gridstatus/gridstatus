@@ -552,21 +552,30 @@ class AESO:
         df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
         df = df.sort_values(by="Interval Start")
 
-        # NB: Add current time as final interval if needed
+        # NB: Add current time as final interval if needed, but only for today's data
         current_time = pd.Timestamp.now(tz=self.default_timezone)
-        if df["Interval End"].max() < current_time:
+        today_start = current_time.floor("D")
+        if (
+            df["Interval Start"].min().floor("D") == today_start
+            and df["Interval End"].max() < current_time
+        ):
             last_row = df.iloc[-1].copy()
             last_row["Interval Start"] = df["Interval End"].max()
             last_row["Interval End"] = current_time
             df = pd.concat([df, pd.DataFrame([last_row])], ignore_index=True)
 
         start_time = df["Interval Start"].min()
-        end_time = df["Interval End"].max()
+        if end:
+            end_time = pd.Timestamp(end)
+        else:
+            end_time = df["Interval End"].max()
+
         all_minutes = pd.date_range(
             start=start_time,
             end=end_time,
             freq="1min",
             tz=self.default_timezone,
+            inclusive="left",
         )
 
         result_df = pd.DataFrame({"Interval Start": all_minutes})
