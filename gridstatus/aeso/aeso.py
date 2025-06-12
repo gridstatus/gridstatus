@@ -644,11 +644,12 @@ class AESO:
 
         fuel_type_mapping = {
             "GAS": "Gas",
+            "COAL": "Coal",
             "HYDRO": "Hydro",
             "WIND": "Wind",
             "SOLAR": "Solar",
             "ENERGY STORAGE": "Energy Storage",
-            "OTHER": "Other",
+            "OTHER": "Biomass and Other",
         }
 
         sub_fuel_type_mapping = {
@@ -656,8 +657,9 @@ class AESO:
             "COMBINED_CYCLE": "Combined Cycle",
             "COGENERATION": "Cogeneration",
             "GAS_FIRED_STEAM": "Gas Fired Steam",
+            "COAL": "Coal",
             "HYDRO": "Hydro",
-            "OTHER": "Other",
+            "OTHER": "Biomass and Other",
             "ENERGY STORAGE": "Energy Storage",
             "SOLAR": "Solar",
             "WIND": "Wind",
@@ -665,8 +667,15 @@ class AESO:
 
         rows = []
         for fuel_data in data["return"]:
-            fuel_type = fuel_type_mapping[fuel_data["fuel_type"]]
-            sub_fuel_type = sub_fuel_type_mapping[fuel_data["sub_fuel_type"]]
+            fuel_type = fuel_data["fuel_type"]
+            sub_fuel_type = fuel_data["sub_fuel_type"]
+
+            mapped_fuel_type = fuel_type_mapping.get(fuel_type, fuel_type)
+            mapped_sub_fuel_type = sub_fuel_type_mapping.get(
+                sub_fuel_type,
+                sub_fuel_type,
+            )
+
             for hour_data in fuel_data["Hours"]:
                 interval_start = pd.to_datetime(
                     hour_data["begin_datetime_utc"],
@@ -678,8 +687,8 @@ class AESO:
                 row = {
                     "Interval Start": interval_start,
                     "Interval End": interval_end,
-                    "Fuel Type": fuel_type,
-                    "Sub Fuel Type": sub_fuel_type,
+                    "Fuel Type": mapped_fuel_type,
+                    "Sub Fuel Type": mapped_sub_fuel_type,
                     "Operating Outage": outage_grouping["OP OUT"],
                 }
                 rows.append(row)
@@ -702,4 +711,55 @@ class AESO:
             axis=1,
         )
 
-        return df
+        df["Column Name"] = df.apply(
+            lambda row: (
+                "Gas"
+                if row["Fuel Type"] == "Gas"
+                else (
+                    row["Fuel Type"]
+                    if row["Fuel Type"] == row["Sub Fuel Type"]
+                    else f"{row['Fuel Type']} - {row['Sub Fuel Type']}"
+                )
+            ),
+            axis=1,
+        )
+
+        df_pivot = df.pivot_table(
+            index=["Interval Start", "Interval End", "Publish Time"],
+            columns="Column Name",
+            values="Operating Outage",
+            aggfunc="sum",
+        ).reset_index()
+
+        df_pivot["Total Outage"] = df_pivot[
+            [
+                col
+                for col in df_pivot.columns
+                if col not in ["Interval Start", "Interval End", "Publish Time"]
+            ]
+        ].sum(axis=1)
+
+        df_pivot = utils.move_cols_to_front(
+            df_pivot,
+            ["Interval Start", "Interval End", "Publish Time", "Total Outage"],
+        )
+
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Total Outage",
+            "Gas",
+            "Coal",
+            "Hydro",
+            "Wind",
+            "Solar",
+            "Energy Storage",
+            "Biomass and Other",
+        ]
+
+        for col in expected_columns:
+            if col not in df_pivot.columns:
+                df_pivot[col] = 0
+
+        return df_pivot[expected_columns]
