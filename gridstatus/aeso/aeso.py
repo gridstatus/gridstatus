@@ -621,7 +621,7 @@ class AESO:
             current_time = pd.Timestamp.now(tz=self.default_timezone)
             return self.get_generator_outages_hourly(
                 date=current_time,
-                end=current_time + pd.DateOffset(months=24),
+                end=current_time + pd.DateOffset(months=4),
             )
         else:
             start_date = pd.Timestamp(date)
