@@ -504,7 +504,7 @@ class AESO:
         Get system marginal price data.
 
         Returns:
-            DataFrame containing system marginal price data
+            DataFrame containing system marginal price data with minutely intervals
         """
         if date == "latest":
             return self.get_system_marginal_price(date="today")
@@ -517,9 +517,26 @@ class AESO:
             endpoint += f"&endDate={end_date}"
         data = self._make_request(endpoint)
         df = pd.json_normalize(data["return"]["System Marginal Price Report"])
-        df["Time"] = pd.to_datetime(df["begin_datetime_utc"], utc=True).dt.tz_convert(
-            self.default_timezone,
+
+        df["Interval Start"] = pd.to_datetime(
+            df["begin_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = pd.to_datetime(
+            df["end_datetime_utc"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+
+        # NB: The latest value that the AESO API returns always has an interval that ends at 23:59 of the current day.
+        # We want to set the interval end to 1 minute after the interval start to make it consistent with the other intervals
+        # and make the forward filling easier.
+        # Example: If the latest interval start is 2025-06-12 23:00:00,
+        # the interval end will be changed from 2025-06-12 23:59:00 to 2025-06-12 23:01:00.
+        mask = df["Interval End"].dt.strftime("%H:%M") == "23:59"
+        df.loc[mask, "Interval End"] = df.loc[mask, "Interval Start"] + pd.Timedelta(
+            minutes=1,
         )
+
         df = df.rename(
             columns={
                 "system_marginal_price": "System Marginal Price",
@@ -531,7 +548,46 @@ class AESO:
             errors="coerce",
         )
         df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
-        return df[["Time", "System Marginal Price", "Volume"]].sort_values(by="Time")
+        df = df.sort_values(by="Interval Start")
+
+        # NB: Add current time as final interval if needed, but only for today's data
+        current_time = pd.Timestamp.now(tz=self.default_timezone)
+        today_start = current_time.floor("D")
+        if (
+            df["Interval Start"].min().floor("D") == today_start
+            and df["Interval End"].max() < current_time
+        ):
+            last_row = df.iloc[-1].copy()
+            last_row["Interval Start"] = df["Interval End"].max()
+            last_row["Interval End"] = current_time.floor("min")
+            df = pd.concat([df, pd.DataFrame([last_row])], ignore_index=True)
+
+        start_time = df["Interval Start"].min()
+        end_time = pd.Timestamp(end) if end else df["Interval End"].max()
+
+        all_minutes = pd.date_range(
+            start=start_time,
+            end=end_time,
+            freq="1min",
+            tz=self.default_timezone,
+            inclusive="left",
+        )
+
+        result_df = pd.DataFrame({"Interval Start": all_minutes})
+        result_df["Interval End"] = result_df["Interval Start"] + pd.Timedelta(
+            minutes=1,
+        )
+
+        result_df = pd.merge_asof(
+            result_df,
+            df[["Interval Start", "System Marginal Price", "Volume"]],
+            on="Interval Start",
+            direction="backward",
+        )
+
+        return result_df[
+            ["Interval Start", "Interval End", "System Marginal Price", "Volume"]
+        ]
 
     def get_unit_status(
         self,
