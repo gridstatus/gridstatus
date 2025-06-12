@@ -690,16 +690,12 @@ class AESO:
                     "Fuel Type": mapped_fuel_type,
                     "Sub Fuel Type": mapped_sub_fuel_type,
                     "Operating Outage": outage_grouping["OP OUT"],
+                    "Mothball Outage": outage_grouping["MBO OUT"],
                 }
                 rows.append(row)
 
         df = pd.DataFrame(rows)
-
-        if end_date:
-            df = df[
-                (df["Interval Start"] >= start_date)
-                & (df["Interval Start"] <= end_date)
-            ]
+        print(df)
 
         current_time = pd.Timestamp.now(tz=self.default_timezone)
         df["Publish Time"] = df.apply(
@@ -711,22 +707,28 @@ class AESO:
             axis=1,
         )
 
-        df["Column Name"] = df.apply(
-            lambda row: (
-                "Gas"
-                if row["Fuel Type"] == "Gas"
-                else (
-                    row["Fuel Type"]
-                    if row["Fuel Type"] == row["Sub Fuel Type"]
-                    else f"{row['Fuel Type']} - {row['Sub Fuel Type']}"
-                )
-            ),
-            axis=1,
+        # Calculate MBO sums before pivoting
+        mbo_df = df.copy()
+        print("mbo_df columns:", mbo_df.columns.tolist())
+
+        if "Mothball Outage" not in mbo_df.columns:
+            print(
+                "Warning: Mothball Outage not found in columns! Creating it with zeros.",
+            )
+            mbo_df["Mothball Outage"] = 0
+
+        mbo_df = (
+            mbo_df.groupby(["Interval Start", "Interval End", "Publish Time"])[
+                "Mothball Outage"
+            ]
+            .sum()
+            .reset_index()
         )
+        print("After groupby, mbo_df columns:", mbo_df.columns.tolist())
 
         df_pivot = df.pivot_table(
             index=["Interval Start", "Interval End", "Publish Time"],
-            columns="Column Name",
+            columns="Fuel Type",
             values="Operating Outage",
             aggfunc="sum",
         ).reset_index()
@@ -744,6 +746,7 @@ class AESO:
             ["Interval Start", "Interval End", "Publish Time", "Total Outage"],
         )
 
+        # NB: Need to have all columns present, and create them to be 0 if they don't exist
         expected_columns = [
             "Interval Start",
             "Interval End",
@@ -756,10 +759,33 @@ class AESO:
             "Solar",
             "Energy Storage",
             "Biomass and Other",
+            "Mothball Outage",
         ]
 
         for col in expected_columns:
-            if col not in df_pivot.columns:
+            if col not in df_pivot.columns and col != "Mothball Outage":
                 df_pivot[col] = 0
 
+        print("df_pivot columns before merge:", df_pivot.columns.tolist())
+        print("mbo_df columns before merge:", mbo_df.columns.tolist())
+
+        # Drop Mothball Outage column from df_pivot if it already exists
+        if "Mothball Outage" in df_pivot.columns:
+            df_pivot = df_pivot.drop(columns=["Mothball Outage"])
+
+        # Merge MBO values back
+        try:
+            df_pivot = pd.merge(
+                df_pivot,
+                mbo_df,
+                on=["Interval Start", "Interval End", "Publish Time"],
+                how="left",
+            )
+            df_pivot["Mothball Outage"] = df_pivot["Mothball Outage"].fillna(0)
+        except Exception as e:
+            print(f"Error during merge: {e}")
+            print("Creating Mothball Outage column with zeros as fallback")
+            df_pivot["Mothball Outage"] = 0
+
+        print("Final df_pivot columns:", df_pivot.columns.tolist())
         return df_pivot[expected_columns]

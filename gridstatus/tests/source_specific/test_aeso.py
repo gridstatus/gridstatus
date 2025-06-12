@@ -511,6 +511,7 @@ class TestAESO(TestHelperMixin):
             "Solar",
             "Energy Storage",
             "Biomass and Other",
+            "Mothball Outage",
         ]
         assert df.columns.tolist() == expected_columns
         assert (
