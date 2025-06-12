@@ -135,3 +135,69 @@ class TestMISOAPI(TestHelperMixin):
 
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
+
+    """get_interchange_hourly"""
+
+    def _check_interchange_hourly(self, data: pd.DataFrame):
+        assert data.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Net Scheduled Interchange",
+            "Net Actual Interchange",
+            "MHEB Scheduled",
+            "MHEB Actual",
+            "ONT Scheduled",
+            "ONT Actual",
+            "SWPP Scheduled",
+            "SWPP Actual",
+            "TVA Scheduled",
+            "TVA Actual",
+            "AECI Scheduled",
+            "AECI Actual",
+            "SOCO Scheduled",
+            "SOCO Actual",
+            "LGEE Scheduled",
+            "LGEE Actual",
+            "PJM Scheduled",
+            "PJM Actual",
+            "OTHER Scheduled",
+            "OTHER Actual",
+        ]
+
+        assert data["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert data["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                if col in ["Net Scheduled Interchange", "Net Actual Interchange"]:
+                    assert data[col].dtype == "float64"
+                else:
+                    assert data[col].dtype in ["int64", "Int64"]
+
+    @pytest.mark.integration
+    def test_get_interchange_hourly_today(self):
+        with api_vcr.use_cassette("test_get_interchange_hourly_today"):
+            df = self.iso.get_interchange_hourly("today")
+
+        self._check_interchange_hourly(df)
+
+        # Should only fetch one hour of data
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.Timedelta(
+            hours=1,
+        )
+
+    @pytest.mark.integration
+    def test_get_interchange_hourly_date_range(self):
+        start = self.local_now() - pd.DateOffset(days=2)
+        end = start + pd.Timedelta(hours=3)
+
+        with api_vcr.use_cassette(
+            "test_get_interchange_hourly_{start:%Y%m%d}_{end:%Y%m%d}",
+        ):
+            df = self.iso.get_interchange_hourly(start, end)
+
+        self._check_interchange_hourly(df)
+
+        assert df["Interval Start"].min() == start.floor("h")
+        assert df["Interval End"].max() == end.floor("h")

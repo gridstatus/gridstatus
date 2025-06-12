@@ -1,3 +1,4 @@
+import datetime
 import os
 import time
 from itertools import chain
@@ -20,6 +21,9 @@ CERTIFICATES_CHAIN_FILE = os.path.join(
 
 PRICING_PRODUCT = "pricing"
 BASE_PRICING_URL = "https://apim.misoenergy.org/pricing/v1"
+LOAD_GENERATION_AND_INTERCHANGE_PRODUCT = "load_generation_and_interchange"
+BASE_LOAD_GENERATION_AND_INTERCHANGE_URL = "https://apim.misoenergy.org/lgi/v1"
+
 PRELIMINARY_STRING = "Preliminary"
 FINAL_STRING = "Final"
 FIVE_MINUTE_RESOLUTION = "5min"
@@ -34,6 +38,7 @@ class MISOAPI:
     def __init__(
         self,
         pricing_api_key: str = None,
+        load_generation_and_interchange_api_key: str = None,
         initial_sleep_seconds: int = 1,
     ):
         """
@@ -47,10 +52,25 @@ class MISOAPI:
         """
         self.pricing_api_key = pricing_api_key or os.getenv(
             "MISO_API_PRICING_SUBSCRIPTION_KEY",
+            "",
         )
         self.pricing_api_keys = self.pricing_api_key.split(",")
         # Used to rotate through the pricing API keys
         self.current_pricing_key_index = 0
+
+        self.load_generation_and_interchange_api_key = (
+            load_generation_and_interchange_api_key
+            or os.getenv(
+                "MISO_API_LOAD_GENERATION_AND_INTERCHANGE_SUBSCRIPTION_KEY",
+                "",
+            )
+        )
+        self.load_generation_and_interchange_api_keys = (
+            self.load_generation_and_interchange_api_key.split(",")
+        )
+
+        # Used to rotate through the load generation and interchange API keys
+        self.current_load_generation_and_interchange_key_index = 0
 
         self.default_timezone = "EST"
         self.initial_sleep_seconds = initial_sleep_seconds
@@ -222,23 +242,7 @@ class MISOAPI:
         data_list: List[Dict],
         market: Markets,
     ) -> pd.DataFrame:
-        df = pd.DataFrame(data_list)
-
-        # Split timeInterval dict into separate columns for 'start' and 'end'
-        df = pd.concat(
-            [
-                df["timeInterval"].apply(pd.Series)[["start", "end"]],
-                df.drop(columns=["timeInterval"]),
-            ],
-            axis=1,
-        )
-
-        df["Interval Start"] = pd.to_datetime(df["start"]).dt.tz_localize(
-            self.default_timezone,
-        )
-        df["Interval End"] = pd.to_datetime(df["end"]).dt.tz_localize(
-            self.default_timezone,
-        )
+        df = self._data_list_to_df(data_list)
 
         node_to_type_mapping = (
             MISO()
@@ -276,6 +280,128 @@ class MISOAPI:
         ]
 
         return df
+
+    @support_date_range(frequency="HOUR_START")
+    def get_interchange_hourly(
+        self,
+        date: str | datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        verbose: bool = False,
+    ):
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("H")
+
+        # 0-padded hour. 00 doesn't exist so add 1 to the hour
+        interval = str(date.hour + 1).zfill(2)
+        date_str = date.strftime("%Y-%m-%d")
+
+        historical_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/historical/{date_str}/interchange/net-scheduled?interval={interval}"  # noqa
+
+        historical_scheduled_data_list = self._get_url(
+            historical_scheduled_url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        historical_scheduled_df = self._data_list_to_df(
+            historical_scheduled_data_list,
+        ).pivot(
+            columns="adjacentBa",
+            index=["Interval Start", "Interval End"],
+            values="nsi",
+        )
+
+        historical_scheduled_df.columns = historical_scheduled_df.columns + " Scheduled"
+
+        historical_scheduled_df = historical_scheduled_df.reset_index()
+
+        real_time_actual_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-actual?interval={interval}"  # noqa
+
+        real_time_actual_data_list = self._get_url(
+            real_time_actual_url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        real_time_actual_df = self._data_list_to_df(real_time_actual_data_list)
+
+        # Historical data has this as ONT, so convert for consistency
+        real_time_actual_df["adjacentBa"] = real_time_actual_df["adjacentBa"].replace(
+            "IESO",
+            "ONT",
+        )
+
+        real_time_actual_df = real_time_actual_df.pivot(
+            columns="adjacentBa",
+            index=["Interval Start", "Interval End"],
+            values="nai",
+        )
+        real_time_actual_df.columns = real_time_actual_df.columns + " Actual"
+        real_time_actual_df = real_time_actual_df.reset_index()
+
+        real_time_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-scheduled?interval={interval}"  # noqa
+
+        real_time_scheduled_data_list = self._get_url(
+            real_time_scheduled_url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        real_time_scheduled_df = self._data_list_to_df(real_time_scheduled_data_list)
+
+        real_time_scheduled_df = real_time_scheduled_df.rename(
+            columns={
+                "nsiForward": "Net Scheduled Interchange",
+                "nsiRealTime": "Net Actual Interchange",
+            },
+        ).drop(columns=["nsiDelta"])
+
+        data = pd.merge(
+            historical_scheduled_df,
+            real_time_actual_df,
+            on=["Interval Start", "Interval End"],
+            how="outer",
+        )
+
+        data = pd.merge(
+            data,
+            real_time_scheduled_df,
+            on=["Interval Start", "Interval End"],
+            how="outer",
+        )
+
+        # The actual data sometimes doesn't have an OTHER column
+        if "OTHER Actual" not in data.columns:
+            data["OTHER Actual"] = None
+            # Int64 supports nullable integers
+            data["OTHER Actual"] = data["OTHER Actual"].astype("Int64")
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Net Scheduled Interchange",
+                "Net Actual Interchange",
+                "MHEB Scheduled",
+                "MHEB Actual",
+                "ONT Scheduled",
+                "ONT Actual",
+                "SWPP Scheduled",
+                "SWPP Actual",
+                "TVA Scheduled",
+                "TVA Actual",
+                "AECI Scheduled",
+                "AECI Actual",
+                "SOCO Scheduled",
+                "SOCO Actual",
+                "LGEE Scheduled",
+                "LGEE Actual",
+                "PJM Scheduled",
+                "PJM Actual",
+                "OTHER Scheduled",
+                "OTHER Actual",
+            ]
+        ]
 
     def _get_url(
         self,
@@ -341,6 +467,27 @@ class MISOAPI:
 
         return data_list
 
+    def _data_list_to_df(self, data_list: List[Dict]) -> pd.DataFrame:
+        df = pd.DataFrame(data_list)
+
+        # Split timeInterval dict into separate columns for 'start' and 'end'
+        df = pd.concat(
+            [
+                df["timeInterval"].apply(pd.Series)[["start", "end"]],
+                df.drop(columns=["timeInterval"]),
+            ],
+            axis=1,
+        )
+
+        df["Interval Start"] = pd.to_datetime(df["start"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = pd.to_datetime(df["end"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        return df.drop(columns=["start", "end"]).reset_index(drop=True)
+
     def _get_next_key(self, product: str) -> str:
         """Get the next API key in the rotation."""
         if product == PRICING_PRODUCT:
@@ -349,8 +496,12 @@ class MISOAPI:
                 self.pricing_api_keys,
             )
             return self.pricing_api_keys[key_index]
-
-        # TODO: support other products (load)
+        elif product == LOAD_GENERATION_AND_INTERCHANGE_PRODUCT:
+            key_index = self.current_load_generation_and_interchange_key_index
+            self.current_load_generation_and_interchange_key_index = (
+                key_index + 1
+            ) % len(self.load_generation_and_interchange_api_keys)
+            return self.load_generation_and_interchange_api_keys[key_index]
 
     def _headers(self, product: str) -> Dict:
         return {
