@@ -276,7 +276,7 @@ class TestAESO(TestHelperMixin):
             assert len(df) > 0
 
             current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
-            assert df["Interval End"].max() >= current_time
+            assert df["Interval End"].max() >= current_time.floor("min")
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_minutes",
