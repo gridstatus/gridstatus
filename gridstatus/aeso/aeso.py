@@ -527,6 +527,11 @@ class AESO:
             utc=True,
         ).dt.tz_convert(self.default_timezone)
 
+        # NB: The latest value that the AESO API returns always has an interval that ends at 23:59 of the current day.
+        # We want to set the interval end to 1 minute after the interval start to make it consistent with the other intervals
+        # and make the forward filling easier.
+        # Example: If the latest interval start is 2025-06-12 23:00:00,
+        # the interval end will be changed from 2025-06-12 23:59:00 to 2025-06-12 23:01:00.
         mask = df["Interval End"].dt.strftime("%H:%M") == "23:59"
         df.loc[mask, "Interval End"] = df.loc[mask, "Interval Start"] + pd.Timedelta(
             minutes=1,
@@ -554,7 +559,7 @@ class AESO:
         ):
             last_row = df.iloc[-1].copy()
             last_row["Interval Start"] = df["Interval End"].max()
-            last_row["Interval End"] = current_time
+            last_row["Interval End"] = current_time.floor("min")
             df = pd.concat([df, pd.DataFrame([last_row])], ignore_index=True)
 
         start_time = df["Interval Start"].min()
