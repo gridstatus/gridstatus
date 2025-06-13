@@ -530,3 +530,92 @@ class TestAESO(TestHelperMixin):
             df = self.iso.get_unit_status(date="latest")
             self._check_unit_status(df)
             assert len(df) > 0
+
+    def _check_generator_outages_hourly(self, df: pd.DataFrame) -> None:
+        """Check generator outages DataFrame structure and types."""
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Total Outage",
+            "Simple Cycle",
+            "Combined Cycle",
+            "Cogeneration",
+            "Gas Fired Steam",
+            "Coal",
+            "Hydro",
+            "Wind",
+            "Solar",
+            "Energy Storage",
+            "Biomass and Other",
+            "Mothball Outage",
+        ]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        numeric_columns = [
+            col
+            for col in df.columns
+            if col not in ["Interval Start", "Interval End", "Publish Time"]
+        ]
+        for col in numeric_columns:
+            assert pd.api.types.is_numeric_dtype(df[col]), (
+                f"Column {col} should be numeric"
+            )
+
+        # NB: Total Outage should be sum of all numeric columns except Mothball Outage and Total Outage
+        outage_columns = [
+            col
+            for col in numeric_columns
+            if col not in ["Mothball Outage", "Total Outage"]
+        ]
+        assert (df["Total Outage"] == df[outage_columns].sum(axis=1)).all()
+
+    def test_get_generator_outages_hourly_latest(self):
+        """Test getting latest generator outages data."""
+        with api_vcr.use_cassette("test_get_generator_outages_hourly_latest.yaml"):
+            df = self.iso.get_generator_outages_hourly(date="latest")
+            self._check_generator_outages_hourly(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+            ),
+        ],
+    )
+    def test_get_generator_outages_hourly_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical generator outages data."""
+        with api_vcr.use_cassette(
+            f"test_get_generator_outages_hourly_historical_range_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_generator_outages_hourly(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_generator_outages_hourly(df)
+            assert df["Interval Start"].min() >= start_date.tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() <= end_date.tz_localize(
+                self.iso.default_timezone,
+            )
