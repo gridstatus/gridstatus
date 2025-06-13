@@ -504,7 +504,10 @@ class TestAESO(TestHelperMixin):
             "Interval End",
             "Publish Time",
             "Total Outage",
-            "Gas",
+            "Simple Cycle",
+            "Combined Cycle",
+            "Cogeneration",
+            "Gas Fired Steam",
             "Coal",
             "Hydro",
             "Wind",
@@ -538,7 +541,13 @@ class TestAESO(TestHelperMixin):
                 f"Column {col} should be numeric"
             )
 
-        assert (df["Total Outage"] == df[numeric_columns[1:]].sum(axis=1)).all()
+        # NB: Total Outage should be sum of all numeric columns except Mothball Outage and Total Outage
+        outage_columns = [
+            col
+            for col in numeric_columns
+            if col not in ["Mothball Outage", "Total Outage"]
+        ]
+        assert (df["Total Outage"] == df[outage_columns].sum(axis=1)).all()
 
     def test_get_generator_outages_hourly_latest(self):
         """Test getting latest generator outages data."""

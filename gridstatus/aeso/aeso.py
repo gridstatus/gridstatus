@@ -618,7 +618,7 @@ class AESO:
             DataFrame containing generator outage data
         """
         if date == "latest":
-            current_time = pd.Timestamp.now()
+            current_time = pd.Timestamp.now(tz=self.default_timezone)
             return self.get_generator_outages_hourly(
                 date=current_time,
                 end=current_time + pd.DateOffset(months=4),
@@ -709,7 +709,7 @@ class AESO:
         # NB: Pivot the data to get the by-fuel type outage.
         df_pivot = df.pivot_table(
             index=["Interval Start", "Interval End", "Publish Time"],
-            columns="Fuel Type",
+            columns=["Sub Fuel Type"],
             values="Operating Outage",
             aggfunc="sum",
         ).reset_index()
@@ -719,7 +719,14 @@ class AESO:
             [
                 col
                 for col in df_pivot.columns
-                if col not in ["Interval Start", "Interval End", "Publish Time"]
+                if col
+                not in [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Mothball Outage",
+                    "Total Outage",
+                ]
             ]
         ].sum(axis=1)
 
@@ -750,7 +757,10 @@ class AESO:
             "Interval End",
             "Publish Time",
             "Total Outage",
-            "Gas",
+            "Simple Cycle",
+            "Combined Cycle",
+            "Cogeneration",
+            "Gas Fired Steam",
             "Coal",
             "Hydro",
             "Wind",
