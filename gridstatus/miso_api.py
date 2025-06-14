@@ -281,7 +281,7 @@ class MISOAPI:
 
         return df
 
-    @support_date_range(frequency="HOUR_START")
+    @support_date_range(frequency="DAY_START")
     def get_interchange_hourly(
         self,
         date: str | datetime.date | datetime.datetime,
@@ -291,11 +291,9 @@ class MISOAPI:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("H")
 
-        # 0-padded hour. 00 doesn't exist so add 1 to the hour
-        interval = str(date.hour + 1).zfill(2)
         date_str = date.strftime("%Y-%m-%d")
 
-        historical_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/historical/{date_str}/interchange/net-scheduled?interval={interval}"  # noqa
+        historical_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/historical/{date_str}/interchange/net-scheduled"  # noqa
 
         historical_scheduled_data_list = self._get_url(
             historical_scheduled_url,
@@ -315,7 +313,7 @@ class MISOAPI:
 
         historical_scheduled_df = historical_scheduled_df.reset_index()
 
-        real_time_actual_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-actual?interval={interval}"  # noqa
+        real_time_actual_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-actual"  # noqa
 
         real_time_actual_data_list = self._get_url(
             real_time_actual_url,
@@ -339,7 +337,7 @@ class MISOAPI:
         real_time_actual_df.columns = real_time_actual_df.columns + " Actual"
         real_time_actual_df = real_time_actual_df.reset_index()
 
-        real_time_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-scheduled?interval={interval}"  # noqa
+        real_time_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-scheduled"  # noqa
 
         real_time_scheduled_data_list = self._get_url(
             real_time_scheduled_url,
@@ -351,10 +349,11 @@ class MISOAPI:
 
         real_time_scheduled_df = real_time_scheduled_df.rename(
             columns={
-                "nsiForward": "Net Scheduled Interchange",
-                "nsiRealTime": "Net Actual Interchange",
+                "nsiForward": "Net Scheduled Interchange Forward",
+                "nsiRealTime": "Net Scheduled Interchange Real Time",
+                "nsiDelta": "Net Scheduled Interchange Delta",
             },
-        ).drop(columns=["nsiDelta"])
+        )
 
         data = pd.merge(
             historical_scheduled_df,
@@ -370,18 +369,22 @@ class MISOAPI:
             how="outer",
         )
 
-        # The actual data sometimes doesn't have an OTHER column
-        if "OTHER Actual" not in data.columns:
-            data["OTHER Actual"] = None
-            # Int64 supports nullable integers
-            data["OTHER Actual"] = data["OTHER Actual"].astype("Int64")
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                data[col] = data[col].astype(float)
 
         return data[
             [
                 "Interval Start",
                 "Interval End",
-                "Net Scheduled Interchange",
-                "Net Actual Interchange",
+                "Net Scheduled Interchange Forward",
+                "Net Scheduled Interchange Real Time",
+                "Net Scheduled Interchange Delta",
                 "MHEB Scheduled",
                 "MHEB Actual",
                 "ONT Scheduled",
@@ -399,9 +402,9 @@ class MISOAPI:
                 "PJM Scheduled",
                 "PJM Actual",
                 "OTHER Scheduled",
-                "OTHER Actual",
+                "SPA Actual",
             ]
-        ]
+        ].reset_index(drop=True)
 
     def _get_url(
         self,
