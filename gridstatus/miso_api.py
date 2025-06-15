@@ -289,7 +289,7 @@ class MISOAPI:
         verbose: bool = False,
     ):
         if date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone).floor("H")
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("h")
 
         date_str = date.strftime("%Y-%m-%d")
 

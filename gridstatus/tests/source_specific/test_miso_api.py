@@ -193,7 +193,7 @@ class TestMISOAPI(TestHelperMixin):
         end = start + pd.DateOffset(days=2, hours=4)
 
         with api_vcr.use_cassette(
-            "test_get_interchange_hourly_{start:%Y%m%d}_{end:%Y%m%d}",
+            f"test_get_interchange_hourly_{start}_{end}",
         ):
             df = self.iso.get_interchange_hourly(start, end)
 
