@@ -243,11 +243,30 @@ class TestAESO(TestHelperMixin):
 
     def _check_system_marginal_price(self, df: pd.DataFrame) -> None:
         """Check system marginal price DataFrame structure and types."""
-        expected_columns = ["Time", "System Marginal Price", "Volume"]
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "System Marginal Price",
+            "Volume",
+        ]
         assert df.columns.tolist() == expected_columns
-        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
         assert pd.api.types.is_numeric_dtype(df["System Marginal Price"])
         assert pd.api.types.is_numeric_dtype(df["Volume"])
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=1)
+        ).all()
+        assert df["Interval Start"].is_monotonic_increasing
+        assert df["Interval End"].is_monotonic_increasing
+        assert not df["System Marginal Price"].isna().any()
+        assert not df["Volume"].isna().any()
 
     def test_get_system_marginal_price_latest(self):
         """Test getting latest system marginal price data."""
@@ -256,12 +275,21 @@ class TestAESO(TestHelperMixin):
             self._check_system_marginal_price(df)
             assert len(df) > 0
 
+            current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
+            assert df["Interval End"].max() >= current_time.floor("min")
+
     @pytest.mark.parametrize(
-        "start_date,end_date",
+        "start_date,end_date,expected_minutes",
         [
             (
                 pd.Timestamp("2024-01-01"),
-                pd.Timestamp("2024-01-04"),
+                pd.Timestamp("2024-01-01 01:00"),
+                60,
+            ),
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-03"),
+                2880,
             ),
         ],
     )
@@ -269,16 +297,22 @@ class TestAESO(TestHelperMixin):
         self,
         start_date: pd.Timestamp,
         end_date: pd.Timestamp,
+        expected_minutes: int,
     ) -> None:
         """Test getting historical system marginal price data."""
         with api_vcr.use_cassette(
             f"test_get_system_marginal_price_historical_range_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
         ):
+            start_date = start_date.tz_localize(self.iso.default_timezone)
+            end_date = end_date.tz_localize(self.iso.default_timezone)
             df = self.iso.get_system_marginal_price(
                 date=start_date,
                 end=end_date,
             )
             self._check_system_marginal_price(df)
+            assert len(df) == expected_minutes
+            assert df["Interval Start"].min() == start_date
+            assert df["Interval End"].max() == end_date
 
     def _check_load(self, df: pd.DataFrame) -> None:
         """Check load DataFrame structure and types."""
@@ -496,3 +530,92 @@ class TestAESO(TestHelperMixin):
             df = self.iso.get_unit_status(date="latest")
             self._check_unit_status(df)
             assert len(df) > 0
+
+    def _check_generator_outages_hourly(self, df: pd.DataFrame) -> None:
+        """Check generator outages DataFrame structure and types."""
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Total Outage",
+            "Simple Cycle",
+            "Combined Cycle",
+            "Cogeneration",
+            "Gas Fired Steam",
+            "Coal",
+            "Hydro",
+            "Wind",
+            "Solar",
+            "Energy Storage",
+            "Biomass and Other",
+            "Mothball Outage",
+        ]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        numeric_columns = [
+            col
+            for col in df.columns
+            if col not in ["Interval Start", "Interval End", "Publish Time"]
+        ]
+        for col in numeric_columns:
+            assert pd.api.types.is_numeric_dtype(df[col]), (
+                f"Column {col} should be numeric"
+            )
+
+        # NB: Total Outage should be sum of all numeric columns except Mothball Outage and Total Outage
+        outage_columns = [
+            col
+            for col in numeric_columns
+            if col not in ["Mothball Outage", "Total Outage"]
+        ]
+        assert (df["Total Outage"] == df[outage_columns].sum(axis=1)).all()
+
+    def test_get_generator_outages_hourly_latest(self):
+        """Test getting latest generator outages data."""
+        with api_vcr.use_cassette("test_get_generator_outages_hourly_latest.yaml"):
+            df = self.iso.get_generator_outages_hourly(date="latest")
+            self._check_generator_outages_hourly(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+            ),
+        ],
+    )
+    def test_get_generator_outages_hourly_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical generator outages data."""
+        with api_vcr.use_cassette(
+            f"test_get_generator_outages_hourly_historical_range_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_generator_outages_hourly(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_generator_outages_hourly(df)
+            assert df["Interval Start"].min() >= start_date.tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() <= end_date.tz_localize(
+                self.iso.default_timezone,
+            )
