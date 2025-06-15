@@ -654,3 +654,180 @@ class AESO:
                 "Dispatched Contingency Reserve",
             ]
         ]
+
+    @support_date_range(frequency="31D")
+    def get_generator_outages_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get hourly generator outage data.
+
+        Args:
+            date: Start date for the data. Can be "latest" to get current data.
+            end: End date for the data. If not provided, will get 24 months of data.
+            verbose: Whether to print verbose output.
+
+        Returns:
+            DataFrame containing generator outage data
+        """
+        if date == "latest":
+            current_time = pd.Timestamp.now(tz=self.default_timezone)
+            return self.get_generator_outages_hourly(
+                date=current_time,
+                end=current_time + pd.DateOffset(months=4),
+            )
+        else:
+            start_date = pd.Timestamp(date)
+            if start_date.tz is None:
+                start_date = start_date.tz_localize(self.default_timezone)
+            else:
+                start_date = start_date.tz_convert(self.default_timezone)
+
+            end_date = pd.Timestamp(end) if end else None
+            if end_date is not None:
+                if end_date.tz is None:
+                    end_date = end_date.tz_localize(self.default_timezone)
+                else:
+                    end_date = end_date.tz_convert(self.default_timezone)
+
+        endpoint = f"aiesgencapacity-api/v1/AIESGenCapacity?startDate={start_date.strftime('%Y-%m-%d')}"
+        if end_date:
+            endpoint += f"&endDate={end_date.strftime('%Y-%m-%d')}"
+        data = self._make_request(endpoint)
+
+        fuel_type_mapping = {
+            "GAS": "Gas",
+            "COAL": "Coal",
+            "HYDRO": "Hydro",
+            "WIND": "Wind",
+            "SOLAR": "Solar",
+            "ENERGY STORAGE": "Energy Storage",
+            "OTHER": "Biomass and Other",
+        }
+
+        sub_fuel_type_mapping = {
+            "SIMPLE_CYCLE": "Simple Cycle",
+            "COMBINED_CYCLE": "Combined Cycle",
+            "COGENERATION": "Cogeneration",
+            "GAS_FIRED_STEAM": "Gas Fired Steam",
+            "COAL": "Coal",
+            "HYDRO": "Hydro",
+            "OTHER": "Biomass and Other",
+            "ENERGY STORAGE": "Energy Storage",
+            "SOLAR": "Solar",
+            "WIND": "Wind",
+        }
+
+        rows = []
+        for fuel_data in data["return"]:
+            fuel_type = fuel_data["fuel_type"]
+            sub_fuel_type = fuel_data["sub_fuel_type"]
+
+            mapped_fuel_type = fuel_type_mapping.get(fuel_type, fuel_type)
+            mapped_sub_fuel_type = sub_fuel_type_mapping.get(
+                sub_fuel_type,
+                sub_fuel_type,
+            )
+
+            for hour_data in fuel_data["Hours"]:
+                interval_start = pd.to_datetime(
+                    hour_data["begin_datetime_utc"],
+                    utc=True,
+                ).tz_convert(self.default_timezone)
+                interval_end = interval_start + pd.Timedelta(hours=1)
+                outage_grouping = hour_data["outage_grouping"]
+
+                row = {
+                    "Interval Start": interval_start,
+                    "Interval End": interval_end,
+                    "Fuel Type": mapped_fuel_type,
+                    "Sub Fuel Type": mapped_sub_fuel_type,
+                    "Operating Outage": outage_grouping["OP OUT"],
+                    "Mothball Outage": outage_grouping["MBO OUT"],
+                }
+                rows.append(row)
+
+        df = pd.DataFrame(rows)
+
+        current_time = pd.Timestamp.now(tz=self.default_timezone).floor("h")
+        df["Publish Time"] = df.apply(
+            lambda row: (
+                current_time
+                if row["Interval Start"] > current_time
+                else row["Interval Start"] - pd.Timedelta(hours=1)
+            ),
+            axis=1,
+        )
+
+        # NB: Pivot the data to get the by-fuel type outage.
+        df_pivot = df.pivot_table(
+            index=["Interval Start", "Interval End", "Publish Time"],
+            columns=["Sub Fuel Type"],
+            values="Operating Outage",
+            aggfunc="sum",
+        ).reset_index()
+
+        # NB: Sum the operational outage by fuel type to get the total outage.
+        df_pivot["Total Outage"] = df_pivot[
+            [
+                col
+                for col in df_pivot.columns
+                if col
+                not in [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Mothball Outage",
+                    "Total Outage",
+                ]
+            ]
+        ].sum(axis=1)
+
+        # NB: Create the summed mothball outage and merge it back in.
+        mbo_df = (
+            df.groupby(["Interval Start", "Interval End", "Publish Time"])[
+                "Mothball Outage"
+            ]
+            .sum()
+            .reset_index()
+        )
+        df_pivot = pd.merge(
+            df_pivot,
+            mbo_df,
+            on=["Interval Start", "Interval End", "Publish Time"],
+            how="left",
+        )
+        df_pivot["Mothball Outage"] = df_pivot["Mothball Outage"].fillna(0)
+
+        df_pivot = utils.move_cols_to_front(
+            df_pivot,
+            ["Interval Start", "Interval End", "Publish Time", "Total Outage"],
+        )
+
+        # NB: Need to have all columns present, and create them to be 0 if they don't exist
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Total Outage",
+            "Simple Cycle",
+            "Combined Cycle",
+            "Cogeneration",
+            "Gas Fired Steam",
+            "Coal",
+            "Hydro",
+            "Wind",
+            "Solar",
+            "Energy Storage",
+            "Biomass and Other",
+            "Mothball Outage",
+        ]
+
+        for col in expected_columns:
+            if col not in df_pivot.columns:
+                df_pivot[col] = 0
+
+        return df_pivot[expected_columns]
