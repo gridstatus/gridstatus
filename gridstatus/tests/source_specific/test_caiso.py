@@ -225,9 +225,11 @@ class TestCAISO(BaseTestISO):
         assert df["Publish Time"].max() < self.local_now()
         assert df["Publish Time"].nunique() == expected_count_unique_publish_times
 
-    def test_get_solar_and_wind_forecast_dam_today(self):
-        with caiso_vcr.use_cassette("test_get_solar_and_wind_forecast_dam_today.yaml"):
-            df = self.iso.get_solar_and_wind_forecast_dam("today")
+    def test_get_dam_renewable_forecast_hourly_today(self):
+        with caiso_vcr.use_cassette(
+            "test_get_dam_renewable_forecast_hourly_today.yaml",
+        ):
+            df = self.iso.get_dam_renewable_forecast_hourly("today")
             self._check_solar_and_wind_forecast(df, 1)
 
             assert df["Interval Start"].min() == self.local_start_of_today()
@@ -237,18 +239,20 @@ class TestCAISO(BaseTestISO):
                 hours=23,
             )
 
-    def test_get_solar_and_wind_forecast_dam_latest(self):
-        with caiso_vcr.use_cassette("test_get_solar_and_wind_forecast_dam_latest.yaml"):
-            assert self.iso.get_solar_and_wind_forecast_dam("latest").equals(
-                self.iso.get_solar_and_wind_forecast_dam("today"),
+    def test_get_dam_renewable_forecast_hourly_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_dam_renewable_forecast_hourly_latest.yaml",
+        ):
+            assert self.iso.get_dam_renewable_forecast_hourly("latest").equals(
+                self.iso.get_dam_renewable_forecast_hourly("today"),
             )
 
     @pytest.mark.parametrize("date", ["2024-02-20"])
-    def test_get_solar_and_wind_forecast_dam_historical_date(self, date):
+    def test_get_dam_renewable_forecast_hourly_historical_date(self, date):
         with caiso_vcr.use_cassette(
-            f"test_get_solar_and_wind_forecast_dam_{date}.yaml",
+            f"test_get_dam_renewable_forecast_hourly_{date}.yaml",
         ):
-            df = self.iso.get_solar_and_wind_forecast_dam(date)
+            df = self.iso.get_dam_renewable_forecast_hourly(date)
             self._check_solar_and_wind_forecast(df, 1)
 
             assert df["Interval Start"].min() == self.local_start_of_day(date)
@@ -257,14 +261,14 @@ class TestCAISO(BaseTestISO):
             ) + pd.Timedelta(hours=23)
 
     @pytest.mark.parametrize("start, end", [("2023-08-15", "2023-08-21")])
-    def test_get_solar_and_wind_forecast_dam_historical_range(self, start, end):
+    def test_get_dam_renewable_forecast_hourly_historical_range(self, start, end):
         with caiso_vcr.use_cassette(
-            f"test_get_solar_and_wind_forecast_dam_{start}_{end}.yaml",
+            f"test_get_dam_renewable_forecast_hourly_{start}_{end}.yaml",
         ):
             start = pd.Timestamp(start)
             end = pd.Timestamp(end)
 
-            df = self.iso.get_solar_and_wind_forecast_dam(start, end=end)
+            df = self.iso.get_dam_renewable_forecast_hourly(start, end=end)
 
             # Only 6 days of data because the end date is exclusive
             self._check_solar_and_wind_forecast(df, 6)
@@ -274,16 +278,202 @@ class TestCAISO(BaseTestISO):
                 end,
             ) - pd.Timedelta(hours=1)
 
-    def test_get_solar_and_wind_forecast_dam_future_date_range(self):
+    def test_get_dam_renewable_forecast_hourly_future_date_range(self):
         with caiso_vcr.use_cassette(
-            "test_get_solar_and_wind_forecast_dam_future_date_range.yaml",
+            "test_get_dam_renewable_forecast_hourly_future_date_range.yaml",
         ):
             start = self.local_today() + pd.Timedelta(days=1)
             end = start + pd.Timedelta(days=2)
 
-            df = self.iso.get_solar_and_wind_forecast_dam(start, end=end)
+            df = self.iso.get_dam_renewable_forecast_hourly(start, end=end)
 
             self._check_solar_and_wind_forecast(df, 1)
+
+    def test_get_hasp_renewable_forecast_hourly_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_hasp_renewable_forecast_hourly_latest.yaml",
+        ):
+            df = self.iso.get_hasp_renewable_forecast_hourly("latest")
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+            assert (
+                (df["Interval Start"] - df["Publish Time"]) == pd.Timedelta(minutes=90)
+            ).all()
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            (
+                "2025-03-20",
+                "2025-03-22",
+            ),
+        ],
+    )
+    def test_get_hasp_renewable_forecast_hourly_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_hasp_renewable_forecast_hourly_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_hasp_renewable_forecast_hourly(date, end=end)
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+            assert df["Interval Start"].min() >= pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() <= pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            )
+            assert (
+                (df["Interval Start"] - df["Publish Time"]) == pd.Timedelta(minutes=90)
+            ).all()
+
+    def test_get_actual_renewable_hourly_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_actual_renewable_hourly_latest.yaml",
+        ):
+            df = self.iso.get_actual_renewable_hourly("latest")
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+            assert df["Interval Start"].min() >= self.local_start_of_today()
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2025-03-20", "2025-03-22"),
+        ],
+    )
+    def test_get_actual_renewable_hourly_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_actual_renewable_hourly_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_actual_renewable_hourly(date, end=end)
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+            assert df["Interval Start"].min() >= pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() <= pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            )
+
+    def test_get_rtd_renewable_forecast_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_rtd_renewable_forecast_latest.yaml",
+        ):
+            df = self.iso.get_rtd_renewable_forecast("latest")
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+            assert df["Interval Start"].min() >= self.local_start_of_today()
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2025-03-20", "2025-03-22"),
+        ],
+    )
+    def test_get_rtd_renewable_forecast_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_rtd_renewable_forecast_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_rtd_renewable_forecast(date, end=end)
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+            assert df["Interval Start"].min() >= pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() <= pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            )
+
+    def test_get_rtpd_renewable_forecast_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_rtpd_renewable_forecast_latest.yaml",
+        ):
+            df = self.iso.get_rtpd_renewable_forecast("latest")
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+            assert df["Interval Start"].min() >= self.local_start_of_today()
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2025-03-20", "2025-03-22"),
+        ],
+    )
+    def test_get_rtpd_renewable_forecast_date_range(self, date, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_rtpd_renewable_forecast_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_rtpd_renewable_forecast(date, end=end)
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+            assert df["Interval Start"].min() >= pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() <= pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            )
 
     """get_curtailment"""
 
@@ -987,59 +1177,6 @@ class TestCAISO(BaseTestISO):
                 end,
             ) + pd.Timedelta(days=1)
 
-    def test_get_hasp_renewable_forecast_hourly_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_hasp_renewable_forecast_hourly_latest.yaml",
-        ):
-            df = self.iso.get_hasp_renewable_forecast_hourly("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Location",
-                "Solar",
-                "Wind",
-            ]
-            assert (
-                (df["Interval Start"] - df["Publish Time"]) == pd.Timedelta(minutes=90)
-            ).all()
-
-    @pytest.mark.parametrize(
-        "date, end",
-        [
-            (
-                "2025-03-20",
-                "2025-03-22",
-            ),
-        ],
-    )
-    def test_get_hasp_renewable_forecast_hourly_date_range(self, date, end):
-        with caiso_vcr.use_cassette(
-            f"test_get_hasp_renewable_forecast_hourly_date_range_{date}_{end}.yaml",
-        ):
-            df = self.iso.get_hasp_renewable_forecast_hourly(date, end=end)
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Location",
-                "Solar",
-                "Wind",
-            ]
-            assert df["Interval Start"].min() >= pd.Timestamp(
-                date,
-                tz=self.iso.default_timezone,
-            )
-            assert df["Interval End"].max() <= pd.Timestamp(
-                end,
-                tz=self.iso.default_timezone,
-            )
-            assert (
-                (df["Interval Start"] - df["Publish Time"]) == pd.Timedelta(minutes=90)
-            ).all()
-
     def test_get_tie_flows_real_time_15_min_latest(self):
         with caiso_vcr.use_cassette("test_get_tie_flows_real_time_15_min_latest.yaml"):
             df = self.iso.get_tie_flows_real_time_15_min("latest")
@@ -1097,7 +1234,8 @@ class TestCAISO(BaseTestISO):
             f"test_get_nomogram_branch_shadow_prices_day_ahead_hourly_{date}_{end}.yaml",
         ):
             df = self.iso.get_nomogram_branch_shadow_prices_day_ahead_hourly(
-                date, end=end
+                date,
+                end=end,
             )
             assert df.shape[0] > 0
             assert df.columns.tolist() == [
@@ -1153,7 +1291,8 @@ class TestCAISO(BaseTestISO):
             f"get_nomogram_branch_shadow_price_forecast_15_min_{date}_{end}.yaml",
         ):
             df = self.iso.get_nomogram_branch_shadow_price_forecast_15_min(
-                date, end=end
+                date,
+                end=end,
             )
             assert df.shape[0] > 0
             assert df.columns.tolist() == [
@@ -1178,13 +1317,16 @@ class TestCAISO(BaseTestISO):
         ],
     )
     def test_get_interval_nomogram_branch_shadow_prices_real_time_5_min(
-        self, date, end
+        self,
+        date,
+        end,
     ):
         with caiso_vcr.use_cassette(
             f"get_interval_nomogram_branch_shadow_prices_real_time_5_min_{date}_{end}.yaml",
         ):
             df = self.iso.get_interval_nomogram_branch_shadow_prices_real_time_5_min(
-                date, end=end
+                date,
+                end=end,
             )
             assert df.shape[0] > 0
             assert df.columns.tolist() == [
