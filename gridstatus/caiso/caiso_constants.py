@@ -143,7 +143,7 @@ OASIS_DATASET_CONFIG = {
             "market_run_id": "RTD",
         },
         "meta": {
-            "max_query_frequency": "1h",
+            "max_query_frequency": "1d",
         },
     },
     "rtpd_renewable_forecast": {
@@ -157,7 +157,7 @@ OASIS_DATASET_CONFIG = {
             "market_run_id": "RTPD",
         },
         "meta": {
-            "max_query_frequency": "1h",
+            "max_query_frequency": "1d",
         },
     },
     "pnode_map": {
