@@ -1,5 +1,6 @@
 import copy
 import io
+import re
 import time
 import warnings
 from zipfile import ZipFile
@@ -1485,7 +1486,7 @@ class CAISO(ISOBase):
         return queue
 
     @support_date_range(frequency="DAY_START")
-    def get_curtailment(
+    def get_curtailment_legacy(
         self,
         date: str | pd.Timestamp,
         verbose: bool = False,
@@ -1493,7 +1494,8 @@ class CAISO(ISOBase):
         """Return curtailment data for a given date
 
         Notes:
-            * Data available from June 30, 2016 to present
+            * Data available from June 30, 2016 to May 31, 2025. For current data,
+            please use `get_curtailment`.
 
         Arguments:
             date (datetime.date, str): date to return data
@@ -1507,6 +1509,12 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of curtailment data
         """
         date = date.normalize()
+
+        if date > pd.Timestamp("2025-05-31", tz=self.default_timezone):
+            raise ValueError(
+                "Curtailment data is only available until May 31, 2025. "
+                "Please use `get_curtailment` for current data.",
+            )
 
         # TODO: handle not always just 4th pge
         date_str = date.strftime("%b-%d-%Y").lower()
@@ -2296,7 +2304,7 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             return self.get_nomogram_branch_shadow_prices_day_ahead_hourly(
-                pd.Timestamp.now(tz=self.default_timezone)
+                pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(
@@ -2336,7 +2344,7 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             return self.get_nomogram_branch_shadow_prices_hasp_hourly(
-                pd.Timestamp.now(tz=self.default_timezone)
+                pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(
@@ -2376,7 +2384,7 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             return self.get_nomogram_branch_shadow_price_forecast_15_min(
-                pd.Timestamp.now(tz=self.default_timezone)
+                pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(
@@ -2416,7 +2424,7 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             return self.get_interval_nomogram_branch_shadow_prices_real_time_5_min(
-                pd.Timestamp.now(tz=self.default_timezone)
+                pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(
@@ -2435,3 +2443,577 @@ class CAISO(ISOBase):
         )
 
         return df[["Interval Start", "Interval End", "Location", "Price"]]
+
+    @support_date_range(frequency="DAY_START")
+    def get_curtailment(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return curtailment data for a given date
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose: print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of curtailment data
+        """
+        # Example: https://www.caiso.com/documents/daily-renewable-report-jun-01-2025.html
+        if date == "latest":
+            return self.get_curtailment("today")
+
+        dataframes = self.get_caiso_renewables_report(date)
+
+        solar_curtailment_total_hourly = dataframes["solar_curtailment_total_hourly"]
+        wind_curtailment_total_hourly = dataframes["wind_curtailment_total_hourly"]
+
+        solar_curtailment_maximum_hourly = dataframes[
+            "solar_curtailment_maximum_hourly"
+        ]
+        wind_curtailment_maximum_hourly = dataframes["wind_curtailment_maximum_hourly"]
+
+        melted_dfs = {}
+
+        for df, fuel_type, unit in [
+            [solar_curtailment_total_hourly, "Solar", "MWH"],
+            [wind_curtailment_total_hourly, "Wind", "MWH"],
+            [solar_curtailment_maximum_hourly, "Solar", "MW"],
+            [wind_curtailment_maximum_hourly, "Wind", "MW"],
+        ]:
+            df = df.melt(
+                id_vars=["Interval Start", "Interval End"],
+                var_name="Curtailment Type",
+                value_name=f"Curtailment {unit}",
+            )
+            # Separate Curtailment Type into Curtailment Type (Economic, OperatorInstruction, SelfSchCut) and Curtailment Reason (System, Local)\
+            # The column is currently in the format "Curtailment Type Curtailment Reason MWH" we can ignore the MWH part
+            df["Curtailment Type"], df["Curtailment Reason"] = (
+                df["Curtailment Type"].str.split(" ").str[0],
+                df["Curtailment Type"].str.split(" ").str[1],
+            )
+            df["Fuel Type"] = fuel_type
+
+            melted_dfs[f"{fuel_type} {unit}"] = df
+
+        solar_df = melted_dfs["Solar MWH"].merge(
+            melted_dfs["Solar MW"],
+            on=[
+                "Interval Start",
+                "Interval End",
+                "Curtailment Type",
+                "Curtailment Reason",
+                "Fuel Type",
+            ],
+            how="outer",
+        )
+
+        wind_df = melted_dfs["Wind MWH"].merge(
+            melted_dfs["Wind MW"],
+            on=[
+                "Interval Start",
+                "Interval End",
+                "Curtailment Type",
+                "Curtailment Reason",
+                "Fuel Type",
+            ],
+            how="outer",
+        )
+
+        curtailment_df = (
+            pd.concat([solar_df, wind_df])[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Curtailment Type",
+                    "Curtailment Reason",
+                    "Fuel Type",
+                    "Curtailment MWH",
+                    "Curtailment MW",
+                ]
+            ]
+            .sort_values(
+                [
+                    "Interval Start",
+                    "Curtailment Type",
+                    "Curtailment Reason",
+                    "Fuel Type",
+                ],
+            )
+            .reset_index(drop=True)
+        )
+
+        return curtailment_df
+
+    def get_caiso_renewables_report(
+        self,
+        date: pd.Timestamp,
+    ) -> dict[str, pd.DataFrame]:
+        """
+        Fetches the CAISO daily renewable report for a given date and extracts data from
+        all the charts into wide dataframes.
+        """
+        report_url = f"https://www.caiso.com/documents/daily-renewable-report-{date.strftime('%b-%d-%Y').lower()}.html"
+
+        response = requests.get(report_url)
+
+        html_content = response.content.decode("utf-8")
+
+        def extract_array(content, var_name):
+            pattern = rf"{var_name}\s*=\s*\[(.*?)\]"
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                array_str = match.group(1)
+                # Split by comma and clean up values
+                values = []
+                for item in array_str.split(","):
+                    item = item.strip()
+                    if item == '"NA"' or item == "NA":
+                        values.append(np.nan)
+                    elif item.startswith('"') and item.endswith('"'):
+                        values.append(item[1:-1])
+                    else:
+                        try:
+                            values.append(float(item))
+                        except ValueError:
+                            values.append(item)
+                return values
+            return []
+
+        # Base date for the report (June 12, 2025)
+        base_date = date.normalize()
+
+        def generate_rtd_timestamps(base_date):
+            """Generate timestamps for 5-minute RTD data (288 points per day)"""
+            return pd.date_range(
+                start=base_date,
+                periods=288,
+                freq="5min",
+                tz=self.default_timezone,
+            )
+
+        def generate_hourly_timestamps(base_date):
+            """Generate timestamps for hourly data (24 points per day)"""
+            return pd.date_range(
+                start=base_date,
+                periods=24,
+                freq="1h",
+                tz=self.default_timezone,
+            )
+
+        def generate_daily_timestamps(base_date):
+            """Generate timestamps for daily data (last 15 days)"""
+            start_date = base_date - pd.Timedelta(days=14)
+            return pd.date_range(
+                start=start_date,
+                periods=15,
+                freq="1d",
+                tz=self.default_timezone,
+            )
+
+        def generate_month_ytd_timestamps(base_date):
+            """Generate timestamps for monthly data (6 months YTD 2025)"""
+            return pd.date_range(
+                start=base_date.replace(month=1, day=1),
+                periods=6,
+                freq="MS",
+                tz=self.default_timezone,
+            )
+
+        def generate_monthly_rolling_timestamps(base_date, months=12):
+            """Generate timestamps for monthly rolling data (last 6 months)"""
+            start_date = base_date - pd.DateOffset(months=months + 1)
+            return pd.date_range(start=start_date, periods=months + 1, freq="MS")
+
+        rtd_timestamps = generate_rtd_timestamps(base_date)
+        hourly_timestamps = generate_hourly_timestamps(base_date)
+        daily_timestamps = generate_daily_timestamps(base_date)
+        month_ytd_timestamps = generate_month_ytd_timestamps(base_date)
+        monthly_rolling_timestamps = generate_monthly_rolling_timestamps(base_date)
+
+        solar_generation_caiso_5_min_data = {
+            "Interval Start": rtd_timestamps,
+            "Interval End": rtd_timestamps + pd.Timedelta(minutes=5),
+            "RTD MW": extract_array(html_content, "tot_gen_solar_iso_rtd"),
+            "FMM MW": extract_array(html_content, "tot_gen_solar_iso_rtpd"),
+            "IFM MW": extract_array(html_content, "tot_gen_solar_iso_ifm"),
+            "Actual MW": extract_array(html_content, "tot_gen_solar_iso_telem"),
+            "DA Forecast MW": extract_array(html_content, "tot_gen_solar_iso_forec"),
+        }
+        solar_generation_caiso_5_min = pd.DataFrame(solar_generation_caiso_5_min_data)
+
+        solar_generation_weim_5_min = {
+            "Interval Start": rtd_timestamps,
+            "Interval End": rtd_timestamps + pd.Timedelta(minutes=5),
+            "RTD MW": extract_array(html_content, "tot_gen_solar_weim_rtd"),
+            "FMM MW": extract_array(html_content, "tot_gen_solar_weim_rtpd"),
+            "Base Schedule MW": extract_array(html_content, "tot_gen_solar_weim_rtbs"),
+            "Actual MW": extract_array(html_content, "tot_gen_solar_weim_telem"),
+        }
+        solar_generation_weim_5_min = pd.DataFrame(solar_generation_weim_5_min)
+
+        wind_generation_caiso_5_min = {
+            "Interval Start": rtd_timestamps,
+            "Interval End": rtd_timestamps + pd.Timedelta(minutes=5),
+            "RTD MW": extract_array(html_content, "tot_gen_wind_iso_rtd"),
+            "FMM MW": extract_array(html_content, "tot_gen_wind_iso_rtpd"),
+            "IFM MW": extract_array(html_content, "tot_gen_wind_iso_ifm"),
+            "Actual MW": extract_array(html_content, "tot_gen_wind_iso_telem"),
+            "DA Forecast MW": extract_array(html_content, "tot_gen_wind_iso_forec"),
+        }
+        wind_generation_caiso_5_min = pd.DataFrame(wind_generation_caiso_5_min)
+
+        wind_generation_weim_5_min = {
+            "Interval Start": rtd_timestamps,
+            "Interval End": rtd_timestamps + pd.Timedelta(minutes=5),
+            "RTD MW": extract_array(html_content, "tot_gen_wind_weim_rtd"),
+            "FMM MW": extract_array(html_content, "tot_gen_wind_weim_rtpd"),
+            "Base Schedule MW": extract_array(html_content, "tot_gen_wind_weim_rtbs"),
+            "Actual MW": extract_array(html_content, "tot_gen_wind_weim_telem"),
+        }
+        wind_generation_weim_5_min = pd.DataFrame(wind_generation_weim_5_min)
+
+        ver_generation_curtailment_energy_hourly = {
+            "Interval Start": hourly_timestamps,
+            "Interval End": hourly_timestamps + pd.Timedelta(hours=1),
+            "Economic Local MWH": extract_array(html_content, "curt_hourly_econ_local"),
+            "Economic System MWH": extract_array(
+                html_content,
+                "curt_hourly_econ_system",
+            ),
+            "SelfSchCut Local MWH": extract_array(html_content, "curt_hourly_ss_local"),
+            "SelfSchCut System MWH": extract_array(
+                html_content,
+                "curt_hourly_ss_system",
+            ),
+            "OperatorInstruction Local MWH": extract_array(
+                html_content,
+                "curt_hourly_oi_local",
+            ),
+            "OperatorInstruction System MWH": extract_array(
+                html_content,
+                "curt_hourly_oi_system",
+            ),
+        }
+        ver_generation_curtailment_energy_hourly = pd.DataFrame(
+            ver_generation_curtailment_energy_hourly,
+        )
+
+        ver_generation_curtailment_maximum_hourly = {
+            "Interval Start": hourly_timestamps,
+            "Interval End": hourly_timestamps + pd.Timedelta(hours=1),
+            "Economic Local MW": extract_array(
+                html_content,
+                "curt_hourly_max_econ_local",
+            ),
+            "Economic System MW": extract_array(
+                html_content,
+                "curt_hourly_max_econ_system",
+            ),
+            "SelfSchCut Local MW": extract_array(
+                html_content,
+                "curt_hourly_max_ss_local",
+            ),
+            "SelfSchCut System MW": extract_array(
+                html_content,
+                "curt_hourly_max_ss_system",
+            ),
+            "OperatorInstruction Local MW": extract_array(
+                html_content,
+                "curt_hourly_max_oi_local",
+            ),
+            "OperatorInstruction System MW": extract_array(
+                html_content,
+                "curt_hourly_max_oi_system",
+            ),
+        }
+        ver_generation_curtailment_maximum_hourly = pd.DataFrame(
+            ver_generation_curtailment_maximum_hourly,
+        )
+
+        ver_generation_curtailment_energy_daily = {
+            "Interval Start": daily_timestamps,
+            "Interval End": daily_timestamps + pd.Timedelta(days=1),
+            "Economic Local MWH": extract_array(
+                html_content,
+                "curt_daily_econ_local_mwh",
+            ),
+            "Economic System MWH": extract_array(
+                html_content,
+                "curt_daily_econ_system_mwh",
+            ),
+            "SelfSchCut Local MWH": extract_array(
+                html_content,
+                "curt_daily_ss_local_mwh",
+            ),
+            "SelfSchCut System MWH": extract_array(
+                html_content,
+                "curt_daily_ss_system_mwh",
+            ),
+            "OperatorInstruction Local MWH": extract_array(
+                html_content,
+                "curt_daily_oi_local_mwh",
+            ),
+            "OperatorInstruction System MWH": extract_array(
+                html_content,
+                "curt_daily_oi_system_mwh",
+            ),
+        }
+        ver_generation_curtailment_energy_daily = pd.DataFrame(
+            ver_generation_curtailment_energy_daily,
+        )
+
+        ver_generation_curtailment_maximum_daily = {
+            "Interval Start": daily_timestamps,
+            "Interval End": daily_timestamps + pd.Timedelta(days=1),
+            "Economic Local MW": extract_array(
+                html_content,
+                "curt_daily_econ_local_mw",
+            ),
+            "Economic System MW": extract_array(
+                html_content,
+                "curt_daily_econ_system_mw",
+            ),
+            "SelfSchCut Local MW": extract_array(
+                html_content,
+                "curt_daily_ss_local_mw",
+            ),
+            "SelfSchCut System MW": extract_array(
+                html_content,
+                "curt_daily_ss_system_mw",
+            ),
+            "OperatorInstruction Local MW": extract_array(
+                html_content,
+                "curt_daily_oi_local_mw",
+            ),
+            "OperatorInstruction System MW": extract_array(
+                html_content,
+                "curt_daily_oi_system_mw",
+            ),
+        }
+        ver_generation_curtailment_energy_daily = pd.DataFrame(
+            ver_generation_curtailment_energy_daily,
+        )
+
+        solar_curtailment_maximum_hourly = {
+            "Interval Start": hourly_timestamps,
+            "Interval End": hourly_timestamps + pd.Timedelta(hours=1),
+            "Economic Local MW": extract_array(
+                html_content,
+                "curt_hr_max_solar_econ_local_mw",
+            ),
+            "Economic System MW": extract_array(
+                html_content,
+                "curt_hr_max_solar_econ_system_mw",
+            ),
+            "SelfSchCut Local MW": extract_array(
+                html_content,
+                "curt_hr_max_solar_ss_local_mw",
+            ),
+            "SelfSchCut System MW": extract_array(
+                html_content,
+                "curt_hr_max_solar_ss_system_mw",
+            ),
+            "OperatorInstruction Local MW": extract_array(
+                html_content,
+                "curt_hr_max_solar_oi_local_mw",
+            ),
+            "OperatorInstruction System MW": extract_array(
+                html_content,
+                "curt_hr_max_solar_oi_system_mw",
+            ),
+        }
+
+        solar_curtailment_maximum_hourly = pd.DataFrame(
+            solar_curtailment_maximum_hourly,
+        )
+
+        wind_curtailment_maximum_hourly = {
+            "Interval Start": hourly_timestamps,
+            "Interval End": hourly_timestamps + pd.Timedelta(hours=1),
+            "Economic Local MW": extract_array(
+                html_content,
+                "curt_hr_max_wind_econ_local_mw",
+            ),
+            "Economic System MW": extract_array(
+                html_content,
+                "curt_hr_max_wind_econ_system_mw",
+            ),
+            "SelfSchCut Local MW": extract_array(
+                html_content,
+                "curt_hr_max_wind_ss_local_mw",
+            ),
+            "SelfSchCut System MW": extract_array(
+                html_content,
+                "curt_hr_max_wind_ss_system_mw",
+            ),
+            "OperatorInstruction Local MW": extract_array(
+                html_content,
+                "curt_hr_max_wind_oi_local_mw",
+            ),
+            "OperatorInstruction System MW": extract_array(
+                html_content,
+                "curt_hr_max_wind_oi_system_mw",
+            ),
+        }
+
+        wind_curtailment_maximum_hourly = pd.DataFrame(wind_curtailment_maximum_hourly)
+
+        solar_curtailment_total_hourly = {
+            "Interval Start": hourly_timestamps,
+            "Interval End": hourly_timestamps + pd.Timedelta(hours=1),
+            "Economic Local MWH": extract_array(
+                html_content,
+                "curt_hr_tot_solar_econ_local_mwh",
+            ),
+            "Economic System MWH": extract_array(
+                html_content,
+                "curt_hr_tot_solar_econ_system_mwh",
+            ),
+            "SelfSchCut Local MWH": extract_array(
+                html_content,
+                "curt_hr_tot_solar_ss_local_mwh",
+            ),
+            "SelfSchCut System MWH": extract_array(
+                html_content,
+                "curt_hr_tot_solar_ss_system_mwh",
+            ),
+            "OperatorInstruction Local MWH": extract_array(
+                html_content,
+                "curt_hr_tot_solar_oi_local_mwh",
+            ),
+            "OperatorInstruction System MWH": extract_array(
+                html_content,
+                "curt_hr_tot_solar_oi_system_mwh",
+            ),
+        }
+
+        solar_curtailment_total_hourly = pd.DataFrame(solar_curtailment_total_hourly)
+
+        wind_curtailment_total_hourly = {
+            "Interval Start": hourly_timestamps,
+            "Interval End": hourly_timestamps + pd.Timedelta(hours=1),
+            "Economic Local MWH": extract_array(
+                html_content,
+                "curt_hr_tot_wind_econ_local_mwh",
+            ),
+            "Economic System MWH": extract_array(
+                html_content,
+                "curt_hr_tot_wind_econ_system_mwh",
+            ),
+            "SelfSchCut Local MWH": extract_array(
+                html_content,
+                "curt_hr_tot_wind_ss_local_mwh",
+            ),
+            "SelfSchCut System MWH": extract_array(
+                html_content,
+                "curt_hr_tot_wind_ss_system_mwh",
+            ),
+            "OperatorInstruction Local MWH": extract_array(
+                html_content,
+                "curt_hr_tot_wind_oi_local_mwh",
+            ),
+            "OperatorInstruction System MWH": extract_array(
+                html_content,
+                "curt_hr_tot_wind_oi_system_mwh",
+            ),
+        }
+
+        wind_curtailment_total_hourly = pd.DataFrame(wind_curtailment_total_hourly)
+
+        curtailment_year_to_date_profile_hourly = {
+            "Interval Start": hourly_timestamps,
+            "Interval End": hourly_timestamps + pd.Timedelta(hours=1),
+            "Economic Local MWH": extract_array(
+                html_content,
+                "curt_hourly_ytd_econ_local_mwh",
+            ),
+            "Economic System MWH": extract_array(
+                html_content,
+                "curt_hourly_ytd_econ_system_mwh",
+            ),
+            "SelfSchCut Local MWH": extract_array(
+                html_content,
+                "curt_hourly_ytd_ss_local_mwh",
+            ),
+            "SelfSchCut System MWH": extract_array(
+                html_content,
+                "curt_hourly_ytd_ss_system_mwh",
+            ),
+            "OperatorInstruction Local MWH": extract_array(
+                html_content,
+                "curt_hourly_ytd_oi_local_mwh",
+            ),
+            "OperatorInstruction System MWH": extract_array(
+                html_content,
+                "curt_hourly_ytd_oi_system_mwh",
+            ),
+        }
+
+        curtailment_year_to_date_profile_hourly = pd.DataFrame(
+            curtailment_year_to_date_profile_hourly,
+        )
+
+        curtailment_year_to_date_total_monthly = {
+            "Interval Start": month_ytd_timestamps,
+            "Interval End": month_ytd_timestamps + pd.DateOffset(months=1),
+            "Economic Local MWH": extract_array(
+                html_content,
+                "curt_monthly_ytd_econ_local_mwh",
+            ),
+            "Economic System MWH": extract_array(
+                html_content,
+                "curt_monthly_ytd_econ_system_mwh",
+            ),
+            "SelfSchCut Local MWH": extract_array(
+                html_content,
+                "curt_monthly_ytd_ss_local_mwh",
+            ),
+            "SelfSchCut System MWH": extract_array(
+                html_content,
+                "curt_monthly_ytd_ss_system_mwh",
+            ),
+            "OperatorInstruction Local MWH": extract_array(
+                html_content,
+                "curt_monthly_ytd_oi_local_mwh",
+            ),
+            "OperatorInstruction System MWH": extract_array(
+                html_content,
+                "curt_monthly_ytd_oi_system_mwh",
+            ),
+        }
+
+        curtailment_year_to_date_total_monthly = pd.DataFrame(
+            curtailment_year_to_date_total_monthly,
+        )
+
+        curtailment_percentage_monthly = {
+            "Interval Start": monthly_rolling_timestamps,
+            "Interval End": monthly_rolling_timestamps + pd.DateOffset(months=1),
+            "Percent": extract_array(html_content, "curt_monthly_ytd_perc_mwh"),
+        }
+
+        curtailment_percentage_monthly = pd.DataFrame(curtailment_percentage_monthly)
+
+        return {
+            "solar_generation_caiso_5_min": solar_generation_caiso_5_min,
+            "solar_generation_weim_5_min": solar_generation_weim_5_min,
+            "wind_generation_caiso_5_min": wind_generation_caiso_5_min,
+            "wind_generation_weim_5_min": wind_generation_weim_5_min,
+            "ver_generation_curtailment_energy_hourly": ver_generation_curtailment_energy_hourly,
+            "ver_generation_curtailment_maximum_hourly": ver_generation_curtailment_energy_hourly,
+            "ver_generation_curtailment_energy_daily": ver_generation_curtailment_energy_daily,
+            "ver_generation_curtailment_maximum_daily": ver_generation_curtailment_maximum_daily,
+            "solar_curtailment_maximum_hourly": solar_curtailment_maximum_hourly,
+            "wind_curtailment_maximum_hourly": wind_curtailment_maximum_hourly,
+            "solar_curtailment_total_hourly": solar_curtailment_total_hourly,
+            "wind_curtailment_total_hourly": wind_curtailment_total_hourly,
+            "curtailment_year_to_date_profile_hourly": curtailment_year_to_date_profile_hourly,
+            "curtailment_year_to_date_total_monthly": curtailment_year_to_date_total_monthly,
+            "curtailment_percentage_monthly": curtailment_percentage_monthly,
+        }
