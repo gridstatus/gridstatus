@@ -1160,7 +1160,7 @@ class CAISO(ISOBase):
         )
         return self._handle_renewable_forecast(
             df,
-            publish_time_offset=pd.Timedelta(minutes=10),
+            publish_time_offset=pd.Timedelta(minutes=2.5),
         )
 
     def get_rtpd_renewable_forecast(
@@ -1193,7 +1193,7 @@ class CAISO(ISOBase):
         )
         return self._handle_renewable_forecast(
             df,
-            publish_time_offset=pd.Timedelta(minutes=45),
+            publish_time_offset=pd.Timedelta(minutes=22.5),
         )
 
     def get_pnodes(self, verbose: bool = False) -> pd.DataFrame:
