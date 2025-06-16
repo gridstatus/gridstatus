@@ -867,31 +867,59 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_solar_and_wind_forecast_dam(
+    def get_actual_renewable_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Return wind and solar forecast in hourly intervals
+        """Get wind and solar hourly actuals from CAISO.
 
-        Data at: http://oasis.caiso.com/mrioasis/logon.do  at System Demand >
-        Wind and Solar Forecast
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of wind and solar hourly actuals
         """
         if date == "latest":
-            return self.get_solar_and_wind_forecast_dam("today", verbose=verbose)
+            return self.get_actual_renewable_hourly("today")
+
+        df = self.get_oasis_dataset(
+            dataset="actual_renewable_hourly",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._process_renewable_hourly(df)
+
+    def get_dam_renewable_forecast_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return DAM renewable forecast in hourly intervals
+
+        Data at: http://oasis.caiso.com/mrioasis/logon.do  at System Demand >
+        DAM Renewable Forecast
+        """
+        if date == "latest":
+            return self.get_dam_renewable_forecast_hourly("today", verbose=verbose)
 
         current_time = pd.Timestamp.now(tz=self.default_timezone)
 
         data = self.get_oasis_dataset(
-            dataset="wind_and_solar_forecast",
+            dataset="dam_renewable_forecast_hourly",
             date=date,
             end=end,
             verbose=verbose,
             raw_data=False,
         )
 
-        return self._process_solar_and_wind_forecast_dam(
+        return self._process_renewable_hourly(
             data,
             current_time,
             # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
@@ -899,11 +927,11 @@ class CAISO(ISOBase):
             publish_time_offset_from_day_start=pd.Timedelta(hours=7),
         )
 
-    def _process_solar_and_wind_forecast_dam(
+    def _process_renewable_hourly(
         self,
         data: pd.DataFrame,
-        current_time: pd.Timestamp,
-        publish_time_offset_from_day_start: pd.Timedelta,
+        current_time: pd.Timestamp | None = None,
+        publish_time_offset_from_day_start: pd.Timedelta | None = None,
     ):
         df = data[
             [
@@ -934,30 +962,47 @@ class CAISO(ISOBase):
             values="MW",
         ).reset_index()
 
-        df = self._add_forecast_publish_time(
-            df,
-            current_time,
-            # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
-            # to OASIS.
-            publish_time_offset_from_day_start=publish_time_offset_from_day_start,
-        )
+        if publish_time_offset_from_day_start:
+            df = self._add_forecast_publish_time(
+                df,
+                current_time=current_time,
+                # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
+                # to OASIS.
+                publish_time_offset_from_day_start=publish_time_offset_from_day_start,
+            )
 
-        df = utils.move_cols_to_front(
-            df.rename(
-                columns={
-                    "TRADING_HUB": "Location",
-                    "Solar": "Solar MW",
-                    "Wind": "Wind MW",
-                },
-            ),
-            ["Interval Start", "Interval End", "Publish Time", "Location"],
-        )
+            df = utils.move_cols_to_front(
+                df.rename(
+                    columns={
+                        "TRADING_HUB": "Location",
+                        "Solar": "Solar MW",
+                        "Wind": "Wind MW",
+                    },
+                ),
+                ["Interval Start", "Interval End", "Publish Time", "Location"],
+            )
 
-        df.columns.name = None
+            df.columns.name = None
 
-        return df.sort_values(
-            ["Interval Start", "Publish Time", "Location"],
-        ).reset_index(drop=True)
+            return df.sort_values(
+                ["Interval Start", "Publish Time", "Location"],
+            ).reset_index(drop=True)
+
+        else:
+            df = utils.move_cols_to_front(
+                df.rename(
+                    columns={
+                        "TRADING_HUB": "Location",
+                    },
+                ),
+                ["Interval Start", "Interval End", "Location"],
+            )
+
+            df.columns.name = None
+
+            return df.sort_values(
+                ["Interval Start", "Location"],
+            ).reset_index(drop=True)
 
     def _add_forecast_publish_time(
         self,
@@ -1009,6 +1054,147 @@ class CAISO(ISOBase):
         )
 
         return data
+
+    def _handle_renewable_forecast(
+        self,
+        df: pd.DataFrame,
+        publish_time_offset: pd.Timedelta,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "TRADING_HUB": "Location",
+                "RENEWABLE_TYPE": "Renewable Type",
+            },
+        )
+
+        df = df.pivot_table(
+            index=[
+                "Interval Start",
+                "Interval End",
+                "Location",
+            ],
+            columns="Renewable Type",
+            values="MW",
+            aggfunc="first",
+        ).reset_index()
+
+        df.columns.name = None
+        df["Publish Time"] = df["Interval Start"] - publish_time_offset
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Location",
+                "Solar",
+                "Wind",
+            ]
+        ]
+
+    def get_hasp_renewable_forecast_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get solar and wind generation HASP hourly data from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of solar and wind generation HASP hourly data
+        """
+        if date == "latest":
+            try:
+                return self.get_hasp_renewable_forecast_hourly(
+                    pd.Timestamp.now(tz=self.default_timezone) + pd.Timedelta(hours=2),
+                )  # NB: This is a hack to get the latest forecast
+            except KeyError:
+                return self.get_hasp_renewable_forecast_hourly(
+                    pd.Timestamp.now(tz=self.default_timezone) + pd.Timedelta(hours=1),
+                )
+
+        df = self.get_oasis_dataset(
+            dataset="hasp_renewable_forecast_hourly",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_renewable_forecast(
+            df,
+            publish_time_offset=pd.Timedelta(minutes=90),
+        )
+
+    def get_rtd_renewable_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTD renewable forecast from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of RTD renewable forecast
+        """
+        if date == "latest":
+            return self.get_rtd_renewable_forecast(
+                pd.Timestamp.now(tz=self.default_timezone),
+            )
+
+        df = self.get_oasis_dataset(
+            dataset="rtd_renewable_forecast",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_renewable_forecast(
+            df,
+            publish_time_offset=pd.Timedelta(minutes=90),
+        )
+
+    def get_rtpd_renewable_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTPD renewable forecast from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of RTPD renewable forecast
+        """
+        if date == "latest":
+            return self.get_rtpd_renewable_forecast(
+                pd.Timestamp.now(tz=self.default_timezone),
+            )
+
+        df = self.get_oasis_dataset(
+            dataset="rtpd_renewable_forecast",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+        return self._handle_renewable_forecast(
+            df,
+            publish_time_offset=pd.Timedelta(minutes=90),
+        )
 
     def get_pnodes(self, verbose: bool = False) -> pd.DataFrame:
         start = utils._handle_date("today")
@@ -2208,74 +2394,6 @@ class CAISO(ISOBase):
             ]
         ]
 
-    def get_hasp_renewable_forecast_hourly(
-        self,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Get solar and wind generation HASP hourly data from CAISO.
-
-        Args:
-            date (str | pd.Timestamp): date to return data
-            end (str | pd.Timestamp | None, optional): last date of range to return data.
-                If None, returns only date. Defaults to None.
-            verbose (bool, optional): print out url being fetched. Defaults to False.
-
-        Returns:
-            pandas.DataFrame: A DataFrame of solar and wind generation HASP hourly data
-        """
-        if date == "latest":
-            try:
-                return self.get_hasp_renewable_forecast_hourly(
-                    pd.Timestamp.now(tz=self.default_timezone) + pd.Timedelta(hours=2),
-                )  # NB: This is a hack to get the latest forecast
-            except KeyError:
-                return self.get_hasp_renewable_forecast_hourly(
-                    pd.Timestamp.now(tz=self.default_timezone) + pd.Timedelta(hours=1),
-                )
-
-        df = self.get_oasis_dataset(
-            dataset="hasp_renewable_forecast_hourly",
-            date=date,
-            end=end,
-            verbose=verbose,
-            raw_data=False,
-        )
-        return self._handle_hasp_renewable_forecast_hourly(df)
-
-    def _handle_hasp_renewable_forecast_hourly(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.rename(
-            columns={
-                "TRADING_HUB": "Location",
-                "RENEWABLE_TYPE": "Renewable Type",
-            },
-        )
-
-        df = df.pivot_table(
-            index=[
-                "Interval Start",
-                "Interval End",
-                "Location",
-            ],
-            columns="Renewable Type",
-            values="MW",
-            aggfunc="first",
-        ).reset_index()
-
-        df.columns.name = None
-        df["Publish Time"] = df["Interval Start"] - pd.Timedelta(minutes=90)
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Location",
-                "Solar",
-                "Wind",
-            ]
-        ]
-
     @support_date_range(frequency="31D")
     def get_nomogram_branch_shadow_prices_day_ahead_hourly(
         self,
@@ -2296,7 +2414,7 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             return self.get_nomogram_branch_shadow_prices_day_ahead_hourly(
-                pd.Timestamp.now(tz=self.default_timezone)
+                pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(
@@ -2336,7 +2454,7 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             return self.get_nomogram_branch_shadow_prices_hasp_hourly(
-                pd.Timestamp.now(tz=self.default_timezone)
+                pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(
@@ -2376,7 +2494,7 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             return self.get_nomogram_branch_shadow_price_forecast_15_min(
-                pd.Timestamp.now(tz=self.default_timezone)
+                pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(
@@ -2416,7 +2534,7 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             return self.get_interval_nomogram_branch_shadow_prices_real_time_5_min(
-                pd.Timestamp.now(tz=self.default_timezone)
+                pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(

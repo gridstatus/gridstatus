@@ -100,7 +100,16 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {},
     },
-    "wind_and_solar_forecast": {
+    "actual_renewable_hourly": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "SLD_REN_FCST",
+            "version": 1,
+        },
+        "params": {"market_run_id": "ACTUAL"},
+    },
+    "dam_renewable_forecast_hourly": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,
@@ -108,6 +117,48 @@ OASIS_DATASET_CONFIG = {
             "version": 1,
         },
         "params": {"market_run_id": "DAM"},
+    },
+    "hasp_renewable_forecast_hourly": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "SLD_REN_FCST",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": "HASP",
+        },
+        "meta": {
+            "max_query_frequency": "1d",
+        },
+    },
+    "rtd_renewable_forecast": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "SLD_REN_FCST",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": "RTD",
+        },
+        "meta": {
+            "max_query_frequency": "1h",
+        },
+    },
+    "rtpd_renewable_forecast": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "SLD_REN_FCST",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": "RTPD",
+        },
+        "meta": {
+            "max_query_frequency": "1h",
+        },
     },
     "pnode_map": {
         "query": {
@@ -314,20 +365,6 @@ OASIS_DATASET_CONFIG = {
         "params": {
             "groupid": ["DAM_ENE_SCH_BY_TIE_GRP"],
             "market_run_id": DAY_AHEAD_MARKET_MARKET_RUN_ID,
-        },
-    },
-    "hasp_renewable_forecast_hourly": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "SLD_REN_FCST",
-            "version": 1,
-        },
-        "params": {
-            "market_run_id": "HASP",
-        },
-        "meta": {
-            "max_query_frequency": "1d",
         },
     },
     "nomogram_branch_shadow_prices": {
