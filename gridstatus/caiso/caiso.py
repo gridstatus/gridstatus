@@ -2464,91 +2464,60 @@ class CAISO(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame of curtailment data
         """
-        # Example: https://www.caiso.com/documents/daily-renewable-report-jun-01-2025.html
         if date == "latest":
             return self.get_curtailment("today")
 
         dataframes = self.get_caiso_renewables_report(date)
 
-        solar_curtailment_total_hourly = dataframes["solar_curtailment_total_hourly"]
-        wind_curtailment_total_hourly = dataframes["wind_curtailment_total_hourly"]
-
-        solar_curtailment_maximum_hourly = dataframes[
-            "solar_curtailment_maximum_hourly"
+        # Process all fuel types and units in one loop
+        fuel_configs = [
+            ("solar_curtailment_total_hourly", "Solar", "MWH"),
+            ("wind_curtailment_total_hourly", "Wind", "MWH"),
+            ("solar_curtailment_maximum_hourly", "Solar", "MW"),
+            ("wind_curtailment_maximum_hourly", "Wind", "MW"),
         ]
-        wind_curtailment_maximum_hourly = dataframes["wind_curtailment_maximum_hourly"]
 
         melted_dfs = {}
-
-        for df, fuel_type, unit in [
-            [solar_curtailment_total_hourly, "Solar", "MWH"],
-            [wind_curtailment_total_hourly, "Wind", "MWH"],
-            [solar_curtailment_maximum_hourly, "Solar", "MW"],
-            [wind_curtailment_maximum_hourly, "Wind", "MW"],
-        ]:
-            df = df.melt(
+        for df_key, fuel_type, unit in fuel_configs:
+            df = dataframes[df_key].melt(
                 id_vars=["Interval Start", "Interval End"],
                 var_name="Curtailment Type",
                 value_name=f"Curtailment {unit}",
             )
-            # Separate Curtailment Type into Curtailment Type (Economic, OperatorInstruction, SelfSchCut) and Curtailment Reason (System, Local)\
-            # The column is currently in the format "Curtailment Type Curtailment Reason MWH" we can ignore the MWH part
-            df["Curtailment Type"], df["Curtailment Reason"] = (
-                df["Curtailment Type"].str.split(" ").str[0],
-                df["Curtailment Type"].str.split(" ").str[1],
-            )
+
+            curtailment_parts = df["Curtailment Type"].str.split(" ")
+            df["Curtailment Type"] = curtailment_parts.str[0]
+            df["Curtailment Reason"] = curtailment_parts.str[1]
             df["Fuel Type"] = fuel_type
 
             melted_dfs[f"{fuel_type} {unit}"] = df
 
+        # Merge MWH and MW data for each fuel type
+        merge_cols = [
+            "Interval Start",
+            "Interval End",
+            "Curtailment Type",
+            "Curtailment Reason",
+            "Fuel Type",
+        ]
+
         solar_df = melted_dfs["Solar MWH"].merge(
             melted_dfs["Solar MW"],
-            on=[
-                "Interval Start",
-                "Interval End",
-                "Curtailment Type",
-                "Curtailment Reason",
-                "Fuel Type",
-            ],
+            on=merge_cols,
             how="outer",
         )
-
         wind_df = melted_dfs["Wind MWH"].merge(
             melted_dfs["Wind MW"],
-            on=[
-                "Interval Start",
-                "Interval End",
-                "Curtailment Type",
-                "Curtailment Reason",
-                "Fuel Type",
-            ],
+            on=merge_cols,
             how="outer",
         )
 
-        curtailment_df = (
-            pd.concat([solar_df, wind_df])[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Curtailment Type",
-                    "Curtailment Reason",
-                    "Fuel Type",
-                    "Curtailment MWH",
-                    "Curtailment MW",
-                ]
-            ]
-            .sort_values(
-                [
-                    "Interval Start",
-                    "Curtailment Type",
-                    "Curtailment Reason",
-                    "Fuel Type",
-                ],
-            )
+        return (
+            pd.concat([solar_df, wind_df])
+            .reindex(columns=[*merge_cols, "Curtailment MWH", "Curtailment MW"])
+            .sort_values([*merge_cols[:1], *merge_cols[2:]])
             .reset_index(drop=True)
         )
-
-        return curtailment_df
 
     def get_caiso_renewables_report(
         self,
