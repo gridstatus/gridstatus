@@ -2514,8 +2514,8 @@ class CAISO(ISOBase):
 
         return (
             pd.concat([solar_df, wind_df])
-            .reindex(columns=[*merge_cols, "Curtailment MWH", "Curtailment MW"])
-            .sort_values([*merge_cols[:1], *merge_cols[2:]])
+            .reindex(columns=merge_cols + ["Curtailment MWH", "Curtailment MW"])
+            .sort_values(merge_cols)
             .reset_index(drop=True)
         )
 
