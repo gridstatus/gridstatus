@@ -342,6 +342,13 @@ class NYISO(ISOBase):
 
         df = df.reset_index()
 
+        # Report is published day before the forecast at 7:55 AM in NYISO time
+        df.insert(
+            3,
+            "Publish Time",
+            df["Time"].dt.floor("D") - pd.Timedelta(days=1, hours=-7, minutes=-55),
+        )
+
         df.columns.name = None
 
         return df
