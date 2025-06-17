@@ -854,6 +854,7 @@ class AESO:
         """
         if date == "latest":
             url = "http://ets.aeso.ca/outage_reports/qryOpPlanTransmissionTable_1.html"
+            logger.info("Fetching latest transmission outages data")
             response = requests.get(url)
             response.raise_for_status()
 
@@ -861,6 +862,7 @@ class AESO:
             csv_link = soup.find("a", href=lambda x: x and "csvData" in x)
             csv_href = csv_link["href"].replace("\\", "/")
             csv_url = f"http://ets.aeso.ca/outage_reports/{csv_href}"
+            logger.info(f"Found CSV link: {csv_url}")
 
             publish_match = re.search(
                 r"(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})",
@@ -906,6 +908,9 @@ class AESO:
             # as there doesn't seem to be a better way to do it.
             start_date = pd.Timestamp(date)
             end_date = pd.Timestamp(end) if end else start_date
+            logger.info(
+                f"Fetching historical transmission outages from {start_date.date()} to {end_date.date()}",
+            )
 
             # NB: Start from the latest file and navigate backwards
             current_url = (
@@ -938,13 +943,44 @@ class AESO:
                                 self.default_timezone,
                             )
 
-                            if start_date <= publish_datetime.date() <= end_date.date():
-                                csv_url = (
-                                    f"http://ets.aeso.ca/outage_reports/{csv_href}"
-                                )
+                            if (
+                                start_date.date()
+                                <= publish_datetime.date()
+                                <= end_date.date()
+                            ):
+                                if csv_href.startswith("../"):
+                                    csv_url = f"http://ets.aeso.ca/outage_reports/{csv_href[3:]}"
+                                elif csv_href.startswith("csvData/"):
+                                    csv_url = (
+                                        f"http://ets.aeso.ca/outage_reports/{csv_href}"
+                                    )
+                                elif csv_href.startswith("file:///"):
+                                    # Convert local file path to proper web URL
+                                    filename = os.path.basename(csv_href)
+                                    csv_url = f"http://ets.aeso.ca/outage_reports/csvData/{filename}"
+                                    logger.info(
+                                        f"Converted local file path to web URL: {csv_url}",
+                                    )
+                                else:
+                                    csv_url = (
+                                        f"http://ets.aeso.ca/outage_reports/{csv_href}"
+                                    )
+
                                 historical_files.append((csv_url, publish_datetime))
+                                logger.info(
+                                    f"Found file: {publish_datetime.date()} - {csv_url}",
+                                )
 
                             if publish_datetime.date() < start_date.date():
+                                break
+
+                            if (
+                                publish_datetime.date()
+                                <= pd.Timestamp("2025-01-22").date()
+                            ):
+                                logger.info(
+                                    "Reached known broken date range, stopping navigation",
+                                )
                                 break
 
                     prev_link = soup.find(
@@ -978,24 +1014,14 @@ class AESO:
                     break
 
             if not historical_files:
-                return pd.DataFrame(
-                    columns=[
-                        "Interval Start",
-                        "Interval End",
-                        "Publish Time",
-                        "Transmission Owner",
-                        "Type",
-                        "Element",
-                        "Scheduled Activity",
-                        "Date Time Comments",
-                        "Interconnection",
-                    ],
-                )
+                raise ValueError("No historical files found")
 
+            logger.info(f"Found {len(historical_files)} historical files to process")
             all_dfs = []
             for csv_url, publish_datetime in historical_files:
                 try:
-                    df_hist = pd.read_csv(csv_url)
+                    # Read CSV with error handling for inconsistent field counts
+                    df_hist = pd.read_csv(csv_url, on_bad_lines="skip")
                     df_hist["Interval Start"] = pd.to_datetime(
                         df_hist["From"],
                         format="%d-%b-%y %H:%M",
@@ -1034,5 +1060,7 @@ class AESO:
 
             if all_dfs:
                 df = pd.concat(all_dfs, ignore_index=True)
-                df = df.sort_values("Publish Time", ascending=False)
+                df = df.sort_values("Publish Time", ascending=False).reset_index(
+                    drop=True,
+                )
                 return df
