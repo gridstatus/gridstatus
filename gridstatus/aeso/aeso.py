@@ -876,8 +876,14 @@ class AESO:
 
             df = pd.read_csv(csv_url)
 
-            df["Interval Start"] = pd.to_datetime(df["From"], format="%d-%b-%y %H:%M")
-            df["Interval End"] = pd.to_datetime(df["To"], format="%d-%b-%y %H:%M")
+            df["Interval Start"] = pd.to_datetime(
+                df["From"],
+                format="%d-%b-%y %H:%M",
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = pd.to_datetime(
+                df["To"],
+                format="%d-%b-%y %H:%M",
+            ).dt.tz_localize(self.default_timezone)
             df["Publish Time"] = publish_datetime
 
             df = df.rename(
@@ -1020,16 +1026,15 @@ class AESO:
             all_dfs = []
             for csv_url, publish_datetime in historical_files:
                 try:
-                    # Read CSV with error handling for inconsistent field counts
                     df_hist = pd.read_csv(csv_url, on_bad_lines="skip")
                     df_hist["Interval Start"] = pd.to_datetime(
                         df_hist["From"],
                         format="%d-%b-%y %H:%M",
-                    )
+                    ).dt.tz_localize(self.default_timezone)
                     df_hist["Interval End"] = pd.to_datetime(
                         df_hist["To"],
                         format="%d-%b-%y %H:%M",
-                    )
+                    ).dt.tz_localize(self.default_timezone)
                     df_hist["Publish Time"] = publish_datetime
 
                     df_hist = df_hist.rename(
