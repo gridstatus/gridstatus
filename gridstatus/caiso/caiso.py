@@ -867,7 +867,7 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_renewable_hourly(
+    def get_renewables_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -884,18 +884,18 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of wind and solar hourly actuals
         """
         if date == "latest":
-            return self.get_actual_renewable_hourly("today")
+            return self.get_renewables_hourly("today")
 
         df = self.get_oasis_dataset(
-            dataset="renewable",
+            dataset="renewables",
             date=date,
             end=end,
             verbose=verbose,
             raw_data=False,
         )
-        return self._process_renewable_hourly(df)
+        return self._process_renewables_hourly(df)
 
-    def get_renewable_forecast_dam(
+    def get_renewables_forecast_dam(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -907,19 +907,19 @@ class CAISO(ISOBase):
         DAM Renewable Forecast
         """
         if date == "latest":
-            return self.get_dam_renewable_forecast_hourly("today", verbose=verbose)
+            return self.get_renewables_forecast_dam("today", verbose=verbose)
 
         current_time = pd.Timestamp.now(tz=self.default_timezone)
 
         data = self.get_oasis_dataset(
-            dataset="renewable_forecast_dam",
+            dataset="renewables_forecast_dam",
             date=date,
             end=end,
             verbose=verbose,
             raw_data=False,
         )
 
-        return self._process_renewable_hourly(
+        return self._process_renewables_hourly(
             data,
             current_time,
             # Day-ahead hourly wind and solar forecast is published at 7:00 AM according
@@ -927,7 +927,7 @@ class CAISO(ISOBase):
             publish_time_offset_from_day_start=pd.Timedelta(hours=7),
         )
 
-    def _process_renewable_hourly(
+    def _process_renewables_hourly(
         self,
         data: pd.DataFrame,
         current_time: pd.Timestamp | None = None,
@@ -1055,7 +1055,7 @@ class CAISO(ISOBase):
 
         return data
 
-    def _handle_renewable_forecast(
+    def _handle_renewables_forecast(
         self,
         df: pd.DataFrame,
         publish_time_offset: pd.Timedelta,
@@ -1091,7 +1091,7 @@ class CAISO(ISOBase):
             ]
         ]
 
-    def get_renewable_forecast_hasp(
+    def get_renewables_forecast_hasp(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -1110,27 +1110,27 @@ class CAISO(ISOBase):
         """
         if date == "latest":
             try:
-                return self.get_hasp_renewable_forecast_hourly(
+                return self.get_renewables_forecast_hasp(
                     pd.Timestamp.now(tz=self.default_timezone) + pd.Timedelta(hours=2),
                 )  # NB: This is a hack to get the latest forecast
             except KeyError:
-                return self.get_hasp_renewable_forecast_hourly(
+                return self.get_renewables_forecast_hasp(
                     pd.Timestamp.now(tz=self.default_timezone) + pd.Timedelta(hours=1),
                 )
 
         df = self.get_oasis_dataset(
-            dataset="renewable_forecast_hasp",
+            dataset="renewables_forecast_hasp",
             date=date,
             end=end,
             verbose=verbose,
             raw_data=False,
         )
-        return self._handle_renewable_forecast(
+        return self._handle_renewables_forecast(
             df,
             publish_time_offset=pd.Timedelta(minutes=90),
         )
 
-    def get_renewable_forecast_rtd(
+    def get_renewables_forecast_rtd(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -1147,23 +1147,23 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of RTD renewable forecast
         """
         if date == "latest":
-            return self.get_rtd_renewable_forecast(
+            return self.get_renewables_forecast_rtd(
                 pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(
-            dataset="renewable_forecast_rtd",
+            dataset="renewables_forecast_rtd",
             date=date,
             end=end,
             verbose=verbose,
             raw_data=False,
         )
-        return self._handle_renewable_forecast(
+        return self._handle_renewables_forecast(
             df,
             publish_time_offset=pd.Timedelta(minutes=2.5),
         )
 
-    def get_renewable_forecast_rtpd(
+    def get_renewables_forecast_rtpd(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -1180,18 +1180,18 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of RTPD renewable forecast
         """
         if date == "latest":
-            return self.get_rtpd_renewable_forecast(
+            return self.get_renewables_forecast_rtpd(
                 pd.Timestamp.now(tz=self.default_timezone),
             )
 
         df = self.get_oasis_dataset(
-            dataset="renewable_forecast_rtpd",
+            dataset="renewables_forecast_rtpd",
             date=date,
             end=end,
             verbose=verbose,
             raw_data=False,
         )
-        return self._handle_renewable_forecast(
+        return self._handle_renewables_forecast(
             df,
             publish_time_offset=pd.Timedelta(minutes=22.5),
         )
