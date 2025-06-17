@@ -867,7 +867,7 @@ class CAISO(ISOBase):
 
         return df
 
-    def get_actual_renewable_hourly(
+    def get_renewable_hourly(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -887,7 +887,7 @@ class CAISO(ISOBase):
             return self.get_actual_renewable_hourly("today")
 
         df = self.get_oasis_dataset(
-            dataset="actual_renewable_hourly",
+            dataset="renewable",
             date=date,
             end=end,
             verbose=verbose,
@@ -895,7 +895,7 @@ class CAISO(ISOBase):
         )
         return self._process_renewable_hourly(df)
 
-    def get_dam_renewable_forecast_hourly(
+    def get_renewable_forecast_dam(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -912,7 +912,7 @@ class CAISO(ISOBase):
         current_time = pd.Timestamp.now(tz=self.default_timezone)
 
         data = self.get_oasis_dataset(
-            dataset="dam_renewable_forecast_hourly",
+            dataset="renewable_forecast_dam",
             date=date,
             end=end,
             verbose=verbose,
@@ -1091,7 +1091,7 @@ class CAISO(ISOBase):
             ]
         ]
 
-    def get_hasp_renewable_forecast_hourly(
+    def get_renewable_forecast_hasp(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -1119,7 +1119,7 @@ class CAISO(ISOBase):
                 )
 
         df = self.get_oasis_dataset(
-            dataset="hasp_renewable_forecast_hourly",
+            dataset="renewable_forecast_hasp",
             date=date,
             end=end,
             verbose=verbose,
@@ -1130,7 +1130,7 @@ class CAISO(ISOBase):
             publish_time_offset=pd.Timedelta(minutes=90),
         )
 
-    def get_rtd_renewable_forecast(
+    def get_renewable_forecast_rtd(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -1152,7 +1152,7 @@ class CAISO(ISOBase):
             )
 
         df = self.get_oasis_dataset(
-            dataset="rtd_renewable_forecast",
+            dataset="renewable_forecast_rtd",
             date=date,
             end=end,
             verbose=verbose,
@@ -1163,7 +1163,7 @@ class CAISO(ISOBase):
             publish_time_offset=pd.Timedelta(minutes=2.5),
         )
 
-    def get_rtpd_renewable_forecast(
+    def get_renewable_forecast_rtpd(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -1185,7 +1185,7 @@ class CAISO(ISOBase):
             )
 
         df = self.get_oasis_dataset(
-            dataset="rtpd_renewable_forecast",
+            dataset="renewable_forecast_rtpd",
             date=date,
             end=end,
             verbose=verbose,

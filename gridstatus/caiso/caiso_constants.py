@@ -100,7 +100,7 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {},
     },
-    "actual_renewable_hourly": {
+    "renewable": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,
@@ -109,7 +109,7 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {"market_run_id": "ACTUAL"},
     },
-    "dam_renewable_forecast_hourly": {
+    "renewable_forecast_dam": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,
@@ -118,7 +118,7 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {"market_run_id": "DAM"},
     },
-    "hasp_renewable_forecast_hourly": {
+    "renewable_forecast_hasp": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,
@@ -132,7 +132,7 @@ OASIS_DATASET_CONFIG = {
             "max_query_frequency": "1d",
         },
     },
-    "rtd_renewable_forecast": {
+    "renewable_forecast_rtd": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,
@@ -146,7 +146,7 @@ OASIS_DATASET_CONFIG = {
             "max_query_frequency": "1d",
         },
     },
-    "rtpd_renewable_forecast": {
+    "renewable_forecast_rtpd": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,
