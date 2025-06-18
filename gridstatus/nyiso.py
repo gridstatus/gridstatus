@@ -346,7 +346,8 @@ class NYISO(ISOBase):
         df.insert(
             3,
             "Publish Time",
-            df["Time"].dt.floor("D") - pd.Timedelta(days=1, hours=-7, minutes=-55),
+            df["Interval Start"].dt.floor("D")
+            - pd.Timedelta(days=1, hours=-7, minutes=-55),
         )
 
         df.columns.name = None
