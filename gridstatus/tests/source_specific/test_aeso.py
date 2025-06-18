@@ -693,3 +693,26 @@ class TestAESO(TestHelperMixin):
             assert df["Publish Time"].nunique() > 1
             assert df["Publish Time"].min().date() >= start_date.date()
             assert df["Publish Time"].max().date() <= end_date.date()
+
+    @pytest.mark.parametrize(
+        "target_date",
+        [
+            pd.Timestamp("2025-01-17"),
+        ],
+    )
+    def test_get_transmission_outages_single_date(
+        self,
+        target_date: pd.Timestamp,
+    ) -> None:
+        """Test getting transmission outages for a single date (most recent file before target date)."""
+        with api_vcr.use_cassette(
+            f"test_get_transmission_outages_single_date_{target_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_transmission_outages(date=target_date)
+            self._check_transmission_outages(df)
+            assert len(df) > 0
+            assert df["Publish Time"].nunique() == 1
+            publish_time = df["Publish Time"].iloc[0]
+            assert publish_time.date() < target_date.date(), (
+                f"Publish time {publish_time.date()} should be before target date {target_date.date()}"
+            )
