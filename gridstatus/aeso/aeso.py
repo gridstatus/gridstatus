@@ -915,6 +915,25 @@ class AESO:
             # as there doesn't seem to be a better way to do it.
             start_date = pd.Timestamp(date)
             end_date = pd.Timestamp(end) if end else start_date
+            # NB: Data is only available from 2024-01-31 onwards is seems
+            earliest_available = pd.Timestamp("2024-01-31")
+
+            if end_date.date() < earliest_available.date() or (
+                start_date.date() < earliest_available.date() and end_date is None
+            ):
+                raise ValueError(
+                    f"Requested date range is before available data. "
+                    f"Transmission outage data is only available from {earliest_available.date()} onwards. "
+                    f"Requested: {start_date.date()} to {end_date.date()}",
+                )
+            elif start_date.date() < earliest_available.date():
+                logger.warning(
+                    f"Requested start date {start_date.date()} is before available data. "
+                    f"Data is only available from {earliest_available.date()} onwards. "
+                    f"Adjusting start date to {earliest_available.date()}",
+                )
+                start_date = earliest_available
+
             logger.info(
                 f"Fetching historical transmission outages from {start_date.date()} to {end_date.date()}",
             )
