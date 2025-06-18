@@ -619,3 +619,100 @@ class TestAESO(TestHelperMixin):
             assert df["Interval Start"].max() <= end_date.tz_localize(
                 self.iso.default_timezone,
             )
+
+    def _check_transmission_outages(self, df: pd.DataFrame) -> None:
+        """Check transmission outages DataFrame structure and types."""
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Transmission Owner",
+            "Type",
+            "Element",
+            "Scheduled Activity",
+            "Date Time Comments",
+            "Interconnection",
+        ]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        string_columns = [
+            "Transmission Owner",
+            "Type",
+            "Element",
+            "Scheduled Activity",
+            "Date Time Comments",
+            "Interconnection",
+        ]
+        for col in string_columns:
+            assert df[col].dtype == "object", (
+                f"Column {col} should be object/string type"
+            )
+
+        assert (df["Interval End"] >= df["Interval Start"]).all()
+
+    def test_get_transmission_outages_latest(self):
+        """Test getting latest transmission outages data."""
+        with api_vcr.use_cassette("test_get_transmission_outages_latest.yaml"):
+            df = self.iso.get_transmission_outages(date="latest")
+            self._check_transmission_outages(df)
+            assert len(df) > 0
+            assert df["Publish Time"].nunique() == 1
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2025-05-01"),
+                pd.Timestamp("2025-06-15"),
+            ),
+        ],
+    )
+    def test_get_transmission_outages_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical transmission outages data."""
+        with api_vcr.use_cassette(
+            f"test_get_transmission_outages_historical_range_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_transmission_outages(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_transmission_outages(df)
+            assert df["Publish Time"].nunique() > 1
+            assert df["Publish Time"].min().date() >= start_date.date()
+            assert df["Publish Time"].max().date() <= end_date.date()
+
+    @pytest.mark.parametrize(
+        "target_date",
+        [
+            pd.Timestamp("2025-01-17"),
+        ],
+    )
+    def test_get_transmission_outages_single_date(
+        self,
+        target_date: pd.Timestamp,
+    ) -> None:
+        """Test getting transmission outages for a single date (most recent file before target date)."""
+        with api_vcr.use_cassette(
+            f"test_get_transmission_outages_single_date_{target_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_transmission_outages(date=target_date)
+            self._check_transmission_outages(df)
+            assert len(df) > 0
+            assert df["Publish Time"].nunique() == 1
+            publish_time = df["Publish Time"].iloc[0]
+            assert publish_time.date() < target_date.date(), (
+                f"Publish time {publish_time.date()} should be before target date {target_date.date()}"
+            )

@@ -1,9 +1,11 @@
 import json
 import os
+import re
 from typing import Any, Literal
 
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 from requests.exceptions import HTTPError, RequestException
 
 from gridstatus import utils
@@ -14,6 +16,9 @@ from gridstatus.aeso.aeso_constants import (
 )
 from gridstatus.base import NotSupported
 from gridstatus.decorators import support_date_range
+from gridstatus.gs_logging import setup_gs_logger
+
+logger = setup_gs_logger("aeso")
 
 
 class AESO:
@@ -26,6 +31,7 @@ class AESO:
 
     # NB: Data is also typically provided in UTC
     default_timezone = "US/Mountain"
+    MAX_NAVIGATION_ATTEMPTS = 100
 
     def __init__(self, api_key: str | None = None):
         """
@@ -831,3 +837,270 @@ class AESO:
                 df_pivot[col] = 0
 
         return df_pivot[expected_columns]
+
+    def get_transmission_outages(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get transmission outages data.
+
+        Args:
+            date: Start date for the data. Can be "latest" to get current data.
+            end: End date for the data. If not provided, will get data for the specified date.
+
+        Returns:
+            DataFrame containing transmission outage data
+        """
+        if date == "latest":
+            url = "http://ets.aeso.ca/outage_reports/qryOpPlanTransmissionTable_1.html"
+            logger.info("Fetching latest transmission outages data")
+            response = requests.get(url)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.text, "html.parser")
+            csv_link = soup.find("a", href=lambda x: x and "csvData" in x)
+            csv_href = csv_link["href"].replace("\\", "/")
+            csv_url = self._generate_csv_url(csv_href)
+            logger.info(f"Found CSV link: {csv_url}")
+
+            publish_match = re.search(
+                r"(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})",
+                csv_href,
+            )
+            if publish_match:
+                publish_date = publish_match.group(1)
+                publish_time = publish_match.group(2).replace("-", ":")
+                publish_datetime = pd.to_datetime(f"{publish_date} {publish_time}")
+                publish_datetime = publish_datetime.tz_localize(self.default_timezone)
+
+            df = pd.read_csv(csv_url)
+
+            df["Interval Start"] = pd.to_datetime(
+                df["From"],
+                format="%d-%b-%y %H:%M",
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = pd.to_datetime(
+                df["To"],
+                format="%d-%b-%y %H:%M",
+            ).dt.tz_localize(self.default_timezone)
+            df["Publish Time"] = publish_datetime
+
+            df = df.rename(
+                columns={
+                    "Owner": "Transmission Owner",
+                    "Date/Time Comments": "Date Time Comments",
+                },
+            )
+
+            df = df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Transmission Owner",
+                    "Type",
+                    "Element",
+                    "Scheduled Activity",
+                    "Date Time Comments",
+                    "Interconnection",
+                ]
+            ]
+
+            return df
+
+        else:
+            # NB: For historical data, we need to navigate backwards through Previous Version links
+            # as there doesn't seem to be a better way to do it.
+            start_date = pd.Timestamp(date)
+            end_date = pd.Timestamp(end) if end else start_date
+            # NB: Data is only available from 2024-01-31 onwards is seems
+            earliest_available = pd.Timestamp("2024-01-31")
+
+            if end_date.date() < earliest_available.date() or (
+                start_date.date() < earliest_available.date() and end_date is None
+            ):
+                raise ValueError(
+                    f"Requested date range is before available data. "
+                    f"Transmission outage data is only available from {earliest_available.date()} onwards. "
+                    f"Requested: {start_date.date()} to {end_date.date()}",
+                )
+            elif start_date.date() < earliest_available.date():
+                logger.warning(
+                    f"Requested start date {start_date.date()} is before available data. "
+                    f"Data is only available from {earliest_available.date()} onwards. ",
+                )
+
+            logger.info(
+                f"Fetching historical transmission outages from {start_date.date()} to {end_date.date()}",
+            )
+
+            # NB: Start from the latest file and navigate backwards
+            current_url = (
+                "http://ets.aeso.ca/outage_reports/qryOpPlanTransmissionTable_1.html"
+            )
+            historical_files = []
+            jumped_to_archives = False
+
+            for _ in range(
+                self.MAX_NAVIGATION_ATTEMPTS,
+            ):  # NB: Limit iterations to prevent infinite loops
+                try:
+                    response = requests.get(current_url)
+                    response.raise_for_status()
+
+                    soup = BeautifulSoup(response.text, "html.parser")
+
+                    csv_link = soup.find("a", href=lambda x: x and "csvData" in x)
+                    if csv_link:
+                        csv_href = csv_link["href"].replace("\\", "/")
+
+                        publish_match = re.search(
+                            r"(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})",
+                            csv_href,
+                        )
+                        if publish_match:
+                            publish_date = publish_match.group(1)
+                            publish_time = publish_match.group(2).replace("-", ":")
+                            publish_datetime = pd.to_datetime(
+                                f"{publish_date} {publish_time}",
+                            )
+                            publish_datetime = publish_datetime.tz_localize(
+                                self.default_timezone,
+                            )
+
+                            if (
+                                start_date.date()
+                                <= publish_datetime.date()
+                                <= end_date.date()
+                            ):
+                                csv_url = self._generate_csv_url(csv_href)
+
+                                historical_files.append((csv_url, publish_datetime))
+                                logger.info(
+                                    f"Found file: {publish_datetime.date()} - {csv_url}",
+                                )
+
+                                if end is None:
+                                    break
+
+                            if (
+                                end is None
+                                and publish_datetime.date() < start_date.date()
+                            ):
+                                csv_url = self._generate_csv_url(csv_href)
+                                historical_files.append((csv_url, publish_datetime))
+                                logger.info(
+                                    f"Found most recent file before {start_date.date()}: {publish_datetime.date()} - {csv_url}",
+                                )
+                                break
+
+                            if publish_datetime.date() < start_date.date():
+                                break
+
+                            if (
+                                publish_datetime.date()
+                                <= pd.Timestamp("2025-01-22").date()
+                                and not jumped_to_archives
+                            ):
+                                logger.info(
+                                    "Reached known broken date range, jumping to 2025-01-17 to continue navigation",
+                                )
+                                current_url = "http://ets.aeso.ca/outage_reports/archives/_2025-01-17_14-10-25_qryOpPlanTransmissionTable_1.html"
+                                jumped_to_archives = True
+                                continue
+
+                    prev_link = soup.find(
+                        "a",
+                        string=lambda text: text and "Previous Version" in text,
+                    )
+                    if not prev_link:
+                        break
+
+                    prev_href = prev_link.get("href")
+
+                    if prev_href.startswith("http"):
+                        current_url = prev_href
+                    elif prev_href.startswith("file:///"):
+                        # NOTE: There's a few that link to an engineer's local file path, so we navigate around that
+                        filename = os.path.basename(prev_href)
+                        current_url = (
+                            f"http://ets.aeso.ca/outage_reports/archives/{filename}"
+                        )
+                    else:
+                        prev_href_clean = prev_href.replace("\\", "/")
+                        if prev_href_clean.startswith("archives/"):
+                            current_url = (
+                                f"http://ets.aeso.ca/outage_reports/{prev_href_clean}"
+                            )
+                        else:
+                            current_url = f"http://ets.aeso.ca/outage_reports/archives/{prev_href_clean}"
+
+                except Exception as e:
+                    logger.error(f"Error accessing {current_url}: {e}")
+                    break
+
+            if not historical_files:
+                raise ValueError("No historical files found")
+
+            logger.info(f"Found {len(historical_files)} historical files to process")
+            all_dfs = []
+            for csv_url, publish_datetime in historical_files:
+                try:
+                    df_hist = pd.read_csv(csv_url, on_bad_lines="skip")
+                    df_hist["Interval Start"] = pd.to_datetime(
+                        df_hist["From"],
+                        format="%d-%b-%y %H:%M",
+                    ).dt.tz_localize(self.default_timezone)
+                    df_hist["Interval End"] = pd.to_datetime(
+                        df_hist["To"],
+                        format="%d-%b-%y %H:%M",
+                    ).dt.tz_localize(self.default_timezone)
+                    df_hist["Publish Time"] = publish_datetime
+
+                    df_hist = df_hist.rename(
+                        columns={
+                            "Owner": "Transmission Owner",
+                            "Date/Time Comments": "Date Time Comments",
+                        },
+                    )
+
+                    df_hist = df_hist[
+                        [
+                            "Interval Start",
+                            "Interval End",
+                            "Publish Time",
+                            "Transmission Owner",
+                            "Type",
+                            "Element",
+                            "Scheduled Activity",
+                            "Date Time Comments",
+                            "Interconnection",
+                        ]
+                    ]
+
+                    all_dfs.append(df_hist)
+                except Exception as e:
+                    logger.error(f"Error accessing {csv_url}: {e}")
+                    continue
+
+            if all_dfs:
+                df = pd.concat(all_dfs, ignore_index=True)
+                df = df.sort_values("Publish Time", ascending=False).reset_index(
+                    drop=True,
+                )
+                return df
+
+    def _generate_csv_url(self, csv_href: str) -> str:
+        csv_href = csv_href.replace("\\", "/")
+
+        if csv_href.startswith("../"):
+            return f"http://ets.aeso.ca/outage_reports/{csv_href[3:]}"
+        elif csv_href.startswith("csvData/"):
+            return f"http://ets.aeso.ca/outage_reports/{csv_href}"
+        elif csv_href.startswith("file:///"):
+            filename = os.path.basename(csv_href)
+            return f"http://ets.aeso.ca/outage_reports/csvData/{filename}"
+        else:
+            return f"http://ets.aeso.ca/outage_reports/{csv_href}"
