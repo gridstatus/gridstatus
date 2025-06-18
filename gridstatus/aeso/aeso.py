@@ -31,6 +31,7 @@ class AESO:
 
     # NB: Data is also typically provided in UTC
     default_timezone = "US/Mountain"
+    MAX_NAVIGATION_ATTEMPTS = 100
 
     def __init__(self, api_key: str | None = None):
         """
@@ -861,7 +862,7 @@ class AESO:
             soup = BeautifulSoup(response.text, "html.parser")
             csv_link = soup.find("a", href=lambda x: x and "csvData" in x)
             csv_href = csv_link["href"].replace("\\", "/")
-            csv_url = f"http://ets.aeso.ca/outage_reports/{csv_href}"
+            csv_url = self._generate_csv_url(csv_href)
             logger.info(f"Found CSV link: {csv_url}")
 
             publish_match = re.search(
@@ -923,8 +924,11 @@ class AESO:
                 "http://ets.aeso.ca/outage_reports/qryOpPlanTransmissionTable_1.html"
             )
             historical_files = []
+            jumped_to_archives = False
 
-            for _ in range(100):  # NB: Limit iterations to prevent infinite loops
+            for _ in range(
+                self.MAX_NAVIGATION_ATTEMPTS,
+            ):  # NB: Limit iterations to prevent infinite loops
                 try:
                     response = requests.get(current_url)
                     response.raise_for_status()
@@ -954,28 +958,26 @@ class AESO:
                                 <= publish_datetime.date()
                                 <= end_date.date()
                             ):
-                                if csv_href.startswith("../"):
-                                    csv_url = f"http://ets.aeso.ca/outage_reports/{csv_href[3:]}"
-                                elif csv_href.startswith("csvData/"):
-                                    csv_url = (
-                                        f"http://ets.aeso.ca/outage_reports/{csv_href}"
-                                    )
-                                elif csv_href.startswith("file:///"):
-                                    # Convert local file path to proper web URL
-                                    filename = os.path.basename(csv_href)
-                                    csv_url = f"http://ets.aeso.ca/outage_reports/csvData/{filename}"
-                                    logger.info(
-                                        f"Converted local file path to web URL: {csv_url}",
-                                    )
-                                else:
-                                    csv_url = (
-                                        f"http://ets.aeso.ca/outage_reports/{csv_href}"
-                                    )
+                                csv_url = self._generate_csv_url(csv_href)
 
                                 historical_files.append((csv_url, publish_datetime))
                                 logger.info(
                                     f"Found file: {publish_datetime.date()} - {csv_url}",
                                 )
+
+                                if end is None:
+                                    break
+
+                            if (
+                                end is None
+                                and publish_datetime.date() < start_date.date()
+                            ):
+                                csv_url = self._generate_csv_url(csv_href)
+                                historical_files.append((csv_url, publish_datetime))
+                                logger.info(
+                                    f"Found most recent file before {start_date.date()}: {publish_datetime.date()} - {csv_url}",
+                                )
+                                break
 
                             if publish_datetime.date() < start_date.date():
                                 break
@@ -983,11 +985,14 @@ class AESO:
                             if (
                                 publish_datetime.date()
                                 <= pd.Timestamp("2025-01-22").date()
+                                and not jumped_to_archives
                             ):
                                 logger.info(
-                                    "Reached known broken date range, stopping navigation",
+                                    "Reached known broken date range, jumping to 2025-01-17 to continue navigation",
                                 )
-                                break
+                                current_url = "http://ets.aeso.ca/outage_reports/archives/_2025-01-17_14-10-25_qryOpPlanTransmissionTable_1.html"
+                                jumped_to_archives = True
+                                continue
 
                     prev_link = soup.find(
                         "a",
@@ -1069,3 +1074,16 @@ class AESO:
                     drop=True,
                 )
                 return df
+
+    def _generate_csv_url(self, csv_href: str) -> str:
+        csv_href = csv_href.replace("\\", "/")
+
+        if csv_href.startswith("../"):
+            return f"http://ets.aeso.ca/outage_reports/{csv_href[3:]}"
+        elif csv_href.startswith("csvData/"):
+            return f"http://ets.aeso.ca/outage_reports/{csv_href}"
+        elif csv_href.startswith("file:///"):
+            filename = os.path.basename(csv_href)
+            return f"http://ets.aeso.ca/outage_reports/csvData/{filename}"
+        else:
+            return f"http://ets.aeso.ca/outage_reports/{csv_href}"
