@@ -929,10 +929,8 @@ class AESO:
             elif start_date.date() < earliest_available.date():
                 logger.warning(
                     f"Requested start date {start_date.date()} is before available data. "
-                    f"Data is only available from {earliest_available.date()} onwards. "
-                    f"Adjusting start date to {earliest_available.date()}",
+                    f"Data is only available from {earliest_available.date()} onwards. ",
                 )
-                start_date = earliest_available
 
             logger.info(
                 f"Fetching historical transmission outages from {start_date.date()} to {end_date.date()}",
