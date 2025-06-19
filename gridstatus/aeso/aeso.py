@@ -33,6 +33,13 @@ class AESO:
     default_timezone = "US/Mountain"
     MAX_NAVIGATION_ATTEMPTS = 100
 
+    HISTORICAL_FORECAST_EARLIEST = pd.Timestamp("2023-03-01").tz_localize(
+        default_timezone,
+    )
+    HISTORICAL_FORECAST_LATEST = pd.Timestamp("2025-04-01").tz_localize(
+        default_timezone,
+    )
+
     def __init__(self, api_key: str | None = None):
         """
         Initialize the AESO API client.
@@ -51,6 +58,12 @@ class AESO:
             "Cache-Control": "no-cache",
             "API-KEY": self.api_key,
         }
+
+    def _normalize_timezone(self, timestamp: pd.Timestamp) -> pd.Timestamp:
+        if timestamp.tz is None:
+            return timestamp.tz_localize(self.default_timezone)
+        else:
+            return timestamp.tz_convert(self.default_timezone)
 
     def _make_request(self, endpoint: str, method: str = "GET") -> dict[str, Any]:
         """
@@ -1151,29 +1164,18 @@ class AESO:
                 end=end,
             )
         else:
-            start_date = pd.Timestamp(date)
-            end_date = pd.Timestamp(end) if end else start_date
-
-            if start_date.tz is None:
-                start_date = start_date.tz_localize(self.default_timezone)
-            else:
-                start_date = start_date.tz_convert(self.default_timezone)
-            if end_date.tz is None:
-                end_date = end_date.tz_localize(self.default_timezone)
-            else:
-                end_date = end_date.tz_convert(self.default_timezone)
-
-            earliest_supported = pd.Timestamp("2023-03-01").tz_localize(
-                self.default_timezone,
-            )
-            latest_supported = pd.Timestamp("2025-04-01").tz_localize(
-                self.default_timezone,
+            start_date = self._normalize_timezone(pd.Timestamp(date))
+            end_date = (
+                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
             )
 
-            if start_date < earliest_supported or end_date > latest_supported:
+            if (
+                start_date < self.HISTORICAL_FORECAST_EARLIEST
+                or end_date > self.HISTORICAL_FORECAST_LATEST
+            ):
                 raise NotSupported(
-                    f"Historical wind forecast data is only available from {earliest_supported.date()} "
-                    f"to {latest_supported.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                    f"Historical wind forecast data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
                 )
 
             return self._get_wind_solar_forecast_historical_data(
@@ -1228,29 +1230,18 @@ class AESO:
                 end=end,
             )
         else:
-            start_date = pd.Timestamp(date)
-            end_date = pd.Timestamp(end) if end else start_date
-
-            if start_date.tz is None:
-                start_date = start_date.tz_localize(self.default_timezone)
-            else:
-                start_date = start_date.tz_convert(self.default_timezone)
-            if end_date.tz is None:
-                end_date = end_date.tz_localize(self.default_timezone)
-            else:
-                end_date = end_date.tz_convert(self.default_timezone)
-
-            earliest_supported = pd.Timestamp("2023-03-01").tz_localize(
-                self.default_timezone,
-            )
-            latest_supported = pd.Timestamp("2025-04-01").tz_localize(
-                self.default_timezone,
+            start_date = self._normalize_timezone(pd.Timestamp(date))
+            end_date = (
+                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
             )
 
-            if start_date < earliest_supported or end_date > latest_supported:
+            if (
+                start_date < self.HISTORICAL_FORECAST_EARLIEST
+                or end_date > self.HISTORICAL_FORECAST_LATEST
+            ):
                 raise NotSupported(
-                    f"Historical solar forecast data is only available from {earliest_supported.date()} "
-                    f"to {latest_supported.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                    f"Historical solar forecast data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
                 )
 
             return self._get_wind_solar_forecast_historical_data(
@@ -1397,17 +1388,9 @@ class AESO:
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
         df["Publish Time"] = df["Interval Start"] - pd.Timedelta(hours=24)
 
-        start_date = (
-            pd.Timestamp(date).tz_localize(self.default_timezone)
-            if pd.Timestamp(date).tz is None
-            else pd.Timestamp(date).tz_convert(self.default_timezone)
-        )
+        start_date = self._normalize_timezone(pd.Timestamp(date))
         if end:
-            end_date = (
-                pd.Timestamp(end).tz_localize(self.default_timezone)
-                if pd.Timestamp(end).tz is None
-                else pd.Timestamp(end).tz_convert(self.default_timezone)
-            )
+            end_date = self._normalize_timezone(pd.Timestamp(end))
             df = df[
                 (df["Interval Start"] >= start_date)
                 & (df["Interval Start"] <= end_date)
