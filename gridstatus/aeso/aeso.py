@@ -1293,9 +1293,6 @@ class AESO:
         # For past forecasted intervals (intervals with an actual value), we know the most recent forecast was published just before each interval.
         # For future forecasted values, the publish time for all of them is set to the first interval that has no actual value, since
         # that's when the forecast was last published.
-        publish_time_offset = (
-            pd.Timedelta(minutes=10) if term == "shortterm" else pd.Timedelta(hours=1)
-        )
         first_interval_without_actual = df[df["Actual"].isna()]
         if not first_interval_without_actual.empty:
             forecast_publish_time = first_interval_without_actual[
@@ -1305,12 +1302,12 @@ class AESO:
                 lambda row: (
                     forecast_publish_time
                     if pd.isna(row["Actual"])
-                    else row["Interval Start"] - publish_time_offset
+                    else row["Interval Start"] - interval_length
                 ),
                 axis=1,
             )
         else:
-            df["Publish Time"] = df["Interval Start"] - publish_time_offset
+            df["Publish Time"] = df["Interval Start"] - interval_length
 
         df = df.rename(
             columns={
