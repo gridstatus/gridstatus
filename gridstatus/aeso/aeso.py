@@ -1154,8 +1154,21 @@ class AESO:
             start_date = pd.Timestamp(date)
             end_date = pd.Timestamp(end) if end else start_date
 
-            earliest_supported = pd.Timestamp("2023-03-01")
-            latest_supported = pd.Timestamp("2025-04-01")
+            if start_date.tz is None:
+                start_date = start_date.tz_localize(self.default_timezone)
+            else:
+                start_date = start_date.tz_convert(self.default_timezone)
+            if end_date.tz is None:
+                end_date = end_date.tz_localize(self.default_timezone)
+            else:
+                end_date = end_date.tz_convert(self.default_timezone)
+
+            earliest_supported = pd.Timestamp("2023-03-01").tz_localize(
+                self.default_timezone,
+            )
+            latest_supported = pd.Timestamp("2025-04-01").tz_localize(
+                self.default_timezone,
+            )
 
             if start_date < earliest_supported or end_date > latest_supported:
                 raise NotSupported(
@@ -1218,8 +1231,21 @@ class AESO:
             start_date = pd.Timestamp(date)
             end_date = pd.Timestamp(end) if end else start_date
 
-            earliest_supported = pd.Timestamp("2023-03-01")
-            latest_supported = pd.Timestamp("2025-04-01")
+            if start_date.tz is None:
+                start_date = start_date.tz_localize(self.default_timezone)
+            else:
+                start_date = start_date.tz_convert(self.default_timezone)
+            if end_date.tz is None:
+                end_date = end_date.tz_localize(self.default_timezone)
+            else:
+                end_date = end_date.tz_convert(self.default_timezone)
+
+            earliest_supported = pd.Timestamp("2023-03-01").tz_localize(
+                self.default_timezone,
+            )
+            latest_supported = pd.Timestamp("2025-04-01").tz_localize(
+                self.default_timezone,
+            )
 
             if start_date < earliest_supported or end_date > latest_supported:
                 raise NotSupported(
@@ -1370,8 +1396,8 @@ class AESO:
         forecast_prefix = forecast_type.upper()
         df["Interval Start"] = pd.to_datetime(
             df["FORECAST_DATE_MPT"],
-            format="%-m/%-d/%Y %-H:%M",
-        ).dt.tz_localize(self.default_timezone)
+            format="mixed",
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
         df["Publish Time"] = df["Interval Start"] - pd.Timedelta(hours=24)
