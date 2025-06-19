@@ -1283,7 +1283,10 @@ class AESO:
             format="%Y-%m-%d %H:%M",
         ).dt.tz_localize(self.default_timezone)
 
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
+        interval_length = (
+            pd.Timedelta(minutes=10) if term == "shortterm" else pd.Timedelta(hours=1)
+        )
+        df["Interval End"] = df["Interval Start"] + interval_length
 
         # NB: Since the forecasts are published every 10 minutes for shortterm and every 1 hour for longterm,
         # we can calculate the publish time based on the presence of actuals values.
