@@ -1218,10 +1218,7 @@ class AESO:
             format="%Y-%m-%d %H:%M",
         ).dt.tz_localize(self.default_timezone)
 
-        if term == "shortterm":
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
-        elif term == "longterm":
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
 
         if date != "latest":
             start_date = (
@@ -1242,12 +1239,30 @@ class AESO:
             else:
                 df = df[df["Interval Start"] >= start_date]
 
-        publish_time = (
-            df["Interval Start"].max().floor("min")
-            if not df.empty
-            else pd.Timestamp.now(tz=self.default_timezone)
+        publish_time_offset = (
+            pd.Timedelta(minutes=10) if term == "shortterm" else pd.Timedelta(hours=1)
         )
-        df["Publish Time"] = publish_time
+
+        # NB: Since the forecasts are published every 10 minutes for shortterm and every 1 hour for longterm,
+        # we can calculate the publish time based on the presence of actuals values.
+        # For past forecasted intervals (intervals with an actual value), we know the most recent forecast was published just before each interval.
+        # For future forecasted values, the publish time for all of them is set to the first interval that has no actual value, since
+        # that's when the forecast was last published.
+        first_interval_without_actual = df[df["Actual"].isna()]
+        if not first_interval_without_actual.empty:
+            forecast_publish_time = first_interval_without_actual[
+                "Interval Start"
+            ].min()
+            df["Publish Time"] = df.apply(
+                lambda row: (
+                    forecast_publish_time
+                    if pd.isna(row["Actual"])
+                    else row["Interval Start"] - publish_time_offset
+                ),
+                axis=1,
+            )
+        else:
+            df["Publish Time"] = df["Interval Start"] - publish_time_offset
 
         df = df.rename(
             columns={
