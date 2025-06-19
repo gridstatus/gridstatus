@@ -1294,11 +1294,6 @@ class AESO:
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
 
-        if date != "latest":
-            raise NotSupported(
-                "Historical data is not supported for wind/solar forecasts at this time.",
-            )
-
         # NB: Since the forecasts are published every 10 minutes for shortterm and every 1 hour for longterm,
         # we can calculate the publish time based on the presence of actuals values.
         # For past forecasted intervals (intervals with an actual value), we know the most recent forecast was published just before each interval.
