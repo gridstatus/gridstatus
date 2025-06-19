@@ -1118,12 +1118,17 @@ class AESO:
         Returns:
             DataFrame containing 12-hour wind forecast data with min, most likely, and max values
         """
-        return self._get_wind_solar_forecast_data(
-            forecast_type="wind",
-            term="shortterm",
-            date=date,
-            end=end,
-        )
+        if date == "latest":
+            return self._get_wind_solar_forecast_latest_data(
+                forecast_type="wind",
+                term="shortterm",
+                date=date,
+                end=end,
+            )
+        else:
+            raise NotSupported(
+                "Historical data is not supported for 12-hour wind forecasts at this time.",
+            )
 
     @support_date_range(frequency=None)
     def get_wind_forecast_7_day(
@@ -1138,12 +1143,31 @@ class AESO:
         Returns:
             DataFrame containing 7-day wind forecast data with min, most likely, and max values
         """
-        return self._get_wind_solar_forecast_data(
-            forecast_type="wind",
-            term="longterm",
-            date=date,
-            end=end,
-        )
+        if date == "latest":
+            return self._get_wind_solar_forecast_latest_data(
+                forecast_type="wind",
+                term="longterm",
+                date=date,
+                end=end,
+            )
+        else:
+            start_date = pd.Timestamp(date)
+            end_date = pd.Timestamp(end) if end else start_date
+
+            earliest_supported = pd.Timestamp("2023-03-01")
+            latest_supported = pd.Timestamp("2025-04-01")
+
+            if start_date < earliest_supported or end_date > latest_supported:
+                raise NotSupported(
+                    f"Historical wind forecast data is only available from {earliest_supported.date()} "
+                    f"to {latest_supported.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                )
+
+            return self._get_wind_solar_forecast_historical_data(
+                forecast_type="wind",
+                date=date,
+                end=end,
+            )
 
     @support_date_range(frequency=None)
     def get_solar_forecast_12_hour(
@@ -1158,12 +1182,17 @@ class AESO:
         Returns:
             DataFrame containing 12-hour solar forecast data with min, most likely, and max values
         """
-        return self._get_wind_solar_forecast_data(
-            forecast_type="solar",
-            term="shortterm",
-            date=date,
-            end=end,
-        )
+        if date == "latest":
+            return self._get_wind_solar_forecast_latest_data(
+                forecast_type="solar",
+                term="shortterm",
+                date=date,
+                end=end,
+            )
+        else:
+            raise NotSupported(
+                "Historical data is not supported for 12-hour solar forecasts at this time.",
+            )
 
     @support_date_range(frequency=None)
     def get_solar_forecast_7_day(
@@ -1178,14 +1207,33 @@ class AESO:
         Returns:
             DataFrame containing 7-day solar forecast data with min, most likely, and max values
         """
-        return self._get_wind_solar_forecast_data(
-            forecast_type="solar",
-            term="longterm",
-            date=date,
-            end=end,
-        )
+        if date == "latest":
+            return self._get_wind_solar_forecast_latest_data(
+                forecast_type="solar",
+                term="longterm",
+                date=date,
+                end=end,
+            )
+        else:
+            start_date = pd.Timestamp(date)
+            end_date = pd.Timestamp(end) if end else start_date
 
-    def _get_wind_solar_forecast_data(
+            earliest_supported = pd.Timestamp("2023-03-01")
+            latest_supported = pd.Timestamp("2025-04-01")
+
+            if start_date < earliest_supported or end_date > latest_supported:
+                raise NotSupported(
+                    f"Historical solar forecast data is only available from {earliest_supported.date()} "
+                    f"to {latest_supported.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                )
+
+            return self._get_wind_solar_forecast_historical_data(
+                forecast_type="solar",
+                date=date,
+                end=end,
+            )
+
+    def _get_wind_solar_forecast_latest_data(
         self,
         forecast_type: Literal["wind", "solar"],
         term: Literal["shortterm", "longterm"],
@@ -1221,33 +1269,18 @@ class AESO:
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
 
         if date != "latest":
-            start_date = (
-                pd.Timestamp(date).tz_localize(self.default_timezone)
-                if pd.Timestamp(date).tz is None
-                else pd.Timestamp(date).tz_convert(self.default_timezone)
+            raise NotSupported(
+                "Historical data is not supported for wind/solar forecasts at this time.",
             )
-            if end:
-                end_date = (
-                    pd.Timestamp(end).tz_localize(self.default_timezone)
-                    if pd.Timestamp(end).tz is None
-                    else pd.Timestamp(end).tz_convert(self.default_timezone)
-                )
-                df = df[
-                    (df["Interval Start"] >= start_date)
-                    & (df["Interval Start"] <= end_date)
-                ]
-            else:
-                df = df[df["Interval Start"] >= start_date]
-
-        publish_time_offset = (
-            pd.Timedelta(minutes=10) if term == "shortterm" else pd.Timedelta(hours=1)
-        )
 
         # NB: Since the forecasts are published every 10 minutes for shortterm and every 1 hour for longterm,
         # we can calculate the publish time based on the presence of actuals values.
         # For past forecasted intervals (intervals with an actual value), we know the most recent forecast was published just before each interval.
         # For future forecasted values, the publish time for all of them is set to the first interval that has no actual value, since
         # that's when the forecast was last published.
+        publish_time_offset = (
+            pd.Timedelta(minutes=10) if term == "shortterm" else pd.Timedelta(hours=1)
+        )
         first_interval_without_actual = df[df["Actual"].isna()]
         if not first_interval_without_actual.empty:
             forecast_publish_time = first_interval_without_actual[
@@ -1307,3 +1340,109 @@ class AESO:
                 "Maximum Generation Percentage",
             ]
         ]
+
+    def _get_wind_solar_forecast_historical_data(
+        self,
+        forecast_type: Literal["wind", "solar"],
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get historical wind or solar forecast data from AESO CSV archives.
+
+        Args:
+            forecast_type: Type of forecast ("wind" or "solar")
+            date: Start date for filtering data
+            end: End date for filtering data
+
+        Returns:
+            DataFrame containing historical forecast data
+        """
+        url = f"https://www.aeso.ca/assets/{forecast_type.upper()}_GEN_MAR_2023-MAR_2025-Day-ahead.csv"
+
+        try:
+            df = pd.read_csv(url)
+        except Exception as e:
+            raise RequestException(
+                f"Failed to fetch historical {forecast_type} forecast data: {str(e)}",
+            )
+
+        forecast_prefix = forecast_type.upper()
+        df["Interval Start"] = pd.to_datetime(
+            df["FORECAST_DATE_MPT"],
+            format="%-m/%-d/%Y %-H:%M",
+        ).dt.tz_localize(self.default_timezone)
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df["Publish Time"] = df["Interval Start"] - pd.Timedelta(hours=24)
+
+        start_date = (
+            pd.Timestamp(date).tz_localize(self.default_timezone)
+            if pd.Timestamp(date).tz is None
+            else pd.Timestamp(date).tz_convert(self.default_timezone)
+        )
+        if end:
+            end_date = (
+                pd.Timestamp(end).tz_localize(self.default_timezone)
+                if pd.Timestamp(end).tz is None
+                else pd.Timestamp(end).tz_convert(self.default_timezone)
+            )
+            df = df[
+                (df["Interval Start"] >= start_date)
+                & (df["Interval Start"] <= end_date)
+            ]
+        else:
+            df = df[df["Interval Start"] >= start_date]
+
+        df = df.rename(
+            columns={
+                f"{forecast_prefix}_MIN": "Minimum Generation Forecast",
+                f"{forecast_prefix}_OPT": "Most Likely Generation Forecast",
+                f"{forecast_prefix}_MAX": "Maximum Generation Forecast",
+                f"{forecast_prefix}_ACTUAL": "Actual Generation",
+                f"{forecast_prefix}_MCR": f"Total {forecast_type.capitalize()} Capacity",
+            },
+        )
+
+        numeric_columns = [
+            "Minimum Generation Forecast",
+            "Most Likely Generation Forecast",
+            "Maximum Generation Forecast",
+            "Actual Generation",
+            f"Total {forecast_type.capitalize()} Capacity",
+        ]
+
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        capacity_col = f"Total {forecast_type.capitalize()} Capacity"
+        df["Minimum Generation Percentage"] = (
+            df["Minimum Generation Forecast"] / df[capacity_col]
+        ) * 100
+        df["Most Likely Generation Percentage"] = (
+            df["Most Likely Generation Forecast"] / df[capacity_col]
+        ) * 100
+        df["Maximum Generation Percentage"] = (
+            df["Maximum Generation Forecast"] / df[capacity_col]
+        ) * 100
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Minimum Generation Forecast",
+                    "Most Likely Generation Forecast",
+                    "Maximum Generation Forecast",
+                    "Actual Generation",
+                    f"Total {forecast_type.capitalize()} Capacity",
+                    "Minimum Generation Percentage",
+                    "Most Likely Generation Percentage",
+                    "Maximum Generation Percentage",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
