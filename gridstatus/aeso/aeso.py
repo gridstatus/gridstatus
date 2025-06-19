@@ -1104,3 +1104,191 @@ class AESO:
             return f"http://ets.aeso.ca/outage_reports/csvData/{filename}"
         else:
             return f"http://ets.aeso.ca/outage_reports/{csv_href}"
+
+    @support_date_range(frequency=None)
+    def get_wind_forecast_12_hour(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get 12-hour wind forecast data.
+
+        Returns:
+            DataFrame containing 12-hour wind forecast data with min, most likely, and max values
+        """
+        return self._get_wind_solar_forecast_data(
+            forecast_type="wind",
+            term="shortterm",
+            date=date,
+            end=end,
+        )
+
+    @support_date_range(frequency=None)
+    def get_wind_forecast_7_day(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get 7-day wind forecast data.
+
+        Returns:
+            DataFrame containing 7-day wind forecast data with min, most likely, and max values
+        """
+        return self._get_wind_solar_forecast_data(
+            forecast_type="wind",
+            term="longterm",
+            date=date,
+            end=end,
+        )
+
+    @support_date_range(frequency=None)
+    def get_solar_forecast_12_hour(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get 12-hour solar forecast data.
+
+        Returns:
+            DataFrame containing 12-hour solar forecast data with min, most likely, and max values
+        """
+        return self._get_wind_solar_forecast_data(
+            forecast_type="solar",
+            term="shortterm",
+            date=date,
+            end=end,
+        )
+
+    @support_date_range(frequency=None)
+    def get_solar_forecast_7_day(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get 7-day solar forecast data.
+
+        Returns:
+            DataFrame containing 7-day solar forecast data with min, most likely, and max values
+        """
+        return self._get_wind_solar_forecast_data(
+            forecast_type="solar",
+            term="longterm",
+            date=date,
+            end=end,
+        )
+
+    def _get_wind_solar_forecast_data(
+        self,
+        forecast_type: Literal["wind", "solar"],
+        term: Literal["shortterm", "longterm"],
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get wind or solar forecast data from AESO CSV reports.
+
+        Args:
+            forecast_type: Type of forecast ("wind" or "solar")
+            term: Forecast term ("shortterm" for 12-hour or "longterm" for 7-day)
+            date: Start date for filtering data
+            end: End date for filtering data
+
+        Returns:
+            DataFrame containing forecast data
+        """
+        url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{forecast_type}_rpt_{term}.csv"
+
+        try:
+            df = pd.read_csv(url)
+        except Exception as e:
+            raise RequestException(
+                f"Failed to fetch {forecast_type} forecast data: {str(e)}",
+            )
+
+        df["Interval Start"] = pd.to_datetime(
+            df["Forecast Transaction Date"],
+            format="%Y-%m-%d %H:%M",
+        ).dt.tz_localize(self.default_timezone)
+
+        if term == "shortterm":
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
+        elif term == "longterm":
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        if date != "latest":
+            start_date = (
+                pd.Timestamp(date).tz_localize(self.default_timezone)
+                if pd.Timestamp(date).tz is None
+                else pd.Timestamp(date).tz_convert(self.default_timezone)
+            )
+            if end:
+                end_date = (
+                    pd.Timestamp(end).tz_localize(self.default_timezone)
+                    if pd.Timestamp(end).tz is None
+                    else pd.Timestamp(end).tz_convert(self.default_timezone)
+                )
+                df = df[
+                    (df["Interval Start"] >= start_date)
+                    & (df["Interval Start"] <= end_date)
+                ]
+            else:
+                df = df[df["Interval Start"] >= start_date]
+
+        publish_time = (
+            df["Interval Start"].max().floor("min")
+            if not df.empty
+            else pd.Timestamp.now(tz=self.default_timezone)
+        )
+        df["Publish Time"] = publish_time
+
+        df = df.rename(
+            columns={
+                "Min": "Minimum Generation Forecast",
+                "Most Likely": "Most Likely Generation Forecast",
+                "Max": "Maximum Generation Forecast",
+                "Actual": "Actual Generation",
+                "MCR": f"Total {forecast_type.capitalize()} Capacity",
+                "Pct Min": "Minimum Generation Percentage",
+                "Pct Most Likely": "Most Likely Generation Percentage",
+                "Pct Max": "Maximum Generation Percentage",
+            },
+        )
+
+        numeric_columns = [
+            "Minimum Generation Forecast",
+            "Most Likely Generation Forecast",
+            "Maximum Generation Forecast",
+            "Actual Generation",
+            f"Total {forecast_type.capitalize()} Capacity",
+            "Minimum Generation Percentage",
+            "Most Likely Generation Percentage",
+            "Maximum Generation Percentage",
+        ]
+
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df.sort_values("Interval Start").reset_index(drop=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Minimum Generation Forecast",
+                "Most Likely Generation Forecast",
+                "Maximum Generation Forecast",
+                "Actual Generation",
+                f"Total {forecast_type.capitalize()} Capacity",
+                "Minimum Generation Percentage",
+                "Most Likely Generation Percentage",
+                "Maximum Generation Percentage",
+            ]
+        ]
