@@ -716,3 +716,150 @@ class TestAESO(TestHelperMixin):
             assert publish_time.date() < target_date.date(), (
                 f"Publish time {publish_time.date()} should be before target date {target_date.date()}"
             )
+
+    def _check_wind_solar_forecast(self, df: pd.DataFrame, forecast_type: str) -> None:
+        """Check wind/solar forecast DataFrame structure and types."""
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Minimum Generation Forecast",
+            "Most Likely Generation Forecast",
+            "Maximum Generation Forecast",
+            "Actual Generation",
+            f"Total {forecast_type.capitalize()} Capacity",
+            "Minimum Generation Percentage",
+            "Most Likely Generation Percentage",
+            "Maximum Generation Percentage",
+        ]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+
+        numeric_columns = [
+            "Minimum Generation Forecast",
+            "Most Likely Generation Forecast",
+            "Maximum Generation Forecast",
+            "Actual Generation",
+            f"Total {forecast_type.capitalize()} Capacity",
+            "Minimum Generation Percentage",
+            "Most Likely Generation Percentage",
+            "Maximum Generation Percentage",
+        ]
+        for col in numeric_columns:
+            assert pd.api.types.is_numeric_dtype(df[col]), (
+                f"Column {col} should be numeric"
+            )
+
+        assert df["Interval Start"].is_monotonic_increasing
+        assert (df["Interval End"] > df["Interval Start"]).all()
+
+    def test_get_wind_forecast_12_hour_latest(self):
+        """Test getting latest 12-hour wind forecast data."""
+        with api_vcr.use_cassette("test_get_wind_forecast_12_hour_latest.yaml"):
+            df = self.iso.get_wind_forecast_12_hour(date="latest")
+            self._check_wind_solar_forecast(df, "wind")
+            assert len(df) > 0
+
+    def test_get_wind_forecast_7_day_latest(self):
+        """Test getting latest 7-day wind forecast data."""
+        with api_vcr.use_cassette("test_get_wind_forecast_7_day_latest.yaml"):
+            df = self.iso.get_wind_forecast_7_day(date="latest")
+            self._check_wind_solar_forecast(df, "wind")
+            assert len(df) > 0
+
+    def test_get_solar_forecast_12_hour_latest(self):
+        """Test getting latest 12-hour solar forecast data."""
+        with api_vcr.use_cassette("test_get_solar_forecast_12_hour_latest.yaml"):
+            df = self.iso.get_solar_forecast_12_hour(date="latest")
+            self._check_wind_solar_forecast(df, "solar")
+            assert len(df) > 0
+
+    def test_get_solar_forecast_7_day_latest(self):
+        """Test getting latest 7-day solar forecast data."""
+        with api_vcr.use_cassette("test_get_solar_forecast_7_day_latest.yaml"):
+            df = self.iso.get_solar_forecast_7_day(date="latest")
+            self._check_wind_solar_forecast(df, "solar")
+            assert len(df) > 0
+
+    def test_get_wind_forecast_12_hour_historical(self):
+        """Test that historical 12-hour wind forecast raises NotSupported."""
+        from gridstatus.base import NotSupported
+
+        with pytest.raises(
+            NotSupported,
+            match="Historical data is not supported for 12-hour wind forecasts",
+        ):
+            self.iso.get_wind_forecast_12_hour(date="2024-01-01")
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-03"),
+            ),
+        ],
+    )
+    def test_get_wind_forecast_7_day_historical(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical 7-day wind forecast data."""
+        with api_vcr.use_cassette(
+            f"test_get_wind_forecast_7_day_historical_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_wind_forecast_7_day(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_wind_solar_forecast(df, "wind")
+            assert len(df) > 0
+            assert df["Interval Start"].min().date() >= start_date.date()
+            assert df["Interval Start"].max().date() <= end_date.date()
+
+    def test_get_solar_forecast_12_hour_historical(self):
+        """Test that historical 12-hour solar forecast raises NotSupported."""
+        from gridstatus.base import NotSupported
+
+        with pytest.raises(
+            NotSupported,
+            match="Historical data is not supported for 12-hour solar forecasts",
+        ):
+            self.iso.get_solar_forecast_12_hour(date="2024-01-01")
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-03"),
+            ),
+        ],
+    )
+    def test_get_solar_forecast_7_day_historical(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical 7-day solar forecast data."""
+        with api_vcr.use_cassette(
+            f"test_get_solar_forecast_7_day_historical_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_solar_forecast_7_day(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_wind_solar_forecast(df, "solar")
+            assert len(df) > 0
+            assert df["Interval Start"].min().date() >= start_date.date()
+            assert df["Interval Start"].max().date() <= end_date.date()
