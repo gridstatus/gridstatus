@@ -2583,7 +2583,11 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of curtailment data
         """
         if date == "latest":
-            return self.get_curtailment("today")
+            # Latest available curtailment data is usually the previous day because
+            # data is released at 10 AM for the previous day.
+            return self.get_curtailment(
+                pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=1),
+            )
 
         dataframes = self.get_caiso_renewables_report(date)
 
@@ -2650,6 +2654,13 @@ class CAISO(ISOBase):
         """
         report_url = f"https://www.caiso.com/documents/daily-renewable-report-{date.strftime('%b-%d-%Y').lower()}.html"
         response = requests.get(report_url)
+
+        if response.status_code != 200:
+            raise ValueError(
+                f"Failed to fetch renewables report for {date.strftime('%Y-%m-%d')}: "
+                f"HTTP {response.status_code}",
+            )
+
         html_content = response.content.decode("utf-8")
 
         def extract_array(content, var_name):
