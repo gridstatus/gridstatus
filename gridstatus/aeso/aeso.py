@@ -1,9 +1,11 @@
 import json
 import os
+import re
 from typing import Any, Literal
 
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 from requests.exceptions import HTTPError, RequestException
 
 from gridstatus import utils
@@ -14,6 +16,9 @@ from gridstatus.aeso.aeso_constants import (
 )
 from gridstatus.base import NotSupported
 from gridstatus.decorators import support_date_range
+from gridstatus.gs_logging import setup_gs_logger
+
+logger = setup_gs_logger("aeso")
 
 
 class AESO:
@@ -26,6 +31,14 @@ class AESO:
 
     # NB: Data is also typically provided in UTC
     default_timezone = "US/Mountain"
+    MAX_NAVIGATION_ATTEMPTS = 100
+
+    HISTORICAL_FORECAST_EARLIEST = pd.Timestamp("2023-03-01").tz_localize(
+        default_timezone,
+    )
+    HISTORICAL_FORECAST_LATEST = pd.Timestamp("2025-04-01").tz_localize(
+        default_timezone,
+    )
 
     def __init__(self, api_key: str | None = None):
         """
@@ -45,6 +58,12 @@ class AESO:
             "Cache-Control": "no-cache",
             "API-KEY": self.api_key,
         }
+
+    def _normalize_timezone(self, timestamp: pd.Timestamp) -> pd.Timestamp:
+        if timestamp.tz is None:
+            return timestamp.tz_localize(self.default_timezone)
+        else:
+            return timestamp.tz_convert(self.default_timezone)
 
     def _make_request(self, endpoint: str, method: str = "GET") -> dict[str, Any]:
         """
@@ -831,3 +850,603 @@ class AESO:
                 df_pivot[col] = 0
 
         return df_pivot[expected_columns]
+
+    def get_transmission_outages(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get transmission outages data.
+
+        Args:
+            date: Start date for the data. Can be "latest" to get current data.
+            end: End date for the data. If not provided, will get data for the specified date.
+
+        Returns:
+            DataFrame containing transmission outage data
+        """
+        if date == "latest":
+            url = "http://ets.aeso.ca/outage_reports/qryOpPlanTransmissionTable_1.html"
+            logger.info("Fetching latest transmission outages data")
+            response = requests.get(url)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.text, "html.parser")
+            csv_link = soup.find("a", href=lambda x: x and "csvData" in x)
+            csv_href = csv_link["href"].replace("\\", "/")
+            csv_url = self._generate_csv_url(csv_href)
+            logger.info(f"Found CSV link: {csv_url}")
+
+            publish_match = re.search(
+                r"(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})",
+                csv_href,
+            )
+            if publish_match:
+                publish_date = publish_match.group(1)
+                publish_time = publish_match.group(2).replace("-", ":")
+                publish_datetime = pd.to_datetime(f"{publish_date} {publish_time}")
+                publish_datetime = publish_datetime.tz_localize(self.default_timezone)
+
+            df = pd.read_csv(csv_url)
+
+            df["Interval Start"] = pd.to_datetime(
+                df["From"],
+                format="%d-%b-%y %H:%M",
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = pd.to_datetime(
+                df["To"],
+                format="%d-%b-%y %H:%M",
+            ).dt.tz_localize(self.default_timezone)
+            df["Publish Time"] = publish_datetime
+
+            df = df.rename(
+                columns={
+                    "Owner": "Transmission Owner",
+                    "Date/Time Comments": "Date Time Comments",
+                },
+            )
+
+            df = df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Transmission Owner",
+                    "Type",
+                    "Element",
+                    "Scheduled Activity",
+                    "Date Time Comments",
+                    "Interconnection",
+                ]
+            ]
+
+            return df
+
+        else:
+            # NB: For historical data, we need to navigate backwards through Previous Version links
+            # as there doesn't seem to be a better way to do it.
+            start_date = pd.Timestamp(date)
+            end_date = pd.Timestamp(end) if end else start_date
+            # NB: Data is only available from 2024-01-31 onwards is seems
+            earliest_available = pd.Timestamp("2024-01-31")
+
+            if end_date.date() < earliest_available.date() or (
+                start_date.date() < earliest_available.date() and end_date is None
+            ):
+                raise ValueError(
+                    f"Requested date range is before available data. "
+                    f"Transmission outage data is only available from {earliest_available.date()} onwards. "
+                    f"Requested: {start_date.date()} to {end_date.date()}",
+                )
+            elif start_date.date() < earliest_available.date():
+                logger.warning(
+                    f"Requested start date {start_date.date()} is before available data. "
+                    f"Data is only available from {earliest_available.date()} onwards. ",
+                )
+
+            logger.info(
+                f"Fetching historical transmission outages from {start_date.date()} to {end_date.date()}",
+            )
+
+            # NB: Start from the latest file and navigate backwards
+            current_url = (
+                "http://ets.aeso.ca/outage_reports/qryOpPlanTransmissionTable_1.html"
+            )
+            historical_files = []
+            jumped_to_archives = False
+
+            for _ in range(
+                self.MAX_NAVIGATION_ATTEMPTS,
+            ):  # NB: Limit iterations to prevent infinite loops
+                try:
+                    response = requests.get(current_url)
+                    response.raise_for_status()
+
+                    soup = BeautifulSoup(response.text, "html.parser")
+
+                    csv_link = soup.find("a", href=lambda x: x and "csvData" in x)
+                    if csv_link:
+                        csv_href = csv_link["href"].replace("\\", "/")
+
+                        publish_match = re.search(
+                            r"(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})",
+                            csv_href,
+                        )
+                        if publish_match:
+                            publish_date = publish_match.group(1)
+                            publish_time = publish_match.group(2).replace("-", ":")
+                            publish_datetime = pd.to_datetime(
+                                f"{publish_date} {publish_time}",
+                            )
+                            publish_datetime = publish_datetime.tz_localize(
+                                self.default_timezone,
+                            )
+
+                            if (
+                                start_date.date()
+                                <= publish_datetime.date()
+                                <= end_date.date()
+                            ):
+                                csv_url = self._generate_csv_url(csv_href)
+
+                                historical_files.append((csv_url, publish_datetime))
+                                logger.info(
+                                    f"Found file: {publish_datetime.date()} - {csv_url}",
+                                )
+
+                                if end is None:
+                                    break
+
+                            if (
+                                end is None
+                                and publish_datetime.date() < start_date.date()
+                            ):
+                                csv_url = self._generate_csv_url(csv_href)
+                                historical_files.append((csv_url, publish_datetime))
+                                logger.info(
+                                    f"Found most recent file before {start_date.date()}: {publish_datetime.date()} - {csv_url}",
+                                )
+                                break
+
+                            if publish_datetime.date() < start_date.date():
+                                break
+
+                            if (
+                                publish_datetime.date()
+                                <= pd.Timestamp("2025-01-22").date()
+                                and not jumped_to_archives
+                            ):
+                                logger.info(
+                                    "Reached known broken date range, jumping to 2025-01-17 to continue navigation",
+                                )
+                                current_url = "http://ets.aeso.ca/outage_reports/archives/_2025-01-17_14-10-25_qryOpPlanTransmissionTable_1.html"
+                                jumped_to_archives = True
+                                continue
+
+                    prev_link = soup.find(
+                        "a",
+                        string=lambda text: text and "Previous Version" in text,
+                    )
+                    if not prev_link:
+                        break
+
+                    prev_href = prev_link.get("href")
+
+                    if prev_href.startswith("http"):
+                        current_url = prev_href
+                    elif prev_href.startswith("file:///"):
+                        # NOTE: There's a few that link to an engineer's local file path, so we navigate around that
+                        filename = os.path.basename(prev_href)
+                        current_url = (
+                            f"http://ets.aeso.ca/outage_reports/archives/{filename}"
+                        )
+                    else:
+                        prev_href_clean = prev_href.replace("\\", "/")
+                        if prev_href_clean.startswith("archives/"):
+                            current_url = (
+                                f"http://ets.aeso.ca/outage_reports/{prev_href_clean}"
+                            )
+                        else:
+                            current_url = f"http://ets.aeso.ca/outage_reports/archives/{prev_href_clean}"
+
+                except Exception as e:
+                    logger.error(f"Error accessing {current_url}: {e}")
+                    break
+
+            if not historical_files:
+                raise ValueError("No historical files found")
+
+            logger.info(f"Found {len(historical_files)} historical files to process")
+            all_dfs = []
+            for csv_url, publish_datetime in historical_files:
+                try:
+                    df_hist = pd.read_csv(csv_url, on_bad_lines="skip")
+                    df_hist["Interval Start"] = pd.to_datetime(
+                        df_hist["From"],
+                        format="%d-%b-%y %H:%M",
+                    ).dt.tz_localize(self.default_timezone)
+                    df_hist["Interval End"] = pd.to_datetime(
+                        df_hist["To"],
+                        format="%d-%b-%y %H:%M",
+                    ).dt.tz_localize(self.default_timezone)
+                    df_hist["Publish Time"] = publish_datetime
+
+                    df_hist = df_hist.rename(
+                        columns={
+                            "Owner": "Transmission Owner",
+                            "Date/Time Comments": "Date Time Comments",
+                        },
+                    )
+
+                    df_hist = df_hist[
+                        [
+                            "Interval Start",
+                            "Interval End",
+                            "Publish Time",
+                            "Transmission Owner",
+                            "Type",
+                            "Element",
+                            "Scheduled Activity",
+                            "Date Time Comments",
+                            "Interconnection",
+                        ]
+                    ]
+
+                    all_dfs.append(df_hist)
+                except Exception as e:
+                    logger.error(f"Error accessing {csv_url}: {e}")
+                    continue
+
+            if all_dfs:
+                df = pd.concat(all_dfs, ignore_index=True)
+                df = df.sort_values("Publish Time", ascending=False).reset_index(
+                    drop=True,
+                )
+                return df
+
+    def _generate_csv_url(self, csv_href: str) -> str:
+        csv_href = csv_href.replace("\\", "/")
+
+        if csv_href.startswith("../"):
+            return f"http://ets.aeso.ca/outage_reports/{csv_href[3:]}"
+        elif csv_href.startswith("csvData/"):
+            return f"http://ets.aeso.ca/outage_reports/{csv_href}"
+        elif csv_href.startswith("file:///"):
+            filename = os.path.basename(csv_href)
+            return f"http://ets.aeso.ca/outage_reports/csvData/{filename}"
+        else:
+            return f"http://ets.aeso.ca/outage_reports/{csv_href}"
+
+    @support_date_range(frequency=None)
+    def get_wind_forecast_12_hour(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get 12-hour wind forecast data.
+
+        Returns:
+            DataFrame containing 12-hour wind forecast data with min, most likely, and max values
+        """
+        if date == "latest":
+            return self._get_wind_solar_forecast_latest_data(
+                forecast_type="wind",
+                term="shortterm",
+                date=date,
+                end=end,
+            )
+        else:
+            raise NotSupported(
+                "Historical data is not supported for 12-hour wind forecasts at this time.",
+            )
+
+    @support_date_range(frequency=None)
+    def get_wind_forecast_7_day(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get 7-day wind forecast data.
+
+        Returns:
+            DataFrame containing 7-day wind forecast data with min, most likely, and max values
+        """
+        if date == "latest":
+            return self._get_wind_solar_forecast_latest_data(
+                forecast_type="wind",
+                term="longterm",
+                date=date,
+                end=end,
+            )
+        else:
+            start_date = self._normalize_timezone(pd.Timestamp(date))
+            end_date = (
+                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
+            )
+
+            if (
+                start_date < self.HISTORICAL_FORECAST_EARLIEST
+                or end_date > self.HISTORICAL_FORECAST_LATEST
+            ):
+                raise NotSupported(
+                    f"Historical wind forecast data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                )
+
+            return self._get_wind_solar_forecast_historical_data(
+                forecast_type="wind",
+                date=date,
+                end=end,
+            )
+
+    @support_date_range(frequency=None)
+    def get_solar_forecast_12_hour(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get 12-hour solar forecast data.
+
+        Returns:
+            DataFrame containing 12-hour solar forecast data with min, most likely, and max values
+        """
+        if date == "latest":
+            return self._get_wind_solar_forecast_latest_data(
+                forecast_type="solar",
+                term="shortterm",
+                date=date,
+                end=end,
+            )
+        else:
+            raise NotSupported(
+                "Historical data is not supported for 12-hour solar forecasts at this time.",
+            )
+
+    @support_date_range(frequency=None)
+    def get_solar_forecast_7_day(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get 7-day solar forecast data.
+
+        Returns:
+            DataFrame containing 7-day solar forecast data with min, most likely, and max values
+        """
+        if date == "latest":
+            return self._get_wind_solar_forecast_latest_data(
+                forecast_type="solar",
+                term="longterm",
+                date=date,
+                end=end,
+            )
+        else:
+            start_date = self._normalize_timezone(pd.Timestamp(date))
+            end_date = (
+                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
+            )
+
+            if (
+                start_date < self.HISTORICAL_FORECAST_EARLIEST
+                or end_date > self.HISTORICAL_FORECAST_LATEST
+            ):
+                raise NotSupported(
+                    f"Historical solar forecast data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                )
+
+            return self._get_wind_solar_forecast_historical_data(
+                forecast_type="solar",
+                date=date,
+                end=end,
+            )
+
+    def _get_wind_solar_forecast_latest_data(
+        self,
+        forecast_type: Literal["wind", "solar"],
+        term: Literal["shortterm", "longterm"],
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get wind or solar forecast data from AESO CSV reports.
+
+        Args:
+            forecast_type: Type of forecast ("wind" or "solar")
+            term: Forecast term ("shortterm" for 12-hour or "longterm" for 7-day)
+            date: Start date for filtering data
+            end: End date for filtering data
+
+        Returns:
+            DataFrame containing forecast data
+        """
+        url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{forecast_type}_rpt_{term}.csv"
+
+        try:
+            df = pd.read_csv(url)
+        except Exception as e:
+            raise RequestException(
+                f"Failed to fetch {forecast_type} forecast data: {str(e)}",
+            )
+
+        df["Interval Start"] = pd.to_datetime(
+            df["Forecast Transaction Date"],
+            format="%Y-%m-%d %H:%M",
+        ).dt.tz_localize(self.default_timezone)
+
+        interval_length = (
+            pd.Timedelta(minutes=10) if term == "shortterm" else pd.Timedelta(hours=1)
+        )
+        df["Interval End"] = df["Interval Start"] + interval_length
+
+        # NB: Since the forecasts are published every 10 minutes for shortterm and every 1 hour for longterm,
+        # we can calculate the publish time based on the presence of actuals values.
+        # For past forecasted intervals (intervals with an actual value), we know the most recent forecast was published just before each interval.
+        # For future forecasted values, the publish time for all of them is set to the first interval that has no actual value, since
+        # that's when the forecast was last published.
+        first_interval_without_actual = df[df["Actual"].isna()]
+        if not first_interval_without_actual.empty:
+            forecast_publish_time = first_interval_without_actual[
+                "Interval Start"
+            ].min()
+            df["Publish Time"] = df.apply(
+                lambda row: (
+                    forecast_publish_time
+                    if pd.isna(row["Actual"])
+                    else row["Interval Start"] - interval_length
+                ),
+                axis=1,
+            )
+        else:
+            df["Publish Time"] = df["Interval Start"] - interval_length
+
+        df = df.rename(
+            columns={
+                "Min": "Minimum Generation Forecast",
+                "Most Likely": "Most Likely Generation Forecast",
+                "Max": "Maximum Generation Forecast",
+                "Actual": "Actual Generation",
+                "MCR": f"Total {forecast_type.capitalize()} Capacity",
+                "Pct Min": "Minimum Generation Percentage",
+                "Pct Most Likely": "Most Likely Generation Percentage",
+                "Pct Max": "Maximum Generation Percentage",
+            },
+        )
+
+        numeric_columns = [
+            "Minimum Generation Forecast",
+            "Most Likely Generation Forecast",
+            "Maximum Generation Forecast",
+            "Actual Generation",
+            f"Total {forecast_type.capitalize()} Capacity",
+            "Minimum Generation Percentage",
+            "Most Likely Generation Percentage",
+            "Maximum Generation Percentage",
+        ]
+
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df.sort_values("Interval Start").reset_index(drop=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Minimum Generation Forecast",
+                "Most Likely Generation Forecast",
+                "Maximum Generation Forecast",
+                "Actual Generation",
+                f"Total {forecast_type.capitalize()} Capacity",
+                "Minimum Generation Percentage",
+                "Most Likely Generation Percentage",
+                "Maximum Generation Percentage",
+            ]
+        ]
+
+    def _get_wind_solar_forecast_historical_data(
+        self,
+        forecast_type: Literal["wind", "solar"],
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get historical wind or solar forecast data from AESO CSV archives.
+
+        Args:
+            forecast_type: Type of forecast ("wind" or "solar")
+            date: Start date for filtering data
+            end: End date for filtering data
+
+        Returns:
+            DataFrame containing historical forecast data
+        """
+        url = f"https://www.aeso.ca/assets/{forecast_type.upper()}_GEN_MAR_2023-MAR_2025-Day-ahead.csv"
+
+        try:
+            df = pd.read_csv(url)
+        except Exception as e:
+            raise RequestException(
+                f"Failed to fetch historical {forecast_type} forecast data: {str(e)}",
+            )
+
+        forecast_prefix = forecast_type.upper()
+        df["Interval Start"] = pd.to_datetime(
+            df["FORECAST_DATE_MPT"],
+            format="mixed",
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df["Publish Time"] = df["Interval Start"] - pd.Timedelta(hours=24)
+
+        start_date = self._normalize_timezone(pd.Timestamp(date))
+        if end:
+            end_date = self._normalize_timezone(pd.Timestamp(end))
+            df = df[
+                (df["Interval Start"] >= start_date)
+                & (df["Interval Start"] <= end_date)
+            ]
+        else:
+            df = df[df["Interval Start"] >= start_date]
+
+        df = df.rename(
+            columns={
+                f"{forecast_prefix}_MIN": "Minimum Generation Forecast",
+                f"{forecast_prefix}_OPT": "Most Likely Generation Forecast",
+                f"{forecast_prefix}_MAX": "Maximum Generation Forecast",
+                f"{forecast_prefix}_ACTUAL": "Actual Generation",
+                f"{forecast_prefix}_MCR": f"Total {forecast_type.capitalize()} Capacity",
+            },
+        )
+
+        numeric_columns = [
+            "Minimum Generation Forecast",
+            "Most Likely Generation Forecast",
+            "Maximum Generation Forecast",
+            "Actual Generation",
+            f"Total {forecast_type.capitalize()} Capacity",
+        ]
+
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        capacity_col = f"Total {forecast_type.capitalize()} Capacity"
+        df["Minimum Generation Percentage"] = (
+            df["Minimum Generation Forecast"] / df[capacity_col]
+        ) * 100
+        df["Most Likely Generation Percentage"] = (
+            df["Most Likely Generation Forecast"] / df[capacity_col]
+        ) * 100
+        df["Maximum Generation Percentage"] = (
+            df["Maximum Generation Forecast"] / df[capacity_col]
+        ) * 100
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Minimum Generation Forecast",
+                    "Most Likely Generation Forecast",
+                    "Maximum Generation Forecast",
+                    "Actual Generation",
+                    f"Total {forecast_type.capitalize()} Capacity",
+                    "Minimum Generation Percentage",
+                    "Most Likely Generation Percentage",
+                    "Maximum Generation Percentage",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
