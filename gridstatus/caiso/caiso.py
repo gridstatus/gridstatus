@@ -1,5 +1,6 @@
 import copy
 import io
+import re
 import time
 import warnings
 from zipfile import ZipFile
@@ -24,6 +25,7 @@ from gridstatus.caiso.caiso_constants import (
     CURRENT_BASE,
     HISTORY_BASE,
     OASIS_DATASET_CONFIG,
+    get_dataframe_config_for_renewables_report,
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
@@ -1671,7 +1673,7 @@ class CAISO(ISOBase):
         return queue
 
     @support_date_range(frequency="DAY_START")
-    def get_curtailment(
+    def get_curtailment_legacy(
         self,
         date: str | pd.Timestamp,
         verbose: bool = False,
@@ -1679,7 +1681,8 @@ class CAISO(ISOBase):
         """Return curtailment data for a given date
 
         Notes:
-            * Data available from June 30, 2016 to present
+            * Data available from June 30, 2016 to May 31, 2025. For current data,
+            please use `get_curtailment`.
 
         Arguments:
             date (datetime.date, str): date to return data
@@ -1693,6 +1696,12 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of curtailment data
         """
         date = date.normalize()
+
+        if date > pd.Timestamp("2025-05-31", tz=self.default_timezone):
+            raise ValueError(
+                "Curtailment data is only available until May 31, 2025. "
+                "Please use `get_curtailment` for current data.",
+            )
 
         # TODO: handle not always just 4th pge
         date_str = date.strftime("%b-%d-%Y").lower()
@@ -2553,3 +2562,150 @@ class CAISO(ISOBase):
         )
 
         return df[["Interval Start", "Interval End", "Location", "Price"]]
+
+    @support_date_range(frequency="DAY_START")
+    def get_curtailment(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return curtailment data for a given date
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose: print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of curtailment data
+        """
+        if date == "latest":
+            # Latest available curtailment data is usually the previous day because
+            # data is released at 10 AM for the previous day.
+            return self.get_curtailment(
+                pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=1),
+            )
+
+        dataframes = self.get_caiso_renewables_report(date)
+
+        # Process all fuel types and units in one loop
+        fuel_configs = [
+            ("solar_curtailment_total_hourly", "Solar", "MWH"),
+            ("wind_curtailment_total_hourly", "Wind", "MWH"),
+            ("solar_curtailment_maximum_hourly", "Solar", "MW"),
+            ("wind_curtailment_maximum_hourly", "Wind", "MW"),
+        ]
+
+        melted_dfs = {}
+        for df_key, fuel_type, unit in fuel_configs:
+            # Melt from a wide format to a long format
+            df = dataframes[df_key].melt(
+                id_vars=["Interval Start", "Interval End"],
+                var_name="Curtailment Type",
+                value_name=f"Curtailment {unit}",
+            )
+
+            # Curtailment Type format is "Curtailment Type Curtailment Reason MW/MWH"
+            # Split it into two columns: Curtailment Type and Curtailment Reason
+            curtailment_parts = df["Curtailment Type"].str.split(" ")
+            df["Curtailment Type"] = curtailment_parts.str[0]
+            df["Curtailment Reason"] = curtailment_parts.str[1]
+            df["Fuel Type"] = fuel_type
+
+            melted_dfs[f"{fuel_type} {unit}"] = df
+
+        # Merge MWH and MW data for each fuel type
+        merge_cols = [
+            "Interval Start",
+            "Interval End",
+            "Curtailment Type",
+            "Curtailment Reason",
+            "Fuel Type",
+        ]
+
+        solar_df = melted_dfs["Solar MWH"].merge(
+            melted_dfs["Solar MW"],
+            on=merge_cols,
+            how="outer",
+        )
+        wind_df = melted_dfs["Wind MWH"].merge(
+            melted_dfs["Wind MW"],
+            on=merge_cols,
+            how="outer",
+        )
+
+        return (
+            pd.concat([solar_df, wind_df])
+            .reindex(columns=merge_cols + ["Curtailment MWH", "Curtailment MW"])
+            .sort_values(merge_cols)
+            .reset_index(drop=True)
+        )
+
+    def get_caiso_renewables_report(
+        self,
+        date: pd.Timestamp,
+    ) -> dict[str, pd.DataFrame]:
+        """
+        Fetches the CAISO daily renewable report for a given date and extracts data from
+        all the charts into wide dataframes.
+        """
+        report_url = f"https://www.caiso.com/documents/daily-renewable-report-{date.strftime('%b-%d-%Y').lower()}.html"
+
+        response = requests.get(report_url)
+
+        if response.status_code != 200:
+            raise ValueError(
+                f"Failed to fetch renewables report for {date.strftime('%Y-%m-%d')}: "
+                f"HTTP {response.status_code}",
+            )
+
+        html_content = response.content.decode("utf-8")
+
+        def extract_array(content: str, var_name: str) -> list:
+            pattern = rf"{var_name}\s*=\s*\[(.*?)\]"
+            match = re.search(pattern, content, re.DOTALL)
+            if not match:
+                return []
+
+            array_str = match.group(1)
+            values = []
+            for item in array_str.split(","):
+                item = item.strip()
+                if item in ('"NA"', "NA"):
+                    values.append(np.nan)
+                elif item.startswith('"') and item.endswith('"'):
+                    values.append(item[1:-1])
+                else:
+                    try:
+                        values.append(float(item))
+                    except ValueError:
+                        values.append(item)
+            return values
+
+        base_date = date.normalize()
+
+        dataframe_configs = get_dataframe_config_for_renewables_report(
+            base_date,
+            self.default_timezone,
+        )
+
+        # Build all DataFrames using the configuration
+        dataframes = {}
+        for df_name, timestamps, duration, unit, column_mapping in dataframe_configs:
+            interval_end_timedelta = pd.DateOffset(**{f"{unit}s": duration})
+
+            data = {
+                "Interval Start": timestamps,
+                "Interval End": timestamps + interval_end_timedelta,
+            }
+
+            for col_name, var_name in column_mapping.items():
+                data[col_name] = extract_array(html_content, var_name)
+
+            dataframes[df_name] = pd.DataFrame(data)
+
+        return dataframes

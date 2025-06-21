@@ -475,9 +475,9 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             )
 
-    """get_curtailment"""
+    """get_curtailment_legacy"""
 
-    def _check_curtailment(self, df: pd.DataFrame):
+    def _check_curtailment_legacy(self, df: pd.DataFrame):
         assert df.shape[0] > 0
         assert df.columns.tolist() == [
             "Time",
@@ -492,33 +492,78 @@ class TestCAISO(BaseTestISO):
         self._check_time_columns(df)
 
     @pytest.mark.parametrize("date", ["2022-10-15"])
-    def test_get_curtailment(self, date):
-        with caiso_vcr.use_cassette(f"test_get_curtailment_{date}.yaml"):
-            df = self.iso.get_curtailment(date)
+    def test_get_curtailment_legacy(self, date):
+        with caiso_vcr.use_cassette(f"test_get_curtailment_legacy_{date}.yaml"):
+            df = self.iso.get_curtailment_legacy(date)
             assert df.shape == (31, 8)
-            self._check_curtailment(df)
+            self._check_curtailment_legacy(df)
 
     @pytest.mark.parametrize("date", ["2022-03-15"])
-    def test_get_curtailment_2_pages(self, date):
+    def test_get_curtailment_legacy_2_pages(self, date):
         # test that the function can handle 2 pages of data
-        with caiso_vcr.use_cassette(f"test_get_curtailment_2_pages_{date}.yaml"):
-            df = self.iso.get_curtailment(date)
+        with caiso_vcr.use_cassette(f"test_get_curtailment_legacy_2_pages_{date}.yaml"):
+            df = self.iso.get_curtailment_legacy(date)
             assert df.shape == (55, 8)
-            self._check_curtailment(df)
+            self._check_curtailment_legacy(df)
 
     @pytest.mark.parametrize("date", ["2022-03-16"])
-    def test_get_curtailment_3_pages(self, date):
+    def test_get_curtailment_legacy_3_pages(self, date):
         # test that the function can handle 3 pages of data
-        with caiso_vcr.use_cassette(f"test_get_curtailment_3_pages_{date}.yaml"):
-            df = self.iso.get_curtailment(date)
+        with caiso_vcr.use_cassette(f"test_get_curtailment_legacy_3_pages_{date}.yaml"):
+            df = self.iso.get_curtailment_legacy(date)
             assert df.shape == (76, 8)
-            self._check_curtailment(df)
+            self._check_curtailment_legacy(df)
 
     @pytest.mark.parametrize("date", ["2021-12-02", "2025-01-02"])
-    def test_get_curtailment_special_dates(self, date):
-        with caiso_vcr.use_cassette(f"test_get_curtailment_special_dates_{date}.yaml"):
+    def test_get_curtailment_legacy_special_dates(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_curtailment_legacy_special_dates_{date}.yaml",
+        ):
+            df = self.iso.get_curtailment_legacy(date)
+            self._check_curtailment_legacy(df)
+
+    """get_curtailment"""
+
+    def _check_curtailment(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Curtailment Type",
+            "Curtailment Reason",
+            "Fuel Type",
+            "Curtailment MWH",
+            "Curtailment MW",
+        ]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_curtailment_specific_date(self):
+        date = self.local_today() - pd.DateOffset(days=2)
+        with caiso_vcr.use_cassette(f"test_get_curtailment_{date}.yaml"):
             df = self.iso.get_curtailment(date)
-            self._check_curtailment(df)
+
+        self._check_curtailment(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval Start"].max() == self.local_start_of_day(
+            date,
+        ) + pd.Timedelta(hours=23)
+
+    def test_get_curtailment_date_range(self):
+        start_date = self.local_start_of_today() - pd.DateOffset(days=5)
+        end_date = start_date + pd.DateOffset(days=3)
+
+        with caiso_vcr.use_cassette(
+            f"test_get_curtailment_date_range_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_curtailment(start_date, end=end_date)
+
+        self._check_curtailment(df)
+
+        assert df["Interval Start"].min() == start_date
+        assert df["Interval Start"].max() == end_date - pd.Timedelta(hours=1)
 
     """get_gas_prices"""
 
