@@ -540,14 +540,16 @@ class TestCAISO(BaseTestISO):
         ).all()
 
     def test_get_curtailment_specific_date(self):
-        date = pd.Timestamp("2025-06-15")
+        date = self.local_today() - pd.DateOffset(days=2)
         with caiso_vcr.use_cassette(f"test_get_curtailment_{date}.yaml"):
             df = self.iso.get_curtailment(date)
 
         self._check_curtailment(df)
 
-        assert df["Interval Start"].min() == pd.Timestamp("2025-06-15 00:00:00-07:00")
-        assert df["Interval Start"].max() == pd.Timestamp("2025-06-15 23:00:00-07:00")
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval Start"].max() == self.local_start_of_day(
+            date,
+        ) + pd.Timedelta(hours=23)
 
     def test_get_curtailment_date_range(self):
         start_date = self.local_start_of_today() - pd.DateOffset(days=5)
