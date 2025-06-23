@@ -75,6 +75,34 @@ STATUS_STOP_WORDS = [
     "on",
 ]
 
+LMP_HUBS_AND_INTERFACES = {
+    "AECI": "Interface",
+    "ALTW": "Interface",
+    "AMRN": "Interface",
+    "BLKW": "Interface",
+    "CLEC": "Interface",
+    "DPC": "Interface",
+    "EDDY": "Interface",
+    "EES": "Interface",
+    "ERCOTE": "Interface",
+    "ERCOTN": "Interface",
+    "GRE": "Interface",
+    "LAM345": "Interface",
+    "MCWEST": "Interface",
+    "MDU": "Interface",
+    "MEC": "Interface",
+    "MISO": "Interface",
+    "NSP": "Interface",
+    "OTP": "Interface",
+    "RCEAST": "Interface",
+    "SCSE": "Interface",
+    "SGE": "Interface",
+    "SPA": "Interface",
+    "SPC": "Interface",
+    "SPPNORTH_HUB": "Hub",
+    "SPPSOUTH_HUB": "Hub",
+}
+
 
 class SPP(ISOBase):
     """Southwest Power Pool (SPP)"""
@@ -970,19 +998,14 @@ class SPP(ISOBase):
 
         if location_type != LOCATION_TYPE_BUS:
             df["Location"] = df["Settlement Location"]
-
-            df["Location Type"] = LOCATION_TYPE_SETTLEMENT_LOCATION
-
-            # Create boolean masks for each location type
-            hubs = self._get_location_list(LOCATION_TYPE_HUB, verbose=verbose)
-            interfaces = self._get_location_list(
-                LOCATION_TYPE_INTERFACE,
-                verbose=verbose,
+            df["Location Type"] = (
+                df["Location"]
+                .map(
+                    LMP_HUBS_AND_INTERFACES,
+                )
+                .fillna(LOCATION_TYPE_SETTLEMENT_LOCATION)
             )
-            is_hub = df["Location"].isin(hubs)
-            is_interface = df["Location"].isin(interfaces)
-            df.loc[is_hub, "Location Type"] = LOCATION_TYPE_HUB
-            df.loc[is_interface, "Location Type"] = LOCATION_TYPE_INTERFACE
+
             df = utils.filter_lmp_locations(df, location_type=location_type)
         else:
             df["Location"] = df["Pnode"]
