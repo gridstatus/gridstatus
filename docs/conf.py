@@ -35,7 +35,7 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["autoapi", "_autoapi_templates", "_build", "Thumbs.db", ".DS_Store"]
 
 language = "en"
 
@@ -43,7 +43,7 @@ language = "en"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_book_theme"
-html_logo = "_static/logo.png"
+html_logo = "_static/favicon.png"
 html_title = "gridstatus"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
@@ -65,7 +65,6 @@ html_theme_options = {
     "use_repository_button": True,
     "use_download_button": True,
     "use_sidenotes": True,
-    "logo_only": True,
     "show_toc_level": 2,
     "show_navbar_depth": 2,
     # "announcement": (
