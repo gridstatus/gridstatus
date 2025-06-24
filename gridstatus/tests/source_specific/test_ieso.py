@@ -1915,11 +1915,13 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data["Interval Start"].dt.date == today.date()).all()
 
-    def test_get_real_time_totals_historical_date_range(self):
-        # Only date for which data is available
-        start_date = "2025-05-01T09:00:00Z"
-        end_date = "2025-05-01T12:00:00Z"
-
+    @pytest.mark.parametrize(
+        "start_date, end_date",
+        [
+            ("2025-06-01T09:00:00Z", "2025-06-01T12:00:00Z"),
+        ],
+    )
+    def test_get_real_time_totals_historical_date_range(self, start_date, end_date):
         with file_vcr.use_cassette(
             f"test_get_real_time_totals_historical_date_range_{start_date}_{end_date}.yaml",
         ):
@@ -2084,7 +2086,10 @@ class TestIESO(BaseTestISO):
     @pytest.mark.parametrize(
         "date, end",
         [
-            ("2025-05-01", "2025-05-03"),
+            (
+                pd.Timestamp.now().normalize() - pd.Timedelta(days=12),
+                pd.Timestamp.now().normalize() - pd.Timedelta(days=10),
+            ),
         ],
     )
     def test_get_shadow_prices_real_time_5_min_historical_range(self, date, end):
@@ -2104,7 +2109,10 @@ class TestIESO(BaseTestISO):
     @pytest.mark.parametrize(
         "date, end",
         [
-            ("2025-05-05", "2025-05-07"),
+            (
+                pd.Timestamp.now().normalize() - pd.Timedelta(days=12),
+                pd.Timestamp.now().normalize() - pd.Timedelta(days=10),
+            ),
         ],
     )
     def test_get_shadow_prices_day_ahead_hourly_historical_range(self, date, end):

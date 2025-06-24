@@ -1941,7 +1941,6 @@ class IESO(ISOBase):
                 file_name_prefix=f"PUB_{directory_path}",
             )
 
-            # If no end provided, use a default of 1 hour
             end = end or (date + pd.Timedelta(hours=1))
 
             urls = [
@@ -1955,9 +1954,7 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly LMP data found for {date} to {end}",
             )
 
-        data_list = []
-
-        for url in tqdm.tqdm(urls):
+        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
             # We need to get the file created date from the first line of the csv
             # Example: CREATED AT 2025/05/01 23:14:53 FOR 2025/05/02
             text = self._request(url, verbose=False).text
@@ -1975,7 +1972,7 @@ class IESO(ISOBase):
                 tz=self.default_timezone,
             )
 
-            # Now get the date the file is FOR to use  as the base date
+            # Get the date the file is FOR to use as the base date
             match = re.search(r"FOR (\d{4}/\d{2}/\d{2})", first_line)
             delivery_date = pd.Timestamp(match.group(1), tz=self.default_timezone)
 
@@ -1987,35 +1984,15 @@ class IESO(ISOBase):
             )
 
             file_data["Publish Time"] = publish_time
-            data_list.append(file_data)
+            return file_data
 
-        data = pd.concat(data_list)
-
-        data = (
-            # It's possible we may have duplicates since some of the files are the same.
-            # We remove these by dropping duplicate rows based on a subset
-            data.drop_duplicates(
-                subset=["Interval Start", "Location", "Publish Time"],
-            )
+        data = self._process_urls_with_threadpool(
+            urls,
+            process_url,
+            f"No valid data found for Predispatch Hourly LMP for {date} to {end}",
+            verbose=verbose,
         )
 
-        data = (
-            utils.move_cols_to_front(
-                data,
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Location",
-                ],
-            )
-            .sort_values(
-                ["Interval Start", "Location", "Publish Time"],
-            )
-            .reset_index(drop=True)
-        )
-
-        # Remove :LMP from the location
         data["Location"] = data["Location"].str.replace(":LMP", "")
 
         return data
@@ -2040,7 +2017,6 @@ class IESO(ISOBase):
         if verbose:
             logger.info(f"Fetching LMP data from {url}")
 
-        # Skip first line of the csv which contains the file created time
         data = pd.read_csv(url, skiprows=1)
 
         if minutes_per_interval == 5:
@@ -2054,19 +2030,16 @@ class IESO(ISOBase):
                     unit="minute",
                 ),
             )
-        elif minutes_per_interval == 60:
+        else:
             data["Interval Start"] = pd.to_datetime(
                 base_date.normalize()
                 + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour"),
             )
-        else:
-            raise ValueError("Invalid minutes_per_interval. Must be 5 or 60.")
 
         data["Interval End"] = data["Interval Start"] + pd.Timedelta(
             minutes=minutes_per_interval,
         )
 
-        # Standardize column names
         data = data.rename(
             columns={
                 "Energy Loss Price": "Loss",
@@ -2075,7 +2048,11 @@ class IESO(ISOBase):
             },
         )
 
-        # Calculate energy from definition of LMP
+        numeric_columns = ["LMP", "Loss", "Congestion"]
+        for col in numeric_columns:
+            if col in data.columns:
+                data[col] = pd.to_numeric(data[col], errors="coerce")
+
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
 
         columns = [
@@ -2094,7 +2071,6 @@ class IESO(ISOBase):
             .reset_index(drop=True)
         )
 
-        # Remove :LMP from the location
         data["Location"] = data["Location"].str.replace(":LMP", "")
 
         return data
@@ -2244,31 +2220,19 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Virtual Zonal LMP data found for {date} to {end}",
             )
 
-        data_list = []
-
-        for url in tqdm.tqdm(urls):
-            file_data = self._parse_lmp_hourly_virtual_zonal(
+        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
+            return self._parse_lmp_hourly_virtual_zonal(
                 url,
                 verbose=verbose,
                 predispatch=True,
             )
 
-            data_list.append(file_data)
-
-        data = pd.concat(data_list)
-
-        data = (
-            # It's possible we may have duplicates if some of the files are the same.
-            data.drop_duplicates(
-                subset=["Interval Start", "Location", "Publish Time"],
-            )
-            .sort_values(
-                ["Interval Start", "Location", "Publish Time"],
-            )
-            .reset_index(drop=True)
+        return self._process_urls_with_threadpool(
+            urls,
+            process_url,
+            f"No valid data found for Predispatch Hourly Virtual Zonal LMP for {date} to {end}",
+            verbose=verbose,
         )
-
-        return data
 
     def _parse_lmp_hourly_virtual_zonal(
         self,
@@ -2543,27 +2507,19 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Intertie LMP data found for {date} to {end}",
             )
 
-        data_list = []
-
-        for url in tqdm.tqdm(urls):
-            url_data = self._parse_lmp_hourly_intertie(
+        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
+            return self._parse_lmp_hourly_intertie(
                 url,
                 verbose=verbose,
                 predispatch=True,
             )
-            data_list.append(url_data)
 
-        data = pd.concat(data_list)
-
-        # It's possible we will have duplicates because we may have multiple files
-        # published at the same time
-        data = (
-            data.drop_duplicates(subset=["Interval Start", "Location", "Publish Time"])
-            .sort_values(["Interval Start", "Location", "Publish Time"])
-            .reset_index(drop=True)
+        return self._process_urls_with_threadpool(
+            urls,
+            process_url,
+            f"No valid data found for Predispatch Hourly Intertie LMP for {date} to {end}",
+            verbose=verbose,
         )
-
-        return data
 
     def _parse_lmp_hourly_intertie(
         self,
@@ -2607,7 +2563,15 @@ class IESO(ISOBase):
                     hour_str = "DeliveryHour" if not predispatch else "Hour"
 
                     hour = int(hour_data.find(hour_str, ns).text)
-                    value = float(hour_data.find("LMP", ns).text)
+                    lmp_elem = hour_data.find("LMP", ns)
+                    if (
+                        lmp_elem is None
+                        or lmp_elem.text is None
+                        or lmp_elem.text.strip() == ""
+                    ):
+                        continue
+
+                    value = float(lmp_elem.text)
 
                     if component_type == "Intertie LMP":
                         hourly_lmp[hour] = value
@@ -2815,30 +2779,19 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Ontario Zonal LMP data found for {date} to {end}",
             )
 
-        data_list = []
-
-        for url in urls:
-            url_data = self._process_lmp_hourly_ontario_zonal(
+        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
+            return self._process_lmp_hourly_ontario_zonal(
                 url,
                 verbose,
                 predispatch=True,
             )
-            data_list.append(url_data)
 
-        data = pd.concat(data_list)
-
-        # It's possible we will have duplicates because we may have multiple files
-        # published at the same time
-        data = (
-            data.drop_duplicates(
-                subset=["Interval Start", "Location", "Publish Time"],
-                keep="last",
-            )
-            .sort_values(["Interval Start", "Location", "Publish Time"])
-            .reset_index(drop=True)
+        return self._process_urls_with_threadpool(
+            urls,
+            process_url,
+            f"No valid data found for Predispatch Hourly Ontario Zonal LMP for {date} to {end}",
+            verbose=verbose,
         )
-
-        return data
 
     def _process_lmp_hourly_ontario_zonal(
         self,
@@ -2905,6 +2858,71 @@ class IESO(ISOBase):
             )
 
         return df
+
+    def _process_urls_with_threadpool(
+        self,
+        urls: list[str],
+        process_func: callable,
+        error_message: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Generic helper to process multiple URLs using ThreadPoolExecutor.
+
+        Args:
+            urls: List of URLs to process
+            process_func: Function to process each URL (should take url and verbose as args)
+            error_message: Error message to show if no data is found
+            verbose: Whether to print verbose output
+
+        Returns:
+            DataFrame with concatenated results from all URLs
+        """
+        if not urls:
+            raise NoDataFoundException(error_message)
+
+        data_list = []
+        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
+            future_to_url = {
+                executor.submit(process_func, url, verbose): url for url in urls
+            }
+
+            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
+                url = future_to_url[future]
+                try:
+                    file_data = future.result()
+                    data_list.append(file_data)
+                except Exception as e:
+                    logger.error(f"Error processing {url}: {str(e)}")
+                    continue
+
+        if not data_list:
+            raise NoDataFoundException(error_message)
+
+        data = pd.concat(data_list)
+
+        # It's possible we may have duplicates since some of the files are the same.
+        # We remove these by dropping duplicate rows based on a subset
+        data = data.drop_duplicates(
+            subset=["Interval Start", "Location", "Publish Time"],
+        )
+
+        data = (
+            utils.move_cols_to_front(
+                data,
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Location",
+                ],
+            )
+            .sort_values(
+                ["Interval Start", "Location", "Publish Time"],
+            )
+            .reset_index(drop=True)
+        )
+
+        return data
 
     def _get_directory_files_and_timestamps(
         self,
