@@ -232,7 +232,7 @@ class TestAESO(TestHelperMixin):
     ) -> None:
         """Test getting historical forecast pool price data."""
         with api_vcr.use_cassette(
-            f"test_get_forecast_pool_price_historical_range_{start_date.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_forecast_pool_price_historical_range_{start_date.date()}_{end_date.date()}.yaml",
         ):
             df = self.iso.get_forecast_pool_price(
                 date=start_date,
@@ -863,3 +863,66 @@ class TestAESO(TestHelperMixin):
             assert len(df) > 0
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
+
+    def _check_daily_average_pool_price(self, df: pd.DataFrame) -> None:
+        """Check daily average pool price DataFrame structure and types."""
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Daily Average",
+            "Daily On Peak Average",
+            "Daily Off Peak Average",
+            "30 Day Average",
+        ]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+
+        assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta(days=1)).all()
+
+        price_columns = [
+            "Daily Average",
+            "Daily On Peak Average",
+            "Daily Off Peak Average",
+            "30 Day Average",
+        ]
+        for col in price_columns:
+            assert pd.api.types.is_numeric_dtype(df[col]), (
+                f"Column {col} should be numeric"
+            )
+
+    def test_get_daily_average_pool_price_latest(self):
+        """Test getting latest daily average pool price data."""
+        with api_vcr.use_cassette("test_get_daily_average_pool_price_latest.yaml"):
+            df = self.iso.get_daily_average_pool_price(date="latest")
+            self._check_daily_average_pool_price(df)
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date,expected_days",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-04"),
+                4,
+            ),
+        ],
+    )
+    def test_get_daily_average_pool_price_historical_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+        expected_days: int,
+    ) -> None:
+        """Test getting historical daily average pool price data."""
+        with api_vcr.use_cassette(
+            f"test_get_daily_average_pool_price_historical_range_{start_date.date()}_{end_date.date()}.yaml",
+        ):
+            df = self.iso.get_daily_average_pool_price(date=start_date, end=end_date)
+            self._check_daily_average_pool_price(df)
+            assert len(df) == expected_days

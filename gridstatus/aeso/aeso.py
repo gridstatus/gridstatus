@@ -513,6 +513,135 @@ class AESO:
             ]
 
     @support_date_range(frequency=None)
+    def get_daily_average_pool_price(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get daily average pool price data with on-peak and off-peak breakdowns.
+
+        On-peak hours are defined as hours ending 8 through 23 (inclusive).
+        Off-peak hours are all other hours.
+
+        Returns:
+            DataFrame containing daily average price data
+        """
+        if date == "latest":
+            return self.get_daily_average_pool_price(date="today")
+
+        hourly_df = self._get_pool_price_data(date, end, actual_or_forecast="actual")
+        hourly_df["Is On Peak"] = hourly_df["Interval End"].dt.hour.isin(range(8, 24))
+        hourly_df["Pool Price"] = pd.to_numeric(
+            hourly_df["Pool Price"],
+            errors="coerce",
+        )
+        hourly_df["Rolling 30 Day Average Pool Price"] = pd.to_numeric(
+            hourly_df["Rolling 30 Day Average Pool Price"],
+            errors="coerce",
+        )
+
+        agg_dict = {
+            "Pool Price": "mean",
+            "Is On Peak": lambda x: x.sum(),
+        }
+
+        daily_df = (
+            hourly_df.groupby(hourly_df["Interval Start"].dt.date)
+            .agg(agg_dict)
+            .reset_index()
+        )
+
+        # NB: 30 rolling average is already an average, so this just passes
+        # through the 23:00:00 value for each day, which is what the ETS system shows
+        daily_30day_avg = (
+            hourly_df[hourly_df["Interval Start"].dt.hour == 23]
+            .groupby(hourly_df["Interval Start"].dt.date)
+            .agg({"Rolling 30 Day Average Pool Price": "first"})
+            .reset_index()
+        )
+        daily_30day_avg = daily_30day_avg.rename(
+            columns={"Rolling 30 Day Average Pool Price": "30 Day Average"},
+        )
+
+        daily_averages = []
+        for _, day_row in daily_df.iterrows():
+            day_date = day_row["Interval Start"]
+            day_hourly = hourly_df[hourly_df["Interval Start"].dt.date == day_date]
+
+            on_peak_prices = day_hourly[day_hourly["Is On Peak"]]["Pool Price"]
+            daily_on_peak_avg = (
+                on_peak_prices.mean() if not on_peak_prices.empty else None
+            )
+
+            off_peak_prices = day_hourly[~day_hourly["Is On Peak"]]["Pool Price"]
+            daily_off_peak_avg = (
+                off_peak_prices.mean() if not off_peak_prices.empty else None
+            )
+
+            daily_averages.append(
+                {
+                    "date": day_date,
+                    "Daily On Peak Average": daily_on_peak_avg,
+                    "Daily Off Peak Average": daily_off_peak_avg,
+                },
+            )
+
+        daily_avg_df = pd.DataFrame(daily_averages)
+
+        result_df = daily_df.merge(
+            daily_avg_df,
+            left_on="Interval Start",
+            right_on="date",
+            how="left",
+        )
+
+        result_df = result_df.merge(
+            daily_30day_avg,
+            left_on="Interval Start",
+            right_on="Interval Start",
+            how="left",
+        )
+
+        result_df["Interval Start"] = pd.to_datetime(
+            result_df["Interval Start"],
+        ).dt.tz_localize(self.default_timezone)
+        result_df["Interval End"] = result_df["Interval Start"] + pd.Timedelta(days=1)
+
+        result_df = result_df.rename(
+            columns={
+                "Pool Price": "Daily Average",
+                "Rolling 30 Day Average Pool Price": "30 Day Average",
+            },
+        )
+
+        price_columns = [
+            "Daily Average",
+            "Daily On Peak Average",
+            "Daily Off Peak Average",
+            "30 Day Average",
+        ]
+        for col in price_columns:
+            if col in result_df.columns:
+                result_df[col] = result_df[col].round(2)
+
+        return (
+            result_df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Daily Average",
+                    "Daily On Peak Average",
+                    "Daily Off Peak Average",
+                    "30 Day Average",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency=None)
     def get_system_marginal_price(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
