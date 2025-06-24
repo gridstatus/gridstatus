@@ -532,20 +532,37 @@ class AESO:
             return self.get_daily_average_price(date="today")
 
         hourly_df = self._get_pool_price_data(date, end, actual_or_forecast="actual")
+        hourly_df["Is On Peak"] = hourly_df["Interval End"].dt.hour.isin(range(8, 24))
+        hourly_df["Pool Price"] = pd.to_numeric(
+            hourly_df["Pool Price"],
+            errors="coerce",
+        )
+        hourly_df["Rolling 30 Day Average Pool Price"] = pd.to_numeric(
+            hourly_df["Rolling 30 Day Average Pool Price"],
+            errors="coerce",
+        )
 
-        hourly_df["Hour Ending"] = hourly_df["Interval Start"].dt.hour
-        hourly_df["Is On Peak"] = hourly_df["Hour Ending"].isin(range(8, 24))
+        agg_dict = {
+            "Pool Price": "mean",
+            "Is On Peak": lambda x: x.sum(),
+        }
 
         daily_df = (
             hourly_df.groupby(hourly_df["Interval Start"].dt.date)
-            .agg(
-                {
-                    "Pool Price": "mean",
-                    "Rolling 30 Day Average Pool Price": "mean",
-                    "Is On Peak": lambda x: x.sum(),
-                },
-            )
+            .agg(agg_dict)
             .reset_index()
+        )
+
+        # NB: 30 rolling average is already an average, so this just passes
+        # through the 23:00:00 value for each day, which is what the ETS system shows
+        daily_30day_avg = (
+            hourly_df[hourly_df["Interval Start"].dt.hour == 23]
+            .groupby(hourly_df["Interval Start"].dt.date)
+            .agg({"Rolling 30 Day Average Pool Price": "first"})
+            .reset_index()
+        )
+        daily_30day_avg = daily_30day_avg.rename(
+            columns={"Rolling 30 Day Average Pool Price": "30 Day Average"},
         )
 
         daily_averages = []
@@ -580,9 +597,13 @@ class AESO:
             how="left",
         )
 
-        result_df["Interval Start"] = pd.to_datetime(
-            result_df["Interval Start"],
-        ).dt.tz_localize(self.default_timezone)
+        result_df = result_df.merge(
+            daily_30day_avg,
+            left_on="Interval Start",
+            right_on="Interval Start",
+            how="left",
+        )
+
         result_df["Interval End"] = result_df["Interval Start"] + pd.Timedelta(days=1)
 
         result_df = result_df.rename(
@@ -592,18 +613,30 @@ class AESO:
             },
         )
 
-        result_df = result_df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Daily Average",
-                "Daily On Peak Average",
-                "Daily Off Peak Average",
-                "30 Day Average",
-            ]
+        price_columns = [
+            "Daily Average",
+            "Daily On Peak Average",
+            "Daily Off Peak Average",
+            "30 Day Average",
         ]
+        for col in price_columns:
+            if col in result_df.columns:
+                result_df[col] = result_df[col].round(2)
 
-        return result_df.sort_values("Interval Start").reset_index(drop=True)
+        return (
+            result_df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Daily Average",
+                    "Daily On Peak Average",
+                    "Daily Off Peak Average",
+                    "30 Day Average",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
 
     @support_date_range(frequency=None)
     def get_system_marginal_price(
