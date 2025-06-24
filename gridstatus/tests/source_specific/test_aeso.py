@@ -925,12 +925,11 @@ class TestAESO(TestHelperMixin):
             self._check_daily_average_pool_price(df)
             assert len(df) == expected_days
 
-    def _check_wind_solar_actual(self, df: pd.DataFrame, generation_type: str) -> None:
+    def _check_wind_solar(self, df: pd.DataFrame, generation_type: str) -> None:
         """Check wind/solar actual generation DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
             "Interval End",
-            "Publish Time",
             "Actual Generation",
             f"Total {generation_type.capitalize()} Capacity",
         ]
@@ -941,9 +940,6 @@ class TestAESO(TestHelperMixin):
         )
         assert (
             df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
         )
 
         numeric_columns = [
@@ -962,14 +958,14 @@ class TestAESO(TestHelperMixin):
         """Test getting latest wind generation data."""
         with api_vcr.use_cassette("test_get_wind_latest.yaml"):
             df = self.iso.get_wind(date="latest")
-            self._check_wind_solar_actual(df, "wind")
+            self._check_wind_solar(df, "wind")
             assert len(df) > 0
 
     def test_get_solar_latest(self):
         """Test getting latest solar generation data."""
         with api_vcr.use_cassette("test_get_solar_latest.yaml"):
             df = self.iso.get_solar(date="latest")
-            self._check_wind_solar_actual(df, "solar")
+            self._check_wind_solar(df, "solar")
             assert len(df) > 0
 
     @pytest.mark.parametrize(
@@ -994,7 +990,7 @@ class TestAESO(TestHelperMixin):
                 date=start_date,
                 end=end_date,
             )
-            self._check_wind_solar_actual(df, "wind")
+            self._check_wind_solar(df, "wind")
             assert len(df) > 0
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
@@ -1021,7 +1017,7 @@ class TestAESO(TestHelperMixin):
                 date=start_date,
                 end=end_date,
             )
-            self._check_wind_solar_actual(df, "solar")
+            self._check_wind_solar(df, "solar")
             assert len(df) > 0
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
