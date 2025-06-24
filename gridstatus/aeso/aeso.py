@@ -1443,7 +1443,6 @@ class AESO:
                 "Min": "Minimum Generation Forecast",
                 "Most Likely": "Most Likely Generation Forecast",
                 "Max": "Maximum Generation Forecast",
-                "Actual": "Actual Generation",
                 "MCR": f"Total {forecast_type.capitalize()} Capacity",
                 "Pct Min": "Minimum Generation Percentage",
                 "Pct Most Likely": "Most Likely Generation Percentage",
@@ -1455,7 +1454,6 @@ class AESO:
             "Minimum Generation Forecast",
             "Most Likely Generation Forecast",
             "Maximum Generation Forecast",
-            "Actual Generation",
             f"Total {forecast_type.capitalize()} Capacity",
             "Minimum Generation Percentage",
             "Most Likely Generation Percentage",
@@ -1474,7 +1472,6 @@ class AESO:
                 "Minimum Generation Forecast",
                 "Most Likely Generation Forecast",
                 "Maximum Generation Forecast",
-                "Actual Generation",
                 f"Total {forecast_type.capitalize()} Capacity",
                 "Minimum Generation Percentage",
                 "Most Likely Generation Percentage",
@@ -1532,7 +1529,6 @@ class AESO:
                 f"{forecast_prefix}_MIN": "Minimum Generation Forecast",
                 f"{forecast_prefix}_OPT": "Most Likely Generation Forecast",
                 f"{forecast_prefix}_MAX": "Maximum Generation Forecast",
-                f"{forecast_prefix}_ACTUAL": "Actual Generation",
                 f"{forecast_prefix}_MCR": f"Total {forecast_type.capitalize()} Capacity",
             },
         )
@@ -1541,7 +1537,6 @@ class AESO:
             "Minimum Generation Forecast",
             "Most Likely Generation Forecast",
             "Maximum Generation Forecast",
-            "Actual Generation",
             f"Total {forecast_type.capitalize()} Capacity",
         ]
 
@@ -1569,11 +1564,228 @@ class AESO:
                     "Minimum Generation Forecast",
                     "Most Likely Generation Forecast",
                     "Maximum Generation Forecast",
-                    "Actual Generation",
                     f"Total {forecast_type.capitalize()} Capacity",
                     "Minimum Generation Percentage",
                     "Most Likely Generation Percentage",
                     "Maximum Generation Percentage",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency=None)
+    def get_wind(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get actual wind generation data.
+
+        Returns:
+            DataFrame containing actual wind generation data
+        """
+        if date == "latest":
+            return self._get_wind_solar_actual_latest_data(
+                generation_type="wind",
+                date=date,
+                end=end,
+            )
+        else:
+            start_date = self._normalize_timezone(pd.Timestamp(date))
+            end_date = (
+                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
+            )
+
+            if (
+                start_date < self.HISTORICAL_FORECAST_EARLIEST
+                or end_date > self.HISTORICAL_FORECAST_LATEST
+            ):
+                raise NotSupported(
+                    f"Historical wind generation data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                )
+
+            return self._get_wind_solar_actual_historical_data(
+                generation_type="wind",
+                date=date,
+                end=end,
+            )
+
+    @support_date_range(frequency=None)
+    def get_solar(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get actual solar generation data.
+
+        Returns:
+            DataFrame containing actual solar generation data
+        """
+        if date == "latest":
+            return self._get_wind_solar_actual_latest_data(
+                generation_type="solar",
+                date=date,
+                end=end,
+            )
+        else:
+            start_date = self._normalize_timezone(pd.Timestamp(date))
+            end_date = (
+                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
+            )
+
+            if (
+                start_date < self.HISTORICAL_FORECAST_EARLIEST
+                or end_date > self.HISTORICAL_FORECAST_LATEST
+            ):
+                raise NotSupported(
+                    f"Historical solar generation data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                )
+
+            return self._get_wind_solar_actual_historical_data(
+                generation_type="solar",
+                date=date,
+                end=end,
+            )
+
+    def _get_wind_solar_actual_latest_data(
+        self,
+        generation_type: Literal["wind", "solar"],
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get actual wind or solar generation data from AESO CSV reports.
+
+        Args:
+            generation_type: Type of generation ("wind" or "solar")
+            date: Start date for filtering data
+            end: End date for filtering data
+
+        Returns:
+            DataFrame containing actual generation data
+        """
+        url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{generation_type}_rpt_shortterm.csv"
+
+        try:
+            df = pd.read_csv(url)
+        except Exception as e:
+            raise RequestException(
+                f"Failed to fetch {generation_type} generation data: {str(e)}",
+            )
+
+        df["Interval Start"] = pd.to_datetime(
+            df["Forecast Transaction Date"],
+            format="%Y-%m-%d %H:%M",
+        ).dt.tz_localize(self.default_timezone)
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
+
+        # NB: Only include rows with actual generation data
+        df = df[df["Actual"].notna()].copy()
+
+        df = df.rename(
+            columns={
+                "Actual": "Actual Generation",
+                "MCR": f"Total {generation_type.capitalize()} Capacity",
+            },
+        )
+
+        numeric_columns = [
+            "Actual Generation",
+            f"Total {generation_type.capitalize()} Capacity",
+        ]
+
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Actual Generation",
+                    f"Total {generation_type.capitalize()} Capacity",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    def _get_wind_solar_actual_historical_data(
+        self,
+        generation_type: Literal["wind", "solar"],
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get historical wind or solar generation data from AESO CSV archives.
+
+        Args:
+            generation_type: Type of generation ("wind" or "solar")
+            date: Start date for filtering data
+            end: End date for filtering data
+
+        Returns:
+            DataFrame containing historical generation data
+        """
+        url = f"https://www.aeso.ca/assets/{generation_type.upper()}_GEN_MAR_2023-MAR_2025-Day-ahead.csv"
+
+        try:
+            df = pd.read_csv(url)
+        except Exception as e:
+            raise RequestException(
+                f"Failed to fetch historical {generation_type} generation data: {str(e)}",
+            )
+
+        generation_prefix = generation_type.upper()
+        df["Interval Start"] = pd.to_datetime(
+            df["FORECAST_DATE_MPT"],
+            format="mixed",
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        start_date = self._normalize_timezone(pd.Timestamp(date))
+        if end:
+            end_date = self._normalize_timezone(pd.Timestamp(end))
+            df = df[
+                (df["Interval Start"] >= start_date)
+                & (df["Interval Start"] <= end_date)
+            ]
+        else:
+            df = df[df["Interval Start"] >= start_date]
+
+        df = df.rename(
+            columns={
+                f"{generation_prefix}_ACTUAL": "Actual Generation",
+                f"{generation_prefix}_MCR": f"Total {generation_type.capitalize()} Capacity",
+            },
+        )
+
+        numeric_columns = [
+            "Actual Generation",
+            f"Total {generation_type.capitalize()} Capacity",
+        ]
+
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Actual Generation",
+                    f"Total {generation_type.capitalize()} Capacity",
                 ]
             ]
             .sort_values("Interval Start")

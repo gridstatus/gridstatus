@@ -726,7 +726,6 @@ class TestAESO(TestHelperMixin):
             "Minimum Generation Forecast",
             "Most Likely Generation Forecast",
             "Maximum Generation Forecast",
-            "Actual Generation",
             f"Total {forecast_type.capitalize()} Capacity",
             "Minimum Generation Percentage",
             "Most Likely Generation Percentage",
@@ -748,7 +747,6 @@ class TestAESO(TestHelperMixin):
             "Minimum Generation Forecast",
             "Most Likely Generation Forecast",
             "Maximum Generation Forecast",
-            "Actual Generation",
             f"Total {forecast_type.capitalize()} Capacity",
             "Minimum Generation Percentage",
             "Most Likely Generation Percentage",
@@ -926,3 +924,104 @@ class TestAESO(TestHelperMixin):
             df = self.iso.get_daily_average_pool_price(date=start_date, end=end_date)
             self._check_daily_average_pool_price(df)
             assert len(df) == expected_days
+
+    def _check_wind_solar_actual(self, df: pd.DataFrame, generation_type: str) -> None:
+        """Check wind/solar actual generation DataFrame structure and types."""
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Actual Generation",
+            f"Total {generation_type.capitalize()} Capacity",
+        ]
+        assert df.columns.tolist() == expected_columns
+        assert (
+            df.dtypes["Interval Start"]
+            == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+        assert (
+            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        )
+
+        numeric_columns = [
+            "Actual Generation",
+            f"Total {generation_type.capitalize()} Capacity",
+        ]
+        for col in numeric_columns:
+            assert pd.api.types.is_numeric_dtype(df[col]), (
+                f"Column {col} should be numeric"
+            )
+
+        assert df["Interval Start"].is_monotonic_increasing
+        assert (df["Interval End"] > df["Interval Start"]).all()
+
+    def test_get_wind_latest(self):
+        """Test getting latest wind generation data."""
+        with api_vcr.use_cassette("test_get_wind_latest.yaml"):
+            df = self.iso.get_wind(date="latest")
+            self._check_wind_solar_actual(df, "wind")
+            assert len(df) > 0
+
+    def test_get_solar_latest(self):
+        """Test getting latest solar generation data."""
+        with api_vcr.use_cassette("test_get_solar_latest.yaml"):
+            df = self.iso.get_solar(date="latest")
+            self._check_wind_solar_actual(df, "solar")
+            assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-03"),
+            ),
+        ],
+    )
+    def test_get_wind_historical(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical wind generation data."""
+        with api_vcr.use_cassette(
+            f"test_get_wind_historical_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_wind(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_wind_solar_actual(df, "wind")
+            assert len(df) > 0
+            assert df["Interval Start"].min().date() >= start_date.date()
+            assert df["Interval Start"].max().date() <= end_date.date()
+
+    @pytest.mark.parametrize(
+        "start_date,end_date",
+        [
+            (
+                pd.Timestamp("2024-01-01"),
+                pd.Timestamp("2024-01-03"),
+            ),
+        ],
+    )
+    def test_get_solar_historical(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Test getting historical solar generation data."""
+        with api_vcr.use_cassette(
+            f"test_get_solar_historical_{start_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_solar(
+                date=start_date,
+                end=end_date,
+            )
+            self._check_wind_solar_actual(df, "solar")
+            assert len(df) > 0
+            assert df["Interval Start"].min().date() >= start_date.date()
+            assert df["Interval Start"].max().date() <= end_date.date()
