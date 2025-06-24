@@ -1954,7 +1954,7 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly LMP data found for {date} to {end}",
             )
 
-        def process_url(url: str) -> pd.DataFrame:
+        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
             # We need to get the file created date from the first line of the csv
             # Example: CREATED AT 2025/05/01 23:14:53 FOR 2025/05/02
             text = self._request(url, verbose=False).text
@@ -1986,48 +1986,11 @@ class IESO(ISOBase):
             file_data["Publish Time"] = publish_time
             return file_data
 
-        data_list = []
-        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
-            future_to_url = {executor.submit(process_url, url): url for url in urls}
-
-            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
-                url = future_to_url[future]
-                try:
-                    file_data = future.result()
-                    data_list.append(file_data)
-                except Exception as e:
-                    logger.error(f"Error processing {url}: {str(e)}")
-                    continue
-
-        if not data_list:
-            raise NoDataFoundException(
-                f"No valid data found for Predispatch Hourly LMP for {date} to {end}",
-            )
-
-        data = pd.concat(data_list)
-
-        data = (
-            # It's possible we may have duplicates since some of the files are the same.
-            # We remove these by dropping duplicate rows based on a subset
-            data.drop_duplicates(
-                subset=["Interval Start", "Location", "Publish Time"],
-            )
-        )
-
-        data = (
-            utils.move_cols_to_front(
-                data,
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Location",
-                ],
-            )
-            .sort_values(
-                ["Interval Start", "Location", "Publish Time"],
-            )
-            .reset_index(drop=True)
+        data = self._process_urls_with_threadpool(
+            urls,
+            process_url,
+            f"No valid data found for Predispatch Hourly LMP for {date} to {end}",
+            verbose=verbose,
         )
 
         data["Location"] = data["Location"].str.replace(":LMP", "")
