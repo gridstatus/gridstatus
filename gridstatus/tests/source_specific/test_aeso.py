@@ -864,7 +864,7 @@ class TestAESO(TestHelperMixin):
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
 
-    def _check_daily_average_price(self, df: pd.DataFrame) -> None:
+    def _check_daily_average_pool_price(self, df: pd.DataFrame) -> None:
         """Check daily average price DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -896,11 +896,11 @@ class TestAESO(TestHelperMixin):
                 f"Column {col} should be numeric"
             )
 
-    def test_get_daily_average_price_latest(self):
+    def test_get_daily_average_pool_price_latest(self):
         """Test getting latest daily average price data."""
-        with api_vcr.use_cassette("test_get_daily_average_price_latest.yaml"):
-            df = self.iso.get_daily_average_price(date="latest")
-            self._check_daily_average_price(df)
+        with api_vcr.use_cassette("test_get_daily_average_pool_price_latest.yaml"):
+            df = self.iso.get_daily_average_pool_price(date="latest")
+            self._check_daily_average_pool_price(df)
             assert len(df) > 0
 
     @pytest.mark.parametrize(
@@ -913,7 +913,7 @@ class TestAESO(TestHelperMixin):
             ),
         ],
     )
-    def test_get_daily_average_price_historical_range(
+    def test_get_daily_average_pool_price_historical_range(
         self,
         start_date: pd.Timestamp,
         end_date: pd.Timestamp,
@@ -921,8 +921,8 @@ class TestAESO(TestHelperMixin):
     ) -> None:
         """Test getting historical daily average price data."""
         with api_vcr.use_cassette(
-            f"test_get_daily_average_price_historical_range_{start_date.date()}_{end_date.date()}.yaml",
+            f"test_get_daily_average_pool_price_historical_range_{start_date.date()}_{end_date.date()}.yaml",
         ):
-            df = self.iso.get_daily_average_price(date=start_date, end=end_date)
-            self._check_daily_average_price(df)
+            df = self.iso.get_daily_average_pool_price(date=start_date, end=end_date)
+            self._check_daily_average_pool_price(df)
             assert len(df) == expected_days

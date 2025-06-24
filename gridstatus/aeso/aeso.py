@@ -513,7 +513,7 @@ class AESO:
             ]
 
     @support_date_range(frequency=None)
-    def get_daily_average_price(
+    def get_daily_average_pool_price(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -529,7 +529,7 @@ class AESO:
             DataFrame containing daily average price data
         """
         if date == "latest":
-            return self.get_daily_average_price(date="today")
+            return self.get_daily_average_pool_price(date="today")
 
         hourly_df = self._get_pool_price_data(date, end, actual_or_forecast="actual")
         hourly_df["Is On Peak"] = hourly_df["Interval End"].dt.hour.isin(range(8, 24))
