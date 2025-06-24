@@ -2257,16 +2257,30 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Virtual Zonal LMP data found for {date} to {end}",
             )
 
-        data_list = []
-
-        for url in tqdm.tqdm(urls):
-            file_data = self._parse_lmp_hourly_virtual_zonal(
+        def process_url(url: str) -> pd.DataFrame:
+            return self._parse_lmp_hourly_virtual_zonal(
                 url,
                 verbose=verbose,
                 predispatch=True,
             )
 
-            data_list.append(file_data)
+        data_list = []
+        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
+            future_to_url = {executor.submit(process_url, url): url for url in urls}
+
+            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
+                url = future_to_url[future]
+                try:
+                    file_data = future.result()
+                    data_list.append(file_data)
+                except Exception as e:
+                    logger.error(f"Error processing {url}: {str(e)}")
+                    continue
+
+        if not data_list:
+            raise NoDataFoundException(
+                f"No valid data found for Predispatch Hourly Virtual Zonal LMP for {date} to {end}",
+            )
 
         data = pd.concat(data_list)
 
@@ -2556,15 +2570,30 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Intertie LMP data found for {date} to {end}",
             )
 
-        data_list = []
-
-        for url in tqdm.tqdm(urls):
-            url_data = self._parse_lmp_hourly_intertie(
+        def process_url(url: str) -> pd.DataFrame:
+            return self._parse_lmp_hourly_intertie(
                 url,
                 verbose=verbose,
                 predispatch=True,
             )
-            data_list.append(url_data)
+
+        data_list = []
+        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
+            future_to_url = {executor.submit(process_url, url): url for url in urls}
+
+            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
+                url = future_to_url[future]
+                try:
+                    file_data = future.result()
+                    data_list.append(file_data)
+                except Exception as e:
+                    logger.error(f"Error processing {url}: {str(e)}")
+                    continue
+
+        if not data_list:
+            raise NoDataFoundException(
+                f"No valid data found for Predispatch Hourly Intertie LMP for {date} to {end}",
+            )
 
         data = pd.concat(data_list)
 
@@ -2620,7 +2649,15 @@ class IESO(ISOBase):
                     hour_str = "DeliveryHour" if not predispatch else "Hour"
 
                     hour = int(hour_data.find(hour_str, ns).text)
-                    value = float(hour_data.find("LMP", ns).text)
+                    lmp_elem = hour_data.find("LMP", ns)
+                    if (
+                        lmp_elem is None
+                        or lmp_elem.text is None
+                        or lmp_elem.text.strip() == ""
+                    ):
+                        continue
+
+                    value = float(lmp_elem.text)
 
                     if component_type == "Intertie LMP":
                         hourly_lmp[hour] = value
@@ -2828,15 +2865,30 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Ontario Zonal LMP data found for {date} to {end}",
             )
 
-        data_list = []
-
-        for url in urls:
-            url_data = self._process_lmp_hourly_ontario_zonal(
+        def process_url(url: str) -> pd.DataFrame:
+            return self._process_lmp_hourly_ontario_zonal(
                 url,
                 verbose,
                 predispatch=True,
             )
-            data_list.append(url_data)
+
+        data_list = []
+        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
+            future_to_url = {executor.submit(process_url, url): url for url in urls}
+
+            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
+                url = future_to_url[future]
+                try:
+                    file_data = future.result()
+                    data_list.append(file_data)
+                except Exception as e:
+                    logger.error(f"Error processing {url}: {str(e)}")
+                    continue
+
+        if not data_list:
+            raise NoDataFoundException(
+                f"No valid data found for Predispatch Hourly Ontario Zonal LMP for {date} to {end}",
+            )
 
         data = pd.concat(data_list)
 
