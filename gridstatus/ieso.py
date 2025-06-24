@@ -1954,9 +1954,7 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly LMP data found for {date} to {end}",
             )
 
-        data_list = []
-
-        for url in tqdm.tqdm(urls):
+        def process_url(url: str) -> pd.DataFrame:
             # We need to get the file created date from the first line of the csv
             # Example: CREATED AT 2025/05/01 23:14:53 FOR 2025/05/02
             text = self._request(url, verbose=False).text
@@ -1986,7 +1984,25 @@ class IESO(ISOBase):
             )
 
             file_data["Publish Time"] = publish_time
-            data_list.append(file_data)
+            return file_data
+
+        data_list = []
+        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
+            future_to_url = {executor.submit(process_url, url): url for url in urls}
+
+            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
+                url = future_to_url[future]
+                try:
+                    file_data = future.result()
+                    data_list.append(file_data)
+                except Exception as e:
+                    logger.error(f"Error processing {url}: {str(e)}")
+                    continue
+
+        if not data_list:
+            raise NoDataFoundException(
+                f"No valid data found for Predispatch Hourly LMP for {date} to {end}",
+            )
 
         data = pd.concat(data_list)
 
@@ -2068,6 +2084,11 @@ class IESO(ISOBase):
                 "Pricing Location": "Location",
             },
         )
+
+        numeric_columns = ["LMP", "Loss", "Congestion"]
+        for col in numeric_columns:
+            if col in data.columns:
+                data[col] = pd.to_numeric(data[col], errors="coerce")
 
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
 
