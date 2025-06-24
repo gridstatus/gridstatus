@@ -865,7 +865,7 @@ class TestAESO(TestHelperMixin):
             assert df["Interval Start"].max().date() <= end_date.date()
 
     def _check_daily_average_pool_price(self, df: pd.DataFrame) -> None:
-        """Check daily average price DataFrame structure and types."""
+        """Check daily average pool price DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
             "Interval End",
@@ -897,7 +897,7 @@ class TestAESO(TestHelperMixin):
             )
 
     def test_get_daily_average_pool_price_latest(self):
-        """Test getting latest daily average price data."""
+        """Test getting latest daily average pool price data."""
         with api_vcr.use_cassette("test_get_daily_average_pool_price_latest.yaml"):
             df = self.iso.get_daily_average_pool_price(date="latest")
             self._check_daily_average_pool_price(df)
@@ -919,7 +919,7 @@ class TestAESO(TestHelperMixin):
         end_date: pd.Timestamp,
         expected_days: int,
     ) -> None:
-        """Test getting historical daily average price data."""
+        """Test getting historical daily average pool price data."""
         with api_vcr.use_cassette(
             f"test_get_daily_average_pool_price_historical_range_{start_date.date()}_{end_date.date()}.yaml",
         ):
