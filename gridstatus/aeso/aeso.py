@@ -604,6 +604,9 @@ class AESO:
             how="left",
         )
 
+        result_df["Interval Start"] = pd.to_datetime(
+            result_df["Interval Start"],
+        ).dt.tz_localize(self.default_timezone)
         result_df["Interval End"] = result_df["Interval Start"] + pd.Timedelta(days=1)
 
         result_df = result_df.rename(
