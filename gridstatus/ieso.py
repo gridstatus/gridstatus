@@ -2257,45 +2257,19 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Virtual Zonal LMP data found for {date} to {end}",
             )
 
-        def process_url(url: str) -> pd.DataFrame:
+        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
             return self._parse_lmp_hourly_virtual_zonal(
                 url,
                 verbose=verbose,
                 predispatch=True,
             )
 
-        data_list = []
-        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
-            future_to_url = {executor.submit(process_url, url): url for url in urls}
-
-            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
-                url = future_to_url[future]
-                try:
-                    file_data = future.result()
-                    data_list.append(file_data)
-                except Exception as e:
-                    logger.error(f"Error processing {url}: {str(e)}")
-                    continue
-
-        if not data_list:
-            raise NoDataFoundException(
-                f"No valid data found for Predispatch Hourly Virtual Zonal LMP for {date} to {end}",
-            )
-
-        data = pd.concat(data_list)
-
-        data = (
-            # It's possible we may have duplicates if some of the files are the same.
-            data.drop_duplicates(
-                subset=["Interval Start", "Location", "Publish Time"],
-            )
-            .sort_values(
-                ["Interval Start", "Location", "Publish Time"],
-            )
-            .reset_index(drop=True)
+        return self._process_urls_with_threadpool(
+            urls,
+            process_url,
+            f"No valid data found for Predispatch Hourly Virtual Zonal LMP for {date} to {end}",
+            verbose=verbose,
         )
-
-        return data
 
     def _parse_lmp_hourly_virtual_zonal(
         self,
@@ -2570,42 +2544,19 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Intertie LMP data found for {date} to {end}",
             )
 
-        def process_url(url: str) -> pd.DataFrame:
+        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
             return self._parse_lmp_hourly_intertie(
                 url,
                 verbose=verbose,
                 predispatch=True,
             )
 
-        data_list = []
-        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
-            future_to_url = {executor.submit(process_url, url): url for url in urls}
-
-            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
-                url = future_to_url[future]
-                try:
-                    file_data = future.result()
-                    data_list.append(file_data)
-                except Exception as e:
-                    logger.error(f"Error processing {url}: {str(e)}")
-                    continue
-
-        if not data_list:
-            raise NoDataFoundException(
-                f"No valid data found for Predispatch Hourly Intertie LMP for {date} to {end}",
-            )
-
-        data = pd.concat(data_list)
-
-        # It's possible we will have duplicates because we may have multiple files
-        # published at the same time
-        data = (
-            data.drop_duplicates(subset=["Interval Start", "Location", "Publish Time"])
-            .sort_values(["Interval Start", "Location", "Publish Time"])
-            .reset_index(drop=True)
+        return self._process_urls_with_threadpool(
+            urls,
+            process_url,
+            f"No valid data found for Predispatch Hourly Intertie LMP for {date} to {end}",
+            verbose=verbose,
         )
-
-        return data
 
     def _parse_lmp_hourly_intertie(
         self,
@@ -2865,45 +2816,19 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Ontario Zonal LMP data found for {date} to {end}",
             )
 
-        def process_url(url: str) -> pd.DataFrame:
+        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
             return self._process_lmp_hourly_ontario_zonal(
                 url,
                 verbose,
                 predispatch=True,
             )
 
-        data_list = []
-        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
-            future_to_url = {executor.submit(process_url, url): url for url in urls}
-
-            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
-                url = future_to_url[future]
-                try:
-                    file_data = future.result()
-                    data_list.append(file_data)
-                except Exception as e:
-                    logger.error(f"Error processing {url}: {str(e)}")
-                    continue
-
-        if not data_list:
-            raise NoDataFoundException(
-                f"No valid data found for Predispatch Hourly Ontario Zonal LMP for {date} to {end}",
-            )
-
-        data = pd.concat(data_list)
-
-        # It's possible we will have duplicates because we may have multiple files
-        # published at the same time
-        data = (
-            data.drop_duplicates(
-                subset=["Interval Start", "Location", "Publish Time"],
-                keep="last",
-            )
-            .sort_values(["Interval Start", "Location", "Publish Time"])
-            .reset_index(drop=True)
+        return self._process_urls_with_threadpool(
+            urls,
+            process_url,
+            f"No valid data found for Predispatch Hourly Ontario Zonal LMP for {date} to {end}",
+            verbose=verbose,
         )
-
-        return data
 
     def _process_lmp_hourly_ontario_zonal(
         self,
@@ -2970,6 +2895,71 @@ class IESO(ISOBase):
             )
 
         return df
+
+    def _process_urls_with_threadpool(
+        self,
+        urls: list[str],
+        process_func: callable,
+        error_message: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Generic helper to process multiple URLs using ThreadPoolExecutor.
+
+        Args:
+            urls: List of URLs to process
+            process_func: Function to process each URL (should take url and verbose as args)
+            error_message: Error message to show if no data is found
+            verbose: Whether to print verbose output
+
+        Returns:
+            DataFrame with concatenated results from all URLs
+        """
+        if not urls:
+            raise NoDataFoundException(error_message)
+
+        data_list = []
+        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
+            future_to_url = {
+                executor.submit(process_func, url, verbose): url for url in urls
+            }
+
+            for future in tqdm.tqdm(as_completed(future_to_url), total=len(urls)):
+                url = future_to_url[future]
+                try:
+                    file_data = future.result()
+                    data_list.append(file_data)
+                except Exception as e:
+                    logger.error(f"Error processing {url}: {str(e)}")
+                    continue
+
+        if not data_list:
+            raise NoDataFoundException(error_message)
+
+        data = pd.concat(data_list)
+
+        # It's possible we may have duplicates since some of the files are the same.
+        # We remove these by dropping duplicate rows based on a subset
+        data = data.drop_duplicates(
+            subset=["Interval Start", "Location", "Publish Time"],
+        )
+
+        data = (
+            utils.move_cols_to_front(
+                data,
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Location",
+                ],
+            )
+            .sort_values(
+                ["Interval Start", "Location", "Publish Time"],
+            )
+            .reset_index(drop=True)
+        )
+
+        return data
 
     def _get_directory_files_and_timestamps(
         self,
