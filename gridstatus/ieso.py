@@ -1941,7 +1941,6 @@ class IESO(ISOBase):
                 file_name_prefix=f"PUB_{directory_path}",
             )
 
-            # If no end provided, use a default of 1 hour
             end = end or (date + pd.Timedelta(hours=1))
 
             urls = [
@@ -1975,7 +1974,7 @@ class IESO(ISOBase):
                 tz=self.default_timezone,
             )
 
-            # Now get the date the file is FOR to use  as the base date
+            # Get the date the file is FOR to use as the base date
             match = re.search(r"FOR (\d{4}/\d{2}/\d{2})", first_line)
             delivery_date = pd.Timestamp(match.group(1), tz=self.default_timezone)
 
@@ -2015,7 +2014,6 @@ class IESO(ISOBase):
             .reset_index(drop=True)
         )
 
-        # Remove :LMP from the location
         data["Location"] = data["Location"].str.replace(":LMP", "")
 
         return data
@@ -2040,7 +2038,6 @@ class IESO(ISOBase):
         if verbose:
             logger.info(f"Fetching LMP data from {url}")
 
-        # Skip first line of the csv which contains the file created time
         data = pd.read_csv(url, skiprows=1)
 
         if minutes_per_interval == 5:
@@ -2054,19 +2051,16 @@ class IESO(ISOBase):
                     unit="minute",
                 ),
             )
-        elif minutes_per_interval == 60:
+        else:
             data["Interval Start"] = pd.to_datetime(
                 base_date.normalize()
                 + pd.to_timedelta(data["Delivery Hour"] - 1, unit="hour"),
             )
-        else:
-            raise ValueError("Invalid minutes_per_interval. Must be 5 or 60.")
 
         data["Interval End"] = data["Interval Start"] + pd.Timedelta(
             minutes=minutes_per_interval,
         )
 
-        # Standardize column names
         data = data.rename(
             columns={
                 "Energy Loss Price": "Loss",
@@ -2075,7 +2069,6 @@ class IESO(ISOBase):
             },
         )
 
-        # Calculate energy from definition of LMP
         data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
 
         columns = [
@@ -2094,7 +2087,6 @@ class IESO(ISOBase):
             .reset_index(drop=True)
         )
 
-        # Remove :LMP from the location
         data["Location"] = data["Location"].str.replace(":LMP", "")
 
         return data
