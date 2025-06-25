@@ -1590,8 +1590,7 @@ class AESO:
         if date == "latest":
             return self._get_wind_solar_actual_latest_data(
                 generation_type="wind",
-                date=date,
-                end=end,
+                forecast_type="longterm",
             )
         else:
             start_date = self._normalize_timezone(pd.Timestamp(date))
@@ -1630,8 +1629,7 @@ class AESO:
         if date == "latest":
             return self._get_wind_solar_actual_latest_data(
                 generation_type="solar",
-                date=date,
-                end=end,
+                forecast_type="longterm",
             )
         else:
             start_date = self._normalize_timezone(pd.Timestamp(date))
@@ -1670,6 +1668,7 @@ class AESO:
         if date == "latest":
             return self._get_wind_solar_actual_latest_data(
                 generation_type="wind",
+                forecast_type="shortterm",
             )
         else:
             raise NotSupported(
@@ -1692,6 +1691,7 @@ class AESO:
         if date == "latest":
             return self._get_wind_solar_actual_latest_data(
                 generation_type="solar",
+                forecast_type="shortterm",
             )
         else:
             raise NotSupported(
@@ -1701,19 +1701,19 @@ class AESO:
     def _get_wind_solar_actual_latest_data(
         self,
         generation_type: Literal["wind", "solar"],
+        forecast_type: Literal["shortterm", "longterm"] = "shortterm",
     ) -> pd.DataFrame:
         """
-        Get actual wind or solar generation data from AESO CSV reports with 10-minute intervals.
+        Get actual wind or solar generation data from AESO CSV reports with 10-minute or hourly intervals.
 
         Args:
             generation_type: Type of generation ("wind" or "solar")
-            date: Start date for filtering data
-            end: End date for filtering data
+            forecast_type: Type of forecast ("shortterm" for 10-minute or "longterm" for hourly)
 
         Returns:
-            DataFrame containing actual generation data with 10-minute intervals
+            DataFrame containing actual generation data with 10-minute or hourly intervals
         """
-        url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{generation_type}_rpt_shortterm.csv"
+        url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{generation_type}_rpt_{forecast_type}.csv"
 
         try:
             df = pd.read_csv(url)
@@ -1727,7 +1727,10 @@ class AESO:
             format="%Y-%m-%d %H:%M",
         ).dt.tz_localize(self.default_timezone)
 
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
+        if forecast_type == "shortterm":
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
+        else:
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
         # NB: Only include rows with actual generation data
         df = df[df["Actual"].notna()].copy()
