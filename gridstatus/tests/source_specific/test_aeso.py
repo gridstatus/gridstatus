@@ -10,6 +10,7 @@ from gridstatus.aeso.aeso_constants import (
     RESERVES_COLUMN_MAPPING,
     SUPPLY_DEMAND_COLUMN_MAPPING,
 )
+from gridstatus.base import NotSupported
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
@@ -827,7 +828,6 @@ class TestAESO(TestHelperMixin):
 
     def test_get_wind_forecast_7_day_out_of_range(self):
         """Test that out-of-range dates for 7-day wind forecast raise NotSupported."""
-        from gridstatus.base import NotSupported
 
         with pytest.raises(
             NotSupported,
@@ -874,7 +874,6 @@ class TestAESO(TestHelperMixin):
 
     def test_get_solar_forecast_7_day_out_of_range(self):
         """Test that out-of-range dates for 7-day solar forecast raise NotSupported."""
-        from gridstatus.base import NotSupported
 
         with pytest.raises(
             NotSupported,
