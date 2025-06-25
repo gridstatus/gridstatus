@@ -1575,17 +1575,17 @@ class AESO:
         )
 
     @support_date_range(frequency=None)
-    def get_wind(
+    def get_wind_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Get actual wind generation data.
+        Get actual wind generation data with hourly intervals.
 
         Returns:
-            DataFrame containing actual wind generation data
+            DataFrame containing actual wind generation data with hourly intervals
         """
         if date == "latest":
             return self._get_wind_solar_actual_latest_data(
@@ -1615,17 +1615,17 @@ class AESO:
             )
 
     @support_date_range(frequency=None)
-    def get_solar(
+    def get_solar_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Get actual solar generation data.
+        Get actual solar generation data with hourly intervals.
 
         Returns:
-            DataFrame containing actual solar generation data
+            DataFrame containing actual solar generation data with hourly intervals
         """
         if date == "latest":
             return self._get_wind_solar_actual_latest_data(
@@ -1654,6 +1654,70 @@ class AESO:
                 end=end,
             )
 
+    @support_date_range(frequency=None)
+    def get_wind_10_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get actual wind generation data with 10-minute intervals.
+
+        Returns:
+            DataFrame containing actual wind generation data with 10-minute intervals
+        """
+        if date == "latest":
+            return self._get_wind_solar_actual_latest_data(
+                generation_type="wind",
+                date=date,
+                end=end,
+            )
+        else:
+            start_date = self._normalize_timezone(pd.Timestamp(date))
+            end_date = (
+                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
+            )
+
+            if (
+                start_date < self.HISTORICAL_FORECAST_EARLIEST
+                or end_date > self.HISTORICAL_FORECAST_LATEST
+            ):
+                raise NotSupported(
+                    f"Historical solar generation data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                )
+
+            return self._get_wind_solar_actual_historical_data(
+                generation_type="solar",
+                date=date,
+                end=end,
+            )
+
+    @support_date_range(frequency=None)
+    def get_solar_10_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get actual solar generation data with 10-minute intervals.
+
+        Returns:
+            DataFrame containing actual solar generation data with 10-minute intervals
+        """
+        if date == "latest":
+            return self._get_wind_solar_actual_latest_data(
+                generation_type="solar",
+                date=date,
+                end=end,
+            )
+        else:
+            raise NotSupported(
+                "Historical data is not supported for 10-minute solar generation. Use get_solar_hourly for historical data.",
+            )
+
     def _get_wind_solar_actual_latest_data(
         self,
         generation_type: Literal["wind", "solar"],
@@ -1661,7 +1725,7 @@ class AESO:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
     ) -> pd.DataFrame:
         """
-        Get actual wind or solar generation data from AESO CSV reports.
+        Get actual wind or solar generation data from AESO CSV reports with 10-minute intervals.
 
         Args:
             generation_type: Type of generation ("wind" or "solar")
@@ -1669,7 +1733,7 @@ class AESO:
             end: End date for filtering data
 
         Returns:
-            DataFrame containing actual generation data
+            DataFrame containing actual generation data with 10-minute intervals
         """
         url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{generation_type}_rpt_shortterm.csv"
 
@@ -1726,7 +1790,7 @@ class AESO:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
     ) -> pd.DataFrame:
         """
-        Get historical wind or solar generation data from AESO CSV archives.
+        Get historical wind or solar generation data from AESO CSV archives with hourly intervals.
 
         Args:
             generation_type: Type of generation ("wind" or "solar")
@@ -1734,7 +1798,7 @@ class AESO:
             end: End date for filtering data
 
         Returns:
-            DataFrame containing historical generation data
+            DataFrame containing historical generation data with hourly intervals
         """
         url = f"https://www.aeso.ca/assets/{generation_type.upper()}_GEN_MAR_2023-MAR_2025-Day-ahead.csv"
 

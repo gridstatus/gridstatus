@@ -954,17 +954,17 @@ class TestAESO(TestHelperMixin):
         assert df["Interval Start"].is_monotonic_increasing
         assert (df["Interval End"] > df["Interval Start"]).all()
 
-    def test_get_wind_latest(self):
+    def test_get_wind_10_min_latest(self):
         """Test getting latest wind generation data."""
-        with api_vcr.use_cassette("test_get_wind_latest.yaml"):
-            df = self.iso.get_wind(date="latest")
+        with api_vcr.use_cassette("test_get_wind_10_min_latest.yaml"):
+            df = self.iso.get_wind_10_min(date="latest")
             self._check_wind_solar(df, "wind")
             assert len(df) > 0
 
-    def test_get_solar_latest(self):
+    def test_get_solar_10_min_latest(self):
         """Test getting latest solar generation data."""
-        with api_vcr.use_cassette("test_get_solar_latest.yaml"):
-            df = self.iso.get_solar(date="latest")
+        with api_vcr.use_cassette("test_get_solar_10_min_latest.yaml"):
+            df = self.iso.get_solar_10_min(date="latest")
             self._check_wind_solar(df, "solar")
             assert len(df) > 0
 
@@ -977,16 +977,16 @@ class TestAESO(TestHelperMixin):
             ),
         ],
     )
-    def test_get_wind_historical(
+    def test_get_wind_hourly_historical(
         self,
         start_date: pd.Timestamp,
         end_date: pd.Timestamp,
     ) -> None:
         """Test getting historical wind generation data."""
         with api_vcr.use_cassette(
-            f"test_get_wind_historical_{start_date.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_wind_hourly_historical_{start_date.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_wind(
+            df = self.iso.get_wind_hourly(
                 date=start_date,
                 end=end_date,
             )
@@ -1004,16 +1004,16 @@ class TestAESO(TestHelperMixin):
             ),
         ],
     )
-    def test_get_solar_historical(
+    def test_get_solar_hourly_historical(
         self,
         start_date: pd.Timestamp,
         end_date: pd.Timestamp,
     ) -> None:
         """Test getting historical solar generation data."""
         with api_vcr.use_cassette(
-            f"test_get_solar_historical_{start_date.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_solar_hourly_historical_{start_date.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_solar(
+            df = self.iso.get_solar_hourly(
                 date=start_date,
                 end=end_date,
             )
