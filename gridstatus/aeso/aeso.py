@@ -59,12 +59,6 @@ class AESO:
             "API-KEY": self.api_key,
         }
 
-    def _normalize_timezone(self, timestamp: pd.Timestamp) -> pd.Timestamp:
-        if timestamp.tz is None:
-            return timestamp.tz_localize(self.default_timezone)
-        else:
-            return timestamp.tz_convert(self.default_timezone)
-
     def _make_request(self, endpoint: str, method: str = "GET") -> dict[str, Any]:
         """
         Make a request to the AESO API.
@@ -1293,18 +1287,13 @@ class AESO:
                 end=end,
             )
         else:
-            start_date = self._normalize_timezone(pd.Timestamp(date))
-            end_date = (
-                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
-            )
-
             if (
-                start_date < self.HISTORICAL_FORECAST_EARLIEST
-                or end_date > self.HISTORICAL_FORECAST_LATEST
+                date < self.HISTORICAL_FORECAST_EARLIEST
+                or (end if end else date) > self.HISTORICAL_FORECAST_LATEST
             ):
                 raise NotSupported(
                     f"Historical wind forecast data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
-                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {date.date()} to {(end if end else date).date()}",
                 )
 
             return self._get_wind_solar_forecast_historical_data(
@@ -1359,18 +1348,13 @@ class AESO:
                 end=end,
             )
         else:
-            start_date = self._normalize_timezone(pd.Timestamp(date))
-            end_date = (
-                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
-            )
-
             if (
-                start_date < self.HISTORICAL_FORECAST_EARLIEST
-                or end_date > self.HISTORICAL_FORECAST_LATEST
+                date < self.HISTORICAL_FORECAST_EARLIEST
+                or (end if end else date) > self.HISTORICAL_FORECAST_LATEST
             ):
                 raise NotSupported(
                     f"Historical solar forecast data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
-                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {date.date()} to {(end if end else date).date()}",
                 )
 
             return self._get_wind_solar_forecast_historical_data(
@@ -1514,15 +1498,10 @@ class AESO:
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
         df["Publish Time"] = df["Interval Start"] - pd.Timedelta(hours=24)
 
-        start_date = self._normalize_timezone(pd.Timestamp(date))
         if end:
-            end_date = self._normalize_timezone(pd.Timestamp(end))
-            df = df[
-                (df["Interval Start"] >= start_date)
-                & (df["Interval Start"] <= end_date)
-            ]
+            df = df[(df["Interval Start"] >= date) & (df["Interval Start"] <= end)]
         else:
-            df = df[df["Interval Start"] >= start_date]
+            df = df[df["Interval Start"] >= date]
 
         df = df.rename(
             columns={
@@ -1593,18 +1572,13 @@ class AESO:
                 forecast_type="longterm",
             )
         else:
-            start_date = self._normalize_timezone(pd.Timestamp(date))
-            end_date = (
-                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
-            )
-
             if (
-                start_date < self.HISTORICAL_FORECAST_EARLIEST
-                or end_date > self.HISTORICAL_FORECAST_LATEST
+                date < self.HISTORICAL_FORECAST_EARLIEST
+                or (end if end else date) > self.HISTORICAL_FORECAST_LATEST
             ):
                 raise NotSupported(
                     f"Historical wind generation data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
-                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {date.date()} to {(end if end else date).date()}",
                 )
 
             return self._get_wind_solar_actual_historical_data(
@@ -1632,18 +1606,13 @@ class AESO:
                 forecast_type="longterm",
             )
         else:
-            start_date = self._normalize_timezone(pd.Timestamp(date))
-            end_date = (
-                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
-            )
-
             if (
-                start_date < self.HISTORICAL_FORECAST_EARLIEST
-                or end_date > self.HISTORICAL_FORECAST_LATEST
+                date < self.HISTORICAL_FORECAST_EARLIEST
+                or (end if end else date) > self.HISTORICAL_FORECAST_LATEST
             ):
                 raise NotSupported(
                     f"Historical solar generation data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
-                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
+                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {date.date()} to {(end if end else date).date()}",
                 )
 
             return self._get_wind_solar_actual_historical_data(
@@ -1798,15 +1767,10 @@ class AESO:
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
-        start_date = self._normalize_timezone(pd.Timestamp(date))
         if end:
-            end_date = self._normalize_timezone(pd.Timestamp(end))
-            df = df[
-                (df["Interval Start"] >= start_date)
-                & (df["Interval Start"] <= end_date)
-            ]
+            df = df[(df["Interval Start"] >= date) & (df["Interval Start"] <= end)]
         else:
-            df = df[df["Interval Start"] >= start_date]
+            df = df[df["Interval Start"] >= date]
 
         df = df.rename(
             columns={
