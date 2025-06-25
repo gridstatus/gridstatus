@@ -1670,28 +1670,10 @@ class AESO:
         if date == "latest":
             return self._get_wind_solar_actual_latest_data(
                 generation_type="wind",
-                date=date,
-                end=end,
             )
         else:
-            start_date = self._normalize_timezone(pd.Timestamp(date))
-            end_date = (
-                self._normalize_timezone(pd.Timestamp(end)) if end else start_date
-            )
-
-            if (
-                start_date < self.HISTORICAL_FORECAST_EARLIEST
-                or end_date > self.HISTORICAL_FORECAST_LATEST
-            ):
-                raise NotSupported(
-                    f"Historical solar generation data is only available from {self.HISTORICAL_FORECAST_EARLIEST.date()} "
-                    f"to {self.HISTORICAL_FORECAST_LATEST.date()}. Requested: {start_date.date()} to {end_date.date()}",
-                )
-
-            return self._get_wind_solar_actual_historical_data(
-                generation_type="solar",
-                date=date,
-                end=end,
+            raise NotSupported(
+                "Historical data is not supported for 10-minute wind generation. Use get_wind_hourly for historical data.",
             )
 
     @support_date_range(frequency=None)
@@ -1710,8 +1692,6 @@ class AESO:
         if date == "latest":
             return self._get_wind_solar_actual_latest_data(
                 generation_type="solar",
-                date=date,
-                end=end,
             )
         else:
             raise NotSupported(
@@ -1721,8 +1701,6 @@ class AESO:
     def _get_wind_solar_actual_latest_data(
         self,
         generation_type: Literal["wind", "solar"],
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
     ) -> pd.DataFrame:
         """
         Get actual wind or solar generation data from AESO CSV reports with 10-minute intervals.
