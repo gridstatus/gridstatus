@@ -825,6 +825,16 @@ class TestAESO(TestHelperMixin):
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
 
+    def test_get_wind_forecast_7_day_out_of_range(self):
+        """Test that out-of-range dates for 7-day wind forecast raise NotSupported."""
+        from gridstatus.base import NotSupported
+
+        with pytest.raises(
+            NotSupported,
+            match="Historical wind forecast data is only available from 2023-03-01 to 2025-04-01",
+        ):
+            self.iso.get_wind_forecast_7_day(date="2022-01-01")
+
     def test_get_solar_forecast_12_hour_historical(self):
         """Test that historical 12-hour solar forecast raises NotSupported."""
         from gridstatus.base import NotSupported
@@ -861,6 +871,16 @@ class TestAESO(TestHelperMixin):
             assert len(df) > 0
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
+
+    def test_get_solar_forecast_7_day_out_of_range(self):
+        """Test that out-of-range dates for 7-day solar forecast raise NotSupported."""
+        from gridstatus.base import NotSupported
+
+        with pytest.raises(
+            NotSupported,
+            match="Historical solar forecast data is only available from 2023-03-01 to 2025-04-01",
+        ):
+            self.iso.get_solar_forecast_7_day(date="2022-01-01")
 
     def _check_daily_average_pool_price(self, df: pd.DataFrame) -> None:
         """Check daily average pool price DataFrame structure and types."""
