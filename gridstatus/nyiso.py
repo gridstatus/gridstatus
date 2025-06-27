@@ -1247,11 +1247,14 @@ class NYISO(ISOBase):
             # todo: it looks like the "27447313" component of the base URL changes
             # every year but I'm not sure what the link between that and the year
             # is...
-        capacity_market_base_url = (
-            f"https://www.nyiso.com/documents/20142/{year_code}/ICAP-Market-Report"
-        )
+        capacity_market_base_url = f"https://www.nyiso.com/documents/20142/{year_code}"
 
-        url = f"{capacity_market_base_url}-{date.month_name()}-{date.year}.xlsx"
+        url = f"{capacity_market_base_url}/ICAP-Market-Report-{date.month_name()}-{date.year}.xlsx"
+
+        # Special case
+        if date.month_name() == "December" and date.year == 2023:
+            url = f"{capacity_market_base_url}/ICAP%20Market%20Report%20-%20{date.month_name()}%20{date.year}.xlsx"
+
         logger.info(f"Requesting {url}")
 
         df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1])
