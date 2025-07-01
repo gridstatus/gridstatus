@@ -22,7 +22,14 @@ class TestNYISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date",
-        ["Dec 1, 2022", "Jan 1, 2023", "Jan 1, 2024", "Jan 1, 2025", "today"],
+        [
+            "Dec 1, 2022",
+            "Jan 1, 2023",
+            "Dec 1, 2023",
+            "Jan 1, 2024",
+            "Jan 1, 2025",
+            "today",
+        ],
     )
     def test_get_capacity_prices(self, date):
         with nyiso_vcr.use_cassette(
