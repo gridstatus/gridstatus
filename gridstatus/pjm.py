@@ -888,7 +888,7 @@ class PJM(ISOBase):
         end: str | pd.Timestamp | None = None,
         start_row: int = 1,
         row_count: int = 50000,
-        interval_duration_min: int | None = None,
+        interval_duration_min: int | float | None = None,
         filter_timestamp_name: str = "datetime_beginning",
         verbose: bool = False,
     ):
@@ -2700,3 +2700,48 @@ class PJM(ISOBase):
         return df[
             ["Interval Start", "Interval End", "Tie Flow Name", "Actual", "Scheduled"]
         ]
+
+    def get_instantaneous_dispatch_rates(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the instantaneous dispatch rate data from:
+        https://dataminer2.pjm.com/feed/inst_dispatch_rate/definition
+        """
+        if date == "latest":
+            # Get latest 5 minutes
+            date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(minutes=5)
+            end = pd.Timestamp.now(tz=self.default_timezone)
+
+        df = self._get_pjm_json(
+            "inst_dispatch_rates",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,dispatch_rate,zone",
+            },
+            interval_duration_min=0.25,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={"zone": "Zone", "dispatch_rate": "Instantaneous Dispatch Rate"},
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Zone",
+                    "Instantaneous Dispatch Rate",
+                ]
+            ]
+            .sort_values(
+                "Interval Start",
+            )
+            .reset_index(drop=True)
+        )
