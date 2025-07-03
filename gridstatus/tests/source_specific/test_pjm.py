@@ -2564,3 +2564,60 @@ class TestPJM(BaseTestISO):
             self._check_tie_flows_5_min(df)
             assert df["Interval Start"].min() == self.local_start_of_day(past_date)
             assert df["Interval End"].max() == self.local_start_of_day(past_end_date)
+
+    """get_instantaneous_dispatch_rates"""
+
+    def _check_instantaneous_dispatch_rates(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Zone",
+            "Instantaneous Dispatch Rate",
+        ]
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(seconds=15)
+        ).all()
+        assert df["Zone"].dtype == object
+        assert df["Instantaneous Dispatch Rate"].dtype == np.float64
+
+    def test_get_instantaneous_dispatch_rates_today(self):
+        with pjm_vcr.use_cassette("test_get_instantaneous_dispatch_rates_today.yaml"):
+            df = self.iso.get_instantaneous_dispatch_rates("today")
+            self._check_instantaneous_dispatch_rates(df)
+
+            # The minimum interval start should be within 15 seconds of the local start
+            # of today
+            assert (
+                self.local_start_of_today()
+                <= df["Interval Start"].min()
+                <= self.local_start_of_today() + pd.Timedelta(seconds=15)
+            )
+
+            # The maximum interval start should be within 30 seconds of the current time
+            assert (
+                self.local_now()
+                - pd.Timedelta(
+                    seconds=30,
+                )
+                <= df["Interval Start"].max()
+                <= self.local_now()
+            )
+
+    def test_get_instantaneous_dispatch_rates_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=2)
+        end = start + pd.Timedelta(hours=4)
+
+        with pjm_vcr.use_cassette(
+            f"test_get_instantaneous_dispatch_rates_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+        ):
+            df = self.iso.get_instantaneous_dispatch_rates(start, end)
+            self._check_instantaneous_dispatch_rates(df)
+
+            # Minimum interval start should be within 15 seconds of the start date
+            assert (
+                start <= df["Interval Start"].min() <= start + pd.Timedelta(seconds=15)
+            )
+
+            # Maximum interval start should be within 15 seconds of the end date
+            assert end - pd.Timedelta(seconds=15) <= df["Interval Start"].max() <= end
