@@ -2701,6 +2701,7 @@ class PJM(ISOBase):
             ["Interval Start", "Interval End", "Tie Flow Name", "Actual", "Scheduled"]
         ]
 
+    @support_date_range(frequency=None)
     def get_instantaneous_dispatch_rates(
         self,
         date: str | pd.Timestamp,
