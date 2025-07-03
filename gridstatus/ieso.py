@@ -7,10 +7,11 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
-from typing import Literal
+from typing import Literal, Optional
 from urllib.error import HTTPError
 from warnings import warn
 from xml.etree import ElementTree
+from xml.etree.ElementTree import Element
 
 import pandas as pd
 import requests
@@ -70,7 +71,12 @@ class SurplusState(str, Enum):
     NUCLEAR_SHUTDOWN = "Nuclear Shutdown"
 
 
-def _safe_find_text(element, tag, namespaces=None, default=None):
+def _safe_find_text(
+    element: Optional[Element],
+    tag: str,
+    namespaces: Optional[dict[str, str]] = None,
+    default: Optional[str] = None,
+) -> Optional[str]:
     """Safely find and extract text from an XML element.
 
     Args:
@@ -92,7 +98,12 @@ def _safe_find_text(element, tag, namespaces=None, default=None):
     return found.text
 
 
-def _safe_find_int(element, tag, namespaces=None, default=None):
+def _safe_find_int(
+    element: Optional[Element],
+    tag: str,
+    namespaces: Optional[dict[str, str]] = None,
+    default: Optional[int] = None,
+) -> Optional[int]:
     """Safely find and extract integer from an XML element.
 
     Args:
@@ -114,7 +125,12 @@ def _safe_find_int(element, tag, namespaces=None, default=None):
         return default
 
 
-def _safe_find_float(element, tag, namespaces=None, default=None):
+def _safe_find_float(
+    element: Optional[Element],
+    tag: str,
+    namespaces: Optional[dict[str, str]] = None,
+    default: Optional[float] = None,
+) -> Optional[float]:
     """Safely find and extract float from an XML element.
 
     Args:
