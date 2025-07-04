@@ -7,10 +7,11 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
-from typing import Literal
+from typing import Literal, Optional
 from urllib.error import HTTPError
 from warnings import warn
 from xml.etree import ElementTree
+from xml.etree.ElementTree import Element
 
 import pandas as pd
 import requests
@@ -68,6 +69,87 @@ class SurplusState(str, Enum):
     MANAGED_WITH_EXPORTS = "Managed with Exports"
     NUCLEAR_DISPATCH = "Nuclear Dispatch"
     NUCLEAR_SHUTDOWN = "Nuclear Shutdown"
+
+
+def _safe_find_text(
+    element: Optional[Element],
+    tag: str,
+    namespaces: Optional[dict[str, str]] = None,
+    default: Optional[str] = None,
+) -> Optional[str]:
+    """Safely find and extract text from an XML element.
+
+    Args:
+        element: XML element to search within
+        tag: Tag name to find
+        namespaces: XML namespaces dict
+        default: Default value to return if element not found or empty
+
+    Returns:
+        str or default: The text content or default value
+    """
+    if element is None:
+        return default
+
+    found = element.find(tag, namespaces)
+    if found is None or found.text is None or found.text.strip() == "":
+        return default
+
+    return found.text
+
+
+def _safe_find_int(
+    element: Optional[Element],
+    tag: str,
+    namespaces: Optional[dict[str, str]] = None,
+    default: Optional[int] = None,
+) -> Optional[int]:
+    """Safely find and extract integer from an XML element.
+
+    Args:
+        element: XML element to search within
+        tag: Tag name to find
+        namespaces: XML namespaces dict
+        default: Default value to return if element not found or empty
+
+    Returns:
+        int or default: The integer value or default value
+    """
+    text = _safe_find_text(element, tag, namespaces)
+    if text is None:
+        return default
+
+    try:
+        return int(text)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_find_float(
+    element: Optional[Element],
+    tag: str,
+    namespaces: Optional[dict[str, str]] = None,
+    default: Optional[float] = None,
+) -> Optional[float]:
+    """Safely find and extract float from an XML element.
+
+    Args:
+        element: XML element to search within
+        tag: Tag name to find
+        namespaces: XML namespaces dict
+        default: Default value to return if element not found or empty
+
+    Returns:
+        float or default: The float value or default value
+    """
+    text = _safe_find_text(element, tag, namespaces)
+    if text is None:
+        return default
+
+    try:
+        return float(text)
+    except (ValueError, TypeError):
+        return default
 
 
 class IESO(ISOBase):
@@ -1724,17 +1806,26 @@ class IESO(ISOBase):
             schedule_data = {}
 
             for schedule in schedules:
-                hour = int(schedule.find(".//Hour", ns).text)
-                imports = float(schedule.find(".//Import", ns).text)
-                exports = float(schedule.find(".//Export", ns).text)
+                hour = _safe_find_int(schedule, ".//Hour", ns)
+                imports = _safe_find_float(schedule, ".//Import", ns)
+                exports = _safe_find_float(schedule, ".//Export", ns)
+
+                # Skip if any required values are missing
+                if any(val is None for val in [hour, imports, exports]):
+                    continue
+
                 schedule_data[hour] = {"import": imports, "export": exports}
 
             actuals = zone.findall(".//Actual", ns)
 
             for actual in actuals:
-                hour = int(actual.find(".//Hour", ns).text)
-                interval = int(actual.find(".//Interval", ns).text)
-                flow = float(actual.find(".//Flow", ns).text)
+                hour = _safe_find_int(actual, ".//Hour", ns)
+                interval = _safe_find_int(actual, ".//Interval", ns)
+                flow = _safe_find_float(actual, ".//Flow", ns)
+
+                # Skip if any required values are missing
+                if any(val is None for val in [hour, interval, flow]):
+                    continue
 
                 hour_schedule = schedule_data.get(hour, {})
 
@@ -1776,9 +1867,13 @@ class IESO(ISOBase):
         total_hourly_schedule_records = []
 
         for schedule in total_schedules:
-            hour = int(schedule.find(".//Hour", ns).text)
-            imports = float(schedule.find(".//Import", ns).text)
-            exports = float(schedule.find(".//Export", ns).text)
+            hour = _safe_find_int(schedule, ".//Hour", ns)
+            imports = _safe_find_float(schedule, ".//Import", ns)
+            exports = _safe_find_float(schedule, ".//Export", ns)
+
+            # Skip if any required values are missing
+            if any(val is None for val in [hour, imports, exports]):
+                continue
             total_hourly_schedule_records.append(
                 {
                     "Hour": hour,
@@ -1793,9 +1888,13 @@ class IESO(ISOBase):
         total_five_minute_actuals_records = []
 
         for actual in total_actuals:
-            hour = int(actual.find(".//Hour", ns).text)
-            interval = int(actual.find(".//Interval", ns).text)
-            flow = float(actual.find(".//Flow", ns).text)
+            hour = _safe_find_int(actual, ".//Hour", ns)
+            interval = _safe_find_int(actual, ".//Interval", ns)
+            flow = _safe_find_float(actual, ".//Flow", ns)
+
+            # Skip if any required values are missing
+            if any(val is None for val in [hour, interval, flow]):
+                continue
             total_five_minute_actuals_records.append(
                 {
                     "Hour": hour,
@@ -2819,12 +2918,14 @@ class IESO(ISOBase):
         hourly_components = root.findall(".//HourlyPriceComponents", ns)
 
         for component in hourly_components:
-            hour = int(component.find("PricingHour", ns).text)
-            lmp = float(component.find("ZonalPrice", ns).text)
-            loss_price = float(component.find("LossPriceCapped", ns).text)
-            congestion_price = float(
-                component.find("CongestionPriceCapped", ns).text,
-            )
+            hour = _safe_find_int(component, "PricingHour", ns)
+            lmp = _safe_find_float(component, "ZonalPrice", ns)
+            loss_price = _safe_find_float(component, "LossPriceCapped", ns)
+            congestion_price = _safe_find_float(component, "CongestionPriceCapped", ns)
+
+            # Skip if any required values are missing
+            if any(val is None for val in [hour, lmp, loss_price, congestion_price]):
+                continue
 
             # Definition of LMP
             energy = lmp - loss_price - congestion_price

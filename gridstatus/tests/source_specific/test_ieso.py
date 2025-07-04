@@ -1,4 +1,5 @@
 import datetime
+from xml.etree import ElementTree
 
 import numpy as np
 import pandas as pd
@@ -7,6 +8,7 @@ from pandas.core.dtypes.common import is_numeric_dtype
 
 from gridstatus import IESO, utils
 from gridstatus.base import NotSupported
+from gridstatus.ieso import _safe_find_float, _safe_find_int, _safe_find_text
 from gridstatus.ieso_constants import (
     INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS,
     INTERTIE_FLOW_5_MIN_COLUMNS,
@@ -2181,3 +2183,65 @@ class TestIESO(BaseTestISO):
 
         assert data["Interval Start"].min() == start_date
         assert data["Interval Start"].max() == end_date - pd.Timedelta(minutes=5)
+
+
+class TestIESOSafeXMLParsing:
+    """Test the safe XML parsing helper functions."""
+
+    def test_safe_find_text(self):
+        """Test _safe_find_text with various scenarios."""
+        # Valid element
+        root = ElementTree.fromstring("<root><item>test_value</item></root>")
+        assert _safe_find_text(root, "item") == "test_value"
+
+        # Missing element
+        assert _safe_find_text(root, "missing", default="default") == "default"
+
+        # Empty element
+        empty_root = ElementTree.fromstring("<root><item></item></root>")
+        assert _safe_find_text(empty_root, "item", default="default") == "default"
+
+        # Whitespace-only element
+        ws_root = ElementTree.fromstring("<root><item>   </item></root>")
+        assert _safe_find_text(ws_root, "item", default="default") == "default"
+
+        # None element
+        assert _safe_find_text(None, "item", default="default") == "default"
+
+    def test_safe_find_int(self):
+        """Test _safe_find_int with various scenarios."""
+        # Valid number
+        root = ElementTree.fromstring("<root><item>123</item></root>")
+        assert _safe_find_int(root, "item") == 123
+
+        # Missing element
+        assert _safe_find_int(root, "missing", default=999) == 999
+
+        # Invalid text
+        invalid_root = ElementTree.fromstring("<root><item>not_a_number</item></root>")
+        assert _safe_find_int(invalid_root, "item", default=999) == 999
+
+    def test_safe_find_float(self):
+        """Test _safe_find_float with various scenarios."""
+        # Valid number
+        root = ElementTree.fromstring("<root><item>123.45</item></root>")
+        assert _safe_find_float(root, "item") == 123.45
+
+        # Missing element
+        assert _safe_find_float(root, "missing", default=999.99) == 999.99
+
+        # Invalid text
+        invalid_root = ElementTree.fromstring("<root><item>not_a_number</item></root>")
+        assert _safe_find_float(invalid_root, "item", default=999.99) == 999.99
+
+    def test_safe_find_with_namespaces(self):
+        """Test safe find functions work with XML namespaces."""
+        xml_with_ns = """<root xmlns:ns="http://example.com">
+            <ns:item>test_value</ns:item>
+            <ns:number>42</ns:number>
+        </root>"""
+        root = ElementTree.fromstring(xml_with_ns)
+        ns = {"ns": "http://example.com"}
+
+        assert _safe_find_text(root, "ns:item", namespaces=ns) == "test_value"
+        assert _safe_find_int(root, "ns:number", namespaces=ns) == 42
