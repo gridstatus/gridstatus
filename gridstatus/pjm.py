@@ -3010,6 +3010,3 @@ class PJM(ISOBase):
                 "Scheduled Tie Flow",
             ]
         ]
-
-    # @support_date_range(frequency=None)
-    # def get_actual_and_scheduled_interchange_summary() -> pd.DataFrame:

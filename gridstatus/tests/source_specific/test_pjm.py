@@ -2621,3 +2621,186 @@ class TestPJM(BaseTestISO):
 
             # Maximum interval start should be within 15 seconds of the end date
             assert end - pd.Timedelta(seconds=15) <= df["Interval Start"].max() <= end
+
+    def _check_hourly_net_exports_by_state(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "State",
+            "Net Interchange",
+        ]
+        assert not df.empty
+        assert df["Interval Start"].is_monotonic_increasing
+
+    def test_get_hourly_net_exports_by_state_latest(self):
+        with pjm_vcr.use_cassette("test_get_hourly_net_exports_by_state_latest.yaml"):
+            df = self.iso.get_hourly_net_exports_by_state("latest")
+            self._check_hourly_net_exports_by_state(df)
+
+    @pytest.mark.parametrize("date, end", test_dates)
+    def test_get_hourly_net_exports_by_state_historical_date_range(self, date, end):
+        with pjm_vcr.use_cassette(
+            f"test_get_hourly_net_exports_by_state_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_hourly_net_exports_by_state(date, end)
+            self._check_hourly_net_exports_by_state(df)
+            assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
+            assert df["Interval End"].max().date() <= pd.Timestamp(
+                end,
+            ).date() + pd.Timedelta(days=1)
+
+    def _check_hourly_transfer_limits_and_flows(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Transfer Limit Area",
+            "Average Transfers",
+            "Average Transfer Limit",
+        ]
+        assert not df.empty
+
+    def test_get_hourly_transfer_limits_and_flows_latest(self):
+        with pjm_vcr.use_cassette(
+            "test_get_hourly_transfer_limits_and_flows_latest.yaml",
+        ):
+            df = self.iso.get_hourly_transfer_limits_and_flows("latest")
+            self._check_hourly_transfer_limits_and_flows(df)
+
+    @pytest.mark.parametrize("date, end", test_dates)
+    def test_get_hourly_transfer_limits_and_flows_historical_date_range(
+        self,
+        date,
+        end,
+    ):
+        with pjm_vcr.use_cassette(
+            f"test_get_hourly_transfer_limits_and_flows_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_hourly_transfer_limits_and_flows(date, end)
+            self._check_hourly_transfer_limits_and_flows(df)
+            assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
+            assert df["Interval End"].max().date() <= pd.Timestamp(end).date()
+
+    def _check_actual_and_scheduled_interchange_summary(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Tie Line",
+            "Actual Flow",
+            "Scheduled Flow",
+            "Inadvertent Flow",
+        ]
+        assert not df.empty
+
+    def test_get_actual_and_scheduled_interchange_summary_latest(self):
+        with pjm_vcr.use_cassette(
+            "test_get_actual_and_scheduled_interchange_summary_latest.yaml",
+        ):
+            df = self.iso.get_actual_and_scheduled_interchange_summary("latest")
+            self._check_actual_and_scheduled_interchange_summary(df)
+
+    @pytest.mark.parametrize("date, end", test_dates)
+    def test_get_actual_and_scheduled_interchange_summary_historical_date_range(
+        self,
+        date,
+        end,
+    ):
+        with pjm_vcr.use_cassette(
+            f"test_get_actual_and_scheduled_interchange_summary_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_actual_and_scheduled_interchange_summary(date, end)
+            self._check_actual_and_scheduled_interchange_summary(df)
+            assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
+            assert df["Interval End"].max().date() <= pd.Timestamp(
+                end,
+            ).date() + pd.Timedelta(days=1)
+
+    def _check_scheduled_interchange_real_time(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Tie Line",
+            "Hourly Net Tie Schedule",
+        ]
+        assert not df.empty
+        assert df["Interval Start"].is_monotonic_increasing
+
+    def test_get_scheduled_interchange_real_time_latest(self):
+        with pjm_vcr.use_cassette(
+            "test_get_scheduled_interchange_real_time_latest.yaml",
+        ):
+            df = self.iso.get_scheduled_interchange_real_time("latest")
+            self._check_scheduled_interchange_real_time(df)
+
+    @pytest.mark.parametrize("date, end", test_dates)
+    def test_get_scheduled_interchange_real_time_historical_date_range(self, date, end):
+        with pjm_vcr.use_cassette(
+            f"test_get_scheduled_interchange_real_time_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_scheduled_interchange_real_time(date, end)
+            self._check_scheduled_interchange_real_time(df)
+            assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
+            assert df["Interval End"].max().date() <= pd.Timestamp(
+                end,
+            ).date() + pd.Timedelta(days=1)
+
+    def _check_interface_flows_and_limit_day_ahead(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Interface Limit Name",
+            "Flow",
+            "Limit",
+        ]
+        assert not df.empty
+
+    def test_get_interface_flows_and_limit_day_ahead_latest(self):
+        with pjm_vcr.use_cassette(
+            "test_get_interface_flows_and_limit_day_ahead_latest.yaml",
+        ):
+            df = self.iso.get_interface_flows_and_limit_day_ahead("latest")
+            self._check_interface_flows_and_limit_day_ahead(df)
+
+    @pytest.mark.parametrize("date, end", test_dates)
+    def test_get_interface_flows_and_limit_day_ahead_historical_date_range(
+        self,
+        date,
+        end,
+    ):
+        with pjm_vcr.use_cassette(
+            f"test_get_interface_flows_and_limit_day_ahead_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_interface_flows_and_limit_day_ahead(date, end)
+            self._check_interface_flows_and_limit_day_ahead(df)
+            assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
+            assert df["Interval End"].max().date() <= pd.Timestamp(
+                end,
+            ).date() + pd.Timedelta(days=1)
+
+    def _check_projected_peak_tie_flow(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Generated At",
+            "Interface",
+            "Scheduled Tie Flow",
+        ]
+        assert not df.empty
+
+    def test_get_projected_peak_tie_flow_latest(self):
+        with pjm_vcr.use_cassette("test_get_projected_peak_tie_flow_latest.yaml"):
+            df = self.iso.get_projected_peak_tie_flow("latest")
+            self._check_projected_peak_tie_flow(df)
+
+    @pytest.mark.parametrize("date, end", test_dates)
+    def test_get_projected_peak_tie_flow_historical_date_range(self, date, end):
+        with pjm_vcr.use_cassette(
+            f"test_get_projected_peak_tie_flow_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_projected_peak_tie_flow(date, end)
+            self._check_projected_peak_tie_flow(df)
