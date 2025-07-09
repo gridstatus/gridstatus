@@ -2746,3 +2746,270 @@ class PJM(ISOBase):
             )
             .reset_index(drop=True)
         )
+
+    @support_date_range(frequency=None)
+    def get_hourly_net_exports_by_state(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the hourly net exports by state data from:
+        https://dataminer2.pjm.com/feed/state_net_interchange/definition
+        """
+        if date == "latest":
+            return self.get_hourly_net_exports_by_state("today")
+
+        df = self._get_pjm_json(
+            "state_net_interchange",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,state,net_interchange",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        df = df.rename(
+            columns={
+                "state": "State",
+                "net_interchange": "Net Interchange",
+            },
+        )
+        return df[["Interval Start", "Interval End", "State", "Net Interchange"]]
+
+    @support_date_range(frequency=None)
+    def get_hourly_transfer_limits_and_flows(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the hourly transfer limits and flows data from:
+        https://dataminer2.pjm.com/feed/transfer_limits_and_flows/definition
+        """
+        if date == "latest":
+            # NB: Most recent complete month
+            today = pd.Timestamp.now(tz=self.default_timezone)
+            first_of_month = today.replace(day=1)
+            if today.day == 1:
+                first_of_month = first_of_month - pd.DateOffset(months=1)
+            end_of_month = (
+                first_of_month + pd.DateOffset(months=1) - pd.DateOffset(days=1)
+            )
+            return self.get_hourly_transfer_limits_and_flows(
+                first_of_month,
+                end=end_of_month,
+            )
+
+        df = self._get_pjm_json(
+            "transfer_limits_and_flows",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,datetime_ending_utc,transfer_limit_area,transfers,transfer_limit",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        df = df.rename(
+            columns={
+                "transfer_limit_area": "Transfer Limit Area",
+                "transfers": "Average Transfers",
+                "transfer_limit": "Average Transfer Limit",
+            },
+        )
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Transfer Limit Area",
+                "Average Transfers",
+                "Average Transfer Limit",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_actual_and_scheduled_interchange_summary(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the actual and scheduled interchange summary data from:
+        https://dataminer2.pjm.com/feed/actual_and_scheduled_interchange_summary/definition
+        """
+        if date == "latest":
+            # NB: Most recent full week, back to the previous Sunday at 8am default timezone
+            today = pd.Timestamp.now(tz=self.default_timezone)
+            start = today - pd.Timedelta(days=today.dayofweek)
+            start = start - pd.Timedelta(days=7)
+            start = start.replace(hour=8, minute=0, second=0, microsecond=0)
+            if today.hour < 8:
+                start = start - pd.Timedelta(days=7)
+            end = start + pd.Timedelta(days=7)
+            return self.get_actual_and_scheduled_interchange_summary(start, end=end)
+
+        df = self._get_pjm_json(
+            "act_sch_interchange",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,datetime_ending_utc,tie_line,actual_flow,sched_flow,inadv_flow",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        df = df.rename(
+            columns={
+                "tie_line": "Tie Line",
+                "actual_flow": "Actual Flow",
+                "sched_flow": "Scheduled Flow",
+                "inadv_flow": "Inadvertent Flow",
+            },
+        )
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Tie Line",
+                "Actual Flow",
+                "Scheduled Flow",
+                "Inadvertent Flow",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_scheduled_interchange_real_time(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the scheduled interchange real time data from:
+        https://dataminer2.pjm.com/feed/rt_scheduled_interchange/definition
+        """
+        if date == "latest":
+            return self.get_scheduled_interchange_real_time("today")
+
+        df = self._get_pjm_json(
+            "rt_scheduled_interchange",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,datetime_ending_utc,tie_line, hrly_net_tie_sched",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        df = df.rename(
+            columns={
+                "tie_line": "Tie Line",
+                "hrly_net_tie_sched": "Hourly Net Tie Schedule",
+            },
+        )
+        return df[
+            ["Interval Start", "Interval End", "Tie Line", "Hourly Net Tie Schedule"]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_interface_flows_and_limit_day_ahead(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the interface flows and limit day ahead data from:
+        https://dataminer2.pjm.com/feed/da_interface_flows_and_limits/definition
+        """
+        if date == "latest":
+            return self.get_interface_flows_and_limit_day_ahead("today")
+
+        df = self._get_pjm_json(
+            "da_interface_flows_and_limits",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,datetime_ending_utc,interface_limit_name,flow_mw,limit_mw",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+        df = df.rename(
+            columns={
+                "interface_limit_name": "Interface Limit Name",
+                "flow_mw": "Flow",
+                "limit_mw": "Limit",
+            },
+        )
+        return df[
+            ["Interval Start", "Interval End", "Interface Limit Name", "Flow", "Limit"]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_projected_peak_tie_flow(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the projected peak tie flow data from:
+        https://dataminer2.pjm.com/feed/ops_sum_prjctd_tie_flow/definition
+        """
+        if date == "latest":
+            now = pd.Timestamp.now(tz=self.default_timezone)
+            if now.hour >= 5:
+                return self.get_projected_peak_tie_flow("today")
+            else:
+                yesterday = pd.Timestamp.now(
+                    tz=self.default_timezone,
+                ).date() - pd.Timedelta(days=1)
+                return self.get_projected_peak_tie_flow(yesterday)
+
+        df = self._get_pjm_json(
+            "ops_sum_prjctd_tie_flow",
+            start=date,
+            end=end,
+            params={
+                "fields": "projected_peak_datetime_utc,generated_at_ept,interface,scheduled_tie_flow",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+            filter_timestamp_name="projected_peak_datetime",
+        )
+
+        df["Generated At"] = pd.to_datetime(df["generated_at_ept"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval Start"] = (
+            pd.to_datetime(df["projected_peak_datetime_utc"], format="ISO8601")
+            .dt.tz_localize(
+                "UTC",
+            )
+            .dt.tz_convert(self.default_timezone)
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.rename(
+            columns={
+                "interface": "Interface",
+                "scheduled_tie_flow": "Scheduled Tie Flow",
+            },
+        )
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Generated At",
+                "Interface",
+                "Scheduled Tie Flow",
+            ]
+        ]
+
+    # @support_date_range(frequency=None)
+    # def get_actual_and_scheduled_interchange_summary() -> pd.DataFrame:
