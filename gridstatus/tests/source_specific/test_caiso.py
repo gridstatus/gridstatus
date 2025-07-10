@@ -565,6 +565,22 @@ class TestCAISO(BaseTestISO):
         assert df["Interval Start"].min() == start_date
         assert df["Interval Start"].max() == end_date - pd.Timedelta(hours=1)
 
+    # Some of the data structure changes in July 2025, so add tests making sure we
+    # can cover existing data
+    def test_get_curtailment_june_and_july_2025(self):
+        start_date = pd.Timestamp("2025-06-29", tz=self.iso.default_timezone)
+        end_date = pd.Timestamp("2025-07-02", tz=self.iso.default_timezone)
+
+        with caiso_vcr.use_cassette(
+            f"test_get_curtailment_june_and_july_2025_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_curtailment(start_date, end=end_date)
+
+        self._check_curtailment(df)
+
+        assert df["Interval Start"].min() == start_date
+        assert df["Interval Start"].max() == end_date - pd.Timedelta(hours=1)
+
     """get_gas_prices"""
 
     @pytest.mark.parametrize("date", ["2022-10-15"])
