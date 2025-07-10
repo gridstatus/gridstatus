@@ -2747,7 +2747,7 @@ class TestPJM(BaseTestISO):
                 end,
             ).date() + pd.Timedelta(days=1)
 
-    def _check_interface_flows_and_limit_day_ahead(self, df):
+    def _check_interface_flows_and_limits_day_ahead(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.tolist() == [
             "Interval Start",
@@ -2758,24 +2758,24 @@ class TestPJM(BaseTestISO):
         ]
         assert not df.empty
 
-    def test_get_interface_flows_and_limit_day_ahead_latest(self):
+    def test_get_interface_flows_and_limits_day_ahead_latest(self):
         with pjm_vcr.use_cassette(
-            "test_get_interface_flows_and_limit_day_ahead_latest.yaml",
+            "test_get_interface_flows_and_limits_day_ahead_latest.yaml",
         ):
-            df = self.iso.get_interface_flows_and_limit_day_ahead("latest")
-            self._check_interface_flows_and_limit_day_ahead(df)
+            df = self.iso.get_interface_flows_and_limits_day_ahead("latest")
+            self._check_interface_flows_and_limits_day_ahead(df)
 
     @pytest.mark.parametrize("date, end", test_dates)
-    def test_get_interface_flows_and_limit_day_ahead_historical_date_range(
+    def test_get_interface_flows_and_limits_day_ahead_historical_date_range(
         self,
         date,
         end,
     ):
         with pjm_vcr.use_cassette(
-            f"test_get_interface_flows_and_limit_day_ahead_{date}_{end}.yaml",
+            f"test_get_interface_flows_and_limits_day_ahead_{date}_{end}.yaml",
         ):
-            df = self.iso.get_interface_flows_and_limit_day_ahead(date, end)
-            self._check_interface_flows_and_limit_day_ahead(df)
+            df = self.iso.get_interface_flows_and_limits_day_ahead(date, end)
+            self._check_interface_flows_and_limits_day_ahead(df)
             assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
             assert df["Interval End"].max().date() <= pd.Timestamp(
                 end,

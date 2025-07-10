@@ -2793,9 +2793,7 @@ class PJM(ISOBase):
         if date == "latest":
             # NB: Most recent complete month
             today = pd.Timestamp.now(tz=self.default_timezone)
-            first_of_month = today.replace(day=1)
-            if today.day == 1:
-                first_of_month = first_of_month - pd.DateOffset(months=1)
+            first_of_month = today.replace(day=1) - pd.DateOffset(months=1)
             end_of_month = (
                 first_of_month + pd.DateOffset(months=1) - pd.DateOffset(days=1)
             )
@@ -2894,7 +2892,16 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/rt_scheduled_interchange/definition
         """
         if date == "latest":
-            return self.get_scheduled_interchange_real_time("today")
+            try:
+                return self.get_scheduled_interchange_real_time("today")
+            except NoDataFoundException:
+                logger.warning(
+                    "No scheduled interchange real time data found for today, trying yesterday...",
+                )
+                yesterday = pd.Timestamp.now(
+                    tz=self.default_timezone,
+                ).date() - pd.Timedelta(days=1)
+                return self.get_scheduled_interchange_real_time(yesterday)
 
         df = self._get_pjm_json(
             "rt_scheduled_interchange",
@@ -2911,13 +2918,13 @@ class PJM(ISOBase):
                 "tie_line": "Tie Line",
                 "hrly_net_tie_sched": "Hourly Net Tie Schedule",
             },
-        )
+        ).sort_values("Interval Start")
         return df[
             ["Interval Start", "Interval End", "Tie Line", "Hourly Net Tie Schedule"]
         ]
 
     @support_date_range(frequency=None)
-    def get_interface_flows_and_limit_day_ahead(
+    def get_interface_flows_and_limits_day_ahead(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2928,14 +2935,14 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/da_interface_flows_and_limits/definition
         """
         if date == "latest":
-            return self.get_interface_flows_and_limit_day_ahead("today")
+            return self.get_interface_flows_and_limits_day_ahead("today")
 
         df = self._get_pjm_json(
             "da_interface_flows_and_limits",
             start=date,
             end=end,
             params={
-                "fields": "datetime_beginning_utc,datetime_ending_utc,interface_limit_name,flow_mw,limit_mw",
+                "fields": "datetime_beginning_utc,interface_limit_name,flow_mw,limit_mw",
             },
             interval_duration_min=60,
             verbose=verbose,
