@@ -2666,7 +2666,9 @@ class CAISO(ISOBase):
         html_content = response.content.decode("utf-8")
 
         def extract_array(content: str, var_name: str) -> list:
-            pattern = rf"{var_name}\s*=\s*\[(.*?)\]"
+            # Extracts a JavaScript array from the HTML content. Some of the arrays]
+            # are wrapped in JSON.parse().
+            pattern = rf"{var_name}\s*=\s*(?:JSON\.parse\()?\[([^\]]*)\]\)?"
             match = re.search(pattern, content, re.DOTALL)
             if not match:
                 return []

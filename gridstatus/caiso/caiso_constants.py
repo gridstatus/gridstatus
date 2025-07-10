@@ -422,7 +422,7 @@ def get_dataframe_config_for_renewables_report(
     # Monthly timestamps for the current year up to the current month
     month_ytd_timestamps = generate_timestamps(
         base_date.replace(month=1, day=1),
-        6,
+        base_date.month,
         "MS",
     )
     # Monthly timestamps for the past 13 months including the current month
