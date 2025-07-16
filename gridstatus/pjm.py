@@ -2988,10 +2988,10 @@ class PJM(ISOBase):
             },
             interval_duration_min=60,
             verbose=verbose,
-            filter_timestamp_name="projected_peak_datetime",
+            filter_timestamp_name="generated_at_ept",
         )
 
-        df["Generated At"] = pd.to_datetime(df["generated_at_ept"]).dt.tz_localize(
+        df["Publish Time"] = pd.to_datetime(df["generated_at_ept"]).dt.tz_localize(
             self.default_timezone,
         )
         df["Interval Start"] = (
@@ -3000,8 +3000,9 @@ class PJM(ISOBase):
                 "UTC",
             )
             .dt.tz_convert(self.default_timezone)
+            .date()
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
         df = df.rename(
             columns={
                 "interface": "Interface",
@@ -3012,8 +3013,306 @@ class PJM(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "Generated At",
+                "Publish Time",
                 "Interface",
                 "Scheduled Tie Flow",
             ]
         ]
+
+    @support_date_range(frequency=None)
+    def get_actual_operational_statistics(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the actual operational statistics data from:
+        https://dataminer2.pjm.com/feed/ops_sum_prev_period/definition
+        """
+        if date == "latest":
+            return self.get_actual_operational_statistics("today")
+
+        df = self._get_pjm_json(
+            "ops_sum_prev_period",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,datetime_ending_utc,generated_at_ept,area,area_load_forecast,actual_load,dispatch_rate",
+            },
+            filter_timestamp_name="generated_at",
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "datetime_beginning_utc": "Interval Start",
+                "datetime_ending_utc": "Interval End",
+                "generated_at_ept": "Publish Time",
+                "area": "Area",
+                "area_load_forecast": "Area Load Forecast",
+                "actual_load": "Actual Load",
+                "dispatch_rate": "Dispatch Rate",
+            },
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Area",
+                    "Area Load Forecast",
+                    "Actual Load",
+                    "Dispatch Rate",
+                ]
+            ]
+            .sort_values(["Interval Start", "Area"])
+            .reset_index(drop=True)
+        )
+
+    def _filter_active_records(
+        self,
+        df: pd.DataFrame,
+        as_of: pd.Timestamp | None,
+    ) -> pd.DataFrame:
+        """Filter out records that are terminated before the given date"""
+        df["Effective Date"] = pd.to_datetime(
+            df["Effective Date"],
+            errors="coerce",
+        ).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        df["Termination Date"] = df["Termination Date"].replace(
+            "9999-12-31T00:00:00",
+            None,
+        )
+        df["Termination Date"] = pd.to_datetime(
+            df["Termination Date"],
+            errors="coerce",
+        ).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        if as_of is None:
+            return df
+
+        return df[(df["Termination Date"].isna()) | (df["Termination Date"] > as_of)]
+
+    def get_pricing_nodes(
+        self,
+        as_of: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the pricing nodes data from:
+        https://dataminer2.pjm.com/feed/pnode/definition
+        """
+        if as_of == "now":
+            return self.get_pricing_nodes(
+                as_of=pd.Timestamp.now(tz=self.default_timezone),
+            )
+
+        df = self._get_pjm_json(
+            "pnode",
+            start=None,
+            end=None,
+            params={
+                "fields": "pnode_id,pnode_name,pnode_type,pnode_subtype,zone,voltage_level,effective_date,termination_date",
+            },
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "pnode_id": "Pricing Node ID",
+                "pnode_name": "Pricing Node Name",
+                "pnode_type": "Pricing Node Type",
+                "pnode_subtype": "Pricing Node SubType",
+                "zone": "Zone",
+                "voltage_level": "Voltage Level",
+                "effective_date": "Effective Date",
+                "termination_date": "Termination Date",
+            },
+        )
+
+        df = self._filter_active_records(df, as_of)
+
+        return (
+            df[
+                [
+                    "Pricing Node ID",
+                    "Pricing Node Name",
+                    "Pricing Node Type",
+                    "Pricing Node SubType",
+                    "Zone",
+                    "Voltage Level",
+                    "Effective Date",
+                    "Termination Date",
+                ]
+            ]
+            .sort_values(["Effective Date", "Pricing Node Name"])
+            .reset_index(drop=True)
+        )
+
+    def get_reserve_subzone_resources(
+        self,
+        as_of: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the reserve subzone resources data from:
+        https://dataminer2.pjm.com/feed/sync_pri_reserves_resources_list/definition
+        """
+        if as_of == "now":
+            return self.get_reserve_subzone_resources(
+                as_of=pd.Timestamp.now(tz=self.default_timezone),
+                verbose=verbose,
+            )
+
+        df = self._get_pjm_json(
+            "sync_pri_reserves_resources_list",
+            start=None,
+            params={
+                "fields": "effective_date,terminate_date,subzone,resource_id,resource_name,resource_type,zone",
+            },
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "effective_date": "Effective Date",
+                "terminate_date": "Termination Date",
+                "subzone": "Subzone",
+                "resource_id": "Resource ID",
+                "resource_name": "Resource Name",
+                "resource_type": "Resource Type",
+                "zone": "Zone",
+            },
+        )
+
+        df = self._filter_active_records(df, as_of)
+
+        return (
+            df[
+                [
+                    "Effective Date",
+                    "Termination Date",
+                    "Subzone",
+                    "Resource ID",
+                    "Resource Name",
+                    "Resource Type",
+                    "Zone",
+                ]
+            ]
+            .sort_values("Effective Date")
+            .reset_index(drop=True)
+        )
+
+    def get_reserve_subzone_buses(
+        self,
+        as_of: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the reserve subzone buses data from:
+        https://dataminer2.pjm.com/feed/sync_pri_reserves_buses_list/definition
+        """
+        if as_of == "now":
+            return self.get_reserve_subzone_buses(
+                as_of=pd.Timestamp.now(tz=self.default_timezone),
+                verbose=verbose,
+            )
+
+        df = self._get_pjm_json(
+            "sync_pri_reserves_buses_list",
+            start=None,
+            params={
+                "fields": "effective_date,terminate_date,subzone,pnode_id,pnode_name,pnode_type",
+            },
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "effective_date": "Effective Date",
+                "terminate_date": "Termination Date",
+                "subzone": "Subzone",
+                "pnode_id": "Pricing Node ID",
+                "pnode_name": "Pricing Node Name",
+                "pnode_type": "Pricing Node Type",
+            },
+        )
+
+        df = self._filter_active_records(df, as_of)
+        return (
+            df[
+                [
+                    "Effective Date",
+                    "Termination Date",
+                    "Subzone",
+                    "Pricing Node ID",
+                    "Pricing Node Name",
+                    "Pricing Node Type",
+                ]
+            ]
+            .sort_values(["Effective Date", "Pricing Node Name"])
+            .reset_index(drop=True)
+        )
+
+    def get_weight_average_aggregation_definition(
+        self,
+        as_of: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the weight average aggregation definition data from:
+        https://dataminer2.pjm.com/feed/agg_definitions/definition
+        """
+        if as_of == "now":
+            return self.get_weight_average_aggregation_definition(
+                as_of=pd.Timestamp.now(tz=self.default_timezone),
+                verbose=verbose,
+            )
+
+        df = self._get_pjm_json(
+            "agg_definitions",
+            start=as_of,
+            end=None,
+            params={
+                "fields": "effective_date_ept,terminate_date_ept,agg_pnode_id,agg_pnode_name,bus_pnode_id,bus_pnode_name,bus_pnode_factor",
+            },
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "effective_date_ept": "Effective Date",
+                "terminate_date_ept": "Termination Date",
+                "agg_pnode_id": "Aggregate Node ID",
+                "agg_pnode_name": "Aggregate Node Name",
+                "bus_pnode_id": "Bus Node ID",
+                "bus_pnode_name": "Bus Node Name",
+                "bus_pnode_factor": "Bus Node Factor",
+            },
+        )
+
+        df = self._filter_active_records(df, as_of)
+
+        return (
+            df[
+                [
+                    "Effective Date",
+                    "Termination Date",
+                    "Aggregate Node ID",
+                    "Aggregate Node Name",
+                    "Bus Node ID",
+                    "Bus Node Name",
+                    "Bus Node Factor",
+                ]
+            ]
+            .sort_values(["Effective Date", "Aggregate Node Name"])
+            .reset_index(drop=True)
+        )
