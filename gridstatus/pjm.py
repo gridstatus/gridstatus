@@ -3279,7 +3279,7 @@ class PJM(ISOBase):
 
         df = self._get_pjm_json(
             "agg_definitions",
-            start=as_of,
+            start=None,
             end=None,
             params={
                 "fields": "effective_date_ept,terminate_date_ept,agg_pnode_id,agg_pnode_name,bus_pnode_id,bus_pnode_name,bus_pnode_factor",
