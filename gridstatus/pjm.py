@@ -3108,6 +3108,7 @@ class PJM(ISOBase):
         Retrieves the pricing nodes data from:
         https://dataminer2.pjm.com/feed/pnode/definition
         """
+        as_of = utils._handle_date(as_of)
         if as_of == "now":
             return self.get_pricing_nodes(
                 as_of=pd.Timestamp.now(tz=self.default_timezone),
@@ -3164,6 +3165,7 @@ class PJM(ISOBase):
         Retrieves the reserve subzone resources data from:
         https://dataminer2.pjm.com/feed/sync_pri_reserves_resources_list/definition
         """
+        as_of = utils._handle_date(as_of)
         if as_of == "now":
             return self.get_reserve_subzone_resources(
                 as_of=pd.Timestamp.now(tz=self.default_timezone),
@@ -3218,6 +3220,7 @@ class PJM(ISOBase):
         Retrieves the reserve subzone buses data from:
         https://dataminer2.pjm.com/feed/sync_pri_reserves_buses_list/definition
         """
+        as_of = utils._handle_date(as_of)
         if as_of == "now":
             return self.get_reserve_subzone_buses(
                 as_of=pd.Timestamp.now(tz=self.default_timezone),
@@ -3269,6 +3272,7 @@ class PJM(ISOBase):
         Retrieves the weight average aggregation definition data from:
         https://dataminer2.pjm.com/feed/agg_definitions/definition
         """
+        as_of = utils._handle_date(as_of)
         if as_of == "now":
             return self.get_weight_average_aggregation_definition(
                 as_of=pd.Timestamp.now(tz=self.default_timezone),
