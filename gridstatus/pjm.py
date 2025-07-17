@@ -2988,7 +2988,7 @@ class PJM(ISOBase):
             },
             interval_duration_min=60,
             verbose=verbose,
-            filter_timestamp_name="generated_at_ept",
+            filter_timestamp_name="generated_at",
         )
 
         df["Publish Time"] = pd.to_datetime(df["generated_at_ept"]).dt.tz_localize(
