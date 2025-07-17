@@ -2639,7 +2639,11 @@ class PJM(ISOBase):
                 "Is Approved": int,
             },
         )
-        df["Modified Datetime UTC"] = pd.to_datetime(df["Modified Datetime UTC"])
+
+        df["Modified Datetime UTC"] = pd.to_datetime(
+            df["Modified Datetime UTC"],
+            utc=True,
+        )
 
         return df[
             [
