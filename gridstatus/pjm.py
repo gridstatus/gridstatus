@@ -3046,8 +3046,6 @@ class PJM(ISOBase):
 
         df = df.rename(
             columns={
-                "datetime_beginning_utc": "Interval Start",
-                "datetime_ending_utc": "Interval End",
                 "generated_at_ept": "Publish Time",
                 "area": "Area",
                 "area_load_forecast": "Area Load Forecast",
