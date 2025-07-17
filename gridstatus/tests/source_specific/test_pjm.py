@@ -2786,7 +2786,7 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Generated At",
+            "Publish Time",
             "Interface",
             "Scheduled Tie Flow",
         ]
@@ -2830,8 +2830,7 @@ class TestPJM(BaseTestISO):
             self._check_actual_operational_statistics(df)
             min_start = df["Interval Start"].min().date()
             today = self.local_start_of_today().date()
-            yesterday = today - pd.Timedelta(days=1)
-            assert min_start in [today, yesterday]
+            assert min_start == today
 
     @pytest.mark.parametrize("date, end", test_dates)
     def test_get_actual_operational_statistics_historical_date_range(self, date, end):

@@ -3000,7 +3000,7 @@ class PJM(ISOBase):
                 "UTC",
             )
             .dt.tz_convert(self.default_timezone)
-            .date()
+            .dt.date
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
         df = df.rename(
@@ -3031,7 +3031,14 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/ops_sum_prev_period/definition
         """
         if date == "latest":
-            return self.get_actual_operational_statistics("today")
+            now = pd.Timestamp.now(tz=self.default_timezone)
+            if now.hour >= 5:
+                return self.get_actual_operational_statistics("today")
+            else:
+                yesterday = pd.Timestamp.now(
+                    tz=self.default_timezone,
+                ).date() - pd.Timedelta(days=1)
+                return self.get_actual_operational_statistics(yesterday)
 
         df = self._get_pjm_json(
             "ops_sum_prev_period",
