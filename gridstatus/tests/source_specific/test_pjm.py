@@ -2786,7 +2786,7 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Generated At",
+            "Publish Time",
             "Interface",
             "Scheduled Tie Flow",
         ]
@@ -2804,3 +2804,235 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_projected_peak_tie_flow(date, end)
             self._check_projected_peak_tie_flow(df)
+
+    """get_actual_operational_statistics"""
+
+    def _check_actual_operational_statistics(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Area",
+            "Area Load Forecast",
+            "Actual Load",
+            "Dispatch Rate",
+        ]
+        assert not df.empty
+        assert df["Area"].dtype == object
+        assert df["Area Load Forecast"].dtype in [np.float64, np.int64]
+        assert df["Actual Load"].dtype in [np.float64, np.int64]
+        assert df["Dispatch Rate"].dtype in [np.float64, np.int64]
+
+    def test_get_actual_operational_statistics_latest(self):
+        with pjm_vcr.use_cassette("test_get_actual_operational_statistics_latest.yaml"):
+            df = self.iso.get_actual_operational_statistics("latest")
+            self._check_actual_operational_statistics(df)
+            min_start = df["Interval Start"].min().date()
+            today = self.local_start_of_today().date()
+            yesterday = today - pd.Timedelta(days=1)
+            # The implementation can return either today's or yesterday's data depending on time
+            assert min_start in [today, yesterday]
+
+    @pytest.mark.parametrize("date, end", test_dates)
+    def test_get_actual_operational_statistics_historical_date_range(self, date, end):
+        with pjm_vcr.use_cassette(
+            f"test_get_actual_operational_statistics_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_actual_operational_statistics(date, end)
+            self._check_actual_operational_statistics(df)
+            expected_start_date = pd.Timestamp(date).date() - pd.Timedelta(days=1)
+            assert df["Interval Start"].min().date() == expected_start_date
+            assert df["Interval End"].max().date() <= pd.Timestamp(
+                end,
+            ).date() - pd.Timedelta(days=1)
+
+    """get_pricing_nodes"""
+
+    def _check_pricing_nodes(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Pricing Node ID",
+            "Pricing Node Name",
+            "Pricing Node Type",
+            "Pricing Node SubType",
+            "Zone",
+            "Voltage Level",
+            "Effective Date",
+            "Termination Date",
+        ]
+        assert not df.empty
+        assert df["Pricing Node ID"].dtype in [np.int64, np.float64]
+        assert df["Pricing Node Name"].dtype == object
+        assert df["Pricing Node Type"].dtype == object
+        assert df["Zone"].dtype == object
+
+    @pytest.mark.parametrize("as_of", ["now", None])
+    def test_get_pricing_nodes_as_of(self, as_of):
+        with pjm_vcr.use_cassette(f"test_get_pricing_nodes_as_of_{as_of}.yaml"):
+            df = self.iso.get_pricing_nodes(as_of=as_of)
+            self._check_pricing_nodes(df)
+            if as_of == "now":
+                # Should filter out terminated records
+                assert (
+                    df["Termination Date"].isna()
+                    | (
+                        df["Termination Date"]
+                        > pd.Timestamp.now(tz=self.iso.default_timezone)
+                    )
+                ).all()
+
+    def test_get_pricing_nodes_with_specific_date(self):
+        specific_date = pd.Timestamp("2024-01-01", tz=self.iso.default_timezone)
+        with pjm_vcr.use_cassette(
+            f"test_get_pricing_nodes_specific_date_{specific_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_pricing_nodes(as_of=specific_date)
+            self._check_pricing_nodes(df)
+            # Should filter out records terminated before the specific date
+            assert (
+                df["Termination Date"].isna() | (df["Termination Date"] > specific_date)
+            ).all()
+
+    """get_reserve_subzone_resources"""
+
+    def _check_reserve_subzone_resources(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Effective Date",
+            "Termination Date",
+            "Subzone",
+            "Resource ID",
+            "Resource Name",
+            "Resource Type",
+            "Zone",
+        ]
+        assert not df.empty
+        assert df["Resource ID"].dtype in [object, np.int64, np.float64]
+        assert df["Resource Name"].dtype == object
+        assert df["Resource Type"].dtype == object
+        assert df["Subzone"].dtype == object
+        assert df["Zone"].dtype == object
+
+    @pytest.mark.parametrize("as_of", ["now", None])
+    def test_get_reserve_subzone_resources_as_of(self, as_of):
+        with pjm_vcr.use_cassette(
+            f"test_get_reserve_subzone_resources_as_of_{as_of}.yaml",
+        ):
+            df = self.iso.get_reserve_subzone_resources(as_of=as_of)
+            self._check_reserve_subzone_resources(df)
+            if as_of == "now":
+                # Should filter out terminated records
+                assert (
+                    df["Termination Date"].isna()
+                    | (
+                        df["Termination Date"]
+                        > pd.Timestamp.now(tz=self.iso.default_timezone)
+                    )
+                ).all()
+
+    def test_get_reserve_subzone_resources_with_specific_date(self):
+        specific_date = pd.Timestamp("2024-01-01", tz=self.iso.default_timezone)
+        with pjm_vcr.use_cassette(
+            f"test_get_reserve_subzone_resources_specific_date_{specific_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_reserve_subzone_resources(as_of=specific_date)
+            self._check_reserve_subzone_resources(df)
+            # Should filter out records terminated before the specific date
+            assert (
+                df["Termination Date"].isna() | (df["Termination Date"] > specific_date)
+            ).all()
+
+    """get_reserve_subzone_buses"""
+
+    def _check_reserve_subzone_buses(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Effective Date",
+            "Termination Date",
+            "Subzone",
+            "Pricing Node ID",
+            "Pricing Node Name",
+            "Pricing Node Type",
+        ]
+        assert not df.empty
+        assert df["Pricing Node ID"].dtype in [np.int64, np.float64]
+        assert df["Pricing Node Name"].dtype == object
+        assert df["Pricing Node Type"].dtype == object
+        assert df["Subzone"].dtype == object
+
+    @pytest.mark.parametrize("as_of", ["now", None])
+    def test_get_reserve_subzone_buses_as_of(self, as_of):
+        with pjm_vcr.use_cassette(f"test_get_reserve_subzone_buses_as_of_{as_of}.yaml"):
+            df = self.iso.get_reserve_subzone_buses(as_of=as_of)
+            self._check_reserve_subzone_buses(df)
+            if as_of == "now":
+                # Should filter out terminated records
+                assert (
+                    df["Termination Date"].isna()
+                    | (
+                        df["Termination Date"]
+                        > pd.Timestamp.now(tz=self.iso.default_timezone)
+                    )
+                ).all()
+
+    def test_get_reserve_subzone_buses_with_specific_date(self):
+        specific_date = pd.Timestamp("2024-01-01", tz=self.iso.default_timezone)
+        with pjm_vcr.use_cassette(
+            f"test_get_reserve_subzone_buses_specific_date_{specific_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_reserve_subzone_buses(as_of=specific_date)
+            self._check_reserve_subzone_buses(df)
+            # Should filter out records terminated before the specific date
+            assert (
+                df["Termination Date"].isna() | (df["Termination Date"] > specific_date)
+            ).all()
+
+    """get_weight_average_aggregation_definition"""
+
+    def _check_weight_average_aggregation_definition(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Effective Date",
+            "Termination Date",
+            "Aggregate Node ID",
+            "Aggregate Node Name",
+            "Bus Node ID",
+            "Bus Node Name",
+            "Bus Node Factor",
+        ]
+        assert not df.empty
+        assert df["Aggregate Node ID"].dtype in [np.int64, np.float64]
+        assert df["Aggregate Node Name"].dtype == object
+        assert df["Bus Node ID"].dtype in [np.int64, np.float64]
+        assert df["Bus Node Name"].dtype == object
+        assert df["Bus Node Factor"].dtype in [np.float64, np.int64]
+
+    @pytest.mark.parametrize("as_of", ["now", None])
+    def test_get_weight_average_aggregation_definition_as_of(self, as_of):
+        with pjm_vcr.use_cassette(
+            f"test_get_weight_average_aggregation_definition_as_of_{as_of}.yaml",
+        ):
+            df = self.iso.get_weight_average_aggregation_definition(as_of=as_of)
+            self._check_weight_average_aggregation_definition(df)
+            if as_of == "now":
+                # Should filter out terminated records
+                assert (
+                    df["Termination Date"].isna()
+                    | (
+                        df["Termination Date"]
+                        > pd.Timestamp.now(tz=self.iso.default_timezone)
+                    )
+                ).all()
+
+    def test_get_weight_average_aggregation_definition_with_specific_date(self):
+        specific_date = pd.Timestamp("2024-01-01", tz=self.iso.default_timezone)
+        with pjm_vcr.use_cassette(
+            f"test_get_weight_average_aggregation_definition_specific_date_{specific_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_weight_average_aggregation_definition(as_of=specific_date)
+            self._check_weight_average_aggregation_definition(df)
+            # Should filter out records terminated before the specific date
+            assert (
+                df["Termination Date"].isna() | (df["Termination Date"] > specific_date)
+            ).all()
