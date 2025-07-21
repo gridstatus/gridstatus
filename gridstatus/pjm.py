@@ -3004,7 +3004,7 @@ class PJM(ISOBase):
                 "UTC",
             )
             .dt.tz_convert(self.default_timezone)
-            .dt.date
+            .dt.floor("D")
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
         df = df.rename(
@@ -3063,6 +3063,9 @@ class PJM(ISOBase):
                 "actual_load": "Actual Load",
                 "dispatch_rate": "Dispatch Rate",
             },
+        )
+        df["Publish Time"] = pd.to_datetime(df["Publish Time"]).dt.tz_localize(
+            self.default_timezone,
         )
 
         return (
