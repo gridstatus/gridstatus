@@ -2900,13 +2900,13 @@ class TestPJM(BaseTestISO):
     def _check_reserve_subzone_resources(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.tolist() == [
-            "Effective Date",
-            "Termination Date",
-            "Subzone",
             "Resource ID",
             "Resource Name",
             "Resource Type",
             "Zone",
+            "Subzone",
+            "Effective Date",
+            "Termination Date",
         ]
         assert not df.empty
         assert df["Resource ID"].dtype in [object, np.int64, np.float64]
@@ -2949,12 +2949,12 @@ class TestPJM(BaseTestISO):
     def _check_reserve_subzone_buses(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.tolist() == [
-            "Effective Date",
-            "Termination Date",
-            "Subzone",
             "Pricing Node ID",
             "Pricing Node Name",
             "Pricing Node Type",
+            "Subzone",
+            "Effective Date",
+            "Termination Date",
         ]
         assert not df.empty
         assert df["Pricing Node ID"].dtype in [np.int64, np.float64]
@@ -2994,13 +2994,13 @@ class TestPJM(BaseTestISO):
     def _check_weight_average_aggregation_definition(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.tolist() == [
-            "Effective Date",
-            "Termination Date",
             "Aggregate Node ID",
             "Aggregate Node Name",
             "Bus Node ID",
             "Bus Node Name",
             "Bus Node Factor",
+            "Effective Date",
+            "Termination Date",
         ]
         assert not df.empty
         assert df["Aggregate Node ID"].dtype in [np.int64, np.float64]

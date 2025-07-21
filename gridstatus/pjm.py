@@ -3216,13 +3216,13 @@ class PJM(ISOBase):
         return (
             df[
                 [
-                    "Effective Date",
-                    "Termination Date",
-                    "Subzone",
                     "Resource ID",
                     "Resource Name",
                     "Resource Type",
                     "Zone",
+                    "Subzone",
+                    "Effective Date",
+                    "Termination Date",
                 ]
             ]
             .sort_values("Effective Date")
@@ -3269,12 +3269,12 @@ class PJM(ISOBase):
         return (
             df[
                 [
-                    "Effective Date",
-                    "Termination Date",
-                    "Subzone",
                     "Pricing Node ID",
                     "Pricing Node Name",
                     "Pricing Node Type",
+                    "Subzone",
+                    "Effective Date",
+                    "Termination Date",
                 ]
             ]
             .sort_values(["Effective Date", "Pricing Node Name"])
@@ -3324,13 +3324,13 @@ class PJM(ISOBase):
         return (
             df[
                 [
-                    "Effective Date",
-                    "Termination Date",
                     "Aggregate Node ID",
                     "Aggregate Node Name",
                     "Bus Node ID",
                     "Bus Node Name",
                     "Bus Node Factor",
+                    "Effective Date",
+                    "Termination Date",
                 ]
             ]
             .sort_values(["Effective Date", "Aggregate Node Name"])
