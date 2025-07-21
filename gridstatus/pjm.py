@@ -2998,14 +2998,17 @@ class PJM(ISOBase):
         df["Publish Time"] = pd.to_datetime(df["generated_at_ept"]).dt.tz_localize(
             self.default_timezone,
         )
-        df["Interval Start"] = (
-            pd.to_datetime(df["projected_peak_datetime_utc"], format="ISO8601")
-            .dt.tz_localize(
-                "UTC",
+
+        df["Projected Peak Time"] = (
+            pd.to_datetime(
+                df["projected_peak_datetime_utc"],
+                format="ISO8601",
             )
+            .dt.tz_localize("UTC")
             .dt.tz_convert(self.default_timezone)
-            .dt.floor("D")
         )
+
+        df["Interval Start"] = df["Projected Peak Time"].dt.floor("D")
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
         df = df.rename(
             columns={
@@ -3018,6 +3021,7 @@ class PJM(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
+                "Projected Peak Time",
                 "Interface",
                 "Scheduled Tie Flow",
             ]
