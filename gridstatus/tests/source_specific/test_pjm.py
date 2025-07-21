@@ -2787,6 +2787,7 @@ class TestPJM(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Publish Time",
+            "Projected Peak Time",
             "Interface",
             "Scheduled Tie Flow",
         ]
