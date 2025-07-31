@@ -54,6 +54,44 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_today()
 
+    def test_get_interconnection_queue(self):
+        with miso_vcr.use_cassette("test_get_interconnection_queue.yaml"):
+            df = self.iso.get_interconnection_queue()
+            assert df.columns.tolist() == [
+                "Queue ID",
+                "Project Name",
+                "Interconnecting Entity",
+                "County",
+                "State",
+                "Interconnection Location",
+                "Transmission Owner",
+                "Generation Type",
+                "Capacity (MW)",
+                "Summer Capacity (MW)",
+                "Winter Capacity (MW)",
+                "Queue Date",
+                "Status",
+                "Proposed Completion Date",
+                "Withdrawn Date",
+                "Withdrawal Comment",
+                "Actual Completion Date",
+                "facilityType",
+                "Post Generator Interconnection Agreement Status",
+                "Interconnection Approval Date",
+                "inService",
+                "giaToExec",
+                "studyCycle",
+                "studyGroup",
+                "studyPhase",
+                "svcType",
+                "dp1ErisMw",
+                "dp1NrisMw",
+                "dp2ErisMw",
+                "dp2NrisMw",
+                "sisPhase1",
+            ]
+            assert not df.empty
+
     """get_lmp_real_time_5_min_final"""
 
     def _check_lmp_real_time_5_min_final(self, df):
