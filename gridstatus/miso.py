@@ -740,7 +740,7 @@ class MISO(ISOBase):
         msg = f"Downloading interconnection queue from {url}"
         logger.info(msg)
 
-        response = requests.get(url)
+        response = requests.get(url, headers="")
         return utils.get_response_blob(response)
 
     def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
