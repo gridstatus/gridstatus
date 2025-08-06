@@ -343,7 +343,13 @@ def get_interconnection_queues() -> pd.DataFrame:
     for iso in tqdm.tqdm(all_isos):
         iso = iso()
         # only shared columns
-        queue = iso.get_interconnection_queue()[_interconnection_columns]
+        # add error handling for IESO
+        
+        try:
+          queue = iso.get_interconnection_queue()[_interconnection_columns]
+        except NotImplementedError:
+          queue = pd.DataFrame()
+        
         queue.insert(0, "ISO", iso.name)
         queue.reset_index(drop=True, inplace=True)
         all_queues.append(queue)
