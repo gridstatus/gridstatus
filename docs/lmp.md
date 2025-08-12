@@ -13,6 +13,7 @@ Below are the currently supported LMP markets
 <!-- LMP AVAILABILITY TABLE START -->
 |       | Method    | REAL_TIME_5_MIN           | REAL_TIME_15_MIN          | DAY_AHEAD_HOURLY          | REAL_TIME_HOURLY          | REAL_TIME_HOURLY_FINAL   | REAL_TIME_HOURLY_PRELIM   |
 |:------|:----------|:--------------------------|:--------------------------|:--------------------------|:--------------------------|:-------------------------|:--------------------------|
+| AESO  | -         | -                         | -                         | -                         | -                         | -                        | -                         |
 | CAISO | `get_lmp` | latest, today, historical | latest, today, historical | latest, today, historical | -                         | -                        | -                         |
 | Ercot | `get_lmp` | -                         | -                         | -                         | -                         | -                        | -                         |
 | IESO  | -         | -                         | -                         | -                         | -                         | -                        | -                         |

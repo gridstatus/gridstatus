@@ -55,6 +55,9 @@ def make_availability_df() -> dict[str, pd.DataFrame]:
 
     availability = {}
     for i in tqdm.tqdm(gridstatus.all_isos):
+        # TODO: Skipping AESO as it's missing some methods
+        if i.__name__ == "AESO":
+            continue
         availability[i.__name__] = {}
         for method in methods:
             availability[i.__name__][method] = {}
@@ -344,12 +347,12 @@ def get_interconnection_queues() -> pd.DataFrame:
         iso = iso()
         # only shared columns
         # add error handling for IESO
-        
+
         try:
-          queue = iso.get_interconnection_queue()[_interconnection_columns]
+            queue = iso.get_interconnection_queue()[_interconnection_columns]
         except NotImplementedError:
-          queue = pd.DataFrame()
-        
+            queue = pd.DataFrame()
+
         queue.insert(0, "ISO", iso.name)
         queue.reset_index(drop=True, inplace=True)
         all_queues.append(queue)
