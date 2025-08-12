@@ -3,7 +3,6 @@
 ## v0.31.0 - August 12, 2025
 
 ### What's Changed
-## What's Changed
 * Reduce Error Logging from CAISO in [#583](https://github.com/gridstatus/gridstatus/pull/583)
 * Update ERCOT Fuel Mix Detailed in [#584](https://github.com/gridstatus/gridstatus/pull/584)
 * IESO New Price Data in [#582](https://github.com/gridstatus/gridstatus/pull/582)
