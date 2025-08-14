@@ -826,6 +826,7 @@ class SPP(ISOBase):
         end=None,
         location_type=LOCATION_TYPE_ALL,
         verbose=False,
+        use_daily_files=False,
     ):
         """Get LMP data by location for the Real-Time 5 Minute Market
 
@@ -838,14 +839,34 @@ class SPP(ISOBase):
                 - ``Interface`` (LOCATION_TYPE_INTERFACE)
                 - ``Settlement Location`` (LOCATION_TYPE_SETTLEMENT_LOCATION)
             verbose: print url
+            use_daily_files: if True, use daily files instead of 5 minute files.
         """
-        return self._finalize_spp_df(
-            self._get_real_time_5_min_data(
+        if use_daily_files:
+            df = self._get_real_time_5_min_data_from_daily_files(
                 date,
                 end=end,
                 location_type=location_type,
                 verbose=verbose,
-            ),
+            )
+            df.columns = df.columns.str.strip()
+
+            df = df.rename(
+                columns={
+                    "GMT Interval": "GMTIntervalEnd",
+                    "Settlement Location Name": "Settlement Location",
+                    "PNODE Name": "PNode",
+                },
+            )
+        else:
+            df = self._get_real_time_5_min_data(
+                date,
+                end=end,
+                location_type=location_type,
+                verbose=verbose,
+            )
+
+        return self._finalize_spp_df(
+            df,
             market=Markets.REAL_TIME_5_MIN,
             location_type=location_type,
             verbose=verbose,
@@ -903,6 +924,36 @@ class SPP(ISOBase):
             url = self._format_5_min_url(date, end, endpoint, file_prefix)
 
         log(f"Getting data for {date} from {url}", verbose=verbose)
+
+        df = pd.read_csv(url)
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
+    def _get_real_time_5_min_data_from_daily_files(
+        self,
+        date,
+        end=None,
+        location_type=LOCATION_TYPE_ALL,
+        verbose=False,
+    ):
+        """
+        Internal function that consolidates logic for getting LMP data for the
+        Real-Time 5 Minute Market
+        """
+        if location_type not in self.location_types:
+            raise NotSupported(f"Location type {location_type} not supported")
+
+        if location_type == LOCATION_TYPE_BUS:
+            endpoint = RTBM_LMP_BY_BUS
+            file_prefix = "RTBM-LMP-DAILY-B"
+        else:
+            endpoint = FS_RTBM_LMP_BY_LOCATION
+            file_prefix = "RTBM-LMP-DAILY-SL"
+
+        url = self._format_daily_url(date, end, endpoint, file_prefix)
+
+        log(f"Getting data for {date} from {url} (daily file)", verbose=verbose)
 
         df = pd.read_csv(url)
 
@@ -1223,11 +1274,11 @@ class SPP(ISOBase):
 
     def _format_5_min_url(
         self,
-        start,
-        end,
-        endpoint,
-        file_prefix,
-        include_interval=True,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        endpoint: str,
+        file_prefix: str,
+        include_interval: bool = True,
     ):
         # Folder path is based on start date. File name is based on end date.
         # As an example, the file with the name 202407010000 representing the interval
@@ -1261,6 +1312,32 @@ class SPP(ISOBase):
             return url
         else:
             raise NoDataFoundException(f"No data found for {url}")
+
+    def _format_daily_url(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp | None,
+        endpoint: str,
+        file_prefix: str,
+    ):
+        """
+        Formats the URL for daily data files.
+
+        Args:
+            start (pd.Timestamp): Start date of the data.
+            end (pd.Timestamp): End date of the data.
+            endpoint (str): The API endpoint to use.
+            file_prefix (str): The prefix for the file name.
+
+        Returns:
+            str: The formatted URL.
+        """
+        folder_year = start.strftime("%Y")
+        folder_month = start.strftime("%m")
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}/By_Day/{file_prefix}-{start.strftime('%Y%m%d')}.csv"  # noqa: E501
+
+        return url
 
     def _get_location_list(self, location_type, verbose=False):
         if location_type == LOCATION_TYPE_HUB:

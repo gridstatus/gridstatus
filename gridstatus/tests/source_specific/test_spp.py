@@ -226,6 +226,21 @@ class TestSPP(BaseTestISO):
             ),
         )
 
+    @pytest.mark.integration
+    def test_get_lmp_real_time_5_min_by_location_with_daily_files(self):
+        """Test that we can get LMP data using daily files."""
+        date = self.local_start_of_today() - pd.DateOffset(days=14)
+        df = self.iso.get_lmp_real_time_5_min_by_location(
+            date=date,
+            use_daily_files=True,
+        )
+
+        self._check_lmp_real_time_5_min_by_location(df)
+
+        assert df["Interval Start"].min() == date
+
+        assert df["Interval Start"].max() == date + pd.Timedelta(hours=23, minutes=55)
+
     """get_lmp_real_time_5_min_by_bus"""
 
     def _check_lmp_real_time_5_min_by_bus(self, df):
