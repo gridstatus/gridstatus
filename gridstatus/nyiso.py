@@ -620,7 +620,7 @@ class NYISO(ISOBase):
                 self._get_most_recent_real_time_dispatch_interval()
             )
 
-            # The real time LMP data is interval end
+            # The RTD LMP data is interval end
             rtc_mask = df["Interval End"] > most_recent_rtd_timestamp
 
             df.loc[~rtc_mask, "Market"] = Markets.REAL_TIME_5_MIN.value
