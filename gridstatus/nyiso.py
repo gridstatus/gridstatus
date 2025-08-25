@@ -554,9 +554,9 @@ class NYISO(ISOBase):
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-        market: str | None = None,
+        market: Markets | None = None,
         locations: list | None = None,
-        location_type: str | None = None,
+        location_type: NYISOLocationType | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -618,9 +618,12 @@ class NYISO(ISOBase):
         df["Congestion"] *= -1
         df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
         df["Market"] = market.value
-        df["Location Type"] = (
-            "Zone" if location_type == NYISOLocationType else "Generator"
-        )
+        if location_type == NYISOLocationType.ZONE:
+            df["Location Type"] = "Zone"
+        elif location_type == NYISOLocationType.GENERATOR:
+            df["Location Type"] = "Generator"
+        else:
+            raise ValueError(f"Invalid location_type: {location_type}")
 
         # NYISO includes both RTD and RTC in the same file, so we need to differentiate
         # between them by looking up the most recent real time dispatch interval
