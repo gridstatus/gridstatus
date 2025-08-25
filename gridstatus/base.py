@@ -1,5 +1,5 @@
 import time
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import BinaryIO
 
 import pandas as pd
@@ -26,7 +26,7 @@ class RetiredDataException(Exception):
     pass
 
 
-class Markets(Enum):
+class Markets(StrEnum):
     """Names of LMP Markets"""
 
     REAL_TIME_5_MIN = "REAL_TIME_5_MIN"

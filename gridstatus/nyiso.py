@@ -1,4 +1,5 @@
 import urllib.error
+from enum import StrEnum
 from typing import BinaryIO, Dict, Literal, NamedTuple
 
 import pandas as pd
@@ -16,16 +17,20 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
+
 # NYISO offers LMP data at two locational granularities
 # load zone and point of generator interconnection
-ZONE = "zone"
-GENERATOR = "generator"
+class NYISOLocationType(StrEnum):
+    ZONE = "zone"
+    GENERATOR = "generator"
+
 
 LOAD_DATASET = "pal"
 FUEL_MIX_DATASET = "rtfuelmix"
 LOAD_FORECAST_DATASET = "isolf"
 DAM_LMP_DATASET = "damlbmp"
 REAL_TIME_LMP_DATASET = "realtime"
+REAL_TIME_HOURLY_LMP_DATASET = "rtlbmp"
 REAL_TIME_EVENTS_DATASET = "RealTimeEvents"
 BTM_SOLAR_ACTUAL_DATASET = "btmactualforecast"
 BTM_SOLAR_FORECAST_DATASET = "btmdaforecast"
@@ -52,6 +57,7 @@ DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
     LOAD_FORECAST_DATASET: DatasetInterval("start", 60),
     DAM_LMP_DATASET: DatasetInterval("start", 60),
     REAL_TIME_LMP_DATASET: DatasetInterval("end", 5),
+    REAL_TIME_HOURLY_LMP_DATASET: DatasetInterval("start", 60),
     REAL_TIME_EVENTS_DATASET: DatasetInterval("instantaneous", None),
     BTM_SOLAR_ACTUAL_DATASET: DatasetInterval("start", 60),
     BTM_SOLAR_FORECAST_DATASET: DatasetInterval("start", 60),
@@ -69,7 +75,11 @@ class NYISO(ISOBase):
     name = "New York ISO"
     iso_id = "nyiso"
     default_timezone = "US/Eastern"
-    markets = [Markets.REAL_TIME_5_MIN, Markets.DAY_AHEAD_HOURLY]
+    markets = [
+        Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_HOURLY,
+        Markets.DAY_AHEAD_HOURLY,
+    ]
     status_homepage = "https://www.nyiso.com/system-conditions"
     interconnection_homepage = "https://www.nyiso.com/interconnections"
 
@@ -535,6 +545,7 @@ class NYISO(ISOBase):
             # TODO: add historical RTC data.
             # https://www.nyiso.com/custom-reports?report=ham_lbmp_gen
             Markets.REAL_TIME_15_MIN: ["latest", "today"],
+            Markets.REAL_TIME_HOURLY: ["latest", "today", "historical"],
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
         },
     )
@@ -543,15 +554,16 @@ class NYISO(ISOBase):
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-        market: str | None = None,
+        market: Markets | None = None,
         locations: list | None = None,
-        location_type: str | None = None,
+        location_type: NYISOLocationType | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Supported Markets:
             - ``REAL_TIME_5_MIN`` (RTC)
             - ``REAL_TIME_15_MIN`` (RTD)
+            - ``REAL_TIME_HOURLY`` (Real-time hourly LMP)
             - ``DAY_AHEAD_HOURLY``
 
         Supported Location Types:
@@ -560,6 +572,7 @@ class NYISO(ISOBase):
 
         REAL_TIME_5_MIN is the Real Time Dispatch (RTD) market.
         REAL_TIME_15_MIN is the Real Time Commitment (RTC) market.
+        REAL_TIME_HOURLY is the real-time hourly LMP market.
         For documentation on real time dispatch and real time commitment, see:
         https://www.nyiso.com/documents/20142/1404816/RTC-RTD%20Convergence%20Study.pdf/f3843982-dd30-4c66-6c21-e101c3cb85af
         """
@@ -575,11 +588,11 @@ class NYISO(ISOBase):
             locations = "ALL"
 
         if location_type is None:
-            location_type = ZONE
+            location_type = NYISOLocationType.ZONE
 
         marketname = self._set_marketname(market)
-        location_type = self._set_location_type(location_type)
-        filename = marketname + f"_{location_type}"
+        file_location_type = self._set_location_type_for_filename(location_type)
+        filename = marketname + f"_{file_location_type}"
 
         df = self._download_nyiso_archive(
             date=date,
@@ -605,7 +618,12 @@ class NYISO(ISOBase):
         df["Congestion"] *= -1
         df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
         df["Market"] = market.value
-        df["Location Type"] = "Zone" if location_type == ZONE else "Generator"
+        if location_type == NYISOLocationType.ZONE:
+            df["Location Type"] = "Zone"
+        elif location_type == NYISOLocationType.GENERATOR:
+            df["Location Type"] = "Generator"
+        else:
+            raise ValueError(f"Invalid location_type: {location_type}")
 
         # NYISO includes both RTD and RTC in the same file, so we need to differentiate
         # between them by looking up the most recent real time dispatch interval
@@ -1056,17 +1074,19 @@ class NYISO(ISOBase):
     def _set_marketname(self, market: Markets) -> str:
         if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
             marketname = REAL_TIME_LMP_DATASET
+        elif market == Markets.REAL_TIME_HOURLY:
+            marketname = REAL_TIME_HOURLY_LMP_DATASET
         elif market == Markets.DAY_AHEAD_HOURLY:
             marketname = DAM_LMP_DATASET
         else:
             raise RuntimeError(f"LMP Market {market} is not supported")
         return marketname
 
-    def _set_location_type(self, location_type: str) -> str:
-        location_types = [ZONE, GENERATOR]
-        if location_type == ZONE:
-            return ZONE
-        elif location_type == GENERATOR:
+    def _set_location_type_for_filename(self, location_type: NYISOLocationType) -> str:
+        location_types = [NYISOLocationType.ZONE, NYISOLocationType.GENERATOR]
+        if location_type == NYISOLocationType.ZONE:
+            return NYISOLocationType.ZONE
+        elif location_type == NYISOLocationType.GENERATOR:
             return "gen"
         else:
             raise ValueError(
