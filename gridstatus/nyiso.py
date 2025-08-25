@@ -591,8 +591,8 @@ class NYISO(ISOBase):
             location_type = NYISOLocationType.ZONE
 
         marketname = self._set_marketname(market)
-        location_type = self._set_location_type_for_filename(location_type)
-        filename = marketname + f"_{location_type}"
+        file_location_type = self._set_location_type_for_filename(location_type)
+        filename = marketname + f"_{file_location_type}"
 
         df = self._download_nyiso_archive(
             date=date,
