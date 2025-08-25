@@ -1,4 +1,5 @@
 import urllib.error
+from enum import StrEnum
 from typing import BinaryIO, Dict, Literal, NamedTuple
 
 import pandas as pd
@@ -16,10 +17,13 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
+
 # NYISO offers LMP data at two locational granularities
 # load zone and point of generator interconnection
-ZONE = "zone"
-GENERATOR = "generator"
+class NYISOLocationType(StrEnum):
+    ZONE = "zone"
+    GENERATOR = "generator"
+
 
 LOAD_DATASET = "pal"
 FUEL_MIX_DATASET = "rtfuelmix"
@@ -584,10 +588,10 @@ class NYISO(ISOBase):
             locations = "ALL"
 
         if location_type is None:
-            location_type = ZONE
+            location_type = NYISOLocationType.ZONE
 
         marketname = self._set_marketname(market)
-        location_type = self._set_location_type(location_type)
+        location_type = self._set_location_type_for_filename(location_type)
         filename = marketname + f"_{location_type}"
 
         df = self._download_nyiso_archive(
@@ -614,7 +618,9 @@ class NYISO(ISOBase):
         df["Congestion"] *= -1
         df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
         df["Market"] = market.value
-        df["Location Type"] = "Zone" if location_type == ZONE else "Generator"
+        df["Location Type"] = (
+            "Zone" if location_type == NYISOLocationType else "Generator"
+        )
 
         # NYISO includes both RTD and RTC in the same file, so we need to differentiate
         # between them by looking up the most recent real time dispatch interval
@@ -1073,11 +1079,11 @@ class NYISO(ISOBase):
             raise RuntimeError(f"LMP Market {market} is not supported")
         return marketname
 
-    def _set_location_type(self, location_type: str) -> str:
-        location_types = [ZONE, GENERATOR]
-        if location_type == ZONE:
-            return ZONE
-        elif location_type == GENERATOR:
+    def _set_location_type_for_filename(self, location_type: NYISOLocationType) -> str:
+        location_types = [NYISOLocationType.ZONE, NYISOLocationType.GENERATOR]
+        if location_type == NYISOLocationType.ZONE:
+            return NYISOLocationType.ZONE
+        elif location_type == NYISOLocationType.GENERATOR:
             return "gen"
         else:
             raise ValueError(
