@@ -173,6 +173,7 @@ class TestNYISO(BaseTestISO):
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_HOURLY,
     )
     def test_lmp_date_range(self, market):
         with nyiso_vcr.use_cassette(
@@ -183,6 +184,7 @@ class TestNYISO(BaseTestISO):
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_HOURLY,
         # Markets.REAL_TIME_15_MIN, # Not supported
     )
     def test_get_lmp_historical(self, market):
@@ -194,6 +196,7 @@ class TestNYISO(BaseTestISO):
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_HOURLY,
         Markets.REAL_TIME_15_MIN,
     )
     def test_get_lmp_today(self, market):
@@ -205,6 +208,7 @@ class TestNYISO(BaseTestISO):
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_HOURLY,
         Markets.REAL_TIME_15_MIN,
     )
     def test_get_lmp_latest(self, market):
