@@ -636,17 +636,21 @@ class NYISO(ISOBase):
                 "Location Type",
             ] = "Reference Bus"
 
+        # RTD = Real Time Dispatch - 5 minute intervals
+        # RTC = Real Time Commitment - 15 minute intervals
         # NYISO includes both RTD and RTC in the same file, so we need to differentiate
         # between them by looking up the most recent real time dispatch interval
         # and labeling intervals after that time as RTC intervals.
         if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
             # If there are RTC intervals, we need to differentiate between the markets
-            # for downstream processing. Assume all intervals after the first RTC
+            # for downstream processing. Assume all intervals after the most recent RTD
             # interval are RTC intervals.
+            most_recent_rtd_timestamp = (
+                self._get_most_recent_real_time_dispatch_interval()
+            )
 
-            first_rtc_timestamp = self._get_most_recent_real_time_dispatch_interval()
-
-            rtc_mask = df["Interval Start"] >= first_rtc_timestamp
+            # The RTD LMP data is interval end
+            rtc_mask = df["Interval End"] > most_recent_rtd_timestamp
 
             df.loc[~rtc_mask, "Market"] = Markets.REAL_TIME_5_MIN.value
             df.loc[rtc_mask, "Market"] = Markets.REAL_TIME_15_MIN.value
