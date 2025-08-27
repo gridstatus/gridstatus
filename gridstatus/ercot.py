@@ -866,6 +866,7 @@ class Ercot(ISOBase):
                 df["Interval End"] = df["Interval End"].dt.tz_localize(
                     self.default_timezone,
                     ambiguous=True,
+                    nonexistent="shift_forward",
                 )
         else:
             df["Interval End"] = df["Interval End"].astype(str)
@@ -879,6 +880,7 @@ class Ercot(ISOBase):
             df["Interval End"] = df["Interval End"].dt.tz_localize(
                 self.default_timezone,
                 ambiguous=True,
+                nonexistent="shift_forward",
             )
 
             # This is where we add the day to the 24:00 hour intervals
