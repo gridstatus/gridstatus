@@ -59,7 +59,7 @@ from gridstatus.ercot_constants import (
     WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_COLUMNS,
 )
-from gridstatus.gs_logging import log, logger
+from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
 LOCATION_TYPE_HUB = "Trading Hub"
@@ -708,8 +708,7 @@ class Ercot(ISOBase):
         return df
 
     def _read_html_display(self, url: str, verbose: bool = False) -> pd.DataFrame:
-        msg = f"Fetching {url}"
-        log(msg, verbose)
+        logger.info(f"Fetching {url}")
 
         dfs = pd.read_html(url, header=0)
         df = dfs[0]
@@ -750,10 +749,181 @@ class Ercot(ISOBase):
 
         return df
 
-    def _get_supply_demand_json(self, verbose: bool = False) -> dict:
+    @support_date_range(frequency=None)
+    def get_ercot_hourly_load_post_settlements(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get historical hourly load data from ERCOT's load archives.
+
+        Downloads zip files from https://www.ercot.com/gridinfo/load/load_hist
+        and parses the historical load data by weather zones.
+
+        Arguments:
+            date (str, datetime): Year to download data for
+            end (str, datetime): Not used for this method
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame
+        """
+        year = pd.to_datetime(date).year
+
+        logger.info(f"Fetching historical load data for year {year}")
+        df = self._download_ercot_historical_load(year)
+
+        return df
+
+    def _download_ercot_historical_load(
+        self,
+        year: int,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Download and parse ERCOT historical load data for a specific year."""
+
+        page_url = "https://www.ercot.com/gridinfo/load/load_hist"
+
+        logger.info(f"Fetching page: {page_url}")
+
+        response = requests.get(page_url)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        year_link = None
+        for link in soup.find_all("a"):
+            href = link.get("href", "")
+            text = link.get_text(strip=True)
+            if str(year) in text and (
+                "zip" in href.lower() or "xls" in href.lower() or "txt" in href.lower()
+            ):
+                year_link = href
+                break
+
+        if not year_link:
+            raise ValueError(f"Could not find download link for year {year}")
+
+        if year_link.startswith("/"):
+            year_link = f"https://www.ercot.com{year_link}"
+        elif not year_link.startswith("http"):
+            year_link = f"https://www.ercot.com/{year_link}"
+
+        logger.info(f"Downloading from: {year_link}")
+
+        if year_link.endswith(".zip"):
+            df = self._parse_ercot_load_zip(year_link, year)
+        elif year_link.endswith(".xls") or year_link.endswith(".xlsx"):
+            df = self._parse_ercot_load_excel(year_link, year)
+        elif year_link.endswith(".txt"):
+            df = self._parse_ercot_load_txt(year_link, year)
+        else:
+            raise ValueError(f"Unsupported file format: {year_link}")
+
+        return df
+
+    def _parse_ercot_load_zip(self, url: str, year: int) -> pd.DataFrame:
+        """Parse ERCOT load data from a zip file."""
+
+        zip_file = utils.get_zip_folder(url)
+
+        csv_files = [f for f in zip_file.namelist() if f.endswith((".csv", ".CSV"))]
+        excel_files = [
+            f
+            for f in zip_file.namelist()
+            if f.endswith((".xls", ".xlsx", ".XLS", ".XLSX"))
+        ]
+
+        if csv_files:
+            df = pd.read_csv(zip_file.open(csv_files[0]))
+        elif excel_files:
+            df = pd.read_excel(zip_file.open(excel_files[0]))
+        else:
+            raise ValueError("No CSV or Excel files found in zip archive")
+
+        return self._process_ercot_load_data(df, year)
+
+    def _parse_ercot_load_excel(self, url: str, year: int) -> pd.DataFrame:
+        """Parse ERCOT load data from an Excel file."""
+
+        response = requests.get(url)
+        response.raise_for_status()
+
+        df = pd.read_excel(io.BytesIO(response.content))
+        return self._process_ercot_load_data(df, year)
+
+    def _process_ercot_load_data(self, df: pd.DataFrame, year: int) -> pd.DataFrame:
+        """Process and standardize ERCOT load data."""
+        logger.info(f"Processing data with columns: {list(df.columns)}")
+
+        df.columns = df.columns.str.strip()
+
+        column_mapping = {
+            "HOUR_ENDING": "HOUR_ENDING",
+            "COAST": "Coast",
+            "EAST": "East",
+            "FWEST": "Far West",
+            "NORTH": "North",
+            "NCENT": "North Central",
+            "SOUTH": "South",
+            "SCENT": "South Central",
+            "WEST": "West",
+            "ERCOT": "ERCOT",
+        }
+
+        existing_columns = [col for col in column_mapping.keys() if col in df.columns]
+        rename_dict = {col: column_mapping[col] for col in existing_columns}
+        df = df.rename(columns=rename_dict)
+
+        df["Interval End"] = pd.to_datetime(df["HOUR_ENDING"])
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
+        df = df.drop(columns=["HOUR_ENDING"])
+
+        numeric_columns = [
+            "Coast",
+            "East",
+            "Far West",
+            "North",
+            "North Central",
+            "South",
+            "South Central",
+            "West",
+            "ERCOT",
+        ]
+
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(
+                    df[col].astype(str).str.replace(",", ""),
+                    errors="coerce",
+                )
+
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Coast",
+            "East",
+            "Far West",
+            "North",
+            "North Central",
+            "South",
+            "South Central",
+            "West",
+            "ERCOT",
+        ]
+
+        final_columns = [col for col in expected_columns if col in df.columns]
+        df = df[final_columns]
+
+        if "Interval Start" in df.columns:
+            df = df.sort_values("Interval Start").reset_index(drop=True)
+
+        return df
+
+    def _get_supply_demand_json(self) -> dict:
         url = self.BASE + "/supply-demand.json"
-        msg = f"Fetching {url}"
-        log(msg, verbose)
+        logger.info(f"Fetching {url}")
 
         return self._get_json(url)
 
@@ -1102,8 +1272,7 @@ class Ercot(ISOBase):
             constructed_name_contains="GIS_Report",
             verbose=verbose,
         )
-        msg = f"Downloading interconnection queue from: {doc_info.url} "
-        log(msg, verbose)
+        logger.info(f"Downloading interconnection queue from: {doc_info.url} ")
         response = requests.get(doc_info.url)
         return utils.get_response_blob(response)
 
@@ -1589,8 +1758,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        msg = f"Downloading {doc_info.url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {doc_info.url}")
 
         doc = self.read_doc(doc_info, verbose=verbose)
 
@@ -1632,8 +1800,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        msg = f"Downloading {doc_info.url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {doc_info.url}")
 
         doc = self.read_doc(doc_info, verbose=verbose).drop(columns=["Time"])
         doc["Publish Time"] = doc_info.publish_date
@@ -1813,7 +1980,7 @@ class Ercot(ISOBase):
         smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
 
         if process:
-            log("Processing 60 day SCED disclosure data", verbose=verbose)
+            logger.info("Processing 60 day SCED disclosure data")
             load_resource = process_sced_load(load_resource)
             gen_resource = process_sced_gen(gen_resource)
             smne = smne.rename(
@@ -1953,7 +2120,7 @@ class Ercot(ISOBase):
 
         # only reading SummerCapacities right now
         # TODO: parse more sheets
-        log("Getting SARA data from {}".format(url), verbose=verbose)
+        logger.info(f"Getting SARA data from {url}")
         df = pd.read_excel(url, sheet_name="SummerCapacities", header=1)
 
         # drop cols Unnamed: 0
@@ -2090,8 +2257,8 @@ class Ercot(ISOBase):
 
         return df
 
-    def _download_html_table(self, url: str, verbose: bool = False) -> pd.DataFrame:
-        log(f"Downloading {url}", verbose)
+    def _download_html_table(self, url: str) -> pd.DataFrame:
+        logger.info(f"Downloading {url}")
 
         html = requests.get(url).content
 
@@ -2345,7 +2512,7 @@ class Ercot(ISOBase):
         constantly updated. There is no historical data.
         """
 
-        log("Downloading ERCOT reported outages data", verbose=verbose)
+        logger.info("Downloading ERCOT reported outages data")
 
         json = requests.get(
             "https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json",  # noqa: E501
@@ -2895,7 +3062,7 @@ class Ercot(ISOBase):
             desc="Reading SCED System Lambda files",
             disable=not verbose,
         ):
-            log(f"Reading {doc.url}", verbose)
+            logger.info(f"Reading {doc.url}")
             df = pd.read_csv(doc.url, compression="zip")
             all_dfs.append(df)
 
@@ -3567,8 +3734,7 @@ class Ercot(ISOBase):
         )
         doc_url = doc_info.url
 
-        msg = f"Fetching {doc_url}"
-        log(msg, verbose)
+        logger.info(f"Fetching {doc_url}")
 
         r = requests.get(doc_url)
         z = ZipFile(io.BytesIO(r.content))
