@@ -315,17 +315,19 @@ class TestNYISO(BaseTestISO):
             )
             assert (df_zone["Location Type"] == "Zone").all()
 
-    @pytest.mark.parametrize(
-        "date",
-        ["2022-06-09"],
+    @with_markets(
+        Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_HOURLY,
     )
-    def test_get_lmp_location_type_generator_historical_date(self, date):
+    def test_get_lmp_location_type_generator_historical_date(self, market):
+        date = "2022-06-08"
         with nyiso_vcr.use_cassette(
             f"test_get_lmp_location_type_parameter_{date}.yaml",
         ):
             df_gen = self.iso.get_lmp(
                 date=date,
-                market=Markets.DAY_AHEAD_HOURLY,
+                market=market,
                 location_type="generator",
             )
             assert list(df_gen["Location Type"].unique()) == [
@@ -333,13 +335,19 @@ class TestNYISO(BaseTestISO):
                 "Reference Bus",
             ]
 
-    def test_get_lmp_location_type_generator_today(self):
+    @with_markets(
+        Markets.DAY_AHEAD_HOURLY,
+        Markets.REAL_TIME_5_MIN,
+        Markets.REAL_TIME_HOURLY,
+        Markets.REAL_TIME_15_MIN,
+    )
+    def test_get_lmp_location_type_generator_today(self, market):
         with nyiso_vcr.use_cassette(
             "test_get_lmp_location_type_generator_today.yaml",
         ):
             df_gen = self.iso.get_lmp(
                 date="today",
-                market=Markets.DAY_AHEAD_HOURLY,
+                market=market,
                 location_type="generator",
             )
             assert list(df_gen["Location Type"].unique()) == [
