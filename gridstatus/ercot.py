@@ -779,7 +779,6 @@ class Ercot(ISOBase):
     def _download_ercot_historical_load(
         self,
         year: int,
-        verbose: bool = False,
     ) -> pd.DataFrame:
         """Download and parse ERCOT historical load data for a specific year."""
 
