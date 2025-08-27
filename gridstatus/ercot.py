@@ -769,6 +769,9 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame
         """
+        if date == "latest":
+            return self.get_hourly_load_post_settlements("today", verbose=verbose)
+
         date = utils._handle_date(date, self.default_timezone)
         end = utils._handle_date(end, self.default_timezone)
         start_year = date.year
