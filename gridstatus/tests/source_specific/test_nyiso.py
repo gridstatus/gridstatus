@@ -328,7 +328,10 @@ class TestNYISO(BaseTestISO):
                 market=Markets.DAY_AHEAD_HOURLY,
                 location_type="generator",
             )
-            assert (df_gen["Location Type"] == "Generator").all()
+            assert list(df_gen["Location Type"].unique()) == [
+                "Generator",
+                "Reference Bus",
+            ]
 
     def test_get_lmp_location_type_generator_today(self):
         with nyiso_vcr.use_cassette(
@@ -339,7 +342,10 @@ class TestNYISO(BaseTestISO):
                 market=Markets.DAY_AHEAD_HOURLY,
                 location_type="generator",
             )
-            assert (df_gen["Location Type"] == "Generator").all()
+            assert list(df_gen["Location Type"].unique()) == [
+                "Generator",
+                "Reference Bus",
+            ]
 
     def test_get_lmp_location_type_generator_latest(self):
         with nyiso_vcr.use_cassette(
@@ -350,7 +356,10 @@ class TestNYISO(BaseTestISO):
                 market=Markets.DAY_AHEAD_HOURLY,
                 location_type="generator",
             )
-            assert (df_gen["Location Type"] == "Generator").all()
+            assert list(df_gen["Location Type"].unique()) == [
+                "Generator",
+                "Reference Bus",
+            ]
 
     @pytest.mark.parametrize(
         "date,market,location_type",
