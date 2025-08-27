@@ -777,11 +777,9 @@ class Ercot(ISOBase):
 
         date = utils._handle_date(date, self.default_timezone)
         end = utils._handle_date(end, self.default_timezone)
-        start_year = date.year
-        end_year = end.year if end else start_year
 
         logger.info(
-            f"Fetching historical load data for years {start_year} to {end_year}",
+            f"Fetching historical load data for year {date.year}",
         )
 
         df = self._download_post_settlements_load_file(date.year)
