@@ -769,120 +769,77 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame
         """
-        if isinstance(date, tuple):
-            start, end = date
-            year = pd.to_datetime(start).year
-            end_year = pd.to_datetime(end).year
-        else:
-            year = pd.to_datetime(date).year
-            end_year = year
+        date = utils._handle_date(date, self.default_timezone)
+        end = utils._handle_date(end, self.default_timezone)
+        start_year = date.year
+        end_year = end.year if end else start_year
 
-        logger.info(f"Fetching historical load data for years {year} to {end_year}")
+        logger.info(
+            f"Fetching historical load data for years {start_year} to {end_year}",
+        )
 
         all_dfs = []
-        for year in range(year, end_year + 1):
-            try:
-                df = self._download_ercot_historical_load(year)
-                if df is not None and not df.empty:
-                    all_dfs.append(df)
-            except Exception as e:
-                logger.warning(f"Failed to get data for year {year}: {e}")
-                continue
+        for year in range(start_year, end_year + 1):
+            logger.info(f"Processing year {year}...")
+            df = self._download_ercot_load_post_settlements_file(year)
+            all_dfs.append(df)
+            logger.info(f"Successfully processed year {year}, got {len(df)} rows")
+        combined_df = pd.concat(all_dfs, ignore_index=True)
 
-        if not all_dfs:
-            raise ValueError("No data could be retrieved for the specified date range")
+        mask = (combined_df["Interval Start"] >= date) & (
+            combined_df["Interval Start"] < end
+        )
+        filtered_df = combined_df[mask].reset_index(drop=True)
 
-        return pd.concat(all_dfs, ignore_index=True)
+        return filtered_df
 
-    def _download_ercot_historical_load(
+    def _download_ercot_load_post_settlements_file(
         self,
         year: int,
     ) -> pd.DataFrame:
         """Download and parse ERCOT historical load data for a specific year."""
 
         page_url = "https://www.ercot.com/gridinfo/load/load_hist"
-
-        logger.info(f"Fetching page: {page_url}")
-
         response = requests.get(page_url)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.content, "html.parser")
-
         year_link = None
+
         for link in soup.find_all("a"):
             href = link.get("href", "")
             text = link.get_text(strip=True)
-            if str(year) in text and (
-                "zip" in href.lower() or "xls" in href.lower() or "txt" in href.lower()
-            ):
+            if str(year) in text and ("zip" in href.lower() or "xls" in href.lower()):
                 year_link = href
                 break
 
-        if not year_link:
-            raise ValueError(f"Could not find download link for year {year}")
-
-        if year_link.startswith("/"):
-            year_link = f"https://www.ercot.com{year_link}"
-        elif not year_link.startswith("http"):
-            year_link = f"https://www.ercot.com/{year_link}"
-
-        logger.info(f"Downloading from: {year_link}")
-
         if year_link.endswith(".zip"):
-            df = self._parse_ercot_load_zip(year_link, year)
+            zip_file = utils.get_zip_folder(year_link)
+            filename = zip_file.namelist()[0]
+            df = pd.read_excel(zip_file.open(filename))
         elif year_link.endswith(".xls") or year_link.endswith(".xlsx"):
-            df = self._parse_ercot_load_excel(year_link, year)
-        elif year_link.endswith(".txt"):
-            df = self._parse_ercot_load_txt(year_link, year)
-        else:
-            raise ValueError(f"Unsupported file format: {year_link}")
+            response = requests.get(year_link)
+            response.raise_for_status()
+            df = pd.read_excel(io.BytesIO(response.content))
+        df = self._process_ercot_post_settlements_load_data(df)
 
         return df
 
-    def _parse_ercot_load_zip(self, url: str, year: int) -> pd.DataFrame:
-        """Parse ERCOT load data from a zip file."""
-
-        zip_file = utils.get_zip_folder(url)
-
-        csv_files = [f for f in zip_file.namelist() if f.endswith((".csv", ".CSV"))]
-        excel_files = [
-            f
-            for f in zip_file.namelist()
-            if f.endswith((".xls", ".xlsx", ".XLS", ".XLSX"))
-        ]
-
-        if csv_files:
-            df = pd.read_csv(zip_file.open(csv_files[0]))
-        elif excel_files:
-            df = pd.read_excel(zip_file.open(excel_files[0]))
-        else:
-            raise ValueError("No CSV or Excel files found in zip archive")
-
-        return self._process_ercot_load_data(df, year)
-
-    def _parse_ercot_load_excel(self, url: str, year: int) -> pd.DataFrame:
-        """Parse ERCOT load data from an Excel file."""
-
-        response = requests.get(url)
-        response.raise_for_status()
-
-        df = pd.read_excel(io.BytesIO(response.content))
-        return self._process_ercot_load_data(df, year)
-
-    def _process_ercot_load_data(self, df: pd.DataFrame, year: int) -> pd.DataFrame:
-        """Process and standardize ERCOT load data."""
-        logger.info(f"Processing data with columns: {list(df.columns)}")
-
+    def _process_ercot_post_settlements_load_data(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         df.columns = df.columns.str.strip()
 
         column_mapping = {
             "HOUR_ENDING": "Interval End",
             "Hour Ending": "Interval End",
             "Hour_End": "Interval End",
+            "HourEnding": "Interval End",
             "COAST": "Coast",
             "EAST": "East",
             "FWEST": "Far West",
+            "FAR_WEST": "Far West",
             "NORTH": "North",
             "NCENT": "North Central",
             "NORTH_C": "North Central",
@@ -892,43 +849,38 @@ class Ercot(ISOBase):
             "SOUTH_C": "South Central",
             "WEST": "West",
             "ERCOT": "ERCOT",
+            "TOTAL": "ERCOT",
         }
 
         existing_columns = [col for col in column_mapping.keys() if col in df.columns]
         rename_dict = {col: column_mapping[col] for col in existing_columns}
         df = df.rename(columns=rename_dict)
 
-        # Handle "24:00" which should be "00:00" of next day before parsing
-        df["Interval End"] = df["Interval End"].str.replace(" 24:00", " 00:00")
+        if pd.api.types.is_datetime64_any_dtype(df["Interval End"]):
+            if df["Interval End"].dt.tz is not None:
+                df["Interval End"] = df["Interval End"].dt.tz_convert(
+                    self.default_timezone,
+                )
+            else:
+                df["Interval End"] = df["Interval End"].dt.round("h")
+                df["Interval End"] = df["Interval End"].dt.tz_localize("UTC")
+                df["Interval End"] = df["Interval End"].dt.tz_convert(
+                    self.default_timezone,
+                )
+        else:
+            df["Interval End"] = df["Interval End"].astype(str)
+            df["Interval End"] = df["Interval End"].str.replace(" 24:00", " 00:00")
+            df["Interval End"] = df["Interval End"].str.replace(" DST", "")
+            df["Interval End"] = pd.to_datetime(df["Interval End"], errors="coerce")
+            df["Interval End"] = df["Interval End"].dt.round("h")
+            df["Interval End"] = df["Interval End"].dt.tz_localize("UTC")
+            df["Interval End"] = df["Interval End"].dt.tz_convert(self.default_timezone)
 
-        # Create a mask for DST rows and clean the data
-        dst_mask = df["Interval End"].str.contains(" DST", na=False)
-        df["Interval End"] = df["Interval End"].str.replace(" DST", "")
-
-        # Parse the datetime
-        df["Interval End"] = pd.to_datetime(df["Interval End"], format="%m/%d/%Y %H:%M")
-
-        # Apply timezone - DST rows get US/Central, others get UTC initially
-        df["Interval End"] = df["Interval End"].dt.tz_localize("UTC")
-
-        # Convert DST rows to US/Central timezone
-        df.loc[dst_mask, "Interval End"] = df.loc[
-            dst_mask,
-            "Interval End",
-        ].dt.tz_convert(self.default_timezone)
-
-        # Convert non-DST rows to US/Central timezone
-        df.loc[~dst_mask, "Interval End"] = df.loc[
-            ~dst_mask,
-            "Interval End",
-        ].dt.tz_convert(self.default_timezone)
-
-        # Add one day to rows that originally had "24:00"
-        mask_24_hour = df["Interval End"].dt.hour == 0
-        df.loc[mask_24_hour, "Interval End"] = df.loc[
-            mask_24_hour,
-            "Interval End",
-        ] + pd.Timedelta(days=1)
+            mask_24_hour = df["Interval End"].dt.hour == 0
+            df.loc[mask_24_hour, "Interval End"] = df.loc[
+                mask_24_hour,
+                "Interval End",
+            ] + pd.Timedelta(days=1)
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
 
@@ -964,14 +916,7 @@ class Ercot(ISOBase):
             "West",
             "ERCOT",
         ]
-
-        final_columns = [col for col in expected_columns if col in df.columns]
-        df = df[final_columns]
-
-        if "Interval Start" in df.columns:
-            df = df.sort_values("Interval Start").reset_index(drop=True)
-
-        return df
+        return df[expected_columns].sort_values("Interval Start").reset_index(drop=True)
 
     def _get_supply_demand_json(self) -> dict:
         url = self.BASE + "/supply-demand.json"
