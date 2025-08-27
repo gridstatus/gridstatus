@@ -864,23 +864,25 @@ class Ercot(ISOBase):
                 )
         else:
             df["Interval End"] = df["Interval End"].astype(str)
+
+            # Track which rows had 24:00 before any conversion
+            mask_was_24_hour = df["Interval End"].str.contains(" 24:00")
+
             df["Interval End"] = df["Interval End"].str.replace(" 24:00", " 00:00")
             df["Interval End"] = df["Interval End"].str.replace(" DST", "")
             df["Interval End"] = pd.to_datetime(df["Interval End"], errors="coerce")
             df["Interval End"] = df["Interval End"].dt.round("h")
-
-            # Add day to 24:00 intervals before timezone localization to avoid DST conflicts
-            mask_24_hour = df["Interval End"].dt.hour == 0
-            df.loc[mask_24_hour, "Interval End"] = df.loc[
-                mask_24_hour,
-                "Interval End",
-            ] + pd.Timedelta(days=1)
-
             df["Interval End"] = df["Interval End"].dt.tz_localize(
                 self.default_timezone,
                 ambiguous=True,
                 nonexistent="shift_forward",
             )
+
+            # Add day only to the rows that originally had 24:00, after timezone localization
+            df.loc[mask_was_24_hour, "Interval End"] = df.loc[
+                mask_was_24_hour,
+                "Interval End",
+            ] + pd.Timedelta(days=1)
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
 
