@@ -749,7 +749,7 @@ class Ercot(ISOBase):
 
         return df
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="YEAR_START")
     def get_hourly_load_post_settlements(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -762,15 +762,18 @@ class Ercot(ISOBase):
         and parses the historical load data by weather zones.
 
         Arguments:
-            date (str, datetime): Year to download data for
-            end (str, datetime): Not used for this method
+            date (str, datetime): Year to download data for, or "latest" for most recent data
+            end (str, datetime): End date for range, or None for single date
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
             pandas.DataFrame
         """
         if date == "latest":
-            return self.get_hourly_load_post_settlements("today", verbose=verbose)
+            # NB: Gets the most recent year available, since they are published as annual files
+            current_year = pd.Timestamp.now().year
+            date = pd.Timestamp(f"{current_year}-01-01")
+            end = pd.Timestamp(f"{current_year}-12-31")
 
         date = utils._handle_date(date, self.default_timezone)
         end = utils._handle_date(end, self.default_timezone)
@@ -781,18 +784,11 @@ class Ercot(ISOBase):
             f"Fetching historical load data for years {start_year} to {end_year}",
         )
 
-        all_dfs = []
-        for year in range(start_year, end_year + 1):
-            logger.info(f"Processing year {year}...")
-            df = self._download_post_settlements_load_file(year)
-            all_dfs.append(df)
-            logger.info(f"Successfully processed year {year}, got {len(df)} rows")
-        combined_df = pd.concat(all_dfs, ignore_index=True)
+        df = self._download_post_settlements_load_file(date.year)
+        logger.info(f"Successfully processed year {date.year}, got {len(df)} rows")
 
-        mask = (combined_df["Interval Start"] >= date) & (
-            combined_df["Interval Start"] < end
-        )
-        filtered_df = combined_df[mask].reset_index(drop=True)
+        mask = (df["Interval Start"] >= date) & (df["Interval Start"] < end)
+        filtered_df = df[mask].reset_index(drop=True)
 
         return filtered_df
 
@@ -834,6 +830,10 @@ class Ercot(ISOBase):
     ) -> pd.DataFrame:
         df.columns = df.columns.str.strip()
 
+        # Not all of these columns are in all of the files,
+        # but this process ignores the ones that aren't so we can
+        # just maintain one list and not have a bunch of if/else
+        # to parse the columns that are there.
         column_mapping = {
             "HOUR_ENDING": "Interval End",
             "Hour Ending": "Interval End",
