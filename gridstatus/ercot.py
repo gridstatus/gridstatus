@@ -769,12 +769,30 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame
         """
-        year = pd.to_datetime(date).year
+        if isinstance(date, tuple):
+            start, end = date
+            year = pd.to_datetime(start).year
+            end_year = pd.to_datetime(end).year
+        else:
+            year = pd.to_datetime(date).year
+            end_year = year
 
-        logger.info(f"Fetching historical load data for year {year}")
-        df = self._download_ercot_historical_load(year)
+        logger.info(f"Fetching historical load data for years {year} to {end_year}")
 
-        return df
+        all_dfs = []
+        for year in range(year, end_year + 1):
+            try:
+                df = self._download_ercot_historical_load(year)
+                if df is not None and not df.empty:
+                    all_dfs.append(df)
+            except Exception as e:
+                logger.warning(f"Failed to get data for year {year}: {e}")
+                continue
+
+        if not all_dfs:
+            raise ValueError("No data could be retrieved for the specified date range")
+
+        return pd.concat(all_dfs, ignore_index=True)
 
     def _download_ercot_historical_load(
         self,
@@ -859,14 +877,19 @@ class Ercot(ISOBase):
         df.columns = df.columns.str.strip()
 
         column_mapping = {
-            "HOUR_ENDING": "HOUR_ENDING",
+            "HOUR_ENDING": "Interval End",
+            "Hour Ending": "Interval End",
+            "Hour_End": "Interval End",
             "COAST": "Coast",
             "EAST": "East",
             "FWEST": "Far West",
             "NORTH": "North",
             "NCENT": "North Central",
+            "NORTH_C": "North Central",
             "SOUTH": "South",
+            "SOUTHERN": "South",
             "SCENT": "South Central",
+            "SOUTH_C": "South Central",
             "WEST": "West",
             "ERCOT": "ERCOT",
         }
@@ -875,9 +898,39 @@ class Ercot(ISOBase):
         rename_dict = {col: column_mapping[col] for col in existing_columns}
         df = df.rename(columns=rename_dict)
 
-        df["Interval End"] = pd.to_datetime(df["HOUR_ENDING"])
+        # Handle "24:00" which should be "00:00" of next day before parsing
+        df["Interval End"] = df["Interval End"].str.replace(" 24:00", " 00:00")
+
+        # Create a mask for DST rows and clean the data
+        dst_mask = df["Interval End"].str.contains(" DST", na=False)
+        df["Interval End"] = df["Interval End"].str.replace(" DST", "")
+
+        # Parse the datetime
+        df["Interval End"] = pd.to_datetime(df["Interval End"], format="%m/%d/%Y %H:%M")
+
+        # Apply timezone - DST rows get US/Central, others get UTC initially
+        df["Interval End"] = df["Interval End"].dt.tz_localize("UTC")
+
+        # Convert DST rows to US/Central timezone
+        df.loc[dst_mask, "Interval End"] = df.loc[
+            dst_mask,
+            "Interval End",
+        ].dt.tz_convert(self.default_timezone)
+
+        # Convert non-DST rows to US/Central timezone
+        df.loc[~dst_mask, "Interval End"] = df.loc[
+            ~dst_mask,
+            "Interval End",
+        ].dt.tz_convert(self.default_timezone)
+
+        # Add one day to rows that originally had "24:00"
+        mask_24_hour = df["Interval End"].dt.hour == 0
+        df.loc[mask_24_hour, "Interval End"] = df.loc[
+            mask_24_hour,
+            "Interval End",
+        ] + pd.Timedelta(days=1)
+
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
-        df = df.drop(columns=["HOUR_ENDING"])
 
         numeric_columns = [
             "Coast",
