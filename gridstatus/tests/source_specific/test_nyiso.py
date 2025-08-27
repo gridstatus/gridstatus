@@ -278,6 +278,24 @@ class TestNYISO(BaseTestISO):
             )
             assert df.shape[0] >= 0
 
+    def test_date_with_malformed_columns(self):
+        date = "1999-12-30"
+
+        df = self.iso.get_lmp(date=date, market=Markets.REAL_TIME_HOURLY)
+
+        assert list(df.columns) == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
     @pytest.mark.parametrize(
         "date",
         ["2022-06-09"],

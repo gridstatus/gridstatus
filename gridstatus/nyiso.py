@@ -611,6 +611,7 @@ class NYISO(ISOBase):
             "LBMP ($/MWHr)": "LMP",
             "Marginal Cost Losses ($/MWHr)": "Loss",
             "Marginal Cost Congestion ($/MWHr)": "Congestion",
+            "Marginal Cost Congestion ($/MWH": "Congestion",  # Deal with older data
         }
 
         df = df.rename(columns=columns)
