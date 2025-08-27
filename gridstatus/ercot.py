@@ -773,7 +773,7 @@ class Ercot(ISOBase):
             # NB: Gets the most recent year available, since they are published as annual files
             current_year = pd.Timestamp.now().year
             date = pd.Timestamp(f"{current_year}-01-01")
-            end = pd.Timestamp(f"{current_year}-12-31")
+            end = pd.Timestamp(f"{current_year + 1}-01-01")
 
         date = utils._handle_date(date, self.default_timezone)
         end = utils._handle_date(end, self.default_timezone)
@@ -781,14 +781,7 @@ class Ercot(ISOBase):
         logger.info(
             f"Fetching historical load data for year {date.year}",
         )
-
-        df = self._download_post_settlements_load_file(date.year)
-        logger.info(f"Successfully processed year {date.year}, got {len(df)} rows")
-
-        mask = (df["Interval Start"] >= date) & (df["Interval Start"] < end)
-        filtered_df = df[mask].reset_index(drop=True)
-
-        return filtered_df
+        return self._download_post_settlements_load_file(date.year)
 
     def _download_post_settlements_load_file(
         self,
