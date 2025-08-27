@@ -750,7 +750,7 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_ercot_hourly_load_post_settlements(
+    def get_hourly_load_post_settlements(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -781,7 +781,7 @@ class Ercot(ISOBase):
         all_dfs = []
         for year in range(start_year, end_year + 1):
             logger.info(f"Processing year {year}...")
-            df = self._download_ercot_load_post_settlements_file(year)
+            df = self._download_post_settlements_load_file(year)
             all_dfs.append(df)
             logger.info(f"Successfully processed year {year}, got {len(df)} rows")
         combined_df = pd.concat(all_dfs, ignore_index=True)
@@ -793,7 +793,7 @@ class Ercot(ISOBase):
 
         return filtered_df
 
-    def _download_ercot_load_post_settlements_file(
+    def _download_post_settlements_load_file(
         self,
         year: int,
     ) -> pd.DataFrame:
@@ -821,11 +821,11 @@ class Ercot(ISOBase):
             response = requests.get(year_link)
             response.raise_for_status()
             df = pd.read_excel(io.BytesIO(response.content))
-        df = self._process_ercot_post_settlements_load_data(df)
+        df = self._process_post_settlements_load_data(df)
 
         return df
 
-    def _process_ercot_post_settlements_load_data(
+    def _process_post_settlements_load_data(
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
