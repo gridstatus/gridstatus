@@ -614,6 +614,22 @@ class NYISO(ISOBase):
             "Marginal Cost Congestion ($/MWH": "Congestion",  # Deal with older data
         }
 
+        if (
+            "Marginal Cost Congestion ($/MWH" in df.columns
+            and "Marginal Cost Congestion ($/MWHr)" in df.columns
+        ):
+            df["Congestion"] = df["Marginal Cost Congestion ($/MWHr)"].combine_first(
+                df["Marginal Cost Congestion ($/MWH"],
+            )
+
+            # Then drop the old columns
+            df = df.drop(
+                columns=[
+                    "Marginal Cost Congestion ($/MWHr)",
+                    "Marginal Cost Congestion ($/MWH",
+                ],
+            )
+
         df = df.rename(columns=columns)
 
         # In NYISO raw data, a negative congestion number means a higher LMP. We
