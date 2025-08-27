@@ -3,7 +3,7 @@ import io
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
+from typing import BinaryIO, Callable, List
 from zipfile import ZipFile
 
 import pandas as pd
@@ -269,7 +269,7 @@ class Document:
     friendly_name_timestamp: pd.Timestamp
 
 
-def parse_timestamp_from_friendly_name(friendly_name):
+def parse_timestamp_from_friendly_name(friendly_name: str) -> pd.Timestamp:
     parts = friendly_name.replace("_retry", "").split("_")
     date_str = parts[1]
     time_str = parts[2]
@@ -322,7 +322,11 @@ class Ercot(ISOBase):
     ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_weather_zones.html"  # noqa
     LOAD_HISTORICAL_MAX_DAYS = 14
 
-    def get_status(self, date, verbose=False):
+    def get_status(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns status of grid"""
         if date != "latest":
             raise NotSupported()
@@ -350,7 +354,11 @@ class Ercot(ISOBase):
             notes=notes,
         )
 
-    def get_energy_storage_resources(self, date="latest", verbose=False):
+    def get_energy_storage_resources(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get energy storage resources.
         Always returns data from previous and current day"""
         url = self.BASE + "/energy-storage-resources.json"
@@ -358,7 +366,7 @@ class Ercot(ISOBase):
 
         df = pd.DataFrame(data["previousDay"]["data"] + data["currentDay"]["data"])
 
-        # todo(kanter): fix this for future DST dates
+        # TODO(kanter): fix this for future DST dates
         if "2024-11-03 02:00:00-0600" in df["timestamp"].values:
             # ERCOT publishes two intervals with 2am timestamp
             # during CDT to CST transition
@@ -392,7 +400,11 @@ class Ercot(ISOBase):
         df = df.sort_values("Time").reset_index(drop=True)
         return df
 
-    def get_fuel_mix(self, date, verbose=False):
+    def get_fuel_mix(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get fuel mix 5 minute intervals
 
         Arguments:
@@ -543,7 +555,12 @@ class Ercot(ISOBase):
         )
 
     @support_date_range("DAY_START")
-    def get_load(self, date, end=None, verbose=False):
+    def get_load(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get load for a date
 
         Arguments:
@@ -574,7 +591,11 @@ class Ercot(ISOBase):
             raise NotSupported()
 
     @support_date_range("DAY_START")
-    def get_load_by_weather_zone(self, date, verbose=False):
+    def get_load_by_weather_zone(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get hourly load for ERCOT weather zones
 
         Arguments:
@@ -625,7 +646,11 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range("DAY_START")
-    def get_load_by_forecast_zone(self, date, verbose=False):
+    def get_load_by_forecast_zone(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get hourly load for ERCOT forecast zones
 
         Arguments:
@@ -655,7 +680,11 @@ class Ercot(ISOBase):
             df = self.read_doc(doc_info, verbose=verbose)
         return df
 
-    def _get_forecast_zone_load_html(self, when, verbose=False):
+    def _get_forecast_zone_load_html(
+        self,
+        when: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns load for currentDay or previousDay"""
         url = self.ACTUAL_LOADS_FORECAST_ZONES_URL_FORMAT.format(
             timestamp=when.strftime("%Y%m%d"),
@@ -663,7 +692,11 @@ class Ercot(ISOBase):
         df = self._read_html_display(url=url, verbose=verbose)
         return df
 
-    def _get_weather_zone_load_html(self, when, verbose=False):
+    def _get_weather_zone_load_html(
+        self,
+        when: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns load for currentDay or previousDay"""
         url = self.ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT.format(
             timestamp=when.strftime("%Y%m%d"),
@@ -674,7 +707,7 @@ class Ercot(ISOBase):
         )
         return df
 
-    def _read_html_display(self, url, verbose=False):
+    def _read_html_display(self, url: str, verbose: bool = False) -> pd.DataFrame:
         msg = f"Fetching {url}"
         log(msg, verbose)
 
@@ -717,17 +750,24 @@ class Ercot(ISOBase):
 
         return df
 
-    def _get_supply_demand_json(self, verbose=False):
+    def _get_supply_demand_json(self, verbose: bool = False) -> dict:
         url = self.BASE + "/supply-demand.json"
         msg = f"Fetching {url}"
         log(msg, verbose)
 
         return self._get_json(url)
 
-    def _get_update_timestamp_from_supply_demand_json(self, supply_demand_json):
+    def _get_update_timestamp_from_supply_demand_json(
+        self,
+        supply_demand_json: dict,
+    ) -> pd.Timestamp:
         return pd.to_datetime(supply_demand_json["lastUpdated"])
 
-    def _get_todays_outlook_non_forecast(self, date, verbose=False):
+    def _get_todays_outlook_non_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns most recent data point for supply in MW
 
         Updates every 5 minutes
@@ -769,11 +809,11 @@ class Ercot(ISOBase):
     @support_date_range(frequency=None)
     def get_load_forecast(
         self,
-        date,
-        end=None,
-        forecast_type=ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        forecast_type: ERCOTSevenDayLoadForecastReport = ERCOTSevenDayLoadForecastReport.BY_FORECAST_ZONE,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns load forecast of specified forecast type.
 
         If date range provided, returns all hourly reports published within.
@@ -796,7 +836,7 @@ class Ercot(ISOBase):
                 Enum of possible values.
             verbose (bool, optional): print verbose output. Defaults to False.
         """
-        # todo migrate to _get_hourly_report
+        # TODO: migrate to _get_hourly_report
         if end is None:
             doc = self._get_document(
                 report_type_id=forecast_type.value,
@@ -830,7 +870,12 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_load_forecast(self, doc, forecast_type, verbose=False):
+    def _handle_load_forecast(
+        self,
+        doc: Document,
+        forecast_type: ERCOTSevenDayLoadForecastReport,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Function to handle the different types of load forecast parsing.
 
@@ -859,7 +904,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_capacity_committed(self, date="latest", verbose=False):
+    def get_capacity_committed(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the actual committed capacity (the amount of power available from
         generating units that were on-line or providing operating reserves).
@@ -878,7 +927,11 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    def get_capacity_forecast(self, date="latest", verbose=False):
+    def get_capacity_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the forecasted committed capacity (Committed Capacity) and the
         forecasted available capacity (Available Capacity) for the current day.
@@ -908,7 +961,7 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    def _get_capacity_dataset(self, verbose=False):
+    def _get_capacity_dataset(self, verbose: bool = False) -> pd.DataFrame:
         supply_demand_json = self._get_supply_demand_json(verbose=verbose)
 
         data = pd.DataFrame(supply_demand_json["data"])
@@ -932,7 +985,11 @@ class Ercot(ISOBase):
             ]
         ].sort_values("Interval Start")
 
-    def get_available_seasonal_capacity_forecast(self, date="latest", verbose=False):
+    def get_available_seasonal_capacity_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the forecasted demand (Load Forecast) and the forecasted available
         seasonal capacity (Available Capacity) for the next 6 days.
@@ -968,7 +1025,7 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    def get_rtm_spp(self, year, verbose=False):
+    def get_rtm_spp(self, year: int, verbose: bool = False) -> pd.DataFrame:
         """Get Historical RTM Settlement Point Prices(SPPs)
             for each of the Hubs and Load Zones
 
@@ -1010,7 +1067,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-    def get_dam_spp(self, year, verbose=False):
+    def get_dam_spp(self, year: int, verbose: bool = False) -> pd.DataFrame:
         """Get Historical DAM Settlement Point Prices(SPPs)
         for each of the Hubs and Load Zones
 
@@ -1039,7 +1096,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-    def get_raw_interconnection_queue(self, verbose=False):
+    def get_raw_interconnection_queue(self, verbose: bool = False) -> BinaryIO:
         doc_info = self._get_document(
             report_type_id=GIS_REPORT_RTID,
             constructed_name_contains="GIS_Report",
@@ -1050,7 +1107,7 @@ class Ercot(ISOBase):
         response = requests.get(doc_info.url)
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose=False):
+    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
         """
         Get interconnection queue for ERCOT
 
@@ -1183,11 +1240,11 @@ class Ercot(ISOBase):
     @support_date_range(frequency=None)
     def get_lmp(
         self,
-        date,
-        end=None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         location_type: str = SETTLEMENT_POINT_LOCATION_TYPE,  # TODO: support 'ALL'
-        verbose=False,
-    ):
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get LMP data for ERCOT normally produced by SCED every five minutes
 
         Can specify the location type to return "electrical bus"
@@ -1224,7 +1281,12 @@ class Ercot(ISOBase):
 
         return self._handle_lmp(docs=docs, verbose=verbose)
 
-    def _handle_lmp(self, docs, verbose=False, sced=True):
+    def _handle_lmp(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+        sced: bool = True,
+    ) -> pd.DataFrame:
         df = self.read_docs(
             docs,
             parse=False,
@@ -1244,7 +1306,12 @@ class Ercot(ISOBase):
 
         return self._handle_lmp_df(df, verbose=verbose, sced=sced)
 
-    def _handle_lmp_df(self, df, verbose=False, sced=True):
+    def _handle_lmp_df(
+        self,
+        df: pd.DataFrame,
+        verbose: bool = False,
+        sced: bool = True,
+    ) -> pd.DataFrame:
         df = self._handle_sced_timestamp(df=df, verbose=verbose)
 
         if "SettlementPoint" in df.columns:
@@ -1295,13 +1362,13 @@ class Ercot(ISOBase):
     @support_date_range(frequency=None)
     def get_spp(
         self,
-        date,
-        end=None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         market: str = None,
         locations: list = "ALL",
         location_type: str = "ALL",
-        verbose=False,
-    ):
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get SPP data for ERCOT
 
         Supported Markets:
@@ -1383,7 +1450,11 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-    def _handle_settlement_point_name_and_type(self, df, verbose=False):
+    def _handle_settlement_point_name_and_type(
+        self,
+        df: pd.DataFrame,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "SettlementPoint": "Location",
@@ -1442,12 +1513,12 @@ class Ercot(ISOBase):
 
     def _finalize_spp_df(
         self,
-        df,
-        market,
-        locations=None,
-        location_type=None,
-        verbose=False,
-    ):
+        df: pd.DataFrame,
+        market: str,
+        locations: list = None,
+        location_type: str = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
 
         df["Market"] = market.value
@@ -1485,10 +1556,10 @@ class Ercot(ISOBase):
     @support_date_range(frequency="DAY_START")
     def get_as_prices(
         self,
-        date,
-        end=None,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get ancillary service clearing prices in hourly intervals in Day Ahead Market
 
         Arguments:
@@ -1533,10 +1604,10 @@ class Ercot(ISOBase):
     @support_date_range(frequency="DAY_START")
     def get_as_plan(
         self,
-        date,
-        end=None,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Ancillary Service requirements by type and quantity for each hour of the
         current day plus the next 6 days
 
@@ -1569,7 +1640,7 @@ class Ercot(ISOBase):
 
         return self._handle_as_plan(doc)
 
-    def _handle_as_plan(self, doc):
+    def _handle_as_plan(self, doc: Document) -> pd.DataFrame:
         df = doc.pivot(
             index=["Interval Start", "Interval End", "Publish Time"],
             columns="AncillaryType",
@@ -1605,7 +1676,13 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range("DAY_START")
-    def get_60_day_sced_disclosure(self, date, end=None, process=False, verbose=False):
+    def get_60_day_sced_disclosure(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        process: bool = False,
+        verbose: bool = False,
+    ) -> dict:
         """Get 60 day SCED Disclosure data
 
         Arguments:
@@ -1635,8 +1712,13 @@ class Ercot(ISOBase):
 
         return data
 
-    def _handle_60_day_sced_disclosure(self, z, process=False, verbose=False):
-        # todo there are other files in the zip folder
+    def _handle_60_day_sced_disclosure(
+        self,
+        z: ZipFile,
+        process: bool = False,
+        verbose: bool = False,
+    ) -> dict:
+        # TODO: there are other files in the zip folder
         load_resource_file = None
         gen_resource_file = None
         smne_file = None
@@ -1657,7 +1739,11 @@ class Ercot(ISOBase):
         gen_resource = pd.read_csv(z.open(gen_resource_file))
         smne = pd.read_csv(z.open(smne_file))
 
-        def handle_time(df, time_col, is_interval_end=False):
+        def handle_time(
+            df: pd.DataFrame,
+            time_col: str,
+            is_interval_end: bool = False,
+        ) -> pd.DataFrame:
             df[time_col] = pd.to_datetime(df[time_col])
 
             if "Repeated Hour Flag" in df.columns:
@@ -1743,7 +1829,13 @@ class Ercot(ISOBase):
         }
 
     @support_date_range("DAY_START")
-    def get_60_day_dam_disclosure(self, date, end=None, process=False, verbose=False):
+    def get_60_day_dam_disclosure(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        process: bool = False,
+        verbose: bool = False,
+    ) -> dict:
         """Get 60 day DAM Disclosure data. Returns a dict with keys
 
         - "dam_gen_resource"
@@ -1782,11 +1874,11 @@ class Ercot(ISOBase):
 
     def _handle_60_day_dam_disclosure(
         self,
-        z,
-        process=False,
-        verbose=False,
+        z: ZipFile,
+        process: bool = False,
+        verbose: bool = False,
         files_prefix: dict = None,
-    ):
+    ) -> dict:
         if not files_prefix:
             files_prefix = {
                 DAM_GEN_RESOURCE_KEY: "60d_DAM_Gen_Resource_Data-",
@@ -1846,9 +1938,9 @@ class Ercot(ISOBase):
 
     def get_sara(
         self,
-        url="https://www.ercot.com/files/docs/2023/05/05/SARA_Summer2023_Revised.xlsx",
-        verbose=False,
-    ):
+        url: str = "https://www.ercot.com/files/docs/2023/05/05/SARA_Summer2023_Revised.xlsx",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Parse SARA data from url.
 
         Seasonal Assessment of Resource Adequacy for the ERCOT Region (SARA)
@@ -1860,7 +1952,7 @@ class Ercot(ISOBase):
         """
 
         # only reading SummerCapacities right now
-        # todo parse more sheets
+        # TODO: parse more sheets
         log("Getting SARA data from {}".format(url), verbose=verbose)
         df = pd.read_excel(url, sheet_name="SummerCapacities", header=1)
 
@@ -1892,7 +1984,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def _finalize_as_price_df(self, doc, pivot=False):
+    def _finalize_as_price_df(
+        self,
+        doc: pd.DataFrame,
+        pivot: bool = False,
+    ) -> pd.DataFrame:
         doc["Market"] = "DAM"
 
         # recent daily files need to be pivoted
@@ -1936,7 +2032,11 @@ class Ercot(ISOBase):
 
         return doc[col_order]
 
-    def get_as_monitor(self, date="latest", verbose=False):
+    def get_as_monitor(
+        self,
+        date: str = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Ancillary Service Capacity Monitor.
 
         Parses table from
@@ -1956,7 +2056,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_real_time_system_conditions(self, date="latest", verbose=False):
+    def get_real_time_system_conditions(
+        self,
+        date: str = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Real-Time System Conditions.
 
         Parses table from
@@ -1986,7 +2090,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def _download_html_table(self, url, verbose=False):
+    def _download_html_table(self, url: str, verbose: bool = False) -> pd.DataFrame:
         log(f"Downloading {url}", verbose)
 
         html = requests.get(url).content
@@ -2175,7 +2279,11 @@ class Ercot(ISOBase):
             ["Interval Start", "Publish Time"],
         )
 
-    def _handle_hourly_wind_or_solar_report(self, doc, verbose=False):
+    def _handle_hourly_wind_or_solar_report(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self.read_doc(doc, verbose=verbose)
         df.insert(
             0,
@@ -2187,7 +2295,7 @@ class Ercot(ISOBase):
 
         return self._rename_hourly_wind_or_solar_report(df)
 
-    def _rename_hourly_wind_or_solar_report(self, df):
+    def _rename_hourly_wind_or_solar_report(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 # on Sept 26, 2024 ercot added this column
@@ -2220,7 +2328,12 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_reported_outages(self, date=None, end=None, verbose=False):
+    def get_reported_outages(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Retrieves the 5-minute data behind this dashboard:
         https://www.ercot.com/gridmktinfo/dashboards/generationoutages
@@ -2241,7 +2354,7 @@ class Ercot(ISOBase):
         current = json["current"]
         previous = json["previous"]
 
-        def flatten_dict(data, prefix=""):
+        def flatten_dict(data: dict, prefix: str = "") -> dict:
             """
             Recursive function to flatten nested dictionaries with prefix handling.
             Returns a new dictionary with the flattened data.
@@ -2487,7 +2600,11 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range("DAY_START")
-    def get_as_reports(self, date, verbose=False):
+    def get_as_reports(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Ancillary Services Reports.
 
         Published with a 2 day delay around 3am central
@@ -2502,7 +2619,9 @@ class Ercot(ISOBase):
 
         return self._handle_as_reports_file(doc.url, verbose=verbose)
 
-    def _handle_as_reports_file(self, file_path, verbose, **kwargs):
+    def _handle_as_reports_file(
+        self, file_path: str, verbose: bool = False, **kwargs
+    ) -> pd.DataFrame:
         z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
         # extract the date from the file name
@@ -2578,7 +2697,7 @@ class Ercot(ISOBase):
             df_self_arranged = pd.read_csv(z.open(self_arranged))
             all_dfs.append(df_self_arranged)
 
-        def _make_bid_curve(df):
+        def _make_bid_curve(df: pd.DataFrame) -> list[list[float]]:
             return [
                 list(x)
                 for x in df[["MW Offered", f"{as_name} Offer Price"]].values.tolist()
@@ -2619,7 +2738,12 @@ class Ercot(ISOBase):
         return self.parse_doc(df, verbose=verbose)
 
     @support_date_range("DAY_START")
-    def get_dam_system_lambda(self, date, end=None, verbose=False):
+    def get_dam_system_lambda(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Day-Ahead Market System Lambda
 
         File is typically published around 12:30 pm for the day ahead
@@ -2646,7 +2770,11 @@ class Ercot(ISOBase):
 
         return self._handle_dam_system_lambda_file(doc, verbose=verbose)
 
-    def _handle_dam_system_lambda_file(self, doc, verbose):
+    def _handle_dam_system_lambda_file(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self.read_doc(doc, parse=True, verbose=verbose)
 
         # Set the publish time from the document metadata
@@ -2667,7 +2795,12 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_sced_system_lambda(self, date, end=None, verbose=False):
+    def get_sced_system_lambda(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get System lambda of each successful SCED
 
         Normally published every 5 minutes
@@ -2713,7 +2846,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_sced_timestamp(self, df, verbose=False):
+    def _handle_sced_timestamp(
+        self,
+        df: pd.DataFrame,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "RepeatHourFlag": "RepeatedHourFlag",
@@ -2747,7 +2884,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_sced_system_lambda(self, docs, verbose):
+    def _handle_sced_system_lambda(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         all_dfs = []
         for doc in tqdm.tqdm(
             docs,
@@ -2779,7 +2920,12 @@ class Ercot(ISOBase):
         return df[["Interval Start", "Interval End", "SCED Timestamp", "System Lambda"]]
 
     @support_date_range("DAY_START")
-    def get_highest_price_as_offer_selected(self, date, verbose=False):
+    def get_highest_price_as_offer_selected(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get the offer price and the name of the Entity submitting
         the offer for the highest-priced Ancillary Service (AS) Offer.
 
@@ -2804,7 +2950,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_three_day_highest_price_as_offer_selected_file(self, doc, verbose):
+    def _handle_three_day_highest_price_as_offer_selected_file(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self.read_doc(doc, verbose=verbose)
 
         df = df.rename(
@@ -2815,7 +2965,7 @@ class Ercot(ISOBase):
             },
         )
 
-        def _handle_offers(df):
+        def _handle_offers(df: pd.DataFrame) -> pd.Series:
             return pd.Series(
                 {
                     "Offered Price": df["Offered Price"].iloc[0],
@@ -2846,7 +2996,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_dam_price_corrections(self, dam_type, verbose=False):
+    def get_dam_price_corrections(
+        self,
+        dam_type: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Get RTM Price Corrections
 
@@ -2865,7 +3019,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_rtm_price_corrections(self, rtm_type, verbose=False):
+    def get_rtm_price_corrections(
+        self,
+        rtm_type: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Get RTM Price Corrections
 
@@ -2885,7 +3043,11 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_price_corrections(self, docs, verbose=False):
+    def _handle_price_corrections(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self.read_docs(docs, verbose=verbose)
 
         df = self._handle_settlement_point_name_and_type(df)
@@ -2920,7 +3082,12 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_system_wide_actual_load(self, date, end=None, verbose=False):
+    def get_system_wide_actual_load(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get 15-minute system-wide actual load.
 
         This report is posted every hour five minutes after the hour.
@@ -2969,7 +3136,12 @@ class Ercot(ISOBase):
         return self.read_doc(doc, verbose=verbose)
 
     @support_date_range("HOUR_START")
-    def get_short_term_system_adequacy(self, date, end=None, verbose=False):
+    def get_short_term_system_adequacy(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Short Term System Adequacy published between date and end.
 
         Arguments:
@@ -2988,7 +3160,11 @@ class Ercot(ISOBase):
             extension="csv",
         ).sort_values(["Interval Start", "Publish Time"])
 
-    def _handle_short_term_system_adequacy_file(self, doc, verbose=False):
+    def _handle_short_term_system_adequacy_file(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self.read_doc(doc, verbose=verbose)
 
         df["Publish Time"] = doc.publish_date
@@ -3023,7 +3199,12 @@ class Ercot(ISOBase):
         return df
 
     @support_date_range(frequency=None)
-    def get_real_time_adders_and_reserves(self, date, end=None, verbose=False):
+    def get_real_time_adders_and_reserves(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Real-Time ORDC and Reliability Deployment Price Adders and
             Reserves by SCED Interval
 
@@ -3061,7 +3242,11 @@ class Ercot(ISOBase):
 
         return self._handle_real_time_adders_and_reserves_docs(docs, verbose=verbose)
 
-    def _handle_real_time_adders_and_reserves_docs(self, docs, verbose=False):
+    def _handle_real_time_adders_and_reserves_docs(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self.read_docs(docs, parse=False, verbose=verbose)
         df = self._handle_sced_timestamp(df)
 
@@ -3075,7 +3260,12 @@ class Ercot(ISOBase):
         return df.sort_values("SCED Timestamp")
 
     @support_date_range(frequency=None)
-    def get_temperature_forecast_by_weather_zone(self, date, end=None, verbose=False):
+    def get_temperature_forecast_by_weather_zone(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get temperature forecast by weather zone in hourly intervals. Published
         once a day at 5 am central.
 
@@ -3106,7 +3296,11 @@ class Ercot(ISOBase):
 
         return self._handle_temperature_forecast_by_weather_zone_docs(docs, verbose)
 
-    def _handle_temperature_forecast_by_weather_zone_docs(self, docs, verbose=False):
+    def _handle_temperature_forecast_by_weather_zone_docs(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         # Process files in a loop to add the publish time for each doc
         df = pd.concat(
             [
@@ -3313,13 +3507,13 @@ class Ercot(ISOBase):
 
     def _get_hourly_report(
         self,
-        start,
-        end,
-        report_type_id,
-        handle_doc,
-        extension,
-        verbose=False,
-    ):
+        start: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
+        report_type_id: int,
+        handle_doc: Callable[[Document, bool], pd.DataFrame],
+        extension: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         if start == "latest":
             # _get_document can handle "latest"
             doc = self._get_document(
@@ -3353,7 +3547,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_json_data(self, df, columns):
+    def _handle_json_data(self, df: pd.DataFrame, columns: dict) -> pd.DataFrame:
         df["Time"] = (
             pd.to_datetime(df["epoch"], unit="ms")
             .dt.tz_localize("UTC")
@@ -3363,7 +3557,7 @@ class Ercot(ISOBase):
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
-    def _get_settlement_point_mapping(self, verbose=False):
+    def _get_settlement_point_mapping(self, verbose: bool = False) -> pd.DataFrame:
         """Get DataFrame whose columns can help us filter out values"""
 
         doc_info = self._get_document(
@@ -3392,7 +3586,7 @@ class Ercot(ISOBase):
         verbose: bool = False,
         request_kwargs: dict | None = None,
         read_csv_kwargs: dict | None = None,
-    ):
+    ) -> pd.DataFrame:
         logger.debug(f"Reading {doc.url}")
 
         if request_kwargs:
@@ -3414,7 +3608,7 @@ class Ercot(ISOBase):
         empty_df: pd.DataFrame | None = None,
         verbose: bool = False,
         request_kwargs: dict | None = None,
-    ):
+    ) -> pd.DataFrame:
         if len(docs) == 0:
             return empty_df
 
@@ -3451,7 +3645,7 @@ class Ercot(ISOBase):
         dst_ambiguous_default: str = "infer",
         verbose: bool = False,
         nonexistent: str = "raise",
-    ):
+    ) -> pd.DataFrame:
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
 
@@ -3572,7 +3766,7 @@ class Ercot(ISOBase):
             "Interval End",
         ] + original_cols
 
-        # todo try to clean up this logic
+        # TODO: try to clean up this logic
         doc = doc[cols_to_keep]
         doc = doc.drop(
             columns=["DeliveryDate", ending_time_col_name],
@@ -3586,7 +3780,7 @@ class Ercot(ISOBase):
 
         return doc
 
-    def _weather_zone_column_name_mapping(self):
+    def _weather_zone_column_name_mapping(self) -> dict[str, str]:
         return {
             "Coast": "Coast",
             "East": "East",
@@ -3601,7 +3795,7 @@ class Ercot(ISOBase):
             "Total": "System Total",
         }
 
-    def _weather_zone_column_name_order(self):
+    def _weather_zone_column_name_order(self) -> list[str]:
         return [
             "Coast",
             "East",
@@ -3635,7 +3829,10 @@ class Ercot(ISOBase):
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_indicative_lmp_by_settlement_point(df)
 
-    def _handle_indicative_lmp_by_settlement_point(self, df: pd.DataFrame):
+    def _handle_indicative_lmp_by_settlement_point(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         columns_to_rename = {
             "RTDTimestamp": "RTD Timestamp",
             "IntervalEnding": "Interval End",
@@ -3674,8 +3871,8 @@ class Ercot(ISOBase):
     @support_date_range(frequency="DAY_START")
     def get_dam_total_energy_purchased(
         self,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get DAM Total Energy Purchased
@@ -3730,8 +3927,8 @@ class Ercot(ISOBase):
     @support_date_range(frequency="DAY_START")
     def get_dam_total_energy_sold(
         self,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get DAM Total Energy Sold
@@ -3765,8 +3962,8 @@ class Ercot(ISOBase):
     @support_date_range(frequency="DAY_START")
     def get_cop_adjustment_period_snapshot_60_day(
         self,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest" or date > pd.Timestamp.now(
