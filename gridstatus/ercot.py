@@ -863,19 +863,25 @@ class Ercot(ISOBase):
                 )
             else:
                 df["Interval End"] = df["Interval End"].dt.round("h")
-                df["Interval End"] = df["Interval End"].dt.tz_localize("UTC")
-                df["Interval End"] = df["Interval End"].dt.tz_convert(
+                df["Interval End"] = df["Interval End"].dt.tz_localize(
                     self.default_timezone,
+                    ambiguous=True,
                 )
         else:
             df["Interval End"] = df["Interval End"].astype(str)
+            # NB: There are some intervals that have the 24:00 hour, which is not a valid hour.
+            # These are set to 00:00 the same day, and then a day is added via the mask below to get the
+            # 00:00 of the next day
             df["Interval End"] = df["Interval End"].str.replace(" 24:00", " 00:00")
             df["Interval End"] = df["Interval End"].str.replace(" DST", "")
             df["Interval End"] = pd.to_datetime(df["Interval End"], errors="coerce")
             df["Interval End"] = df["Interval End"].dt.round("h")
-            df["Interval End"] = df["Interval End"].dt.tz_localize("UTC")
-            df["Interval End"] = df["Interval End"].dt.tz_convert(self.default_timezone)
+            df["Interval End"] = df["Interval End"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=True,
+            )
 
+            # This is where we add the day to the 24:00 hour intervals
             mask_24_hour = df["Interval End"].dt.hour == 0
             df.loc[mask_24_hour, "Interval End"] = df.loc[
                 mask_24_hour,
