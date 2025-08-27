@@ -25,6 +25,8 @@ class NYISOLocationType(StrEnum):
     GENERATOR = "generator"
 
 
+REFERENCE_BUS_LOCATION = "NYISO_LBMP_REFERENCE"
+
 LOAD_DATASET = "pal"
 FUEL_MIX_DATASET = "rtfuelmix"
 LOAD_FORECAST_DATASET = "isolf"
@@ -570,6 +572,8 @@ class NYISO(ISOBase):
             - ``zone``
             - ``generator``
 
+        NOTE: the generator data contains the single Reference Bus location type.
+
         REAL_TIME_5_MIN is the Real Time Dispatch (RTD) market.
         REAL_TIME_15_MIN is the Real Time Commitment (RTC) market.
         REAL_TIME_HOURLY is the real-time hourly LMP market.
@@ -607,6 +611,7 @@ class NYISO(ISOBase):
             "LBMP ($/MWHr)": "LMP",
             "Marginal Cost Losses ($/MWHr)": "Loss",
             "Marginal Cost Congestion ($/MWHr)": "Congestion",
+            "Marginal Cost Congestion ($/MWH": "Congestion",  # Deal with older data
         }
 
         df = df.rename(columns=columns)
@@ -624,6 +629,12 @@ class NYISO(ISOBase):
             df["Location Type"] = "Generator"
         else:
             raise ValueError(f"Invalid location_type: {location_type}")
+
+        if REFERENCE_BUS_LOCATION in df["Location"].unique():
+            df.loc[
+                df["Location"] == REFERENCE_BUS_LOCATION,
+                "Location Type",
+            ] = "Reference Bus"
 
         # NYISO includes both RTD and RTC in the same file, so we need to differentiate
         # between them by looking up the most recent real time dispatch interval
