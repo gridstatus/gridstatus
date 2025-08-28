@@ -906,7 +906,7 @@ class Ercot(ISOBase):
                 )
                 duplicate_indices = df[date_mask].index
                 second_idx = duplicate_indices[1]
-                logger.info(
+                logger.debug(
                     f"Changing timezone for DST duplicate at {df.loc[second_idx, 'Interval Start']}",
                 )
                 # Change from -06:00 to -05:00 by subtracting 1 hour
@@ -951,6 +951,7 @@ class Ercot(ISOBase):
             "West",
             "ERCOT",
         ]
+        df = df.dropna(subset=["Interval Start", "Interval End"])
         return df[expected_columns].sort_values("Interval Start").reset_index(drop=True)
 
     def _get_supply_demand_json(self) -> dict:
