@@ -1784,7 +1784,6 @@ class TestIESO(BaseTestISO):
         self._check_transmission_limits(data)
 
     def test_get_in_service_transmission_limits_historical_date(self):
-        # Only date for which data is available
         start = pd.Timestamp.now() - pd.DateOffset(days=30)
 
         with file_vcr.use_cassette(
@@ -1805,7 +1804,6 @@ class TestIESO(BaseTestISO):
         self._check_transmission_limits(data)
 
     def test_get_outage_transmission_limits_historical_date(self):
-        # Only date for which data is available
         start = pd.Timestamp.now() - pd.DateOffset(days=30)
 
         with file_vcr.use_cassette(
@@ -1838,7 +1836,6 @@ class TestIESO(BaseTestISO):
         self._check_load_zonal(data, 5)
 
     def test_get_load_zonal_5_min_historical_date_range(self):
-        # NB: Data stopped updating here
         start = (
             pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
         ).floor("5min")
@@ -2206,7 +2203,6 @@ class TestIESO(BaseTestISO):
         assert (data["Interval Start"].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_operating_reserves_historical_date_range(self):
-        # Only date for which data is available
         start_date = (pd.Timestamp.utcnow() - pd.DateOffset(days=3)).normalize()
         end_date = start_date + pd.DateOffset(days=1)
 
