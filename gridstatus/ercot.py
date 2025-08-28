@@ -980,7 +980,7 @@ class Ercot(ISOBase):
             self.default_timezone,
         ), "Only today's data is supported"
 
-        supply_demand_json = self._get_supply_demand_json(verbose=verbose)
+        supply_demand_json = self._get_supply_demand_json()
         data = pd.DataFrame(supply_demand_json["data"])
 
         # need to use apply since there can be mixed
@@ -1165,7 +1165,7 @@ class Ercot(ISOBase):
         )
 
     def _get_capacity_dataset(self, verbose: bool = False) -> pd.DataFrame:
-        supply_demand_json = self._get_supply_demand_json(verbose=verbose)
+        supply_demand_json = self._get_supply_demand_json()
 
         data = pd.DataFrame(supply_demand_json["data"])
 
@@ -1199,7 +1199,7 @@ class Ercot(ISOBase):
 
         Data is ephemeral and does not support past days.
         """
-        supply_demand_json = self._get_supply_demand_json(verbose=verbose)
+        supply_demand_json = self._get_supply_demand_json()
         data = pd.DataFrame(supply_demand_json["forecast"])
         data = self.parse_doc(data)
 
