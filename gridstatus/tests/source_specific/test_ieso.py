@@ -420,18 +420,10 @@ class TestIESO(BaseTestISO):
 
     """get_hoep_real_time_hourly"""
 
-    @pytest.mark.parametrize(
-        "start, end",
-        [
-            (
-                pd.Timestamp("2025-04-01 00:00:00"),
-                pd.Timestamp("2025-04-01 04:00:00"),
-            ),
-        ],
-    )
-    def test_get_hoep_real_time_hourly_date_range(self, start, end):
-        start = start.tz_localize(self.default_timezone)
-        end = end.tz_localize(self.default_timezone)
+    @pytest.mark.skip(reason="Dataset is retired")
+    def test_get_hoep_real_time_hourly_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=30)
+        end = start + pd.DateOffset(days=1)
         with file_vcr.use_cassette(
             f"test_get_hoep_real_time_hourly_date_range_{start.date()}_{end.date()}.yaml",
         ):
@@ -1922,13 +1914,10 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data["Interval Start"].dt.date == today.date()).all()
 
-    @pytest.mark.parametrize(
-        "start_date, end_date",
-        [
-            ("2025-06-01T09:00:00Z", "2025-06-01T12:00:00Z"),
-        ],
-    )
-    def test_get_real_time_totals_historical_date_range(self, start_date, end_date):
+    def test_get_real_time_totals_historical_date_range(self):
+        start_date = self.local_start_of_today() - pd.DateOffset(days=30)
+        end_date = start_date + pd.DateOffset(days=1)
+
         with file_vcr.use_cassette(
             f"test_get_real_time_totals_historical_date_range_{start_date}_{end_date}.yaml",
         ):
