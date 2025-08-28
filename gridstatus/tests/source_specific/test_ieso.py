@@ -2232,7 +2232,7 @@ class TestIESO(BaseTestISO):
         self._check_lmp_day_ahead_operating_reserves(data)
 
     def test_get_lmp_day_ahead_operating_reserves_historical_date_range(self):
-        start_date = self.local_today() - pd.DateOffset(days=30)
+        start_date = self.local_start_of_today() - pd.DateOffset(days=30)
         end_date = start_date + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
