@@ -883,24 +883,22 @@ class Ercot(ISOBase):
             df["Interval End"] = df["Interval End"].str.replace(" DST", "")
             df["Interval End"] = pd.to_datetime(df["Interval End"], errors="coerce")
             df["Interval End"] = df["Interval End"].dt.round("h")
-            # df["Interval End"] = df["Interval End"].dt.tz_localize(
-            #     self.default_timezone,
-            #     ambiguous=True,
-            #     nonexistent="shift_forward",
-            # )
+            df["Interval End"] = df["Interval End"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=True,
+                nonexistent="shift_forward",
+            )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
 
-        # Fix DST fall-back duplicates - find any October date with duplicate 1 AM hours
-        october_1am_mask = (df["Interval Start"].dt.month == 10) & (
+        # Fix DST fall-back duplicates - find any October/November date with duplicate 1 AM hours
+        fall_dst_mask = (df["Interval Start"].dt.month.isin([10, 11])) & (
             df["Interval Start"].dt.hour == 1
         )
-        if october_1am_mask.any():
+        if fall_dst_mask.any():
             # Group by date to find dates with exactly 2 occurrences of 1 AM
-            october_dates = df[october_1am_mask][
-                "Interval Start"
-            ].dt.date.value_counts()
-            duplicate_dates = october_dates[october_dates == 2].index
+            fall_dates = df[fall_dst_mask]["Interval Start"].dt.date.value_counts()
+            duplicate_dates = fall_dates[fall_dates == 2].index
 
             for dup_date in duplicate_dates:
                 date_mask = (df["Interval Start"].dt.date == dup_date) & (
