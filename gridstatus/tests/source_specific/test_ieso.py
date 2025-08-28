@@ -100,7 +100,7 @@ class TestIESO(BaseTestISO):
     """get_generator_report_hourly"""
 
     def test_get_generator_report_hourly_historical(self):
-        date = pd.Timestamp("2025-04-19", tz=self.default_timezone)
+        date = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
         date_str = date.strftime("%m/%d/%Y")
 
         with file_vcr.use_cassette(
@@ -131,7 +131,7 @@ class TestIESO(BaseTestISO):
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_historical_with_date_range(self):
-        start = pd.Timestamp("2025-04-19", tz=self.default_timezone)
+        start = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
         end = start + pd.Timedelta(days=7)
 
         with file_vcr.use_cassette(
@@ -145,7 +145,9 @@ class TestIESO(BaseTestISO):
             assert df[TIME_COLUMN].dt.day.nunique() == 7
 
     def test_get_generator_report_hourly_range_two_days_with_end(self):
-        start = pd.Timestamp("2025-04-19", tz=self.default_timezone)
+        start = (
+            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        ).floor("h")
         end = start + pd.Timedelta(hours=3)
 
         with file_vcr.use_cassette(
@@ -164,7 +166,9 @@ class TestIESO(BaseTestISO):
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_start_end_same_day(self):
-        start = pd.Timestamp("2025-04-19", tz=self.default_timezone)
+        start = (
+            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        ).normalize() + pd.Timedelta(hours=8)
         end = start + pd.Timedelta(hours=6)
 
         with file_vcr.use_cassette(
@@ -416,18 +420,10 @@ class TestIESO(BaseTestISO):
 
     """get_hoep_real_time_hourly"""
 
-    @pytest.mark.parametrize(
-        "start, end",
-        [
-            (
-                pd.Timestamp("2025-04-01 00:00:00"),
-                pd.Timestamp("2025-04-01 04:00:00"),
-            ),
-        ],
-    )
-    def test_get_hoep_real_time_hourly_date_range(self, start, end):
-        start = start.tz_localize(self.default_timezone)
-        end = end.tz_localize(self.default_timezone)
+    @pytest.mark.skip(reason="Dataset is retired")
+    def test_get_hoep_real_time_hourly_date_range(self):
+        start = self.local_start_of_today() - pd.DateOffset(days=30)
+        end = start + pd.DateOffset(days=1)
         with file_vcr.use_cassette(
             f"test_get_hoep_real_time_hourly_date_range_{start.date()}_{end.date()}.yaml",
         ):
@@ -1780,8 +1776,7 @@ class TestIESO(BaseTestISO):
         self._check_transmission_limits(data)
 
     def test_get_in_service_transmission_limits_historical_date(self):
-        # Only date for which data is available
-        start = pd.Timestamp("2025-04-17")
+        start = pd.Timestamp.now() - pd.DateOffset(days=30)
 
         with file_vcr.use_cassette(
             f"in_service_transmission_limits_historical_date_range_{start.date()}.yaml",
@@ -1801,8 +1796,7 @@ class TestIESO(BaseTestISO):
         self._check_transmission_limits(data)
 
     def test_get_outage_transmission_limits_historical_date(self):
-        # Only date for which data is available
-        start = pd.Timestamp("2025-04-17")
+        start = pd.Timestamp.now() - pd.DateOffset(days=30)
 
         with file_vcr.use_cassette(
             f"outage_transmission_limits_historical_date_range_{start.date()}.yaml",
@@ -1834,9 +1828,10 @@ class TestIESO(BaseTestISO):
         self._check_load_zonal(data, 5)
 
     def test_get_load_zonal_5_min_historical_date_range(self):
-        # NB: Data stopped updating here
-        start = pd.Timestamp("2025-04-20", tz=self.default_timezone)
-        end = pd.Timestamp("2025-04-22", tz=self.default_timezone)
+        start = (
+            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        ).floor("5min")
+        end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
             f"test_get_load_zonal_5_min_historical_date_range_{start.date()}_{end.date()}.yaml",
@@ -1857,8 +1852,10 @@ class TestIESO(BaseTestISO):
 
     def test_get_load_zonal_hourly_historical_date_range(self):
         # NB: Data stopped updating here
-        start = pd.Timestamp("2025-04-20", tz=self.default_timezone)
-        end = pd.Timestamp("2025-04-22", tz=self.default_timezone)
+        start = (
+            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        ).floor("h")
+        end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
             f"test_get_load_zonal_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",
@@ -1917,13 +1914,10 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data["Interval Start"].dt.date == today.date()).all()
 
-    @pytest.mark.parametrize(
-        "start_date, end_date",
-        [
-            ("2025-06-01T09:00:00Z", "2025-06-01T12:00:00Z"),
-        ],
-    )
-    def test_get_real_time_totals_historical_date_range(self, start_date, end_date):
+    def test_get_real_time_totals_historical_date_range(self):
+        start_date = self.local_start_of_today() - pd.DateOffset(days=30)
+        end_date = start_date + pd.DateOffset(days=1)
+
         with file_vcr.use_cassette(
             f"test_get_real_time_totals_historical_date_range_{start_date}_{end_date}.yaml",
         ):
@@ -2156,6 +2150,37 @@ class TestIESO(BaseTestISO):
             data["Interval End"] - data["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
 
+    def _check_lmp_day_ahead_operating_reserves(self, data: pd.DataFrame) -> None:
+        assert data.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "LMP 10S",
+            "Congestion 10S",
+            "LMP 10N",
+            "Congestion 10N",
+            "LMP 30R",
+            "Congestion 30R",
+        ]
+
+        assert self._check_is_datetime_type(data["Interval Start"])
+        assert self._check_is_datetime_type(data["Interval End"])
+
+        assert data["Location"].dtype == "object"
+        for col in [
+            "LMP 10S",
+            "Congestion 10S",
+            "LMP 10N",
+            "Congestion 10N",
+            "LMP 30R",
+            "Congestion 30R",
+        ]:
+            assert data[col].dtype == "float64"
+
+        assert (
+            data["Interval End"] - data["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
     def test_get_lmp_real_time_operating_reserves_latest(self):
         with file_vcr.use_cassette(
             "test_lmp_get_real_time_5_min_operating_reserves_latest.yaml",
@@ -2167,7 +2192,6 @@ class TestIESO(BaseTestISO):
         assert (data["Interval Start"].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_operating_reserves_historical_date_range(self):
-        # Only date for which data is available
         start_date = (pd.Timestamp.utcnow() - pd.DateOffset(days=3)).normalize()
         end_date = start_date + pd.DateOffset(days=1)
 
@@ -2183,6 +2207,31 @@ class TestIESO(BaseTestISO):
 
         assert data["Interval Start"].min() == start_date
         assert data["Interval Start"].max() == end_date - pd.Timedelta(minutes=5)
+
+    def test_get_lmp_day_ahead_operating_reserves_latest(self):
+        with file_vcr.use_cassette(
+            "test_lmp_get_day_ahead_operating_reserves_latest.yaml",
+        ):
+            data = self.iso.get_lmp_day_ahead_operating_reserves("latest")
+
+        self._check_lmp_day_ahead_operating_reserves(data)
+
+    def test_get_lmp_day_ahead_operating_reserves_historical_date_range(self):
+        start_date = self.local_start_of_today() - pd.DateOffset(days=30)
+        end_date = start_date + pd.DateOffset(days=1)
+
+        with file_vcr.use_cassette(
+            f"test_lmp_get_day_ahead_operating_reserves_historical_date_range_{start_date.date()}_{end_date.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_day_ahead_operating_reserves(
+                start_date,
+                end=end_date,
+            )
+
+        self._check_lmp_day_ahead_operating_reserves(data)
+
+        assert data["Interval Start"].min() == start_date
+        assert data["Interval Start"].max() == end_date - pd.Timedelta(hours=1)
 
 
 class TestIESOSafeXMLParsing:
