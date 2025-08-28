@@ -2156,6 +2156,37 @@ class TestIESO(BaseTestISO):
             data["Interval End"] - data["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
 
+    def _check_lmp_day_ahead_operating_reserves(self, data: pd.DataFrame) -> None:
+        assert data.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "LMP 10S",
+            "Congestion 10S",
+            "LMP 10N",
+            "Congestion 10N",
+            "LMP 30R",
+            "Congestion 30R",
+        ]
+
+        assert self._check_is_datetime_type(data["Interval Start"])
+        assert self._check_is_datetime_type(data["Interval End"])
+
+        assert data["Location"].dtype == "object"
+        for col in [
+            "LMP 10S",
+            "Congestion 10S",
+            "LMP 10N",
+            "Congestion 10N",
+            "LMP 30R",
+            "Congestion 30R",
+        ]:
+            assert data[col].dtype == "float64"
+
+        assert (
+            data["Interval End"] - data["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
     def test_get_lmp_real_time_operating_reserves_latest(self):
         with file_vcr.use_cassette(
             "test_lmp_get_real_time_5_min_operating_reserves_latest.yaml",
@@ -2183,6 +2214,33 @@ class TestIESO(BaseTestISO):
 
         assert data["Interval Start"].min() == start_date
         assert data["Interval Start"].max() == end_date - pd.Timedelta(minutes=5)
+
+    def test_get_lmp_day_ahead_operating_reserves_latest(self):
+        with file_vcr.use_cassette(
+            "test_lmp_get_day_ahead_operating_reserves_latest.yaml",
+        ):
+            data = self.iso.get_lmp_day_ahead_operating_reserves("latest")
+        self._check_lmp_day_ahead_operating_reserves(data)
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (data["Interval Start"].dt.date == today.date()).all()
+
+    def test_get_lmp_day_ahead_operating_reserves_historical_date_range(self):
+        # Use date range where data is available (starting from May 2025)
+        start_date = pd.Timestamp("2025-05-03", tz=self.default_timezone)
+        end_date = start_date + pd.DateOffset(days=1)
+
+        with file_vcr.use_cassette(
+            f"test_lmp_get_day_ahead_operating_reserves_historical_date_range_{start_date.date()}_{end_date.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_day_ahead_operating_reserves(
+                start_date,
+                end=end_date,
+            )
+
+        self._check_lmp_day_ahead_operating_reserves(data)
+
+        assert data["Interval Start"].min() == start_date
+        assert data["Interval Start"].max() == end_date - pd.Timedelta(hours=1)
 
 
 class TestIESOSafeXMLParsing:
