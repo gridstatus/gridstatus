@@ -100,7 +100,7 @@ class TestIESO(BaseTestISO):
     """get_generator_report_hourly"""
 
     def test_get_generator_report_hourly_historical(self):
-        date = pd.Timestamp("2025-04-19", tz=self.default_timezone)
+        date = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
         date_str = date.strftime("%m/%d/%Y")
 
         with file_vcr.use_cassette(
@@ -131,7 +131,7 @@ class TestIESO(BaseTestISO):
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_historical_with_date_range(self):
-        start = pd.Timestamp("2025-04-19", tz=self.default_timezone)
+        start = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
         end = start + pd.Timedelta(days=7)
 
         with file_vcr.use_cassette(
@@ -145,7 +145,9 @@ class TestIESO(BaseTestISO):
             assert df[TIME_COLUMN].dt.day.nunique() == 7
 
     def test_get_generator_report_hourly_range_two_days_with_end(self):
-        start = pd.Timestamp("2025-04-19", tz=self.default_timezone)
+        start = (
+            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        ).floor("h")
         end = start + pd.Timedelta(hours=3)
 
         with file_vcr.use_cassette(
@@ -164,7 +166,9 @@ class TestIESO(BaseTestISO):
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_start_end_same_day(self):
-        start = pd.Timestamp("2025-04-19", tz=self.default_timezone)
+        start = (
+            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        ).normalize() + pd.Timedelta(hours=8)
         end = start + pd.Timedelta(hours=6)
 
         with file_vcr.use_cassette(
@@ -1781,7 +1785,7 @@ class TestIESO(BaseTestISO):
 
     def test_get_in_service_transmission_limits_historical_date(self):
         # Only date for which data is available
-        start = pd.Timestamp("2025-04-17")
+        start = pd.Timestamp.now() - pd.DateOffset(days=30)
 
         with file_vcr.use_cassette(
             f"in_service_transmission_limits_historical_date_range_{start.date()}.yaml",
@@ -1802,7 +1806,7 @@ class TestIESO(BaseTestISO):
 
     def test_get_outage_transmission_limits_historical_date(self):
         # Only date for which data is available
-        start = pd.Timestamp("2025-04-17")
+        start = pd.Timestamp.now() - pd.DateOffset(days=30)
 
         with file_vcr.use_cassette(
             f"outage_transmission_limits_historical_date_range_{start.date()}.yaml",
@@ -1835,8 +1839,10 @@ class TestIESO(BaseTestISO):
 
     def test_get_load_zonal_5_min_historical_date_range(self):
         # NB: Data stopped updating here
-        start = pd.Timestamp("2025-04-20", tz=self.default_timezone)
-        end = pd.Timestamp("2025-04-22", tz=self.default_timezone)
+        start = (
+            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        ).floor("5min")
+        end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
             f"test_get_load_zonal_5_min_historical_date_range_{start.date()}_{end.date()}.yaml",
@@ -1857,8 +1863,10 @@ class TestIESO(BaseTestISO):
 
     def test_get_load_zonal_hourly_historical_date_range(self):
         # NB: Data stopped updating here
-        start = pd.Timestamp("2025-04-20", tz=self.default_timezone)
-        end = pd.Timestamp("2025-04-22", tz=self.default_timezone)
+        start = (
+            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        ).floor("h")
+        end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
             f"test_get_load_zonal_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",
