@@ -2135,6 +2135,80 @@ class TestErcot(BaseTestISO):
             end,
         ) - pd.DateOffset(hours=1)
 
+    """get_hourly_load_post_settlements"""
+
+    def _check_hourly_load_post_settlements(self, df):
+        """Common checks for hourly load post settlements data."""
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Coast",
+            "East",
+            "Far West",
+            "North",
+            "North Central",
+            "South",
+            "South Central",
+            "West",
+            "ERCOT",
+        ]
+
+        assert df.columns.tolist() == expected_columns
+        assert df.shape[0] > 0
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        # Check timezone
+        assert df["Interval Start"].dt.tz.zone == self.iso.default_timezone
+        assert df["Interval End"].dt.tz.zone == self.iso.default_timezone
+
+        # Check numeric columns are numeric
+        numeric_columns = [
+            col
+            for col in expected_columns
+            if col not in ["Interval Start", "Interval End"]
+        ]
+        for col in numeric_columns:
+            if col in df.columns:
+                assert pd.api.types.is_numeric_dtype(df[col])
+
+    def test_get_hourly_load_post_settlements_latest(self):
+        """Test getting the latest year's data."""
+        with api_vcr.use_cassette(
+            "test_get_hourly_load_post_settlements_latest.yaml",
+        ):
+            df = self.iso.get_hourly_load_post_settlements("latest")
+        self._check_hourly_load_post_settlements(df)
+
+        # Should be current year data
+        current_year = pd.Timestamp.now().year
+        assert df["Interval Start"].dt.year.unique() == [current_year]
+
+    @pytest.mark.parametrize("date, end", [("2010-03-01", "2010-08-02")])
+    def test_get_hourly_load_post_settlements_xls(self, date, end):
+        """Test getting historical data from the 2004-2016 era."""
+        with api_vcr.use_cassette(
+            "test_get_hourly_load_post_settlements_historical_2004_2016.yaml",
+        ):
+            df = self.iso.get_hourly_load_post_settlements(date, end)
+        self._check_hourly_load_post_settlements(df)
+
+        assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
+        assert df["Interval End"].max() == pd.Timestamp(end, tz="US/Central")
+
+    @pytest.mark.parametrize("date, end", [("2023-07-01", "2023-08-02")])
+    def test_get_hourly_load_post_settlements_zip(self, date, end):
+        """Test getting modern data from the 2017-2025 era."""
+        with api_vcr.use_cassette(
+            "test_get_hourly_load_post_settlements_modern_2017_2025.yaml",
+        ):
+            df = self.iso.get_hourly_load_post_settlements(date, end)
+        self._check_hourly_load_post_settlements(df)
+
+        assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
+        assert df["Interval End"].max() == pd.Timestamp(end, tz="US/Central")
+
 
 def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
     load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
