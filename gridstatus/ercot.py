@@ -2252,7 +2252,7 @@ class Ercot(ISOBase):
 
         url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"
 
-        df = self._download_html_table(url, verbose=verbose)
+        df = self._download_html_table(url)
 
         return df
 
@@ -2275,7 +2275,7 @@ class Ercot(ISOBase):
         """
 
         url = "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html"
-        df = self._download_html_table(url, verbose=verbose)
+        df = self._download_html_table(url)
         df = df.rename(
             columns={
                 "Frequency - Current Frequency": "Current Frequency",
