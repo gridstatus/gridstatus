@@ -854,6 +854,8 @@ class Ercot(ISOBase):
             if df["Interval End"].dt.tz is not None:
                 df["Interval End"] = df["Interval End"].dt.tz_convert(
                     self.default_timezone,
+                    ambiguous=True,
+                    nonexistent="shift_forward",
                 )
             else:
                 df["Interval End"] = df["Interval End"].dt.round("h")
@@ -862,29 +864,62 @@ class Ercot(ISOBase):
                     ambiguous=True,
                     nonexistent="shift_forward",
                 )
+
         else:
             df["Interval End"] = df["Interval End"].astype(str)
 
-            # Track which rows had 24:00 before any conversion
-            mask_was_24_hour = df["Interval End"].str.contains(" 24:00")
+            # Convert 24:00 to next day's 00:00 directly in string format
+            # Doing so avoids the DST transition issue of converting 24:00 to 00:00
+            # and then adding a day to the interval end.
+            def convert_24_hour(date_str: str) -> str:
+                if " 24:00" in date_str:
+                    # Parse the date part and add one day
+                    date_part = date_str.split(" ")[0]
+                    parsed_date = pd.to_datetime(date_part) + pd.Timedelta(days=1)
+                    return parsed_date.strftime("%m/%d/%Y") + " 00:00"
+                return date_str
 
-            df["Interval End"] = df["Interval End"].str.replace(" 24:00", " 00:00")
+            df["Interval End"] = df["Interval End"].apply(convert_24_hour)
             df["Interval End"] = df["Interval End"].str.replace(" DST", "")
             df["Interval End"] = pd.to_datetime(df["Interval End"], errors="coerce")
             df["Interval End"] = df["Interval End"].dt.round("h")
-            df["Interval End"] = df["Interval End"].dt.tz_localize(
-                self.default_timezone,
-                ambiguous=True,
-                nonexistent="shift_forward",
-            )
-
-            # Add day only to the rows that originally had 24:00, after timezone localization
-            df.loc[mask_was_24_hour, "Interval End"] = df.loc[
-                mask_was_24_hour,
-                "Interval End",
-            ] + pd.Timedelta(days=1)
+            # df["Interval End"] = df["Interval End"].dt.tz_localize(
+            #     self.default_timezone,
+            #     ambiguous=True,
+            #     nonexistent="shift_forward",
+            # )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
+
+        # Fix DST fall-back duplicates - find any October date with duplicate 1 AM hours
+        october_1am_mask = (df["Interval Start"].dt.month == 10) & (
+            df["Interval Start"].dt.hour == 1
+        )
+        if october_1am_mask.any():
+            # Group by date to find dates with exactly 2 occurrences of 1 AM
+            october_dates = df[october_1am_mask][
+                "Interval Start"
+            ].dt.date.value_counts()
+            duplicate_dates = october_dates[october_dates == 2].index
+
+            for dup_date in duplicate_dates:
+                date_mask = (df["Interval Start"].dt.date == dup_date) & (
+                    df["Interval Start"].dt.hour == 1
+                )
+                duplicate_indices = df[date_mask].index
+                second_idx = duplicate_indices[1]
+                logger.info(
+                    f"Changing timezone for DST duplicate at {df.loc[second_idx, 'Interval Start']}",
+                )
+                # Change from -06:00 to -05:00 by subtracting 1 hour
+                df.loc[second_idx, "Interval Start"] = df.loc[
+                    second_idx,
+                    "Interval Start",
+                ] - pd.Timedelta(hours=1)
+                df.loc[second_idx, "Interval End"] = df.loc[
+                    second_idx,
+                    "Interval End",
+                ] - pd.Timedelta(hours=1)
 
         numeric_columns = [
             "Coast",
