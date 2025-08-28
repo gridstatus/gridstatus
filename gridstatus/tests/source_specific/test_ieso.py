@@ -2228,13 +2228,11 @@ class TestIESO(BaseTestISO):
             "test_lmp_get_day_ahead_operating_reserves_latest.yaml",
         ):
             data = self.iso.get_lmp_day_ahead_operating_reserves("latest")
+
         self._check_lmp_day_ahead_operating_reserves(data)
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data["Interval Start"].dt.date == today.date()).all()
 
     def test_get_lmp_day_ahead_operating_reserves_historical_date_range(self):
-        # Use date range where data is available (starting from May 2025)
-        start_date = pd.Timestamp("2025-05-03", tz=self.default_timezone)
+        start_date = self.local_today() - pd.DateOffset(days=30)
         end_date = start_date + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
