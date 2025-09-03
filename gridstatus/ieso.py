@@ -7,6 +7,7 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
+from io import StringIO
 from typing import Literal, Optional
 from urllib.error import HTTPError
 from warnings import warn
@@ -3758,6 +3759,87 @@ class IESO(ISOBase):
             columns=[
                 "Delivery Hour",
                 "Interval",
+            ],
+        )
+
+        data = (
+            utils.move_cols_to_front(
+                data,
+                ["Interval Start", "Interval End", "Location"],
+            )
+            .sort_values(
+                ["Interval Start", "Location"],
+            )
+            .reset_index(drop=True)
+        )
+
+        return data
+
+    @support_date_range(frequency="DAY_START")
+    def get_lmp_day_ahead_operating_reserves(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead operating reserves LMP data.
+
+        Args:
+            date: The date to get the data for.
+            end: The end date to get the data for.
+            verbose: Whether to print verbose output.
+
+        Returns:
+            DataFrame with operating reserves LMP data.
+        """
+        file_directory = "DAHourlyORLMP"
+
+        if date == "latest":
+            url = (
+                f"{PUBLIC_REPORTS_URL_PREFIX}/{file_directory}/PUB_{file_directory}.csv"
+            )
+            # We don't know which date the latest file is for because it depends on the
+            # time of day. So, we have to extract the date from the file
+            # The first row of the file tells us the date it is for
+            # Example: CREATED AT 2025/08/27 12:31:08 FOR 2025/08/28
+            text = self._request(url, verbose=False).text
+            lines = text.splitlines()
+            first_line = lines[0]
+
+            # Extract the delivery date from the header
+            match = re.search(r"FOR (\d{4}/\d{2}/\d{2})", first_line)
+
+            delivery_date = pd.Timestamp(match.group(1), tz=self.default_timezone)
+            base_datetime = delivery_date.normalize()
+
+            # Read the CSV data from the remaining lines (skip the first header line)
+            csv_text = "\n".join(lines[1:])
+            data = pd.read_csv(StringIO(csv_text))
+        else:
+            # Subtract 1 day to the date to get the file because this is a day-ahead
+            # dataset
+            file_date = date - pd.DateOffset(days=1)
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/{file_directory}/PUB_{file_directory}_{file_date.strftime('%Y%m%d')}.csv"
+
+            data = pd.read_csv(url, skiprows=1)
+            base_datetime = date.normalize()
+
+        data["Interval Start"] = base_datetime + pd.to_timedelta(
+            data["Delivery Hour"] - 1,
+            unit="h",
+        )
+        data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
+
+        data = data.rename(
+            columns={
+                "Pricing Location": "Location",
+                "Congestion Price 10S": "Congestion 10S",
+                "Congestion Price 10N": "Congestion 10N",
+                "Congestion Price 30R": "Congestion 30R",
+            },
+        ).drop(
+            columns=[
+                "Delivery Hour",
             ],
         )
 
