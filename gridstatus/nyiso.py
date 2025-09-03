@@ -580,32 +580,48 @@ class NYISO(ISOBase):
         For documentation on real time dispatch and real time commitment, see:
         https://www.nyiso.com/documents/20142/1404816/RTC-RTD%20Convergence%20Study.pdf/f3843982-dd30-4c66-6c21-e101c3cb85af
         """
-        if date == "latest":
-            return self._latest_lmp_from_today(
-                market=market,
-                locations=locations,
-                location_type=location_type,
-                verbose=verbose,
-            )
-
-        if locations is None:
-            locations = "ALL"
-
         if location_type is None:
             location_type = NYISOLocationType.ZONE
 
         marketname = self._set_marketname(market)
         file_location_type = self._set_location_type_for_filename(location_type)
-        filename = marketname + f"_{file_location_type}"
 
-        df = self._download_nyiso_archive(
-            date=date,
-            end=end,
-            dataset_name=marketname,
-            filename=filename,
-            verbose=verbose,
-        )
+        if locations is None:
+            locations = "ALL"
 
+        if date == "latest":
+            # The 5 minute data has a dedicated latest interval file
+            if market != Markets.REAL_TIME_5_MIN:
+                return self._latest_lmp_from_today(
+                    market=market,
+                    locations=locations,
+                    location_type=location_type,
+                    verbose=verbose,
+                )
+            else:
+                url = f"https://mis.nyiso.com/public/realtime/realtime_{file_location_type}_lbmp.csv"
+                df = pd.read_csv(url)
+                df = self._handle_time(df, dataset_name=marketname)
+        else:
+            filename = marketname + f"_{file_location_type}"
+
+            df = self._download_nyiso_archive(
+                date=date,
+                end=end,
+                dataset_name=marketname,
+                filename=filename,
+                verbose=verbose,
+            )
+
+        return self._process_lmp_data(df, market, location_type, locations)
+
+    def _process_lmp_data(
+        self,
+        df: pd.DataFrame,
+        market: Markets,
+        location_type: NYISOLocationType,
+        locations: list | str,
+    ) -> pd.DataFrame:
         columns = {
             "Name": "Location",
             "LBMP ($/MWHr)": "LMP",
@@ -638,13 +654,13 @@ class NYISO(ISOBase):
 
         # RTD = Real Time Dispatch - 5 minute intervals
         # RTC = Real Time Commitment - 15 minute intervals
-        # NYISO includes both RTD and RTC in the same file, so we need to differentiate
-        # between them by looking up the most recent real time dispatch interval
-        # and labeling intervals after that time as RTC intervals.
-        if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
-            # If there are RTC intervals, we need to differentiate between the markets
-            # for downstream processing. Assume all intervals after the most recent RTD
-            # interval are RTC intervals.
+        # NYISO includes both RTD and RTC in the same file, so we need to
+        # differentiate between them by looking up the most recent real time
+        # dispatch interval and labeling intervals after that time as RTC intervals.
+        if market in [Markets.REAL_TIME_15_MIN, Markets.REAL_TIME_5_MIN]:
+            # If there are RTC intervals, we need to differentiate between the
+            # markets for downstream processing. Assume all intervals after the
+            # most recent RTD interval are RTC intervals.
             most_recent_rtd_timestamp = (
                 self._get_most_recent_real_time_dispatch_interval()
             )
