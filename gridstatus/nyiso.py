@@ -720,17 +720,6 @@ class NYISO(ISOBase):
             .reset_index(drop=True)
         )
 
-    def _get_most_recent_real_time_lmp_five_minute_data(
-        self,
-        location_type: NYISOLocationType,
-    ) -> pd.Timestamp:
-        # Gets the most recent data from the 5 minute LMP data
-        file_type = self._set_location_type_for_filename(location_type)
-
-        return pd.read_csv(
-            f"http://mis.nyiso.com/public/realtime/realtime_{file_type}_lbmp.csv",
-        )
-
     def get_raw_interconnection_queue(self) -> BinaryIO:
         url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
 
