@@ -602,6 +602,7 @@ class NYISO(ISOBase):
                 url = f"https://mis.nyiso.com/public/realtime/realtime_{file_location_type}_lbmp.csv"
                 df = pd.read_csv(url)
                 df = self._handle_time(df, dataset_name=marketname)
+                df["Market"] = market.value
         else:
             filename = marketname + f"_{file_location_type}"
 
@@ -613,11 +614,12 @@ class NYISO(ISOBase):
                 verbose=verbose,
             )
 
-        return self._process_lmp_data(df, market, location_type, locations)
+        return self._process_lmp_data(df, date, market, location_type, locations)
 
     def _process_lmp_data(
         self,
         df: pd.DataFrame,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
         market: Markets,
         location_type: NYISOLocationType,
         locations: list | str,
@@ -639,40 +641,57 @@ class NYISO(ISOBase):
         df["Congestion"] *= -1
         df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
         df["Market"] = market.value
-        if location_type == NYISOLocationType.ZONE:
-            df["Location Type"] = "Zone"
-        elif location_type == NYISOLocationType.GENERATOR:
-            df["Location Type"] = "Generator"
-        else:
-            raise ValueError(f"Invalid location_type: {location_type}")
+        df["Location Type"] = NYISOLocationType(location_type).value.capitalize()
 
+        # We manually update the location type for the reference bus location because
+        # it's included in the generator data.
         if REFERENCE_BUS_LOCATION in df["Location"].unique():
             df.loc[
                 df["Location"] == REFERENCE_BUS_LOCATION,
                 "Location Type",
             ] = "Reference Bus"
 
-        # RTD = Real Time Dispatch - 5 minute intervals
-        # RTC = Real Time Commitment - 15 minute intervals
-        # NYISO includes both RTD and RTC in the same file, so we need to
-        # differentiate between them by looking up the most recent real time
-        # dispatch interval and labeling intervals after that time as RTC intervals.
-        if market in [Markets.REAL_TIME_15_MIN, Markets.REAL_TIME_5_MIN]:
-            # If there are RTC intervals, we need to differentiate between the
-            # markets for downstream processing. Assume all intervals after the
-            # most recent RTD interval are RTC intervals.
-            most_recent_rtd_timestamp = (
-                self._get_most_recent_real_time_dispatch_interval()
+        # NYISO includes both 5 min (RTD - Real Time Dispatch) and
+        # 15 min (RTC - Real Time Commitment) data in the daily file
+        if market == Markets.REAL_TIME_15_MIN or (
+            # In this case, we've only used the latest 5 minute interval file so we
+            # know the data is all REAL_TIME_5_MIN
+            market == Markets.REAL_TIME_5_MIN and date != "latest"
+        ):
+            # The most recent 5 min file is sometimes published before the updated
+            # daily file, so to label the 5 and 15 min daily data, we need to get
+            # the most recent 5 min data and compare it to the data at the same
+            # timestamp in the daily dataframe. If the data matches, then we know all
+            # daily data after that timestamp is 15 minute. If the data doesn't match,
+            # we assume all daily data on or after that timestamp is 15 min data.
+            most_recent_5_min_data = self.get_lmp(
+                date="latest",
+                market=Markets.REAL_TIME_5_MIN,
+                location_type=location_type,
             )
 
-            # The RTD LMP data is interval end
-            rtc_mask = df["Interval End"] > most_recent_rtd_timestamp
+            most_recent_5_min_timestamp = most_recent_5_min_data["Interval Start"].max()
 
-            df.loc[~rtc_mask, "Market"] = Markets.REAL_TIME_5_MIN.value
-            df.loc[rtc_mask, "Market"] = Markets.REAL_TIME_15_MIN.value
+            daily_subset = (
+                df[df["Interval Start"] == most_recent_5_min_timestamp]
+                .sort_values(["Interval Start", "Location"])
+                .reset_index(drop=True)
+            )
 
-            df.loc[rtc_mask, "Interval End"] = df.loc[
-                rtc_mask,
+            if daily_subset[["LMP", "Loss", "Congestion"]].equals(
+                most_recent_5_min_data[["LMP", "Loss", "Congestion"]],
+            ):
+                # When equal, the daily data has the most recent 5 min data
+                mask_15_min = df["Interval Start"] > most_recent_5_min_timestamp
+            else:
+                # When not equal, the data at this timestamp is 15 min data
+                mask_15_min = df["Interval Start"] >= most_recent_5_min_timestamp
+
+            df.loc[~mask_15_min, "Market"] = Markets.REAL_TIME_5_MIN.value
+            df.loc[mask_15_min, "Market"] = Markets.REAL_TIME_15_MIN.value
+
+            df.loc[mask_15_min, "Interval End"] = df.loc[
+                mask_15_min,
                 "Interval Start",
             ] + pd.Timedelta(
                 minutes=15,
@@ -695,16 +714,21 @@ class NYISO(ISOBase):
 
         df = utils.filter_lmp_locations(df, locations)
 
-        return df[df["Market"] == market.value].reset_index(drop=True)
+        return (
+            df[df["Market"] == market.value]
+            .sort_values(["Interval Start", "Location"])
+            .reset_index(drop=True)
+        )
 
-    def _get_most_recent_real_time_dispatch_interval(self) -> pd.Timestamp:
-        # Finds the most recent real time dispatch interval
-        return pd.Timestamp(
-            pd.read_csv(
-                "http://mis.nyiso.com/public/realtime/realtime_zone_lbmp.csv",
-                nrows=1,
-            ).iloc[0]["Time Stamp"],
-            tz=self.default_timezone,
+    def _get_most_recent_real_time_lmp_five_minute_data(
+        self,
+        location_type: NYISOLocationType,
+    ) -> pd.Timestamp:
+        # Gets the most recent data from the 5 minute LMP data
+        file_type = self._set_location_type_for_filename(location_type)
+
+        return pd.read_csv(
+            f"http://mis.nyiso.com/public/realtime/realtime_{file_type}_lbmp.csv",
         )
 
     def get_raw_interconnection_queue(self) -> BinaryIO:
