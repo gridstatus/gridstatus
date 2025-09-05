@@ -639,7 +639,7 @@ class NYISO(ISOBase):
         # congestion number means a lower LMP. Thus, LMP = Energy + Loss + Congestion
         # for NYISO, as in other ISOs.
         df["Congestion"] *= -1
-        df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
+        df["Energy"] = (df["LMP"] - df["Loss"] - df["Congestion"]).round(2)
         df["Market"] = market.value
         df["Location Type"] = NYISOLocationType(location_type).value.capitalize()
 
