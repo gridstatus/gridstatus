@@ -2517,10 +2517,9 @@ class TestPJM(BaseTestISO):
     regulation_prices_5_min_columns = [
         "Interval Start",
         "Interval End",
-        "Interval Start Local",
         "Area",
-        "Regulation Quantity MW",
-        "Regulation Requirement MW",
+        "Regulation Quantity",
+        "Regulation Requirement",
         "Market Clearing Price",
         "Market Capped Clearing Price",
         "Capability Clearing Price",
