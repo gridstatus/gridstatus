@@ -2512,45 +2512,6 @@ class TestPJM(BaseTestISO):
                 past_end_date,
             ) + pd.Timedelta(minutes=175)
 
-    """get_regulation_prices_5_min"""
-
-    regulation_prices_5_min_columns = [
-        "Interval Start",
-        "Interval End",
-        "Interval Start Local",
-        "Area",
-        "Regulation Quantity MW",
-        "Regulation Requirement MW",
-        "Market Clearing Price",
-        "Market Capped Clearing Price",
-        "Capability Clearing Price",
-        "Performance Clearing Price",
-        "Marginal Benefits Factor",
-    ]
-
-    def test_get_regulation_prices_5_min_latest(self):
-        with pjm_vcr.use_cassette("test_get_regulation_prices_5_min_latest.yaml"):
-            df = self.iso.get_regulation_prices_5_min("latest")
-            assert isinstance(df, pd.DataFrame)
-            assert not df.empty
-            assert df.columns.tolist() == self.regulation_prices_5_min_columns
-            assert df["Interval Start"].min() == self.local_start_of_day("today")
-
-    def test_get_regulation_prices_5_min_historical_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=29)
-        past_end_date = past_date + pd.Timedelta(days=2)
-        with pjm_vcr.use_cassette(
-            f"test_get_regulation_prices_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
-        ):
-            df = self.iso.get_regulation_prices_5_min(past_date, past_end_date)
-            assert isinstance(df, pd.DataFrame)
-            assert not df.empty
-            assert df.columns.tolist() == self.regulation_prices_5_min_columns
-            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
-            assert df["Interval End"].max() == self.local_start_of_day(
-                past_end_date,
-            )
-
     """get_tie_flows_5_min"""
 
     expected_tie_flows_5_min_cols = [
