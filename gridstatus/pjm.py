@@ -2686,10 +2686,10 @@ class PJM(ISOBase):
 
         params = {
             "fields": (
-                "datetime_beginning_utc,datetime_beginning_ept,area,"
-                "reserve_quantity,reserve_requirement,market_clearing_price,"
-                "market_capped_clearing_price,capability_clearing_price,"
-                "performance_clearing_price,marginal_benefits_factor"
+                "datetime_beginning_utc,area,reserve_quantity,"
+                "reserve_requirement,market_clearing_price,market_capped_clearing_price,"
+                "capability_clearing_price,performance_clearing_price,"
+                "marginal_benefits_factor"
             ),
         }
 
@@ -2704,7 +2704,6 @@ class PJM(ISOBase):
 
         df = df.rename(
             columns={
-                "datetime_beginning_ept": "Interval Start Local",
                 "area": "Area",
                 "reserve_quantity": "Regulation Quantity",
                 "reserve_requirement": "Regulation Requirement",
@@ -2720,7 +2719,6 @@ class PJM(ISOBase):
             [
                 "Interval Start",
                 "Interval End",
-                "Interval Start Local",
                 "Area",
                 "Regulation Quantity",
                 "Regulation Requirement",
