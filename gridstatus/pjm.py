@@ -2667,6 +2667,72 @@ class PJM(ISOBase):
         ]
 
     @support_date_range(frequency=None)
+    def get_regulation_prices_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves 5-minute regulation pricing data from:
+        https://api.pjm.com/api/v1/reg_prices
+        """
+
+        if date == "latest":
+            return self.get_regulation_prices_5_min(
+                "today",
+                verbose=verbose,
+            )
+
+        params = {
+            "fields": (
+                "datetime_beginning_utc,datetime_beginning_ept,area,"
+                "reserve_quantity,reserve_requirement,market_clearing_price,"
+                "market_capped_clearing_price,capability_clearing_price,"
+                "performance_clearing_price,marginal_benefits_factor"
+            ),
+        }
+
+        df = self._get_pjm_json(
+            "reg_prices",
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            interval_duration_min=5,
+        )
+
+        df = df.rename(
+            columns={
+                "datetime_beginning_ept": "Interval Start Local",
+                "area": "Area",
+                "reserve_quantity": "Regulation Quantity MW",
+                "reserve_requirement": "Regulation Requirement MW",
+                "market_clearing_price": "Market Clearing Price",
+                "market_capped_clearing_price": "Market Capped Clearing Price",
+                "capability_clearing_price": "Capability Clearing Price",
+                "performance_clearing_price": "Performance Clearing Price",
+                "marginal_benefits_factor": "Marginal Benefits Factor",
+            },
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Interval Start Local",
+                "Area",
+                "Regulation Quantity MW",
+                "Regulation Requirement MW",
+                "Market Clearing Price",
+                "Market Capped Clearing Price",
+                "Capability Clearing Price",
+                "Performance Clearing Price",
+                "Marginal Benefits Factor",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
     def get_tie_flows_5_min(
         self,
         date: str | pd.Timestamp,
