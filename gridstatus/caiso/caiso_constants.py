@@ -415,7 +415,7 @@ OASIS_DATASET_CONFIG = {
             "schedule": "ALL",
         },
     },
-    "system_load_and_resource_schedules_real_time_5_min": {
+    "system_load_and_resource_schedules_real_time_hourly": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,

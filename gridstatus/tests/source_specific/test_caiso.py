@@ -1409,7 +1409,15 @@ class TestCAISO(BaseTestISO):
 
     def _check_system_load_and_resource_schedules(self, df):
         """Helper to check system load and resource schedules dataframe."""
-        assert df.shape[0] > 0
+        assert df.columns == [
+            "Interval Start",
+            "Interval End",
+            "TAC Name",
+            "Export",
+            "Generation",
+            "Import",
+            "Load",
+        ]
 
         # Check base columns that should always be present
         required_columns = ["Interval Start", "Interval End", "TAC Name"]
@@ -1515,11 +1523,11 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             ) + pd.Timedelta(days=1)
 
-    def test_get_system_load_and_resource_schedules_real_time_5_min_latest(self):
+    def test_get_system_load_and_resource_schedules_real_time_hourly_latest(self):
         with caiso_vcr.use_cassette(
-            "test_get_system_load_and_resource_schedules_real_time_5_min_latest.yaml",
+            "test_get_system_load_and_resource_schedules_real_time_hourly_latest.yaml",
         ):
-            df = self.iso.get_system_load_and_resource_schedules_real_time_5_min(
+            df = self.iso.get_system_load_and_resource_schedules_real_time_hourly(
                 "latest",
             )
             self._check_system_load_and_resource_schedules(df)
@@ -1531,15 +1539,15 @@ class TestCAISO(BaseTestISO):
             ("2024-06-01", "2024-06-03"),
         ],
     )
-    def test_get_system_load_and_resource_schedules_real_time_5_min_date_range(
+    def test_get_system_load_and_resource_schedules_real_time_hourly_date_range(
         self,
         date,
         end,
     ):
         with caiso_vcr.use_cassette(
-            f"test_get_system_load_and_resource_schedules_real_time_5_min_{date}_{end}.yaml",
+            f"test_get_system_load_and_resource_schedules_real_time_hourly_{date}_{end}.yaml",
         ):
-            df = self.iso.get_system_load_and_resource_schedules_real_time_5_min(
+            df = self.iso.get_system_load_and_resource_schedules_real_time_hourly(
                 date,
                 end=end,
             )
