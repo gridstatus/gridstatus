@@ -1405,7 +1405,7 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             )
 
-    """get_caiso_system_load_and_resource_schedules"""
+    """get_system_load_and_resource_schedules"""
 
     def _check_system_load_and_resource_schedules(self, df):
         """Helper to check system load and resource schedules dataframe."""
@@ -1434,11 +1434,11 @@ class TestCAISO(BaseTestISO):
                 f"Column {col} should be numeric"
             )
 
-    def test_get_caiso_system_load_and_resource_schedules_day_ahead_latest(self):
+    def test_get_system_load_and_resource_schedules_day_ahead_latest(self):
         with caiso_vcr.use_cassette(
-            "test_get_caiso_system_load_and_resource_schedules_day_ahead_latest.yaml",
+            "test_get_system_load_and_resource_schedules_day_ahead_latest.yaml",
         ):
-            df = self.iso.get_caiso_system_load_and_resource_schedules_day_ahead(
+            df = self.iso.get_system_load_and_resource_schedules_day_ahead(
                 "latest",
             )
             self._check_system_load_and_resource_schedules(df)
@@ -1453,15 +1453,15 @@ class TestCAISO(BaseTestISO):
             ("2024-06-01", "2024-06-03"),
         ],
     )
-    def test_get_caiso_system_load_and_resource_schedules_day_ahead_date_range(
+    def test_get_system_load_and_resource_schedules_day_ahead_date_range(
         self,
         date,
         end,
     ):
         with caiso_vcr.use_cassette(
-            f"test_get_caiso_system_load_and_resource_schedules_day_ahead_{date}_{end}.yaml",
+            f"test_get_system_load_and_resource_schedules_day_ahead_{date}_{end}.yaml",
         ):
-            df = self.iso.get_caiso_system_load_and_resource_schedules_day_ahead(
+            df = self.iso.get_system_load_and_resource_schedules_day_ahead(
                 date,
                 end=end,
             )
@@ -1477,11 +1477,11 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             ) + pd.Timedelta(days=1)
 
-    def test_get_caiso_system_load_and_resource_schedules_hasp_latest(self):
+    def test_get_system_load_and_resource_schedules_hasp_latest(self):
         with caiso_vcr.use_cassette(
-            "test_get_caiso_system_load_and_resource_schedules_hasp_latest.yaml",
+            "test_get_system_load_and_resource_schedules_hasp_latest.yaml",
         ):
-            df = self.iso.get_caiso_system_load_and_resource_schedules_hasp("latest")
+            df = self.iso.get_system_load_and_resource_schedules_hasp("latest")
             self._check_system_load_and_resource_schedules(df)
 
     @pytest.mark.parametrize(
@@ -1491,15 +1491,15 @@ class TestCAISO(BaseTestISO):
             ("2024-06-01", "2024-06-03"),
         ],
     )
-    def test_get_caiso_system_load_and_resource_schedules_hasp_date_range(
+    def test_get_system_load_and_resource_schedules_hasp_date_range(
         self,
         date,
         end,
     ):
         with caiso_vcr.use_cassette(
-            f"test_get_caiso_system_load_and_resource_schedules_hasp_{date}_{end}.yaml",
+            f"test_get_system_load_and_resource_schedules_hasp_{date}_{end}.yaml",
         ):
-            df = self.iso.get_caiso_system_load_and_resource_schedules_hasp(
+            df = self.iso.get_system_load_and_resource_schedules_hasp(
                 date,
                 end=end,
             )
@@ -1515,11 +1515,11 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             ) + pd.Timedelta(days=1)
 
-    def test_get_caiso_system_load_and_resource_schedules_real_time_latest(self):
+    def test_get_system_load_and_resource_schedules_real_time_latest(self):
         with caiso_vcr.use_cassette(
-            "test_get_caiso_system_load_and_resource_schedules_real_time_latest.yaml",
+            "test_get_system_load_and_resource_schedules_real_time_latest.yaml",
         ):
-            df = self.iso.get_caiso_system_load_and_resource_schedules_real_time(
+            df = self.iso.get_system_load_and_resource_schedules_real_time(
                 "latest",
             )
             self._check_system_load_and_resource_schedules(df)
@@ -1531,15 +1531,15 @@ class TestCAISO(BaseTestISO):
             ("2024-06-01", "2024-06-03"),
         ],
     )
-    def test_get_caiso_system_load_and_resource_schedules_real_time_date_range(
+    def test_get_system_load_and_resource_schedules_real_time_date_range(
         self,
         date,
         end,
     ):
         with caiso_vcr.use_cassette(
-            f"test_get_caiso_system_load_and_resource_schedules_real_time_{date}_{end}.yaml",
+            f"test_get_system_load_and_resource_schedules_real_time_{date}_{end}.yaml",
         ):
-            df = self.iso.get_caiso_system_load_and_resource_schedules_real_time(
+            df = self.iso.get_system_load_and_resource_schedules_real_time(
                 date,
                 end=end,
             )
@@ -1555,11 +1555,11 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             ) + pd.Timedelta(days=1)
 
-    def test_get_caiso_system_load_and_resource_schedules_ruc_latest(self):
+    def test_get_system_load_and_resource_schedules_ruc_latest(self):
         with caiso_vcr.use_cassette(
-            "test_get_caiso_system_load_and_resource_schedules_ruc_latest.yaml",
+            "test_get_system_load_and_resource_schedules_ruc_latest.yaml",
         ):
-            df = self.iso.get_caiso_system_load_and_resource_schedules_ruc("latest")
+            df = self.iso.get_system_load_and_resource_schedules_ruc("latest")
             self._check_system_load_and_resource_schedules(df)
 
     @pytest.mark.parametrize(
@@ -1569,15 +1569,15 @@ class TestCAISO(BaseTestISO):
             ("2024-06-01", "2024-06-03"),
         ],
     )
-    def test_get_caiso_system_load_and_resource_schedules_ruc_date_range(
+    def test_get_system_load_and_resource_schedules_ruc_date_range(
         self,
         date,
         end,
     ):
         with caiso_vcr.use_cassette(
-            f"test_get_caiso_system_load_and_resource_schedules_ruc_{date}_{end}.yaml",
+            f"test_get_system_load_and_resource_schedules_ruc_{date}_{end}.yaml",
         ):
-            df = self.iso.get_caiso_system_load_and_resource_schedules_ruc(
+            df = self.iso.get_system_load_and_resource_schedules_ruc(
                 date,
                 end=end,
             )

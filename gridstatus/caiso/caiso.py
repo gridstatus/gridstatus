@@ -2713,7 +2713,7 @@ class CAISO(ISOBase):
 
         return dataframes
 
-    def get_caiso_system_load_and_resource_schedules_day_ahead(
+    def get_system_load_and_resource_schedules_day_ahead(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2722,18 +2722,18 @@ class CAISO(ISOBase):
         """Get CAISO System Load and Resource Schedules Day-Ahead data from CAISO."""
         if date == "latest":
             # DAM data should be available 1 day in the future after 13:00 PT
-            return self.get_caiso_system_load_and_resource_schedules_day_ahead(
+            return self.get_system_load_and_resource_schedules_day_ahead(
                 self.local_now().normalize() + pd.DateOffset(days=1),
             )
 
-        return self._get_caiso_system_load_and_resource_schedules_for_market(
+        return self._get_system_load_and_resource_schedules_for_market(
             date,
             end,
             verbose,
             market="day_ahead",
         )
 
-    def get_caiso_system_load_and_resource_schedules_hasp(
+    def get_system_load_and_resource_schedules_hasp(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2741,18 +2741,18 @@ class CAISO(ISOBase):
     ) -> pd.DataFrame:
         """Get CAISO System Load and Resource Schedules HASP data from CAISO."""
         if date == "latest":
-            return self.get_caiso_system_load_and_resource_schedules_day_ahead(
+            return self.get_system_load_and_resource_schedules_day_ahead(
                 "today",
             )
 
-        return self._get_caiso_system_load_and_resource_schedules_for_market(
+        return self._get_system_load_and_resource_schedules_for_market(
             date,
             end,
             verbose,
             market="hasp",
         )
 
-    def get_caiso_system_load_and_resource_schedules_real_time(
+    def get_system_load_and_resource_schedules_real_time(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2760,18 +2760,18 @@ class CAISO(ISOBase):
     ) -> pd.DataFrame:
         """Get CAISO System Load and Resource Schedules Real Time data from CAISO."""
         if date == "latest":
-            return self.get_caiso_system_load_and_resource_schedules_day_ahead(
+            return self.get_system_load_and_resource_schedules_day_ahead(
                 "today",
             )
 
-        return self._get_caiso_system_load_and_resource_schedules_for_market(
+        return self._get_system_load_and_resource_schedules_for_market(
             date,
             end,
             verbose,
             market="real_time",
         )
 
-    def get_caiso_system_load_and_resource_schedules_ruc(
+    def get_system_load_and_resource_schedules_ruc(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2779,18 +2779,18 @@ class CAISO(ISOBase):
     ) -> pd.DataFrame:
         """Get CAISO System Load and Resource Schedules RUC data from CAISO."""
         if date == "latest":
-            return self.get_caiso_system_load_and_resource_schedules_day_ahead(
+            return self.get_system_load_and_resource_schedules_day_ahead(
                 "today",
             )
 
-        return self._get_caiso_system_load_and_resource_schedules_for_market(
+        return self._get_system_load_and_resource_schedules_for_market(
             date,
             end,
             verbose,
             market="ruc",
         )
 
-    def _get_caiso_system_load_and_resource_schedules_for_market(
+    def _get_system_load_and_resource_schedules_for_market(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
