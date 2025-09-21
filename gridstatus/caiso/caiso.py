@@ -2741,7 +2741,7 @@ class CAISO(ISOBase):
     ) -> pd.DataFrame:
         """Get CAISO System Load and Resource Schedules HASP data from CAISO."""
         if date == "latest":
-            return self.get_system_load_and_resource_schedules_day_ahead(
+            return self.get_system_load_and_resource_schedules_hasp(
                 "today",
             )
 
@@ -2752,7 +2752,7 @@ class CAISO(ISOBase):
             market="hasp",
         )
 
-    def get_system_load_and_resource_schedules_real_time_hourly(
+    def get_system_load_and_resource_schedules_real_time_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -2760,7 +2760,7 @@ class CAISO(ISOBase):
     ) -> pd.DataFrame:
         """Get CAISO System Load and Resource Schedules Real Time data from CAISO."""
         if date == "latest":
-            return self.get_system_load_and_resource_schedules_day_ahead(
+            return self.get_system_load_and_resource_schedules_real_time_5_min(
                 "today",
             )
 
@@ -2768,7 +2768,7 @@ class CAISO(ISOBase):
             date,
             end,
             verbose,
-            market="real_time",
+            market="real_time_5_min",
         )
 
     def get_system_load_and_resource_schedules_ruc(
@@ -2779,7 +2779,7 @@ class CAISO(ISOBase):
     ) -> pd.DataFrame:
         """Get CAISO System Load and Resource Schedules RUC data from CAISO."""
         if date == "latest":
-            return self.get_system_load_and_resource_schedules_day_ahead(
+            return self.get_system_load_and_resource_schedules_ruc(
                 "today",
             )
 
@@ -2795,7 +2795,7 @@ class CAISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-        market: Literal["day_ahead", "hasp", "real_time", "ruc"] = "day_ahead",
+        market: Literal["day_ahead", "hasp", "real_time_5_min", "ruc"] = "day_ahead",
     ):
         df = self.get_oasis_dataset(
             dataset=f"system_load_and_resource_schedules_{market}",

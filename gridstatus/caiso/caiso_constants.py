@@ -397,7 +397,7 @@ OASIS_DATASET_CONFIG = {
             "version": 1,
         },
         "params": {
-            "market_run_id": ["DAM"],
+            "market_run_id": "DAM",
             "tac_zone_name": "ALL",
             "schedule": "ALL",
         },
@@ -410,12 +410,12 @@ OASIS_DATASET_CONFIG = {
             "version": 1,
         },
         "params": {
-            "market_run_id": ["HASP"],
+            "market_run_id": "HASP",
             "tac_zone_name": "ALL",
             "schedule": "ALL",
         },
     },
-    "system_load_and_resource_schedules_real_time_hourly": {
+    "system_load_and_resource_schedules_real_time_5_min": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,
@@ -423,7 +423,7 @@ OASIS_DATASET_CONFIG = {
             "version": 1,
         },
         "params": {
-            "market_run_id": ["RTM"],
+            "market_run_id": "RTM",
             "tac_zone_name": "ALL",
             "schedule": "ALL",
         },
@@ -436,7 +436,7 @@ OASIS_DATASET_CONFIG = {
             "version": 1,
         },
         "params": {
-            "market_run_id": ["RUC"],
+            "market_run_id": "RUC",
             "tac_zone_name": "ALL",
             "schedule": "ALL",
         },
