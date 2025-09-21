@@ -402,7 +402,7 @@ OASIS_DATASET_CONFIG = {
             "schedule": "ALL",
         },
     },
-    "system_load_and_resource_schedules_day_hasp": {
+    "system_load_and_resource_schedules_hasp": {
         "query": {
             "path": "SingleZip",
             "resultformat": 6,
