@@ -389,6 +389,58 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {},
     },
+    "system_load_and_resource_schedules_day_ahead": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_SLRS",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": ["DAM"],
+            "tac_zone_name": "ALL",
+            "schedule": "ALL",
+        },
+    },
+    "system_load_and_resource_schedules_day_hasp": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_SLRS",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": ["HASP"],
+            "tac_zone_name": "ALL",
+            "schedule": "ALL",
+        },
+    },
+    "system_load_and_resource_schedules_real_time": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_SLRS",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": ["RTM"],
+            "tac_zone_name": "ALL",
+            "schedule": "ALL",
+        },
+    },
+    "system_load_and_resource_schedules_ruc": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ENE_SLRS",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": ["RUC"],
+            "tac_zone_name": "ALL",
+            "schedule": "ALL",
+        },
+    },
 }
 
 
