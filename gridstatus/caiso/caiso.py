@@ -2752,7 +2752,7 @@ class CAISO(ISOBase):
             market="hasp",
         )
 
-    def get_system_load_and_resource_schedules_real_time(
+    def get_system_load_and_resource_schedules_real_time_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
