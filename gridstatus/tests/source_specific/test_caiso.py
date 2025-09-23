@@ -1404,3 +1404,231 @@ class TestCAISO(BaseTestISO):
                 end,
                 tz=self.iso.default_timezone,
             )
+
+    """get_system_load_and_resource_schedules"""
+
+    def _check_system_load_and_resource_schedules(
+        self,
+        df: pd.DataFrame,
+        interval_minutes: int,
+        schedule_columns: list[str],
+    ):
+        """Helper to check system load and resource schedules dataframe."""
+        assert (
+            list(df.columns)
+            == [
+                "Interval Start",
+                "Interval End",
+                "TAC Name",
+            ]
+            + schedule_columns
+        )
+
+        # Check that interval timestamps are valid
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+
+        assert (
+            (df["Interval End"] - df["Interval Start"])
+            == pd.Timedelta(minutes=interval_minutes)
+        ).all()
+
+        # Check TAC Name is string
+        assert pd.api.types.is_string_dtype(df["TAC Name"])
+
+        # Check that schedule columns contain numeric data
+        for col in schedule_columns:
+            assert pd.api.types.is_numeric_dtype(df[col]), (
+                f"Column {col} should be numeric"
+            )
+
+    def test_get_system_load_and_resource_schedules_day_ahead_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_system_load_and_resource_schedules_day_ahead_latest.yaml",
+        ):
+            df = self.iso.get_system_load_and_resource_schedules_day_ahead(
+                "latest",
+            )
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Export", "Generation", "Import", "Load"],
+            )
+
+            # For day-ahead, should have future data
+            assert df["Interval Start"].max() > self.local_now()
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2024-01-15", "2024-01-17"),
+            ("2024-06-01", "2024-06-03"),
+        ],
+    )
+    def test_get_system_load_and_resource_schedules_day_ahead_date_range(
+        self,
+        date,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_system_load_and_resource_schedules_day_ahead_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_system_load_and_resource_schedules_day_ahead(
+                date,
+                end=end,
+            )
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Export", "Generation", "Import", "Load"],
+            )
+
+            # Check date range
+            assert df["Interval Start"].min() == pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            ) - pd.Timedelta(minutes=60)
+
+    def test_get_system_load_and_resource_schedules_hasp_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_system_load_and_resource_schedules_hasp_latest.yaml",
+        ):
+            df = self.iso.get_system_load_and_resource_schedules_hasp("latest")
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Export", "Import"],
+            )
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2024-01-15", "2024-01-17"),
+            ("2024-06-01", "2024-06-03"),
+        ],
+    )
+    def test_get_system_load_and_resource_schedules_hasp_date_range(
+        self,
+        date,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_system_load_and_resource_schedules_hasp_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_system_load_and_resource_schedules_hasp(
+                date,
+                end=end,
+            )
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Export", "Import"],
+            )
+
+            # Check date range
+            assert df["Interval Start"].min() == pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            ) - pd.Timedelta(minutes=60)
+
+    def test_get_system_load_and_resource_schedules_real_time_5_min_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_system_load_and_resource_schedules_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_system_load_and_resource_schedules_real_time_5_min(
+                "latest",
+            )
+            self._check_system_load_and_resource_schedules(
+                df,
+                5,
+                schedule_columns=["Export", "Generation", "Import"],
+            )
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2024-01-15", "2024-01-17"),
+            ("2024-06-01", "2024-06-03"),
+        ],
+    )
+    def test_get_system_load_and_resource_schedules_real_time_5_min_date_range(
+        self,
+        date,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_system_load_and_resource_schedules_real_time_5_min_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_system_load_and_resource_schedules_real_time_5_min(
+                date,
+                end=end,
+            )
+            self._check_system_load_and_resource_schedules(
+                df,
+                5,
+                schedule_columns=["Export", "Generation", "Import"],
+            )
+
+            # Check date range
+            assert df["Interval Start"].min() == pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            ) - pd.Timedelta(minutes=5)
+
+    def test_get_system_load_and_resource_schedules_ruc_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_system_load_and_resource_schedules_ruc_latest.yaml",
+        ):
+            df = self.iso.get_system_load_and_resource_schedules_ruc("latest")
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Generation", "Import"],
+            )
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2024-01-15", "2024-01-17"),
+            ("2024-06-01", "2024-06-03"),
+        ],
+    )
+    def test_get_system_load_and_resource_schedules_ruc_date_range(
+        self,
+        date,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_system_load_and_resource_schedules_ruc_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_system_load_and_resource_schedules_ruc(
+                date,
+                end=end,
+            )
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Generation", "Import"],
+            )
+
+            # Check date range
+            assert df["Interval Start"].min() == pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            ) - pd.Timedelta(minutes=60)

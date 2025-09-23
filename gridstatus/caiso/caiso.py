@@ -3,6 +3,7 @@ import io
 import re
 import time
 import warnings
+from typing import Literal
 from zipfile import ZipFile
 
 import numpy as np
@@ -2711,3 +2712,114 @@ class CAISO(ISOBase):
             dataframes[df_name] = pd.DataFrame(data)
 
         return dataframes
+
+    def get_system_load_and_resource_schedules_day_ahead(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get CAISO System Load and Resource Schedules Day-Ahead data from CAISO."""
+        if date == "latest":
+            # DAM data should be available 1 day in the future after 13:00 PT
+            try:
+                return self.get_system_load_and_resource_schedules_day_ahead(
+                    self.local_now().normalize() + pd.DateOffset(days=1),
+                )
+            except KeyError:
+                # Fallback to today
+                return self.get_system_load_and_resource_schedules_day_ahead(
+                    self.local_now().normalize(),
+                )
+
+        return self._get_system_load_and_resource_schedules_for_market(
+            date,
+            end,
+            verbose,
+            market="day_ahead",
+        )
+
+    def get_system_load_and_resource_schedules_hasp(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get CAISO System Load and Resource Schedules HASP data from CAISO."""
+        if date == "latest":
+            return self.get_system_load_and_resource_schedules_hasp(
+                "today",
+            )
+
+        return self._get_system_load_and_resource_schedules_for_market(
+            date,
+            end,
+            verbose,
+            market="hasp",
+        )
+
+    def get_system_load_and_resource_schedules_real_time_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get CAISO System Load and Resource Schedules Real Time data from CAISO."""
+        if date == "latest":
+            return self.get_system_load_and_resource_schedules_real_time_5_min(
+                "today",
+            )
+
+        return self._get_system_load_and_resource_schedules_for_market(
+            date,
+            end,
+            verbose,
+            market="real_time_5_min",
+        )
+
+    def get_system_load_and_resource_schedules_ruc(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get CAISO System Load and Resource Schedules RUC data from CAISO."""
+        if date == "latest":
+            return self.get_system_load_and_resource_schedules_ruc(
+                "today",
+            )
+
+        return self._get_system_load_and_resource_schedules_for_market(
+            date,
+            end,
+            verbose,
+            market="ruc",
+        )
+
+    def _get_system_load_and_resource_schedules_for_market(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+        market: Literal["day_ahead", "hasp", "real_time_5_min", "ruc"] = "day_ahead",
+    ):
+        df = self.get_oasis_dataset(
+            dataset=f"system_load_and_resource_schedules_{market}",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        df = df.pivot(
+            columns=["SCHEDULE"],
+            index=["Interval Start", "Interval End", "TAC_ZONE_NAME"],
+            values="MW",
+        )
+
+        # Remove the multi-level columns
+        df.columns = df.columns.get_level_values(0)
+
+        df = df.reset_index().rename(columns={"TAC_ZONE_NAME": "TAC Name"})
+
+        return df.sort_values(["Interval Start", "TAC Name"])
