@@ -1484,14 +1484,14 @@ class TestCAISO(BaseTestISO):
             )
 
             # Check date range
-            assert df["Interval Start"].min() >= pd.Timestamp(
+            assert df["Interval Start"].min() == pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
             )
-            assert df["Interval End"].max() <= pd.Timestamp(
+            assert df["Interval Start"].max() == pd.Timestamp(
                 end,
                 tz=self.iso.default_timezone,
-            ) + pd.Timedelta(days=1)
+            ) - pd.Timedelta(minutes=60)
 
     def test_get_system_load_and_resource_schedules_hasp_latest(self):
         with caiso_vcr.use_cassette(
@@ -1530,14 +1530,14 @@ class TestCAISO(BaseTestISO):
             )
 
             # Check date range
-            assert df["Interval Start"].min() >= pd.Timestamp(
+            assert df["Interval Start"].min() == pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
             )
-            assert df["Interval End"].max() <= pd.Timestamp(
+            assert df["Interval Start"].max() == pd.Timestamp(
                 end,
                 tz=self.iso.default_timezone,
-            ) + pd.Timedelta(days=1)
+            ) - pd.Timedelta(minutes=60)
 
     def test_get_system_load_and_resource_schedules_real_time_5_min_latest(self):
         with caiso_vcr.use_cassette(
@@ -1578,14 +1578,14 @@ class TestCAISO(BaseTestISO):
             )
 
             # Check date range
-            assert df["Interval Start"].min() >= pd.Timestamp(
+            assert df["Interval Start"].min() == pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
             )
-            assert df["Interval End"].max() <= pd.Timestamp(
+            assert df["Interval Start"].max() == pd.Timestamp(
                 end,
                 tz=self.iso.default_timezone,
-            ) + pd.Timedelta(days=1)
+            ) - pd.Timedelta(minutes=5)
 
     def test_get_system_load_and_resource_schedules_ruc_latest(self):
         with caiso_vcr.use_cassette(
@@ -1624,11 +1624,11 @@ class TestCAISO(BaseTestISO):
             )
 
             # Check date range
-            assert df["Interval Start"].min() >= pd.Timestamp(
+            assert df["Interval Start"].min() == pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
             )
-            assert df["Interval End"].max() <= pd.Timestamp(
+            assert df["Interval Start"].max() == pd.Timestamp(
                 end,
                 tz=self.iso.default_timezone,
-            ) + pd.Timedelta(days=1)
+            ) - pd.Timedelta(minutes=60)
