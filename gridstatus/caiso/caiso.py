@@ -2722,9 +2722,15 @@ class CAISO(ISOBase):
         """Get CAISO System Load and Resource Schedules Day-Ahead data from CAISO."""
         if date == "latest":
             # DAM data should be available 1 day in the future after 13:00 PT
-            return self.get_system_load_and_resource_schedules_day_ahead(
-                self.local_now().normalize() + pd.DateOffset(days=1),
-            )
+            try:
+                return self.get_system_load_and_resource_schedules_day_ahead(
+                    self.local_now().normalize() + pd.DateOffset(days=1),
+                )
+            except KeyError:
+                # Fallback to today
+                return self.get_system_load_and_resource_schedules_day_ahead(
+                    self.local_now().normalize(),
+                )
 
         return self._get_system_load_and_resource_schedules_for_market(
             date,

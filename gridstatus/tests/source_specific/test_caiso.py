@@ -1407,34 +1407,34 @@ class TestCAISO(BaseTestISO):
 
     """get_system_load_and_resource_schedules"""
 
-    def _check_system_load_and_resource_schedules(self, df):
+    def _check_system_load_and_resource_schedules(
+        self,
+        df: pd.DataFrame,
+        interval_minutes: int,
+        schedule_columns: list[str],
+    ):
         """Helper to check system load and resource schedules dataframe."""
-        assert df.columns == [
-            "Interval Start",
-            "Interval End",
-            "TAC Name",
-            "Export",
-            "Generation",
-            "Import",
-            "Load",
-        ]
-
-        # Check base columns that should always be present
-        required_columns = ["Interval Start", "Interval End", "TAC Name"]
-        for col in required_columns:
-            assert col in df.columns, f"Missing required column: {col}"
+        assert (
+            list(df.columns)
+            == [
+                "Interval Start",
+                "Interval End",
+                "TAC Name",
+            ]
+            + schedule_columns
+        )
 
         # Check that interval timestamps are valid
         assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
         assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
 
+        assert (
+            (df["Interval End"] - df["Interval Start"])
+            == pd.Timedelta(minutes=interval_minutes)
+        ).all()
+
         # Check TAC Name is string
         assert pd.api.types.is_string_dtype(df["TAC Name"])
-
-        # Check that there are schedule columns (after pivoting)
-        # These could be columns like "LOAD", "GENERATION", "IMPORT", "EXPORT", etc.
-        schedule_columns = [col for col in df.columns if col not in required_columns]
-        assert len(schedule_columns) > 0, "No schedule columns found after pivoting"
 
         # Check that schedule columns contain numeric data
         for col in schedule_columns:
@@ -1449,7 +1449,11 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_system_load_and_resource_schedules_day_ahead(
                 "latest",
             )
-            self._check_system_load_and_resource_schedules(df)
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Export", "Generation", "Import", "Load"],
+            )
 
             # For day-ahead, should have future data
             assert df["Interval Start"].max() > self.local_now()
@@ -1473,7 +1477,11 @@ class TestCAISO(BaseTestISO):
                 date,
                 end=end,
             )
-            self._check_system_load_and_resource_schedules(df)
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Export", "Generation", "Import", "Load"],
+            )
 
             # Check date range
             assert df["Interval Start"].min() >= pd.Timestamp(
@@ -1490,7 +1498,11 @@ class TestCAISO(BaseTestISO):
             "test_get_system_load_and_resource_schedules_hasp_latest.yaml",
         ):
             df = self.iso.get_system_load_and_resource_schedules_hasp("latest")
-            self._check_system_load_and_resource_schedules(df)
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Export", "Import"],
+            )
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1511,7 +1523,11 @@ class TestCAISO(BaseTestISO):
                 date,
                 end=end,
             )
-            self._check_system_load_and_resource_schedules(df)
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Export", "Import"],
+            )
 
             # Check date range
             assert df["Interval Start"].min() >= pd.Timestamp(
@@ -1530,7 +1546,11 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_system_load_and_resource_schedules_real_time_5_min(
                 "latest",
             )
-            self._check_system_load_and_resource_schedules(df)
+            self._check_system_load_and_resource_schedules(
+                df,
+                5,
+                schedule_columns=["Export", "Generation", "Import"],
+            )
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1551,7 +1571,11 @@ class TestCAISO(BaseTestISO):
                 date,
                 end=end,
             )
-            self._check_system_load_and_resource_schedules(df)
+            self._check_system_load_and_resource_schedules(
+                df,
+                5,
+                schedule_columns=["Export", "Generation", "Import"],
+            )
 
             # Check date range
             assert df["Interval Start"].min() >= pd.Timestamp(
@@ -1568,7 +1592,11 @@ class TestCAISO(BaseTestISO):
             "test_get_system_load_and_resource_schedules_ruc_latest.yaml",
         ):
             df = self.iso.get_system_load_and_resource_schedules_ruc("latest")
-            self._check_system_load_and_resource_schedules(df)
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Generation", "Import"],
+            )
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1589,7 +1617,11 @@ class TestCAISO(BaseTestISO):
                 date,
                 end=end,
             )
-            self._check_system_load_and_resource_schedules(df)
+            self._check_system_load_and_resource_schedules(
+                df,
+                60,
+                schedule_columns=["Generation", "Import"],
+            )
 
             # Check date range
             assert df["Interval Start"].min() >= pd.Timestamp(
