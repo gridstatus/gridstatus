@@ -596,14 +596,14 @@ class TestSPP(BaseTestISO):
         "Interval End",
         "Reserve Zone",
         "Reg Up Service",
-        "Reg Down Service",
-        "Reg Up Mileage",
-        "Reg Down Mileage",
+        "Reg DN Service",
+        "Reg Up Mile",
+        "Reg DN Mile",
         "Ramp Up",
-        "Ramp Down",
-        "Spinning Reserves",
-        "Supplemental Reserves",
-        "Uncertainty Up",
+        "Ramp DN",
+        "Spin",
+        "Supp",
+        "Unc Up",
     ]
 
     def _check_as_prices_real_time_5_min(self, df: pd.DataFrame):

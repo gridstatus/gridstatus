@@ -1188,14 +1188,14 @@ class SPP(ISOBase):
         # Column mapping to match day-ahead format
         column_mapping = {
             "RegUPService": "Reg Up Service",
-            "RegDNService": "Reg Down Service",
-            "RegUpMile": "Reg Up Mileage",
-            "RegDNMile": "Reg Down Mileage",
+            "RegDNService": "Reg DN Service",
+            "RegUpMile": "Reg Up Mile",
+            "RegDNMile": "Reg DN Mile",
             "RampUP": "Ramp Up",
-            "RampDN": "Ramp Down",
-            "Spin": "Spinning Reserves",
-            "Supp": "Supplemental Reserves",
-            "UncUP": "Uncertainty Up",
+            "RampDN": "Ramp DN",
+            "Spin": "Spin",
+            "Supp": "Supp",
+            "UncUP": "Unc Up",
         }
 
         df = df.rename(columns=column_mapping)
