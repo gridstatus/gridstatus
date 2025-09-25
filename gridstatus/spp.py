@@ -1141,12 +1141,12 @@ class SPP(ISOBase):
 
         return df
 
-    @support_date_range("5_MIN")
     def get_as_prices_real_time_5_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
+        use_daily_files: bool = False,
     ):
         """
         Provides Marginal Clearing Price information by Reserve Zone for each
@@ -1156,10 +1156,32 @@ class SPP(ISOBase):
             date: date to get data for. Supports "latest" for most recent interval.
             end: end date
             verbose: print url
+            use_daily_files: if True, use daily files instead of 5 minute files.
 
         Returns:
             pd.DataFrame: Real-Time 5-minute Marginal Clearing Prices
         """
+        if use_daily_files:
+            return self._get_as_prices_real_time_5_min_from_daily_files(
+                date,
+                end=end,
+                verbose=verbose,
+            )
+        else:
+            return self._get_as_prices_real_time_5_min_from_intervals(
+                date,
+                end=end,
+                verbose=verbose,
+            )
+
+    @support_date_range("5_MIN")
+    def _get_as_prices_real_time_5_min_from_intervals(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Get AS prices from 5-minute interval files."""
         if date == "latest":
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/rtbm-mcp?path=/RTBM-MCP-latestInterval.csv"
         else:
@@ -1173,7 +1195,25 @@ class SPP(ISOBase):
 
         log(f"Downloading {url}", verbose)
         df = pd.read_csv(url)
+        return self._process_as_prices_real_time(df)
 
+    @support_date_range("DAY_START")
+    def _get_as_prices_real_time_5_min_from_daily_files(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Get AS prices from daily files."""
+        if date == "latest":
+            raise ValueError("Latest not supported with daily files")
+
+        url = self._format_daily_mcp_url(date, end)
+        log(f"Downloading {url}", verbose)
+        df = pd.read_csv(url)
+
+        # Strip whitespace from column names for daily files
+        df.columns = df.columns.str.strip()
         return self._process_as_prices_real_time(df)
 
     def _process_as_prices_real_time(self, df):
@@ -1209,6 +1249,28 @@ class SPP(ISOBase):
         return df.sort_values(["Interval Start", "Reserve Zone"]).reset_index(
             drop=True,
         )[cols_to_keep]
+
+    def _format_daily_mcp_url(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp | None,
+    ):
+        """
+        Formats the URL for daily MCP data files.
+
+        Args:
+            start (pd.Timestamp): Start date of the data.
+            end (pd.Timestamp): End date of the data.
+
+        Returns:
+            str: The formatted URL.
+        """
+        folder_year = start.strftime("%Y")
+        folder_month = start.strftime("%m")
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_MCP}?path=/{folder_year}/{folder_month}/By_Day/RTBM-MCP-DAILY-{start.strftime('%Y%m%d')}.csv"
+
+        return url
 
     @support_date_range("DAY_START")
     def get_day_ahead_operating_reserve_prices(self, date, end=None, verbose=False):

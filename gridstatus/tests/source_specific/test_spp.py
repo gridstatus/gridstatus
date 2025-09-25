@@ -655,6 +655,39 @@ class TestSPP(BaseTestISO):
             minutes=5,
         )
 
+    @pytest.mark.integration
+    def test_get_as_prices_real_time_5_min_with_daily_files(self):
+        """Test that we can get AS prices data using daily files."""
+        # Use a fixed recent date that is known to have daily files available
+        target_date = pd.Timestamp("2024-09-21", tz=self.iso.default_timezone)
+
+        cassette_name = f"test_get_as_prices_real_time_5_min_daily_files_{target_date.strftime('%Y%m%d')}.yaml"
+
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_as_prices_real_time_5_min(
+                date=target_date,
+                use_daily_files=True,
+            )
+
+        self._check_as_prices_real_time_5_min(df)
+
+        # Daily files should contain a full day of data
+        assert df["Interval Start"].min() == target_date
+        assert df["Interval Start"].max() == target_date + pd.Timedelta(
+            hours=23,
+            minutes=55,
+        )
+
+        # Should have significantly more data than single intervals
+        # (24 hours * 12 intervals/hour * 6 reserve zones = 1728 rows expected)
+        assert len(df) > 1000
+
+    @pytest.mark.integration
+    def test_get_as_prices_real_time_5_min_daily_files_latest_not_supported(self):
+        """Test that latest is not supported with daily files."""
+        with pytest.raises(ValueError, match="Latest not supported with daily files"):
+            self.iso.get_as_prices_real_time_5_min(date="latest", use_daily_files=True)
+
     WEIS_LMP_COLUMNS = [
         "Interval Start",
         "Interval End",
