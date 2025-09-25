@@ -589,6 +589,105 @@ class TestSPP(BaseTestISO):
         ).normalize() + pd.Timedelta(days=1)
         assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
 
+    """get_as_prices_real_time_5_min"""
+
+    REAL_TIME_MCP_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Reserve Zone",
+        "Reg Up Service",
+        "Reg DN Service",
+        "Reg Up Mile",
+        "Reg DN Mile",
+        "Ramp Up",
+        "Ramp DN",
+        "Spin",
+        "Supp",
+        "Unc Up",
+    ]
+
+    def _check_as_prices_real_time_5_min(self, df: pd.DataFrame):
+        assert list(df.columns) == self.REAL_TIME_MCP_COLUMNS
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+        for col in self.REAL_TIME_MCP_COLUMNS[3:]:
+            assert pd.api.types.is_numeric_dtype(df[col])
+
+    @pytest.mark.integration
+    def test_get_as_prices_real_time_5_min_latest(self):
+        with api_vcr.use_cassette("test_get_as_prices_real_time_5_min_latest.yaml"):
+            df = self.iso.get_as_prices_real_time_5_min(date="latest")
+
+        self._check_as_prices_real_time_5_min(df)
+
+    @pytest.mark.integration
+    def test_get_as_prices_real_time_5_min_historical_date(self):
+        three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
+        three_days_ago_1030 = three_days_ago + pd.DateOffset(hours=10, minutes=30)
+
+        cassette_name = f"test_get_as_prices_real_time_5_min_historical_date_{three_days_ago_1030.strftime('%Y%m%d_%H%M')}.yaml"
+
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_as_prices_real_time_5_min(date=three_days_ago_1030)
+
+        self._check_as_prices_real_time_5_min(df)
+        assert df["Interval Start"].min() == three_days_ago_1030
+        assert df["Interval Start"].max() == three_days_ago_1030
+
+    @pytest.mark.integration
+    def test_get_as_prices_real_time_5_min_date_range(self):
+        three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
+        three_days_ago_0025 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
+
+        cassette_name = f"test_get_as_prices_real_time_5_min_date_range_{three_days_ago.strftime('%Y%m%d_%H%M')}_to_{three_days_ago_0025.strftime('%Y%m%d_%H%M')}.yaml"
+
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_as_prices_real_time_5_min(
+                date=three_days_ago,
+                end=three_days_ago_0025,
+            )
+
+        self._check_as_prices_real_time_5_min(df)
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval Start"].max() == three_days_ago_0025 - pd.Timedelta(
+            minutes=5,
+        )
+
+    @pytest.mark.integration
+    def test_get_as_prices_real_time_5_min_with_daily_files(self):
+        """Test that we can get AS prices data using daily files."""
+        # Use a fixed recent date that is known to have daily files available
+        target_date = pd.Timestamp("2024-09-21", tz=self.iso.default_timezone)
+
+        cassette_name = f"test_get_as_prices_real_time_5_min_daily_files_{target_date.strftime('%Y%m%d')}.yaml"
+
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_as_prices_real_time_5_min(
+                date=target_date,
+                use_daily_files=True,
+            )
+
+        self._check_as_prices_real_time_5_min(df)
+
+        # Daily files should contain a full day of data
+        assert df["Interval Start"].min() == target_date
+        assert df["Interval Start"].max() == target_date + pd.Timedelta(
+            hours=23,
+            minutes=55,
+        )
+
+        # Should have significantly more data than single intervals
+        # (24 hours * 12 intervals/hour * 6 reserve zones = 1728 rows expected)
+        assert len(df) > 1000
+
+    @pytest.mark.integration
+    def test_get_as_prices_real_time_5_min_daily_files_latest_not_supported(self):
+        """Test that latest is not supported with daily files."""
+        with pytest.raises(ValueError, match="Latest not supported with daily files"):
+            self.iso.get_as_prices_real_time_5_min(date="latest", use_daily_files=True)
+
     WEIS_LMP_COLUMNS = [
         "Interval Start",
         "Interval End",
