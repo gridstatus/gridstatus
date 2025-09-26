@@ -2234,7 +2234,12 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
-        return self._handle_lmp_scheduling_point_tie_combination(df, "Real Time 5 Min")
+        return self._handle_lmp_scheduling_point_tie_combination(
+            df,
+            "Real Time 5 Min",
+            date,
+            end,
+        )
 
     def get_lmp_scheduling_point_tie_real_time_15_min(
         self,
@@ -2254,7 +2259,12 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
-        return self._handle_lmp_scheduling_point_tie_combination(df, "Real Time 15 Min")
+        return self._handle_lmp_scheduling_point_tie_combination(
+            df,
+            "Real Time 15 Min",
+            date,
+            end,
+        )
 
     def get_lmp_scheduling_point_tie_day_ahead_hourly(
         self,
@@ -2283,7 +2293,12 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
-        return self._handle_lmp_scheduling_point_tie_combination(df, "Day Ahead Hourly")
+        return self._handle_lmp_scheduling_point_tie_combination(
+            df,
+            "Day Ahead Hourly",
+            date,
+            end,
+        )
 
     def _handle_lmp_scheduling_point_tie_combination(
         self,
@@ -2293,10 +2308,12 @@ class CAISO(ISOBase):
             "Real Time 15 Min",
             "Real Time 5 Min",
         ],
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
     ) -> pd.DataFrame:
         if df.empty:
             raise NoDataFoundException(
-                f"No data found for LMP Scheduling Point Tie Combination {dataset_name}",
+                f"No data found for LMP Scheduling Point Tie Combination {dataset_name} for start date: {date} and end date: {end}",
             )
         df = df.rename(
             columns={
@@ -2376,7 +2393,9 @@ class CAISO(ISOBase):
             raw_data=False,
         )
         if df.empty:
-            raise NoDataFoundException("No data found for LMP HASP 15-min")
+            raise NoDataFoundException(
+                f"No data found for LMP HASP 15-min for start date: {date} and end date: {end}",
+            )
 
         return self._handle_lmp_hasp_15_min(df)
 
