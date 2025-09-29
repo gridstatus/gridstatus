@@ -1,7 +1,7 @@
 import functools
 import os
 import pprint
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List
 
 import pandas as pd
 import tqdm
@@ -24,7 +24,7 @@ def _get_args_dict(
 def date_range_maker(
     start: pd.Timestamp,
     end: pd.Timestamp,
-    freq: Union[str, pd.DateOffset],
+    freq: str | pd.DateOffset,
     inclusive: str = "neither",
 ) -> List[pd.Timestamp]:
     """Generate a date range based on start and end dates and a frequency."""
@@ -52,7 +52,7 @@ def date_range_maker(
 class support_date_range:
     def __init__(
         self,
-        frequency: Union[str, Callable[[Dict[str, Any]], str], None],
+        frequency: str | Callable[[Dict[str, Any]], str] | None,
         update_dates: (
             Callable[
                 [List[pd.Timestamp | None], Dict[str, Any]],
@@ -308,7 +308,7 @@ def _handle_save_to(
         df.to_csv(path, index=None)
 
 
-def _get_pjm_archive_date(market: Union[str, Markets]) -> pd.Timestamp:
+def _get_pjm_archive_date(market: str | Markets) -> pd.Timestamp:
     import gridstatus
 
     market = Markets(market)

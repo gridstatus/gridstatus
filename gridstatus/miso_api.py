@@ -2,7 +2,7 @@ import datetime
 import os
 import time
 from itertools import chain
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List
 
 import pandas as pd
 import requests
@@ -77,8 +77,8 @@ class MISOAPI:
 
     def get_lmp_day_ahead_hourly_ex_ante(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -92,8 +92,8 @@ class MISOAPI:
 
     def get_lmp_day_ahead_hourly_ex_post(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -107,8 +107,8 @@ class MISOAPI:
 
     def get_lmp_real_time_hourly_ex_post_prelim(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -122,8 +122,8 @@ class MISOAPI:
 
     def get_lmp_real_time_hourly_ex_post_final(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -137,8 +137,8 @@ class MISOAPI:
 
     def get_lmp_real_time_5_min_ex_ante(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -151,8 +151,8 @@ class MISOAPI:
 
     def get_lmp_real_time_5_min_ex_post_prelim(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -166,8 +166,8 @@ class MISOAPI:
 
     def get_lmp_real_time_5_min_ex_post_final(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -184,8 +184,8 @@ class MISOAPI:
     # which is more efficient than processing each iteration of the decorator
     def _get_pricing_data(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
         retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
         market: Markets,
         verbose: bool = False,
@@ -201,7 +201,7 @@ class MISOAPI:
     def _get_lmp_day_ahead_hourly(
         self,
         date: datetime.datetime,
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         version: str = EX_POST,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -221,7 +221,7 @@ class MISOAPI:
     def _get_lmp_real_time_hourly_ex_post(
         self,
         date: datetime.datetime,
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -241,7 +241,7 @@ class MISOAPI:
     def _get_lmp_real_time_5_min_ex_ante(
         self,
         date: datetime.datetime,
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
         # Interval format is hh:mm at the start of the interval
@@ -261,7 +261,7 @@ class MISOAPI:
     def _get_lmp_real_time_5_min_ex_post(
         self,
         date: datetime.datetime,
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -324,8 +324,8 @@ class MISOAPI:
     @support_date_range(frequency="DAY_START")
     def get_interchange_hourly(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
@@ -334,6 +334,10 @@ class MISOAPI:
         if isinstance(date, str):
             # This should not happen after the above check, but for type safety
             raise ValueError("Invalid date format")
+
+        if isinstance(date, tuple):
+            # This should not happen after decorator processing, but for type safety
+            raise ValueError("Tuple date format not supported here")
 
         date_str = date.strftime("%Y-%m-%d")
 
@@ -573,8 +577,8 @@ class MISOAPI:
 
     def get_mcp_day_ahead_ex_ante(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -587,8 +591,8 @@ class MISOAPI:
 
     def get_mcp_day_ahead_ex_post(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -601,8 +605,8 @@ class MISOAPI:
 
     def get_mcp_real_time_ex_ante(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -614,8 +618,8 @@ class MISOAPI:
 
     def get_mcp_real_time_5_min_ex_post_prelim(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -628,8 +632,8 @@ class MISOAPI:
 
     def get_mcp_real_time_hourly_ex_post_prelim(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -642,8 +646,8 @@ class MISOAPI:
 
     def get_mcp_real_time_5_min_ex_post_final(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -656,8 +660,8 @@ class MISOAPI:
 
     def get_mcp_real_time_hourly_ex_post_final(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -670,8 +674,8 @@ class MISOAPI:
 
     def _get_mcp_data(
         self,
-        date: Union[str, datetime.date, datetime.datetime],
-        end: Union[datetime.date, datetime.datetime] | None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
         retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
         verbose: bool = False,
         **kwargs: Any,
@@ -686,7 +690,7 @@ class MISOAPI:
     def _get_mcp_day_ahead(
         self,
         date: datetime.datetime,
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         version: str = EX_POST,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -705,7 +709,7 @@ class MISOAPI:
     def _get_mcp_real_time_ex_ante(
         self,
         date: datetime.datetime,
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
         interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
@@ -724,7 +728,7 @@ class MISOAPI:
     def _get_mcp_real_time_ex_post_5_min(
         self,
         date: datetime.datetime,
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -743,7 +747,7 @@ class MISOAPI:
     def _get_mcp_real_time_ex_post_hourly(
         self,
         date: datetime.datetime,
-        end: Union[datetime.date, datetime.datetime] | None = None,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
