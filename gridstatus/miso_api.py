@@ -548,7 +548,7 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_mcp_real_time_ex_post_prelim_5_min(self, date, end=None, verbose=False):
+    def get_mcp_real_time_5_min_ex_post_prelim(self, date, end=None, verbose=False):
         return self._get_mcp_data(
             date,
             end,
@@ -557,7 +557,7 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_mcp_real_time_ex_post_prelim_hourly(self, date, end=None, verbose=False):
+    def get_mcp_real_time_hourly_ex_post_prelim(self, date, end=None, verbose=False):
         return self._get_mcp_data(
             date,
             end,
@@ -566,7 +566,7 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_mcp_real_time_ex_post_final_5_min(self, date, end=None, verbose=False):
+    def get_mcp_real_time_5_min_ex_post_final(self, date, end=None, verbose=False):
         return self._get_mcp_data(
             date,
             end,
@@ -575,7 +575,7 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_mcp_real_time_ex_post_final_hourly(self, date, end=None, verbose=False):
+    def get_mcp_real_time_hourly_ex_post_final(self, date, end=None, verbose=False):
         return self._get_mcp_data(
             date,
             end,
