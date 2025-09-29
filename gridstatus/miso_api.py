@@ -186,7 +186,7 @@ class MISOAPI:
         self,
         date: Union[str, datetime.date, datetime.datetime],
         end: Optional[Union[datetime.date, datetime.datetime]],
-        retrieval_func: Callable[..., Any],
+        retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
         market: Markets,
         verbose: bool = False,
         **kwargs: Any,
@@ -197,7 +197,7 @@ class MISOAPI:
 
         return self._process_pricing_data(data_list, market=market)
 
-    @support_date_range(frequency="HOUR_START", return_raw=True)  # type: ignore[misc,no-untyped-call]
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_day_ahead_hourly(
         self,
         date: datetime.datetime,
@@ -217,7 +217,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="HOUR_START", return_raw=True)  # type: ignore[misc,no-untyped-call]
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_real_time_hourly_ex_post(
         self,
         date: datetime.datetime,
@@ -237,7 +237,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="5_MIN", return_raw=True)  # type: ignore[misc,no-untyped-call]
+    @support_date_range(frequency="5_MIN", return_raw=True)
     def _get_lmp_real_time_5_min_ex_ante(
         self,
         date: datetime.datetime,
@@ -257,7 +257,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="5_MIN", return_raw=True)  # type: ignore[misc,no-untyped-call]
+    @support_date_range(frequency="5_MIN", return_raw=True)
     def _get_lmp_real_time_5_min_ex_post(
         self,
         date: datetime.datetime,
@@ -321,7 +321,7 @@ class MISOAPI:
 
         return df
 
-    @support_date_range(frequency="DAY_START")  # type: ignore[misc,no-untyped-call]
+    @support_date_range(frequency="DAY_START")
     def get_interchange_hourly(
         self,
         date: Union[str, datetime.date, datetime.datetime],
@@ -672,7 +672,7 @@ class MISOAPI:
         self,
         date: Union[str, datetime.date, datetime.datetime],
         end: Optional[Union[datetime.date, datetime.datetime]],
-        retrieval_func: Callable[..., Any],
+        retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
         verbose: bool = False,
         **kwargs: Any,
     ) -> pd.DataFrame:
@@ -682,7 +682,7 @@ class MISOAPI:
 
         return self._process_mcp_data(data_list)
 
-    @support_date_range(frequency="HOUR_START", return_raw=True)  # type: ignore[misc,no-untyped-call]
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_mcp_day_ahead(
         self,
         date: datetime.datetime,
@@ -701,7 +701,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="5_MIN", return_raw=True)  # type: ignore[misc,no-untyped-call]
+    @support_date_range(frequency="5_MIN", return_raw=True)
     def _get_mcp_real_time_ex_ante(
         self,
         date: datetime.datetime,
@@ -720,7 +720,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="5_MIN", return_raw=True)  # type: ignore[misc,no-untyped-call]
+    @support_date_range(frequency="5_MIN", return_raw=True)
     def _get_mcp_real_time_ex_post_5_min(
         self,
         date: datetime.datetime,
@@ -739,7 +739,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="HOUR_START", return_raw=True)  # type: ignore[misc,no-untyped-call]
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_mcp_real_time_ex_post_hourly(
         self,
         date: datetime.datetime,
