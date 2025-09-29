@@ -118,7 +118,7 @@ class TestMISOAPI(TestHelperMixin):
         self._check_lmp(df, market_value=Markets.REAL_TIME_5_MIN_EX_POST_PRELIM.value)
 
         assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end - pd.Timedelta(minutes=5)
+        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
     """get_lmp_real_time_5_min_ex_post_final"""
 
@@ -269,8 +269,8 @@ class TestMISOAPI(TestHelperMixin):
             ["Ramp-down", "Ramp-up", "Regulation", "Spin", "Supplemental"],
         )
 
-        assert df["Interval Start"].min() == start.floor("5min")
-        assert df["Interval End"].max() == end.floor("5min")
+        assert df["Interval Start"].min() == start
+        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
     @pytest.mark.integration
     def test_get_mcp_real_time_ex_post_prelim_5_min_date_range(self):
