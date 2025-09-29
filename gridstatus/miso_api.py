@@ -683,12 +683,15 @@ class MISOAPI:
             },
         )
 
-        df_pivot = df.pivot_table(
-            index=["Interval Start", "Interval End", "Zone"],
-            columns="Product",
-            values="MCP",
-            aggfunc="first",
-        ).reset_index()
+        df_pivot = (
+            df.pivot(
+                index=["Interval Start", "Interval End", "Zone"],
+                columns="Product",
+                values="MCP",
+            )
+            .reset_index()
+            .rename(columns={"Ramp-up": "Ramp Up", "Ramp-down": "Ramp Down"})
+        )
 
         df_pivot.columns.name = None
 

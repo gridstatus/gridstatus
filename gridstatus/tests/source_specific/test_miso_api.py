@@ -230,7 +230,7 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_mcp_columns(
             df,
-            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
         )
 
         assert df["Interval Start"].min() == start
@@ -248,7 +248,7 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_mcp_columns(
             df,
-            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
         )
 
         assert df["Interval Start"].min() == start
@@ -266,7 +266,7 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_mcp_columns(
             df,
-            ["Ramp-down", "Ramp-up", "Regulation", "Spin", "Supplemental"],
+            ["Ramp Down", "Ramp Up", "Regulation", "Spin", "Supplemental"],
         )
 
         assert df["Interval Start"].min() == start
@@ -284,7 +284,7 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_mcp_columns(
             df,
-            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
         )
 
         assert df["Interval Start"].min() == start
@@ -302,7 +302,7 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_mcp_columns(
             df,
-            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
         )
 
         assert df["Interval Start"].min() == start
@@ -320,7 +320,7 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_mcp_columns(
             df,
-            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
         )
 
         assert df["Interval Start"].min() == start
@@ -338,7 +338,7 @@ class TestMISOAPI(TestHelperMixin):
 
         self._check_mcp_columns(
             df,
-            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
         )
 
         assert df["Interval Start"].min() == start
