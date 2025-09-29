@@ -2,7 +2,7 @@ import datetime
 import os
 import time
 from itertools import chain
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Union
 
 import pandas as pd
 import requests
@@ -37,8 +37,8 @@ logger = setup_gs_logger()
 class MISOAPI:
     def __init__(
         self,
-        pricing_api_key: Optional[str] = None,
-        load_generation_and_interchange_api_key: Optional[str] = None,
+        pricing_api_key: str | None = None,
+        load_generation_and_interchange_api_key: str | None = None,
         initial_sleep_seconds: int = 1,
     ) -> None:
         """
@@ -78,7 +78,7 @@ class MISOAPI:
     def get_lmp_day_ahead_hourly_ex_ante(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -93,7 +93,7 @@ class MISOAPI:
     def get_lmp_day_ahead_hourly_ex_post(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -108,7 +108,7 @@ class MISOAPI:
     def get_lmp_real_time_hourly_ex_post_prelim(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -123,7 +123,7 @@ class MISOAPI:
     def get_lmp_real_time_hourly_ex_post_final(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -138,7 +138,7 @@ class MISOAPI:
     def get_lmp_real_time_5_min_ex_ante(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -152,7 +152,7 @@ class MISOAPI:
     def get_lmp_real_time_5_min_ex_post_prelim(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -167,7 +167,7 @@ class MISOAPI:
     def get_lmp_real_time_5_min_ex_post_final(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
@@ -185,7 +185,7 @@ class MISOAPI:
     def _get_pricing_data(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]],
+        end: Union[datetime.date, datetime.datetime] | None,
         retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
         market: Markets,
         verbose: bool = False,
@@ -201,7 +201,7 @@ class MISOAPI:
     def _get_lmp_day_ahead_hourly(
         self,
         date: datetime.datetime,
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         version: str = EX_POST,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -221,7 +221,7 @@ class MISOAPI:
     def _get_lmp_real_time_hourly_ex_post(
         self,
         date: datetime.datetime,
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -241,7 +241,7 @@ class MISOAPI:
     def _get_lmp_real_time_5_min_ex_ante(
         self,
         date: datetime.datetime,
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
         # Interval format is hh:mm at the start of the interval
@@ -261,7 +261,7 @@ class MISOAPI:
     def _get_lmp_real_time_5_min_ex_post(
         self,
         date: datetime.datetime,
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -325,7 +325,7 @@ class MISOAPI:
     def get_interchange_hourly(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
@@ -574,7 +574,7 @@ class MISOAPI:
     def get_mcp_day_ahead_ex_ante(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -588,7 +588,7 @@ class MISOAPI:
     def get_mcp_day_ahead_ex_post(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -602,7 +602,7 @@ class MISOAPI:
     def get_mcp_real_time_ex_ante(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -615,7 +615,7 @@ class MISOAPI:
     def get_mcp_real_time_5_min_ex_post_prelim(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -629,7 +629,7 @@ class MISOAPI:
     def get_mcp_real_time_hourly_ex_post_prelim(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -643,7 +643,7 @@ class MISOAPI:
     def get_mcp_real_time_5_min_ex_post_final(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -657,7 +657,7 @@ class MISOAPI:
     def get_mcp_real_time_hourly_ex_post_final(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         return self._get_mcp_data(
@@ -671,7 +671,7 @@ class MISOAPI:
     def _get_mcp_data(
         self,
         date: Union[str, datetime.date, datetime.datetime],
-        end: Optional[Union[datetime.date, datetime.datetime]],
+        end: Union[datetime.date, datetime.datetime] | None,
         retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
         verbose: bool = False,
         **kwargs: Any,
@@ -686,7 +686,7 @@ class MISOAPI:
     def _get_mcp_day_ahead(
         self,
         date: datetime.datetime,
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         version: str = EX_POST,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -705,7 +705,7 @@ class MISOAPI:
     def _get_mcp_real_time_ex_ante(
         self,
         date: datetime.datetime,
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
         interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
@@ -724,7 +724,7 @@ class MISOAPI:
     def _get_mcp_real_time_ex_post_5_min(
         self,
         date: datetime.datetime,
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -743,7 +743,7 @@ class MISOAPI:
     def _get_mcp_real_time_ex_post_hourly(
         self,
         date: datetime.datetime,
-        end: Optional[Union[datetime.date, datetime.datetime]] = None,
+        end: Union[datetime.date, datetime.datetime] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:

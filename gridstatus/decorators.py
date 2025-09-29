@@ -1,7 +1,7 @@
 import functools
 import os
 import pprint
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Union
 
 import pandas as pd
 import tqdm
@@ -53,12 +53,13 @@ class support_date_range:
     def __init__(
         self,
         frequency: Union[str, Callable[[Dict[str, Any]], str], None],
-        update_dates: Optional[
+        update_dates: (
             Callable[
-                [List[Optional[pd.Timestamp]], Dict[str, Any]],
-                List[Optional[pd.Timestamp]],
+                [List[pd.Timestamp | None], Dict[str, Any]],
+                List[pd.Timestamp | None],
             ]
-        ] = None,
+            | None
+        ) = None,
         return_raw: bool = False,
     ) -> None:
         """Maximum frequency of ranges. if None, then no new ranges are created."""
@@ -282,8 +283,8 @@ class support_date_range:
 
 
 def _handle_save_to(
-    df: Optional[pd.DataFrame],
-    save_to: Optional[str],
+    df: pd.DataFrame | None,
+    save_to: str | None,
     args_dict: Dict[str, Any],
     f: Callable[..., Any],
 ) -> None:
@@ -331,9 +332,9 @@ def _get_pjm_archive_date(market: Union[str, Markets]) -> pd.Timestamp:
 
 # todo convert to custom PJMDateOffset class
 def pjm_update_dates(
-    dates: List[Optional[pd.Timestamp]],
+    dates: List[pd.Timestamp | None],
     args_dict: Dict[str, Any],
-) -> List[Optional[pd.Timestamp]]:
+) -> List[pd.Timestamp | None]:
     """PJM has a weird API. This method updates the date range list to account
     for the following restrictions:
 
@@ -344,7 +345,7 @@ def pjm_update_dates(
 
     archive_date = _get_pjm_archive_date(args_dict["market"])
 
-    new_dates: List[Optional[pd.Timestamp]] = []
+    new_dates: List[pd.Timestamp | None] = []
 
     for i, date in enumerate(dates):
         # stop if last date
