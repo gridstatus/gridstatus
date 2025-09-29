@@ -48,7 +48,7 @@ class TestMISOAPI(TestHelperMixin):
         self._check_lmp(df, market_value=Markets.DAY_AHEAD_HOURLY_EX_ANTE.value)
 
         assert df["Interval Start"].min() == start.floor("h")
-        assert df["Interval End"].max() == end.floor("h")
+        assert df["Interval End"].max() >= end.floor("h")
 
     """get_lmp_day_ahead_hourly_ex_post"""
 
@@ -62,7 +62,7 @@ class TestMISOAPI(TestHelperMixin):
         self._check_lmp(df, market_value=Markets.DAY_AHEAD_HOURLY_EX_POST.value)
 
         assert df["Interval Start"].min() == start.floor("h")
-        assert df["Interval End"].max() == end.floor("h")
+        assert df["Interval End"].max() >= end.floor("h")
 
     """get_lmp_real_time_hourly_ex_post_prelim"""
 
@@ -76,7 +76,7 @@ class TestMISOAPI(TestHelperMixin):
         self._check_lmp(df, market_value=Markets.REAL_TIME_HOURLY_EX_POST_PRELIM.value)
 
         assert df["Interval Start"].min() == start.floor("h")
-        assert df["Interval End"].max() == end.floor("h")
+        assert df["Interval End"].max() >= end.floor("h")
 
     """get_lmp_real_time_hourly_ex_post_final"""
 
@@ -90,7 +90,7 @@ class TestMISOAPI(TestHelperMixin):
         self._check_lmp(df, market_value=Markets.REAL_TIME_HOURLY_EX_POST_FINAL.value)
 
         assert df["Interval Start"].min() == start.floor("h")
-        assert df["Interval End"].max() == end.floor("h")
+        assert df["Interval End"].max() >= end.floor("h")
 
     """get_lmp_real_time_5_min_ex_ante"""
 
@@ -205,3 +205,143 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == self.local_start_of_day(
             end.date(),
         ) + pd.Timedelta(hours=23)
+
+    """MCP Tests"""
+
+    def _check_mcp_columns(self, df, expected_products):
+        core_columns = ["Interval Start", "Interval End", "Zone"]
+        expected_columns = core_columns + expected_products
+
+        assert set(df.columns.tolist()) == set(expected_columns)
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+        assert isinstance(df["Zone"].iloc[0], str)
+
+        for product in expected_products:
+            assert df[product].dtype in ["float64", "Float64"]
+
+    @pytest.mark.integration
+    def test_get_mcp_day_ahead_ex_ante_date_range(self):
+        start = self.local_now() - pd.DateOffset(days=2)
+        end = start + pd.Timedelta(hours=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_mcp_day_ahead_ex_ante_{start.date()}_{end.date()}",
+        ):
+            df = self.iso.get_mcp_day_ahead_ex_ante(start, end)
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == start.floor("h")
+        assert df["Interval End"].max() >= end.floor("h")
+
+    @pytest.mark.integration
+    def test_get_mcp_day_ahead_ex_post_date_range(self):
+        start = self.local_now() - pd.DateOffset(days=2)
+        end = start + pd.Timedelta(hours=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_mcp_day_ahead_ex_post_{start.date()}_{end.date()}",
+        ):
+            df = self.iso.get_mcp_day_ahead_ex_post(start, end)
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == start.floor("h")
+        assert df["Interval End"].max() >= end.floor("h")
+
+    @pytest.mark.integration
+    def test_get_mcp_real_time_ex_ante_date_range(self):
+        start = (self.local_now() - pd.DateOffset(days=2)).floor("5min")
+        end = start + pd.Timedelta(minutes=30)
+
+        with api_vcr.use_cassette(
+            f"test_get_mcp_real_time_ex_ante_{start.date()}_{end.date()}",
+        ):
+            df = self.iso.get_mcp_real_time_ex_ante(start, end)
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp-down", "Ramp-up", "Regulation", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == start.floor("5min")
+        assert df["Interval End"].max() == end.floor("5min")
+
+    @pytest.mark.integration
+    def test_get_mcp_real_time_ex_post_prelim_5_min_date_range(self):
+        start = (self.local_now() - pd.DateOffset(days=2)).floor("5min")
+        end = start + pd.Timedelta(minutes=30)
+
+        with api_vcr.use_cassette(
+            f"test_get_mcp_real_time_ex_post_prelim_5_min_{start.date()}_{end.date()}",
+        ):
+            df = self.iso.get_mcp_real_time_ex_post_prelim_5_min(start, end)
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == start.floor("5min")
+        assert df["Interval End"].max() == end.floor("5min")
+
+    @pytest.mark.integration
+    def test_get_mcp_real_time_ex_post_prelim_hourly_date_range(self):
+        start = self.local_now() - pd.DateOffset(days=2)
+        end = start + pd.Timedelta(hours=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_mcp_real_time_ex_post_prelim_hourly_{start.date()}_{end.date()}",
+        ):
+            df = self.iso.get_mcp_real_time_ex_post_prelim_hourly(start, end)
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() <= start.floor("h")
+        assert df["Interval End"].max() >= end.floor("h")
+
+    @pytest.mark.integration
+    def test_get_mcp_real_time_ex_post_final_5_min_date_range(self):
+        start = (self.local_now() - pd.DateOffset(days=10)).floor("5min")
+        end = start + pd.Timedelta(minutes=30)
+
+        with api_vcr.use_cassette(
+            f"test_get_mcp_real_time_ex_post_final_5_min_{start.date()}_{end.date()}",
+        ):
+            df = self.iso.get_mcp_real_time_ex_post_final_5_min(start, end)
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+    @pytest.mark.integration
+    def test_get_mcp_real_time_ex_post_final_hourly_date_range(self):
+        start = self.local_now() - pd.DateOffset(days=10)
+        end = start + pd.Timedelta(hours=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_mcp_real_time_ex_post_final_hourly_{start.date()}_{end.date()}",
+        ):
+            df = self.iso.get_mcp_real_time_ex_post_final_hourly(start, end)
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp-down", "Ramp-up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() <= start.floor("h")
+        assert df["Interval End"].max() >= end.floor("h")

@@ -521,3 +521,171 @@ class MISOAPI:
             if isinstance(list_of_lists[0], list)
             else list_of_lists
         )
+
+    def get_mcp_day_ahead_ex_ante(self, date, end=None, verbose=False):
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_mcp_day_ahead,
+            market="MCP Day Ahead Ex Ante",
+            version=EX_ANTE,
+            verbose=verbose,
+        )
+
+    def get_mcp_day_ahead_ex_post(self, date, end=None, verbose=False):
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_mcp_day_ahead,
+            market="MCP Day Ahead Ex Post",
+            version=EX_POST,
+            verbose=verbose,
+        )
+
+    def get_mcp_real_time_ex_ante(self, date, end=None, verbose=False):
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_mcp_real_time_ex_ante,
+            market="MCP Real Time Ex Ante",
+            verbose=verbose,
+        )
+
+    def get_mcp_real_time_ex_post_prelim_5_min(self, date, end=None, verbose=False):
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_mcp_real_time_ex_post,
+            market="MCP Real Time Ex Post Preliminary 5 Min",
+            prelim_or_final=PRELIMINARY_STRING,
+            time_resolution=FIVE_MINUTE_RESOLUTION,
+            verbose=verbose,
+        )
+
+    def get_mcp_real_time_ex_post_prelim_hourly(self, date, end=None, verbose=False):
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_mcp_real_time_ex_post,
+            market="MCP Real Time Ex Post Preliminary Hourly",
+            prelim_or_final=PRELIMINARY_STRING,
+            time_resolution=HOURLY_RESOLUTION,
+            verbose=verbose,
+        )
+
+    def get_mcp_real_time_ex_post_final_5_min(self, date, end=None, verbose=False):
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_mcp_real_time_ex_post,
+            market="MCP Real Time Ex Post Final 5 Min",
+            prelim_or_final=FINAL_STRING,
+            time_resolution=FIVE_MINUTE_RESOLUTION,
+            verbose=verbose,
+        )
+
+    def get_mcp_real_time_ex_post_final_hourly(self, date, end=None, verbose=False):
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_mcp_real_time_ex_post,
+            market="MCP Real Time Ex Post Final Hourly",
+            prelim_or_final=FINAL_STRING,
+            time_resolution=HOURLY_RESOLUTION,
+            verbose=verbose,
+        )
+
+    def _get_mcp_data(
+        self,
+        date,
+        end,
+        retrieval_func: Callable,
+        market: str,
+        verbose: bool = False,
+        **kwargs,
+    ) -> pd.DataFrame:
+        data_lists = retrieval_func(date, end, verbose=verbose, **kwargs)
+
+        data_list = self._flatten(data_lists)
+
+        return self._process_mcp_data(data_list, market=market)
+
+    @support_date_range(frequency="HOUR_START", return_raw=True)
+    def _get_mcp_day_ahead(
+        self,
+        date,
+        end=None,
+        version: str = EX_POST,
+        verbose=False,
+    ):
+        interval = str(date.hour + 1).zfill(2)
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = (
+            f"{BASE_PRICING_URL}/day-ahead/{date_str}/asm-{version}?interval={interval}"
+        )
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    @support_date_range(frequency="5_MIN", return_raw=True)
+    def _get_mcp_real_time_ex_ante(self, date, end=None, verbose=False):
+        interval = date.floor("5min").strftime("%H:%M")
+        date_str = date.strftime("%Y-%m-%d")
+        version = EX_ANTE
+
+        url = (
+            f"{BASE_PRICING_URL}/real-time/{date_str}/asm-{version}?interval={interval}"
+        )
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    @support_date_range(frequency="5_MIN", return_raw=True)
+    def _get_mcp_real_time_ex_post(
+        self,
+        date,
+        end=None,
+        prelim_or_final: str = PRELIMINARY_STRING,
+        time_resolution: str = FIVE_MINUTE_RESOLUTION,
+        verbose=False,
+    ):
+        interval = date.floor("5min").strftime("%H:%M")
+        date_str = date.strftime("%Y-%m-%d")
+        version = EX_POST
+
+        url = f"{BASE_PRICING_URL}/real-time/{date_str}/asm-{version}?interval={interval}&preliminaryFinal={prelim_or_final}&timeResolution={time_resolution}"
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    def _process_mcp_data(
+        self,
+        data_list: List[Dict],
+        market: str,
+    ) -> pd.DataFrame:
+        df = self._data_list_to_df(data_list)
+
+        df["Market"] = market
+
+        df = df.rename(
+            columns={
+                "zone": "Zone",
+                "product": "Product",
+                "mcp": "MCP",
+            },
+        )
+
+        df_pivot = df.pivot_table(
+            index=["Interval Start", "Interval End", "Zone"],
+            columns="Product",
+            values="MCP",
+            aggfunc="first",
+        ).reset_index()
+
+        df_pivot.columns.name = None
+
+        return df_pivot
