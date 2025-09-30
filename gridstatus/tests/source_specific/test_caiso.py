@@ -1632,3 +1632,69 @@ class TestCAISO(BaseTestISO):
                 end,
                 tz=self.iso.default_timezone,
             ) - pd.Timedelta(minutes=60)
+
+    def test_get_lmp_hasp_15_min_no_data_exception(self):
+        """Test that NoDataFoundException includes start and end dates in the message."""
+        future_date = "2050-01-01"
+
+        with pytest.raises(NoDataFoundException) as exc_info:
+            self.iso.get_lmp_hasp_15_min(future_date)
+
+        assert "start date:" in str(exc_info.value)
+        assert "end date:" in str(exc_info.value)
+        assert future_date in str(exc_info.value)
+
+    def test_get_lmp_hasp_15_min_no_data_exception_with_end_date(self):
+        """Test that NoDataFoundException includes both start and end dates when both are provided."""
+        future_start = "2050-01-01T00:00:00Z"
+        future_end = "2050-01-01T00:00:05Z"
+
+        with pytest.raises(NoDataFoundException) as exc_info:
+            self.iso.get_lmp_hasp_15_min(future_start, future_end)
+
+        assert "start date:" in str(exc_info.value)
+        assert "end date:" in str(exc_info.value)
+        assert future_start in str(exc_info.value)
+        assert future_end in str(exc_info.value)
+
+    def test_get_lmp_scheduling_point_tie_real_time_5_min_no_data_exception(self):
+        """Test that NoDataFoundException includes start and end dates in the message."""
+        old_start = "2000-01-01T00:00:00Z"
+        old_end = "2000-01-01T00:00:05Z"
+
+        with pytest.raises(NoDataFoundException) as exc_info:
+            self.iso.get_lmp_scheduling_point_tie_real_time_5_min(old_start, old_end)
+
+        assert "start date:" in str(exc_info.value)
+        assert "end date:" in str(exc_info.value)
+        assert old_start in str(exc_info.value)
+        assert old_end in str(exc_info.value)
+        assert "Real Time 5 Min" in str(exc_info.value)
+
+    def test_get_lmp_scheduling_point_tie_real_time_15_min_no_data_exception(self):
+        """Test that NoDataFoundException includes start and end dates in the message."""
+        old_start = "2000-01-01T00:00:00Z"
+        old_end = "2000-01-01T00:00:15Z"
+
+        with pytest.raises(NoDataFoundException) as exc_info:
+            self.iso.get_lmp_scheduling_point_tie_real_time_15_min(old_start, old_end)
+
+        assert "start date:" in str(exc_info.value)
+        assert "end date:" in str(exc_info.value)
+        assert old_start in str(exc_info.value)
+        assert old_end in str(exc_info.value)
+        assert "Real Time 15 Min" in str(exc_info.value)
+
+    def test_get_lmp_scheduling_point_tie_day_ahead_hourly_no_data_exception(self):
+        """Test that NoDataFoundException includes start and end dates in the message."""
+        old_start = "2000-01-01T00:00:00Z"
+        old_end = "2000-01-01T01:00:00Z"
+
+        with pytest.raises(NoDataFoundException) as exc_info:
+            self.iso.get_lmp_scheduling_point_tie_day_ahead_hourly(old_start, old_end)
+
+        assert "start date:" in str(exc_info.value)
+        assert "end date:" in str(exc_info.value)
+        assert old_start in str(exc_info.value)
+        assert old_end in str(exc_info.value)
+        assert "Day Ahead Hourly" in str(exc_info.value)
