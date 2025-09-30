@@ -219,14 +219,14 @@ class TestMISOAPI(TestHelperMixin):
             assert df[product].dtype in ["float64", "Float64"]
 
     @pytest.mark.integration
-    def test_get_mcp_day_ahead_ex_ante_date_range(self):
+    def test_get_as_mcp_day_ahead_ex_ante_date_range(self):
         start = (self.local_now() - pd.DateOffset(days=2)).floor("h")
         end = start + pd.Timedelta(hours=1)
 
         with api_vcr.use_cassette(
-            f"test_get_mcp_day_ahead_ex_ante_{start.date()}_{end.date()}",
+            f"test_get_as_mcp_day_ahead_ex_ante_{start.date()}_{end.date()}",
         ):
-            df = self.iso.get_mcp_day_ahead_ex_ante(start, end)
+            df = self.iso.get_as_mcp_day_ahead_ex_ante(start, end)
 
         self._check_mcp_columns(
             df,
@@ -237,14 +237,14 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
 
     @pytest.mark.integration
-    def test_get_mcp_day_ahead_ex_post_date_range(self):
+    def test_get_as_mcp_day_ahead_ex_post_date_range(self):
         start = (self.local_now() - pd.DateOffset(days=2)).floor("h")
         end = start + pd.Timedelta(hours=1)
 
         with api_vcr.use_cassette(
-            f"test_get_mcp_day_ahead_ex_post_{start.date()}_{end.date()}",
+            f"test_get_as_mcp_day_ahead_ex_post_{start.date()}_{end.date()}",
         ):
-            df = self.iso.get_mcp_day_ahead_ex_post(start, end)
+            df = self.iso.get_as_mcp_day_ahead_ex_post(start, end)
 
         self._check_mcp_columns(
             df,
@@ -255,14 +255,14 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
 
     @pytest.mark.integration
-    def test_get_mcp_real_time_ex_ante_date_range(self):
+    def test_get_as_mcp_real_time_5_min_ex_ante_date_range(self):
         start = (self.local_now() - pd.DateOffset(days=2)).floor("5min")
         end = start + pd.Timedelta(minutes=30)
 
         with api_vcr.use_cassette(
-            f"test_get_mcp_real_time_ex_ante_{start.date()}_{end.date()}",
+            f"test_get_as_mcp_real_time_5_min_ex_ante_{start.date()}_{end.date()}",
         ):
-            df = self.iso.get_mcp_real_time_ex_ante(start, end)
+            df = self.iso.get_as_mcp_real_time_5_min_ex_ante(start, end)
 
         self._check_mcp_columns(
             df,
@@ -273,14 +273,14 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
     @pytest.mark.integration
-    def test_get_mcp_real_time_5_min_ex_post_prelim_date_range(self):
+    def test_get_as_mcp_real_time_5_min_ex_post_prelim_date_range(self):
         start = (self.local_now() - pd.DateOffset(days=2)).floor("5min")
         end = start + pd.Timedelta(minutes=30)
 
         with api_vcr.use_cassette(
-            f"test_get_mcp_real_time_5_min_ex_post_prelim_{start.date()}_{end.date()}",
+            f"test_get_as_mcp_real_time_5_min_ex_post_prelim_{start.date()}_{end.date()}",
         ):
-            df = self.iso.get_mcp_real_time_5_min_ex_post_prelim(start, end)
+            df = self.iso.get_as_mcp_real_time_5_min_ex_post_prelim(start, end)
 
         self._check_mcp_columns(
             df,
@@ -291,14 +291,14 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
     @pytest.mark.integration
-    def test_get_mcp_real_time_hourly_ex_post_prelim_date_range(self):
+    def test_get_as_mcp_real_time_hourly_ex_post_prelim_date_range(self):
         start = (self.local_now() - pd.DateOffset(days=3)).floor("h")
         end = start + pd.Timedelta(hours=1)
 
         with api_vcr.use_cassette(
-            f"test_get_mcp_real_time_hourly_ex_post_prelim_{start.date()}_{end.date()}",
+            f"test_get_as_mcp_real_time_hourly_ex_post_prelim_{start.date()}_{end.date()}",
         ):
-            df = self.iso.get_mcp_real_time_hourly_ex_post_prelim(start, end)
+            df = self.iso.get_as_mcp_real_time_hourly_ex_post_prelim(start, end)
 
         self._check_mcp_columns(
             df,
@@ -309,14 +309,14 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
 
     @pytest.mark.integration
-    def test_get_mcp_real_time_5_min_ex_post_final_date_range(self):
+    def test_get_as_mcp_real_time_5_min_ex_post_final_date_range(self):
         start = (self.local_now() - pd.DateOffset(days=10)).floor("5min")
         end = start + pd.Timedelta(minutes=30)
 
         with api_vcr.use_cassette(
-            f"test_get_mcp_real_time_5_min_ex_post_final_{start.date()}_{end.date()}",
+            f"test_get_as_mcp_real_time_5_min_ex_post_final_{start.date()}_{end.date()}",
         ):
-            df = self.iso.get_mcp_real_time_5_min_ex_post_final(start, end)
+            df = self.iso.get_as_mcp_real_time_5_min_ex_post_final(start, end)
 
         self._check_mcp_columns(
             df,
@@ -327,14 +327,14 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
     @pytest.mark.integration
-    def test_get_mcp_real_time_hourly_ex_post_final_date_range(self):
+    def test_get_as_mcp_real_time_hourly_ex_post_final_date_range(self):
         start = (self.local_now() - pd.DateOffset(days=10)).floor("h")
         end = start + pd.Timedelta(hours=1)
 
         with api_vcr.use_cassette(
-            f"test_get_mcp_real_time_hourly_ex_post_final_{start.date()}_{end.date()}",
+            f"test_get_as_mcp_real_time_hourly_ex_post_final_{start.date()}_{end.date()}",
         ):
-            df = self.iso.get_mcp_real_time_hourly_ex_post_final(start, end)
+            df = self.iso.get_as_mcp_real_time_hourly_ex_post_final(start, end)
 
         self._check_mcp_columns(
             df,

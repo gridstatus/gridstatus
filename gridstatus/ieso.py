@@ -691,7 +691,7 @@ class IESO(ISOBase):
 
         return interval_load_demand_triples
 
-    def get_mcp_real_time_5_min(self):
+    def get_as_mcp_real_time_5_min(self):
         raise NotSupported(
             "MCP data is no longer available. For real time pricing information, use the `get_lmp_real_time_5_min` method instead. For historical MCP data, use the `get_mcp_historical_5_min` method.",
         )

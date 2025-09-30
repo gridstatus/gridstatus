@@ -591,7 +591,7 @@ class MISOAPI:
             else list_of_lists
         )
 
-    def get_mcp_day_ahead_ex_ante(
+    def get_as_mcp_day_ahead_ex_ante(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -600,12 +600,12 @@ class MISOAPI:
         return self._get_mcp_data(
             date,
             end,
-            retrieval_func=self._get_mcp_day_ahead,
+            retrieval_func=self._get_as_mcp_day_ahead,
             version=EX_ANTE,
             verbose=verbose,
         )
 
-    def get_mcp_day_ahead_ex_post(
+    def get_as_mcp_day_ahead_ex_post(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -614,12 +614,12 @@ class MISOAPI:
         return self._get_mcp_data(
             date,
             end,
-            retrieval_func=self._get_mcp_day_ahead,
+            retrieval_func=self._get_as_mcp_day_ahead,
             version=EX_POST,
             verbose=verbose,
         )
 
-    def get_mcp_real_time_ex_ante(
+    def get_as_mcp_real_time_5_min_ex_ante(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -628,11 +628,11 @@ class MISOAPI:
         return self._get_mcp_data(
             date,
             end,
-            retrieval_func=self._get_mcp_real_time_ex_ante,
+            retrieval_func=self._get_as_mcp_real_time_5_min_ex_ante,
             verbose=verbose,
         )
 
-    def get_mcp_real_time_5_min_ex_post_prelim(
+    def get_as_mcp_real_time_5_min_ex_post_prelim(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -641,12 +641,12 @@ class MISOAPI:
         return self._get_mcp_data(
             date,
             end,
-            retrieval_func=self._get_mcp_real_time_ex_post_5_min,
+            retrieval_func=self._get_as_mcp_real_time_ex_post_5_min,
             prelim_or_final=PRELIMINARY_STRING,
             verbose=verbose,
         )
 
-    def get_mcp_real_time_hourly_ex_post_prelim(
+    def get_as_mcp_real_time_hourly_ex_post_prelim(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -655,12 +655,12 @@ class MISOAPI:
         return self._get_mcp_data(
             date,
             end,
-            retrieval_func=self._get_mcp_real_time_ex_post_hourly,
+            retrieval_func=self._get_as_mcp_real_time_ex_post_hourly,
             prelim_or_final=PRELIMINARY_STRING,
             verbose=verbose,
         )
 
-    def get_mcp_real_time_5_min_ex_post_final(
+    def get_as_mcp_real_time_5_min_ex_post_final(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -669,12 +669,12 @@ class MISOAPI:
         return self._get_mcp_data(
             date,
             end,
-            retrieval_func=self._get_mcp_real_time_ex_post_5_min,
+            retrieval_func=self._get_as_mcp_real_time_ex_post_5_min,
             prelim_or_final=FINAL_STRING,
             verbose=verbose,
         )
 
-    def get_mcp_real_time_hourly_ex_post_final(
+    def get_as_mcp_real_time_hourly_ex_post_final(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -683,7 +683,7 @@ class MISOAPI:
         return self._get_mcp_data(
             date,
             end,
-            retrieval_func=self._get_mcp_real_time_ex_post_hourly,
+            retrieval_func=self._get_as_mcp_real_time_ex_post_hourly,
             prelim_or_final=FINAL_STRING,
             verbose=verbose,
         )
@@ -700,10 +700,10 @@ class MISOAPI:
 
         data_list = self._flatten(data_lists)
 
-        return self._process_mcp_data(data_list)
+        return self._process_as_mcp_data(data_list)
 
     @support_date_range(frequency="HOUR_START", return_raw=True)
-    def _get_mcp_day_ahead(
+    def _get_as_mcp_day_ahead(
         self,
         date: datetime.datetime,
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -722,7 +722,7 @@ class MISOAPI:
         return data_list
 
     @support_date_range(frequency="5_MIN", return_raw=True)
-    def _get_mcp_real_time_ex_ante(
+    def _get_as_mcp_real_time_5_min_ex_ante(
         self,
         date: datetime.datetime,
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -741,7 +741,7 @@ class MISOAPI:
         return data_list
 
     @support_date_range(frequency="5_MIN", return_raw=True)
-    def _get_mcp_real_time_ex_post_5_min(
+    def _get_as_mcp_real_time_ex_post_5_min(
         self,
         date: datetime.datetime,
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -760,7 +760,7 @@ class MISOAPI:
         return data_list
 
     @support_date_range(frequency="HOUR_START", return_raw=True)
-    def _get_mcp_real_time_ex_post_hourly(
+    def _get_as_mcp_real_time_ex_post_hourly(
         self,
         date: datetime.datetime,
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -778,7 +778,7 @@ class MISOAPI:
 
         return data_list
 
-    def _process_mcp_data(
+    def _process_as_mcp_data(
         self,
         data_list: List[Dict[str, Any]],
     ) -> pd.DataFrame:
