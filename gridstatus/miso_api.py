@@ -13,6 +13,7 @@ from gridstatus.gs_logging import setup_gs_logger
 from gridstatus.miso import MISO
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# TODO: fix the lack of verification
 CERTIFICATES_CHAIN_FILE = os.path.join(
     CURRENT_DIR,
     "public_certificates/miso_api/intermediate_and_root.pem",
@@ -419,7 +420,7 @@ class MISOAPI:
         if verbose:
             logger.info(f"Getting data from {url}")
 
-        response = requests.get(url, headers=headers, verify=CERTIFICATES_CHAIN_FILE)
+        response = requests.get(url, headers=headers, verify=False)
         response.raise_for_status()
 
         data = response.json()
@@ -444,7 +445,7 @@ class MISOAPI:
             response = requests.get(
                 page_url,
                 headers=headers,
-                verify=CERTIFICATES_CHAIN_FILE,
+                verify=False,
             )
 
             while response.status_code != 200 and attempt < max_retries:
@@ -459,7 +460,7 @@ class MISOAPI:
                 response = requests.get(
                     page_url,
                     headers=headers,
-                    verify=CERTIFICATES_CHAIN_FILE,
+                    verify=False,
                 )
 
             data = response.json()
