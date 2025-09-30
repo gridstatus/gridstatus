@@ -75,15 +75,6 @@ class MISOAPI:
         self.default_timezone = "EST"
         self.initial_sleep_seconds = initial_sleep_seconds
 
-        # Set up proxy configuration from environment variables
-        self.proxies = {}
-        http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
-        https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
-        if http_proxy:
-            self.proxies["http"] = http_proxy
-        if https_proxy:
-            self.proxies["https"] = https_proxy
-
     def get_lmp_day_ahead_hourly_ex_ante(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -480,7 +471,6 @@ class MISOAPI:
             url,
             headers=headers,
             verify=CERTIFICATES_CHAIN_FILE,
-            proxies=self.proxies or None,
         )
 
         response.raise_for_status()
@@ -509,7 +499,6 @@ class MISOAPI:
                 params=params,
                 headers=headers,
                 verify=CERTIFICATES_CHAIN_FILE,
-                proxies=self.proxies or None,
             )
 
             while response.status_code != 200 and attempt < max_retries:
@@ -526,7 +515,6 @@ class MISOAPI:
                     params=params,
                     headers=headers,
                     verify=CERTIFICATES_CHAIN_FILE,
-                    proxies=self.proxies or None,
                 )
 
             response.raise_for_status()

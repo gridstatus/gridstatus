@@ -43,8 +43,6 @@ jobs:
       ISONE_API_USERNAME: ${{ secrets.ISONE_API_USERNAME }}
       ISONE_API_PASSWORD: ${{ secrets.ISONE_API_PASSWORD }}
       AESO_API_KEY: ${{ secrets.AESO_API_KEY }}
-      HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
-      HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
