@@ -343,3 +343,139 @@ class TestMISOAPI(TestHelperMixin):
 
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
+
+    """MCP Tests with use_daily_requests=True"""
+
+    @pytest.mark.integration
+    def test_get_as_mcp_use_daily_requests_day_ahead_ex_ante(self):
+        date = (self.local_now() - pd.DateOffset(days=2)).floor("d")
+
+        with api_vcr.use_cassette(
+            f"test_get_as_mcp_use_daily_requests_day_ahead_ex_ante_{date.date()}",
+        ):
+            df = self.iso.get_as_mcp_day_ahead_ex_ante(date, use_daily_requests=True)
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
+
+    @pytest.mark.integration
+    def test_get_as_mcp_use_daily_requests_day_ahead_ex_post(self):
+        date = (self.local_now() - pd.DateOffset(days=2)).floor("d")
+
+        with api_vcr.use_cassette(
+            f"test_get_as_mcp_use_daily_requests_day_ahead_ex_post_{date.date()}",
+        ):
+            df = self.iso.get_as_mcp_day_ahead_ex_post(date, use_daily_requests=True)
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
+
+    @pytest.mark.integration
+    def test_get_as_mcp_use_daily_requests_real_time_5_min_ex_ante(self):
+        date = (self.local_now() - pd.DateOffset(days=2)).floor("d")
+
+        with api_vcr.use_cassette(
+            f"test_get_as_mcp_use_daily_requests_real_time_5_min_ex_ante_{date.date()}",
+        ):
+            df = self.iso.get_as_mcp_real_time_5_min_ex_ante(
+                date,
+                use_daily_requests=True,
+            )
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp Down", "Ramp Up", "Regulation", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(hours=23, minutes=55)
+
+    @pytest.mark.integration
+    def test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_prelim(self):
+        date = (self.local_now() - pd.DateOffset(days=2)).floor("d")
+
+        with api_vcr.use_cassette(
+            f"test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_prelim_{date.date()}",
+        ):
+            df = self.iso.get_as_mcp_real_time_5_min_ex_post_prelim(
+                date,
+                use_daily_requests=True,
+            )
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(hours=23, minutes=55)
+
+    @pytest.mark.integration
+    def test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_prelim(self):
+        date = (self.local_now() - pd.DateOffset(days=3)).floor("d")
+
+        with api_vcr.use_cassette(
+            f"test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_prelim_{date.date()}",
+        ):
+            df = self.iso.get_as_mcp_real_time_hourly_ex_post_prelim(
+                date,
+                use_daily_requests=True,
+            )
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
+
+    @pytest.mark.integration
+    def test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_final(self):
+        date = (self.local_now() - pd.DateOffset(days=10)).floor("d")
+
+        with api_vcr.use_cassette(
+            f"test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_final_{date.date()}",
+        ):
+            df = self.iso.get_as_mcp_real_time_5_min_ex_post_final(
+                date,
+                use_daily_requests=True,
+            )
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(hours=23, minutes=55)
+
+    @pytest.mark.integration
+    def test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_final(self):
+        date = (self.local_now() - pd.DateOffset(days=10)).floor("d")
+
+        with api_vcr.use_cassette(
+            f"test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_final_{date.date()}",
+        ):
+            df = self.iso.get_as_mcp_real_time_hourly_ex_post_final(
+                date,
+                use_daily_requests=True,
+            )
+
+        self._check_mcp_columns(
+            df,
+            ["Ramp Down", "Ramp Up", "Regulation", "STR", "Spin", "Supplemental"],
+        )
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
