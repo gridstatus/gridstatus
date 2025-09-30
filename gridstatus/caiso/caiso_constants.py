@@ -162,6 +162,17 @@ OASIS_DATASET_CONFIG = {
             "max_query_frequency": "1d",
         },
     },
+    "pnode_listing": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ATL_PNODE",
+            "version": 1,
+        },
+        "params": {
+            "pnode_id": "ALL",
+        },
+    },
     "pnode_map": {
         "query": {
             "path": "SingleZip",
