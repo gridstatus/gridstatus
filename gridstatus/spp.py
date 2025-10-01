@@ -1,3 +1,4 @@
+import urllib
 from typing import BinaryIO
 
 import pandas as pd
@@ -1655,7 +1656,18 @@ class SPP(ISOBase):
             pd.DataFrame: Market Clearing Real Time
         """
         if date == "latest":
-            return self.get_market_clearing_real_time("today")
+            try:
+                return self.get_market_clearing_real_time("today")
+            except urllib.error.HTTPError:
+                log(
+                    "Data not available for today, trying yesterday",
+                    verbose,
+                )
+                return self.get_market_clearing_real_time(
+                    self.local_now().normalize() - pd.DateOffset(days=1),
+                    verbose=verbose,
+                )
+
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing-rtbm?path=/{date.strftime('%Y')}/{date.strftime('%m')}/RTBM-MC-{date.strftime('%Y%m%d')}.csv"  # noqa
 
         msg = f"Downloading {url}"
@@ -1681,7 +1693,15 @@ class SPP(ISOBase):
             pd.DataFrame: Market Clearing Day Ahead
         """
         if date == "latest":
-            date = self.local_today() + pd.DateOffset(days=1)
+            date = self.local_now().normalize() + pd.DateOffset(days=1)
+            try:
+                return self.get_market_clearing_day_ahead(date, verbose=verbose)
+            except urllib.error.HTTPError:
+                log(
+                    f"Data not available for {date.strftime('%Y-%m-%d')}, trying today",
+                    verbose,
+                )
+                return self.get_market_clearing_day_ahead("today", verbose=verbose)
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
 
