@@ -1224,7 +1224,7 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of PNode Listing
         """
         start = utils._handle_date("today")
-        
+
         df = self.get_oasis_dataset(
             dataset="pnode_listing",
             start=start,
