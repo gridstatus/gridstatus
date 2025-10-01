@@ -1642,9 +1642,9 @@ class SPP(ISOBase):
     @support_date_range("DAY_START")
     def get_market_clearing_real_time(
         self,
-        date,
-        end=None,
-        verbose=False,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
     ):
         """Get Market Clearing Real Time
 
@@ -1679,9 +1679,9 @@ class SPP(ISOBase):
     @support_date_range("DAY_START")
     def get_market_clearing_day_ahead(
         self,
-        date,
-        end=None,
-        verbose=False,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
     ):
         """Get Market Clearing Day Ahead
 
@@ -1711,7 +1711,7 @@ class SPP(ISOBase):
 
         return self._process_market_clearing(df, 60)
 
-    def _process_market_clearing(self, df, interval_minutes: int):
+    def _process_market_clearing(self, df: pd.DataFrame, interval_minutes: int):
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
