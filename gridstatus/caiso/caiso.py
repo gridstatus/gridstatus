@@ -1237,7 +1237,6 @@ class CAISO(ISOBase):
     def get_apnodes_listing(self, verbose: bool = False) -> pd.DataFrame:
         """Get APNode listing for current date.
 
-
         Returns:
             pandas.DataFrame: A DataFrame of APNode Listing
         """
