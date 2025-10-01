@@ -171,6 +171,19 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {
             "pnode_id": "ALL",
+            "cb_node_flag": ["ALL", "N", "Y"],
+        },
+    },
+    "apnode_listing": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "ATL_APNODE",
+            "version": 1,
+        },
+        "params": {
+            "apnode_type": ["ALL", "AG", "ASP", "ASR", "CASP", "CPZ", "DASP", "DCA", "DEPZ", "DPZ", "EIMT", "EPZ", "FRPZ", "POD", "SPZ", "TH"],
+            "cb_node_flag": ["ALL", "N", "Y"],
         },
     },
     "pnode_map": {

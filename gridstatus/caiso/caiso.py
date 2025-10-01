@@ -1217,6 +1217,41 @@ class CAISO(ISOBase):
         )
         return df
 
+    def get_pnodes_listing(self, verbose: bool = False) -> pd.DataFrame:
+        """Get PNode listing for current date.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of PNode Listing
+        """
+        start = utils._handle_date("today")
+        
+        df = self.get_oasis_dataset(
+            dataset="pnode_listing",
+            start=start,
+            end=start + pd.Timedelta(days=1),
+            verbose=verbose,
+        )
+
+        return df
+
+    def get_apnodes_listing(self, verbose: bool = False) -> pd.DataFrame:
+        """Get APNode listing for current date.
+
+
+        Returns:
+            pandas.DataFrame: A DataFrame of APNode Listing
+        """
+        start = utils._handle_date("today")
+
+        df = self.get_oasis_dataset(
+            dataset="apnode_listing",
+            start=start,
+            end=start + pd.Timedelta(days=1),
+            verbose=verbose,
+        )
+
+        return df
+
     @lmp_config(
         supports={
             Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],

@@ -1047,6 +1047,16 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_pnodes()
             assert df.shape[0] > 0
 
+    def test_get_pnodes_listing(self):
+        with caiso_vcr.use_cassette("test_get_pnodes_listing.yaml"):
+            df = self.iso.get_pnodes_listing()
+            assert df.shape[0] > 0
+
+    def test_get_apnodes_listing(self):
+        with caiso_vcr.use_cassette("test_get_apnodes_listing.yaml"):
+            df = self.iso.get_apnodes_listing()
+            assert df.shape[0] > 0
+
     """get_lmp_scheduling_point_tie_combination"""
 
     def _check_lmp_scheduling_point_tie(self, df: pd.DataFrame):
