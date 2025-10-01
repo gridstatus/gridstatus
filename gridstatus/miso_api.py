@@ -2,7 +2,7 @@ import datetime
 import os
 import time
 from itertools import chain
-from typing import Callable, Dict, List
+from typing import Any, Callable, Dict, List
 
 import pandas as pd
 import requests
@@ -37,10 +37,10 @@ logger = setup_gs_logger()
 class MISOAPI:
     def __init__(
         self,
-        pricing_api_key: str = None,
-        load_generation_and_interchange_api_key: str = None,
+        pricing_api_key: str | None = None,
+        load_generation_and_interchange_api_key: str | None = None,
         initial_sleep_seconds: int = 1,
-    ):
+    ) -> None:
         """
         Class for querying the MISO API. Currently supports only pricing data.
 
@@ -54,7 +54,7 @@ class MISOAPI:
             "MISO_API_PRICING_SUBSCRIPTION_KEY",
             "",
         )
-        self.pricing_api_keys = self.pricing_api_key.split(",")
+        self.pricing_api_keys = (self.pricing_api_key or "").split(",")
         # Used to rotate through the pricing API keys
         self.current_pricing_key_index = 0
 
@@ -66,8 +66,8 @@ class MISOAPI:
             )
         )
         self.load_generation_and_interchange_api_keys = (
-            self.load_generation_and_interchange_api_key.split(",")
-        )
+            self.load_generation_and_interchange_api_key or ""
+        ).split(",")
 
         # Used to rotate through the load generation and interchange API keys
         self.current_load_generation_and_interchange_key_index = 0
@@ -75,7 +75,12 @@ class MISOAPI:
         self.default_timezone = "EST"
         self.initial_sleep_seconds = initial_sleep_seconds
 
-    def get_lmp_day_ahead_hourly_ex_ante(self, date, end=None, verbose=False):
+    def get_lmp_day_ahead_hourly_ex_ante(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -85,7 +90,12 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_lmp_day_ahead_hourly_ex_post(self, date, end=None, verbose=False):
+    def get_lmp_day_ahead_hourly_ex_post(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -95,7 +105,12 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_lmp_real_time_hourly_ex_post_prelim(self, date, end=None, verbose=False):
+    def get_lmp_real_time_hourly_ex_post_prelim(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -105,7 +120,12 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_lmp_real_time_hourly_ex_post_final(self, date, end=None, verbose=False):
+    def get_lmp_real_time_hourly_ex_post_final(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -115,7 +135,12 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_lmp_real_time_5_min_ex_ante(self, date, end=None, verbose=False):
+    def get_lmp_real_time_5_min_ex_ante(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -124,7 +149,12 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_lmp_real_time_5_min_ex_post_prelim(self, date, end=None, verbose=False):
+    def get_lmp_real_time_5_min_ex_post_prelim(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -134,7 +164,12 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    def get_lmp_real_time_5_min_ex_post_final(self, date, end=None, verbose=False):
+    def get_lmp_real_time_5_min_ex_post_final(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -149,12 +184,12 @@ class MISOAPI:
     # which is more efficient than processing each iteration of the decorator
     def _get_pricing_data(
         self,
-        date,
-        end,
-        retrieval_func: Callable,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
+        retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
         market: Markets,
         verbose: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> pd.DataFrame:
         data_lists = retrieval_func(date, end, verbose=verbose, **kwargs)
 
@@ -165,11 +200,11 @@ class MISOAPI:
     @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_day_ahead_hourly(
         self,
-        date,
-        end=None,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         version: str = EX_POST,
-        verbose=False,
-    ):
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
         # 0-padded hour. 00 doesn't exist so add 1 to the hour
         interval = str(date.hour + 1).zfill(2)
         date_str = date.strftime("%Y-%m-%d")
@@ -185,11 +220,11 @@ class MISOAPI:
     @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_real_time_hourly_ex_post(
         self,
-        date,
-        end=None,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
-        verbose=False,
-    ):
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
         # 0-padded hour. 00 doesn't exist so add 1 to the hour
         interval = str(date.hour + 1).zfill(2)
         date_str = date.strftime("%Y-%m-%d")
@@ -203,9 +238,14 @@ class MISOAPI:
         return data_list
 
     @support_date_range(frequency="5_MIN", return_raw=True)
-    def _get_lmp_real_time_5_min_ex_ante(self, date, end=None, verbose=False):
+    def _get_lmp_real_time_5_min_ex_ante(
+        self,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
         # Interval format is hh:mm at the start of the interval
-        interval = date.floor("5min").strftime("%H:%M")
+        interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
         date_str = date.strftime("%Y-%m-%d")
         version = EX_ANTE
 
@@ -220,13 +260,13 @@ class MISOAPI:
     @support_date_range(frequency="5_MIN", return_raw=True)
     def _get_lmp_real_time_5_min_ex_post(
         self,
-        date,
-        end=None,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
-        verbose=False,
-    ):
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
         # Interval format is hh:mm at the start of the interval
-        interval = date.floor("5min").strftime("%H:%M")
+        interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
         date_str = date.strftime("%Y-%m-%d")
         version = EX_POST
         resolution = FIVE_MINUTE_RESOLUTION
@@ -239,7 +279,7 @@ class MISOAPI:
 
     def _process_pricing_data(
         self,
-        data_list: List[Dict],
+        data_list: List[Dict[str, Any]],
         market: Markets,
     ) -> pd.DataFrame:
         df = self._data_list_to_df(data_list)
@@ -284,12 +324,20 @@ class MISOAPI:
     @support_date_range(frequency="DAY_START")
     def get_interchange_hourly(
         self,
-        date: str | datetime.date | datetime.datetime,
-        end: datetime.date | datetime.datetime | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("h")
+
+        if isinstance(date, str):
+            # This should not happen after the above check, but for type safety
+            raise ValueError("Invalid date format")
+
+        if isinstance(date, tuple):
+            # This should not happen after decorator processing, but for type safety
+            raise ValueError("Tuple date format not supported here")
 
         date_str = date.strftime("%Y-%m-%d")
 
@@ -408,18 +456,23 @@ class MISOAPI:
 
     def _get_url(
         self,
-        url,
+        url: str,
         product: str,
         verbose: bool = False,
         max_retries: int = 3,
-    ) -> List:
+    ) -> List[Dict[str, Any]]:
         headers = self._headers(product=product)
         data_list = []
 
         if verbose:
             logger.info(f"Getting data from {url}")
 
-        response = requests.get(url, headers=headers, verify=CERTIFICATES_CHAIN_FILE)
+        response = requests.get(
+            url,
+            headers=headers,
+            verify=CERTIFICATES_CHAIN_FILE,
+        )
+
         response.raise_for_status()
 
         data = response.json()
@@ -438,11 +491,12 @@ class MISOAPI:
             if verbose:
                 logger.info(f"Getting page {page_number} of {total_pages}")
 
-            page_url = f"{url}&pageNumber={page_number}"
+            params = {"pageNumber": page_number}
 
             attempt = 0
             response = requests.get(
-                page_url,
+                url,
+                params=params,
                 headers=headers,
                 verify=CERTIFICATES_CHAIN_FILE,
             )
@@ -457,11 +511,13 @@ class MISOAPI:
 
                 time.sleep(self.initial_sleep_seconds**attempt)
                 response = requests.get(
-                    page_url,
+                    url,
+                    params=params,
                     headers=headers,
                     verify=CERTIFICATES_CHAIN_FILE,
                 )
 
+            response.raise_for_status()
             data = response.json()
 
             last_page = data["page"]["lastPage"]
@@ -470,7 +526,7 @@ class MISOAPI:
 
         return data_list
 
-    def _data_list_to_df(self, data_list: List[Dict]) -> pd.DataFrame:
+    def _data_list_to_df(self, data_list: List[Dict[str, Any]]) -> pd.DataFrame:
         df = pd.DataFrame(data_list)
 
         # Split timeInterval dict into separate columns for 'start' and 'end'
@@ -505,14 +561,19 @@ class MISOAPI:
                 key_index + 1
             ) % len(self.load_generation_and_interchange_api_keys)
             return self.load_generation_and_interchange_api_keys[key_index]
+        else:
+            raise ValueError(f"Unknown product: {product}")
 
-    def _headers(self, product: str) -> Dict:
+    def _headers(self, product: str) -> Dict[str, str]:
         return {
             "Ocp-Apim-Subscription-Key": (self._get_next_key(product)),
             "Cache-Control": "no-cache",
         }
 
-    def _flatten(self, list_of_lists: List[List]) -> List:
+    def _flatten(
+        self,
+        list_of_lists: List[List[Dict[str, Any]]],
+    ) -> List[Dict[str, Any]]:
         if len(list_of_lists) == 0:
             raise NoDataFoundException()
 
@@ -521,3 +582,316 @@ class MISOAPI:
             if isinstance(list_of_lists[0], list)
             else list_of_lists
         )
+
+    def get_as_mcp_day_ahead_ex_ante(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        use_daily_requests: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_as_mcp_day_ahead,
+            daily_retrieval_func=self._get_as_mcp_day_ahead_daily,
+            use_daily_requests=use_daily_requests,
+            version=EX_ANTE,
+            verbose=verbose,
+        )
+
+    def get_as_mcp_day_ahead_ex_post(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        use_daily_requests: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_as_mcp_day_ahead,
+            daily_retrieval_func=self._get_as_mcp_day_ahead_daily,
+            use_daily_requests=use_daily_requests,
+            version=EX_POST,
+            verbose=verbose,
+        )
+
+    def get_as_mcp_real_time_5_min_ex_ante(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        use_daily_requests: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_as_mcp_real_time_5_min_ex_ante,
+            daily_retrieval_func=self._get_as_mcp_real_time_5_min_ex_ante_daily,
+            use_daily_requests=use_daily_requests,
+            verbose=verbose,
+        )
+
+    def get_as_mcp_real_time_5_min_ex_post_prelim(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        use_daily_requests: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_as_mcp_real_time_ex_post_5_min,
+            daily_retrieval_func=self._get_as_mcp_real_time_ex_post_5_min_daily,
+            use_daily_requests=use_daily_requests,
+            prelim_or_final=PRELIMINARY_STRING,
+            verbose=verbose,
+        )
+
+    def get_as_mcp_real_time_hourly_ex_post_prelim(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        use_daily_requests: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_as_mcp_real_time_ex_post_hourly,
+            daily_retrieval_func=self._get_as_mcp_real_time_ex_post_hourly_daily,
+            use_daily_requests=use_daily_requests,
+            prelim_or_final=PRELIMINARY_STRING,
+            verbose=verbose,
+        )
+
+    def get_as_mcp_real_time_5_min_ex_post_final(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        use_daily_requests: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_as_mcp_real_time_ex_post_5_min,
+            daily_retrieval_func=self._get_as_mcp_real_time_ex_post_5_min_daily,
+            use_daily_requests=use_daily_requests,
+            prelim_or_final=FINAL_STRING,
+            verbose=verbose,
+        )
+
+    def get_as_mcp_real_time_hourly_ex_post_final(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        use_daily_requests: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_mcp_data(
+            date,
+            end,
+            retrieval_func=self._get_as_mcp_real_time_ex_post_hourly,
+            daily_retrieval_func=self._get_as_mcp_real_time_ex_post_hourly_daily,
+            use_daily_requests=use_daily_requests,
+            prelim_or_final=FINAL_STRING,
+            verbose=verbose,
+        )
+
+    def _get_mcp_data(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
+        retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
+        daily_retrieval_func: Callable[..., List[List[Dict[str, Any]]]] | None = None,
+        use_daily_requests: bool = False,
+        verbose: bool = False,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        if use_daily_requests:
+            if daily_retrieval_func is None:
+                raise ValueError(
+                    "daily_retrieval_func must be provided when use_daily_requests=True",
+                )
+            data_lists = daily_retrieval_func(date, end, verbose=verbose, **kwargs)
+        else:
+            data_lists = retrieval_func(date, end, verbose=verbose, **kwargs)
+
+        data_list = self._flatten(data_lists)
+
+        return self._process_as_mcp_data(data_list)
+
+    @support_date_range(frequency="HOUR_START", return_raw=True)
+    def _get_as_mcp_day_ahead(
+        self,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        version: str = EX_POST,
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
+        interval = str(date.hour + 1).zfill(2)
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = (
+            f"{BASE_PRICING_URL}/day-ahead/{date_str}/asm-{version}?interval={interval}"
+        )
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    @support_date_range(frequency="5_MIN", return_raw=True)
+    def _get_as_mcp_real_time_5_min_ex_ante(
+        self,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
+        interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
+        date_str = date.strftime("%Y-%m-%d")
+        version = EX_ANTE
+
+        url = (
+            f"{BASE_PRICING_URL}/real-time/{date_str}/asm-{version}?interval={interval}"
+        )
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    @support_date_range(frequency="5_MIN", return_raw=True)
+    def _get_as_mcp_real_time_ex_post_5_min(
+        self,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        prelim_or_final: str = PRELIMINARY_STRING,
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
+        interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
+        date_str = date.strftime("%Y-%m-%d")
+        version = EX_POST
+        time_resolution = FIVE_MINUTE_RESOLUTION
+
+        url = f"{BASE_PRICING_URL}/real-time/{date_str}/asm-{version}?interval={interval}&preliminaryFinal={prelim_or_final}&timeResolution={time_resolution}"
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    @support_date_range(frequency="HOUR_START", return_raw=True)
+    def _get_as_mcp_real_time_ex_post_hourly(
+        self,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        prelim_or_final: str = PRELIMINARY_STRING,
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
+        interval = str(date.hour + 1).zfill(2)
+        date_str = date.strftime("%Y-%m-%d")
+        version = EX_POST
+        time_resolution = HOURLY_RESOLUTION
+
+        url = f"{BASE_PRICING_URL}/real-time/{date_str}/asm-{version}?interval={interval}&preliminaryFinal={prelim_or_final}&timeResolution={time_resolution}"
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    @support_date_range(frequency="DAY_START", return_raw=True)
+    def _get_as_mcp_day_ahead_daily(
+        self,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        version: str = EX_POST,
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_PRICING_URL}/day-ahead/{date_str}/asm-{version}"
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    @support_date_range(frequency="DAY_START", return_raw=True)
+    def _get_as_mcp_real_time_5_min_ex_ante_daily(
+        self,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
+        date_str = date.strftime("%Y-%m-%d")
+        version = EX_ANTE
+
+        url = f"{BASE_PRICING_URL}/real-time/{date_str}/asm-{version}"
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    @support_date_range(frequency="DAY_START", return_raw=True)
+    def _get_as_mcp_real_time_ex_post_5_min_daily(
+        self,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        prelim_or_final: str = PRELIMINARY_STRING,
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
+        date_str = date.strftime("%Y-%m-%d")
+        version = EX_POST
+        time_resolution = FIVE_MINUTE_RESOLUTION
+
+        url = f"{BASE_PRICING_URL}/real-time/{date_str}/asm-{version}?preliminaryFinal={prelim_or_final}&timeResolution={time_resolution}"
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    @support_date_range(frequency="DAY_START", return_raw=True)
+    def _get_as_mcp_real_time_ex_post_hourly_daily(
+        self,
+        date: datetime.datetime,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        prelim_or_final: str = PRELIMINARY_STRING,
+        verbose: bool = False,
+    ) -> List[Dict[str, Any]]:
+        date_str = date.strftime("%Y-%m-%d")
+        version = EX_POST
+        time_resolution = HOURLY_RESOLUTION
+
+        url = f"{BASE_PRICING_URL}/real-time/{date_str}/asm-{version}?preliminaryFinal={prelim_or_final}&timeResolution={time_resolution}"
+
+        data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
+
+        return data_list
+
+    def _process_as_mcp_data(
+        self,
+        data_list: List[Dict[str, Any]],
+    ) -> pd.DataFrame:
+        df = self._data_list_to_df(data_list)
+
+        df = df.rename(
+            columns={
+                "zone": "Zone",
+                "product": "Product",
+                "mcp": "MCP",
+            },
+        )
+
+        df_pivot = (
+            df.pivot(
+                index=["Interval Start", "Interval End", "Zone"],
+                columns="Product",
+                values="MCP",
+            )
+            .reset_index()
+            .rename(columns={"Ramp-up": "Ramp Up", "Ramp-down": "Ramp Down"})
+        )
+
+        df_pivot.columns.name = None
+
+        return df_pivot

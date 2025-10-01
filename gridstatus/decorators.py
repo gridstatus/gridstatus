@@ -1,6 +1,7 @@
 import functools
 import os
 import pprint
+from typing import Any, Callable, Dict, List
 
 import pandas as pd
 import tqdm
@@ -9,14 +10,23 @@ from gridstatus import utils
 from gridstatus.base import Markets
 
 
-def _get_args_dict(fn, args, kwargs):
+def _get_args_dict(
+    fn: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: Dict[str, Any],
+) -> Dict[str, Any]:
     args_names = fn.__code__.co_varnames[: fn.__code__.co_argcount]
     return {**dict(zip(args_names, args)), **kwargs}
 
 
 # make custom function rather than using pd.date_range
 # due to handling of localized timezones
-def date_range_maker(start, end, freq, inclusive="neither"):
+def date_range_maker(
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    freq: str | pd.DateOffset,
+    inclusive: str = "neither",
+) -> List[pd.Timestamp]:
     """Generate a date range based on start and end dates and a frequency."""
     # implement other behavior
     # if/when needed
@@ -40,15 +50,26 @@ def date_range_maker(start, end, freq, inclusive="neither"):
 # current or latest endpoints that are automatically handled. Currently cannot refactor this confidently
 # without improved testing since it touches many methods
 class support_date_range:
-    def __init__(self, frequency, update_dates=None, return_raw=False):
+    def __init__(
+        self,
+        frequency: str | Callable[[Dict[str, Any]], str] | None,
+        update_dates: (
+            Callable[
+                [List[pd.Timestamp | None], Dict[str, Any]],
+                List[pd.Timestamp | None],
+            ]
+            | None
+        ) = None,
+        return_raw: bool = False,
+    ) -> None:
         """Maximum frequency of ranges. if None, then no new ranges are created."""
         self.frequency = frequency
         self.update_dates = update_dates
         self.return_raw = return_raw
 
-    def __call__(self, f):
+    def __call__(self, f: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(f)
-        def wrapped_f(*args, **kwargs):
+        def wrapped_f(*args: Any, **kwargs: Any) -> Any:
             args_dict = _get_args_dict(f, args, kwargs)
 
             # delete end if None to avoid attribute error
@@ -135,9 +156,9 @@ class support_date_range:
             )
 
             # if frequency is callable, then use it to get the frequency
-            frequency = self.frequency
+            frequency: Any = self.frequency
             if callable(frequency):
-                frequency = self.frequency(args_dict)
+                frequency = frequency(args_dict)
 
             if frequency is None:
                 dates = [args_dict["date"], args_dict["end"]]
@@ -261,7 +282,12 @@ class support_date_range:
         return wrapped_f
 
 
-def _handle_save_to(df, save_to, args_dict, f):
+def _handle_save_to(
+    df: pd.DataFrame | None,
+    save_to: str | None,
+    args_dict: Dict[str, Any],
+    f: Callable[..., Any],
+) -> None:
     if df is not None and save_to is not None:
         if "end" in args_dict:
             filename = "{}_{}_{}_{}.csv".format(
@@ -282,11 +308,11 @@ def _handle_save_to(df, save_to, args_dict, f):
         df.to_csv(path, index=None)
 
 
-def _get_pjm_archive_date(market):
+def _get_pjm_archive_date(market: str | Markets) -> pd.Timestamp:
     import gridstatus
 
     market = Markets(market)
-    tz = gridstatus.PJM.default_timezone
+    tz = gridstatus.PJM.default_timezone  # type: ignore[has-type]
     if market == Markets.REAL_TIME_5_MIN:
         archive_date = pd.Timestamp.now(
             tz=tz,
@@ -305,7 +331,10 @@ def _get_pjm_archive_date(market):
 
 
 # todo convert to custom PJMDateOffset class
-def pjm_update_dates(dates, args_dict):
+def pjm_update_dates(
+    dates: List[pd.Timestamp | None],
+    args_dict: Dict[str, Any],
+) -> List[pd.Timestamp | None]:
     """PJM has a weird API. This method updates the date range list to account
     for the following restrictions:
 
@@ -316,7 +345,7 @@ def pjm_update_dates(dates, args_dict):
 
     archive_date = _get_pjm_archive_date(args_dict["market"])
 
-    new_dates = []
+    new_dates: List[pd.Timestamp | None] = []
 
     for i, date in enumerate(dates):
         # stop if last date
@@ -331,30 +360,31 @@ def pjm_update_dates(dates, args_dict):
 
         # restriction 1: year boundary
         next_date = dates[i + 1]
-        for year in range(date.year, next_date.year):
-            current_year_end = pd.Timestamp(
-                year=year,
-                month=12,
-                day=31,
-                hour=23,
-                minute=59,
-                tz=args_dict["self"].default_timezone,
-            )
-            new_dates.append(current_year_end)
-            next_year_start = pd.Timestamp(
-                year=year + 1,
-                month=1,
-                day=1,
-                hour=0,
-                minute=0,
-                tz=args_dict["self"].default_timezone,
-            )
+        if date is not None and next_date is not None:
+            for year in range(date.year, next_date.year):
+                current_year_end = pd.Timestamp(
+                    year=year,
+                    month=12,
+                    day=31,
+                    hour=23,
+                    minute=59,
+                    tz=args_dict["self"].default_timezone,
+                )
+                new_dates.append(current_year_end)
+                next_year_start = pd.Timestamp(
+                    year=year + 1,
+                    month=1,
+                    day=1,
+                    hour=0,
+                    minute=0,
+                    tz=args_dict["self"].default_timezone,
+                )
 
-            new_dates.append(None)  # signal to skip to next date
+                new_dates.append(None)  # signal to skip to next date
 
-            # dont need another range if the range ends at the start of the next year
-            if next_year_start != next_date:
-                new_dates.append(next_year_start)
+                # dont need another range if the range ends at the start of the next year
+                if next_year_start != next_date:
+                    new_dates.append(next_year_start)
 
     # remove trailing None
     if new_dates[-1] is None:
@@ -390,23 +420,23 @@ def pjm_update_dates(dates, args_dict):
 
 # custom offset that I dont believe exists in pandas
 class DayBeginOffset:
-    def __ladd__(self, other):
+    def __ladd__(self, other: pd.Timestamp) -> pd.Timestamp:
         return other.normalize() + pd.DateOffset(days=1)
 
-    def __radd__(self, other):
+    def __radd__(self, other: pd.Timestamp) -> pd.Timestamp:
         return self.__ladd__(other)
 
 
 class MonthBeginOffset:
-    def __ladd__(self, other):
+    def __ladd__(self, other: pd.Timestamp) -> pd.Timestamp:
         return other.normalize() + pd.offsets.MonthBegin(1)
 
-    def __radd__(self, other):
+    def __radd__(self, other: pd.Timestamp) -> pd.Timestamp:
         return self.__ladd__(other)
 
 
 class FiveMinOffset:
-    def __ladd__(self, other):
+    def __ladd__(self, other: pd.Timestamp) -> pd.Timestamp:
         # Store the original timezone
         original_tz = other.tz
 
@@ -423,12 +453,12 @@ class FiveMinOffset:
 
         return s
 
-    def __radd__(self, other):
+    def __radd__(self, other: pd.Timestamp) -> pd.Timestamp:
         return self.__ladd__(other)
 
 
 class HourBeginOffset:
-    def __ladd__(self, other):
+    def __ladd__(self, other: pd.Timestamp) -> pd.Timestamp:
         # Store the original timezone
         original_tz = other.tz
 
@@ -445,13 +475,13 @@ class HourBeginOffset:
 
         return s
 
-    def __radd__(self, other):
+    def __radd__(self, other: pd.Timestamp) -> pd.Timestamp:
         return self.__ladd__(other)
 
 
 class YearBeginOffset:
-    def __ladd__(self, other):
+    def __ladd__(self, other: pd.Timestamp) -> pd.Timestamp:
         return other.normalize() + pd.offsets.YearBegin(1)
 
-    def __radd__(self, other):
+    def __radd__(self, other: pd.Timestamp) -> pd.Timestamp:
         return self.__ladd__(other)
