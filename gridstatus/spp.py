@@ -1638,6 +1638,80 @@ class SPP(ISOBase):
 
         return df
 
+    @support_date_range("DAY_START")
+    def get_market_clearing_real_time(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Get Market Clearing Real Time
+
+        Args:
+            date: start date
+            end: end date
+
+        Returns:
+            pd.DataFrame: Market Clearing Real Time
+        """
+        if date == "latest":
+            return self.get_market_clearing_real_time("today")
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing-rtbm?path=/{date.strftime('%Y')}/{date.strftime('%m')}/RTBM-MC-{date.strftime('%Y%m%d')}.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_market_clearing(df, 5)
+
+    @support_date_range("DAY_START")
+    def get_market_clearing_day_ahead(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Get Market Clearing Day Ahead
+
+        Args:
+            date: start date
+            end: end date
+
+        Returns:
+            pd.DataFrame: Market Clearing Day Ahead
+        """
+        if date == "latest":
+            date = self.local_today() + pd.DateOffset(days=1)
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_market_clearing(df, 60)
+
+    def _process_market_clearing(self, df, interval_minutes: int):
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(minutes=interval_minutes),
+        )
+
+        df.columns = df.columns.str.strip()
+
+        df = df.rename(
+            columns={
+                "RegUP": "Reg Up",
+                "RegDN": "Reg Dn",
+                "RampUP": "Ramp Up",
+                "RampDN": "Ramp Dn",
+                "UncUP": "Unc Up",
+            },
+        ).drop(columns=["Time", "Interval"])
+
+        return df.sort_values("Interval Start")
+
 
 def process_gen_mix(df, detailed=False):
     """Parse SPP generation mix data from
