@@ -1349,3 +1349,101 @@ class TestSPP(BaseTestISO):
     def test_get_hourly_load_current_day_not_supported(self, date):
         with pytest.raises(NotSupported):
             self.iso.get_hourly_load(date)
+
+    """get_market_clearing_real_time"""
+
+    def _check_market_clearing_real_time(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Generation",
+            "Cleared DR",
+            "NSI",
+            "SMP",
+            "Min LMP",
+            "Max LMP",
+            "Reg Up",
+            "Reg Dn",
+            "Ramp Up",
+            "Ramp Dn",
+            "Unc Up",
+            "Spin",
+            "Supp",
+            "Capacity Available",
+        ]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+    def test_market_clearing_real_time_latest(self):
+        with api_vcr.use_cassette("test_market_clearing_real_time_latest.yaml"):
+            df = self.iso.get_market_clearing_real_time(date="latest")
+
+        self._check_market_clearing_real_time(df)
+
+    def test_market_clearing_real_time_date_range(self):
+        start = (self.local_now() - pd.Timedelta(days=5)).normalize()
+        end = start + pd.DateOffset(days=3)
+
+        with api_vcr.use_cassette(
+            f"test_market_clearing_real_time_{start.strftime('%Y%m%d')}_to_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_market_clearing_real_time(start=start, end=end)
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
+        self._check_market_clearing_real_time(df)
+
+    """get_market_clearing_day_ahead"""
+
+    def _check_market_clearing_day_ahead(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Generation",
+            "Cleared DR",
+            "Cleared Demand Bid",
+            "Cleared Fixed Demand Bid",
+            "Cleared Virtual Bid",
+            "Cleared Virtual Offer",
+            "Total Demand",
+            "NSI",
+            "SMP",
+            "Min LMP",
+            "Max LMP",
+            "Reg Up",
+            "Reg Dn",
+            "Ramp Up",
+            "Ramp Dn",
+            "Unc Up",
+            "Spin",
+            "Supp",
+            "Capacity Available",
+            "Fixed Obligation",
+            "Net Capacity",
+            "Curtailed Fixed Demand Bid",
+        ]
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=60)
+        ).all()
+
+    def test_market_clearing_day_ahead_latest(self):
+        with api_vcr.use_cassette("test_market_clearing_day_ahead_latest.yaml"):
+            df = self.iso.get_market_clearing_day_ahead(date="latest")
+
+        self._check_market_clearing_day_ahead(df)
+
+    def test_market_clearing_day_ahead_date_range(self):
+        start = (self.local_now() - pd.Timedelta(days=5)).normalize()
+        end = start + pd.DateOffset(days=3)
+
+        with api_vcr.use_cassette(
+            f"test_market_clearing_day_ahead_{start.strftime('%Y%m%d')}_to_{end.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_market_clearing_day_ahead(start=start, end=end)
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
+        self._check_market_clearing_day_ahead(df)

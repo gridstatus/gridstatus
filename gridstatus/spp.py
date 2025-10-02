@@ -1,3 +1,4 @@
+import urllib
 from typing import BinaryIO
 
 import pandas as pd
@@ -1637,6 +1638,99 @@ class SPP(ISOBase):
         df["System Total"] = df[load_cols].sum(axis=1, skipna=True)
 
         return df
+
+    @support_date_range("DAY_START")
+    def get_market_clearing_real_time(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ):
+        """Get Market Clearing Real Time
+
+        Args:
+            date: start date
+            end: end date
+
+        Returns:
+            pd.DataFrame: Market Clearing Real Time
+        """
+        if date == "latest":
+            try:
+                return self.get_market_clearing_real_time("today")
+            except urllib.error.HTTPError:
+                log(
+                    "Data not available for today, trying yesterday",
+                    verbose,
+                )
+                return self.get_market_clearing_real_time(
+                    self.local_now().normalize() - pd.DateOffset(days=1),
+                    verbose=verbose,
+                )
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing-rtbm?path=/{date.strftime('%Y')}/{date.strftime('%m')}/RTBM-MC-{date.strftime('%Y%m%d')}.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_market_clearing(df, 5)
+
+    @support_date_range("DAY_START")
+    def get_market_clearing_day_ahead(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ):
+        """Get Market Clearing Day Ahead
+
+        Args:
+            date: start date
+            end: end date
+
+        Returns:
+            pd.DataFrame: Market Clearing Day Ahead
+        """
+        if date == "latest":
+            date = self.local_now().normalize() + pd.DateOffset(days=1)
+            try:
+                return self.get_market_clearing_day_ahead(date, verbose=verbose)
+            except urllib.error.HTTPError:
+                log(
+                    f"Data not available for {date.strftime('%Y-%m-%d')}, trying today",
+                    verbose,
+                )
+                return self.get_market_clearing_day_ahead("today", verbose=verbose)
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+
+        msg = f"Downloading {url}"
+        log(msg, verbose)
+        df = pd.read_csv(url)
+
+        return self._process_market_clearing(df, 60)
+
+    def _process_market_clearing(self, df: pd.DataFrame, interval_minutes: int):
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(minutes=interval_minutes),
+        )
+
+        df.columns = df.columns.str.strip()
+
+        df = df.rename(
+            columns={
+                "RegUP": "Reg Up",
+                "RegDN": "Reg Dn",
+                "RampUP": "Ramp Up",
+                "RampDN": "Ramp Dn",
+                "UncUP": "Unc Up",
+            },
+        ).drop(columns=["Time", "Interval"])
+
+        return df.sort_values("Interval Start")
 
 
 def process_gen_mix(df, detailed=False):
