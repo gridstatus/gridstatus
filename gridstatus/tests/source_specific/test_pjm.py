@@ -2524,7 +2524,6 @@ class TestPJM(BaseTestISO):
         "Market Capped Clearing Price",
         "Capability Clearing Price",
         "Performance Clearing Price",
-        "Marginal Benefits Factor",
     ]
 
     def test_get_regulation_prices_5_min_latest(self):

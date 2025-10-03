@@ -2686,10 +2686,7 @@ class PJM(ISOBase):
 
         params = {
             "fields": (
-                "datetime_beginning_utc,area,reserve_quantity,"
-                "reserve_requirement,market_clearing_price,market_capped_clearing_price,"
-                "capability_clearing_price,performance_clearing_price,"
-                "marginal_benefits_factor"
+                "datetime_beginning_utc,area,reserve_quantity,reserve_requirement,market_clearing_price,market_capped_clearing_price,capability_clearing_price,performance_clearing_price"
             ),
         }
 
@@ -2711,7 +2708,6 @@ class PJM(ISOBase):
                 "market_capped_clearing_price": "Market Capped Clearing Price",
                 "capability_clearing_price": "Capability Clearing Price",
                 "performance_clearing_price": "Performance Clearing Price",
-                "marginal_benefits_factor": "Marginal Benefits Factor",
             },
         )
 
@@ -2726,7 +2722,6 @@ class PJM(ISOBase):
                 "Market Capped Clearing Price",
                 "Capability Clearing Price",
                 "Performance Clearing Price",
-                "Marginal Benefits Factor",
             ]
         ]
 
