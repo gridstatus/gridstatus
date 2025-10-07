@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.32.0 - October 7, 2025
+
+### What's Changed
+* SPP LMP by Location Use Daily Files in [#654](https://github.com/gridstatus/gridstatus/pull/654)
+* NYISO LMP 5 Minute Latest Implementation in [#662](https://github.com/gridstatus/gridstatus/pull/662)
+* NYISO LMP Real Time 5 Minute Filtering Fix in [#655](https://github.com/gridstatus/gridstatus/pull/655)
+* NYISO Hourly Realtime LMPs in [#656](https://github.com/gridstatus/gridstatus/pull/656)
+* NYISO LMP Hourly Add Reference Bus in [#657](https://github.com/gridstatus/gridstatus/pull/657)
+* IESO LMP Day Ahead Operating Reserves in [#659](https://github.com/gridstatus/gridstatus/pull/659)
+* CAISO System Load and Resource Schedules in [#666](https://github.com/gridstatus/gridstatus/pull/666)
+* SPP AS Prices Real Time in [#667](https://github.com/gridstatus/gridstatus/pull/667)
+* SPP Market Clearing Datasets in [#673](https://github.com/gridstatus/gridstatus/pull/673)
+* MISO Ancillary Services Market Clearing Prices (MCP) in [#669](https://github.com/gridstatus/gridstatus/pull/669)
+* Better CAISO No Data Error Handling in [#668](https://github.com/gridstatus/gridstatus/pull/668)
+* ERCOT post settlements hourly load in [#658](https://github.com/gridstatus/gridstatus/pull/658)
+* Add PJM Regulation Prices (5 min) in [#664](https://github.com/gridstatus/gridstatus/pull/664)
+* PJM Regulation Prices test update in [#665](https://github.com/gridstatus/gridstatus/pull/665)
+* Fix MISO API SSL Certificates in [#672](https://github.com/gridstatus/gridstatus/pull/672)
+* Fix PJM Regulation Prices 5 Min in [#674](https://github.com/gridstatus/gridstatus/pull/674)
+* NYISO LMP Round Energy in [#663](https://github.com/gridstatus/gridstatus/pull/663)
+* Remove MISO API interval padding with zero '0' in [#675](https://github.com/gridstatus/gridstatus/pull/675)
+* Remove verbose from ercot helper function in [#660](https://github.com/gridstatus/gridstatus/pull/660)
+* More fixes in [#661](https://github.com/gridstatus/gridstatus/pull/661)
+
+**Full Changelog**: https://github.com/gridstatus/gridstatus/compare/v0.31.0...v0.32.0
+
 ## v0.31.0 - August 12, 2025
 
 ### What's Changed
