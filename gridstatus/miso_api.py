@@ -205,8 +205,7 @@ class MISOAPI:
         version: str = EX_POST,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
-        # 0-padded hour. 00 doesn't exist so add 1 to the hour
-        interval = str(date.hour + 1).zfill(2)
+        interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
 
         url = (
@@ -225,8 +224,7 @@ class MISOAPI:
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
-        # 0-padded hour. 00 doesn't exist so add 1 to the hour
-        interval = str(date.hour + 1).zfill(2)
+        interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
         version = EX_POST
         resolution = HOURLY_RESOLUTION
@@ -732,7 +730,7 @@ class MISOAPI:
         version: str = EX_POST,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
-        interval = str(date.hour + 1).zfill(2)
+        interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
 
         url = (
@@ -789,7 +787,7 @@ class MISOAPI:
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
     ) -> List[Dict[str, Any]]:
-        interval = str(date.hour + 1).zfill(2)
+        interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
         version = EX_POST
         time_resolution = HOURLY_RESOLUTION
