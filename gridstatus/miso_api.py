@@ -454,13 +454,13 @@ class MISOAPI:
         ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
-    def get_day_ahead_cleared_demand_daily(
+    def _get_day_ahead_cleared_demand(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        time_resolution: str = DAILY_RESOLUTION,
     ) -> pd.DataFrame:
-        time_resolution = DAILY_RESOLUTION
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/demand?timeResolution={time_resolution}"
@@ -507,57 +507,32 @@ class MISOAPI:
         ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
+    def get_day_ahead_cleared_demand_daily(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_day_ahead_cleared_demand(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=DAILY_RESOLUTION,
+        )
+
+    @support_date_range(frequency="DAY_START")
     def get_day_ahead_cleared_demand_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        time_resolution = HOURLY_RESOLUTION
-        date_str = date.strftime("%Y-%m-%d")
-
-        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/demand?timeResolution={time_resolution}"
-
-        data_list = self._get_url(
-            url,
-            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+        return self._get_day_ahead_cleared_demand(
+            date,
+            end=end,
             verbose=verbose,
+            time_resolution=HOURLY_RESOLUTION,
         )
-
-        df = self._data_list_to_df(
-            data_list,
-        )
-
-        df = df.rename(
-            columns={
-                "region": "Region",
-                "fixed": "Fixed Bids Cleared MW",
-                "priceSens": "Price Sensitive Bids Cleared MW",
-                "virtual": "Virtual Bids Cleared MW",
-            },
-        )
-
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
-
-        if end is not None:
-            data = data[data["Interval End"] <= end]
-
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
-
-        return data[
-            [
-                "Interval Start",
-                "Interval End",
-                "Region",
-                "Fixed Bids Cleared MW",
-                "Price Sensitive Bids Cleared MW",
-                "Virtual Bids Cleared MW",
-            ]
-        ].reset_index(drop=True)
 
     def _get_day_ahead_cleared_generation_hourly(
         self,
