@@ -504,7 +504,49 @@ class MISOAPI:
                 "Virtual Bids Cleared MW",
             ]
         ].reset_index(drop=True)
-    
+
+    @support_date_range(frequency="DAY_START")
+    def get_cleared_generation_physical_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+
+        cleared_demand_day_ahead_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/cleared/physical"
+
+        cleared_demand_day_ahead_data_list = self._get_url(
+            cleared_demand_day_ahead_url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        cleared_generation_physical_demand_day_ahead_df = self._data_list_to_df(
+            cleared_demand_day_ahead_data_list,
+        )
+
+        cleared_generation_physical_demand_day_ahead_df = (
+            cleared_generation_physical_demand_day_ahead_df.rename(
+                columns={"region": "Region", "supply": "Supply Cleared MW"},
+            )
+        )
+
+        data = cleared_generation_physical_demand_day_ahead_df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            ["Interval Start", "Interval End", "Region", "Supply Cleared MW"]
+        ].reset_index(drop=True)
+
     def _get_url(
         self,
         url: str,
