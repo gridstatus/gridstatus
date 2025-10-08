@@ -749,6 +749,64 @@ class MISOAPI:
             time_resolution=HOURLY_RESOLUTION,
         )
 
+    def _get_real_time_cleared_generation(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        time_resolution: str = HOURLY_RESOLUTION,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/cleared/supply?timeResolution={time_resolution}"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={"generation": "Generation Cleared MW"},
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                data[col] = data[col].astype(float)
+
+        data = data.sort_values(["Interval Start", "Interval End"])
+
+        return data[
+            ["Interval Start", "Interval End", "Generation Cleared MW"]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_cleared_generation_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        NOTE: This function is not ready for use yet. MISO returns wrong data.
+        """
+        raise NotImplementedError(
+            "get_real_time_cleared_generation_hourly is not ready for use yet."
+        )
+        return self._get_real_time_cleared_generation(
+            date, end, verbose, time_resolution=HOURLY_RESOLUTION
+        )
+
     def _get_url(
         self,
         url: str,

@@ -657,3 +657,34 @@ class TestMISOAPI(TestHelperMixin):
             hours=23,
         )
         assert df["Interval End"].max() == yesterday + pd.Timedelta(days=1)
+
+    def _check_real_time_cleared_generation(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Generation Cleared MW",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                assert df[col].dtype == "float64"
+
+    @pytest.mark.skip(reason="MISO returns wrong data for a specific date")
+    def test_get_real_time_cleared_generation_hourly_date_range(self):
+        start = self.local_start_of_today() - pd.Timedelta(days=2)
+
+        with api_vcr.use_cassette(
+            f"get_real_time_cleared_generation_hourly_{start.strftime('%Y%m%d')}"
+        ):
+            df = self.iso.get_real_time_cleared_generation_hourly(start)
+
+        self._check_real_time_cleared_generation(df)
+
+        # Unfortunately MISO returns wrong data for a specific date. 🤯
+        # assert df["Interval Start"].min() == start
+        # assert df["Interval Start"].max() == start + pd.Timedelta(
+        #     hours=23,
+        # )
