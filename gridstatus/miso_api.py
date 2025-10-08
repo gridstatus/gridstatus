@@ -585,7 +585,7 @@ class MISOAPI:
             ["Interval Start", "Interval End", "Region", "Supply Cleared MW"]
         ].reset_index(drop=True)
 
-    def _get_day_ahead_offered_generation_ecotype_hourly(
+    def _get_day_ahead_offered_generation_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -647,7 +647,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        return self._get_day_ahead_offered_generation_ecotype_hourly(
+        return self._get_day_ahead_offered_generation_hourly(
             date, end, verbose, ecotype="ecomax"
         )
 
@@ -658,7 +658,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        return self._get_day_ahead_offered_generation_ecotype_hourly(
+        return self._get_day_ahead_offered_generation_hourly(
             date, end, verbose, ecotype="ecomin"
         )
 
