@@ -453,7 +453,7 @@ class MISOAPI:
         ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
-    def get_cleared_demand_day_ahead_hourly(
+    def get_day_ahead_cleared_demand_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -462,19 +462,19 @@ class MISOAPI:
         time_resolution = HOURLY_RESOLUTION
         date_str = date.strftime("%Y-%m-%d")
 
-        cleared_demand_day_ahead_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/demand?timeResolution={time_resolution}"
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/demand?timeResolution={time_resolution}"
 
-        cleared_demand_day_ahead_data_list = self._get_url(
-            cleared_demand_day_ahead_url,
+        data_list = self._get_url(
+            url,
             product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
             verbose=verbose,
         )
 
-        cleared_demand_day_ahead_df = self._data_list_to_df(
-            cleared_demand_day_ahead_data_list,
+        df = self._data_list_to_df(
+            data_list,
         )
 
-        cleared_demand_day_ahead_df = cleared_demand_day_ahead_df.rename(
+        df = df.rename(
             columns={
                 "region": "Region",
                 "fixed": "Fixed Bids Cleared MW",
@@ -483,7 +483,7 @@ class MISOAPI:
             },
         )
 
-        data = cleared_demand_day_ahead_df.reset_index()
+        data = df.reset_index()
 
         data = data[data["Interval Start"] >= date]
 
@@ -506,7 +506,7 @@ class MISOAPI:
         ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
-    def get_cleared_generation_physical_hourly(
+    def get_day_ahead_cleared_generation_physical_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -514,25 +514,23 @@ class MISOAPI:
     ) -> pd.DataFrame:
         date_str = date.strftime("%Y-%m-%d")
 
-        cleared_gen_physical_day_ahead_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/cleared/physical"
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/cleared/physical"
 
-        cleared_gen_physical_day_ahead_data_list = self._get_url(
-            cleared_gen_physical_day_ahead_url,
+        data_list = self._get_url(
+            url,
             product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
             verbose=verbose,
         )
 
-        cleared_generation_physical_day_ahead_df = self._data_list_to_df(
-            cleared_gen_physical_day_ahead_data_list,
+        df = self._data_list_to_df(
+            data_list,
         )
 
-        cleared_generation_physical_day_ahead_df = (
-            cleared_generation_physical_day_ahead_df.rename(
-                columns={"region": "Region", "supply": "Supply Cleared MW"},
-            )
+        df = df.rename(
+            columns={"region": "Region", "supply": "Supply Cleared MW"},
         )
 
-        data = cleared_generation_physical_day_ahead_df.reset_index()
+        data = df.reset_index()
 
         data = data[data["Interval Start"] >= date]
 
@@ -548,7 +546,7 @@ class MISOAPI:
         ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
-    def get_cleared_generation_virtual_hourly(
+    def get_day_ahead_cleared_generation_virtual_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -556,23 +554,23 @@ class MISOAPI:
     ) -> pd.DataFrame:
         date_str = date.strftime("%Y-%m-%d")
 
-        cleared_gen_virtual_day_ahead_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/cleared/virtual"
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/cleared/virtual"
 
-        cleared_gen_virtual_day_ahead_data_list = self._get_url(
-            cleared_gen_virtual_day_ahead_url,
+        data_list = self._get_url(
+            url,
             product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
             verbose=verbose,
         )
 
-        cleared_gen_virtual_day_ahead_df = self._data_list_to_df(
-            cleared_gen_virtual_day_ahead_data_list,
+        df = self._data_list_to_df(
+            data_list,
         )
 
-        cleared_gen_virtual_day_ahead_df = cleared_gen_virtual_day_ahead_df.rename(
+        df = df.rename(
             columns={"region": "Region", "supply": "Supply Cleared MW"},
         )
 
-        data = cleared_gen_virtual_day_ahead_df.reset_index()
+        data = df.reset_index()
 
         data = data[data["Interval Start"] >= date]
 

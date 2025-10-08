@@ -481,9 +481,9 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
 
     @pytest.mark.integration
-    def test_get_cleared_demand_day_ahead_hourly_date_range(self):
-        with api_vcr.use_cassette("get_cleared_demand_day_ahead_hourly_today"):
-            df = self.iso.get_cleared_demand_day_ahead_hourly("today")
+    def test_get_day_ahead_cleared_demand_hourly_date_range(self):
+        with api_vcr.use_cassette("get_day_ahead_cleared_demand_hourly_today"):
+            df = self.iso.get_day_ahead_cleared_demand_hourly("today")
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -507,9 +507,11 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_cleared_generation_physical_hourly_date_range(self):
-        with api_vcr.use_cassette("get_cleared_generation_physical_hourly_today"):
-            df = self.iso.get_cleared_generation_physical_hourly("today")
+    def test_get_day_ahead_cleared_generation_physical_hourly_date_range(self):
+        with api_vcr.use_cassette(
+            "get_day_ahead_cleared_generation_physical_hourly_today"
+        ):
+            df = self.iso.get_day_ahead_cleared_generation_physical_hourly("today")
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -531,9 +533,11 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_cleared_generation_virtual_hourly_date_range(self):
-        with api_vcr.use_cassette("get_cleared_generation_virtual_hourly_today"):
-            df = self.iso.get_cleared_generation_virtual_hourly("today")
+    def test_get_day_ahead_cleared_generation_virtual_hourly_date_range(self):
+        with api_vcr.use_cassette(
+            "get_day_ahead_cleared_generation_virtual_hourly_today"
+        ):
+            df = self.iso.get_day_ahead_cleared_generation_virtual_hourly("today")
 
         assert df.columns.tolist() == [
             "Interval Start",
