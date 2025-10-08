@@ -514,25 +514,25 @@ class MISOAPI:
     ) -> pd.DataFrame:
         date_str = date.strftime("%Y-%m-%d")
 
-        cleared_demand_day_ahead_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/cleared/physical"
+        cleared_gen_physical_day_ahead_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/cleared/physical"
 
-        cleared_demand_day_ahead_data_list = self._get_url(
-            cleared_demand_day_ahead_url,
+        cleared_gen_physical_day_ahead_data_list = self._get_url(
+            cleared_gen_physical_day_ahead_url,
             product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
             verbose=verbose,
         )
 
-        cleared_generation_physical_demand_day_ahead_df = self._data_list_to_df(
-            cleared_demand_day_ahead_data_list,
+        cleared_generation_physical_day_ahead_df = self._data_list_to_df(
+            cleared_gen_physical_day_ahead_data_list,
         )
 
-        cleared_generation_physical_demand_day_ahead_df = (
-            cleared_generation_physical_demand_day_ahead_df.rename(
+        cleared_generation_physical_day_ahead_df = (
+            cleared_generation_physical_day_ahead_df.rename(
                 columns={"region": "Region", "supply": "Supply Cleared MW"},
             )
         )
 
-        data = cleared_generation_physical_demand_day_ahead_df.reset_index()
+        data = cleared_generation_physical_day_ahead_df.reset_index()
 
         data = data[data["Interval Start"] >= date]
 
@@ -564,17 +564,15 @@ class MISOAPI:
             verbose=verbose,
         )
 
-        cleared_gen_virtual_demand_day_ahead_df = self._data_list_to_df(
+        cleared_gen_virtual_day_ahead_df = self._data_list_to_df(
             cleared_gen_virtual_day_ahead_data_list,
         )
 
-        cleared_gen_virtual_demand_day_ahead_df = (
-            cleared_gen_virtual_demand_day_ahead_df.rename(
-                columns={"region": "Region", "supply": "Supply Cleared MW"},
-            )
+        cleared_gen_virtual_day_ahead_df = cleared_gen_virtual_day_ahead_df.rename(
+            columns={"region": "Region", "supply": "Supply Cleared MW"},
         )
 
-        data = cleared_gen_virtual_demand_day_ahead_df.reset_index()
+        data = cleared_gen_virtual_day_ahead_df.reset_index()
 
         data = data[data["Interval Start"] >= date]
 
