@@ -585,16 +585,19 @@ class MISOAPI:
             ["Interval Start", "Interval End", "Region", "Supply Cleared MW"]
         ].reset_index(drop=True)
 
-    @support_date_range(frequency="DAY_START")
-    def get_day_ahead_offered_generation_ecomax_hourly(
+    def _get_day_ahead_offered_generation_ecotype_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        ecotype: str = "ecomax",
     ) -> pd.DataFrame:
+        """
+        Shared logic for getting day-ahead offered generation ecomax/ecomin hourly.
+        ecotype: "ecomax" or "ecomin"
+        """
         date_str = date.strftime("%Y-%m-%d")
-
-        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/offered/ecomax"
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/offered/{ecotype}"
 
         data_list = self._get_url(
             url,
@@ -636,6 +639,17 @@ class MISOAPI:
                 "Emergency MW",
             ]
         ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_offered_generation_ecomax_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_day_ahead_offered_generation_ecotype_hourly(
+            date, end, verbose, ecotype="ecomax"
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_day_ahead_offered_generation_ecomin_hourly(
@@ -644,50 +658,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        date_str = date.strftime("%Y-%m-%d")
-
-        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/offered/ecomin"
-
-        data_list = self._get_url(
-            url,
-            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
-            verbose=verbose,
+        return self._get_day_ahead_offered_generation_ecotype_hourly(
+            date, end, verbose, ecotype="ecomin"
         )
-
-        df = self._data_list_to_df(
-            data_list,
-        )
-
-        df = df.rename(
-            columns={
-                "region": "Region",
-                "mustRun": "Must Run MW",
-                "economic": "Economic MW",
-                "emergency": "Emergency MW",
-            },
-        )
-
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
-
-        if end is not None:
-            data = data[data["Interval End"] <= end]
-
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
-
-        return data[
-            [
-                "Interval Start",
-                "Interval End",
-                "Region",
-                "Must Run MW",
-                "Economic MW",
-                "Emergency MW",
-            ]
-        ].reset_index(drop=True)
 
     def _get_url(
         self,
