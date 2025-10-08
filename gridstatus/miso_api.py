@@ -829,9 +829,9 @@ class MISOAPI:
 
         df = df.rename(
             columns={
-                "offerForwardEcoMax": "FRAC Economic Max MW",
-                "offerRealTimeEcoMax": "Real Time Economic Max MW",
-                "offerEcoMaxDelta": "Economic Max Delta MW",
+                "offerForwardEcoMax": "Offered FRAC Economic Max MW",
+                "offerRealTimeEcoMax": "Offered Real Time Economic Max MW",
+                "offerEcoMaxDelta": "Offered Economic Max Delta MW",
             },
         )
 
@@ -852,9 +852,60 @@ class MISOAPI:
             [
                 "Interval Start",
                 "Interval End",
-                "FRAC Economic Max MW",
-                "Real Time Economic Max MW",
-                "Economic Max Delta MW",
+                "Offered FRAC Economic Max MW",
+                "Offered Real Time Economic Max MW",
+                "Offered Economic Max Delta MW",
+            ]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_committed_generation_ecomax_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/committed/ecomax"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={
+                "committedForwardEcoMax": "Committed FRAC Economic Max MW",
+                "committedRealTimeEcoMax": "Committed Real Time Economic Max MW",
+                "committedEcoMaxDelta": "Committed Economic Max Delta MW",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                data[col] = data[col].astype(float)
+
+        data = data.sort_values(["Interval Start", "Interval End"])
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Committed FRAC Economic Max MW",
+                "Committed Real Time Economic Max MW",
+                "Committed Economic Max Delta MW",
             ]
         ].reset_index(drop=True)
 

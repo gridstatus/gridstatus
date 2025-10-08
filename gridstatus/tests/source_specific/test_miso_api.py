@@ -702,9 +702,41 @@ class TestMISOAPI(TestHelperMixin):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "FRAC Economic Max MW",
-            "Real Time Economic Max MW",
-            "Economic Max Delta MW",
+            "Offered FRAC Economic Max MW",
+            "Offered Real Time Economic Max MW",
+            "Offered Economic Max Delta MW",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                assert df[col].dtype == "float64"
+
+        assert df["Interval Start"].min() == start
+        assert df["Interval Start"].max() == start + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == start + pd.Timedelta(
+            days=1,
+        )
+
+    @pytest.mark.integration
+    def test_get_real_time_committed_generation_ecomax_hourly_date_range(self):
+        start = self.local_start_of_today() - pd.Timedelta(days=2)
+
+        with api_vcr.use_cassette(
+            f"get_real_time_committed_generation_ecomax_hourly_{start.strftime('%Y%m%d')}"
+        ):
+            df = self.iso.get_real_time_committed_generation_ecomax_hourly(start)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Committed FRAC Economic Max MW",
+            "Committed Real Time Economic Max MW",
+            "Committed Economic Max Delta MW",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
