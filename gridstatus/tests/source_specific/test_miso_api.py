@@ -1,4 +1,3 @@
-from re import S
 import pandas as pd
 import pytest
 
