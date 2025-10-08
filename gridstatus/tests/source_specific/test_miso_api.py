@@ -613,3 +613,47 @@ class TestMISOAPI(TestHelperMixin):
                 "Emergency MW",
             ],
         )
+
+    def _check_test_get_real_time_cleared_demand(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Cleared Demand MW",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_real_time_cleared_demand_daily_date_range(self):
+        yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette("get_real_time_cleared_demand_daily_today"):
+            df = self.iso.get_real_time_cleared_demand_daily(yesterday)
+
+        self._check_test_get_real_time_cleared_demand(df)
+
+        assert df["Interval Start"].min() == yesterday
+        assert df["Interval Start"].max() == yesterday
+        assert df["Interval End"].max() == yesterday + pd.Timedelta(
+            days=1,
+        )
+
+    @pytest.mark.integration
+    def test_get_real_time_cleared_demand_hourly_date_range(self):
+        yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette("get_real_time_cleared_demand_hourly_yesterday"):
+            df = self.iso.get_real_time_cleared_demand_hourly(yesterday)
+
+        self._check_test_get_real_time_cleared_demand(df)
+
+        assert df["Interval Start"].min() == yesterday
+        assert df["Interval Start"].max() == yesterday + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == yesterday + pd.Timedelta(days=1)

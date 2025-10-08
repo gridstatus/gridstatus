@@ -676,6 +676,79 @@ class MISOAPI:
             date, end, verbose, ecotype="ecomin"
         )
 
+    @support_date_range(frequency="DAY_START")
+    def _get_real_time_cleared_demand(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        time_resolution: str = DAILY_RESOLUTION,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/demand/forecast?timeResolution={time_resolution}"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={"demand": "Cleared Demand MW"},
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Cleared Demand MW",
+            ]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_cleared_demand_daily(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_real_time_cleared_demand(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=DAILY_RESOLUTION,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_cleared_demand_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_real_time_cleared_demand(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=HOURLY_RESOLUTION,
+        )
+
     def _get_url(
         self,
         url: str,
@@ -750,6 +823,10 @@ class MISOAPI:
 
     def _data_list_to_df(self, data_list: List[Dict[str, Any]]) -> pd.DataFrame:
         df = pd.DataFrame(data_list)
+
+        if "timeInterval" not in df.columns and "interval" in df.columns:
+            df["timeInterval"] = df["interval"]
+            df = df.drop(columns=["interval"])
 
         # Split timeInterval dict into separate columns for 'start' and 'end'
         df = pd.concat(
