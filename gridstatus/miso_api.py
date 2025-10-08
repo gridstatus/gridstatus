@@ -675,6 +675,75 @@ class MISOAPI:
             date, end, verbose, ecotype="ecomin"
         )
 
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_generation_fuel_type_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/fuel-type"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        if "interval" in df.columns:
+            df = df.drop(columns=["interval"])
+
+        # Expand the 'fuelTypes' dictionary column into separate columns
+        fuel_types_df = df["fuelTypes"].apply(pd.Series)
+        df = pd.concat([df.drop(columns=["fuelTypes"]), fuel_types_df], axis=1)
+
+        df = df.rename(
+            columns={
+                "region": "Region",
+                "totalMw": "Total MW",
+                "coal": "Coal MW",
+                "gas": "Gas MW",
+                "water": "Water MW",
+                "wind": "Wind MW",
+                "solar": "Solar MW",
+                "other": "Other MW",
+                "storage": "Storage MW",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Total MW",
+                "Coal MW",
+                "Gas MW",
+                "Water MW",
+                "Wind MW",
+                "Solar MW",
+                "Other MW",
+                "Storage MW",
+            ]
+        ].reset_index(drop=True)
+
     def _get_real_time_cleared_demand(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
