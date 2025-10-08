@@ -598,6 +598,48 @@ class MISOAPI:
             date, end, verbose, generation_type="virtual"
         )
 
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_net_scheduled_interchange_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/interchange/net-scheduled"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={
+                "region": "Region",
+                "nsi": "Net Scheduled Interchange MW",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            ["Interval Start", "Interval End", "Region", "Net Scheduled Interchange MW"]
+        ].reset_index(drop=True)
+
     def _get_day_ahead_offered_generation_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
