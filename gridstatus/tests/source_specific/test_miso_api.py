@@ -481,6 +481,33 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
 
     @pytest.mark.integration
+    def test_get_day_ahead_cleared_demand_daily_date_range(self):
+        with api_vcr.use_cassette("get_day_ahead_cleared_demand_daily_today"):
+            df = self.iso.get_day_ahead_cleared_demand_daily("today")
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Region",
+            "Fixed Bids Cleared MW",
+            "Price Sensitive Bids Cleared MW",
+            "Virtual Bids Cleared MW",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                assert df[col].dtype == "float64"
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].max() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.Timedelta(
+            days=1,
+        )
+
+    @pytest.mark.integration
     def test_get_day_ahead_cleared_demand_hourly_date_range(self):
         with api_vcr.use_cassette("get_day_ahead_cleared_demand_hourly_today"):
             df = self.iso.get_day_ahead_cleared_demand_hourly("today")
