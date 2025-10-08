@@ -798,7 +798,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        NOTE: This function is not ready for use yet. MISO returns wrong data.
+        NOTE: This function is not ready for use yet. MISO Real-Time Cleared Generation API returns wrong data for a date.
         """
         raise NotImplementedError(
             "get_real_time_cleared_generation_hourly is not ready for use yet."
@@ -806,6 +806,57 @@ class MISOAPI:
         return self._get_real_time_cleared_generation(
             date, end, verbose, time_resolution=HOURLY_RESOLUTION
         )
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_offered_generation_ecomax_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/offered/ecomax"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={
+                "offerForwardEcoMax": "FRAC Economic Max MW",
+                "offerRealTimeEcoMax": "Real Time Economic Max MW",
+                "offerEcoMaxDelta": "Economic Max Delta MW",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                data[col] = data[col].astype(float)
+
+        data = data.sort_values(["Interval Start", "Interval End"])
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "FRAC Economic Max MW",
+                "Real Time Economic Max MW",
+                "Economic Max Delta MW",
+            ]
+        ].reset_index(drop=True)
 
     def _get_url(
         self,
