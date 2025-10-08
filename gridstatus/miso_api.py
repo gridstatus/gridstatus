@@ -453,7 +453,6 @@ class MISOAPI:
             ]
         ].reset_index(drop=True)
 
-    @support_date_range(frequency="DAY_START")
     def _get_day_ahead_cleared_demand(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -676,7 +675,6 @@ class MISOAPI:
             date, end, verbose, ecotype="ecomin"
         )
 
-    @support_date_range(frequency="DAY_START")
     def _get_real_time_cleared_demand(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
