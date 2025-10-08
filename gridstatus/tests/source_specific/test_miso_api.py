@@ -506,13 +506,7 @@ class TestMISOAPI(TestHelperMixin):
             hours=23,
         )
 
-    @pytest.mark.integration
-    def test_get_day_ahead_cleared_generation_physical_hourly_date_range(self):
-        with api_vcr.use_cassette(
-            "get_day_ahead_cleared_generation_physical_hourly_today"
-        ):
-            df = self.iso.get_day_ahead_cleared_generation_physical_hourly("today")
-
+    def _check_day_ahead_cleared_generation_hourly(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -531,6 +525,15 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
             hours=23,
         )
+
+    @pytest.mark.integration
+    def test_get_day_ahead_cleared_generation_physical_hourly_date_range(self):
+        with api_vcr.use_cassette(
+            "get_day_ahead_cleared_generation_physical_hourly_today"
+        ):
+            df = self.iso.get_day_ahead_cleared_generation_physical_hourly("today")
+
+        self._check_day_ahead_cleared_generation_hourly(df)
 
     @pytest.mark.integration
     def test_get_day_ahead_cleared_generation_virtual_hourly_date_range(self):
@@ -539,24 +542,7 @@ class TestMISOAPI(TestHelperMixin):
         ):
             df = self.iso.get_day_ahead_cleared_generation_virtual_hourly("today")
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "Region",
-            "Supply Cleared MW",
-        ]
-
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
-
-        assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
-            hours=23,
-        )
+        self._check_day_ahead_cleared_generation_hourly(df)
 
     def _check_day_ahead_offered_generation_hourly(self, df, expected_columns):
         assert df.columns.tolist() == expected_columns
