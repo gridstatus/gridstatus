@@ -477,9 +477,9 @@ class MISOAPI:
         df = df.rename(
             columns={
                 "region": "Region",
-                "fixed": "Fixed Bids Cleared MW",
-                "priceSens": "Price Sensitive Bids Cleared MW",
-                "virtual": "Virtual Bids Cleared MW",
+                "fixed": "Fixed Bids Cleared",
+                "priceSens": "Price Sensitive Bids Cleared",
+                "virtual": "Virtual Bids Cleared",
             },
         )
 
@@ -499,9 +499,9 @@ class MISOAPI:
                 "Interval Start",
                 "Interval End",
                 "Region",
-                "Fixed Bids Cleared MW",
-                "Price Sensitive Bids Cleared MW",
-                "Virtual Bids Cleared MW",
+                "Fixed Bids Cleared",
+                "Price Sensitive Bids Cleared",
+                "Virtual Bids Cleared",
             ]
         ].reset_index(drop=True)
 
@@ -558,7 +558,7 @@ class MISOAPI:
         )
 
         df = df.rename(
-            columns={"region": "Region", "supply": "Supply Cleared MW"},
+            columns={"region": "Region", "supply": "Supply Cleared"},
         )
 
         data = df.reset_index()
@@ -573,7 +573,7 @@ class MISOAPI:
                 data[col] = data[col].astype(float)
 
         return data[
-            ["Interval Start", "Interval End", "Region", "Supply Cleared MW"]
+            ["Interval Start", "Interval End", "Region", "Supply Cleared"]
         ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
@@ -621,7 +621,7 @@ class MISOAPI:
         df = df.rename(
             columns={
                 "region": "Region",
-                "nsi": "Net Scheduled Interchange MW",
+                "nsi": "Net Scheduled Interchange",
             },
         )
 
@@ -637,7 +637,7 @@ class MISOAPI:
                 data[col] = data[col].astype(float)
 
         return data[
-            ["Interval Start", "Interval End", "Region", "Net Scheduled Interchange MW"]
+            ["Interval Start", "Interval End", "Region", "Net Scheduled Interchange"]
         ].reset_index(drop=True)
 
     def _get_day_ahead_offered_generation_hourly(
@@ -667,9 +667,9 @@ class MISOAPI:
         df = df.rename(
             columns={
                 "region": "Region",
-                "mustRun": "Must Run MW",
-                "economic": "Economic MW",
-                "emergency": "Emergency MW",
+                "mustRun": "Must Run",
+                "economic": "Economic",
+                "emergency": "Emergency",
             },
         )
 
@@ -689,9 +689,9 @@ class MISOAPI:
                 "Interval Start",
                 "Interval End",
                 "Region",
-                "Must Run MW",
-                "Economic MW",
-                "Emergency MW",
+                "Must Run",
+                "Economic",
+                "Emergency",
             ]
         ].reset_index(drop=True)
 
@@ -748,14 +748,14 @@ class MISOAPI:
         df = df.rename(
             columns={
                 "region": "Region",
-                "totalMw": "Total MW",
-                "coal": "Coal MW",
-                "gas": "Gas MW",
-                "water": "Water MW",
-                "wind": "Wind MW",
-                "solar": "Solar MW",
-                "other": "Other MW",
-                "storage": "Storage MW",
+                "totalMw": "Total",
+                "coal": "Coal",
+                "gas": "Gas",
+                "water": "Water",
+                "wind": "Wind",
+                "solar": "Solar",
+                "other": "Other",
+                "storage": "Storage",
             },
         )
 
@@ -775,14 +775,14 @@ class MISOAPI:
                 "Interval Start",
                 "Interval End",
                 "Region",
-                "Total MW",
-                "Coal MW",
-                "Gas MW",
-                "Water MW",
-                "Wind MW",
-                "Solar MW",
-                "Other MW",
-                "Storage MW",
+                "Total",
+                "Coal",
+                "Gas",
+                "Water",
+                "Wind",
+                "Solar",
+                "Other",
+                "Storage",
             ]
         ].reset_index(drop=True)
 
@@ -808,7 +808,7 @@ class MISOAPI:
         )
 
         df = df.rename(
-            columns={"demand": "Cleared Demand MW"},
+            columns={"demand": "Cleared Demand"},
         )
 
         data = df.reset_index()
@@ -826,7 +826,7 @@ class MISOAPI:
             [
                 "Interval Start",
                 "Interval End",
-                "Cleared Demand MW",
+                "Cleared Demand",
             ]
         ].reset_index(drop=True)
 
@@ -879,7 +879,7 @@ class MISOAPI:
         )
 
         df = df.rename(
-            columns={"generation": "Generation Cleared MW"},
+            columns={"generation": "Generation Cleared"},
         )
 
         data = df.reset_index()
@@ -896,7 +896,7 @@ class MISOAPI:
         data = data.sort_values(["Interval Start", "Interval End"])
 
         return data[
-            ["Interval Start", "Interval End", "Generation Cleared MW"]
+            ["Interval Start", "Interval End", "Generation Cleared"]
         ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
@@ -938,9 +938,9 @@ class MISOAPI:
 
         df = df.rename(
             columns={
-                "offerForwardEcoMax": "Offered FRAC Economic Max MW",
-                "offerRealTimeEcoMax": "Offered Real Time Economic Max MW",
-                "offerEcoMaxDelta": "Offered Economic Max Delta MW",
+                "offerForwardEcoMax": "Offered FRAC Economic Max",
+                "offerRealTimeEcoMax": "Offered Real Time Economic Max",
+                "offerEcoMaxDelta": "Offered Economic Max Delta",
             },
         )
 
@@ -961,9 +961,9 @@ class MISOAPI:
             [
                 "Interval Start",
                 "Interval End",
-                "Offered FRAC Economic Max MW",
-                "Offered Real Time Economic Max MW",
-                "Offered Economic Max Delta MW",
+                "Offered FRAC Economic Max",
+                "Offered Real Time Economic Max",
+                "Offered Economic Max Delta",
             ]
         ].reset_index(drop=True)
 
@@ -989,9 +989,9 @@ class MISOAPI:
 
         df = df.rename(
             columns={
-                "committedForwardEcoMax": "Committed FRAC Economic Max MW",
-                "committedRealTimeEcoMax": "Committed Real Time Economic Max MW",
-                "committedEcoMaxDelta": "Committed Economic Max Delta MW",
+                "committedForwardEcoMax": "Committed FRAC Economic Max",
+                "committedRealTimeEcoMax": "Committed Real Time Economic Max",
+                "committedEcoMaxDelta": "Committed Economic Max Delta",
             },
         )
 
@@ -1012,9 +1012,9 @@ class MISOAPI:
             [
                 "Interval Start",
                 "Interval End",
-                "Committed FRAC Economic Max MW",
-                "Committed Real Time Economic Max MW",
-                "Committed Economic Max Delta MW",
+                "Committed FRAC Economic Max",
+                "Committed Real Time Economic Max",
+                "Committed Economic Max Delta",
             ]
         ].reset_index(drop=True)
 
@@ -1049,14 +1049,14 @@ class MISOAPI:
         df = df.rename(
             columns={
                 "region": "Region",
-                "totalMw": "Total MW",
-                "coal": "Coal MW",
-                "gas": "Gas MW",
-                "water": "Water MW",
-                "wind": "Wind MW",
-                "solar": "Solar MW",
-                "other": "Other MW",
-                "storage": "Storage MW",
+                "totalMw": "Total",
+                "coal": "Coal",
+                "gas": "Gas",
+                "water": "Water",
+                "wind": "Wind",
+                "solar": "Solar",
+                "other": "Other",
+                "storage": "Storage",
             },
         )
 
@@ -1076,14 +1076,14 @@ class MISOAPI:
                 "Interval Start",
                 "Interval End",
                 "Region",
-                "Total MW",
-                "Coal MW",
-                "Gas MW",
-                "Water MW",
-                "Wind MW",
-                "Solar MW",
-                "Other MW",
-                "Storage MW",
+                "Total",
+                "Coal",
+                "Gas",
+                "Water",
+                "Wind",
+                "Solar",
+                "Other",
+                "Storage",
             ]
         ].reset_index(drop=True)
 
