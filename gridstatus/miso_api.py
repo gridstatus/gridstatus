@@ -512,6 +512,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         return self._get_day_ahead_cleared_demand(
             date,
             end=end,
@@ -526,6 +529,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         return self._get_day_ahead_cleared_demand(
             date,
             end=end,
@@ -545,6 +551,7 @@ class MISOAPI:
         generation_type: "physical" or "virtual"
         """
         date_str = date.strftime("%Y-%m-%d")
+
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/cleared/{generation_type}"
 
         data_list = self._get_url(
@@ -583,6 +590,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         return self._get_day_ahead_cleared_generation_hourly(
             date, end, verbose, generation_type="physical"
         )
@@ -594,6 +604,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         return self._get_day_ahead_cleared_generation_hourly(
             date, end, verbose, generation_type="virtual"
         )
@@ -605,7 +618,11 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         date_str = date.strftime("%Y-%m-%d")
+
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/interchange/net-scheduled"
 
         data_list = self._get_url(
@@ -702,6 +719,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         return self._get_day_ahead_offered_generation_hourly(
             date, end, verbose, ecotype="ecomax"
         )
@@ -713,6 +733,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         return self._get_day_ahead_offered_generation_hourly(
             date, end, verbose, ecotype="ecomin"
         )
@@ -724,6 +747,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/fuel-type"
@@ -837,6 +863,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         return self._get_real_time_cleared_demand(
             date,
             end=end,
@@ -851,6 +880,11 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.today(tz=self.default_timezone) - pd.Timedelta(
+                days=1
+            )  # Yesterday
+
         return self._get_real_time_cleared_demand(
             date,
             end=end,
@@ -907,11 +941,17 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        NOTE: This function is not ready for use yet. MISO Real-Time Cleared Generation API returns wrong data for a date.
+        NOTE: This function is not ready for use yet. MISO Real-Time Cleared Generation API returns wrong timestamp.
+        The timestamps are off by 5 hours, seems to be a timezone issue, UTC instead of EST.
         """
         raise NotImplementedError(
             "get_real_time_cleared_generation_hourly is not ready for use yet."
         )
+        if date == "latest":
+            date = pd.Timestamp.today(tz=self.default_timezone) - pd.Timedelta(
+                days=1
+            )  # Yesterday
+
         return self._get_real_time_cleared_generation(
             date, end, verbose, time_resolution=HOURLY_RESOLUTION
         )
@@ -923,7 +963,11 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         date_str = date.strftime("%Y-%m-%d")
+
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/offered/ecomax"
 
         data_list = self._get_url(
@@ -974,7 +1018,11 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         date_str = date.strftime("%Y-%m-%d")
+
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/committed/ecomax"
 
         data_list = self._get_url(
@@ -1025,6 +1073,9 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if date == "latest":
+            date = "today"
+
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/fuel-type"
