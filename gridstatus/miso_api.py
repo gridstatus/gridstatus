@@ -28,6 +28,7 @@ PRELIMINARY_STRING = "Preliminary"
 FINAL_STRING = "Final"
 FIVE_MINUTE_RESOLUTION = "5min"
 HOURLY_RESOLUTION = "hourly"
+DAILY_RESOLUTION = "daily"
 EX_POST = "expost"
 EX_ANTE = "exante"
 
@@ -452,6 +453,691 @@ class MISOAPI:
             ]
         ].reset_index(drop=True)
 
+    def _get_day_ahead_cleared_demand(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        time_resolution: str = DAILY_RESOLUTION,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/demand?timeResolution={time_resolution}"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={
+                "region": "Region",
+                "fixed": "Fixed Bids Cleared",
+                "priceSens": "Price Sensitive Bids Cleared",
+                "virtual": "Virtual Bids Cleared",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Fixed Bids Cleared",
+                "Price Sensitive Bids Cleared",
+                "Virtual Bids Cleared",
+            ]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_cleared_demand_daily(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        return self._get_day_ahead_cleared_demand(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=DAILY_RESOLUTION,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_cleared_demand_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        return self._get_day_ahead_cleared_demand(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=HOURLY_RESOLUTION,
+        )
+
+    def _get_day_ahead_cleared_generation_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        generation_type: str = "physical",
+    ) -> pd.DataFrame:
+        """
+        Shared logic for getting day-ahead cleared generation (physical or virtual) hourly.
+        generation_type: "physical" or "virtual"
+        """
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/cleared/{generation_type}"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={"region": "Region", "supply": "Supply Cleared"},
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            ["Interval Start", "Interval End", "Region", "Supply Cleared"]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_cleared_generation_physical_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        return self._get_day_ahead_cleared_generation_hourly(
+            date, end, verbose, generation_type="physical"
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_cleared_generation_virtual_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        return self._get_day_ahead_cleared_generation_hourly(
+            date, end, verbose, generation_type="virtual"
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_net_scheduled_interchange_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/interchange/net-scheduled"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={
+                "region": "Region",
+                "nsi": "Net Scheduled Interchange",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            ["Interval Start", "Interval End", "Region", "Net Scheduled Interchange"]
+        ].reset_index(drop=True)
+
+    def _get_day_ahead_offered_generation_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        ecotype: str = "ecomax",
+    ) -> pd.DataFrame:
+        """
+        Shared logic for getting day-ahead offered generation ecomax/ecomin hourly.
+        ecotype: "ecomax" or "ecomin"
+        """
+        date_str = date.strftime("%Y-%m-%d")
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/offered/{ecotype}"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={
+                "region": "Region",
+                "mustRun": "Must Run",
+                "economic": "Economic",
+                "emergency": "Emergency",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Must Run",
+                "Economic",
+                "Emergency",
+            ]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_offered_generation_ecomax_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        return self._get_day_ahead_offered_generation_hourly(
+            date, end, verbose, ecotype="ecomax"
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_offered_generation_ecomin_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        return self._get_day_ahead_offered_generation_hourly(
+            date, end, verbose, ecotype="ecomin"
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_day_ahead_generation_fuel_type_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/fuel-type"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        if "interval" in df.columns:
+            df = df.drop(columns=["interval"])
+
+        # Expand the 'fuelTypes' dictionary column into separate columns
+        fuel_types_df = df["fuelTypes"].apply(pd.Series)
+        df = pd.concat([df.drop(columns=["fuelTypes"]), fuel_types_df], axis=1)
+
+        df = df.rename(
+            columns={
+                "region": "Region",
+                "totalMw": "Total",
+                "coal": "Coal",
+                "gas": "Gas",
+                "water": "Water",
+                "wind": "Wind",
+                "solar": "Solar",
+                "other": "Other",
+                "storage": "Storage",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Total",
+                "Coal",
+                "Gas",
+                "Water",
+                "Wind",
+                "Solar",
+                "Other",
+                "Storage",
+            ]
+        ].reset_index(drop=True)
+
+    def _get_real_time_cleared_demand(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        time_resolution: str = DAILY_RESOLUTION,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/demand/forecast?timeResolution={time_resolution}"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={"demand": "Cleared Demand"},
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Cleared Demand",
+            ]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_cleared_demand_daily(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        return self._get_real_time_cleared_demand(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=DAILY_RESOLUTION,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_cleared_demand_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.today(tz=self.default_timezone).floor(
+                "d"
+            ) - pd.Timedelta(days=1)  # Yesterday
+
+        return self._get_real_time_cleared_demand(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=HOURLY_RESOLUTION,
+        )
+
+    def _get_real_time_cleared_generation(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        time_resolution: str = HOURLY_RESOLUTION,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/cleared/supply?timeResolution={time_resolution}"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={"generation": "Generation Cleared"},
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                data[col] = data[col].astype(float)
+
+        data = data.sort_values(["Interval Start", "Interval End"])
+
+        return data[
+            ["Interval Start", "Interval End", "Generation Cleared"]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_cleared_generation_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        NOTE: This function is not ready for use yet. MISO Real-Time Cleared Generation API returns wrong timestamp.
+        The timestamps are off by 5 hours, seems to be a timezone issue, UTC instead of EST.
+        """
+        raise NotImplementedError(
+            "get_real_time_cleared_generation_hourly is not ready for use yet."
+        )
+        if date == "latest":
+            date = pd.Timestamp.today(tz=self.default_timezone).floor(
+                "d"
+            ) - pd.Timedelta(days=1)  # Yesterday
+
+        return self._get_real_time_cleared_generation(
+            date, end, verbose, time_resolution=HOURLY_RESOLUTION
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_offered_generation_ecomax_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/offered/ecomax"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={
+                "offerForwardEcoMax": "Offered FRAC Economic Max",
+                "offerRealTimeEcoMax": "Offered Real Time Economic Max",
+                "offerEcoMaxDelta": "Offered Economic Max Delta",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                data[col] = data[col].astype(float)
+
+        data = data.sort_values(["Interval Start", "Interval End"])
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Offered FRAC Economic Max",
+                "Offered Real Time Economic Max",
+                "Offered Economic Max Delta",
+            ]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_committed_generation_ecomax_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/committed/ecomax"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        df = df.rename(
+            columns={
+                "committedForwardEcoMax": "Committed FRAC Economic Max",
+                "committedRealTimeEcoMax": "Committed Real Time Economic Max",
+                "committedEcoMaxDelta": "Committed Economic Max Delta",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End"]:
+                data[col] = data[col].astype(float)
+
+        data = data.sort_values(["Interval Start", "Interval End"])
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Committed FRAC Economic Max",
+                "Committed Real Time Economic Max",
+                "Committed Economic Max Delta",
+            ]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_real_time_generation_fuel_type_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/fuel-type"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        if "interval" in df.columns:
+            df = df.drop(columns=["interval"])
+
+        # Expand the 'fuelTypes' dictionary column into separate columns
+        fuel_types_df = df["fuelTypes"].apply(pd.Series)
+        df = pd.concat([df.drop(columns=["fuelTypes"]), fuel_types_df], axis=1)
+
+        df = df.rename(
+            columns={
+                "region": "Region",
+                "totalMw": "Total",
+                "coal": "Coal",
+                "gas": "Gas",
+                "water": "Water",
+                "wind": "Wind",
+                "solar": "Solar",
+                "other": "Other",
+                "storage": "Storage",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Total",
+                "Coal",
+                "Gas",
+                "Water",
+                "Wind",
+                "Solar",
+                "Other",
+                "Storage",
+            ]
+        ].reset_index(drop=True)
+
     def _get_url(
         self,
         url: str,
@@ -526,6 +1212,10 @@ class MISOAPI:
 
     def _data_list_to_df(self, data_list: List[Dict[str, Any]]) -> pd.DataFrame:
         df = pd.DataFrame(data_list)
+
+        if "timeInterval" not in df.columns and "interval" in df.columns:
+            df["timeInterval"] = df["interval"]
+            df = df.drop(columns=["interval"])
 
         # Split timeInterval dict into separate columns for 'start' and 'end'
         df = pd.concat(
