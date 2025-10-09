@@ -513,7 +513,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_cleared_demand(
             date,
@@ -530,7 +530,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_cleared_demand(
             date,
@@ -591,7 +591,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_cleared_generation_hourly(
             date, end, verbose, generation_type="physical"
@@ -605,7 +605,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_cleared_generation_hourly(
             date, end, verbose, generation_type="virtual"
@@ -619,7 +619,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         date_str = date.strftime("%Y-%m-%d")
 
@@ -720,7 +720,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_offered_generation_hourly(
             date, end, verbose, ecotype="ecomax"
@@ -734,7 +734,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_offered_generation_hourly(
             date, end, verbose, ecotype="ecomin"
@@ -748,7 +748,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         date_str = date.strftime("%Y-%m-%d")
 
@@ -864,7 +864,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_real_time_cleared_demand(
             date,
@@ -881,9 +881,9 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = pd.Timestamp.today(tz=self.default_timezone) - pd.Timedelta(
-                days=1
-            )  # Yesterday
+            date = pd.Timestamp.today(tz=self.default_timezone).floor(
+                "d"
+            ) - pd.Timedelta(days=1)  # Yesterday
 
         return self._get_real_time_cleared_demand(
             date,
@@ -948,9 +948,9 @@ class MISOAPI:
             "get_real_time_cleared_generation_hourly is not ready for use yet."
         )
         if date == "latest":
-            date = pd.Timestamp.today(tz=self.default_timezone) - pd.Timedelta(
-                days=1
-            )  # Yesterday
+            date = pd.Timestamp.today(tz=self.default_timezone).floor(
+                "d"
+            ) - pd.Timedelta(days=1)  # Yesterday
 
         return self._get_real_time_cleared_generation(
             date, end, verbose, time_resolution=HOURLY_RESOLUTION
@@ -964,7 +964,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         date_str = date.strftime("%Y-%m-%d")
 
@@ -1019,7 +1019,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         date_str = date.strftime("%Y-%m-%d")
 
@@ -1074,7 +1074,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         date_str = date.strftime("%Y-%m-%d")
 

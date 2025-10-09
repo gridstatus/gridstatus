@@ -499,26 +499,30 @@ class TestMISOAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_day_ahead_cleared_demand_daily_date_range(self):
-        with api_vcr.use_cassette("get_day_ahead_cleared_demand_daily_today"):
-            df = self.iso.get_day_ahead_cleared_demand_daily("today")
+        date = self.local_start_of_today()
+
+        with api_vcr.use_cassette(f"get_day_ahead_cleared_demand_daily_{date.date()}"):
+            df = self.iso.get_day_ahead_cleared_demand_daily(date)
 
         self._check_test_get_day_ahead_cleared_demand(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval Start"].max() == self.local_start_of_today()
-        assert df["Interval End"].max() == self.local_start_of_today() + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date
+        assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
 
     @pytest.mark.integration
     def test_get_day_ahead_cleared_demand_hourly_date_range(self):
-        with api_vcr.use_cassette("get_day_ahead_cleared_demand_hourly_today"):
-            df = self.iso.get_day_ahead_cleared_demand_hourly("today")
+        date = self.local_start_of_today()
+
+        with api_vcr.use_cassette(f"get_day_ahead_cleared_demand_hourly_{date.date()}"):
+            df = self.iso.get_day_ahead_cleared_demand_hourly(date)
 
         self._check_test_get_day_ahead_cleared_demand(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
 
@@ -537,50 +541,46 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
-        assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+    @pytest.mark.integration
+    def test_get_day_ahead_cleared_generation_physical_hourly_date_range(self):
+        date = self.local_start_of_today()
+
+        with api_vcr.use_cassette(
+            f"get_day_ahead_cleared_generation_physical_hourly_{date.date()}"
+        ):
+            df = self.iso.get_day_ahead_cleared_generation_physical_hourly(date)
+
+        self._check_day_ahead_cleared_generation_hourly(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
 
     @pytest.mark.integration
-    def test_get_day_ahead_cleared_generation_physical_hourly_date_range(self):
-        with api_vcr.use_cassette(
-            "get_day_ahead_cleared_generation_physical_hourly_today"
-        ):
-            df = self.iso.get_day_ahead_cleared_generation_physical_hourly("today")
-
-        self._check_day_ahead_cleared_generation_hourly(df)
-
-    @pytest.mark.integration
     def test_get_day_ahead_cleared_generation_virtual_hourly_date_range(self):
+        date = self.local_start_of_today()
+
         with api_vcr.use_cassette(
-            "get_day_ahead_cleared_generation_virtual_hourly_today"
+            f"get_day_ahead_cleared_generation_virtual_hourly_{date.date()}"
         ):
-            df = self.iso.get_day_ahead_cleared_generation_virtual_hourly("today")
+            df = self.iso.get_day_ahead_cleared_generation_virtual_hourly(date)
 
         self._check_day_ahead_cleared_generation_hourly(df)
 
-    def _check_day_ahead_offered_generation_hourly(self, df, expected_columns):
-        assert df.columns.tolist() == expected_columns
-
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
-
-        assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
 
     @pytest.mark.integration
     def test_get_day_ahead_net_scheduled_interchange_hourly_date_range(self):
+        date = self.local_start_of_today()
+
         with api_vcr.use_cassette(
-            "get_day_ahead_net_scheduled_interchange_hourly_today"
+            f"get_day_ahead_net_scheduled_interchange_hourly_{date.date()}"
         ):
-            df = self.iso.get_day_ahead_net_scheduled_interchange_hourly("today")
+            df = self.iso.get_day_ahead_net_scheduled_interchange_hourly(date)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -596,17 +596,55 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
-        assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+
+    def _check_day_ahead_offered_generation_hourly(self, df, expected_columns):
+        assert df.columns.tolist() == expected_columns
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_day_ahead_offered_generation_ecomax_hourly_date_range(self):
+        date = self.local_start_of_today()
+
+        with api_vcr.use_cassette(
+            f"get_day_ahead_offered_generation_ecomax_hourly_{date.date()}"
+        ):
+            df = self.iso.get_day_ahead_offered_generation_ecomax_hourly(date)
+
+        self._check_day_ahead_offered_generation_hourly(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Must Run",
+                "Economic",
+                "Emergency",
+            ],
+        )
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
 
     @pytest.mark.integration
-    def test_get_day_ahead_offered_generation_ecomax_hourly_date_range(self):
+    def test_get_day_ahead_offered_generation_ecomin_hourly_date_range(self):
+        date = self.local_start_of_today()
+
         with api_vcr.use_cassette(
-            "get_day_ahead_offered_generation_ecomax_hourly_today"
+            f"get_day_ahead_offered_generation_ecomin_hourly_{date.date()}"
         ):
-            df = self.iso.get_day_ahead_offered_generation_ecomax_hourly("today")
+            df = self.iso.get_day_ahead_offered_generation_ecomin_hourly(date)
 
         self._check_day_ahead_offered_generation_hourly(
             df,
@@ -620,29 +658,19 @@ class TestMISOAPI(TestHelperMixin):
             ],
         )
 
-    @pytest.mark.integration
-    def test_get_day_ahead_offered_generation_ecomin_hourly_date_range(self):
-        with api_vcr.use_cassette(
-            "get_day_ahead_offered_generation_ecomin_hourly_today"
-        ):
-            df = self.iso.get_day_ahead_offered_generation_ecomin_hourly("today")
-
-        self._check_day_ahead_offered_generation_hourly(
-            df,
-            [
-                "Interval Start",
-                "Interval End",
-                "Region",
-                "Must Run",
-                "Economic",
-                "Emergency",
-            ],
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
         )
 
     @pytest.mark.integration
     def test_get_day_ahead_generation_fuel_type_hourly_date_range(self):
-        with api_vcr.use_cassette("get_day_ahead_generation_fuel_type_hourly_today"):
-            df = self.iso.get_day_ahead_generation_fuel_type_hourly("today")
+        date = self.local_start_of_today()
+
+        with api_vcr.use_cassette(
+            f"get_day_ahead_generation_fuel_type_hourly_{date.date()}"
+        ):
+            df = self.iso.get_day_ahead_generation_fuel_type_hourly(date)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -665,11 +693,11 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
-        assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
-        assert df["Interval End"].max() == self.local_start_of_today() + pd.Timedelta(
+        assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
 
@@ -689,33 +717,33 @@ class TestMISOAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_real_time_cleared_demand_daily_date_range(self):
-        yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
 
-        with api_vcr.use_cassette("get_real_time_cleared_demand_daily_today"):
-            df = self.iso.get_real_time_cleared_demand_daily(yesterday)
+        with api_vcr.use_cassette(f"get_real_time_cleared_demand_daily_{date.date()}"):
+            df = self.iso.get_real_time_cleared_demand_daily(date)
 
         self._check_test_get_real_time_cleared_demand(df)
 
-        assert df["Interval Start"].min() == yesterday
-        assert df["Interval Start"].max() == yesterday
-        assert df["Interval End"].max() == yesterday + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date
+        assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
 
     @pytest.mark.integration
     def test_get_real_time_cleared_demand_hourly_date_range(self):
-        yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
 
-        with api_vcr.use_cassette("get_real_time_cleared_demand_hourly_yesterday"):
-            df = self.iso.get_real_time_cleared_demand_hourly(yesterday)
+        with api_vcr.use_cassette(f"get_real_time_cleared_demand_hourly_{date.date()}"):
+            df = self.iso.get_real_time_cleared_demand_hourly(date)
 
         self._check_test_get_real_time_cleared_demand(df)
 
-        assert df["Interval Start"].min() == yesterday
-        assert df["Interval Start"].max() == yesterday + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
-        assert df["Interval End"].max() == yesterday + pd.Timedelta(days=1)
+        assert df["Interval End"].max() == date + pd.Timedelta(days=1)
 
     def _check_real_time_cleared_generation(self, df):
         assert df.columns.tolist() == [
@@ -734,12 +762,12 @@ class TestMISOAPI(TestHelperMixin):
     # @pytest.mark.integration
     @pytest.mark.skip(reason="MISO returns wrong data for a specific date")
     def test_get_real_time_cleared_generation_hourly_date_range(self):
-        start = self.local_start_of_today() - pd.Timedelta(days=2)
+        date = self.local_start_of_today() - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
-            f"get_real_time_cleared_generation_hourly_{start.strftime('%Y%m%d')}"
+            f"get_real_time_cleared_generation_hourly_{date.date()}"
         ):
-            df = self.iso.get_real_time_cleared_generation_hourly(start)
+            df = self.iso.get_real_time_cleared_generation_hourly(date)
 
         self._check_real_time_cleared_generation(df)
 
@@ -751,12 +779,12 @@ class TestMISOAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_real_time_offered_generation_ecomax_hourly_date_range(self):
-        start = self.local_start_of_today() - pd.Timedelta(days=2)
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"get_real_time_offered_generation_ecomax_hourly_{start.strftime('%Y%m%d')}"
+            f"get_real_time_offered_generation_ecomax_hourly_{date.date()}"
         ):
-            df = self.iso.get_real_time_offered_generation_ecomax_hourly(start)
+            df = self.iso.get_real_time_offered_generation_ecomax_hourly(date)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -773,22 +801,22 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End"]:
                 assert df[col].dtype == "float64"
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval Start"].max() == start + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
-        assert df["Interval End"].max() == start + pd.Timedelta(
+        assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
 
     @pytest.mark.integration
     def test_get_real_time_committed_generation_ecomax_hourly_date_range(self):
-        start = self.local_start_of_today() - pd.Timedelta(days=2)
+        date = self.local_start_of_today() - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
-            f"get_real_time_committed_generation_ecomax_hourly_{start.strftime('%Y%m%d')}"
+            f"get_real_time_committed_generation_ecomax_hourly_{date.date()}"
         ):
-            df = self.iso.get_real_time_committed_generation_ecomax_hourly(start)
+            df = self.iso.get_real_time_committed_generation_ecomax_hourly(date)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -805,22 +833,22 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End"]:
                 assert df[col].dtype == "float64"
 
-        assert df["Interval Start"].min() == start
-        assert df["Interval Start"].max() == start + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
-        assert df["Interval End"].max() == start + pd.Timedelta(
+        assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
 
     @pytest.mark.integration
     def test_get_real_time_generation_fuel_type_hourly_date_range(self):
-        yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"get_real_time_generation_fuel_type_hourly_{yesterday.strftime('%Y%m%d')}"
+            f"get_real_time_generation_fuel_type_hourly_{date.date()}"
         ):
-            df = self.iso.get_real_time_generation_fuel_type_hourly(yesterday)
+            df = self.iso.get_real_time_generation_fuel_type_hourly(date)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -843,10 +871,10 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
-        assert df["Interval Start"].min() == yesterday
-        assert df["Interval Start"].max() == yesterday + pd.Timedelta(
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
-        assert df["Interval End"].max() == yesterday + pd.Timedelta(
+        assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
