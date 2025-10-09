@@ -485,9 +485,9 @@ class TestMISOAPI(TestHelperMixin):
             "Interval Start",
             "Interval End",
             "Region",
-            "Fixed Bids Cleared MW",
-            "Price Sensitive Bids Cleared MW",
-            "Virtual Bids Cleared MW",
+            "Fixed Bids Cleared",
+            "Price Sensitive Bids Cleared",
+            "Virtual Bids Cleared",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
@@ -527,7 +527,7 @@ class TestMISOAPI(TestHelperMixin):
             "Interval Start",
             "Interval End",
             "Region",
-            "Supply Cleared MW",
+            "Supply Cleared",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
@@ -586,7 +586,7 @@ class TestMISOAPI(TestHelperMixin):
             "Interval Start",
             "Interval End",
             "Region",
-            "Net Scheduled Interchange MW",
+            "Net Scheduled Interchange",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
@@ -614,9 +614,9 @@ class TestMISOAPI(TestHelperMixin):
                 "Interval Start",
                 "Interval End",
                 "Region",
-                "Must Run MW",
-                "Economic MW",
-                "Emergency MW",
+                "Must Run",
+                "Economic",
+                "Emergency",
             ],
         )
 
@@ -633,9 +633,9 @@ class TestMISOAPI(TestHelperMixin):
                 "Interval Start",
                 "Interval End",
                 "Region",
-                "Must Run MW",
-                "Economic MW",
-                "Emergency MW",
+                "Must Run",
+                "Economic",
+                "Emergency",
             ],
         )
 
@@ -648,14 +648,14 @@ class TestMISOAPI(TestHelperMixin):
             "Interval Start",
             "Interval End",
             "Region",
-            "Total MW",
-            "Coal MW",
-            "Gas MW",
-            "Water MW",
-            "Wind MW",
-            "Solar MW",
-            "Other MW",
-            "Storage MW",
+            "Total",
+            "Coal",
+            "Gas",
+            "Water",
+            "Wind",
+            "Solar",
+            "Other",
+            "Storage",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
@@ -677,7 +677,7 @@ class TestMISOAPI(TestHelperMixin):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Cleared Demand MW",
+            "Cleared Demand",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
@@ -721,7 +721,7 @@ class TestMISOAPI(TestHelperMixin):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Generation Cleared MW",
+            "Generation Cleared",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
@@ -761,9 +761,9 @@ class TestMISOAPI(TestHelperMixin):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Offered FRAC Economic Max MW",
-            "Offered Real Time Economic Max MW",
-            "Offered Economic Max Delta MW",
+            "Offered FRAC Economic Max",
+            "Offered Real Time Economic Max",
+            "Offered Economic Max Delta",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
@@ -793,9 +793,9 @@ class TestMISOAPI(TestHelperMixin):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Committed FRAC Economic Max MW",
-            "Committed Real Time Economic Max MW",
-            "Committed Economic Max Delta MW",
+            "Committed FRAC Economic Max",
+            "Committed Real Time Economic Max",
+            "Committed Economic Max Delta",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
@@ -826,14 +826,14 @@ class TestMISOAPI(TestHelperMixin):
             "Interval Start",
             "Interval End",
             "Region",
-            "Total MW",
-            "Coal MW",
-            "Gas MW",
-            "Water MW",
-            "Wind MW",
-            "Solar MW",
-            "Other MW",
-            "Storage MW",
+            "Total",
+            "Coal",
+            "Gas",
+            "Water",
+            "Wind",
+            "Solar",
+            "Other",
+            "Storage",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
