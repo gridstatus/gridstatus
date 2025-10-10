@@ -1077,3 +1077,355 @@ class ISONEAPI:
         )
 
         return df[ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS]
+
+    @support_date_range("DAY_START")
+    def get_regulation_clearing_prices_real_time_5_min(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get five-minute clearing prices for both regulation capacity and service in real-time.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing five-minute regulation clearing prices.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/fiveminutercp/current"
+        else:
+            url = f"{self.base_url}/fiveminutercp/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url, verbose=verbose)
+
+        if "FiveMinRcps" not in response or "FiveMinRcp" not in response["FiveMinRcps"]:
+            raise NoDataFoundException(
+                f"No five-minute regulation clearing price data found for {date}",
+            )
+
+        df = pd.DataFrame(response["FiveMinRcps"]["FiveMinRcp"])
+
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00)
+        df["Interval Start"] = df["Interval Start"].dt.floor("5min")
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        df = df.rename(
+            columns={
+                "RegServiceClearingPrice": "Reg Service Clearing Price",
+                "RegCapacityClearingPrice": "Reg Capacity Clearing Price",
+            },
+        )
+
+        df["Reg Service Clearing Price"] = pd.to_numeric(
+            df["Reg Service Clearing Price"],
+            errors="coerce",
+        )
+        df["Reg Capacity Clearing Price"] = pd.to_numeric(
+            df["Reg Capacity Clearing Price"],
+            errors="coerce",
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Reg Service Clearing Price",
+                "Reg Capacity Clearing Price",
+            ]
+        ].sort_values("Interval Start")
+
+    @support_date_range("DAY_START")
+    def get_reserve_requirements_prices_forecast_day_ahead(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get day-ahead reserve prices, requirements, and forecast for reserve zone 7000 (system-wide).
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing day-ahead reserve requirements, prices, and forecast.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/daasreservedata/current"
+        else:
+            url = f"{self.base_url}/daasreservedata/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url, verbose=verbose)
+
+        if (
+            "isone_web_services" not in response
+            or "day_ahead_reserves" not in response["isone_web_services"]
+        ):
+            raise NoDataFoundException(f"No day-ahead reserve data found for {date}")
+
+        reserves = response["isone_web_services"]["day_ahead_reserves"]
+        if "day_ahead_reserve" not in reserves:
+            raise NoDataFoundException(f"No day-ahead reserve data found for {date}")
+
+        df = pd.json_normalize(reserves["day_ahead_reserve"])
+
+        # Parse market hour information - API returns timezone-aware datetimes
+        df["Interval Start"] = pd.to_datetime(df["market_hour.local_day"])
+        # Add hours to get interval start (hour_end - 1)
+        df["Interval Start"] = df["Interval Start"] + pd.to_timedelta(
+            df["market_hour.local_hour_end"].astype(int) - 1,
+            unit="h",
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        df = df.rename(
+            columns={
+                "eir_designation_mw": "EIR Designation MW",
+                "fer_clearing_price": "FER Clearing Price",
+                "forecasted_energy_req_mw": "Forecasted Energy Requirement MW",
+                "ten_min_spin_req_mw": "Ten Min Spin Requirement MW",
+                "tmnsr_clearing_price": "TMNSR Clearing Price",
+                "tmnsr_designation_mw": "TMNSR Designation MW",
+                "tmor_clearing_price": "TMOR Clearing Price",
+                "tmor_designation_mw": "TMOR Designation MW",
+                "tmsr_clearing_price": "TMSR Clearing Price",
+                "tmsr_designation_mw": "TMSR Designation MW",
+                "total_ten_min_req_mw": "Total Ten Min Requirement MW",
+                "total_thirty_min_req_mw": "Total Thirty Min Requirement MW",
+            },
+        )
+
+        numeric_columns = [
+            "EIR Designation MW",
+            "FER Clearing Price",
+            "Forecasted Energy Requirement MW",
+            "Ten Min Spin Requirement MW",
+            "TMNSR Clearing Price",
+            "TMNSR Designation MW",
+            "TMOR Clearing Price",
+            "TMOR Designation MW",
+            "TMSR Clearing Price",
+            "TMSR Designation MW",
+            "Total Ten Min Requirement MW",
+            "Total Thirty Min Requirement MW",
+        ]
+
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "EIR Designation MW",
+                "FER Clearing Price",
+                "Forecasted Energy Requirement MW",
+                "Ten Min Spin Requirement MW",
+                "TMNSR Clearing Price",
+                "TMNSR Designation MW",
+                "TMOR Clearing Price",
+                "TMOR Designation MW",
+                "TMSR Clearing Price",
+                "TMSR Designation MW",
+                "Total Ten Min Requirement MW",
+                "Total Thirty Min Requirement MW",
+            ]
+        ].sort_values("Interval Start")
+
+    @support_date_range("DAY_START")
+    def get_reserve_zone_prices_designations_real_time_hourly_final(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get final hourly reserve prices, requirements, and designations by zone.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing final hourly reserve zone prices and designations.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/hourlyfinalreserveprice/current"
+        else:
+            url = (
+                f"{self.base_url}/hourlyfinalreserveprice/day/{date.strftime('%Y%m%d')}"
+            )
+
+        response = self.make_api_call(url, verbose=verbose)
+
+        if (
+            "FinalHourlyReservePrices" not in response
+            or "FinalHourlyReservePrice" not in response["FinalHourlyReservePrices"]
+        ):
+            raise NoDataFoundException(
+                f"No final hourly reserve zone price data found for {date}",
+            )
+
+        df = pd.DataFrame(
+            response["FinalHourlyReservePrices"]["FinalHourlyReservePrice"],
+        )
+
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        df = df.rename(
+            columns={
+                "ReserveZoneId": "Reserve Zone Id",
+                "ReserveZoneName": "Reserve Zone Name",
+                "TenMinSpinRequirement": "Ten Min Spin Requirement",
+                "TmnsrClearingPrice": "TMNSR Clearing Price",
+                "TmnsrDesignatedMw": "TMNSR Designated MW",
+                "TmorClearingPrice": "TMOR Clearing Price",
+                "TmorDesignatedMw": "TMOR Designated MW",
+                "TmsrClearingPrice": "TMSR Clearing Price",
+                "TmsrDesignatedMw": "TMSR Designated MW",
+                "Total10MinRequirement": "Total 10 Min Requirement",
+                "Total30MinRequirement": "Total 30 Min Requirement",
+            },
+        )
+
+        numeric_columns = [
+            "Reserve Zone Id",
+            "Ten Min Spin Requirement",
+            "TMNSR Clearing Price",
+            "TMNSR Designated MW",
+            "TMOR Clearing Price",
+            "TMOR Designated MW",
+            "TMSR Clearing Price",
+            "TMSR Designated MW",
+            "Total 10 Min Requirement",
+            "Total 30 Min Requirement",
+        ]
+
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Reserve Zone Id",
+                "Reserve Zone Name",
+                "Ten Min Spin Requirement",
+                "TMNSR Clearing Price",
+                "TMNSR Designated MW",
+                "TMOR Clearing Price",
+                "TMOR Designated MW",
+                "TMSR Clearing Price",
+                "TMSR Designated MW",
+                "Total 10 Min Requirement",
+                "Total 30 Min Requirement",
+            ]
+        ].sort_values(["Interval Start", "Reserve Zone Id"])
+
+    @support_date_range("DAY_START")
+    def get_reserve_zone_prices_designations_real_time_5_min(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get five-minute real-time reserve prices, requirements, and designations by zone.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing five-minute reserve zone prices and designations.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/fiveminutereserveprice/current"
+        else:
+            url = (
+                f"{self.base_url}/fiveminutereserveprice/day/{date.strftime('%Y%m%d')}"
+            )
+
+        response = self.make_api_call(url, verbose=verbose)
+
+        if (
+            "FiveMinReservePrices" not in response
+            or "FiveMinReservePrice" not in response["FiveMinReservePrices"]
+        ):
+            raise NoDataFoundException(
+                f"No five-minute reserve zone price data found for {date}",
+            )
+
+        df = pd.DataFrame(response["FiveMinReservePrices"]["FiveMinReservePrice"])
+
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00)
+        df["Interval Start"] = df["Interval Start"].dt.floor("5min")
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        df = df.rename(
+            columns={
+                "ReserveZoneId": "Reserve Zone Id",
+                "ReserveZoneName": "Reserve Zone Name",
+                "TenMinSpinRequirement": "Ten Min Spin Requirement",
+                "TmnsrClearingPrice": "TMNSR Clearing Price",
+                "TmnsrDesignatedMw": "TMNSR Designated MW",
+                "TmorClearingPrice": "TMOR Clearing Price",
+                "TmorDesignatedMw": "TMOR Designated MW",
+                "TmsrClearingPrice": "TMSR Clearing Price",
+                "TmsrDesignatedMw": "TMSR Designated MW",
+                "Total10MinRequirement": "Total 10 Min Requirement",
+                "Total30MinRequirement": "Total 30 Min Requirement",
+            },
+        )
+
+        numeric_columns = [
+            "Reserve Zone Id",
+            "Ten Min Spin Requirement",
+            "TMNSR Clearing Price",
+            "TMNSR Designated MW",
+            "TMOR Clearing Price",
+            "TMOR Designated MW",
+            "TMSR Clearing Price",
+            "TMSR Designated MW",
+            "Total 10 Min Requirement",
+            "Total 30 Min Requirement",
+        ]
+
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Reserve Zone Id",
+                "Reserve Zone Name",
+                "Ten Min Spin Requirement",
+                "TMNSR Clearing Price",
+                "TMNSR Designated MW",
+                "TMOR Clearing Price",
+                "TMOR Designated MW",
+                "TMSR Clearing Price",
+                "TMSR Designated MW",
+                "Total 10 Min Requirement",
+                "Total 30 Min Requirement",
+            ]
+        ].sort_values(["Interval Start", "Reserve Zone Id"])
