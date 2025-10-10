@@ -1,11 +1,11 @@
 # Changelog
 
-## v0.32.1 - October 9, 2025
+## v0.33.0 - October 9, 2025
 
 ### What's Changed
 * Add MISO missing Load, Generation, and Interchange APIs in [#678](https://github.com/gridstatus/gridstatus/pull/678)
 
-**Full Changelog**: https://github.com/gridstatus/gridstatus/compare/v0.32.0...v0.32.1
+**Full Changelog**: https://github.com/gridstatus/gridstatus/compare/v0.32.0...v0.33.0
 
 ## v0.32.0 - October 7, 2025
 
