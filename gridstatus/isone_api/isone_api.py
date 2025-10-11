@@ -1245,6 +1245,102 @@ class ISONEAPI:
         ].sort_values("Interval Start")
 
     @support_date_range("DAY_START")
+    def get_reserve_zone_prices_designations_real_time_5_min(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get five-minute real-time reserve prices, requirements, and designations by zone.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing five-minute reserve zone prices and designations.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/fiveminutereserveprice/current"
+        else:
+            url = (
+                f"{self.base_url}/fiveminutereserveprice/day/{date.strftime('%Y%m%d')}"
+            )
+
+        response = self.make_api_call(url, verbose=verbose)
+
+        df = pd.DataFrame(
+            response.get("FiveMinReservePrices", {}).get("FiveMinReservePrice", {}),
+        )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No five-minute reserve zone price data found for {date}",
+            )
+
+        # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00). Do rounding in UTC.
+        df["Interval Start"] = (
+            pd.to_datetime(df["BeginDate"], utc=True)
+            .dt.floor("5min")
+            .dt.tz_convert(
+                self.default_timezone,
+            )
+        )
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        df = df.rename(
+            columns={
+                "ReserveZoneId": "Reserve Zone Id",
+                "ReserveZoneName": "Reserve Zone Name",
+                "TenMinSpinRequirement": "Ten Min Spin Requirement",
+                "TmnsrClearingPrice": "TMNSR Clearing Price",
+                "TmnsrDesignatedMw": "TMNSR Designated MW",
+                "TmorClearingPrice": "TMOR Clearing Price",
+                "TmorDesignatedMw": "TMOR Designated MW",
+                "TmsrClearingPrice": "TMSR Clearing Price",
+                "TmsrDesignatedMw": "TMSR Designated MW",
+                "Total10MinRequirement": "Total 10 Min Requirement",
+                "Total30MinRequirement": "Total 30 Min Requirement",
+            },
+        )
+
+        float_columns = [
+            "Ten Min Spin Requirement",
+            "TMNSR Clearing Price",
+            "TMNSR Designated MW",
+            "TMOR Clearing Price",
+            "TMOR Designated MW",
+            "TMSR Clearing Price",
+            "TMSR Designated MW",
+            "Total 10 Min Requirement",
+            "Total 30 Min Requirement",
+        ]
+
+        for col in float_columns:
+            df[col] = df[col].astype(float)
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Reserve Zone Id",
+                "Reserve Zone Name",
+                "Ten Min Spin Requirement",
+                "TMNSR Clearing Price",
+                "TMNSR Designated MW",
+                "TMOR Clearing Price",
+                "TMOR Designated MW",
+                "TMSR Clearing Price",
+                "TMSR Designated MW",
+                "Total 10 Min Requirement",
+                "Total 30 Min Requirement",
+            ]
+        ].sort_values(["Interval Start", "Reserve Zone Id"])
+
+    @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_hourly_final(
         self,
         date: str | pd.Timestamp = "latest",
@@ -1304,8 +1400,7 @@ class ISONEAPI:
             },
         )
 
-        numeric_columns = [
-            "Reserve Zone Id",
+        float_columns = [
             "Ten Min Spin Requirement",
             "TMNSR Clearing Price",
             "TMNSR Designated MW",
@@ -1317,101 +1412,8 @@ class ISONEAPI:
             "Total 30 Min Requirement",
         ]
 
-        for col in numeric_columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Reserve Zone Id",
-                "Reserve Zone Name",
-                "Ten Min Spin Requirement",
-                "TMNSR Clearing Price",
-                "TMNSR Designated MW",
-                "TMOR Clearing Price",
-                "TMOR Designated MW",
-                "TMSR Clearing Price",
-                "TMSR Designated MW",
-                "Total 10 Min Requirement",
-                "Total 30 Min Requirement",
-            ]
-        ].sort_values(["Interval Start", "Reserve Zone Id"])
-
-    @support_date_range("DAY_START")
-    def get_reserve_zone_prices_designations_real_time_5_min(
-        self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """
-        Get five-minute real-time reserve prices, requirements, and designations by zone.
-
-        Args:
-            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
-            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
-            verbose (bool): Whether to print verbose logging information.
-
-        Returns:
-            pd.DataFrame: A DataFrame containing five-minute reserve zone prices and designations.
-        """
-        if date == "latest":
-            url = f"{self.base_url}/fiveminutereserveprice/current"
-        else:
-            url = (
-                f"{self.base_url}/fiveminutereserveprice/day/{date.strftime('%Y%m%d')}"
-            )
-
-        response = self.make_api_call(url, verbose=verbose)
-
-        df = pd.DataFrame(
-            response.get("FiveMinReservePrices", {}).get("FiveMinReservePrice", {}),
-        )
-
-        if df.empty:
-            raise NoDataFoundException(
-                f"No five-minute reserve zone price data found for {date}",
-            )
-
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
-        )
-        # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00)
-        df["Interval Start"] = df["Interval Start"].dt.floor("5min")
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
-
-        df = df.rename(
-            columns={
-                "ReserveZoneId": "Reserve Zone Id",
-                "ReserveZoneName": "Reserve Zone Name",
-                "TenMinSpinRequirement": "Ten Min Spin Requirement",
-                "TmnsrClearingPrice": "TMNSR Clearing Price",
-                "TmnsrDesignatedMw": "TMNSR Designated MW",
-                "TmorClearingPrice": "TMOR Clearing Price",
-                "TmorDesignatedMw": "TMOR Designated MW",
-                "TmsrClearingPrice": "TMSR Clearing Price",
-                "TmsrDesignatedMw": "TMSR Designated MW",
-                "Total10MinRequirement": "Total 10 Min Requirement",
-                "Total30MinRequirement": "Total 30 Min Requirement",
-            },
-        )
-
-        numeric_columns = [
-            "Reserve Zone Id",
-            "Ten Min Spin Requirement",
-            "TMNSR Clearing Price",
-            "TMNSR Designated MW",
-            "TMOR Clearing Price",
-            "TMOR Designated MW",
-            "TMSR Clearing Price",
-            "TMSR Designated MW",
-            "Total 10 Min Requirement",
-            "Total 30 Min Requirement",
-        ]
-
-        for col in numeric_columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        for col in float_columns:
+            df[col] = df[col].astype(float)
 
         return df[
             [

@@ -1007,7 +1007,119 @@ class TestISONEAPI(TestHelperMixin):
             self.iso.default_timezone,
         ) - pd.Timedelta(hours=1)
 
+    """get_reserve_zone_prices_designations_real_time_5_min"""
+
+    def _check_reserve_zone_prices_designations_real_time_5_min(
+        self,
+        df: pd.DataFrame,
+    ):
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Reserve Zone Id",
+            "Reserve Zone Name",
+            "Ten Min Spin Requirement",
+            "TMNSR Clearing Price",
+            "TMNSR Designated MW",
+            "TMOR Clearing Price",
+            "TMOR Designated MW",
+            "TMSR Clearing Price",
+            "TMSR Designated MW",
+            "Total 10 Min Requirement",
+            "Total 30 Min Requirement",
+        ]
+
+        assert df["Reserve Zone Id"].dtype == np.int64
+        assert df["Reserve Zone Name"].dtype == object
+        assert df["Ten Min Spin Requirement"].dtype == np.float64
+        assert df["TMNSR Clearing Price"].dtype == np.float64
+        assert df["TMNSR Designated MW"].dtype == np.float64
+        assert df["TMOR Clearing Price"].dtype == np.float64
+        assert df["TMOR Designated MW"].dtype == np.float64
+        assert df["TMSR Clearing Price"].dtype == np.float64
+        assert df["TMSR Designated MW"].dtype == np.float64
+        assert df["Total 10 Min Requirement"].dtype == np.float64
+        assert df["Total 30 Min Requirement"].dtype == np.float64
+
+        assert list(df["Reserve Zone Id"].unique()) == [7000, 7001, 7002, 7003]
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+
+    def test_get_reserve_zone_prices_designations_real_time_5_min_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_reserve_zone_prices_designations_real_time_5_min_latest.yaml",
+        ):
+            result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
+                date="latest",
+            )
+
+        self._check_reserve_zone_prices_designations_real_time_5_min(result)
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_reserve_zone_prices_designations_real_time_5_min_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = f"test_get_reserve_zone_prices_designations_real_time_5_min_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+        self._check_reserve_zone_prices_designations_real_time_5_min(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(minutes=5)
+
     """get_reserve_zone_prices_designations_real_time_hourly_final"""
+
+    def _check_reserve_zone_prices_designations_real_time_hourly_final(
+        self,
+        df: pd.DataFrame,
+    ):
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Reserve Zone Id",
+            "Reserve Zone Name",
+            "Ten Min Spin Requirement",
+            "TMNSR Clearing Price",
+            "TMNSR Designated MW",
+            "TMOR Clearing Price",
+            "TMOR Designated MW",
+            "TMSR Clearing Price",
+            "TMSR Designated MW",
+            "Total 10 Min Requirement",
+            "Total 30 Min Requirement",
+        ]
+        assert df["Reserve Zone Id"].dtype == np.int64
+        assert df["Reserve Zone Name"].dtype == object
+        assert df["Ten Min Spin Requirement"].dtype == np.float64
+        assert df["TMNSR Clearing Price"].dtype == np.float64
+        assert df["TMNSR Designated MW"].dtype == np.float64
+        assert df["TMOR Clearing Price"].dtype == np.float64
+        assert df["TMOR Designated MW"].dtype == np.float64
+        assert df["TMSR Clearing Price"].dtype == np.float64
+        assert df["TMSR Designated MW"].dtype == np.float64
+        assert df["Total 10 Min Requirement"].dtype == np.float64
+        assert df["Total 30 Min Requirement"].dtype == np.float64
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+        assert list(df["Reserve Zone Id"].unique()) == [7000, 7001, 7002, 7003]
 
     def test_get_reserve_zone_prices_designations_real_time_hourly_final_latest(self):
         with api_vcr.use_cassette(
@@ -1019,27 +1131,7 @@ class TestISONEAPI(TestHelperMixin):
                 )
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Reserve Zone Id",
-                "Reserve Zone Name",
-                "Ten Min Spin Requirement",
-                "TMNSR Clearing Price",
-                "TMNSR Designated MW",
-                "TMOR Clearing Price",
-                "TMOR Designated MW",
-                "TMSR Clearing Price",
-                "TMSR Designated MW",
-                "Total 10 Min Requirement",
-                "Total 30 Min Requirement",
-            ]
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(hours=1)
-            ).all()
+        self._check_reserve_zone_prices_designations_real_time_hourly_final(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -1059,106 +1151,11 @@ class TestISONEAPI(TestHelperMixin):
                 )
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Reserve Zone Id",
-                "Reserve Zone Name",
-                "Ten Min Spin Requirement",
-                "TMNSR Clearing Price",
-                "TMNSR Designated MW",
-                "TMOR Clearing Price",
-                "TMOR Designated MW",
-                "TMSR Clearing Price",
-                "TMSR Designated MW",
-                "Total 10 Min Requirement",
-                "Total 30 Min Requirement",
-            ]
-            assert (
-                min(result["Interval Start"]).date()
-                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
-            )
-            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
-                self.iso.default_timezone,
-            )
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(hours=1)
-            ).all()
+        self._check_reserve_zone_prices_designations_real_time_hourly_final(result)
 
-    """get_reserve_zone_prices_designations_real_time_5_min"""
-
-    def test_get_reserve_zone_prices_designations_real_time_5_min_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_reserve_zone_prices_designations_real_time_5_min_latest.yaml",
-        ):
-            result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
-                date="latest",
-            )
-
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Reserve Zone Id",
-                "Reserve Zone Name",
-                "Ten Min Spin Requirement",
-                "TMNSR Clearing Price",
-                "TMNSR Designated MW",
-                "TMOR Clearing Price",
-                "TMOR Designated MW",
-                "TMSR Clearing Price",
-                "TMSR Designated MW",
-                "Total 10 Min Requirement",
-                "Total 30 Min Requirement",
-            ]
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
-
-    @pytest.mark.parametrize(
-        "date,end",
-        [("2024-03-09", "2024-03-11")],  # Only test spring DST which works
-    )
-    def test_get_reserve_zone_prices_designations_real_time_5_min_date_range(
-        self,
-        date: str,
-        end: str,
-    ):
-        cassette_name = f"test_get_reserve_zone_prices_designations_real_time_5_min_{date}_{end}.yaml"
-        with api_vcr.use_cassette(cassette_name):
-            result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
-                date=date,
-                end=end,
-            )
-
-            assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Reserve Zone Id",
-                "Reserve Zone Name",
-                "Ten Min Spin Requirement",
-                "TMNSR Clearing Price",
-                "TMNSR Designated MW",
-                "TMOR Clearing Price",
-                "TMOR Designated MW",
-                "TMSR Clearing Price",
-                "TMSR Designated MW",
-                "Total 10 Min Requirement",
-                "Total 30 Min Requirement",
-            ]
-            assert (
-                min(result["Interval Start"]).date()
-                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
-            )
-            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
-                self.iso.default_timezone,
-            )
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(hours=1)
