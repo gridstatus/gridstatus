@@ -81,7 +81,8 @@ class ISONEAPI:
         parse_json: bool = True,
         verbose: bool = False,
     ):
-        log.debug(f"Requesting url: {url} with params: {api_params}")
+        if verbose:
+            log.debug(f"Requesting url: {url} with params: {api_params}")
         retries = 0
         delay = self.initial_delay
         headers = {"Accept": "application/json"}
@@ -1102,19 +1103,23 @@ class ISONEAPI:
             url = f"{self.base_url}/fiveminutercp/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url, verbose=verbose)
+        df = pd.DataFrame(response.get("FiveMinRcps", {}).get("FiveMinRcp", {}))
 
-        if "FiveMinRcps" not in response or "FiveMinRcp" not in response["FiveMinRcps"]:
+        if df.empty:
             raise NoDataFoundException(
                 f"No five-minute regulation clearing price data found for {date}",
             )
 
-        df = pd.DataFrame(response["FiveMinRcps"]["FiveMinRcp"])
-
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
+        # Timestamps already have an offset, so we parse as UTC then convert to local
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True)
+        # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00). Round in UTC to avoid DST issues
+        df["Interval Start"] = (
+            df["Interval Start"]
+            .dt.floor("5min")
+            .dt.tz_convert(
+                self.default_timezone,
+            )
         )
-        # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00)
-        df["Interval Start"] = df["Interval Start"].dt.floor("5min")
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
 
         df = df.rename(
@@ -1167,24 +1172,28 @@ class ISONEAPI:
 
         response = self.make_api_call(url, verbose=verbose)
 
-        if (
-            "isone_web_services" not in response
-            or "day_ahead_reserves" not in response["isone_web_services"]
-        ):
+        df = pd.json_normalize(
+            response.get("isone_web_services", {})
+            .get("day_ahead_reserves", {})
+            .get("day_ahead_reserve", {}),
+        )
+
+        if df.empty:
             raise NoDataFoundException(f"No day-ahead reserve data found for {date}")
 
-        reserves = response["isone_web_services"]["day_ahead_reserves"]
-        if "day_ahead_reserve" not in reserves:
-            raise NoDataFoundException(f"No day-ahead reserve data found for {date}")
+        import IPython
 
-        df = pd.json_normalize(reserves["day_ahead_reserve"])
+        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
+            "last_expr_or_assign"
+        )
+        IPython.embed()
 
         # Parse market hour information - API returns timezone-aware datetimes
-        df["Interval Start"] = pd.to_datetime(df["market_hour.local_day"])
-        # Add hours to get interval start (hour_end - 1)
-        df["Interval Start"] = df["Interval Start"] + pd.to_timedelta(
-            df["market_hour.local_hour_end"].astype(int) - 1,
-            unit="h",
+        df["Interval Start"] = pd.to_datetime(
+            df["market_hour.local_day"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
@@ -1192,32 +1201,32 @@ class ISONEAPI:
             columns={
                 "eir_designation_mw": "EIR Designation MW",
                 "fer_clearing_price": "FER Clearing Price",
-                "forecasted_energy_req_mw": "Forecasted Energy Requirement MW",
-                "ten_min_spin_req_mw": "Ten Min Spin Requirement MW",
+                "forecasted_energy_req_mw": "Forecasted Energy Req MW",
+                "ten_min_spin_req_mw": "Ten Min Spin Req MW",
                 "tmnsr_clearing_price": "TMNSR Clearing Price",
                 "tmnsr_designation_mw": "TMNSR Designation MW",
                 "tmor_clearing_price": "TMOR Clearing Price",
                 "tmor_designation_mw": "TMOR Designation MW",
                 "tmsr_clearing_price": "TMSR Clearing Price",
                 "tmsr_designation_mw": "TMSR Designation MW",
-                "total_ten_min_req_mw": "Total Ten Min Requirement MW",
-                "total_thirty_min_req_mw": "Total Thirty Min Requirement MW",
+                "total_ten_min_req_mw": "Total Ten Min Req MW",
+                "total_thirty_min_req_mw": "Total Thirty Min Req MW",
             },
         )
 
         numeric_columns = [
             "EIR Designation MW",
             "FER Clearing Price",
-            "Forecasted Energy Requirement MW",
-            "Ten Min Spin Requirement MW",
+            "Forecasted Energy Req MW",
+            "Ten Min Spin Req MW",
             "TMNSR Clearing Price",
             "TMNSR Designation MW",
             "TMOR Clearing Price",
             "TMOR Designation MW",
             "TMSR Clearing Price",
             "TMSR Designation MW",
-            "Total Ten Min Requirement MW",
-            "Total Thirty Min Requirement MW",
+            "Total Ten Min Req MW",
+            "Total Thirty Min Req MW",
         ]
 
         for col in numeric_columns:
@@ -1229,16 +1238,16 @@ class ISONEAPI:
                 "Interval End",
                 "EIR Designation MW",
                 "FER Clearing Price",
-                "Forecasted Energy Requirement MW",
-                "Ten Min Spin Requirement MW",
+                "Forecasted Energy Req MW",
+                "Ten Min Spin Req MW",
                 "TMNSR Clearing Price",
                 "TMNSR Designation MW",
                 "TMOR Clearing Price",
                 "TMOR Designation MW",
                 "TMSR Clearing Price",
                 "TMSR Designation MW",
-                "Total Ten Min Requirement MW",
-                "Total Thirty Min Requirement MW",
+                "Total Ten Min Req MW",
+                "Total Thirty Min Req MW",
             ]
         ].sort_values("Interval Start")
 
@@ -1269,17 +1278,17 @@ class ISONEAPI:
 
         response = self.make_api_call(url, verbose=verbose)
 
-        if (
-            "FinalHourlyReservePrices" not in response
-            or "FinalHourlyReservePrice" not in response["FinalHourlyReservePrices"]
-        ):
+        df = pd.DataFrame(
+            response.get("FinalHourlyReservePrices", {}).get(
+                "FinalHourlyReservePrice",
+                {},
+            ),
+        )
+
+        if df.empty:
             raise NoDataFoundException(
                 f"No final hourly reserve zone price data found for {date}",
             )
-
-        df = pd.DataFrame(
-            response["FinalHourlyReservePrices"]["FinalHourlyReservePrice"],
-        )
 
         df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
             self.default_timezone,
@@ -1363,15 +1372,14 @@ class ISONEAPI:
 
         response = self.make_api_call(url, verbose=verbose)
 
-        if (
-            "FiveMinReservePrices" not in response
-            or "FiveMinReservePrice" not in response["FiveMinReservePrices"]
-        ):
+        df = pd.DataFrame(
+            response.get("FiveMinReservePrices", {}).get("FiveMinReservePrice", {}),
+        )
+
+        if df.empty:
             raise NoDataFoundException(
                 f"No five-minute reserve zone price data found for {date}",
             )
-
-        df = pd.DataFrame(response["FiveMinReservePrices"]["FiveMinReservePrice"])
 
         df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
             self.default_timezone,

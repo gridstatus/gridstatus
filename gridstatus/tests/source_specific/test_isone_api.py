@@ -882,6 +882,20 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_regulation_clearing_prices_real_time_5_min"""
 
+    def _check_regulation_clearing_prices_real_time_5_min(self, df: pd.DataFrame):
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Reg Service Clearing Price",
+            "Reg Capacity Clearing Price",
+        ]
+        assert df["Reg Service Clearing Price"].dtype == np.float64
+        assert df["Reg Capacity Clearing Price"].dtype == np.float64
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+
     def test_get_regulation_clearing_prices_real_time_5_min_latest(self):
         with api_vcr.use_cassette(
             "test_get_regulation_clearing_prices_real_time_5_min_latest.yaml",
@@ -890,27 +904,11 @@ class TestISONEAPI(TestHelperMixin):
                 date="latest",
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Reg Service Clearing Price",
-                "Reg Capacity Clearing Price",
-            ]
-            assert result["Reg Service Clearing Price"].dtype in [np.int64, np.float64]
-            assert result["Reg Capacity Clearing Price"].dtype in [
-                np.int64,
-                np.float64,
-            ]
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+        self._check_regulation_clearing_prices_real_time_5_min(result)
 
     @pytest.mark.parametrize(
         "date,end",
-        [("2024-03-09", "2024-03-11")],  # Only test spring DST which works
+        DST_CHANGE_TEST_DATES,
     )
     def test_get_regulation_clearing_prices_real_time_5_min_date_range(
         self,
@@ -926,29 +924,14 @@ class TestISONEAPI(TestHelperMixin):
                 end=end,
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Reg Service Clearing Price",
-                "Reg Capacity Clearing Price",
-            ]
-            assert (
-                min(result["Interval Start"]).date()
-                == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
-            )
-            assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
-                self.iso.default_timezone,
-            )
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
-            assert result["Reg Service Clearing Price"].dtype in [np.int64, np.float64]
-            assert result["Reg Capacity Clearing Price"].dtype in [
-                np.int64,
-                np.float64,
-            ]
+        self._check_regulation_clearing_prices_real_time_5_min(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(minutes=5)
 
     """get_reserve_requirements_prices_forecast_day_ahead"""
 
@@ -967,16 +950,16 @@ class TestISONEAPI(TestHelperMixin):
                 "Interval End",
                 "EIR Designation MW",
                 "FER Clearing Price",
-                "Forecasted Energy Requirement MW",
-                "Ten Min Spin Requirement MW",
+                "Forecasted Energy Req MW",
+                "Ten Min Spin Req MW",
                 "TMNSR Clearing Price",
                 "TMNSR Designation MW",
                 "TMOR Clearing Price",
                 "TMOR Designation MW",
                 "TMSR Clearing Price",
                 "TMSR Designation MW",
-                "Total Ten Min Requirement MW",
-                "Total Thirty Min Requirement MW",
+                "Total Ten Min Req MW",
+                "Total Thirty Min Req MW",
             ]
             assert (
                 (result["Interval End"] - result["Interval Start"])
