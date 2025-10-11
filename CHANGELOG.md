@@ -4,6 +4,7 @@
 
 ### What's Changed
 * Add MISO missing Load, Generation, and Interchange APIs in [#678](https://github.com/gridstatus/gridstatus/pull/678)
+* Add nuclear energy fuel type to MISO API method in [#681](https://github.com/gridstatus/gridstatus/pull/681)
 
 **Full Changelog**: https://github.com/gridstatus/gridstatus/compare/v0.32.0...v0.33.0
 
