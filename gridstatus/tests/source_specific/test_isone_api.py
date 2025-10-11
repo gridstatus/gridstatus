@@ -935,6 +935,43 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_reserve_requirements_prices_forecast_day_ahead"""
 
+    def _check_reserve_requirements_prices_forecast_day_ahead(
+        self,
+        df: pd.DataFrame,
+    ):
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "EIR Designation MW",
+            "FER Clearing Price",
+            "Forecasted Energy Req MW",
+            "Ten Min Spin Req MW",
+            "TMNSR Clearing Price",
+            "TMNSR Designation MW",
+            "TMOR Clearing Price",
+            "TMOR Designation MW",
+            "TMSR Clearing Price",
+            "TMSR Designation MW",
+            "Total Ten Min Req MW",
+            "Total Thirty Min Req MW",
+        ]
+        assert df["EIR Designation MW"].dtype == np.float64
+        assert df["FER Clearing Price"].dtype == np.float64
+        assert df["Forecasted Energy Req MW"].dtype == np.float64
+        assert df["Ten Min Spin Req MW"].dtype == np.float64
+        assert df["TMNSR Clearing Price"].dtype == np.float64
+        assert df["TMNSR Designation MW"].dtype == np.float64
+        assert df["TMOR Clearing Price"].dtype == np.float64
+        assert df["TMOR Designation MW"].dtype == np.float64
+        assert df["TMSR Clearing Price"].dtype == np.float64
+        assert df["TMSR Designation MW"].dtype == np.float64
+        assert df["Total Ten Min Req MW"].dtype == np.float64
+        assert df["Total Thirty Min Req MW"].dtype == np.float64
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
     def test_get_reserve_requirements_prices_forecast_day_ahead_latest(self):
         with api_vcr.use_cassette(
             "test_get_reserve_requirements_prices_forecast_day_ahead_latest.yaml",
@@ -943,31 +980,32 @@ class TestISONEAPI(TestHelperMixin):
                 date="latest",
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "EIR Designation MW",
-                "FER Clearing Price",
-                "Forecasted Energy Req MW",
-                "Ten Min Spin Req MW",
-                "TMNSR Clearing Price",
-                "TMNSR Designation MW",
-                "TMOR Clearing Price",
-                "TMOR Designation MW",
-                "TMSR Clearing Price",
-                "TMSR Designation MW",
-                "Total Ten Min Req MW",
-                "Total Thirty Min Req MW",
-            ]
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(hours=1)
-            ).all()
+        self._check_reserve_requirements_prices_forecast_day_ahead(result)
 
-    # Day-ahead reserve data not available for DST test dates - skip DST testing for this endpoint
-    # The "latest" test above provides coverage for the basic functionality
+    # Dataset doesn't have data for 2024
+    @pytest.mark.parametrize("date,end", [("2025-03-08", "2025-03-10")])
+    def test_get_reserve_requirements_prices_forecast_day_ahead_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = (
+            f"test_get_reserve_requirements_prices_forecast_day_ahead_{date}_{end}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_reserve_requirements_prices_forecast_day_ahead(
+                date=date,
+                end=end,
+            )
+
+        self._check_reserve_requirements_prices_forecast_day_ahead(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(hours=1)
 
     """get_reserve_zone_prices_designations_real_time_hourly_final"""
 

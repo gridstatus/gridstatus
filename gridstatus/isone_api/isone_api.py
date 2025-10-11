@@ -1181,13 +1181,6 @@ class ISONEAPI:
         if df.empty:
             raise NoDataFoundException(f"No day-ahead reserve data found for {date}")
 
-        import IPython
-
-        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
-            "last_expr_or_assign"
-        )
-        IPython.embed()
-
         # Parse market hour information - API returns timezone-aware datetimes
         df["Interval Start"] = pd.to_datetime(
             df["market_hour.local_day"],
