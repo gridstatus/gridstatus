@@ -1,11 +1,9 @@
 import math
 import os
 import warnings
-from datetime import datetime
 from typing import BinaryIO
 
 import pandas as pd
-import pytz
 import requests
 import tqdm
 
@@ -59,6 +57,11 @@ class PJM(ISOBase):
         "REG": "Regulation",
         "SR": "Synchronized Reserve",
     }
+
+    # Date when AS market results changed from hourly to 5-minute intervals
+    AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE = "2022-09-01"
+    # First date AS market results data is available
+    AS_MARKET_RESULTS_START_DATE = "2013-06-14"
 
     load_forecast_endpoint_name = "load_frcstd_7_day"
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
@@ -2027,16 +2030,9 @@ class PJM(ISOBase):
 
         # Make sure start and end are both before or both after Sep 1, 2022
         # when data granularity changes
-        cutoff_date = datetime(
-            2022,
-            9,
-            1,
-            0,
-            0,
-            0,
-            0,
-            pytz.timezone(self.default_timezone),
-        )
+        cutoff_date = pd.Timestamp(
+            self.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ).tz_localize(self.default_timezone)
         if date < cutoff_date:
             if end and end > cutoff_date:
                 raise ValueError(
@@ -2122,6 +2118,67 @@ class PJM(ISOBase):
         ]
 
         return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_as_market_results_real_time_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ):
+        """
+        Retrieves hourly real-time ancillary service market results prior to 2022-09-01.
+
+        This method queries historical data before the granularity changed from hourly
+        to 5-minute intervals. For data on or after September 1, 2022, use
+        get_real_time_as_market_results().
+
+        Arguments:
+            date: Start date. Must be between 2013-06-14 and 2022-08-31.
+            end: End date. Must be before 2022-09-01.
+            verbose: Print verbose output.
+
+        Returns:
+            DataFrame with hourly AS market results.
+        """
+        if date == "latest":
+            raise ValueError(
+                "'latest' not supported. Data only available from "
+                f"{self.AS_MARKET_RESULTS_START_DATE} to "
+                f"{self.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE}.",
+            )
+
+        # Validate date range
+        start_date = pd.Timestamp(self.AS_MARKET_RESULTS_START_DATE).tz_localize(
+            self.default_timezone,
+        )
+        cutoff_date = pd.Timestamp(
+            self.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ).tz_localize(self.default_timezone)
+
+        if date < start_date:
+            raise ValueError(f"Date must be on or after {start_date}.")
+        if date >= cutoff_date:
+            raise ValueError(
+                f"Date must be before {cutoff_date}. "
+                "Use get_real_time_as_market_results() for later dates.",
+            )
+
+        df = self._get_pjm_json(
+            "reserve_market_results",
+            start=date,
+            params={
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,locale,"
+                "service,mcp,mcp_capped,reg_ccp,reg_pcp,as_req_mw,total_mw,as_mw,"
+                "ss_mw,tier1_mw,ircmwt2,dsr_as_mw,nsr_mw,regd_mw",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        return self._parse_real_time_as_market_results(df)
 
     @support_date_range(frequency=None)
     def get_load_metered_hourly(
