@@ -1159,3 +1159,152 @@ class TestISONEAPI(TestHelperMixin):
         assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
             self.iso.default_timezone,
         ) - pd.Timedelta(hours=1)
+
+    """get_reserve_zone_prices_designations_real_time_hourly_prelim"""
+
+    def _check_reserve_zone_prices_designations_real_time_hourly_prelim(
+        self,
+        df: pd.DataFrame,
+    ):
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Reserve Zone Id",
+            "Reserve Zone Name",
+            "Ten Min Spin Requirement",
+            "TMNSR Clearing Price",
+            "TMNSR Designated MW",
+            "TMOR Clearing Price",
+            "TMOR Designated MW",
+            "TMSR Clearing Price",
+            "TMSR Designated MW",
+            "Total 10 Min Requirement",
+            "Total 30 Min Requirement",
+        ]
+        assert df["Reserve Zone Id"].dtype == np.int64
+        assert df["Reserve Zone Name"].dtype == object
+        assert df["Ten Min Spin Requirement"].dtype == np.float64
+        assert df["TMNSR Clearing Price"].dtype == np.float64
+        assert df["TMNSR Designated MW"].dtype == np.float64
+        assert df["TMOR Clearing Price"].dtype == np.float64
+        assert df["TMOR Designated MW"].dtype == np.float64
+        assert df["TMSR Clearing Price"].dtype == np.float64
+        assert df["TMSR Designated MW"].dtype == np.float64
+        assert df["Total 10 Min Requirement"].dtype == np.float64
+        assert df["Total 30 Min Requirement"].dtype == np.float64
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+        assert list(df["Reserve Zone Id"].unique()) == [7000, 7001, 7002, 7003]
+
+    def test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest(
+        self,
+    ):
+        with api_vcr.use_cassette(
+            "test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest.yaml",
+        ):
+            result = (
+                self.iso.get_reserve_zone_prices_designations_real_time_hourly_prelim(
+                    date="latest",
+                )
+            )
+
+        self._check_reserve_zone_prices_designations_real_time_hourly_prelim(result)
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_reserve_zone_prices_designations_real_time_hourly_prelim_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = f"test_get_reserve_zone_prices_designations_real_time_hourly_prelim_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = (
+                self.iso.get_reserve_zone_prices_designations_real_time_hourly_prelim(
+                    date=date,
+                    end=end,
+                )
+            )
+
+        self._check_reserve_zone_prices_designations_real_time_hourly_prelim(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(hours=1)
+
+    """get_strike_prices_day_ahead"""
+
+    def _check_strike_prices_day_ahead(
+        self,
+        df: pd.DataFrame,
+    ):
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Expected Closeout Charge",
+            "Expected Closeout Charge Override",
+            "Expected RT Hub LMP",
+            "Percentile 10 RT Hub LMP",
+            "Percentile 25 RT Hub LMP",
+            "Percentile 75 RT Hub LMP",
+            "Percentile 90 RT Hub LMP",
+            "SPC Load Forecast MW",
+            "Strike Price",
+        ]
+        assert df["Expected Closeout Charge"].dtype == np.float64
+        assert df["Expected Closeout Charge Override"].dtype == np.float64
+        assert df["Expected RT Hub LMP"].dtype == np.float64
+        assert df["Percentile 10 RT Hub LMP"].dtype == np.float64
+        assert df["Percentile 25 RT Hub LMP"].dtype == np.float64
+        assert df["Percentile 75 RT Hub LMP"].dtype == np.float64
+        assert df["Percentile 90 RT Hub LMP"].dtype == np.float64
+        assert df["SPC Load Forecast MW"].dtype == np.float64
+        assert df["Strike Price"].dtype == np.float64
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_strike_prices_day_ahead_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_strike_prices_day_ahead_latest.yaml",
+        ):
+            result = self.iso.get_strike_prices_day_ahead(
+                date="latest",
+            )
+
+        self._check_strike_prices_day_ahead(result)
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [("2025-03-08", "2025-03-10")],  # Dataset doesn't have data for 2024
+    )
+    def test_get_strike_prices_day_ahead_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = f"test_get_strike_prices_day_ahead_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_strike_prices_day_ahead(
+                date=date,
+                end=end,
+            )
+
+        self._check_strike_prices_day_ahead(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(hours=1)

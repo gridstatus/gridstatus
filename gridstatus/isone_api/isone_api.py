@@ -1341,6 +1341,97 @@ class ISONEAPI:
         ].sort_values(["Interval Start", "Reserve Zone Id"])
 
     @support_date_range("DAY_START")
+    def get_reserve_zone_prices_designations_real_time_hourly_prelim(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get preliminary hourly reserve prices, requirements, and designations by zone.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing preliminary hourly reserve zone prices and designations.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/hourlyprelimreserveprice/current"
+        else:
+            url = f"{self.base_url}/hourlyprelimreserveprice/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url, verbose=verbose)
+
+        df = pd.DataFrame(
+            response.get("PrelimHourlyReservePrices", {}).get(
+                "PrelimHourlyReservePrice",
+                {},
+            ),
+        )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No preliminary hourly reserve zone price data found for {date}",
+            )
+
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        df = df.rename(
+            columns={
+                "ReserveZoneId": "Reserve Zone Id",
+                "ReserveZoneName": "Reserve Zone Name",
+                "TenMinSpinRequirement": "Ten Min Spin Requirement",
+                "TmnsrClearingPrice": "TMNSR Clearing Price",
+                "TmnsrDesignatedMw": "TMNSR Designated MW",
+                "TmorClearingPrice": "TMOR Clearing Price",
+                "TmorDesignatedMw": "TMOR Designated MW",
+                "TmsrClearingPrice": "TMSR Clearing Price",
+                "TmsrDesignatedMw": "TMSR Designated MW",
+                "Total10MinRequirement": "Total 10 Min Requirement",
+                "Total30MinRequirement": "Total 30 Min Requirement",
+            },
+        )
+
+        float_columns = [
+            "Ten Min Spin Requirement",
+            "TMNSR Clearing Price",
+            "TMNSR Designated MW",
+            "TMOR Clearing Price",
+            "TMOR Designated MW",
+            "TMSR Clearing Price",
+            "TMSR Designated MW",
+            "Total 10 Min Requirement",
+            "Total 30 Min Requirement",
+        ]
+
+        for col in float_columns:
+            df[col] = df[col].astype(float)
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Reserve Zone Id",
+                "Reserve Zone Name",
+                "Ten Min Spin Requirement",
+                "TMNSR Clearing Price",
+                "TMNSR Designated MW",
+                "TMOR Clearing Price",
+                "TMOR Designated MW",
+                "TMSR Clearing Price",
+                "TMSR Designated MW",
+                "Total 10 Min Requirement",
+                "Total 30 Min Requirement",
+            ]
+        ].sort_values(["Interval Start", "Reserve Zone Id"])
+
+    @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_hourly_final(
         self,
         date: str | pd.Timestamp = "latest",
@@ -1432,3 +1523,102 @@ class ISONEAPI:
                 "Total 30 Min Requirement",
             ]
         ].sort_values(["Interval Start", "Reserve Zone Id"])
+
+    @support_date_range("DAY_START")
+    def get_strike_prices_day_ahead(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get day-ahead strike prices and close-out components for ISO-NE.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing day-ahead strike prices and related data.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/daasstrikeprices/current"
+        else:
+            url = f"{self.base_url}/daasstrikeprices/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url, verbose=verbose)
+
+        df = pd.json_normalize(
+            response.get("isone_web_services", {})
+            .get("day_ahead_strike_prices", {})
+            .get("day_ahead_strike_price", {}),
+        )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No day-ahead strike price data found for {date}",
+            )
+
+        # Parse market hour information - API returns timezone-aware datetimes
+        df["Interval Start"] = pd.to_datetime(
+            df["market_hour.local_day"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        # Parse publish time
+        df["Publish Time"] = pd.to_datetime(
+            df["strike_price_timestamp"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df = df.rename(
+            columns={
+                "expected_closeout_charge": "Expected Closeout Charge",
+                "expected_closeout_charge_override": "Expected Closeout Charge Override",
+                "expected_rt_hub_lmp": "Expected RT Hub LMP",
+                "percentile_10_rt_hub_lmp": "Percentile 10 RT Hub LMP",
+                "percentile_25_rt_hub_lmp": "Percentile 25 RT Hub LMP",
+                "percentile_75_rt_hub_lmp": "Percentile 75 RT Hub LMP",
+                "percentile_90_rt_hub_lmp": "Percentile 90 RT Hub LMP",
+                "spc_load_forecast_mw": "SPC Load Forecast MW",
+                "strike_price": "Strike Price",
+            },
+        )
+
+        numeric_columns = [
+            "Expected Closeout Charge",
+            "Expected Closeout Charge Override",
+            "Expected RT Hub LMP",
+            "Percentile 10 RT Hub LMP",
+            "Percentile 25 RT Hub LMP",
+            "Percentile 75 RT Hub LMP",
+            "Percentile 90 RT Hub LMP",
+            "SPC Load Forecast MW",
+            "Strike Price",
+        ]
+
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Expected Closeout Charge",
+                "Expected Closeout Charge Override",
+                "Expected RT Hub LMP",
+                "Percentile 10 RT Hub LMP",
+                "Percentile 25 RT Hub LMP",
+                "Percentile 75 RT Hub LMP",
+                "Percentile 90 RT Hub LMP",
+                "SPC Load Forecast MW",
+                "Strike Price",
+            ]
+        ].sort_values(["Interval Start", "Publish Time"])
