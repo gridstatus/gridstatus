@@ -2119,6 +2119,7 @@ class PJM(ISOBase):
 
         return df.sort_values("Interval Start").reset_index(drop=True)
 
+    @support_date_range(frequency=None)
     def get_as_market_results_real_time_hourly(
         self,
         date: str | pd.Timestamp,
@@ -2155,19 +2156,13 @@ class PJM(ISOBase):
             self.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
         ).tz_localize(self.default_timezone)
 
-        date_ts = utils._handle_date(date, tz=self.default_timezone)
-        if date_ts < start_date:
+        if date < start_date:
             raise ValueError(f"Date must be on or after {start_date}.")
-        if date_ts >= cutoff_date:
+        if date >= cutoff_date:
             raise ValueError(
                 f"Date must be before {cutoff_date}. "
                 "Use get_real_time_as_market_results() for later dates.",
             )
-
-        if end:
-            end_ts = utils._handle_date(end, tz=self.default_timezone)
-            if end_ts > cutoff_date:
-                raise ValueError(f"End date must be before {cutoff_date}.")
 
         df = self._get_pjm_json(
             "reserve_market_results",
