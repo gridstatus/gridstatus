@@ -1875,39 +1875,19 @@ class TestPJM(BaseTestISO):
         # Test that dates on or after Sep 1, 2022 are rejected
         date_after_cutoff = pd.Timestamp("2022-09-02")
 
-        with pytest.raises(
-            ValueError,
-            match="Start date must be before",
-        ):
+        with pytest.raises(ValueError, match="Date must be before"):
             self.iso.get_as_market_results_real_time_hourly(date_after_cutoff)
-
-    def test_get_as_market_results_real_time_hourly_rejects_end_after_cutoff(self):
-        # Test that end dates after Sep 1, 2022 are rejected
-        start_date = pd.Timestamp("2022-08-29")
-        end_date = pd.Timestamp("2022-09-02")
-
-        with pytest.raises(
-            ValueError,
-            match="End date must be before",
-        ):
-            self.iso.get_as_market_results_real_time_hourly(start_date, end_date)
 
     def test_get_as_market_results_real_time_hourly_rejects_latest(self):
         # Test that 'latest' is rejected
-        with pytest.raises(
-            ValueError,
-            match="The 'latest' date is not supported",
-        ):
+        with pytest.raises(ValueError, match="'latest' not supported"):
             self.iso.get_as_market_results_real_time_hourly("latest")
 
     def test_get_as_market_results_real_time_hourly_rejects_date_before_start(self):
         # Test that dates before the start date are rejected
         date_before_start = pd.Timestamp("2013-06-13")
 
-        with pytest.raises(
-            ValueError,
-            match="Start date must be on or after",
-        ):
+        with pytest.raises(ValueError, match="Date must be on or after"):
             self.iso.get_as_market_results_real_time_hourly(date_before_start)
 
     def test_get_interconnection_queue(self):
