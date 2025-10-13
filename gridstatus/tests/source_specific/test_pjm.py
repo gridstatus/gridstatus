@@ -1757,22 +1757,17 @@ class TestPJM(BaseTestISO):
                 assert prefix in self.iso.locale_abbreviated_to_full.keys()
                 assert suffix in self.iso.service_type_abbreviated_to_full.values()
 
-    @pytest.mark.parametrize(
-        "start, end",
-        [
-            (
-                pd.Timestamp(PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE)
-                - pd.Timedelta(days=5),
-                pd.Timestamp(PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE)
-                - pd.Timedelta(days=3),
-            ),
-        ],
-    )
-    def test_get_real_time_as_market_results_valid_dates_before_cutoff(
-        self,
-        start,
-        end,
-    ):
+    def test_get_real_time_as_market_results_valid_dates_before_cutoff(self):
+        start = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) - pd.Timedelta(
+            days=5,
+        )
+        end = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) - pd.Timedelta(
+            days=3,
+        )
         with pjm_vcr.use_cassette(
             f"test_get_real_time_as_market_results_valid_dates_before_cutoff_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -1781,18 +1776,17 @@ class TestPJM(BaseTestISO):
             interval_end = df.iloc[0, :]["Interval End"]
             assert interval_end - interval_start == pd.Timedelta(hours=1)
 
-    @pytest.mark.parametrize(
-        "start, end",
-        [
-            (
-                pd.Timestamp(PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE)
-                + pd.Timedelta(days=3),
-                pd.Timestamp(PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE)
-                + pd.Timedelta(days=5),
-            ),
-        ],
-    )
-    def test_get_real_time_as_market_results_valid_dates_after_cutoff(self, start, end):
+    def test_get_real_time_as_market_results_valid_dates_after_cutoff(self):
+        start = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) + pd.Timedelta(
+            days=3,
+        )
+        end = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) + pd.Timedelta(
+            days=5,
+        )
         with pjm_vcr.use_cassette(
             f"test_get_real_time_as_market_results_valid_dates_after_cutoff_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -1801,18 +1795,17 @@ class TestPJM(BaseTestISO):
             interval_end = df.iloc[0, :]["Interval End"]
             assert interval_end - interval_start == pd.Timedelta(minutes=5)
 
-    @pytest.mark.parametrize(
-        "start, end",
-        [
-            (
-                pd.Timestamp(PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE)
-                - pd.Timedelta(days=5),
-                pd.Timestamp(PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE)
-                + pd.Timedelta(days=3),
-            ),
-        ],
-    )
-    def test_get_real_time_as_market_results_invalid_dates(self, start, end):
+    def test_get_real_time_as_market_results_invalid_dates(self):
+        start = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) - pd.Timedelta(
+            days=5,
+        )
+        end = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) + pd.Timedelta(
+            days=3,
+        )
         with pjm_vcr.use_cassette(
             f"test_get_real_time_as_market_results_invalid_dates_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):

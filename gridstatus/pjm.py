@@ -2119,6 +2119,7 @@ class PJM(ISOBase):
 
         return df.sort_values("Interval Start").reset_index(drop=True)
 
+    @support_date_range(frequency=None)
     def get_as_market_results_real_time_hourly(
         self,
         date: str | pd.Timestamp,
