@@ -909,3 +909,29 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
+
+    @pytest.mark.integration
+    def test_get_actual_load_daily_date_range(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(f"get_actual_load_daily_{date.date()}"):
+            df = self.iso.get_actual_load_daily(date)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Region",
+            "Load",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                assert df[col].dtype == "float64"
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )

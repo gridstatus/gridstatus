@@ -1142,12 +1142,12 @@ class MISOAPI:
             ]
         ].reset_index(drop=True)
 
-    @support_date_range(frequency="DAY_START")
-    def get_actual_load_hourly(
+    def _get_actual_load(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        time_resolution: str = HOURLY_RESOLUTION,
     ) -> pd.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d") - pd.Timedelta(
@@ -1156,7 +1156,7 @@ class MISOAPI:
 
         date_str = date.strftime("%Y-%m-%d")
 
-        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/demand/actual"
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/demand/actual?timeResolution={time_resolution}"
 
         data_list = self._get_url(
             url,
@@ -1190,6 +1190,34 @@ class MISOAPI:
 
         return data[["Interval Start", "Interval End", "Region", "Load"]].reset_index(
             drop=True
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_actual_load_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_actual_load(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=HOURLY_RESOLUTION,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_actual_load_daily(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_actual_load(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=DAILY_RESOLUTION,
         )
 
     def _get_url(
