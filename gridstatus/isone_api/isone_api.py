@@ -889,7 +889,12 @@ class ISONEAPI:
         if date == "latest":
             # NB: We don't quite know when this is published each day,
             # and don't have a /current/all option for final data, so grab the full day on "latest"
-            return self.get_lmp_real_time_5_min_final("today")
+            try:
+                return self.get_lmp_real_time_5_min_final("today")
+            except Exception:
+                return self.get_lmp_real_time_5_min_final(
+                    pd.Timestamp.now(self.default_timezone) - pd.DateOffset(days=1),
+                )
 
         url = f"{self.base_url}/fiveminutelmp/final/day/{date.strftime('%Y%m%d')}/starthour/{date.hour:02d}"
         return self._handle_lmp_real_time(url, verbose, interval_minutes=5)
@@ -1131,13 +1136,12 @@ class ISONEAPI:
             },
         )
 
-        df["Reg Service Clearing Price"] = pd.to_numeric(
-            df["Reg Service Clearing Price"],
-            errors="coerce",
+        df["Reg Service Clearing Price"] = df["Reg Service Clearing Price"].astype(
+            float,
         )
-        df["Reg Capacity Clearing Price"] = pd.to_numeric(
-            df["Reg Capacity Clearing Price"],
-            errors="coerce",
+
+        df["Reg Capacity Clearing Price"] = df["Reg Capacity Clearing Price"].astype(
+            float,
         )
 
         return df[
