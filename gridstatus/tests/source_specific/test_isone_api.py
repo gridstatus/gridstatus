@@ -1069,7 +1069,7 @@ class TestISONEAPI(TestHelperMixin):
             self.iso.default_timezone,
         ) - pd.Timedelta(hours=1)
 
-    """get_strike_prices_day_ahead"""
+    """get_ancillary_services_strike_prices_day_ahead"""
 
     def _check_strike_prices_day_ahead(
         self,
@@ -1103,11 +1103,11 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
-    def test_get_strike_prices_day_ahead_latest(self):
+    def test_get_ancillary_services_strike_prices_day_ahead_latest(self):
         with api_vcr.use_cassette(
-            "test_get_strike_prices_day_ahead_latest.yaml",
+            "test_get_ancillary_services_strike_prices_day_ahead_latest.yaml",
         ):
-            result = self.iso.get_strike_prices_day_ahead(
+            result = self.iso.get_ancillary_services_strike_prices_day_ahead(
                 date="latest",
             )
 
@@ -1117,14 +1117,16 @@ class TestISONEAPI(TestHelperMixin):
         "date,end",
         [("2025-03-08", "2025-03-10")],  # Dataset doesn't have data for 2024
     )
-    def test_get_strike_prices_day_ahead_date_range(
+    def test_get_ancillary_services_strike_prices_day_ahead_date_range(
         self,
         date: str,
         end: str,
     ):
-        cassette_name = f"test_get_strike_prices_day_ahead_{date}_{end}.yaml"
+        cassette_name = (
+            f"test_get_ancillary_services_strike_prices_day_ahead_{date}_{end}.yaml"
+        )
         with api_vcr.use_cassette(cassette_name):
-            result = self.iso.get_strike_prices_day_ahead(
+            result = self.iso.get_ancillary_services_strike_prices_day_ahead(
                 date=date,
                 end=end,
             )

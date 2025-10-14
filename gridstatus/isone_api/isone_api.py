@@ -1449,7 +1449,7 @@ class ISONEAPI:
         )
 
     @support_date_range("DAY_START")
-    def get_strike_prices_day_ahead(
+    def get_ancillary_services_strike_prices_day_ahead(
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
