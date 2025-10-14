@@ -5,6 +5,7 @@ import pytest
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
+    ISONE_RESERVE_ZONE_ALL_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -24,6 +25,18 @@ TEST_MULTIPLE_LOCATIONS = [
 ]
 
 TEST_SINGLE_LOCATIONS = [loc for pair in TEST_MULTIPLE_LOCATIONS for loc in pair]
+
+# Shared column definitions for tests
+LMP_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Location",
+    "Location Type",
+    "LMP",
+    "Energy",
+    "Congestion",
+    "Loss",
+]
 
 
 class TestISONEAPI(TestHelperMixin):
@@ -582,20 +595,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
+            self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -607,16 +607,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_lmp_real_time_hourly_prelim(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+            self._check_lmp_columns(result)
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
@@ -628,10 +619,6 @@ class TestISONEAPI(TestHelperMixin):
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(hours=1)
             ).all()
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
 
     def test_get_lmp_real_time_hourly_final_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_hourly_final_latest.yaml"):
@@ -639,20 +626,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
+            self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -664,16 +638,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_lmp_real_time_hourly_final(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+            self._check_lmp_columns(result)
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
@@ -685,10 +650,6 @@ class TestISONEAPI(TestHelperMixin):
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(hours=1)
             ).all()
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
 
     def test_get_lmp_real_time_5_min_prelim_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_5_min_prelim_latest.yaml"):
@@ -696,20 +657,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
+            self._check_lmp_columns(result)
             assert (
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(minutes=5)
@@ -725,16 +673,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_lmp_real_time_5_min_prelim(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+            self._check_lmp_columns(result)
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
@@ -746,10 +685,6 @@ class TestISONEAPI(TestHelperMixin):
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(minutes=5)
             ).all()
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
 
     def test_get_lmp_real_time_5_min_final_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_5_min_final_latest.yaml"):
@@ -757,20 +692,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
+            self._check_lmp_columns(result)
             assert (
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(minutes=5)
@@ -786,16 +708,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_lmp_real_time_5_min_final(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+            self._check_lmp_columns(result)
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
@@ -807,10 +720,6 @@ class TestISONEAPI(TestHelperMixin):
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(minutes=5)
             ).all()
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
 
     """get_capacity_forecast_7_day"""
 
@@ -1007,27 +916,23 @@ class TestISONEAPI(TestHelperMixin):
             self.iso.default_timezone,
         ) - pd.Timedelta(hours=1)
 
+    def _check_lmp_columns(self, df: pd.DataFrame):
+        """Shared helper to validate LMP column structure and dtypes."""
+        assert list(df.columns) == LMP_COLUMNS
+        assert df["LMP"].dtype in [np.int64, np.float64]
+        assert df["Energy"].dtype in [np.int64, np.float64]
+        assert df["Congestion"].dtype in [np.int64, np.float64]
+        assert df["Loss"].dtype in [np.int64, np.float64]
+
     """get_reserve_zone_prices_designations_real_time_5_min"""
 
-    def _check_reserve_zone_prices_designations_real_time_5_min(
+    def _check_reserve_zone_prices_designations(
         self,
         df: pd.DataFrame,
+        interval: pd.Timedelta,
     ):
-        assert list(df.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Reserve Zone Id",
-            "Reserve Zone Name",
-            "Ten Min Spin Requirement",
-            "TMNSR Clearing Price",
-            "TMNSR Designated MW",
-            "TMOR Clearing Price",
-            "TMOR Designated MW",
-            "TMSR Clearing Price",
-            "TMSR Designated MW",
-            "Total 10 Min Requirement",
-            "Total 30 Min Requirement",
-        ]
+        """Shared helper to validate reserve zone price data across different intervals."""
+        assert list(df.columns) == ISONE_RESERVE_ZONE_ALL_COLUMNS
 
         assert df["Reserve Zone Id"].dtype == np.int64
         assert df["Reserve Zone Name"].dtype == object
@@ -1043,9 +948,7 @@ class TestISONEAPI(TestHelperMixin):
 
         assert list(df["Reserve Zone Id"].unique()) == [7000, 7001, 7002, 7003]
 
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
-        ).all()
+        assert ((df["Interval End"] - df["Interval Start"]) == interval).all()
 
     def test_get_reserve_zone_prices_designations_real_time_5_min_latest(self):
         with api_vcr.use_cassette(
@@ -1055,7 +958,7 @@ class TestISONEAPI(TestHelperMixin):
                 date="latest",
             )
 
-        self._check_reserve_zone_prices_designations_real_time_5_min(result)
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(minutes=5))
 
     @pytest.mark.parametrize(
         "date,end",
@@ -1073,7 +976,7 @@ class TestISONEAPI(TestHelperMixin):
                 end=end,
             )
 
-        self._check_reserve_zone_prices_designations_real_time_5_min(result)
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(minutes=5))
 
         assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
             self.iso.default_timezone,
@@ -1083,43 +986,6 @@ class TestISONEAPI(TestHelperMixin):
         ) - pd.Timedelta(minutes=5)
 
     """get_reserve_zone_prices_designations_real_time_hourly_final"""
-
-    def _check_reserve_zone_prices_designations_real_time_hourly_final(
-        self,
-        df: pd.DataFrame,
-    ):
-        assert list(df.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Reserve Zone Id",
-            "Reserve Zone Name",
-            "Ten Min Spin Requirement",
-            "TMNSR Clearing Price",
-            "TMNSR Designated MW",
-            "TMOR Clearing Price",
-            "TMOR Designated MW",
-            "TMSR Clearing Price",
-            "TMSR Designated MW",
-            "Total 10 Min Requirement",
-            "Total 30 Min Requirement",
-        ]
-        assert df["Reserve Zone Id"].dtype == np.int64
-        assert df["Reserve Zone Name"].dtype == object
-        assert df["Ten Min Spin Requirement"].dtype == np.float64
-        assert df["TMNSR Clearing Price"].dtype == np.float64
-        assert df["TMNSR Designated MW"].dtype == np.float64
-        assert df["TMOR Clearing Price"].dtype == np.float64
-        assert df["TMOR Designated MW"].dtype == np.float64
-        assert df["TMSR Clearing Price"].dtype == np.float64
-        assert df["TMSR Designated MW"].dtype == np.float64
-        assert df["Total 10 Min Requirement"].dtype == np.float64
-        assert df["Total 30 Min Requirement"].dtype == np.float64
-
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
-        ).all()
-
-        assert list(df["Reserve Zone Id"].unique()) == [7000, 7001, 7002, 7003]
 
     def test_get_reserve_zone_prices_designations_real_time_hourly_final_latest(self):
         with api_vcr.use_cassette(
@@ -1131,7 +997,7 @@ class TestISONEAPI(TestHelperMixin):
                 )
             )
 
-        self._check_reserve_zone_prices_designations_real_time_hourly_final(result)
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
 
     @pytest.mark.parametrize(
         "date,end",
@@ -1151,7 +1017,7 @@ class TestISONEAPI(TestHelperMixin):
                 )
             )
 
-        self._check_reserve_zone_prices_designations_real_time_hourly_final(result)
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
 
         assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
             self.iso.default_timezone,
@@ -1161,43 +1027,6 @@ class TestISONEAPI(TestHelperMixin):
         ) - pd.Timedelta(hours=1)
 
     """get_reserve_zone_prices_designations_real_time_hourly_prelim"""
-
-    def _check_reserve_zone_prices_designations_real_time_hourly_prelim(
-        self,
-        df: pd.DataFrame,
-    ):
-        assert list(df.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Reserve Zone Id",
-            "Reserve Zone Name",
-            "Ten Min Spin Requirement",
-            "TMNSR Clearing Price",
-            "TMNSR Designated MW",
-            "TMOR Clearing Price",
-            "TMOR Designated MW",
-            "TMSR Clearing Price",
-            "TMSR Designated MW",
-            "Total 10 Min Requirement",
-            "Total 30 Min Requirement",
-        ]
-        assert df["Reserve Zone Id"].dtype == np.int64
-        assert df["Reserve Zone Name"].dtype == object
-        assert df["Ten Min Spin Requirement"].dtype == np.float64
-        assert df["TMNSR Clearing Price"].dtype == np.float64
-        assert df["TMNSR Designated MW"].dtype == np.float64
-        assert df["TMOR Clearing Price"].dtype == np.float64
-        assert df["TMOR Designated MW"].dtype == np.float64
-        assert df["TMSR Clearing Price"].dtype == np.float64
-        assert df["TMSR Designated MW"].dtype == np.float64
-        assert df["Total 10 Min Requirement"].dtype == np.float64
-        assert df["Total 30 Min Requirement"].dtype == np.float64
-
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
-        ).all()
-
-        assert list(df["Reserve Zone Id"].unique()) == [7000, 7001, 7002, 7003]
 
     def test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest(
         self,
@@ -1211,7 +1040,7 @@ class TestISONEAPI(TestHelperMixin):
                 )
             )
 
-        self._check_reserve_zone_prices_designations_real_time_hourly_prelim(result)
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
 
     @pytest.mark.parametrize(
         "date,end",
@@ -1231,7 +1060,7 @@ class TestISONEAPI(TestHelperMixin):
                 )
             )
 
-        self._check_reserve_zone_prices_designations_real_time_hourly_prelim(result)
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
 
         assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
             self.iso.default_timezone,

@@ -13,6 +13,8 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
+    ISONE_RESERVE_ZONE_ALL_COLUMNS,
+    ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
 )
 
 # Default page size for API requests
@@ -1307,38 +1309,12 @@ class ISONEAPI:
             },
         )
 
-        float_columns = [
-            "Ten Min Spin Requirement",
-            "TMNSR Clearing Price",
-            "TMNSR Designated MW",
-            "TMOR Clearing Price",
-            "TMOR Designated MW",
-            "TMSR Clearing Price",
-            "TMSR Designated MW",
-            "Total 10 Min Requirement",
-            "Total 30 Min Requirement",
-        ]
-
-        for col in float_columns:
+        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
             df[col] = df[col].astype(float)
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Reserve Zone Id",
-                "Reserve Zone Name",
-                "Ten Min Spin Requirement",
-                "TMNSR Clearing Price",
-                "TMNSR Designated MW",
-                "TMOR Clearing Price",
-                "TMOR Designated MW",
-                "TMSR Clearing Price",
-                "TMSR Designated MW",
-                "Total 10 Min Requirement",
-                "Total 30 Min Requirement",
-            ]
-        ].sort_values(["Interval Start", "Reserve Zone Id"])
+        return df[ISONE_RESERVE_ZONE_ALL_COLUMNS].sort_values(
+            ["Interval Start", "Reserve Zone Id"],
+        )
 
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_hourly_prelim(
@@ -1398,38 +1374,12 @@ class ISONEAPI:
             },
         )
 
-        float_columns = [
-            "Ten Min Spin Requirement",
-            "TMNSR Clearing Price",
-            "TMNSR Designated MW",
-            "TMOR Clearing Price",
-            "TMOR Designated MW",
-            "TMSR Clearing Price",
-            "TMSR Designated MW",
-            "Total 10 Min Requirement",
-            "Total 30 Min Requirement",
-        ]
-
-        for col in float_columns:
+        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
             df[col] = df[col].astype(float)
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Reserve Zone Id",
-                "Reserve Zone Name",
-                "Ten Min Spin Requirement",
-                "TMNSR Clearing Price",
-                "TMNSR Designated MW",
-                "TMOR Clearing Price",
-                "TMOR Designated MW",
-                "TMSR Clearing Price",
-                "TMSR Designated MW",
-                "Total 10 Min Requirement",
-                "Total 30 Min Requirement",
-            ]
-        ].sort_values(["Interval Start", "Reserve Zone Id"])
+        return df[ISONE_RESERVE_ZONE_ALL_COLUMNS].sort_values(
+            ["Interval Start", "Reserve Zone Id"],
+        )
 
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_hourly_final(
@@ -1491,38 +1441,12 @@ class ISONEAPI:
             },
         )
 
-        float_columns = [
-            "Ten Min Spin Requirement",
-            "TMNSR Clearing Price",
-            "TMNSR Designated MW",
-            "TMOR Clearing Price",
-            "TMOR Designated MW",
-            "TMSR Clearing Price",
-            "TMSR Designated MW",
-            "Total 10 Min Requirement",
-            "Total 30 Min Requirement",
-        ]
-
-        for col in float_columns:
+        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
             df[col] = df[col].astype(float)
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Reserve Zone Id",
-                "Reserve Zone Name",
-                "Ten Min Spin Requirement",
-                "TMNSR Clearing Price",
-                "TMNSR Designated MW",
-                "TMOR Clearing Price",
-                "TMOR Designated MW",
-                "TMSR Clearing Price",
-                "TMSR Designated MW",
-                "Total 10 Min Requirement",
-                "Total 30 Min Requirement",
-            ]
-        ].sort_values(["Interval Start", "Reserve Zone Id"])
+        return df[ISONE_RESERVE_ZONE_ALL_COLUMNS].sort_values(
+            ["Interval Start", "Reserve Zone Id"],
+        )
 
     @support_date_range("DAY_START")
     def get_strike_prices_day_ahead(
