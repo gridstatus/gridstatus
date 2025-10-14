@@ -1757,20 +1757,17 @@ class TestPJM(BaseTestISO):
                 assert prefix in self.iso.locale_abbreviated_to_full.keys()
                 assert suffix in self.iso.service_type_abbreviated_to_full.values()
 
-    @pytest.mark.parametrize(
-        "start, end",
-        [
-            (
-                pd.Timestamp("2022-09-01") - pd.Timedelta(days=5),
-                pd.Timestamp("2022-09-01") - pd.Timedelta(days=3),
-            ),
-        ],
-    )
-    def test_get_real_time_as_market_results_valid_dates_before_cutoff(
-        self,
-        start,
-        end,
-    ):
+    def test_get_real_time_as_market_results_valid_dates_before_cutoff(self):
+        start = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) - pd.Timedelta(
+            days=5,
+        )
+        end = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) - pd.Timedelta(
+            days=3,
+        )
         with pjm_vcr.use_cassette(
             f"test_get_real_time_as_market_results_valid_dates_before_cutoff_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -1779,16 +1776,17 @@ class TestPJM(BaseTestISO):
             interval_end = df.iloc[0, :]["Interval End"]
             assert interval_end - interval_start == pd.Timedelta(hours=1)
 
-    @pytest.mark.parametrize(
-        "start, end",
-        [
-            (
-                pd.Timestamp("2022-09-01") + pd.Timedelta(days=3),
-                pd.Timestamp("2022-09-01") + pd.Timedelta(days=5),
-            ),
-        ],
-    )
-    def test_get_real_time_as_market_results_valid_dates_after_cutoff(self, start, end):
+    def test_get_real_time_as_market_results_valid_dates_after_cutoff(self):
+        start = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) + pd.Timedelta(
+            days=3,
+        )
+        end = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) + pd.Timedelta(
+            days=5,
+        )
         with pjm_vcr.use_cassette(
             f"test_get_real_time_as_market_results_valid_dates_after_cutoff_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -1797,16 +1795,17 @@ class TestPJM(BaseTestISO):
             interval_end = df.iloc[0, :]["Interval End"]
             assert interval_end - interval_start == pd.Timedelta(minutes=5)
 
-    @pytest.mark.parametrize(
-        "start, end",
-        [
-            (
-                pd.Timestamp("2022-09-01") - pd.Timedelta(days=5),
-                pd.Timestamp("2022-09-01") + pd.Timedelta(days=3),
-            ),
-        ],
-    )
-    def test_get_real_time_as_market_results_invalid_dates(self, start, end):
+    def test_get_real_time_as_market_results_invalid_dates(self):
+        start = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) - pd.Timedelta(
+            days=5,
+        )
+        end = pd.Timestamp(
+            PJM.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE,
+        ) + pd.Timedelta(
+            days=3,
+        )
         with pjm_vcr.use_cassette(
             f"test_get_real_time_as_market_results_invalid_dates_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -1819,6 +1818,77 @@ class TestPJM(BaseTestISO):
                     end=end,
                     error="raise",
                 )
+
+    """get_as_market_results_real_time_hourly"""
+
+    def test_get_as_market_results_real_time_hourly_historical_date(self):
+        # Test a date before Sep 1, 2022
+        past_date = pd.Timestamp("2022-08-15")
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
+
+        with pjm_vcr.use_cassette(
+            "test_get_as_market_results_real_time_hourly_historical_date_2022-08-15.yaml",
+        ):
+            df = self.iso.get_as_market_results_real_time_hourly(past_date)
+
+            self._check_pjm_response(
+                df=df,
+                expected_cols=self.expected_real_time_as_market_results_cols,
+                start=range_start,
+                end=range_end,
+            )
+
+            # Verify hourly intervals
+            interval_start = df.iloc[0, :]["Interval Start"]
+            interval_end = df.iloc[0, :]["Interval End"]
+            assert interval_end - interval_start == pd.Timedelta(hours=1)
+
+    def test_get_as_market_results_real_time_hourly_historical_range(self):
+        # Test a date range before Sep 1, 2022
+        past_date = pd.Timestamp("2022-08-10")
+        past_end_date = past_date + pd.Timedelta(days=3)
+        range_start = self.local_start_of_day(past_date)
+        range_end = self.local_start_of_day(past_end_date)
+
+        with pjm_vcr.use_cassette(
+            "test_get_as_market_results_real_time_hourly_historical_range_2022-08-10_2022-08-13.yaml",
+        ):
+            df = self.iso.get_as_market_results_real_time_hourly(
+                past_date,
+                past_end_date,
+            )
+
+            self._check_pjm_response(
+                df=df,
+                expected_cols=self.expected_real_time_as_market_results_cols,
+                start=range_start,
+                end=range_end,
+            )
+
+            # Verify hourly intervals
+            interval_start = df.iloc[0, :]["Interval Start"]
+            interval_end = df.iloc[0, :]["Interval End"]
+            assert interval_end - interval_start == pd.Timedelta(hours=1)
+
+    def test_get_as_market_results_real_time_hourly_rejects_date_after_cutoff(self):
+        # Test that dates on or after Sep 1, 2022 are rejected
+        date_after_cutoff = pd.Timestamp("2022-09-02")
+
+        with pytest.raises(ValueError, match="Date must be before"):
+            self.iso.get_as_market_results_real_time_hourly(date_after_cutoff)
+
+    def test_get_as_market_results_real_time_hourly_rejects_latest(self):
+        # Test that 'latest' is rejected
+        with pytest.raises(ValueError, match="'latest' not supported"):
+            self.iso.get_as_market_results_real_time_hourly("latest")
+
+    def test_get_as_market_results_real_time_hourly_rejects_date_before_start(self):
+        # Test that dates before the start date are rejected
+        date_before_start = pd.Timestamp("2013-06-13")
+
+        with pytest.raises(ValueError, match="Date must be on or after"):
+            self.iso.get_as_market_results_real_time_hourly(date_before_start)
 
     def test_get_interconnection_queue(self):
         from gridstatus.base import _interconnection_columns
