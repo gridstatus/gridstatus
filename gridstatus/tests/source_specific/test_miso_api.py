@@ -881,13 +881,7 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
-    def test_get_actual_load_hourly_date_range(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
-
-        with api_vcr.use_cassette(f"get_actual_load_hourly_{date.date()}"):
-            df = self.iso.get_actual_load_hourly(date)
-
+    def _check_test_actual_load(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -901,6 +895,15 @@ class TestMISOAPI(TestHelperMixin):
         for col in df.columns:
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_actual_load_hourly_date_range(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(f"get_actual_load_hourly_{date.date()}"):
+            df = self.iso.get_actual_load_hourly(date)
+
+        self._check_test_actual_load(df)
 
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(
@@ -917,19 +920,61 @@ class TestMISOAPI(TestHelperMixin):
         with api_vcr.use_cassette(f"get_actual_load_daily_{date.date()}"):
             df = self.iso.get_actual_load_daily(date)
 
+        self._check_test_actual_load(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    def _check_test_medium_term_load_forecast(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
             "Region",
-            "Load",
+            "Local Resource Zone",
+            "Load Forecast",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
         assert df["Interval End"].dtype == "datetime64[ns, EST]"
 
         for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
+            if col not in [
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Local Resource Zone",
+            ]:
                 assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_medium_term_load_forecast_hourly_date_range(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_medium_term_load_forecast_hourly_{date.date()}"
+        ):
+            df = self.iso.get_medium_term_load_forecast_hourly(date)
+
+        self._check_test_medium_term_load_forecast(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    @pytest.mark.integration
+    def test_get_medium_term_load_forecast_daily_date_range(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(f"get_medium_term_load_forecast_daily_{date.date()}"):
+            df = self.iso.get_medium_term_load_forecast_daily(date)
+
+        self._check_test_medium_term_load_forecast(df)
 
         assert df["Interval Start"].min() == date
         assert df["Interval End"].max() == date + pd.Timedelta(
