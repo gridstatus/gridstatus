@@ -190,14 +190,14 @@ class MISOAPI:
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
-        retrieval_func: Callable[..., List[Dict[str, Any]]],
+        retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
         market: Markets,
         verbose: bool = False,
         **kwargs: Any,
     ) -> pd.DataFrame:
         data_lists = retrieval_func(date, end, verbose=verbose, **kwargs)
 
-        data_list = self._flatten([data_lists])
+        data_list = self._flatten(data_lists)
 
         return self._process_pricing_data(data_list, market=market)
 
