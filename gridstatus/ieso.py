@@ -942,6 +942,56 @@ class IESO(ISOBase):
         logger.debug(f"DataFrame Shape: {df.shape}")
         return df.sort_values(["Interval Start", "Publish Time", "Last Modified"])
 
+    def get_resource_adequacy_report_by_last_modified(
+        self,
+        last_modified: str | datetime.date | datetime.datetime,
+        vintage: Literal["all", "latest"] = "latest",
+    ) -> pd.DataFrame:
+        """Retrieve and parse Resource Adequacy Reports modified after last_modified time.
+        This method bypasses date iteration and gets all files across all dates.
+        This is useful for ETL systems that want to get all new files at once.
+
+        Args:
+            last_modified: The last modified time after which to get report(s)
+            vintage: The version of the report to get
+
+        Returns:
+            pd.DataFrame: The Resource Adequacy Report df with all files modified after last_modified
+        """
+        if last_modified:
+            last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
+
+        if vintage == "all":
+            json_data_with_times = (
+                self._get_all_resource_adequacy_jsons_by_last_modified(
+                    last_modified,
+                )
+            )
+            dfs = []
+            for json_data, file_last_modified in json_data_with_times:
+                df = self._parse_resource_adequacy_report(json_data)
+                df["Last Modified"] = file_last_modified
+                dfs.append(df)
+
+            if not dfs:
+                return pd.DataFrame()
+
+            df = pd.concat(dfs, ignore_index=True)
+        else:
+            raise ValueError("cross_date_fetch only supported with vintage='all'")
+
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Last Modified",
+            ],
+        )
+        logger.debug(f"DataFrame Shape: {df.shape}")
+        return df.sort_values(["Interval Start", "Publish Time", "Last Modified"])
+
     # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
     def _get_latest_resource_adequacy_json(
         self,
@@ -1081,6 +1131,96 @@ class IESO(ISOBase):
         if not filtered_files:
             raise FileNotFoundError(
                 f"No files found for date {date_str} after last modified time {last_modified}",
+            )
+
+        json_data_with_times = []
+        max_retries = 3
+        retry_delay = 2
+
+        with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
+            future_to_file = {
+                executor.submit(self._fetch_and_parse_file, base_url, file): (
+                    file,
+                    time,
+                )
+                for file, time in filtered_files
+            }
+
+            for future in as_completed(future_to_file):
+                file, time = future_to_file[future]
+                retries = 0
+                while retries < max_retries:
+                    try:
+                        logger.info(f"Processing file {file}...")
+                        json_data = future.result()
+                        json_data_with_times.append(
+                            (json_data, pd.Timestamp(time, tz=self.default_timezone)),
+                        )
+                        break
+                    except http.client.RemoteDisconnected as e:
+                        retries += 1
+                        if retries == max_retries:
+                            logger.error(
+                                f"Remote connection closed for file {file}: {str(e)}",
+                            )
+                            break
+                        logger.warning(
+                            f"Remote connection closed for file {file}: {str(e)}. Retrying in {retry_delay} seconds...",
+                        )
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                    except Exception as e:
+                        logger.error(
+                            f"Unexpected error processing file {file}: {str(e)}",
+                        )
+                        break
+
+        return json_data_with_times
+
+    def _get_all_resource_adequacy_jsons_by_last_modified(
+        self,
+        last_modified: pd.Timestamp,
+    ) -> list[tuple[dict, datetime.datetime]]:
+        """Retrieve all Resource Adequacy Report JSONs modified after last_modified time,
+        bypassing date filtering to get files across all dates.
+
+        Args:
+            last_modified: The last modified time after which to get report(s)
+
+        Returns:
+            list of tuples: List of (JSON data, last modified time) pairs
+        """
+        base_url = RESOURCE_ADEQUACY_REPORT_BASE_URL
+
+        r = self._request(base_url)
+
+        # Match all PUB_Adequacy3 files (not just for a specific date)
+        pattern = r'<a href="(PUB_Adequacy3_.*?\.xml)">.*?</a>\s+(\d{2}-\w{3}-\d{4} \d{2}:\d{2})'
+        file_rows = re.findall(pattern, r.text)
+
+        if not file_rows:
+            raise FileNotFoundError("No resource adequacy files found")
+
+        # Filter by last_modified time across all files
+        if last_modified.tz is None:
+            last_modified = utils._handle_date(
+                last_modified,
+                tz=self.default_timezone,
+            )
+
+        filtered_files = [
+            (file, time)
+            for file, time in file_rows
+            if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
+        ]
+
+        logger.info(
+            f"Found {len(filtered_files)} files after last modified time {last_modified}",
+        )
+
+        if not filtered_files:
+            raise FileNotFoundError(
+                f"No files found after last modified time {last_modified}",
             )
 
         json_data_with_times = []
