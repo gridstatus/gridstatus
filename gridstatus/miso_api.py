@@ -1189,6 +1189,7 @@ class MISOAPI:
             if col not in ["Interval Start", "Interval End", "Region"]:
                 data[col] = data[col].astype(float)
 
+        data = data.sort_values(["Interval Start", "Region"])
         return data[["Interval Start", "Interval End", "Region", "Load"]].reset_index(
             drop=True
         )
@@ -1226,7 +1227,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-        init: str | pd.Timestamp | None = None,
+        publish_time: str | pd.Timestamp | None = None,
         time_resolution: str = HOURLY_RESOLUTION,
     ) -> pd.DataFrame:
         """
@@ -1256,9 +1257,9 @@ class MISOAPI:
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/forecast/{date_str}/load?timeResolution={time_resolution}"
-        if init is not None:
-            utils._handle_date(init, self.default_timezone)
-            init_str = init.strftime("%Y-%m-%d")
+        if publish_time is not None:
+            utils._handle_date(publish_time, self.default_timezone)
+            init_str = publish_time.strftime("%Y-%m-%d")
             url += f"&init={init_str}"
 
         data_list = self._get_url(
@@ -1282,6 +1283,15 @@ class MISOAPI:
             },
         )
 
+        miso_publish_time = min(
+            date.normalize() - pd.DateOffset(days=1),
+            pd.Timestamp.now(tz=self.default_timezone).normalize()
+            - pd.DateOffset(days=1),
+        )
+        df["Publish Time"] = (
+            publish_time.normalize() if publish_time is not None else miso_publish_time
+        )
+
         data = df.reset_index()
 
         data = data[data["Interval Start"] >= date]
@@ -1295,9 +1305,11 @@ class MISOAPI:
                 "Interval End",
                 "Region",
                 "Local Resource Zone",
+                "Publish Time",
             ]:
                 data[col] = data[col].astype(float)
 
+        data = data.sort_values(["Interval Start", "Region", "Local Resource Zone"])
         return data[
             [
                 "Interval Start",
@@ -1305,6 +1317,7 @@ class MISOAPI:
                 "Region",
                 "Local Resource Zone",
                 "Load Forecast",
+                "Publish Time",
             ]
         ].reset_index(drop=True)
 
@@ -1320,7 +1333,7 @@ class MISOAPI:
             date,
             end=end,
             verbose=verbose,
-            init=init,
+            publish_time=init,
             time_resolution=HOURLY_RESOLUTION,
         )
 
@@ -1336,7 +1349,7 @@ class MISOAPI:
             date,
             end=end,
             verbose=verbose,
-            init=init,
+            publish_time=init,
             time_resolution=DAILY_RESOLUTION,
         )
 
