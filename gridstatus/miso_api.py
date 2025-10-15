@@ -190,14 +190,14 @@ class MISOAPI:
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
-        retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
+        retrieval_func: Callable[..., List[Dict[str, Any]]],
         market: Markets,
         verbose: bool = False,
         **kwargs: Any,
     ) -> pd.DataFrame:
         data_lists = retrieval_func(date, end, verbose=verbose, **kwargs)
 
-        data_list = self._flatten(data_lists)
+        data_list = self._flatten([data_lists])
 
         return self._process_pricing_data(data_list, market=market)
 
@@ -207,7 +207,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         version: str = EX_POST,
         verbose: bool = False,
-    ) -> List[List[Dict[str, Any]]]:
+    ) -> List[Dict[str, Any]]:
         interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
 
@@ -217,7 +217,7 @@ class MISOAPI:
 
         data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
 
-        return [data_list]
+        return data_list
 
     @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_real_time_hourly_ex_post(
