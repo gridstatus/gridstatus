@@ -1035,9 +1035,10 @@ class IESO(ISOBase):
                     tz=self.default_timezone,
                 )
             filtered_files = [
-                (file, time)
-                for file, time in files_and_times
-                if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
+                (file, last_modified_time)
+                for file, last_modified_time in files_and_times
+                if pd.Timestamp(last_modified_time, tz=self.default_timezone)
+                >= last_modified
             ]
             logger.info(
                 f"Found {len(filtered_files)} files after last modified time {last_modified}",
@@ -1118,9 +1119,10 @@ class IESO(ISOBase):
                     tz=self.default_timezone,
                 )
             filtered_files = [
-                (file, time)
-                for file, time in file_rows
-                if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
+                (file, last_modified_time)
+                for file, last_modified_time in file_rows
+                if pd.Timestamp(last_modified_time, tz=self.default_timezone)
+                >= last_modified
             ]
             logger.info(
                 f"Found {len(filtered_files)} files after last modified time {last_modified}",
@@ -1141,20 +1143,26 @@ class IESO(ISOBase):
             future_to_file = {
                 executor.submit(self._fetch_and_parse_file, base_url, file): (
                     file,
-                    time,
+                    last_modified_time,
                 )
-                for file, time in filtered_files
+                for file, last_modified_time in filtered_files
             }
 
             for future in as_completed(future_to_file):
-                file, time = future_to_file[future]
+                file, last_modified_time = future_to_file[future]
                 retries = 0
                 while retries < max_retries:
                     try:
                         logger.info(f"Processing file {file}...")
                         json_data = future.result()
                         json_data_with_times.append(
-                            (json_data, pd.Timestamp(time, tz=self.default_timezone)),
+                            (
+                                json_data,
+                                pd.Timestamp(
+                                    last_modified_time,
+                                    tz=self.default_timezone,
+                                ),
+                            ),
                         )
                         break
                     except http.client.RemoteDisconnected as e:
@@ -1209,9 +1217,10 @@ class IESO(ISOBase):
             )
 
         filtered_files = [
-            (file, time)
-            for file, time in file_rows
-            if pd.Timestamp(time, tz=self.default_timezone) >= last_modified
+            (file, last_modified_time)
+            for file, last_modified_time in file_rows
+            if pd.Timestamp(last_modified_time, tz=self.default_timezone)
+            >= last_modified
         ]
 
         logger.info(
@@ -1225,45 +1234,44 @@ class IESO(ISOBase):
 
         json_data_with_times = []
         max_retries = 3
-        retry_delay = 2
+        retry_delay = 1
 
-        with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
-            future_to_file = {
-                executor.submit(self._fetch_and_parse_file, base_url, file): (
-                    file,
-                    time,
-                )
-                for file, time in filtered_files
-            }
+        # Process files sequentially to avoid connection issues
+        for file, last_modified_time in filtered_files:
+            retries = 0
+            success = False
 
-            for future in as_completed(future_to_file):
-                file, time = future_to_file[future]
-                retries = 0
-                while retries < max_retries:
-                    try:
-                        logger.info(f"Processing file {file}...")
-                        json_data = future.result()
-                        json_data_with_times.append(
-                            (json_data, pd.Timestamp(time, tz=self.default_timezone)),
-                        )
-                        break
-                    except http.client.RemoteDisconnected as e:
-                        retries += 1
-                        if retries == max_retries:
-                            logger.error(
-                                f"Remote connection closed for file {file}: {str(e)}",
-                            )
-                            break
+            while retries < max_retries and not success:
+                try:
+                    logger.info(f"Processing file {file}... (attempt {retries + 1})")
+                    json_data = self._fetch_and_parse_file(base_url, file)
+                    json_data_with_times.append(
+                        (
+                            json_data,
+                            pd.Timestamp(last_modified_time, tz=self.default_timezone),
+                        ),
+                    )
+                    success = True
+                except (
+                    http.client.RemoteDisconnected,
+                    requests.exceptions.ConnectionError,
+                ) as e:
+                    retries += 1
+                    if retries < max_retries:
+                        wait_time = retry_delay * (
+                            2 ** (retries - 1)
+                        )  # Exponential backoff
                         logger.warning(
-                            f"Remote connection closed for file {file}: {str(e)}. Retrying in {retry_delay} seconds...",
+                            f"Connection error for file {file}: {str(e)}. Retrying in {wait_time} seconds... (attempt {retries + 1})",
                         )
-                        time.sleep(retry_delay)
-                        retry_delay *= 2
-                    except Exception as e:
+                        time.sleep(wait_time)
+                    else:
                         logger.error(
-                            f"Unexpected error processing file {file}: {str(e)}",
+                            f"Failed to fetch file {file} after {max_retries} retries: {str(e)}",
                         )
-                        break
+                except Exception as e:
+                    logger.error(f"Unexpected error processing file {file}: {str(e)}")
+                    break  # Don't retry for unexpected errors
 
         return json_data_with_times
 
@@ -4170,17 +4178,23 @@ class IESO(ISOBase):
                     self._fetch_and_parse_shadow_prices_file,
                     base_url,
                     file,
-                ): (file, time)
-                for file, time in filtered_files
+                ): (file, last_modified_time)
+                for file, last_modified_time in filtered_files
             }
             for future in as_completed(future_to_file):
-                file, time = future_to_file[future]
+                file, last_modified_time = future_to_file[future]
                 retries = 0
                 while retries < max_retries:
                     try:
                         json_data = future.result()
                         json_data_with_times.append(
-                            (json_data, pd.Timestamp(time, tz=self.default_timezone)),
+                            (
+                                json_data,
+                                pd.Timestamp(
+                                    last_modified_time,
+                                    tz=self.default_timezone,
+                                ),
+                            ),
                         )
                         break
                     except http.client.RemoteDisconnected as e:
