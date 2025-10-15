@@ -77,6 +77,7 @@ class MISOAPI:
         self.default_timezone = "EST"
         self.initial_sleep_seconds = initial_sleep_seconds
 
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def get_lmp_day_ahead_hourly_ex_ante(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -92,6 +93,7 @@ class MISOAPI:
             verbose=verbose,
         )
 
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def get_lmp_day_ahead_hourly_ex_post(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -199,14 +201,13 @@ class MISOAPI:
 
         return self._process_pricing_data(data_list, market=market)
 
-    @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_day_ahead_hourly(
         self,
         date: datetime.datetime,
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         version: str = EX_POST,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[List[Dict[str, Any]]]:
         interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
 
@@ -216,7 +217,7 @@ class MISOAPI:
 
         data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
 
-        return data_list
+        return [data_list]
 
     @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_real_time_hourly_ex_post(
