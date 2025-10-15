@@ -931,10 +931,10 @@ class TestMISOAPI(TestHelperMixin):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
+            "Publish Time",
             "Region",
             "Local Resource Zone",
             "Load Forecast",
-            "Publish Time",
         ]
 
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
@@ -944,9 +944,9 @@ class TestMISOAPI(TestHelperMixin):
             if col not in [
                 "Interval Start",
                 "Interval End",
+                "Publish Time",
                 "Region",
                 "Local Resource Zone",
-                "Publish Time",
             ]:
                 assert df[col].dtype == "float64"
 
@@ -977,7 +977,9 @@ class TestMISOAPI(TestHelperMixin):
         with api_vcr.use_cassette(
             f"test_get_medium_term_load_forecast_hourly_with_publish_time_{date.date()}"
         ):
-            df = self.iso.get_medium_term_load_forecast_hourly(date, init=publish_time)
+            df = self.iso.get_medium_term_load_forecast_hourly(
+                date, publish_time=publish_time
+            )
 
         self._check_test_medium_term_load_forecast(df)
 

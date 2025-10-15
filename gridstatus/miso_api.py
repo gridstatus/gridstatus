@@ -1234,34 +1234,34 @@ class MISOAPI:
         time_resolution: str = HOURLY_RESOLUTION,
     ) -> pd.DataFrame:
         """
-        init: Optional init date to get forecast from.
+        publish_time: Optional publish_time to get forecast from.
             It must be earlier than both:
                 - the current date (now)
                 - and the forecast date (the date for which you're requesting predictions).
 
-            If you don't specify this init date:
+            If you don't specify this publish_time:
                 - When your requested date is before today, it defaults to date - 1 day
                 - When your requested date is today or in the future, it defaults to today - 1 day
 
             Example:
 
             - If today = 2025-10-14
-                - You request forecasts for 2025-10-10 → init = 2025-10-09
-                - You request forecasts for 2025-10-14 (today) → init = 2025-10-13
-                - You request forecasts for 2025-10-15 (future) → init = 2025-10-13
+                - You request forecasts for 2025-10-10 → publish_time = 2025-10-09
+                - You request forecasts for 2025-10-14 (today) → publish_time = 2025-10-13
+                - You request forecasts for 2025-10-15 (future) → publish_time = 2025-10-13
 
         Basically: it uses yesterday's forecast run unless you override it.
         """
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d") + pd.Timedelta(
                 days=6
-            )  # Forecast date must be within 7 days of the init date.
+            )  # Forecast date must be within 7 days of the publish_time.
 
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/forecast/{date_str}/load?timeResolution={time_resolution}"
         if publish_time is not None:
-            utils._handle_date(publish_time, self.default_timezone)
+            publish_time = utils._handle_date(publish_time, self.default_timezone)
             init_str = publish_time.strftime("%Y-%m-%d")
             url += f"&init={init_str}"
 
@@ -1306,21 +1306,23 @@ class MISOAPI:
             if col not in [
                 "Interval Start",
                 "Interval End",
+                "Publish Time",
                 "Region",
                 "Local Resource Zone",
-                "Publish Time",
             ]:
                 data[col] = data[col].astype(float)
 
-        data = data.sort_values(["Interval Start", "Region", "Local Resource Zone"])
+        data = data.sort_values(
+            ["Interval Start", "Publish Time", "Region", "Local Resource Zone"]
+        )
         return data[
             [
                 "Interval Start",
                 "Interval End",
+                "Publish Time",
                 "Region",
                 "Local Resource Zone",
                 "Load Forecast",
-                "Publish Time",
             ]
         ].reset_index(drop=True)
 
@@ -1330,13 +1332,13 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-        init: str | pd.Timestamp | None = None,
+        publish_time: str | pd.Timestamp | None = None,
     ) -> pd.DataFrame:
         return self._get_medium_term_load_forecast(
             date,
             end=end,
             verbose=verbose,
-            publish_time=init,
+            publish_time=publish_time,
             time_resolution=HOURLY_RESOLUTION,
         )
 
@@ -1346,13 +1348,13 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-        init: str | pd.Timestamp | None = None,
+        publish_time: str | pd.Timestamp | None = None,
     ) -> pd.DataFrame:
         return self._get_medium_term_load_forecast(
             date,
             end=end,
             verbose=verbose,
-            publish_time=init,
+            publish_time=publish_time,
             time_resolution=DAILY_RESOLUTION,
         )
 
