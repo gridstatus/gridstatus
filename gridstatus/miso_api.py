@@ -77,7 +77,7 @@ class MISOAPI:
         self.default_timezone = "EST"
         self.initial_sleep_seconds = initial_sleep_seconds
 
-    @support_date_range(frequency="HOUR_START", return_raw=True)
+    @support_date_range(frequency="HOUR_START")
     def get_lmp_day_ahead_hourly_ex_ante(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -93,7 +93,7 @@ class MISOAPI:
             verbose=verbose,
         )
 
-    @support_date_range(frequency="HOUR_START", return_raw=True)
+    @support_date_range(frequency="HOUR_START")
     def get_lmp_day_ahead_hourly_ex_post(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -190,14 +190,14 @@ class MISOAPI:
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
-        retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
+        retrieval_func: Callable[..., List[Dict[str, Any]]],
         market: Markets,
         verbose: bool = False,
         **kwargs: Any,
     ) -> pd.DataFrame:
         data_lists = retrieval_func(date, end, verbose=verbose, **kwargs)
 
-        data_list = self._flatten(data_lists)
+        data_list = self._flatten([data_lists])
 
         return self._process_pricing_data(data_list, market=market)
 
