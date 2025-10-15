@@ -945,7 +945,6 @@ class IESO(ISOBase):
     def get_resource_adequacy_report_by_last_modified(
         self,
         last_modified: str | datetime.date | datetime.datetime,
-        vintage: Literal["all", "latest"] = "latest",
     ) -> pd.DataFrame:
         """Retrieve and parse Resource Adequacy Reports modified after last_modified time.
         This method bypasses date iteration and gets all files across all dates.
@@ -961,31 +960,25 @@ class IESO(ISOBase):
         if last_modified:
             last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
 
-        if vintage == "all":
-            json_data_with_times = (
-                self._get_all_resource_adequacy_jsons_by_last_modified(
-                    last_modified,
+        json_data_with_times = self._get_all_resource_adequacy_jsons_by_last_modified(
+            last_modified,
+        )
+        dfs = []
+        for json_data, file_last_modified in json_data_with_times:
+            try:
+                df = self._parse_resource_adequacy_report(json_data)
+                df["Last Modified"] = file_last_modified
+                dfs.append(df)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to parse resource adequacy report: {str(e)}",
                 )
-            )
-            dfs = []
-            for json_data, file_last_modified in json_data_with_times:
-                try:
-                    df = self._parse_resource_adequacy_report(json_data)
-                    df["Last Modified"] = file_last_modified
-                    dfs.append(df)
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to parse resource adequacy report: {str(e)}",
-                    )
-                    continue
+                continue
 
-            if not dfs:
-                return pd.DataFrame()
+        if not dfs:
+            return pd.DataFrame()
 
-            df = pd.concat(dfs, ignore_index=True) if len(dfs) > 1 else dfs[0]
-        else:
-            raise ValueError("cross_date_fetch only supported with vintage='all'")
-
+        df = pd.concat(dfs, ignore_index=True) if len(dfs) > 1 else dfs[0]
         df = utils.move_cols_to_front(
             df,
             [
