@@ -969,14 +969,20 @@ class IESO(ISOBase):
             )
             dfs = []
             for json_data, file_last_modified in json_data_with_times:
-                df = self._parse_resource_adequacy_report(json_data)
-                df["Last Modified"] = file_last_modified
-                dfs.append(df)
+                try:
+                    df = self._parse_resource_adequacy_report(json_data)
+                    df["Last Modified"] = file_last_modified
+                    dfs.append(df)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to parse resource adequacy report: {str(e)}",
+                    )
+                    continue
 
             if not dfs:
                 return pd.DataFrame()
 
-            df = pd.concat(dfs, ignore_index=True)
+            df = pd.concat(dfs, ignore_index=True) if len(dfs) > 1 else dfs[0]
         else:
             raise ValueError("cross_date_fetch only supported with vintage='all'")
 
