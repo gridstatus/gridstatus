@@ -83,7 +83,7 @@ class TestMISOAPI(TestHelperMixin):
     @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_real_time_hourly_ex_post_final")
     def test_get_lmp_real_time_hourly_ex_post_final_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=6)).floor("h")
+        start = (self.local_now() - pd.DateOffset(days=7)).floor("h")
         end = start + pd.Timedelta(hours=3)
         df = self.iso.get_lmp_real_time_hourly_ex_post_final(start, end)
 
@@ -125,7 +125,7 @@ class TestMISOAPI(TestHelperMixin):
     @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_real_time_5_min_ex_post_final")
     def test_get_lmp_real_time_5_min_ex_post_final_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=5)).floor("5min")
+        start = (self.local_now() - pd.DateOffset(days=7)).floor("5min")
         end = start + pd.Timedelta(hours=1)
         df = self.iso.get_lmp_real_time_5_min_ex_post_final(start, end)
 
@@ -191,7 +191,7 @@ class TestMISOAPI(TestHelperMixin):
         end = start + pd.DateOffset(days=2, hours=4)
 
         with api_vcr.use_cassette(
-            f"test_get_interchange_hourly_{start}_{end}",
+            f"test_get_interchange_hourly_{start:%Y-%m-%dT%H-%M-%S}_{end:%Y-%m-%dT%H-%M-%S}",
         ):
             df = self.iso.get_interchange_hourly(start, end)
 
