@@ -701,13 +701,13 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_resource_adequacy_report_by_last_modified(
                 last_modified,
-                vintage="all",
             )
 
         assert isinstance(df, pd.DataFrame)
         assert df.shape[1] == 99
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
+        assert (df["Last Modified"] > last_modified).all()
 
     def test_get_resource_adequacy_data_structure_map(self):
         data_map = RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP
