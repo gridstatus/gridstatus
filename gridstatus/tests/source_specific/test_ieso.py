@@ -692,6 +692,23 @@ class TestIESO(BaseTestISO):
             assert "ForecastDemand" in doc_body
             assert "DeliveryDate" in doc_body
 
+    def test_get_resource_adequacy_report_by_last_modified(self):
+        last_modified = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
+            hours=1,
+        )
+        with file_vcr.use_cassette(
+            "test_get_resource_adequacy_report_by_last_modified.yaml",
+        ):
+            df = self.iso.get_resource_adequacy_report_by_last_modified(
+                last_modified,
+            )
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape[1] == 99
+        for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
+            assert col in df.columns
+        assert (df["Last Modified"] > last_modified).all()
+
     def test_get_resource_adequacy_data_structure_map(self):
         data_map = RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP
 
