@@ -858,8 +858,8 @@ class ISONE(ISOBase):
 
         return selected_intervals
 
-    @support_date_range(frequency="DAY_START")
-    def get_reserve_zone_prices_designations_real_time_five_min_final(
+    @support_date_range(frequency=None)
+    def get_reserve_zone_prices_designations_real_time_5_min_final(
         self,
         date,
         end=None,
@@ -882,13 +882,26 @@ class ISONE(ISOBase):
             Total Reserve Clearing Price
         """
         if date == "latest":
-            return self.get_reserve_zone_prices_designations_real_time_five_min_final(
+            # Try today first, if no data fall back to yesterday
+            df = self.get_reserve_zone_prices_designations_real_time_5_min_final(
                 "today",
                 verbose=verbose,
             )
+            if df.empty:
+                return self.get_reserve_zone_prices_designations_real_time_5_min_final(
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
+                    - pd.Timedelta(days=1),
+                    verbose=verbose,
+                )
 
         date_str = date.strftime("%Y%m%d")
-        url = f"https://www.iso-ne.com/transform/csv/fiveminreserveprice?type=final&start={date_str}&end={date_str}"
+
+        # If end is provided, query the range; otherwise query single day
+        if end is not None:
+            end_str = end.strftime("%Y%m%d")
+            url = f"https://www.iso-ne.com/transform/csv/fiveminreserveprice?type=final&start={date_str}&end={end_str}"
+        else:
+            url = f"https://www.iso-ne.com/transform/csv/fiveminreserveprice?type=final&start={date_str}&end={date_str}"
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
