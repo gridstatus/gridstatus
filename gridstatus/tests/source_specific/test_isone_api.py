@@ -5,6 +5,7 @@ import pytest
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
+    ISONE_RESERVE_ZONE_ALL_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -24,6 +25,18 @@ TEST_MULTIPLE_LOCATIONS = [
 ]
 
 TEST_SINGLE_LOCATIONS = [loc for pair in TEST_MULTIPLE_LOCATIONS for loc in pair]
+
+# Shared column definitions for tests
+LMP_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Location",
+    "Location Type",
+    "LMP",
+    "Energy",
+    "Congestion",
+    "Loss",
+]
 
 
 class TestISONEAPI(TestHelperMixin):
@@ -582,20 +595,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
+            self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -607,16 +607,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_lmp_real_time_hourly_prelim(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+            self._check_lmp_columns(result)
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
@@ -628,10 +619,6 @@ class TestISONEAPI(TestHelperMixin):
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(hours=1)
             ).all()
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
 
     def test_get_lmp_real_time_hourly_final_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_hourly_final_latest.yaml"):
@@ -639,20 +626,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
+            self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -664,16 +638,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_lmp_real_time_hourly_final(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+            self._check_lmp_columns(result)
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
@@ -685,10 +650,6 @@ class TestISONEAPI(TestHelperMixin):
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(hours=1)
             ).all()
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
 
     def test_get_lmp_real_time_5_min_prelim_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_5_min_prelim_latest.yaml"):
@@ -696,25 +657,13 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
+            self._check_lmp_columns(result)
             assert (
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(minutes=5)
             ).all()
 
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "date,end",
         DST_CHANGE_TEST_DATES,
@@ -725,16 +674,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_lmp_real_time_5_min_prelim(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+            self._check_lmp_columns(result)
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
@@ -746,10 +686,6 @@ class TestISONEAPI(TestHelperMixin):
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(minutes=5)
             ).all()
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
 
     def test_get_lmp_real_time_5_min_final_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_5_min_final_latest.yaml"):
@@ -757,25 +693,13 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) > 0
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
+            self._check_lmp_columns(result)
             assert (
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(minutes=5)
             ).all()
 
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "date,end",
         DST_CHANGE_TEST_DATES,
@@ -786,16 +710,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_lmp_real_time_5_min_final(date=date, end=end)
 
             assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+            self._check_lmp_columns(result)
             assert (
                 min(result["Interval Start"]).date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
@@ -807,10 +722,6 @@ class TestISONEAPI(TestHelperMixin):
                 (result["Interval End"] - result["Interval Start"])
                 == pd.Timedelta(minutes=5)
             ).all()
-            assert result["LMP"].dtype in [np.int64, np.float64]
-            assert result["Energy"].dtype in [np.int64, np.float64]
-            assert result["Congestion"].dtype in [np.int64, np.float64]
-            assert result["Loss"].dtype in [np.int64, np.float64]
 
     """get_capacity_forecast_7_day"""
 
@@ -879,3 +790,354 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             self._check_capacity_forecast_7_day_columns(result)
+
+    """get_regulation_clearing_prices_real_time_5_min"""
+
+    def _check_regulation_clearing_prices_real_time_5_min(self, df: pd.DataFrame):
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Reg Service Clearing Price",
+            "Reg Capacity Clearing Price",
+        ]
+        assert df["Reg Service Clearing Price"].dtype == np.float64
+        assert df["Reg Capacity Clearing Price"].dtype == np.float64
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+
+    def test_get_regulation_clearing_prices_real_time_5_min_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_regulation_clearing_prices_real_time_5_min_latest.yaml",
+        ):
+            result = self.iso.get_regulation_clearing_prices_real_time_5_min(
+                date="latest",
+            )
+
+        self._check_regulation_clearing_prices_real_time_5_min(result)
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_regulation_clearing_prices_real_time_5_min_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = (
+            f"test_get_regulation_clearing_prices_real_time_5_min_{date}_{end}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_regulation_clearing_prices_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+        self._check_regulation_clearing_prices_real_time_5_min(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(minutes=5)
+
+    """get_reserve_requirements_prices_forecast_day_ahead"""
+
+    def _check_reserve_requirements_prices_forecast_day_ahead(
+        self,
+        df: pd.DataFrame,
+    ):
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "EIR Designation MW",
+            "FER Clearing Price",
+            "Forecasted Energy Req MW",
+            "Ten Min Spin Req MW",
+            "TMNSR Clearing Price",
+            "TMNSR Designation MW",
+            "TMOR Clearing Price",
+            "TMOR Designation MW",
+            "TMSR Clearing Price",
+            "TMSR Designation MW",
+            "Total Ten Min Req MW",
+            "Total Thirty Min Req MW",
+        ]
+        assert df["EIR Designation MW"].dtype == np.float64
+        assert df["FER Clearing Price"].dtype == np.float64
+        assert df["Forecasted Energy Req MW"].dtype == np.float64
+        assert df["Ten Min Spin Req MW"].dtype == np.float64
+        assert df["TMNSR Clearing Price"].dtype == np.float64
+        assert df["TMNSR Designation MW"].dtype == np.float64
+        assert df["TMOR Clearing Price"].dtype == np.float64
+        assert df["TMOR Designation MW"].dtype == np.float64
+        assert df["TMSR Clearing Price"].dtype == np.float64
+        assert df["TMSR Designation MW"].dtype == np.float64
+        assert df["Total Ten Min Req MW"].dtype == np.float64
+        assert df["Total Thirty Min Req MW"].dtype == np.float64
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_reserve_requirements_prices_forecast_day_ahead_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_reserve_requirements_prices_forecast_day_ahead_latest.yaml",
+        ):
+            result = self.iso.get_reserve_requirements_prices_forecast_day_ahead(
+                date="latest",
+            )
+
+        self._check_reserve_requirements_prices_forecast_day_ahead(result)
+
+    # Dataset doesn't have data for 2024
+    @pytest.mark.parametrize("date,end", [("2025-03-08", "2025-03-10")])
+    def test_get_reserve_requirements_prices_forecast_day_ahead_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = (
+            f"test_get_reserve_requirements_prices_forecast_day_ahead_{date}_{end}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_reserve_requirements_prices_forecast_day_ahead(
+                date=date,
+                end=end,
+            )
+
+        self._check_reserve_requirements_prices_forecast_day_ahead(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(hours=1)
+
+    def _check_lmp_columns(self, df: pd.DataFrame):
+        """Shared helper to validate LMP column structure and dtypes."""
+        assert list(df.columns) == LMP_COLUMNS
+        assert df["LMP"].dtype in [np.int64, np.float64]
+        assert df["Energy"].dtype in [np.int64, np.float64]
+        assert df["Congestion"].dtype in [np.int64, np.float64]
+        assert df["Loss"].dtype in [np.int64, np.float64]
+
+    """get_reserve_zone_prices_designations_real_time_5_min"""
+
+    def _check_reserve_zone_prices_designations(
+        self,
+        df: pd.DataFrame,
+        interval: pd.Timedelta,
+    ):
+        """Shared helper to validate reserve zone price data across different intervals."""
+        assert list(df.columns) == ISONE_RESERVE_ZONE_ALL_COLUMNS
+
+        assert df["Reserve Zone Id"].dtype == np.int64
+        assert df["Reserve Zone Name"].dtype == object
+        assert df["Ten Min Spin Requirement"].dtype == np.float64
+        assert df["TMNSR Clearing Price"].dtype == np.float64
+        assert df["TMNSR Designated MW"].dtype == np.float64
+        assert df["TMOR Clearing Price"].dtype == np.float64
+        assert df["TMOR Designated MW"].dtype == np.float64
+        assert df["TMSR Clearing Price"].dtype == np.float64
+        assert df["TMSR Designated MW"].dtype == np.float64
+        assert df["Total 10 Min Requirement"].dtype == np.float64
+        assert df["Total 30 Min Requirement"].dtype == np.float64
+
+        assert list(df["Reserve Zone Id"].unique()) == [7000, 7001, 7002, 7003]
+
+        assert ((df["Interval End"] - df["Interval Start"]) == interval).all()
+
+    def test_get_reserve_zone_prices_designations_real_time_5_min_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_reserve_zone_prices_designations_real_time_5_min_latest.yaml",
+        ):
+            result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
+                date="latest",
+            )
+
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(minutes=5))
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_reserve_zone_prices_designations_real_time_5_min_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = f"test_get_reserve_zone_prices_designations_real_time_5_min_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(minutes=5))
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(minutes=5)
+
+    """get_reserve_zone_prices_designations_real_time_hourly_final"""
+
+    def test_get_reserve_zone_prices_designations_real_time_hourly_final_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_reserve_zone_prices_designations_real_time_hourly_final_latest.yaml",
+        ):
+            result = (
+                self.iso.get_reserve_zone_prices_designations_real_time_hourly_final(
+                    date="latest",
+                )
+            )
+
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_reserve_zone_prices_designations_real_time_hourly_final_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = f"test_get_reserve_zone_prices_designations_real_time_hourly_final_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = (
+                self.iso.get_reserve_zone_prices_designations_real_time_hourly_final(
+                    date=date,
+                    end=end,
+                )
+            )
+
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(hours=1)
+
+    """get_reserve_zone_prices_designations_real_time_hourly_prelim"""
+
+    def test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest(
+        self,
+    ):
+        with api_vcr.use_cassette(
+            "test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest.yaml",
+        ):
+            result = (
+                self.iso.get_reserve_zone_prices_designations_real_time_hourly_prelim(
+                    date="latest",
+                )
+            )
+
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_reserve_zone_prices_designations_real_time_hourly_prelim_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = f"test_get_reserve_zone_prices_designations_real_time_hourly_prelim_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = (
+                self.iso.get_reserve_zone_prices_designations_real_time_hourly_prelim(
+                    date=date,
+                    end=end,
+                )
+            )
+
+        self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(hours=1)
+
+    """get_ancillary_services_strike_prices_day_ahead"""
+
+    def _check_strike_prices_day_ahead(
+        self,
+        df: pd.DataFrame,
+    ):
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Expected Closeout Charge",
+            "Expected Closeout Charge Override",
+            "Expected RT Hub LMP",
+            "Percentile 10 RT Hub LMP",
+            "Percentile 25 RT Hub LMP",
+            "Percentile 75 RT Hub LMP",
+            "Percentile 90 RT Hub LMP",
+            "SPC Load Forecast MW",
+            "Strike Price",
+        ]
+        assert df["Expected Closeout Charge"].dtype == np.float64
+        assert df["Expected Closeout Charge Override"].dtype == np.float64
+        assert df["Expected RT Hub LMP"].dtype == np.float64
+        assert df["Percentile 10 RT Hub LMP"].dtype == np.float64
+        assert df["Percentile 25 RT Hub LMP"].dtype == np.float64
+        assert df["Percentile 75 RT Hub LMP"].dtype == np.float64
+        assert df["Percentile 90 RT Hub LMP"].dtype == np.float64
+        assert df["SPC Load Forecast MW"].dtype == np.float64
+        assert df["Strike Price"].dtype == np.float64
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_ancillary_services_strike_prices_day_ahead_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_ancillary_services_strike_prices_day_ahead_latest.yaml",
+        ):
+            result = self.iso.get_ancillary_services_strike_prices_day_ahead(
+                date="latest",
+            )
+
+        self._check_strike_prices_day_ahead(result)
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [("2025-03-08", "2025-03-10")],  # Dataset doesn't have data for 2024
+    )
+    def test_get_ancillary_services_strike_prices_day_ahead_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = (
+            f"test_get_ancillary_services_strike_prices_day_ahead_{date}_{end}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_ancillary_services_strike_prices_day_ahead(
+                date=date,
+                end=end,
+            )
+
+        self._check_strike_prices_day_ahead(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(hours=1)
