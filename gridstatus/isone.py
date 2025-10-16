@@ -858,6 +858,85 @@ class ISONE(ISOBase):
 
         return selected_intervals
 
+    @support_date_range(frequency="DAY_START")
+    def get_reserve_zone_prices_designations_real_time_five_min_final(
+        self,
+        date,
+        end=None,
+        verbose=False,
+    ):
+        """Return final five-minute reserve zone requirements, prices, and designations
+
+        Published and sometimes updated in the days following the operating day.
+
+        Args:
+            date: Date to query. Supports "latest" and "today"
+            end: End date for date range queries
+            verbose: Enable verbose logging
+
+        Returns:
+            DataFrame with columns: Interval Start, Interval End, Reserve Zone ID,
+            Reserve Zone Name, Ten Min Spin Requirement, Ten Min Requirement,
+            Total Requirement, TMSR Designated MW, TMNSR Designated MW,
+            TMOR Designated MW, TMSR Clearing Price, TMR Clearing Price,
+            Total Reserve Clearing Price
+        """
+        if date == "latest":
+            date = "today"
+
+        date_str = date.strftime("%Y%m%d")
+        url = f"https://www.iso-ne.com/transform/csv/fiveminreserveprice?type=final&start={date_str}&end={date_str}"
+
+        df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
+
+        # Clean up column names - remove leading spaces and quotes
+        df.columns = df.columns.str.strip().str.replace('"', "")
+
+        # Parse the datetime
+        df["Interval Start"] = pd.to_datetime(df["Local Time"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous="infer",
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        # Rename columns to match our standards
+        df = df.rename(
+            columns={
+                "Reserve Zone ID": "Reserve Zone ID",
+                "Reserve Zone Name": "Reserve Zone Name",
+                "Ten-Minute Spinning Requirement": "Ten Min Spin Requirement",
+                "Ten-Minute Requirement": "Ten Min Requirement",
+                "Total Requirement": "Total Requirement",
+                "Ten Minute Spinning Reserve Designated MW": "TMSR Designated MW",
+                "Ten Minute Non Spinning Reserve Designated MW": "TMNSR Designated MW",
+                "Thirty Minute OperatingReserve Designated MW": "TMOR Designated MW",
+                "Ten-Minute Spinning Reserve Clearing Price": "TMSR Clearing Price",
+                "Ten-Minute Reserve Clearing Price": "TMR Clearing Price",
+                "Total Reserve Clearing Price": "Total Reserve Clearing Price",
+            },
+        )
+
+        # Select and order columns
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Reserve Zone ID",
+                "Reserve Zone Name",
+                "Ten Min Spin Requirement",
+                "Ten Min Requirement",
+                "Total Requirement",
+                "TMSR Designated MW",
+                "TMNSR Designated MW",
+                "TMOR Designated MW",
+                "TMSR Clearing Price",
+                "TMR Clearing Price",
+                "Total Reserve Clearing Price",
+            ]
+        ]
+
+        return df
+
 
 def _make_request(url, skiprows, verbose):
     attempt = 0

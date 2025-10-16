@@ -391,3 +391,55 @@ class TestISONE(BaseTestISO):
                 )
                 == []
             )
+
+    """get_reserve_zone_prices_designations_real_time_five_min_final"""
+
+    @api_vcr.use_cassette()
+    def test_get_reserve_zone_prices_designations_real_time_five_min_final(self):
+        df = self.iso.get_reserve_zone_prices_designations_real_time_five_min_final(
+            date="Oct 14, 2025",
+            verbose=VERBOSE,
+        )
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Reserve Zone ID",
+            "Reserve Zone Name",
+            "Ten Min Spin Requirement",
+            "Ten Min Requirement",
+            "Total Requirement",
+            "TMSR Designated MW",
+            "TMNSR Designated MW",
+            "TMOR Designated MW",
+            "TMSR Clearing Price",
+            "TMR Clearing Price",
+            "Total Reserve Clearing Price",
+        ]
+
+        # Check that we have 5-minute intervals
+        self._check_time_columns(df, "interval")
+
+        # Should have multiple reserve zones
+        assert len(df["Reserve Zone ID"].unique()) > 1
+
+        # Check data types
+        assert df["Reserve Zone ID"].dtype == "int64"
+        assert df["Reserve Zone Name"].dtype == "object"
+        for col in [
+            "Ten Min Spin Requirement",
+            "Ten Min Requirement",
+            "Total Requirement",
+            "TMSR Designated MW",
+            "TMNSR Designated MW",
+            "TMOR Designated MW",
+            "TMSR Clearing Price",
+            "TMR Clearing Price",
+            "Total Reserve Clearing Price",
+        ]:
+            assert df[col].dtype == "float64"
+
+        # Check intervals are 5 minutes
+        intervals = (df["Interval End"] - df["Interval Start"]).unique()
+        assert len(intervals) == 1
+        assert intervals[0] == pd.Timedelta(minutes=5)
