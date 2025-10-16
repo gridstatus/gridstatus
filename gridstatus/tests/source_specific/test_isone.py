@@ -440,10 +440,14 @@ class TestISONE(BaseTestISO):
         assert len(intervals) == 1
         assert intervals[0] == pd.Timedelta(minutes=5)
 
-    @api_vcr.use_cassette()
+    @api_vcr.use_cassette(
+        cassette_name="test_get_reserve_zone_prices_designations_real_time_5_min_final_2024-11-02",
+    )
     def test_get_reserve_zone_prices_designations_real_time_5_min_final(self):
+        date = pd.Timestamp("2024-11-02").tz_localize(self.iso.default_timezone)
+
         df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
-            date="Oct 14, 2025",
+            date=date,
             verbose=VERBOSE,
         )
 
