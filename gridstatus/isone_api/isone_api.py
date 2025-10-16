@@ -102,18 +102,22 @@ class ISONEAPI:
     @staticmethod
     def _safe_get(d: dict, *keys):
         """
-        Safely get nested dictionary values, returning empty dict if any key is missing or value is not a dict.
+        Safely get nested dictionary values, returning empty dict if any key is missing.
+        Returns the value at the final key, which may be a dict, list, or other type.
 
         Args:
             d: Dictionary to traverse
             *keys: Keys to access in nested order
 
         Returns:
-            dict: The value at the nested key path, or empty dict if not found or not a dict
+            The value at the nested key path, or empty dict if not found
         """
-        for k in keys:
-            d = d.get(k, {})
+        for i, k in enumerate(keys):
             if not isinstance(d, dict):
+                return {}
+            d = d.get(k, {})
+            # If this is not the last key and the value is not a dict, return empty dict
+            if i < len(keys) - 1 and not isinstance(d, dict):
                 return {}
         return d
 
@@ -933,9 +937,14 @@ class ISONEAPI:
             try:
                 return self.get_lmp_real_time_5_min_final("today")
             except Exception:
-                return self.get_lmp_real_time_5_min_final(
-                    pd.Timestamp.now(self.default_timezone) - pd.DateOffset(days=1),
-                )
+                try:
+                    return self.get_lmp_real_time_5_min_final(
+                        pd.Timestamp.now(self.default_timezone) - pd.DateOffset(days=1),
+                    )
+                except Exception:
+                    return self.get_lmp_real_time_5_min_final(
+                        pd.Timestamp.now(self.default_timezone) - pd.DateOffset(days=2),
+                    )
 
         url = f"{self.base_url}/fiveminutelmp/final/day/{date.strftime('%Y%m%d')}/starthour/{date.hour:02d}"
         return self._handle_lmp_real_time(url, verbose, interval_minutes=5)

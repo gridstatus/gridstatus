@@ -663,6 +663,7 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(minutes=5)
             ).all()
 
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "date,end",
         DST_CHANGE_TEST_DATES,
@@ -698,6 +699,7 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(minutes=5)
             ).all()
 
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "date,end",
         DST_CHANGE_TEST_DATES,
