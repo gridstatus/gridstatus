@@ -882,7 +882,10 @@ class ISONE(ISOBase):
             Total Reserve Clearing Price
         """
         if date == "latest":
-            date = "today"
+            return self.get_reserve_zone_prices_designations_real_time_five_min_final(
+                "today",
+                verbose=verbose,
+            )
 
         date_str = date.strftime("%Y%m%d")
         url = f"https://www.iso-ne.com/transform/csv/fiveminreserveprice?type=final&start={date_str}&end={date_str}"
