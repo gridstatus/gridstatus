@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List
 import pandas as pd
 import requests
 
+from gridstatus import utils
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import setup_gs_logger
@@ -1141,6 +1142,218 @@ class MISOAPI:
                 "Storage",
             ]
         ].reset_index(drop=True)
+
+    def _get_actual_load(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        time_resolution: str = HOURLY_RESOLUTION,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d") - pd.Timedelta(
+                days=1
+            )
+
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/demand/actual?timeResolution={time_resolution}"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        if "interval" in df.columns:
+            df = df.drop(columns=["interval"])
+
+        df["region"] = df["region"].str.upper()
+
+        df = df.rename(
+            columns={"region": "Region", "load": "Load"},
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        data = data.sort_values(["Interval Start", "Region"])
+        return data[["Interval Start", "Interval End", "Region", "Load"]].reset_index(
+            drop=True
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_actual_load_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_actual_load(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=HOURLY_RESOLUTION,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_actual_load_daily(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_actual_load(
+            date,
+            end=end,
+            verbose=verbose,
+            time_resolution=DAILY_RESOLUTION,
+        )
+
+    def _get_medium_term_load_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        publish_time: str | pd.Timestamp | None = None,
+        time_resolution: str = HOURLY_RESOLUTION,
+    ) -> pd.DataFrame:
+        """
+        publish_time: Optional publish_time to get forecast from.
+            It must be earlier than both:
+                - the current date (now)
+                - and the forecast date (the date for which you're requesting predictions).
+
+            If you don't specify this publish_time:
+                - When your requested date is before today, it defaults to date - 1 day
+                - When your requested date is today or in the future, it defaults to today - 1 day
+
+            Example:
+
+            - If today = 2025-10-14
+                - You request forecasts for 2025-10-10 → publish_time = 2025-10-09
+                - You request forecasts for 2025-10-14 (today) → publish_time = 2025-10-13
+                - You request forecasts for 2025-10-15 (future) → publish_time = 2025-10-13
+
+        Basically: it uses yesterday's forecast run unless you override it.
+        """
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d") + pd.Timedelta(
+                days=6
+            )  # Forecast date must be within 7 days of the publish_time.
+
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/forecast/{date_str}/load?timeResolution={time_resolution}"
+        if publish_time is not None:
+            publish_time = utils._handle_date(publish_time, self.default_timezone)
+            init_str = publish_time.strftime("%Y-%m-%d")
+            url += f"&init={init_str}"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        if "interval" in df.columns:
+            df = df.drop(columns=["interval"])
+
+        df = df.rename(
+            columns={
+                "region": "Region",
+                "localResourceZone": "Local Resource Zone",
+                "loadForecast": "Load Forecast",
+            },
+        )
+
+        miso_publish_time = min(
+            date.normalize() - pd.DateOffset(days=1),
+            pd.Timestamp.now(tz=self.default_timezone).normalize()
+            - pd.DateOffset(days=1),
+        )
+        df["Publish Time"] = (
+            publish_time.normalize() if publish_time is not None else miso_publish_time
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "Local Resource Zone",
+            ]:
+                data[col] = data[col].astype(float)
+
+        data = data.sort_values(
+            ["Interval Start", "Publish Time", "Region", "Local Resource Zone"]
+        )
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "Local Resource Zone",
+                "Load Forecast",
+            ]
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_medium_term_load_forecast_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        publish_time: str | pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        return self._get_medium_term_load_forecast(
+            date,
+            end=end,
+            verbose=verbose,
+            publish_time=publish_time,
+            time_resolution=HOURLY_RESOLUTION,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_medium_term_load_forecast_daily(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        publish_time: str | pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        return self._get_medium_term_load_forecast(
+            date,
+            end=end,
+            verbose=verbose,
+            publish_time=publish_time,
+            time_resolution=DAILY_RESOLUTION,
+        )
 
     def _get_url(
         self,
