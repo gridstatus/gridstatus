@@ -498,7 +498,7 @@ class TestMISOAPI(TestHelperMixin):
                 assert df[col].dtype == "float64"
 
     @pytest.mark.integration
-    def test_get_day_ahead_cleared_demand_daily_date_range(self):
+    def test_get_day_ahead_cleared_demand_daily(self):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(f"get_day_ahead_cleared_demand_daily_{date.date()}"):
@@ -513,7 +513,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_day_ahead_cleared_demand_hourly_date_range(self):
+    def test_get_day_ahead_cleared_demand_hourly(self):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(f"get_day_ahead_cleared_demand_hourly_{date.date()}"):
@@ -542,7 +542,7 @@ class TestMISOAPI(TestHelperMixin):
                 assert df[col].dtype == "float64"
 
     @pytest.mark.integration
-    def test_get_day_ahead_cleared_generation_physical_hourly_date_range(self):
+    def test_get_day_ahead_cleared_generation_physical_hourly(self):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
@@ -558,7 +558,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_day_ahead_cleared_generation_virtual_hourly_date_range(self):
+    def test_get_day_ahead_cleared_generation_virtual_hourly(self):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
@@ -574,7 +574,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_day_ahead_net_scheduled_interchange_hourly_date_range(self):
+    def test_get_day_ahead_net_scheduled_interchange_hourly(self):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
@@ -612,7 +612,7 @@ class TestMISOAPI(TestHelperMixin):
                 assert df[col].dtype == "float64"
 
     @pytest.mark.integration
-    def test_get_day_ahead_offered_generation_ecomax_hourly_date_range(self):
+    def test_get_day_ahead_offered_generation_ecomax_hourly(self):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
@@ -638,7 +638,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_day_ahead_offered_generation_ecomin_hourly_date_range(self):
+    def test_get_day_ahead_offered_generation_ecomin_hourly(self):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
@@ -664,7 +664,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_day_ahead_generation_fuel_type_hourly_date_range(self):
+    def test_get_day_ahead_generation_fuel_type_hourly(self):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
@@ -717,7 +717,7 @@ class TestMISOAPI(TestHelperMixin):
                 assert df[col].dtype == "float64"
 
     @pytest.mark.integration
-    def test_get_real_time_cleared_demand_daily_date_range(self):
+    def test_get_real_time_cleared_demand_daily(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(f"get_real_time_cleared_demand_daily_{date.date()}"):
@@ -732,7 +732,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_real_time_cleared_demand_hourly_date_range(self):
+    def test_get_real_time_cleared_demand_hourly(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(f"get_real_time_cleared_demand_hourly_{date.date()}"):
@@ -762,7 +762,7 @@ class TestMISOAPI(TestHelperMixin):
 
     # @pytest.mark.integration
     @pytest.mark.skip(reason="MISO returns wrong data for a specific date")
-    def test_get_real_time_cleared_generation_hourly_date_range(self):
+    def test_get_real_time_cleared_generation_hourly(self):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
@@ -779,7 +779,7 @@ class TestMISOAPI(TestHelperMixin):
         # )
 
     @pytest.mark.integration
-    def test_get_real_time_offered_generation_ecomax_hourly_date_range(self):
+    def test_get_real_time_offered_generation_ecomax_hourly(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
@@ -811,7 +811,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_real_time_committed_generation_ecomax_hourly_date_range(self):
+    def test_get_real_time_committed_generation_ecomax_hourly(self):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
@@ -843,7 +843,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_real_time_generation_fuel_type_hourly_date_range(self):
+    def test_get_real_time_generation_fuel_type_hourly(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
@@ -877,6 +877,131 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
         )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    def _check_test_actual_load(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Region",
+            "Load",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_actual_load_hourly(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(f"get_actual_load_hourly_{date.date()}"):
+            df = self.iso.get_actual_load_hourly(date)
+
+        self._check_test_actual_load(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    @pytest.mark.integration
+    def test_get_actual_load_daily(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(f"get_actual_load_daily_{date.date()}"):
+            df = self.iso.get_actual_load_daily(date)
+
+        self._check_test_actual_load(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    def _check_test_medium_term_load_forecast(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Region",
+            "Local Resource Zone",
+            "Load Forecast",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "Local Resource Zone",
+            ]:
+                assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_medium_term_load_forecast_hourly(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_medium_term_load_forecast_hourly_{date.date()}"
+        ):
+            df = self.iso.get_medium_term_load_forecast_hourly(date)
+
+        self._check_test_medium_term_load_forecast(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    @pytest.mark.integration
+    def test_get_medium_term_load_forecast_hourly_with_publish_time(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        publish_time = date - pd.Timedelta(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_medium_term_load_forecast_hourly_with_publish_time_{date.date()}"
+        ):
+            df = self.iso.get_medium_term_load_forecast_hourly(
+                date, publish_time=publish_time
+            )
+
+        self._check_test_medium_term_load_forecast(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+        assert df["Publish Time"].min() == publish_time
+
+    @pytest.mark.integration
+    def test_get_medium_term_load_forecast_daily(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(f"get_medium_term_load_forecast_daily_{date.date()}"):
+            df = self.iso.get_medium_term_load_forecast_daily(date)
+
+        self._check_test_medium_term_load_forecast(df)
+
+        assert df["Interval Start"].min() == date
         assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )

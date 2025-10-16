@@ -13,6 +13,9 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
+    ISONE_RESERVE_ZONE_ALL_COLUMNS,
+    ISONE_RESERVE_ZONE_COLUMN_MAP,
+    ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
 )
 
 # Default page size for API requests
@@ -74,6 +77,50 @@ class ISONEAPI:
         dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
         return dt.astimezone(pytz.timezone(self.default_timezone))
 
+    def _build_url(
+        self,
+        dataset: str,
+        date: pd.Timestamp | Literal["latest"],
+    ) -> str:
+        """
+        Build URL for API requests following the pattern:
+        - {base_url}/{dataset}/current for "latest"
+        - {base_url}/{dataset}/day/{YYYYMMDD} for specific dates
+
+        Args:
+            dataset: The dataset path (e.g., "fiveminutercp", "daasreservedata")
+            date: Either "latest" for current data or a Timestamp for historical data
+
+        Returns:
+            str: The formatted URL
+        """
+        if date == "latest":
+            return f"{self.base_url}/{dataset}/current"
+        else:
+            return f"{self.base_url}/{dataset}/day/{date.strftime('%Y%m%d')}"
+
+    @staticmethod
+    def _safe_get(d: dict, *keys):
+        """
+        Safely get nested dictionary values, returning empty dict if any key is missing.
+        Returns the value at the final key, which may be a dict, list, or other type.
+
+        Args:
+            d: Dictionary to traverse
+            *keys: Keys to access in nested order
+
+        Returns:
+            The value at the nested key path, or empty dict if not found
+        """
+        for i, k in enumerate(keys):
+            if not isinstance(d, dict):
+                return {}
+            d = d.get(k, {})
+            # If this is not the last key and the value is not a dict, return empty dict
+            if i < len(keys) - 1 and not isinstance(d, dict):
+                return {}
+        return d
+
     def make_api_call(
         self,
         url: str,
@@ -81,7 +128,8 @@ class ISONEAPI:
         parse_json: bool = True,
         verbose: bool = False,
     ):
-        log.debug(f"Requesting url: {url} with params: {api_params}")
+        if verbose:
+            log.debug(f"Requesting url: {url} with params: {api_params}")
         retries = 0
         delay = self.initial_delay
         headers = {"Accept": "application/json"}
@@ -886,7 +934,17 @@ class ISONEAPI:
         if date == "latest":
             # NB: We don't quite know when this is published each day,
             # and don't have a /current/all option for final data, so grab the full day on "latest"
-            return self.get_lmp_real_time_5_min_final("today")
+            try:
+                return self.get_lmp_real_time_5_min_final("today")
+            except Exception:
+                try:
+                    return self.get_lmp_real_time_5_min_final(
+                        pd.Timestamp.now(self.default_timezone) - pd.DateOffset(days=1),
+                    )
+                except Exception:
+                    return self.get_lmp_real_time_5_min_final(
+                        pd.Timestamp.now(self.default_timezone) - pd.DateOffset(days=2),
+                    )
 
         url = f"{self.base_url}/fiveminutelmp/final/day/{date.strftime('%Y%m%d')}/starthour/{date.hour:02d}"
         return self._handle_lmp_real_time(url, verbose, interval_minutes=5)
@@ -1077,3 +1135,406 @@ class ISONEAPI:
         )
 
         return df[ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS]
+
+    @support_date_range("DAY_START")
+    def get_regulation_clearing_prices_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | Literal["latest"],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get five-minute clearing prices for both regulation capacity and service in real-time.
+
+        Args:
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing five-minute regulation clearing prices.
+        """
+        url = self._build_url("fiveminutercp", date)
+        response = self.make_api_call(url, verbose=verbose)
+        df = pd.DataFrame(self._safe_get(response, "FiveMinRcps", "FiveMinRcp"))
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No five-minute regulation clearing price data found for {date}",
+            )
+
+        # Timestamps already have an offset, so we parse as UTC then convert to local
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True)
+        # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00). Round in UTC to avoid DST issues
+        df["Interval Start"] = (
+            df["Interval Start"]
+            .dt.floor("5min")
+            .dt.tz_convert(
+                self.default_timezone,
+            )
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        df = df.rename(
+            columns={
+                "RegServiceClearingPrice": "Reg Service Clearing Price",
+                "RegCapacityClearingPrice": "Reg Capacity Clearing Price",
+            },
+        )
+
+        df["Reg Service Clearing Price"] = df["Reg Service Clearing Price"].astype(
+            float,
+        )
+
+        df["Reg Capacity Clearing Price"] = df["Reg Capacity Clearing Price"].astype(
+            float,
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Reg Service Clearing Price",
+                "Reg Capacity Clearing Price",
+            ]
+        ].sort_values("Interval Start")
+
+    @support_date_range("DAY_START")
+    def get_reserve_requirements_prices_forecast_day_ahead(
+        self,
+        date: str | pd.Timestamp | Literal["latest"],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get day-ahead reserve prices, requirements, and forecast for reserve zone 7000 (system-wide).
+
+        Args:
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing day-ahead reserve requirements, prices, and forecast.
+        """
+        url = self._build_url("daasreservedata", date)
+        response = self.make_api_call(url, verbose=verbose)
+
+        df = pd.json_normalize(
+            self._safe_get(
+                response,
+                "isone_web_services",
+                "day_ahead_reserves",
+                "day_ahead_reserve",
+            ),
+        )
+
+        if df.empty:
+            raise NoDataFoundException(f"No day-ahead reserve data found for {date}")
+
+        # Parse market hour information - API returns timezone-aware datetimes
+        df["Interval Start"] = pd.to_datetime(
+            df["market_hour.local_day"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        df = df.rename(
+            columns={
+                "eir_designation_mw": "EIR Designation MW",
+                "fer_clearing_price": "FER Clearing Price",
+                "forecasted_energy_req_mw": "Forecasted Energy Req MW",
+                "ten_min_spin_req_mw": "Ten Min Spin Req MW",
+                "tmnsr_clearing_price": "TMNSR Clearing Price",
+                "tmnsr_designation_mw": "TMNSR Designation MW",
+                "tmor_clearing_price": "TMOR Clearing Price",
+                "tmor_designation_mw": "TMOR Designation MW",
+                "tmsr_clearing_price": "TMSR Clearing Price",
+                "tmsr_designation_mw": "TMSR Designation MW",
+                "total_ten_min_req_mw": "Total Ten Min Req MW",
+                "total_thirty_min_req_mw": "Total Thirty Min Req MW",
+            },
+        )
+
+        numeric_columns = [
+            "EIR Designation MW",
+            "FER Clearing Price",
+            "Forecasted Energy Req MW",
+            "Ten Min Spin Req MW",
+            "TMNSR Clearing Price",
+            "TMNSR Designation MW",
+            "TMOR Clearing Price",
+            "TMOR Designation MW",
+            "TMSR Clearing Price",
+            "TMSR Designation MW",
+            "Total Ten Min Req MW",
+            "Total Thirty Min Req MW",
+        ]
+
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "EIR Designation MW",
+                "FER Clearing Price",
+                "Forecasted Energy Req MW",
+                "Ten Min Spin Req MW",
+                "TMNSR Clearing Price",
+                "TMNSR Designation MW",
+                "TMOR Clearing Price",
+                "TMOR Designation MW",
+                "TMSR Clearing Price",
+                "TMSR Designation MW",
+                "Total Ten Min Req MW",
+                "Total Thirty Min Req MW",
+            ]
+        ].sort_values("Interval Start")
+
+    @support_date_range("DAY_START")
+    def get_reserve_zone_prices_designations_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | Literal["latest"],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get five-minute real-time reserve prices, requirements, and designations by zone.
+
+        Args:
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing five-minute reserve zone prices and designations.
+        """
+        url = self._build_url("fiveminutereserveprice", date)
+        response = self.make_api_call(url, verbose=verbose)
+
+        df = pd.DataFrame(
+            self._safe_get(response, "FiveMinReservePrices", "FiveMinReservePrice"),
+        )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No five-minute reserve zone price data found for {date}",
+            )
+
+        # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00). Do rounding in UTC.
+        df["Interval Start"] = (
+            pd.to_datetime(df["BeginDate"], utc=True)
+            .dt.floor("5min")
+            .dt.tz_convert(
+                self.default_timezone,
+            )
+        )
+
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        df = df.rename(columns=ISONE_RESERVE_ZONE_COLUMN_MAP)
+
+        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
+            df[col] = df[col].astype(float)
+
+        return df[ISONE_RESERVE_ZONE_ALL_COLUMNS].sort_values(
+            ["Interval Start", "Reserve Zone Id"],
+        )
+
+    @support_date_range("DAY_START")
+    def get_reserve_zone_prices_designations_real_time_hourly_prelim(
+        self,
+        date: str | pd.Timestamp | Literal["latest"],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get preliminary hourly reserve prices, requirements, and designations by zone.
+
+        Args:
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing preliminary hourly reserve zone prices and designations.
+        """
+        url = self._build_url("hourlyprelimreserveprice", date)
+        response = self.make_api_call(url, verbose=verbose)
+
+        df = pd.DataFrame(
+            self._safe_get(
+                response,
+                "PrelimHourlyReservePrices",
+                "PrelimHourlyReservePrice",
+            ),
+        )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No preliminary hourly reserve zone price data found for {date}",
+            )
+
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        df = df.rename(columns=ISONE_RESERVE_ZONE_COLUMN_MAP)
+
+        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
+            df[col] = df[col].astype(float)
+
+        return df[ISONE_RESERVE_ZONE_ALL_COLUMNS].sort_values(
+            ["Interval Start", "Reserve Zone Id"],
+        )
+
+    @support_date_range("DAY_START")
+    def get_reserve_zone_prices_designations_real_time_hourly_final(
+        self,
+        date: str | pd.Timestamp | Literal["latest"],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get final hourly reserve prices, requirements, and designations by zone.
+
+        Args:
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing final hourly reserve zone prices and designations.
+        """
+        url = self._build_url("hourlyfinalreserveprice", date)
+        response = self.make_api_call(url, verbose=verbose)
+
+        df = pd.DataFrame(
+            self._safe_get(
+                response,
+                "FinalHourlyReservePrices",
+                "FinalHourlyReservePrice",
+            ),
+        )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No final hourly reserve zone price data found for {date}",
+            )
+
+        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        df = df.rename(columns=ISONE_RESERVE_ZONE_COLUMN_MAP)
+
+        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
+            df[col] = df[col].astype(float)
+
+        return df[ISONE_RESERVE_ZONE_ALL_COLUMNS].sort_values(
+            ["Interval Start", "Reserve Zone Id"],
+        )
+
+    @support_date_range("DAY_START")
+    def get_ancillary_services_strike_prices_day_ahead(
+        self,
+        date: str | pd.Timestamp | Literal["latest"],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get day-ahead strike prices and close-out components for ISO-NE.
+
+        Args:
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing day-ahead strike prices and related data.
+        """
+        url = self._build_url("daasstrikeprices", date)
+        response = self.make_api_call(url, verbose=verbose)
+
+        df = pd.json_normalize(
+            self._safe_get(
+                response,
+                "isone_web_services",
+                "day_ahead_strike_prices",
+                "day_ahead_strike_price",
+            ),
+        )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No day-ahead strike price data found for {date}",
+            )
+
+        # Parse market hour information - API returns timezone-aware datetimes
+        df["Interval Start"] = pd.to_datetime(
+            df["market_hour.local_day"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        # Parse publish time
+        df["Publish Time"] = pd.to_datetime(
+            df["strike_price_timestamp"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df = df.rename(
+            columns={
+                "expected_closeout_charge": "Expected Closeout Charge",
+                "expected_closeout_charge_override": "Expected Closeout Charge Override",
+                "expected_rt_hub_lmp": "Expected RT Hub LMP",
+                "percentile_10_rt_hub_lmp": "Percentile 10 RT Hub LMP",
+                "percentile_25_rt_hub_lmp": "Percentile 25 RT Hub LMP",
+                "percentile_75_rt_hub_lmp": "Percentile 75 RT Hub LMP",
+                "percentile_90_rt_hub_lmp": "Percentile 90 RT Hub LMP",
+                "spc_load_forecast_mw": "SPC Load Forecast MW",
+                "strike_price": "Strike Price",
+            },
+        )
+
+        numeric_columns = [
+            "Expected Closeout Charge",
+            "Expected Closeout Charge Override",
+            "Expected RT Hub LMP",
+            "Percentile 10 RT Hub LMP",
+            "Percentile 25 RT Hub LMP",
+            "Percentile 75 RT Hub LMP",
+            "Percentile 90 RT Hub LMP",
+            "SPC Load Forecast MW",
+            "Strike Price",
+        ]
+
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Expected Closeout Charge",
+                "Expected Closeout Charge Override",
+                "Expected RT Hub LMP",
+                "Percentile 10 RT Hub LMP",
+                "Percentile 25 RT Hub LMP",
+                "Percentile 75 RT Hub LMP",
+                "Percentile 90 RT Hub LMP",
+                "SPC Load Forecast MW",
+                "Strike Price",
+            ]
+        ].sort_values(["Interval Start", "Publish Time"])
