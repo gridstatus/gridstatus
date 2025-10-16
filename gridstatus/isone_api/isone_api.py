@@ -1130,7 +1130,7 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_regulation_clearing_prices_real_time_5_min(
         self,
-        date: pd.Timestamp | Literal["latest"] = "latest",
+        date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -1193,7 +1193,7 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_reserve_requirements_prices_forecast_day_ahead(
         self,
-        date: pd.Timestamp | Literal["latest"] = "latest",
+        date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -1289,7 +1289,7 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_5_min(
         self,
-        date: pd.Timestamp | Literal["latest"] = "latest",
+        date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -1339,7 +1339,7 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_hourly_prelim(
         self,
-        date: pd.Timestamp | Literal["latest"] = "latest",
+        date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -1387,7 +1387,7 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_hourly_final(
         self,
-        date: pd.Timestamp | Literal["latest"] = "latest",
+        date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -1435,7 +1435,7 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_ancillary_services_strike_prices_day_ahead(
         self,
-        date: pd.Timestamp | Literal["latest"] = "latest",
+        date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
