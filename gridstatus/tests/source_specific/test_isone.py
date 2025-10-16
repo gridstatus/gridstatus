@@ -455,3 +455,10 @@ class TestISONE(BaseTestISO):
             )
 
             self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)
+
+            # Check exact start and end times
+            assert df["Interval Start"].min() == two_days_ago
+            assert df["Interval Start"].max() == two_days_ago + pd.Timedelta(
+                hours=23,
+                minutes=55,
+            )
