@@ -445,35 +445,50 @@ class TestISONE(BaseTestISO):
     ):
         # Test date range - decorator calls function once per day and concatenates results
         # So we should get data for all days in the range (inclusive of end date)
-        two_days_ago = pd.Timestamp.now(
+        start = pd.Timestamp.now(
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(days=2)
-        three_days_ago = two_days_ago - pd.Timedelta(days=1)
+        end = start + pd.Timedelta(days=1)
 
-        cassette_name = f"test_get_reserve_zone_prices_designations_real_time_5_min_final_range_{three_days_ago.strftime('%Y-%m-%d')}_{two_days_ago.strftime('%Y-%m-%d')}"
+        cassette_name = f"test_get_reserve_zone_prices_designations_real_time_5_min_final_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}"
 
         with api_vcr.use_cassette(cassette_name):
             df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
-                date=(three_days_ago, two_days_ago),
+                date=(start, end),
                 verbose=VERBOSE,
             )
 
             self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)
 
-            # Check exact start and end times for the date range
-            # Decorator processes each day separately, then concatenates
-            # So we expect data from three_days_ago through end of two_days_ago
-            assert df["Interval Start"].min() == three_days_ago
-            assert df["Interval Start"].max() == two_days_ago + pd.Timedelta(
-                hours=23,
-                minutes=55,
+        # Check exact start and end times for the date range
+        # Decorator processes each day separately, then concatenates
+        # So we expect data from three_days_ago through end of two_days_ago
+        assert df["Interval Start"].min() == start
+        # Not inclusive
+        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
+
+    @pytest.mark.parametrize("date", DST_BOUNDARIES)
+    def test_get_reserve_zone_prices_designations_real_time_5_min_final_dst_boundary(
+        self,
+        date,
+    ):
+        cassette_name = f"test_get_reserve_zone_prices_designations_real_time_5_min_final_dst_boundary_{date}"
+
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
+                date=date,
+                verbose=VERBOSE,
             )
 
-            # Verify we have data from both days
-            unique_dates = df["Interval Start"].dt.normalize().unique()
-            assert len(unique_dates) == 2
-            assert three_days_ago in unique_dates
-            assert two_days_ago in unique_dates
+            self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)
+
+        assert df["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert df["Interval Start"].max() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+            # Use DateOffset to account for DST switch
+        ) + pd.DateOffset(days=1, minutes=-5)
 
     def test_get_reserve_zone_prices_designations_real_time_5_min_final_latest(self):
         # Test the "latest" option

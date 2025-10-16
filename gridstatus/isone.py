@@ -888,11 +888,21 @@ class ISONE(ISOBase):
                 verbose=verbose,
             )
             if df.empty:
-                return self.get_reserve_zone_prices_designations_real_time_5_min_final(
+                df = self.get_reserve_zone_prices_designations_real_time_5_min_final(
                     pd.Timestamp.now(tz=self.default_timezone).normalize()
                     - pd.Timedelta(days=1),
                     verbose=verbose,
                 )
+                if df.empty:
+                    df = (
+                        self.get_reserve_zone_prices_designations_real_time_5_min_final(
+                            pd.Timestamp.now(tz=self.default_timezone).normalize()
+                            - pd.Timedelta(days=2),
+                            verbose=verbose,
+                        )
+                    )
+
+            return df
 
         date_str = date.strftime("%Y%m%d")
 
@@ -908,10 +918,15 @@ class ISONE(ISOBase):
         # Clean up column names - remove leading spaces and quotes
         df.columns = df.columns.str.strip().str.replace('"', "")
 
-        # Parse the datetime
-        df["Interval Start"] = pd.to_datetime(df["Local Time"]).dt.tz_localize(
-            self.default_timezone,
-            ambiguous="infer",
+        # Parse the datetime. Since each reserve zone id has a DST switch, we need to
+        # group by it to infer the ambiguous times
+        df["Interval Start"] = df.groupby("Reserve Zone ID", group_keys=False)[
+            "Local Time"
+        ].apply(
+            lambda x: pd.to_datetime(x).dt.tz_localize(
+                self.default_timezone,
+                ambiguous="infer",
+            ),
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
 
