@@ -49,3 +49,18 @@ ISONE_RESERVE_ZONE_ALL_COLUMNS = [
     "Reserve Zone Id",
     "Reserve Zone Name",
 ] + ISONE_RESERVE_ZONE_FLOAT_COLUMNS
+
+# Column mapping for reserve zone data (used across multiple methods)
+ISONE_RESERVE_ZONE_COLUMN_MAP = {
+    "ReserveZoneId": "Reserve Zone Id",
+    "ReserveZoneName": "Reserve Zone Name",
+    "TenMinSpinRequirement": "Ten Min Spin Requirement",
+    "TmnsrClearingPrice": "TMNSR Clearing Price",
+    "TmnsrDesignatedMw": "TMNSR Designated MW",
+    "TmorClearingPrice": "TMOR Clearing Price",
+    "TmorDesignatedMw": "TMOR Designated MW",
+    "TmsrClearingPrice": "TMSR Clearing Price",
+    "TmsrDesignatedMw": "TMSR Designated MW",
+    "Total10MinRequirement": "Total 10 Min Requirement",
+    "Total30MinRequirement": "Total 30 Min Requirement",
+}

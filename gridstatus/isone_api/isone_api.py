@@ -14,6 +14,7 @@ from gridstatus.gs_logging import logger as log
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
+    ISONE_RESERVE_ZONE_COLUMN_MAP,
     ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
 )
 
@@ -75,6 +76,46 @@ class ISONEAPI:
             date_string = date_string.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
         dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f%z")
         return dt.astimezone(pytz.timezone(self.default_timezone))
+
+    def _build_url(
+        self,
+        dataset: str,
+        date: pd.Timestamp | Literal["latest"],
+    ) -> str:
+        """
+        Build URL for API requests following the pattern:
+        - {base_url}/{dataset}/current for "latest"
+        - {base_url}/{dataset}/day/{YYYYMMDD} for specific dates
+
+        Args:
+            dataset: The dataset path (e.g., "fiveminutercp", "daasreservedata")
+            date: Either "latest" for current data or a Timestamp for historical data
+
+        Returns:
+            str: The formatted URL
+        """
+        if date == "latest":
+            return f"{self.base_url}/{dataset}/current"
+        else:
+            return f"{self.base_url}/{dataset}/day/{date.strftime('%Y%m%d')}"
+
+    @staticmethod
+    def _safe_get(d: dict, *keys):
+        """
+        Safely get nested dictionary values, returning empty dict if any key is missing or value is not a dict.
+
+        Args:
+            d: Dictionary to traverse
+            *keys: Keys to access in nested order
+
+        Returns:
+            dict: The value at the nested key path, or empty dict if not found or not a dict
+        """
+        for k in keys:
+            d = d.get(k, {})
+            if not isinstance(d, dict):
+                return {}
+        return d
 
     def make_api_call(
         self,
@@ -1089,28 +1130,24 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_regulation_clearing_prices_real_time_5_min(
         self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
+        date: pd.Timestamp | Literal["latest"] = "latest",
+        end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get five-minute clearing prices for both regulation capacity and service in real-time.
 
         Args:
-            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
-            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
             pd.DataFrame: A DataFrame containing five-minute regulation clearing prices.
         """
-        if date == "latest":
-            url = f"{self.base_url}/fiveminutercp/current"
-        else:
-            url = f"{self.base_url}/fiveminutercp/day/{date.strftime('%Y%m%d')}"
-
+        url = self._build_url("fiveminutercp", date)
         response = self.make_api_call(url, verbose=verbose)
-        df = pd.DataFrame(response.get("FiveMinRcps", {}).get("FiveMinRcp", {}))
+        df = pd.DataFrame(self._safe_get(response, "FiveMinRcps", "FiveMinRcp"))
 
         if df.empty:
             raise NoDataFoundException(
@@ -1156,32 +1193,31 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_reserve_requirements_prices_forecast_day_ahead(
         self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
+        date: pd.Timestamp | Literal["latest"] = "latest",
+        end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get day-ahead reserve prices, requirements, and forecast for reserve zone 7000 (system-wide).
 
         Args:
-            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
-            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
             pd.DataFrame: A DataFrame containing day-ahead reserve requirements, prices, and forecast.
         """
-        if date == "latest":
-            url = f"{self.base_url}/daasreservedata/current"
-        else:
-            url = f"{self.base_url}/daasreservedata/day/{date.strftime('%Y%m%d')}"
-
+        url = self._build_url("daasreservedata", date)
         response = self.make_api_call(url, verbose=verbose)
 
         df = pd.json_normalize(
-            response.get("isone_web_services", {})
-            .get("day_ahead_reserves", {})
-            .get("day_ahead_reserve", {}),
+            self._safe_get(
+                response,
+                "isone_web_services",
+                "day_ahead_reserves",
+                "day_ahead_reserve",
+            ),
         )
 
         if df.empty:
@@ -1253,32 +1289,26 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_5_min(
         self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
+        date: pd.Timestamp | Literal["latest"] = "latest",
+        end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get five-minute real-time reserve prices, requirements, and designations by zone.
 
         Args:
-            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
-            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
             pd.DataFrame: A DataFrame containing five-minute reserve zone prices and designations.
         """
-        if date == "latest":
-            url = f"{self.base_url}/fiveminutereserveprice/current"
-        else:
-            url = (
-                f"{self.base_url}/fiveminutereserveprice/day/{date.strftime('%Y%m%d')}"
-            )
-
+        url = self._build_url("fiveminutereserveprice", date)
         response = self.make_api_call(url, verbose=verbose)
 
         df = pd.DataFrame(
-            response.get("FiveMinReservePrices", {}).get("FiveMinReservePrice", {}),
+            self._safe_get(response, "FiveMinReservePrices", "FiveMinReservePrice"),
         )
 
         if df.empty:
@@ -1297,21 +1327,7 @@ class ISONEAPI:
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
 
-        df = df.rename(
-            columns={
-                "ReserveZoneId": "Reserve Zone Id",
-                "ReserveZoneName": "Reserve Zone Name",
-                "TenMinSpinRequirement": "Ten Min Spin Requirement",
-                "TmnsrClearingPrice": "TMNSR Clearing Price",
-                "TmnsrDesignatedMw": "TMNSR Designated MW",
-                "TmorClearingPrice": "TMOR Clearing Price",
-                "TmorDesignatedMw": "TMOR Designated MW",
-                "TmsrClearingPrice": "TMSR Clearing Price",
-                "TmsrDesignatedMw": "TMSR Designated MW",
-                "Total10MinRequirement": "Total 10 Min Requirement",
-                "Total30MinRequirement": "Total 30 Min Requirement",
-            },
-        )
+        df = df.rename(columns=ISONE_RESERVE_ZONE_COLUMN_MAP)
 
         for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
             df[col] = df[col].astype(float)
@@ -1323,32 +1339,29 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_hourly_prelim(
         self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
+        date: pd.Timestamp | Literal["latest"] = "latest",
+        end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get preliminary hourly reserve prices, requirements, and designations by zone.
 
         Args:
-            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
-            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
             pd.DataFrame: A DataFrame containing preliminary hourly reserve zone prices and designations.
         """
-        if date == "latest":
-            url = f"{self.base_url}/hourlyprelimreserveprice/current"
-        else:
-            url = f"{self.base_url}/hourlyprelimreserveprice/day/{date.strftime('%Y%m%d')}"
-
+        url = self._build_url("hourlyprelimreserveprice", date)
         response = self.make_api_call(url, verbose=verbose)
 
         df = pd.DataFrame(
-            response.get("PrelimHourlyReservePrices", {}).get(
+            self._safe_get(
+                response,
+                "PrelimHourlyReservePrices",
                 "PrelimHourlyReservePrice",
-                {},
             ),
         )
 
@@ -1362,21 +1375,7 @@ class ISONEAPI:
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
-        df = df.rename(
-            columns={
-                "ReserveZoneId": "Reserve Zone Id",
-                "ReserveZoneName": "Reserve Zone Name",
-                "TenMinSpinRequirement": "Ten Min Spin Requirement",
-                "TmnsrClearingPrice": "TMNSR Clearing Price",
-                "TmnsrDesignatedMw": "TMNSR Designated MW",
-                "TmorClearingPrice": "TMOR Clearing Price",
-                "TmorDesignatedMw": "TMOR Designated MW",
-                "TmsrClearingPrice": "TMSR Clearing Price",
-                "TmsrDesignatedMw": "TMSR Designated MW",
-                "Total10MinRequirement": "Total 10 Min Requirement",
-                "Total30MinRequirement": "Total 30 Min Requirement",
-            },
-        )
+        df = df.rename(columns=ISONE_RESERVE_ZONE_COLUMN_MAP)
 
         for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
             df[col] = df[col].astype(float)
@@ -1388,34 +1387,29 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_hourly_final(
         self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
+        date: pd.Timestamp | Literal["latest"] = "latest",
+        end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get final hourly reserve prices, requirements, and designations by zone.
 
         Args:
-            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
-            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
             pd.DataFrame: A DataFrame containing final hourly reserve zone prices and designations.
         """
-        if date == "latest":
-            url = f"{self.base_url}/hourlyfinalreserveprice/current"
-        else:
-            url = (
-                f"{self.base_url}/hourlyfinalreserveprice/day/{date.strftime('%Y%m%d')}"
-            )
-
+        url = self._build_url("hourlyfinalreserveprice", date)
         response = self.make_api_call(url, verbose=verbose)
 
         df = pd.DataFrame(
-            response.get("FinalHourlyReservePrices", {}).get(
+            self._safe_get(
+                response,
+                "FinalHourlyReservePrices",
                 "FinalHourlyReservePrice",
-                {},
             ),
         )
 
@@ -1429,21 +1423,7 @@ class ISONEAPI:
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
-        df = df.rename(
-            columns={
-                "ReserveZoneId": "Reserve Zone Id",
-                "ReserveZoneName": "Reserve Zone Name",
-                "TenMinSpinRequirement": "Ten Min Spin Requirement",
-                "TmnsrClearingPrice": "TMNSR Clearing Price",
-                "TmnsrDesignatedMw": "TMNSR Designated MW",
-                "TmorClearingPrice": "TMOR Clearing Price",
-                "TmorDesignatedMw": "TMOR Designated MW",
-                "TmsrClearingPrice": "TMSR Clearing Price",
-                "TmsrDesignatedMw": "TMSR Designated MW",
-                "Total10MinRequirement": "Total 10 Min Requirement",
-                "Total30MinRequirement": "Total 30 Min Requirement",
-            },
-        )
+        df = df.rename(columns=ISONE_RESERVE_ZONE_COLUMN_MAP)
 
         for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
             df[col] = df[col].astype(float)
@@ -1455,32 +1435,31 @@ class ISONEAPI:
     @support_date_range("DAY_START")
     def get_ancillary_services_strike_prices_day_ahead(
         self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
+        date: pd.Timestamp | Literal["latest"] = "latest",
+        end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Get day-ahead strike prices and close-out components for ISO-NE.
 
         Args:
-            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
-            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            date (pd.Timestamp | Literal["latest"]): The start date for the data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
             pd.DataFrame: A DataFrame containing day-ahead strike prices and related data.
         """
-        if date == "latest":
-            url = f"{self.base_url}/daasstrikeprices/current"
-        else:
-            url = f"{self.base_url}/daasstrikeprices/day/{date.strftime('%Y%m%d')}"
-
+        url = self._build_url("daasstrikeprices", date)
         response = self.make_api_call(url, verbose=verbose)
 
         df = pd.json_normalize(
-            response.get("isone_web_services", {})
-            .get("day_ahead_strike_prices", {})
-            .get("day_ahead_strike_price", {}),
+            self._safe_get(
+                response,
+                "isone_web_services",
+                "day_ahead_strike_prices",
+                "day_ahead_strike_price",
+            ),
         )
 
         if df.empty:
