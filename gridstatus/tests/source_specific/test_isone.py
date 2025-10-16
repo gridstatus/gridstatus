@@ -392,15 +392,10 @@ class TestISONE(BaseTestISO):
                 == []
             )
 
-    """get_reserve_zone_prices_designations_real_time_five_min_final"""
+    """get_reserve_zone_prices_designations_real_time_5_min_final"""
 
-    @api_vcr.use_cassette()
-    def test_get_reserve_zone_prices_designations_real_time_five_min_final(self):
-        df = self.iso.get_reserve_zone_prices_designations_real_time_five_min_final(
-            date="Oct 14, 2025",
-            verbose=VERBOSE,
-        )
-
+    def _check_get_reserve_zone_prices_designations_real_time_5_min_final(self, df):
+        """Helper method with common checks for reserve zone data"""
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -418,7 +413,7 @@ class TestISONE(BaseTestISO):
         ]
 
         # Check that we have 5-minute intervals
-        self._check_time_columns(df, "interval")
+        self._check_time_columns(df, "interval", skip_column_named_time=True)
 
         # Should have multiple reserve zones
         assert len(df["Reserve Zone ID"].unique()) > 1
@@ -443,3 +438,44 @@ class TestISONE(BaseTestISO):
         intervals = (df["Interval End"] - df["Interval Start"]).unique()
         assert len(intervals) == 1
         assert intervals[0] == pd.Timedelta(minutes=5)
+
+    @api_vcr.use_cassette()
+    def test_get_reserve_zone_prices_designations_real_time_5_min_final(self):
+        df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
+            date="Oct 14, 2025",
+            verbose=VERBOSE,
+        )
+
+        self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)
+
+    @api_vcr.use_cassette()
+    def test_get_reserve_zone_prices_designations_real_time_5_min_final_date_range(
+        self,
+    ):
+        # Test a 5 hour span
+        start = pd.Timestamp("2025-10-14 10:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+        end = pd.Timestamp("2025-10-14 15:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+
+        df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
+            date=(start, end),
+            verbose=VERBOSE,
+        )
+
+        self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)
+
+        # Check exact min and max of Interval Start
+        assert df["Interval Start"].min() == start
+        assert df["Interval Start"].max() == end
+
+    @api_vcr.use_cassette()
+    def test_get_reserve_zone_prices_designations_real_time_5_min_final_latest(self):
+        df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
+            date="latest",
+            verbose=VERBOSE,
+        )
+
+        self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)
