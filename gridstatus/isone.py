@@ -882,7 +882,7 @@ class ISONE(ISOBase):
             Total Reserve Clearing Price
         """
         if date == "latest":
-            # Try today first, if no data fall back to yesterday
+            # Try today first then yesterday then two days ago
             df = self.get_reserve_zone_prices_designations_real_time_5_min_final(
                 "today",
                 verbose=verbose,

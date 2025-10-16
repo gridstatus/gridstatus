@@ -447,7 +447,7 @@ class TestISONE(BaseTestISO):
         # So we should get data for all days in the range (inclusive of end date)
         start = pd.Timestamp.now(
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=2)
+        ).normalize() - pd.Timedelta(days=5)
         end = start + pd.Timedelta(days=1)
 
         cassette_name = f"test_get_reserve_zone_prices_designations_real_time_5_min_final_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}"
@@ -464,8 +464,7 @@ class TestISONE(BaseTestISO):
         # Decorator processes each day separately, then concatenates
         # So we expect data from three_days_ago through end of two_days_ago
         assert df["Interval Start"].min() == start
-        # Not inclusive
-        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
+        assert df["Interval Start"].max() == end + pd.Timedelta(hours=23, minutes=55)
 
     @pytest.mark.parametrize("date", DST_BOUNDARIES)
     def test_get_reserve_zone_prices_designations_real_time_5_min_final_dst_boundary(
