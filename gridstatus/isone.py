@@ -861,9 +861,9 @@ class ISONE(ISOBase):
     @support_date_range(frequency=None)
     def get_reserve_zone_prices_designations_real_time_5_min_final(
         self,
-        date,
-        end=None,
-        verbose=False,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
     ):
         """Return final five-minute reserve zone requirements, prices, and designations
 
