@@ -261,6 +261,67 @@ class TestNYISO(BaseTestISO):
             # There is only one interval, so the diff is 0
             assert (diffs == pd.Timedelta(minutes=0)).all()
 
+    def test_get_lmp_real_time_15_min_interval_boundaries(self):
+        """Test that 15-minute LMP intervals fall on correct boundaries.
+
+        This test validates that 15-minute intervals:
+        1. Have Interval Start times at :00, :15, :30, :45
+        2. Have Interval End times at :00, :15, :30, :45
+        3. Are exactly 15 minutes long
+        4. Are contiguous (no gaps between intervals)
+
+        This test would fail under the old implementation where intervals
+        were incorrectly at :10, :25, :40, :55 due to miscalculating the
+        interval start by subtracting 5 minutes instead of 15 minutes from
+        the raw timestamp.
+        """
+        with nyiso_vcr.use_cassette(
+            "test_get_lmp_real_time_15_min_interval_boundaries.yaml",
+        ):
+            df = self.iso.get_lmp("today", market=Markets.REAL_TIME_15_MIN)
+
+            # Skip test if no 15-minute data available yet
+            if df.empty:
+                pytest.skip("No 15-minute data available")
+
+            # Test 1: All intervals are exactly 15 minutes
+            durations = (
+                df["Interval End"] - df["Interval Start"]
+            ).dt.total_seconds() / 60
+            assert (durations == 15).all(), (
+                "All 15-minute intervals must be exactly 15 minutes long"
+            )
+
+            # Test 2: All Interval Start minutes are on correct boundaries (0, 15, 30, 45)
+            start_minutes = df["Interval Start"].dt.minute
+            valid_start_minutes = start_minutes.isin([0, 15, 30, 45])
+            assert valid_start_minutes.all(), (
+                f"All Interval Start minutes must be 0, 15, 30, or 45. Found: {start_minutes.unique()}"
+            )
+
+            # Test 3: All Interval End minutes are on correct boundaries (0, 15, 30, 45)
+            end_minutes = df["Interval End"].dt.minute
+            valid_end_minutes = end_minutes.isin([0, 15, 30, 45])
+            assert valid_end_minutes.all(), (
+                f"All Interval End minutes must be 0, 15, 30, or 45. Found: {end_minutes.unique()}"
+            )
+
+            # Test 4: Intervals are contiguous for each location
+            for location in df["Location"].unique():
+                df_location = df[df["Location"] == location].sort_values(
+                    "Interval Start",
+                )
+                if len(df_location) > 1:
+                    # Check that each interval's end matches the next interval's start
+                    gaps = (
+                        df_location["Interval Start"].iloc[1:].values
+                        - df_location["Interval End"].iloc[:-1].values
+                    )
+                    gaps_seconds = pd.to_timedelta(gaps).total_seconds()
+                    assert (gaps_seconds == 0).all(), (
+                        f"Intervals must be contiguous for location {location}"
+                    )
+
     @pytest.mark.parametrize(
         "start,end",
         [
