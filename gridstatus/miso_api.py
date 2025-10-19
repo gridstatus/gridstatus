@@ -1459,10 +1459,6 @@ class MISOAPI:
     def _data_list_to_df(self, data_list: List[Dict[str, Any]]) -> pd.DataFrame:
         df = pd.DataFrame(data_list)
 
-        # Handle empty data
-        if df.empty:
-            return df
-
         if "timeInterval" not in df.columns and "interval" in df.columns:
             df["timeInterval"] = df["interval"]
             df = df.drop(columns=["interval"])
