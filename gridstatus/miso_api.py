@@ -209,11 +209,11 @@ class MISOAPI:
     ) -> pd.DataFrame:
         data_lists = retrieval_func(date, end, verbose=verbose, **kwargs)
 
-        data_list = self._flatten([data_lists])
+        data_list = self._flatten(data_lists)
 
         return self._process_pricing_data(data_list, market=market)
 
-    @support_date_range(frequency="HOUR_START")
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_day_ahead_hourly(
         self,
         date: datetime.datetime,
@@ -232,7 +232,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="HOUR_START")
+    @support_date_range(frequency="HOUR_START", return_raw=True)
     def _get_lmp_real_time_hourly_ex_post(
         self,
         date: datetime.datetime,
@@ -251,7 +251,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="5_MIN")
+    @support_date_range(frequency="5_MIN", return_raw=True)
     def _get_lmp_real_time_5_min_ex_ante(
         self,
         date: datetime.datetime,
@@ -271,7 +271,7 @@ class MISOAPI:
 
         return data_list
 
-    @support_date_range(frequency="5_MIN")
+    @support_date_range(frequency="5_MIN", return_raw=True)
     def _get_lmp_real_time_5_min_ex_post(
         self,
         date: datetime.datetime,
@@ -1458,6 +1458,10 @@ class MISOAPI:
 
     def _data_list_to_df(self, data_list: List[Dict[str, Any]]) -> pd.DataFrame:
         df = pd.DataFrame(data_list)
+
+        # Handle empty data
+        if df.empty:
+            return df
 
         if "timeInterval" not in df.columns and "interval" in df.columns:
             df["timeInterval"] = df["interval"]
