@@ -29,3 +29,38 @@ ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS = [
     "Cold Weather Warning",
     "Cold Weather Event",
 ]
+
+# Reserve zone price columns used across multiple real-time methods
+ISONE_RESERVE_ZONE_FLOAT_COLUMNS = [
+    "Ten Min Spin Requirement",
+    "TMNSR Clearing Price",
+    "TMNSR Designated MW",
+    "TMOR Clearing Price",
+    "TMOR Designated MW",
+    "TMSR Clearing Price",
+    "TMSR Designated MW",
+    "Total 10 Min Requirement",
+    "Total 30 Min Requirement",
+]
+
+ISONE_RESERVE_ZONE_ALL_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Reserve Zone Id",
+    "Reserve Zone Name",
+] + ISONE_RESERVE_ZONE_FLOAT_COLUMNS
+
+# Column mapping for reserve zone data (used across multiple methods)
+ISONE_RESERVE_ZONE_COLUMN_MAP = {
+    "ReserveZoneId": "Reserve Zone Id",
+    "ReserveZoneName": "Reserve Zone Name",
+    "TenMinSpinRequirement": "Ten Min Spin Requirement",
+    "TmnsrClearingPrice": "TMNSR Clearing Price",
+    "TmnsrDesignatedMw": "TMNSR Designated MW",
+    "TmorClearingPrice": "TMOR Clearing Price",
+    "TmorDesignatedMw": "TMOR Designated MW",
+    "TmsrClearingPrice": "TMSR Clearing Price",
+    "TmsrDesignatedMw": "TMSR Designated MW",
+    "Total10MinRequirement": "Total 10 Min Requirement",
+    "Total30MinRequirement": "Total 30 Min Requirement",
+}

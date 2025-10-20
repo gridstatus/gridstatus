@@ -50,6 +50,43 @@ def date_range_maker(
 # current or latest endpoints that are automatically handled. Currently cannot refactor this confidently
 # without improved testing since it touches many methods
 class support_date_range:
+    """Decorator that enables automatic date range splitting and iteration.
+
+    This decorator automatically splits large date ranges into smaller chunks based on
+    the specified frequency, calls the decorated function for each chunk, and combines
+    the results.
+
+    Args:
+        frequency: Maximum frequency for splitting date ranges. Common values:
+            - "DAY_START": Split by day
+            - "HOUR_START": Split by hour
+            - "5_MIN": Split by 5 minute intervals
+            - "MONTH_START": Split by month
+            - "YEAR_START": Split by year
+            - None: No splitting, pass date range as-is
+        update_dates: Optional callback to customize date range splitting logic
+        return_raw: If True, return list of results instead of concatenating
+
+    Decorator-specific kwargs (can be passed to decorated functions):
+        error (str): Error handling mode. Default: "ignore"
+            - "ignore": Print errors and continue with next date range
+            - "raise": Raise errors immediately
+        save_to (str): Directory path to save results as CSV files.
+            Creates directory if needed. Files are named:
+            {ClassName}_{method_name}_{start_date}_{end_date}.csv
+        start: Alternative parameter name for 'date' (automatically converted)
+
+    Example:
+        @support_date_range(frequency="DAY_START")
+        def get_data(self, date, end=None, verbose=False):
+            # Function is called once per day in the range
+            return fetch_data_for_date(date)
+
+        # Usage:
+        df = iso.get_data(date="2024-01-01", end="2024-01-10", error="raise")
+        # Calls get_data for each day and concatenates results
+    """
+
     def __init__(
         self,
         frequency: str | Callable[[Dict[str, Any]], str] | None,
@@ -62,7 +99,6 @@ class support_date_range:
         ) = None,
         return_raw: bool = False,
     ) -> None:
-        """Maximum frequency of ranges. if None, then no new ranges are created."""
         self.frequency = frequency
         self.update_dates = update_dates
         self.return_raw = return_raw

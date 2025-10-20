@@ -82,6 +82,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        **kwargs,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
@@ -90,6 +91,7 @@ class MISOAPI:
             market=Markets.DAY_AHEAD_HOURLY_EX_ANTE,
             version=EX_ANTE,
             verbose=verbose,
+            **kwargs,
         )
 
     def get_lmp_day_ahead_hourly_ex_post(
@@ -97,6 +99,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        **kwargs,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
@@ -105,6 +108,7 @@ class MISOAPI:
             market=Markets.DAY_AHEAD_HOURLY_EX_POST,
             version=EX_POST,
             verbose=verbose,
+            **kwargs,
         )
 
     def get_lmp_real_time_hourly_ex_post_prelim(
@@ -112,6 +116,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        **kwargs,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
@@ -120,6 +125,7 @@ class MISOAPI:
             market=Markets.REAL_TIME_HOURLY_EX_POST_PRELIM,
             prelim_or_final=PRELIMINARY_STRING,
             verbose=verbose,
+            **kwargs,
         )
 
     def get_lmp_real_time_hourly_ex_post_final(
@@ -127,6 +133,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        **kwargs,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
@@ -135,6 +142,7 @@ class MISOAPI:
             market=Markets.REAL_TIME_HOURLY_EX_POST_FINAL,
             prelim_or_final=FINAL_STRING,
             verbose=verbose,
+            **kwargs,
         )
 
     def get_lmp_real_time_5_min_ex_ante(
@@ -142,6 +150,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        **kwargs,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
@@ -149,6 +158,7 @@ class MISOAPI:
             retrieval_func=self._get_lmp_real_time_5_min_ex_ante,
             market=Markets.REAL_TIME_5_MIN_EX_ANTE,
             verbose=verbose,
+            **kwargs,
         )
 
     def get_lmp_real_time_5_min_ex_post_prelim(
@@ -156,6 +166,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        **kwargs,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
@@ -164,6 +175,7 @@ class MISOAPI:
             market=Markets.REAL_TIME_5_MIN_EX_POST_PRELIM,
             prelim_or_final=PRELIMINARY_STRING,
             verbose=verbose,
+            **kwargs,
         )
 
     def get_lmp_real_time_5_min_ex_post_final(
@@ -171,6 +183,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        **kwargs,
     ) -> pd.DataFrame:
         return self._get_pricing_data(
             date,
@@ -179,6 +192,7 @@ class MISOAPI:
             market=Markets.REAL_TIME_5_MIN_EX_POST_FINAL,
             prelim_or_final=FINAL_STRING,
             verbose=verbose,
+            **kwargs,
         )
 
     # NOTE: this method does not use the support_date_range decorator. Instead
@@ -188,7 +202,7 @@ class MISOAPI:
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
-        retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
+        retrieval_func: Callable[..., List[Dict[str, Any]]],
         market: Markets,
         verbose: bool = False,
         **kwargs: Any,
@@ -595,7 +609,10 @@ class MISOAPI:
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_cleared_generation_hourly(
-            date, end, verbose, generation_type="physical"
+            date,
+            end,
+            verbose,
+            generation_type="physical",
         )
 
     @support_date_range(frequency="DAY_START")
@@ -609,7 +626,10 @@ class MISOAPI:
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_cleared_generation_hourly(
-            date, end, verbose, generation_type="virtual"
+            date,
+            end,
+            verbose,
+            generation_type="virtual",
         )
 
     @support_date_range(frequency="DAY_START")
@@ -724,7 +744,10 @@ class MISOAPI:
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_offered_generation_hourly(
-            date, end, verbose, ecotype="ecomax"
+            date,
+            end,
+            verbose,
+            ecotype="ecomax",
         )
 
     @support_date_range(frequency="DAY_START")
@@ -738,7 +761,10 @@ class MISOAPI:
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         return self._get_day_ahead_offered_generation_hourly(
-            date, end, verbose, ecotype="ecomin"
+            date,
+            end,
+            verbose,
+            ecotype="ecomin",
         )
 
     @support_date_range(frequency="DAY_START")
@@ -885,7 +911,7 @@ class MISOAPI:
     ) -> pd.DataFrame:
         if date == "latest":
             date = pd.Timestamp.today(tz=self.default_timezone).floor(
-                "d"
+                "d",
             ) - pd.Timedelta(days=1)  # Yesterday
 
         return self._get_real_time_cleared_demand(
@@ -948,15 +974,18 @@ class MISOAPI:
         The timestamps are off by 5 hours, seems to be a timezone issue, UTC instead of EST.
         """
         raise NotImplementedError(
-            "get_real_time_cleared_generation_hourly is not ready for use yet."
+            "get_real_time_cleared_generation_hourly is not ready for use yet.",
         )
         if date == "latest":
             date = pd.Timestamp.today(tz=self.default_timezone).floor(
-                "d"
+                "d",
             ) - pd.Timedelta(days=1)  # Yesterday
 
         return self._get_real_time_cleared_generation(
-            date, end, verbose, time_resolution=HOURLY_RESOLUTION
+            date,
+            end,
+            verbose,
+            time_resolution=HOURLY_RESOLUTION,
         )
 
     @support_date_range(frequency="DAY_START")
@@ -1152,7 +1181,7 @@ class MISOAPI:
     ) -> pd.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d") - pd.Timedelta(
-                days=1
+                days=1,
             )
 
         date_str = date.strftime("%Y-%m-%d")
@@ -1191,7 +1220,7 @@ class MISOAPI:
 
         data = data.sort_values(["Interval Start", "Region"])
         return data[["Interval Start", "Interval End", "Region", "Load"]].reset_index(
-            drop=True
+            drop=True,
         )
 
     @support_date_range(frequency="DAY_START")
@@ -1251,7 +1280,7 @@ class MISOAPI:
         """
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d") + pd.Timedelta(
-                days=6
+                days=6,
             )  # Forecast date must be within 7 days of the publish_time.
 
         date_str = date.strftime("%Y-%m-%d")
@@ -1310,7 +1339,7 @@ class MISOAPI:
                 data[col] = data[col].astype(float)
 
         data = data.sort_values(
-            ["Interval Start", "Publish Time", "Region", "Local Resource Zone"]
+            ["Interval Start", "Publish Time", "Region", "Local Resource Zone"],
         )
         return data[
             [

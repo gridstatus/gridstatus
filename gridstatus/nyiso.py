@@ -690,10 +690,15 @@ class NYISO(ISOBase):
             df.loc[~mask_15_min, "Market"] = Markets.REAL_TIME_5_MIN.value
             df.loc[mask_15_min, "Market"] = Markets.REAL_TIME_15_MIN.value
 
-            df.loc[mask_15_min, "Interval End"] = df.loc[
+            # For 15-min data, the original "Interval End" column contains the correct
+            # end time (since the raw data has timestamps as interval END). However,
+            # "Interval Start" was calculated assuming a 5-minute interval, so we need
+            # to recalculate it for 15-minute intervals.
+            # Interval Start = Interval End - 15 minutes
+            df.loc[mask_15_min, "Interval Start"] = df.loc[
                 mask_15_min,
-                "Interval Start",
-            ] + pd.Timedelta(
+                "Interval End",
+            ] - pd.Timedelta(
                 minutes=15,
             )
 
