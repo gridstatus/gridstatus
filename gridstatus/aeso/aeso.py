@@ -226,12 +226,12 @@ class AESO:
         Returns:
             DataFrame containing current supply and demand information
         """
-        endpoint = "currentsupplydemand-api/v1/csd/summary/current"
+        endpoint = "currentsupplydemand-api/v2/csd/summary/current"
         data = self._make_request(endpoint)
 
         df = pd.json_normalize(data["return"])
         df["Time"] = pd.to_datetime(
-            df["last_updated_datetime_utc"],
+            df["effective_datetime_utc"],
             utc=True,
         ).dt.tz_convert(self.default_timezone)
 
@@ -269,16 +269,16 @@ class AESO:
             DataFrame containing generation data by fuel type, with each fuel type as a column
             containing its net generation value
         """
-        endpoint = "currentsupplydemand-api/v1/csd/summary/current"
+        endpoint = "currentsupplydemand-api/v2/csd/summary/current"
         data = self._make_request(endpoint)
 
         df = pd.json_normalize(
             data["return"],
             record_path="generation_data_list",
-            meta=["last_updated_datetime_utc"],
+            meta=["effective_datetime_utc"],
         )
         df["Time"] = pd.to_datetime(
-            df["last_updated_datetime_utc"],
+            df["effective_datetime_utc"],
             utc=True,
         ).dt.tz_convert(self.default_timezone)
         df["fuel_type"] = df["fuel_type"].str.title()
@@ -299,16 +299,16 @@ class AESO:
             DataFrame containing interchange data with separate columns for each region's flow
             and a net interchange flow column
         """
-        endpoint = "currentsupplydemand-api/v1/csd/summary/current"
+        endpoint = "currentsupplydemand-api/v2/csd/summary/current"
         data = self._make_request(endpoint)
 
         df = pd.json_normalize(
             data["return"],
             record_path="interchange_list",
-            meta=["last_updated_datetime_utc"],
+            meta=["effective_datetime_utc"],
         )
         df["Time"] = pd.to_datetime(
-            df["last_updated_datetime_utc"],
+            df["effective_datetime_utc"],
             utc=True,
         ).dt.tz_convert(self.default_timezone)
 
@@ -341,12 +341,12 @@ class AESO:
         Returns:
             DataFrame containing reserve information
         """
-        endpoint = "currentsupplydemand-api/v1/csd/summary/current"
+        endpoint = "currentsupplydemand-api/v2/csd/summary/current"
         data = self._make_request(endpoint)
 
         df = pd.json_normalize(data["return"])
         df["Time"] = pd.to_datetime(
-            df["last_updated_datetime_utc"],
+            df["effective_datetime_utc"],
             utc=True,
         ).dt.tz_convert(self.default_timezone)
 
