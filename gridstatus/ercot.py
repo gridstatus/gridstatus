@@ -2820,7 +2820,10 @@ class Ercot(ISOBase):
         return self._handle_as_reports_file(doc.url, verbose=verbose)
 
     def _handle_as_reports_file(
-        self, file_path: str, verbose: bool = False, **kwargs
+        self,
+        file_path: str,
+        verbose: bool = False,
+        **kwargs,
     ) -> pd.DataFrame:
         z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
@@ -3504,9 +3507,11 @@ class Ercot(ISOBase):
         # Process files in a loop to add the publish time for each doc
         df = pd.concat(
             [
-                self.read_doc(doc, verbose=verbose).assign(
-                    **{"Publish Time": doc.publish_date}
-                )
+                self.read_doc(
+                    doc,
+                    verbose=verbose,
+                    parse_doc_kwargs={"keep_dst_flag": True},
+                ).assign(**{"Publish Time": doc.publish_date})
                 for doc in docs
             ],
         )
@@ -3541,7 +3546,23 @@ class Ercot(ISOBase):
             # after the correction, the straight duplicate intervals remain, so we remove them
             df = df.drop_duplicates(subset=["Interval Start", "Publish Time"])
 
-        return df.sort_values("Interval Start")
+        # Raw data looks like
+        # DeliveryDate,HourEnding,Coast,East,FarWest,North,NorthCentral,SouthCentral,Southern,West,DSTFlag
+        # 11/02/2025,01:00,63.3, 58, 60, 57, 60, 63.5, 71.4, 59,N
+        # 11/02/2025,02:00,124.3, 113, 114, 111, 116.25, 120.5, 140.6, 112.8,N
+        # 11/02/2025,03:00,60.9, 55, 54, 54, 56.25, 58, 68.8, 54.2,Y
+        # 11/02/2025,03:00,60.9, 55, 54, 54, 56.25, 58, 68.8, 54.2,N
+        # The 3:00 ending hour is duplicated when it should be the 2:00 ending hour
+        # (We will not correct the obviously wrong temperature values)
+        dst_transition_date_2025 = pd.Timestamp("2025-11-02")
+        if dst_transition_date_2025.date() in df["Interval Start"].dt.date.values:
+            mask = (df["Interval End"] == "2025-11-02 03:00:00 -0600") & (
+                df["DSTFlag"] == "Y"
+            )
+            df.loc[mask, "Interval End"] = pd.Timestamp("2025-11-02 02:00:00 -0600")
+            df.loc[mask, "Interval Start"] = pd.Timestamp("2025-11-02 01:00:00 -0600")
+
+        return df.sort_values("Interval Start").drop(columns=["DSTFlag"])
 
     def _get_document(
         self,
@@ -3785,19 +3806,22 @@ class Ercot(ISOBase):
         verbose: bool = False,
         request_kwargs: dict | None = None,
         read_csv_kwargs: dict | None = None,
+        parse_doc_kwargs: dict | None = None,
     ) -> pd.DataFrame:
         logger.debug(f"Reading {doc.url}")
 
         if request_kwargs:
             response = requests.get(doc.url, **(request_kwargs or {})).content
             df = pd.read_csv(
-                io.BytesIO(response), compression="zip", **(read_csv_kwargs or {})
+                io.BytesIO(response),
+                compression="zip",
+                **(read_csv_kwargs or {}),
             )
         else:
             df = pd.read_csv(doc.url, compression="zip", **(read_csv_kwargs or {}))
 
         if parse:
-            df = self.parse_doc(df, verbose=verbose)
+            df = self.parse_doc(df, verbose=verbose, **(parse_doc_kwargs or {}))
         return df
 
     def read_docs(
@@ -3844,6 +3868,7 @@ class Ercot(ISOBase):
         dst_ambiguous_default: str = "infer",
         verbose: bool = False,
         nonexistent: str = "raise",
+        keep_dst_flag: bool = False,
     ) -> pd.DataFrame:
         # files sometimes have different naming conventions
         # a more elegant solution would be nice
@@ -3975,6 +4000,8 @@ class Ercot(ISOBase):
 
         for col in optional_drop:
             if col in doc.columns:
+                if col == "DSTFlag" and keep_dst_flag:
+                    continue
                 doc = doc.drop(columns=[col])
 
         return doc
