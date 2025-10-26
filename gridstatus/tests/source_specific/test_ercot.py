@@ -1750,13 +1750,6 @@ class TestErcot(BaseTestISO):
 
         self._check_temperature_forecast_by_weather_zone(df)
 
-        import IPython
-
-        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
-            "last_expr_or_assign"
-        )
-        IPython.embed()
-
         # Check for the presence of the repeated hour
         assert (
             pd.Timestamp("2025-11-02 01:00:00-0500", tz="US/Central")
