@@ -1394,7 +1394,7 @@ class AESO:
         df["Interval Start"] = pd.to_datetime(
             df["Forecast Transaction Date"],
             format="%Y-%m-%d %H:%M",
-        ).dt.tz_localize(self.default_timezone)
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         interval_length = (
             pd.Timedelta(minutes=10) if term == "shortterm" else pd.Timedelta(hours=1)
@@ -1694,7 +1694,7 @@ class AESO:
         df["Interval Start"] = pd.to_datetime(
             df["Forecast Transaction Date"],
             format="%Y-%m-%d %H:%M",
-        ).dt.tz_localize(self.default_timezone)
+        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
 
         if forecast_type == "shortterm":
             df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
