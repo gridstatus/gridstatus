@@ -1202,10 +1202,11 @@ class Ercot(ISOBase):
         supply_demand_json = self._get_supply_demand_json()
         data = pd.DataFrame(supply_demand_json["forecast"])
 
-        # timestamp contains a timezone offset, so we can parse it as utc then convert
-        # to local time to avoid DST transition issues.
+        # Use epoch to get the UTC timestamps then convert to local to avoid issues
+        # around DST transitions
         data["Interval End"] = pd.to_datetime(
-            data["timestamp"],
+            data["epoch"],
+            unit="ms",
             utc=True,
         ).dt.tz_convert(self.default_timezone)
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
