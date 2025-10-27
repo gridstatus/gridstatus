@@ -2820,7 +2820,10 @@ class Ercot(ISOBase):
         return self._handle_as_reports_file(doc.url, verbose=verbose)
 
     def _handle_as_reports_file(
-        self, file_path: str, verbose: bool = False, **kwargs
+        self,
+        file_path: str,
+        verbose: bool = False,
+        **kwargs,
     ) -> pd.DataFrame:
         z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
@@ -3504,12 +3507,31 @@ class Ercot(ISOBase):
         # Process files in a loop to add the publish time for each doc
         df = pd.concat(
             [
-                self.read_doc(doc, verbose=verbose).assign(
-                    **{"Publish Time": doc.publish_date}
+                self.read_doc(doc, verbose=verbose, parse=False).assign(
+                    **{"Publish Time": doc.publish_date},
                 )
                 for doc in docs
             ],
         )
+
+        # For the 2025 DST end transition, the raw data looks like
+        # DeliveryDate,HourEnding,Coast,East,FarWest,North,NorthCentral,SouthCentral,Southern,West,DSTFlag
+        # 11/02/2025,01:00,63.3, 58, 60, 57, 60, 63.5, 71.4, 59,N
+        # 11/02/2025,02:00,124.3, 113, 114, 111, 116.25, 120.5, 140.6, 112.8,N
+        # 11/02/2025,03:00,60.9, 55, 54, 54, 56.25, 58, 68.8, 54.2,Y
+        # 11/02/2025,03:00,60.9, 55, 54, 54, 56.25, 58, 68.8, 54.2,N
+        # The 3:00 ending hour is duplicated when it should be the 2:00 ending hour
+        # (We will not correct the obviously wrong temperature values)
+        dst_transition_date_2025 = "11/02/2025"
+        if dst_transition_date_2025 in df["DeliveryDate"].unique():
+            mask = (
+                (df["DeliveryDate"] == "11/02/2025")
+                & (df["HourEnding"] == "03:00")
+                & (df["DSTFlag"] == "Y")
+            )
+            df.loc[mask, "HourEnding"] = "2:00"
+
+        df = self.parse_doc(df)
 
         df = df.drop(columns=["Time"]).rename(
             columns=self._weather_zone_column_name_mapping(),
@@ -3791,7 +3813,9 @@ class Ercot(ISOBase):
         if request_kwargs:
             response = requests.get(doc.url, **(request_kwargs or {})).content
             df = pd.read_csv(
-                io.BytesIO(response), compression="zip", **(read_csv_kwargs or {})
+                io.BytesIO(response),
+                compression="zip",
+                **(read_csv_kwargs or {}),
             )
         else:
             df = pd.read_csv(doc.url, compression="zip", **(read_csv_kwargs or {}))
