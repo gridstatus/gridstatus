@@ -1201,7 +1201,14 @@ class Ercot(ISOBase):
         """
         supply_demand_json = self._get_supply_demand_json()
         data = pd.DataFrame(supply_demand_json["forecast"])
-        data = self.parse_doc(data)
+
+        # timestamp contains a timezone offset, so we can parse it as utc then convert
+        # to local time to avoid DST transition issues.
+        data["Interval End"] = pd.to_datetime(
+            data["timestamp"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
 
         data.loc[
             :,
@@ -3971,7 +3978,7 @@ class Ercot(ISOBase):
                     "Interval Start",
                 ] - pd.Timedelta(hours=1)
 
-                # Not there will be a repeated hour and Pandas can infer
+                # Now there will be a repeated hour and Pandas can infer
                 # the ambiguous value
                 doc["Interval Start"] = doc["Interval Start"].dt.tz_localize(
                     self.default_timezone,
