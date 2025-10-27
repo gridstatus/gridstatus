@@ -1743,10 +1743,12 @@ class TestErcot(BaseTestISO):
 
         self._check_temperature_forecast_by_weather_zone(df)
 
-    @pytest.mark.integration
     def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self):
         # This forecast date includes 2025-11-02, DST end
-        df = self.iso.get_temperature_forecast_by_weather_zone("2025-10-26")
+        with api_vcr.use_cassette(
+            "test_get_temperature_forecast_by_weather_zone_dst_end_2025.yaml",
+        ):
+            df = self.iso.get_temperature_forecast_by_weather_zone("2025-10-26")
 
         self._check_temperature_forecast_by_weather_zone(df)
 
