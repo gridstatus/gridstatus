@@ -3639,35 +3639,14 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
-    @support_date_range(frequency=None)
     def get_sync_reserve_events(
         self,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Retrieves the synchronized reserve events data from:
         https://dataminer2.pjm.com/feed/sync_reserve_events/definition
         """
-        if date == "latest":
-            return self._get_pjm_json(
-                "sync_reserve_events",
-                start=None,
-                end=None,
-                params={
-                    "fields": "event_start_ept,event_end_ept,duration,synchronized_reserve_zone,synchronized_sub_zone,percent_deployed",
-                },
-                verbose=verbose,
-            ).head(1)
-
-        date = utils._handle_date(date, tz=self.default_timezone)
-        if end:
-            end = utils._handle_date(end, tz=self.default_timezone)
-        else:
-            end = date + pd.DateOffset(days=1)
-            end = end - pd.DateOffset(seconds=1)
-
         df = self._get_pjm_json(
             "sync_reserve_events",
             start=None,
@@ -3684,8 +3663,6 @@ class PJM(ISOBase):
         df["Interval End"] = pd.to_datetime(df["event_end_ept"]).dt.tz_localize(
             self.default_timezone,
         )
-
-        df = df[(df["Interval Start"] >= date) & (df["Interval Start"] < end)]
 
         df = df.rename(
             columns={
