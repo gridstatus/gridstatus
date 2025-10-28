@@ -1303,10 +1303,10 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Nomogram ID XML",
-                "Constraint Cause",
                 "Market Run ID",
+                "Constraint Cause",
+                "Price",
                 "Group",
             ]
             assert df["Interval Start"].min() >= pd.Timestamp(
@@ -1328,10 +1328,10 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Nomogram ID XML",
-                "Constraint Cause",
                 "Market Run ID",
+                "Constraint Cause",
+                "Price",
                 "Group",
             ]
             assert df["Interval Start"].min() >= self.local_start_of_today()
@@ -1352,10 +1352,10 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Nomogram ID XML",
-                "Constraint Cause",
                 "Market Run ID",
+                "Constraint Cause",
+                "Price",
                 "Group",
             ]
             assert df["Interval Start"].min() >= pd.Timestamp(
@@ -1377,10 +1377,10 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Nomogram ID XML",
-                "Constraint Cause",
                 "Market Run ID",
+                "Constraint Cause",
+                "Price",
                 "Group",
             ]
             assert df["Interval Start"].min() >= self.local_start_of_today()
@@ -1404,10 +1404,10 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Nomogram ID XML",
-                "Constraint Cause",
                 "Market Run ID",
+                "Constraint Cause",
+                "Price",
                 "Group",
             ]
             assert df["Interval Start"].min() >= pd.Timestamp(
@@ -1429,10 +1429,10 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Nomogram ID XML",
-                "Constraint Cause",
                 "Market Run ID",
+                "Constraint Cause",
+                "Price",
                 "Group",
             ]
             assert df["Interval Start"].min() >= self.local_start_of_today()
@@ -1460,9 +1460,9 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Market Run ID",
                 "Constraint Cause",
+                "Price",
                 "Group",
             ]
             assert df["Interval Start"].min() >= pd.Timestamp(
@@ -1486,9 +1486,9 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Market Run ID",
                 "Constraint Cause",
+                "Price",
                 "Group",
             ]
             assert df["Interval Start"].min() >= self.local_start_of_today()

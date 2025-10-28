@@ -2484,10 +2484,10 @@ class CAISO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Nomogram ID XML",
-                "Constraint Cause",
                 "Market Run ID",
+                "Constraint Cause",
+                "Price",
                 "Group",
             ]
         ]
@@ -2539,10 +2539,10 @@ class CAISO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Nomogram ID XML",
-                "Constraint Cause",
                 "Market Run ID",
+                "Constraint Cause",
+                "Price",
                 "Group",
             ]
         ]
@@ -2594,10 +2594,10 @@ class CAISO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Nomogram ID XML",
-                "Constraint Cause",
                 "Market Run ID",
+                "Constraint Cause",
+                "Price",
                 "Group",
             ]
         ]
@@ -2647,9 +2647,9 @@ class CAISO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Location",
-                "Price",
                 "Market Run ID",
                 "Constraint Cause",
+                "Price",
                 "Group",
             ]
         ]
