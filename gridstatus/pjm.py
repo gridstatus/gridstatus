@@ -3687,6 +3687,10 @@ class PJM(ISOBase):
                 "percent_deployed": "Percent Deployed",
             },
         )
+        df["Duration"] = df["Duration"].astype(str)
+        df["Duration Minutes"] = (
+            pd.to_timedelta(df["Duration"]).dt.total_minutes().astype(int)
+        )
 
         return (
             df[
@@ -3694,6 +3698,7 @@ class PJM(ISOBase):
                     "Interval Start",
                     "Interval End",
                     "Duration",
+                    "Duration Minutes",
                     "Synchronized Reserve Zone",
                     "Synchronized Subzone",
                     "Percent Deployed",
