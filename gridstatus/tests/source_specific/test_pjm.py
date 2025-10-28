@@ -3272,6 +3272,7 @@ class TestPJM(BaseTestISO):
         "Interval Start",
         "Interval End",
         "Duration",
+        "Duration Minutes",
         "Synchronized Reserve Zone",
         "Synchronized Subzone",
         "Percent Deployed",
@@ -3281,27 +3282,22 @@ class TestPJM(BaseTestISO):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.tolist() == self.expected_sync_reserve_events_cols
         assert not df.empty
-        assert df["Duration"].dtype in [np.float64, np.int64]
+        assert df["Duration"].dtype == object
+        assert df["Duration Minutes"].dtype in [np.float64, np.int64]
         assert df["Synchronized Reserve Zone"].dtype == object
         assert df["Synchronized Subzone"].dtype == object
         assert df["Percent Deployed"].dtype in [np.float64, np.int64]
 
-    @pytest.mark.parametrize("date", ["latest", "today"])
-    def test_get_sync_reserve_events_latest(self, date):
-        with pjm_vcr.use_cassette(f"test_get_sync_reserve_events_{date}.yaml"):
-            df = self.iso.get_sync_reserve_events(date)
+    def test_get_sync_reserve_events_latest(self):
+        with pjm_vcr.use_cassette("test_get_sync_reserve_events_latest.yaml"):
+            df = self.iso.get_sync_reserve_events()
             self._check_sync_reserve_events(df)
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+            assert len(df) > 0
+            assert df["Interval Start"].min() < self.local_start_of_today()
 
     def test_get_sync_reserve_events_historical_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=10)
-        past_end_date = past_date + pd.Timedelta(days=3)
-        with pjm_vcr.use_cassette(
-            f"test_get_sync_reserve_events_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
-        ):
-            df = self.iso.get_sync_reserve_events(past_date, past_end_date)
+        with pjm_vcr.use_cassette("test_get_sync_reserve_events_all.yaml"):
+            df = self.iso.get_sync_reserve_events()
             self._check_sync_reserve_events(df)
-            assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
-            assert df["Interval End"].max() <= self.local_start_of_day(
-                past_end_date,
-            ) + pd.Timedelta(days=1)
+            assert len(df) > 1000
+            assert df["Interval Start"].min().year == 2002
