@@ -3651,7 +3651,15 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/sync_reserve_events/definition
         """
         if date == "latest":
-            return self.get_sync_reserve_events("today")
+            return self._get_pjm_json(
+                "sync_reserve_events",
+                start=None,
+                end=None,
+                params={
+                    "fields": "event_start_ept,event_end_ept,duration,synchronized_reserve_zone,synchronized_sub_zone,percent_deployed",
+                },
+                verbose=verbose,
+            ).head(1)
 
         date = utils._handle_date(date, tz=self.default_timezone)
         if end:
@@ -3689,7 +3697,7 @@ class PJM(ISOBase):
         )
         df["Duration"] = df["Duration"].astype(str)
         df["Duration Minutes"] = (
-            pd.to_timedelta(df["Duration"]).dt.total_minutes().astype(int)
+            pd.to_timedelta(df["Duration"]).dt.total_seconds().astype(int) // 60
         )
 
         return (
