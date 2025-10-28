@@ -2479,7 +2479,18 @@ class CAISO(ISOBase):
             },
         )
 
-        return df
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Price",
+                "Nomogram ID XML",
+                "Constraint Cause",
+                "Market Run ID",
+                "Group",
+            ]
+        ]
 
     def get_nomogram_branch_shadow_prices_hasp_hourly(
         self,
@@ -2523,7 +2534,18 @@ class CAISO(ISOBase):
             },
         )
 
-        return df
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Price",
+                "Nomogram ID XML",
+                "Constraint Cause",
+                "Market Run ID",
+                "Group",
+            ]
+        ]
 
     def get_nomogram_branch_shadow_price_forecast_15_min(
         self,
@@ -2567,7 +2589,18 @@ class CAISO(ISOBase):
             },
         )
 
-        return df
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Price",
+                "Nomogram ID XML",
+                "Constraint Cause",
+                "Market Run ID",
+                "Group",
+            ]
+        ]
 
     def get_interval_nomogram_branch_shadow_prices_real_time_5_min(
         self,
@@ -2610,7 +2643,18 @@ class CAISO(ISOBase):
             },
         )
 
-        return df
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Price",
+                "Nomogram ID XML",
+                "Constraint Cause",
+                "Market Run ID",
+                "Group",
+            ]
+        ]
 
     def get_intertie_constraint_shadow_prices_real_time_5_min(
         self,
@@ -2654,7 +2698,19 @@ class CAISO(ISOBase):
             },
         )
 
-        return df
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "TI ID",
+                "TI Direction",
+                "Constraint Cause",
+                "Shadow Price",
+                "Market Run ID",
+                "Limit Type",
+                "Group",
+            ]
+        ]
 
     @support_date_range(frequency="DAY_START")
     def get_curtailment(
