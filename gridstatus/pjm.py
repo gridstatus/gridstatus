@@ -3474,6 +3474,7 @@ class PJM(ISOBase):
             params={
                 "fields": "bid_datetime_beginning_ept,bid_datetime_beginning_utc,eco_max,emerg_max,total_committed",
             },
+            filter_timestamp_name="bid_datetime_beginning",
             interval_duration_min=60,
             verbose=verbose,
         )
@@ -3572,6 +3573,7 @@ class PJM(ISOBase):
             params={
                 "fields": "bid_datetime_beginning_ept,price_point,inc_mw,dec_mw",
             },
+            filter_timestamp_name="bid_datetime_beginning",
             interval_duration_min=60,
             verbose=verbose,
         )
