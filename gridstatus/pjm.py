@@ -3519,18 +3519,42 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/day_inc_dec_utc/definition
         """
         if date == "latest":
-            date = "today"
+            return self.get_cleared_virtuals_daily("today")
 
-        df = self._get_pjm_json(
-            "day_inc_dec_utc",
-            start=date,
-            end=end,
-            params={
-                "fields": "day_ahead_market_date,dec_mw,inc_mw,utc_mw",
-            },
-            filter_timestamp_name="day_ahead_market_date",
+        date = utils._handle_date(date, tz=self.default_timezone)
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone)
+        else:
+            end = date + pd.DateOffset(days=1)
+            end = end - pd.DateOffset(seconds=1)
+
+        # NOTE: Need to do this manually since the timestamp_filter_name is not supported by _get_pjm_json
+        params = {
+            "fields": "day_ahead_market_date,dec_mw,inc_mw,utc_mw",
+            "day_ahead_market_date": (
+                date.strftime("%Y-%m-%dT%H:%M:%S.0000000")
+                + " to "
+                + end.strftime("%Y-%m-%dT%H:%M:%S.0000000")
+            ),
+            "startRow": 1,
+            "rowCount": 50000,
+        }
+
+        r = self._get_json(
+            "https://api.pjm.com/api/v1/day_inc_dec_utc",
             verbose=verbose,
+            retries=self.retries,
+            params=params,
+            headers={"Ocp-Apim-Subscription-Key": self.api_key},
         )
+
+        if "errors" in r:
+            raise RuntimeError(r["errors"])
+
+        if r["totalRows"] == 0:
+            raise NoDataFoundException("No data found for day_inc_dec_utc")
+
+        df = pd.DataFrame(r["items"])
 
         df["Interval Start"] = pd.to_datetime(
             df["day_ahead_market_date"],
@@ -3627,16 +3651,22 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/sync_reserve_events/definition
         """
         if date == "latest":
-            date = "today"
+            return self.get_sync_reserve_events("today")
+
+        date = utils._handle_date(date, tz=self.default_timezone)
+        if end:
+            end = utils._handle_date(end, tz=self.default_timezone)
+        else:
+            end = date + pd.DateOffset(days=1)
+            end = end - pd.DateOffset(seconds=1)
 
         df = self._get_pjm_json(
             "sync_reserve_events",
-            start=date,
-            end=end,
+            start=None,
+            end=None,
             params={
                 "fields": "event_start_ept,event_end_ept,duration,synchronized_reserve_zone,synchronized_sub_zone,percent_deployed",
             },
-            filter_timestamp_name="event_start",
             verbose=verbose,
         )
 
@@ -3646,6 +3676,8 @@ class PJM(ISOBase):
         df["Interval End"] = pd.to_datetime(df["event_end_ept"]).dt.tz_localize(
             self.default_timezone,
         )
+
+        df = df[(df["Interval Start"] >= date) & (df["Interval Start"] < end)]
 
         df = df.rename(
             columns={
