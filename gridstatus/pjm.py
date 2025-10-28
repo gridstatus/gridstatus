@@ -3528,8 +3528,7 @@ class PJM(ISOBase):
             params={
                 "fields": "day_ahead_market_date,dec_mw,inc_mw,utc_mw",
             },
-            filter_timestamp_name="day_ahead_market",
-            interval_duration_min=1440,
+            filter_timestamp_name="day_ahead_market_date",
             verbose=verbose,
         )
 
