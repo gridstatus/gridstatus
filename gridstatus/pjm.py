@@ -3475,9 +3475,15 @@ class PJM(ISOBase):
                 "fields": "bid_datetime_beginning_ept,bid_datetime_beginning_utc,eco_max,emerg_max,total_committed",
             },
             filter_timestamp_name="bid_datetime_beginning",
-            interval_duration_min=60,
             verbose=verbose,
         )
+
+        df["Interval Start"] = (
+            pd.to_datetime(df["bid_datetime_beginning_utc"], format="ISO8601")
+            .dt.tz_localize("UTC")
+            .dt.tz_convert(self.default_timezone)
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
         df = df.rename(
             columns={
@@ -3487,15 +3493,19 @@ class PJM(ISOBase):
             },
         )
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Economic Max MW",
-                "Emergency Max MW",
-                "Total Committed MW",
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Economic Max MW",
+                    "Emergency Max MW",
+                    "Total Committed MW",
+                ]
             ]
-        ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
 
     @support_date_range(frequency=None)
     def get_cleared_virtuals_daily(
@@ -3571,12 +3581,18 @@ class PJM(ISOBase):
             start=date,
             end=end,
             params={
-                "fields": "bid_datetime_beginning_ept,price_point,inc_mw,dec_mw",
+                "fields": "bid_datetime_beginning_ept,bid_datetime_beginning_utc,price_point,inc_mw,dec_mw",
             },
             filter_timestamp_name="bid_datetime_beginning",
-            interval_duration_min=60,
             verbose=verbose,
         )
+
+        df["Interval Start"] = (
+            pd.to_datetime(df["bid_datetime_beginning_utc"], format="ISO8601")
+            .dt.tz_localize("UTC")
+            .dt.tz_convert(self.default_timezone)
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
         df = df.rename(
             columns={
