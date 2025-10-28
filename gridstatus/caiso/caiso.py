@@ -2475,7 +2475,7 @@ class CAISO(ISOBase):
             },
         )
 
-        return df[["Interval Start", "Interval End", "Location", "Price"]]
+        return df
 
     def get_nomogram_branch_shadow_prices_hasp_hourly(
         self,
@@ -2515,7 +2515,7 @@ class CAISO(ISOBase):
             },
         )
 
-        return df[["Interval Start", "Interval End", "Location", "Price"]]
+        return df
 
     def get_nomogram_branch_shadow_price_forecast_15_min(
         self,
@@ -2555,7 +2555,7 @@ class CAISO(ISOBase):
             },
         )
 
-        return df[["Interval Start", "Interval End", "Location", "Price"]]
+        return df
 
     def get_interval_nomogram_branch_shadow_prices_real_time_5_min(
         self,
@@ -2594,7 +2594,51 @@ class CAISO(ISOBase):
             },
         )
 
-        return df[["Interval Start", "Interval End", "Location", "Price"]]
+        return df
+
+    def get_intertie_constraint_shadow_prices_real_time_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get 5-min intertie constraint shadow prices from CAISO.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+                If None, returns only date. Defaults to None.
+            verbose (bool, optional): print out url being fetched.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with the intertie constraint shadow prices
+        """
+        if date == "latest":
+            return self.get_intertie_constraint_shadow_prices_real_time_5_min(
+                pd.Timestamp.now(tz=self.default_timezone),
+            )
+
+        df = self.get_oasis_dataset(
+            dataset="interval_intertie_constraint_shadow_prices",
+            date=date,
+            end=end,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        df = df.rename(
+            columns={
+                "TI_ID": "TI ID",
+                "TI_DIRECTION": "TI Direction",
+                "CONSTRAINT_CAUSE": "Constraint Cause",
+                "PRC": "Shadow Price",
+                "MARKET_RUN_ID": "Market Run ID",
+                "LIMIT_TYPE": "Limit Type",
+                "GROUP": "Group",
+            },
+        )
+
+        return df
 
     @support_date_range(frequency="DAY_START")
     def get_curtailment(

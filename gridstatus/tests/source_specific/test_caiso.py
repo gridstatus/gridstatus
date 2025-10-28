@@ -1299,12 +1299,10 @@ class TestCAISO(BaseTestISO):
                 end=end,
             )
             assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Price",
-            ]
+            assert "Interval Start" in df.columns
+            assert "Interval End" in df.columns
+            assert "Location" in df.columns
+            assert "Price" in df.columns
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1326,12 +1324,10 @@ class TestCAISO(BaseTestISO):
         ):
             df = self.iso.get_nomogram_branch_shadow_prices_hasp_hourly(date, end=end)
             assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Price",
-            ]
+            assert "Interval Start" in df.columns
+            assert "Interval End" in df.columns
+            assert "Location" in df.columns
+            assert "Price" in df.columns
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1356,12 +1352,10 @@ class TestCAISO(BaseTestISO):
                 end=end,
             )
             assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Price",
-            ]
+            assert "Interval Start" in df.columns
+            assert "Interval End" in df.columns
+            assert "Location" in df.columns
+            assert "Price" in df.columns
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1390,12 +1384,43 @@ class TestCAISO(BaseTestISO):
                 end=end,
             )
             assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Price",
-            ]
+            assert "Interval Start" in df.columns
+            assert "Interval End" in df.columns
+            assert "Location" in df.columns
+            assert "Price" in df.columns
+            assert df["Interval Start"].min() >= pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() <= pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            )
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2025-03-20", "2025-03-22"),
+        ],
+    )
+    def test_get_intertie_constraint_shadow_prices_real_time_5_min(
+        self,
+        date,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_intertie_constraint_shadow_prices_real_time_5_min_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_intertie_constraint_shadow_prices_real_time_5_min(
+                date,
+                end=end,
+            )
+            assert df.shape[0] > 0
+            assert "Interval Start" in df.columns
+            assert "Interval End" in df.columns
+            assert "TI ID" in df.columns
+            assert "Shadow Price" in df.columns
+            assert "Constraint Cause" in df.columns
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
