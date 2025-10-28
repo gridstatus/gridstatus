@@ -3472,7 +3472,7 @@ class PJM(ISOBase):
             start=date,
             end=end,
             params={
-                "fields": "datetime_beginning_utc,economic_max,emergency_max,total_committed",
+                "fields": "bid_datetime_beginning_utc,eco_max,emerg_max,total_committed",
             },
             interval_duration_min=60,
             verbose=verbose,
@@ -3480,8 +3480,8 @@ class PJM(ISOBase):
 
         df = df.rename(
             columns={
-                "economic_max": "Economic Max MW",
-                "emergency_max": "Emergency Max MW",
+                "eco_max": "Economic Max MW",
+                "emerg_max": "Emergency Max MW",
                 "total_committed": "Total Committed MW",
             },
         )
