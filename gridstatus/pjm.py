@@ -3472,7 +3472,7 @@ class PJM(ISOBase):
             start=date,
             end=end,
             params={
-                "fields": "bid_datetime_beginning_ept,eco_max,emerg_max,total_committed",
+                "fields": "bid_datetime_beginning_ept,bid_datetime_beginning_utc,eco_max,emerg_max,total_committed",
             },
             interval_duration_min=60,
             verbose=verbose,
