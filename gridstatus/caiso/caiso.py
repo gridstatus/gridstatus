@@ -2472,6 +2472,10 @@ class CAISO(ISOBase):
             columns={
                 "NOMOGRAM_ID": "Location",
                 "PRC": "Price",
+                "NOMOGRAM_ID_XML": "Nomogram ID XML",
+                "CONSTRAINT_CAUSE": "Constraint Cause",
+                "MARKET_RUN_ID": "Market Run ID",
+                "GROUP": "Group",
             },
         )
 
@@ -2512,6 +2516,10 @@ class CAISO(ISOBase):
             columns={
                 "NOMOGRAM_ID": "Location",
                 "PRC": "Price",
+                "NOMOGRAM_ID_XML": "Nomogram ID XML",
+                "CONSTRAINT_CAUSE": "Constraint Cause",
+                "MARKET_RUN_ID": "Market Run ID",
+                "GROUP": "Group",
             },
         )
 
@@ -2552,6 +2560,10 @@ class CAISO(ISOBase):
             columns={
                 "NOMOGRAM_ID": "Location",
                 "PRC": "Price",
+                "NOMOGRAM_ID_XML": "Nomogram ID XML",
+                "CONSTRAINT_CAUSE": "Constraint Cause",
+                "MARKET_RUN_ID": "Market Run ID",
+                "GROUP": "Group",
             },
         )
 
@@ -2591,6 +2603,10 @@ class CAISO(ISOBase):
             columns={
                 "NOMOGRAM_ID": "Location",
                 "PRC": "Price",
+                "NOMOGRAM_ID_XML": "Nomogram ID XML",
+                "CONSTRAINT_CAUSE": "Constraint Cause",
+                "MARKET_RUN_ID": "Market Run ID",
+                "GROUP": "Group",
             },
         )
 
