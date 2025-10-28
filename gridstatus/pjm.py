@@ -3452,3 +3452,204 @@ class PJM(ISOBase):
             .sort_values(["Effective Date", "Aggregate Node Name"])
             .reset_index(drop=True)
         )
+
+    @support_date_range(frequency=None)
+    def get_generation_capacity_daily(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the daily generation capacity data from:
+        https://dataminer2.pjm.com/feed/day_gen_capacity/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "day_gen_capacity",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,economic_max,emergency_max,total_committed",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "economic_max": "Economic Max MW",
+                "emergency_max": "Emergency Max MW",
+                "total_committed": "Total Committed MW",
+            },
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Economic Max MW",
+                "Emergency Max MW",
+                "Total Committed MW",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_cleared_virtuals_daily(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the daily cleared virtual transactions data from:
+        https://dataminer2.pjm.com/feed/day_inc_dec_utc/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "day_inc_dec_utc",
+            start=date,
+            end=end,
+            params={
+                "fields": "day_ahead_market_date,dec_megawatts,inc_megawatts,utc_megawatts",
+            },
+            filter_timestamp_name="day_ahead_market",
+            interval_duration_min=1440,
+            verbose=verbose,
+        )
+
+        df["Interval Start"] = pd.to_datetime(
+            df["day_ahead_market_date"],
+        ).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+
+        df = df.rename(
+            columns={
+                "dec_megawatts": "Dec MW",
+                "inc_megawatts": "Inc MW",
+                "utc_megawatts": "UTC MW",
+            },
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Dec MW",
+                    "Inc MW",
+                    "UTC MW",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency=None)
+    def get_inc_and_dec_bids_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the hourly day-ahead increment and decrement bids data from:
+        https://dataminer2.pjm.com/feed/hrl_da_incs_decs/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "hrl_da_incs_decs",
+            start=date,
+            end=end,
+            params={
+                "fields": "datetime_beginning_utc,price_point,inc_megawatts,dec_megawatts",
+            },
+            interval_duration_min=60,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "price_point": "Price Point",
+                "inc_megawatts": "Inc MW",
+                "dec_megawatts": "Dec MW",
+            },
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Price Point",
+                    "Inc MW",
+                    "Dec MW",
+                ]
+            ]
+            .sort_values(["Interval Start", "Price Point"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency=None)
+    def get_sync_reserve_events(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the synchronized reserve events data from:
+        https://dataminer2.pjm.com/feed/sync_reserve_events/definition
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "sync_reserve_events",
+            start=date,
+            end=end,
+            params={
+                "fields": "event_start_ept,event_end_ept,duration,synchronized_reserve_zone,synchronized_sub_zone,percent_deployed",
+            },
+            filter_timestamp_name="event_start",
+            verbose=verbose,
+        )
+
+        df["Interval Start"] = pd.to_datetime(df["event_start_ept"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = pd.to_datetime(df["event_end_ept"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        df = df.rename(
+            columns={
+                "duration": "Duration",
+                "synchronized_reserve_zone": "Synchronized Reserve Zone",
+                "synchronized_sub_zone": "Synchronized Subzone",
+                "percent_deployed": "Percent Deployed",
+            },
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Duration",
+                    "Synchronized Reserve Zone",
+                    "Synchronized Subzone",
+                    "Percent Deployed",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
