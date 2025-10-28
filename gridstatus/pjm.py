@@ -3465,14 +3465,14 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/day_gen_capacity/definition
         """
         if date == "latest":
-            date = "today"
+            return self.get_generation_capacity_daily("today")
 
         df = self._get_pjm_json(
             "day_gen_capacity",
             start=date,
             end=end,
             params={
-                "fields": "bid_datetime_beginning_utc,eco_max,emerg_max,total_committed",
+                "fields": "bid_datetime_beginning_ept,eco_max,emerg_max,total_committed",
             },
             interval_duration_min=60,
             verbose=verbose,
@@ -3515,7 +3515,7 @@ class PJM(ISOBase):
             start=date,
             end=end,
             params={
-                "fields": "day_ahead_market_date,dec_megawatts,inc_megawatts,utc_megawatts",
+                "fields": "day_ahead_market_date,dec_mw,inc_mw,utc_mw",
             },
             filter_timestamp_name="day_ahead_market",
             interval_duration_min=1440,
@@ -3531,9 +3531,9 @@ class PJM(ISOBase):
 
         df = df.rename(
             columns={
-                "dec_megawatts": "Dec MW",
-                "inc_megawatts": "Inc MW",
-                "utc_megawatts": "UTC MW",
+                "dec_mw": "Dec MW",
+                "inc_mw": "Inc MW",
+                "utc_mw": "UTC MW",
             },
         )
 
@@ -3563,14 +3563,14 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/hrl_da_incs_decs/definition
         """
         if date == "latest":
-            date = "today"
+            return self.get_inc_and_dec_bids_day_ahead_hourly("today")
 
         df = self._get_pjm_json(
             "hrl_da_incs_decs",
             start=date,
             end=end,
             params={
-                "fields": "datetime_beginning_utc,price_point,inc_megawatts,dec_megawatts",
+                "fields": "bid_datetime_beginning_ept,price_point,inc_mw,dec_mw",
             },
             interval_duration_min=60,
             verbose=verbose,
@@ -3579,8 +3579,8 @@ class PJM(ISOBase):
         df = df.rename(
             columns={
                 "price_point": "Price Point",
-                "inc_megawatts": "Inc MW",
-                "dec_megawatts": "Dec MW",
+                "inc_mw": "Inc MW",
+                "dec_mw": "Dec MW",
             },
         )
 
