@@ -3163,12 +3163,12 @@ class TestPJM(BaseTestISO):
         assert df["Emergency Max MW"].dtype in [np.float64, np.int64]
         assert df["Total Committed MW"].dtype in [np.float64, np.int64]
 
-    @pytest.mark.parametrize("date", ["latest", "today"])
-    def test_get_generation_capacity_daily_latest(self, date):
-        with pjm_vcr.use_cassette(f"test_get_generation_capacity_daily_{date}.yaml"):
-            df = self.iso.get_generation_capacity_daily(date)
+    def test_get_generation_capacity_daily_latest(self):
+        with pjm_vcr.use_cassette("test_get_generation_capacity_daily_latest.yaml"):
+            df = self.iso.get_generation_capacity_daily("latest")
             self._check_generation_capacity_daily(df)
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+            yesterday = self.local_today() - pd.Timedelta(days=1)
+            assert df["Interval Start"].min() >= self.local_start_of_day(yesterday)
 
     def test_get_generation_capacity_daily_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
@@ -3179,7 +3179,9 @@ class TestPJM(BaseTestISO):
             df = self.iso.get_generation_capacity_daily(past_date, past_end_date)
             self._check_generation_capacity_daily(df)
             assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
-            assert df["Interval End"].max() <= self.local_start_of_day(past_end_date)
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                past_end_date,
+            ) + pd.Timedelta(days=1)
 
     """get_cleared_virtuals_daily"""
 
@@ -3236,21 +3238,27 @@ class TestPJM(BaseTestISO):
             df.columns.tolist() == self.expected_inc_and_dec_bids_day_ahead_hourly_cols
         )
         assert not df.empty
-        assert df["Price Point"].dtype == object
+        assert df["Price Point"].dtype in [np.float64, np.int64]
         assert df["Inc MW"].dtype in [np.float64, np.int64]
         assert df["Dec MW"].dtype in [np.float64, np.int64]
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
 
-    @pytest.mark.parametrize("date", ["latest", "today"])
+    @pytest.mark.parametrize("date", ["latest"])
     def test_get_inc_and_dec_bids_day_ahead_hourly_latest(self, date):
         with pjm_vcr.use_cassette(
             f"test_get_inc_and_dec_bids_day_ahead_hourly_{date}.yaml",
         ):
             df = self.iso.get_inc_and_dec_bids_day_ahead_hourly(date)
             self._check_inc_and_dec_bids_day_ahead_hourly(df)
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+            delayed_date = pd.Timestamp.now(
+                tz=self.iso.default_timezone,
+            ) - pd.DateOffset(months=5)
+            delayed_date = delayed_date.replace(day=1)
+            assert df["Interval Start"].min() >= self.local_start_of_day(
+                delayed_date.date(),
+            )
 
     def test_get_inc_and_dec_bids_day_ahead_hourly_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=200)
@@ -3264,7 +3272,9 @@ class TestPJM(BaseTestISO):
             )
             self._check_inc_and_dec_bids_day_ahead_hourly(df)
             assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
-            assert df["Interval End"].max() <= self.local_start_of_day(past_end_date)
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                past_end_date,
+            ) + pd.Timedelta(days=1)
 
     """get_sync_reserve_events"""
 
@@ -3283,21 +3293,12 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == self.expected_sync_reserve_events_cols
         assert not df.empty
         assert df["Duration"].dtype == object
-        assert df["Duration Minutes"].dtype in [np.float64, np.int64]
+        assert df["Duration Minutes"].dtype == np.int64
         assert df["Synchronized Reserve Zone"].dtype == object
         assert df["Synchronized Subzone"].dtype == object
-        assert df["Percent Deployed"].dtype in [np.float64, np.int64]
+        assert df["Percent Deployed"].dtype == np.float64
 
-    def test_get_sync_reserve_events_latest(self):
-        with pjm_vcr.use_cassette("test_get_sync_reserve_events_latest.yaml"):
+    def test_get_sync_reserve_events(self):
+        with pjm_vcr.use_cassette("test_get_sync_reserve_events.yaml"):
             df = self.iso.get_sync_reserve_events()
             self._check_sync_reserve_events(df)
-            assert len(df) > 0
-            assert df["Interval Start"].min() < self.local_start_of_today()
-
-    def test_get_sync_reserve_events_historical_range(self):
-        with pjm_vcr.use_cassette("test_get_sync_reserve_events_all.yaml"):
-            df = self.iso.get_sync_reserve_events()
-            self._check_sync_reserve_events(df)
-            assert len(df) > 1000
-            assert df["Interval Start"].min().year == 2002

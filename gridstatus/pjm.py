@@ -3465,7 +3465,16 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/day_gen_capacity/definition
         """
         if date == "latest":
-            return self.get_generation_capacity_daily("today")
+            try:
+                df = self.get_generation_capacity_daily("today")
+            except NoDataFoundException:
+                yesterday = (
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
+                    - pd.Timedelta(days=1)
+                ).date()
+                return self.get_generation_capacity_daily(
+                    pd.Timestamp(yesterday, tz=self.default_timezone),
+                )
 
         df = self._get_pjm_json(
             "day_gen_capacity",
@@ -3595,9 +3604,16 @@ class PJM(ISOBase):
         """
         Retrieves the hourly day-ahead increment and decrement bids data from:
         https://dataminer2.pjm.com/feed/hrl_da_incs_decs/definition
+
+        Note: This data has a 4-month publication delay. When requesting "latest",
+        data from 5 months ago (first of the month) is returned.
         """
         if date == "latest":
-            return self.get_inc_and_dec_bids_day_ahead_hourly("today")
+            delayed_date = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(
+                months=5,
+            )
+            delayed_date = delayed_date.replace(day=1)
+            return self.get_inc_and_dec_bids_day_ahead_hourly(delayed_date)
 
         df = self._get_pjm_json(
             "hrl_da_incs_decs",
@@ -3692,3 +3708,9 @@ class PJM(ISOBase):
             .sort_values("Interval Start")
             .reset_index(drop=True)
         )
+
+
+if __name__ == "__main__":
+    iso = PJM()
+    df = iso.get_generation_capacity_daily("latest")
+    print(df)
