@@ -3167,8 +3167,8 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette("test_get_generation_capacity_daily_latest.yaml"):
             df = self.iso.get_generation_capacity_daily("latest")
             self._check_generation_capacity_daily(df)
-            yesterday = self.local_today() - pd.Timedelta(days=1)
-            assert df["Interval Start"].min() >= self.local_start_of_day(yesterday)
+            ten_days_ago = self.local_today() - pd.Timedelta(days=10)
+            assert df["Interval Start"].min() >= self.local_start_of_day(ten_days_ago)
 
     def test_get_generation_capacity_daily_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=10)

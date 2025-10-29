@@ -3465,16 +3465,10 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/day_gen_capacity/definition
         """
         if date == "latest":
-            try:
-                df = self.get_generation_capacity_daily("today")
-            except NoDataFoundException:
-                yesterday = (
-                    pd.Timestamp.now(tz=self.default_timezone).normalize()
-                    - pd.Timedelta(days=1)
-                ).date()
-                return self.get_generation_capacity_daily(
-                    pd.Timestamp(yesterday, tz=self.default_timezone),
-                )
+            ten_days_ago = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(
+                days=10,
+            )
+            return self.get_generation_capacity_daily(ten_days_ago.date())
 
         df = self._get_pjm_json(
             "day_gen_capacity",
@@ -3526,7 +3520,19 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/day_inc_dec_utc/definition
         """
         if date == "latest":
-            return self.get_cleared_virtuals_daily("today")
+            try:
+                return self.get_cleared_virtuals_daily("today")
+            except NoDataFoundException:
+                yesterday = (
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
+                    - pd.Timedelta(days=1)
+                ).date()
+                return self.get_cleared_virtuals_daily(
+                    pd.Timestamp(yesterday, tz=self.default_timezone),
+                )
+        if end is None:
+            end = date + pd.DateOffset(days=1)
+            end = end - pd.DateOffset(seconds=1)
 
         # NOTE: Need to do this manually since the timestamp_filter_name is not supported by _get_pjm_json
         params = {
