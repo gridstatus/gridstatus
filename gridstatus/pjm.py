@@ -3487,11 +3487,9 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        df["Interval Start"] = (
-            pd.to_datetime(df["bid_datetime_beginning_utc"], format="ISO8601")
-            .dt.tz_localize("UTC")
-            .dt.tz_convert(self.default_timezone)
-        )
+        df["Interval Start"] = pd.to_datetime(
+            df["bid_datetime_beginning_ept"],
+        ).dt.tz_localize(self.default_timezone)
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
         df = df.rename(
@@ -3529,13 +3527,6 @@ class PJM(ISOBase):
         """
         if date == "latest":
             return self.get_cleared_virtuals_daily("today")
-
-        date = utils._handle_date(date, tz=self.default_timezone)
-        if end:
-            end = utils._handle_date(end, tz=self.default_timezone)
-        else:
-            end = date + pd.DateOffset(days=1)
-            end = end - pd.DateOffset(seconds=1)
 
         # NOTE: Need to do this manually since the timestamp_filter_name is not supported by _get_pjm_json
         params = {
@@ -3620,7 +3611,7 @@ class PJM(ISOBase):
             start=date,
             end=end,
             params={
-                "fields": "bid_datetime_beginning_ept,bid_datetime_beginning_utc,price_point,inc_mw,dec_mw",
+                "fields": "bid_datetime_beginning_ept,bid_datetime_beginning_utc,modified_datetime_utc,price_point,inc_mw,dec_mw",
             },
             filter_timestamp_name="bid_datetime_beginning",
             verbose=verbose,
@@ -3635,6 +3626,7 @@ class PJM(ISOBase):
 
         df = df.rename(
             columns={
+                "modified_datetime_utc": "Publish Time",
                 "price_point": "Price Point",
                 "inc_mw": "Inc MW",
                 "dec_mw": "Dec MW",
@@ -3646,12 +3638,13 @@ class PJM(ISOBase):
                 [
                     "Interval Start",
                     "Interval End",
+                    "Publish Time",
                     "Price Point",
                     "Inc MW",
                     "Dec MW",
                 ]
             ]
-            .sort_values(["Interval Start", "Price Point"])
+            .sort_values(["Interval Start", "Publish Time", "Price Point"])
             .reset_index(drop=True)
         )
 
