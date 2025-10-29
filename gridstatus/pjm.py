@@ -3487,12 +3487,10 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        df["Interval Start"] = pd.to_datetime(
-            df["bid_datetime_beginning_ept"],
-        ).dt.tz_localize(
-            self.default_timezone,
-            ambiguous="infer",
-            nonexistent="shift_forward",
+        df["Interval Start"] = (
+            pd.to_datetime(df["bid_datetime_beginning_utc"], format="ISO8601")
+            .dt.tz_localize("UTC")
+            .dt.tz_convert(self.default_timezone)
         )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
