@@ -3144,3 +3144,163 @@ class TestPJM(BaseTestISO):
             assert (
                 df["Termination Date"].isna() | (df["Termination Date"] > specific_date)
             ).all()
+
+    """get_generation_capacity_daily"""
+
+    expected_generation_capacity_daily_cols = [
+        "Interval Start",
+        "Interval End",
+        "Economic Max MW",
+        "Emergency Max MW",
+        "Total Committed MW",
+    ]
+
+    def _check_generation_capacity_daily(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self.expected_generation_capacity_daily_cols
+        assert not df.empty
+        assert df["Economic Max MW"].dtype in [np.float64, np.int64]
+        assert df["Emergency Max MW"].dtype in [np.float64, np.int64]
+        assert df["Total Committed MW"].dtype in [np.float64, np.int64]
+
+    def test_get_generation_capacity_daily_latest(self):
+        with pjm_vcr.use_cassette("test_get_generation_capacity_daily_latest.yaml"):
+            df = self.iso.get_generation_capacity_daily("latest")
+            self._check_generation_capacity_daily(df)
+            yesterday = self.local_today() - pd.Timedelta(days=1)
+            assert df["Interval Start"].min() >= self.local_start_of_day(yesterday)
+
+    def test_get_generation_capacity_daily_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        with pjm_vcr.use_cassette(
+            f"test_get_generation_capacity_daily_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_generation_capacity_daily(past_date, past_end_date)
+            self._check_generation_capacity_daily(df)
+            assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                past_end_date,
+            ) + pd.Timedelta(days=1)
+
+    """get_cleared_virtuals_daily"""
+
+    expected_cleared_virtuals_daily_cols = [
+        "Interval Start",
+        "Interval End",
+        "Dec MW",
+        "Inc MW",
+        "UTC MW",
+    ]
+
+    def _check_cleared_virtuals_daily(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self.expected_cleared_virtuals_daily_cols
+        assert not df.empty
+        assert df["Dec MW"].dtype in [np.float64, np.int64]
+        assert df["Inc MW"].dtype in [np.float64, np.int64]
+        assert df["UTC MW"].dtype in [np.float64, np.int64]
+        assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta(days=1)).all()
+
+    @pytest.mark.parametrize("date", ["latest", "today"])
+    def test_get_cleared_virtuals_daily_latest(self, date):
+        with pjm_vcr.use_cassette(f"test_get_cleared_virtuals_daily_{date}.yaml"):
+            df = self.iso.get_cleared_virtuals_daily(date)
+            self._check_cleared_virtuals_daily(df)
+            assert df["Interval Start"].min() >= self.local_start_of_today()
+
+    def test_get_cleared_virtuals_daily_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=10)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        with pjm_vcr.use_cassette(
+            f"test_get_cleared_virtuals_daily_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_cleared_virtuals_daily(past_date, past_end_date)
+            self._check_cleared_virtuals_daily(df)
+            assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                past_end_date,
+            ) + pd.Timedelta(days=1)
+
+    """get_inc_and_dec_bids_day_ahead_hourly"""
+
+    expected_inc_and_dec_bids_day_ahead_hourly_cols = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Price Point",
+        "Inc MW",
+        "Dec MW",
+    ]
+
+    def _check_inc_and_dec_bids_day_ahead_hourly(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert (
+            df.columns.tolist() == self.expected_inc_and_dec_bids_day_ahead_hourly_cols
+        )
+        assert not df.empty
+        assert df["Publish Time"].dtype == object
+        assert df["Price Point"].dtype in [np.float64, np.int64]
+        assert df["Inc MW"].dtype in [np.float64, np.int64]
+        assert df["Dec MW"].dtype in [np.float64, np.int64]
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+    @pytest.mark.parametrize("date", ["latest"])
+    def test_get_inc_and_dec_bids_day_ahead_hourly_latest(self, date):
+        with pjm_vcr.use_cassette(
+            f"test_get_inc_and_dec_bids_day_ahead_hourly_{date}.yaml",
+        ):
+            df = self.iso.get_inc_and_dec_bids_day_ahead_hourly(date)
+            self._check_inc_and_dec_bids_day_ahead_hourly(df)
+            delayed_date = pd.Timestamp.now(
+                tz=self.iso.default_timezone,
+            ) - pd.DateOffset(months=5)
+            delayed_date = delayed_date.replace(day=1)
+            assert df["Interval Start"].min() >= self.local_start_of_day(
+                delayed_date.date(),
+            )
+
+    def test_get_inc_and_dec_bids_day_ahead_hourly_historical_range(self):
+        past_date = self.local_today() - pd.Timedelta(days=200)
+        past_end_date = past_date + pd.Timedelta(days=3)
+        with pjm_vcr.use_cassette(
+            f"test_get_inc_and_dec_bids_day_ahead_hourly_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_inc_and_dec_bids_day_ahead_hourly(
+                past_date,
+                past_end_date,
+            )
+            self._check_inc_and_dec_bids_day_ahead_hourly(df)
+            assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                past_end_date,
+            ) + pd.Timedelta(days=1)
+
+    """get_sync_reserve_events"""
+
+    expected_sync_reserve_events_cols = [
+        "Interval Start",
+        "Interval End",
+        "Duration",
+        "Duration Minutes",
+        "Synchronized Reserve Zone",
+        "Synchronized Subzone",
+        "Percent Deployed",
+    ]
+
+    def _check_sync_reserve_events(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self.expected_sync_reserve_events_cols
+        assert not df.empty
+        assert df["Duration"].dtype == object
+        assert df["Duration Minutes"].dtype == np.int64
+        assert df["Synchronized Reserve Zone"].dtype == object
+        assert df["Synchronized Subzone"].dtype == object
+        assert df["Percent Deployed"].dtype == np.float64
+
+    def test_get_sync_reserve_events(self):
+        with pjm_vcr.use_cassette("test_get_sync_reserve_events.yaml"):
+            df = self.iso.get_sync_reserve_events()
+            self._check_sync_reserve_events(df)

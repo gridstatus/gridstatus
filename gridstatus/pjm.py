@@ -3452,3 +3452,270 @@ class PJM(ISOBase):
             .sort_values(["Effective Date", "Aggregate Node Name"])
             .reset_index(drop=True)
         )
+
+    @support_date_range(frequency=None)
+    def get_generation_capacity_daily(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the daily generation capacity data from:
+        https://dataminer2.pjm.com/feed/day_gen_capacity/definition
+        """
+        if date == "latest":
+            try:
+                return self.get_generation_capacity_daily("today")
+            except NoDataFoundException:
+                yesterday = (
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
+                    - pd.Timedelta(days=1)
+                ).date()
+                return self.get_generation_capacity_daily(
+                    pd.Timestamp(yesterday, tz=self.default_timezone),
+                )
+
+        df = self._get_pjm_json(
+            "day_gen_capacity",
+            start=date,
+            end=end,
+            params={
+                "fields": "bid_datetime_beginning_ept,bid_datetime_beginning_utc,eco_max,emerg_max,total_committed",
+            },
+            filter_timestamp_name="bid_datetime_beginning",
+            verbose=verbose,
+        )
+
+        df["Interval Start"] = pd.to_datetime(
+            df["bid_datetime_beginning_ept"],
+        ).dt.tz_localize(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        df = df.rename(
+            columns={
+                "eco_max": "Economic Max MW",
+                "emerg_max": "Emergency Max MW",
+                "total_committed": "Total Committed MW",
+            },
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Economic Max MW",
+                    "Emergency Max MW",
+                    "Total Committed MW",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency=None)
+    def get_cleared_virtuals_daily(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the daily cleared virtual transactions data from:
+        https://dataminer2.pjm.com/feed/day_inc_dec_utc/definition
+        """
+        if date == "latest":
+            try:
+                return self.get_cleared_virtuals_daily("today")
+            except NoDataFoundException:
+                yesterday = (
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
+                    - pd.Timedelta(days=1)
+                ).date()
+                return self.get_cleared_virtuals_daily(
+                    pd.Timestamp(yesterday, tz=self.default_timezone),
+                )
+        if end is None:
+            end = date + pd.DateOffset(days=1)
+            end = end - pd.DateOffset(seconds=1)
+
+        # NOTE: Need to do this manually since the timestamp_filter_name is not supported by _get_pjm_json
+        params = {
+            "fields": "day_ahead_market_date,dec_mw,inc_mw,utc_mw",
+            "day_ahead_market_date": (
+                date.strftime("%Y-%m-%dT%H:%M:%S.0000000")
+                + " to "
+                + end.strftime("%Y-%m-%dT%H:%M:%S.0000000")
+            ),
+            "startRow": 1,
+            "rowCount": 50000,
+        }
+
+        r = self._get_json(
+            "https://api.pjm.com/api/v1/day_inc_dec_utc",
+            verbose=verbose,
+            retries=self.retries,
+            params=params,
+            headers={"Ocp-Apim-Subscription-Key": self.api_key},
+        )
+
+        if "errors" in r:
+            raise RuntimeError(r["errors"])
+
+        if r["totalRows"] == 0:
+            raise NoDataFoundException("No data found for day_inc_dec_utc")
+
+        df = pd.DataFrame(r["items"])
+
+        df["Interval Start"] = pd.to_datetime(
+            df["day_ahead_market_date"],
+        ).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+
+        df = df.rename(
+            columns={
+                "dec_mw": "Dec MW",
+                "inc_mw": "Inc MW",
+                "utc_mw": "UTC MW",
+            },
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Dec MW",
+                    "Inc MW",
+                    "UTC MW",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency=None)
+    def get_inc_and_dec_bids_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the hourly day-ahead increment and decrement bids data from:
+        https://dataminer2.pjm.com/feed/hrl_da_incs_decs/definition
+
+        Note: This data has a 4-month publication delay. When requesting "latest",
+        data from 5 months ago (first of the month) is returned.
+        """
+        if date == "latest":
+            delayed_date = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(
+                months=5,
+            )
+            delayed_date = delayed_date.replace(day=1)
+            return self.get_inc_and_dec_bids_day_ahead_hourly(delayed_date)
+
+        df = self._get_pjm_json(
+            "hrl_da_incs_decs",
+            start=date,
+            end=end,
+            params={
+                "fields": "bid_datetime_beginning_ept,bid_datetime_beginning_utc,modified_datetime_utc,price_point,inc_mw,dec_mw",
+            },
+            filter_timestamp_name="bid_datetime_beginning",
+            verbose=verbose,
+        )
+
+        df["Interval Start"] = (
+            pd.to_datetime(df["bid_datetime_beginning_utc"], format="ISO8601")
+            .dt.tz_localize("UTC")
+            .dt.tz_convert(self.default_timezone)
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+        df = df.rename(
+            columns={
+                "modified_datetime_utc": "Publish Time",
+                "price_point": "Price Point",
+                "inc_mw": "Inc MW",
+                "dec_mw": "Dec MW",
+            },
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Price Point",
+                    "Inc MW",
+                    "Dec MW",
+                ]
+            ]
+            .sort_values(["Interval Start", "Publish Time", "Price Point"])
+            .reset_index(drop=True)
+        )
+
+    def get_sync_reserve_events(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the synchronized reserve events data from:
+        https://dataminer2.pjm.com/feed/sync_reserve_events/definition
+        """
+        df = self._get_pjm_json(
+            "sync_reserve_events",
+            start=None,
+            end=None,
+            params={
+                "fields": "event_start_ept,event_end_ept,duration,synchronized_reserve_zone,synchronized_sub_zone,percent_deployed",
+            },
+            verbose=verbose,
+        )
+
+        df["Interval Start"] = pd.to_datetime(df["event_start_ept"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = pd.to_datetime(df["event_end_ept"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        df = df.rename(
+            columns={
+                "duration": "Duration",
+                "synchronized_reserve_zone": "Synchronized Reserve Zone",
+                "synchronized_sub_zone": "Synchronized Subzone",
+                "percent_deployed": "Percent Deployed",
+            },
+        )
+        df["Duration"] = df["Duration"].astype(str)
+        df["Duration Minutes"] = (
+            pd.to_timedelta(df["Duration"]).dt.total_seconds().astype(int) // 60
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Duration",
+                    "Duration Minutes",
+                    "Synchronized Reserve Zone",
+                    "Synchronized Subzone",
+                    "Percent Deployed",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+
+if __name__ == "__main__":
+    iso = PJM()
+    df = iso.get_generation_capacity_daily("latest")
+    print(df)
