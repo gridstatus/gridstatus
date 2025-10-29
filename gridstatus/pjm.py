@@ -3649,6 +3649,12 @@ class PJM(ISOBase):
             },
         )
 
+        df["Publish Time"] = (
+            pd.to_datetime(df["Publish Time"], format="ISO8601")
+            .dt.tz_localize("UTC")
+            .dt.tz_convert(self.default_timezone)
+        )
+
         return (
             df[
                 [

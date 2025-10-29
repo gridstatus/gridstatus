@@ -3239,7 +3239,7 @@ class TestPJM(BaseTestISO):
             df.columns.tolist() == self.expected_inc_and_dec_bids_day_ahead_hourly_cols
         )
         assert not df.empty
-        assert df["Publish Time"].dtype == object
+        assert pd.api.types.is_datetime64tz_dtype(df["Publish Time"])
         assert df["Price Point"].dtype in [np.float64, np.int64]
         assert df["Inc MW"].dtype in [np.float64, np.int64]
         assert df["Dec MW"].dtype in [np.float64, np.int64]
