@@ -728,6 +728,9 @@ class TestISONEAPI(TestHelperMixin):
     def _check_capacity_forecast_7_day_columns(self, result: pd.DataFrame) -> None:
         """Validate the DataFrame columns against the Pydantic model fields."""
         assert list(result.columns) == ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS
+        assert result["Interval Start"].dtype == "datetime64[ns, US/Eastern]"
+        assert result["Interval End"].dtype == "datetime64[ns, US/Eastern]"
+        assert result["Publish Time"].dtype == "datetime64[ns, US/Eastern]"
         assert result["High Temperature Boston"].dtype in [np.int64, np.float64]
         assert result["Dew Point Boston"].dtype in [np.int64, np.float64]
         assert result["High Temperature Hartford"].dtype in [np.int64, np.float64]

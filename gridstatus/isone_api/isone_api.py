@@ -1073,8 +1073,12 @@ class ISONEAPI:
             meta=["CreationDate"],
         )
 
-        df["Publish Time"] = pd.to_datetime(df["CreationDate"])
-        df["Interval Start"] = pd.to_datetime(df["MarketDate"])
+        df["Publish Time"] = pd.to_datetime(df["CreationDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval Start"] = pd.to_datetime(df["MarketDate"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
 
         df = df.rename(
