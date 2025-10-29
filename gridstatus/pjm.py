@@ -3465,10 +3465,16 @@ class PJM(ISOBase):
         https://dataminer2.pjm.com/feed/day_gen_capacity/definition
         """
         if date == "latest":
-            ten_days_ago = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(
-                days=10,
-            )
-            return self.get_generation_capacity_daily(ten_days_ago.date())
+            try:
+                return self.get_generation_capacity_daily("today")
+            except NoDataFoundException:
+                yesterday = (
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
+                    - pd.Timedelta(days=1)
+                ).date()
+                return self.get_generation_capacity_daily(
+                    pd.Timestamp(yesterday, tz=self.default_timezone),
+                )
 
         df = self._get_pjm_json(
             "day_gen_capacity",
