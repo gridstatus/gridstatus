@@ -3487,9 +3487,11 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        df["Interval Start"] = pd.to_datetime(
-            df["bid_datetime_beginning_ept"],
-        ).dt.tz_localize(self.default_timezone)
+        df["Interval Start"] = (
+            pd.to_datetime(df["bid_datetime_beginning_utc"], format="ISO8601")
+            .dt.tz_localize("UTC")
+            .dt.tz_convert(self.default_timezone)
+        )
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
         df = df.rename(
@@ -3572,6 +3574,8 @@ class PJM(ISOBase):
             df["day_ahead_market_date"],
         ).dt.tz_localize(
             self.default_timezone,
+            ambiguous="infer",
+            nonexistent="shift_forward",
         )
         df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
 
@@ -3645,6 +3649,12 @@ class PJM(ISOBase):
             },
         )
 
+        df["Publish Time"] = (
+            pd.to_datetime(df["Publish Time"], format="ISO8601")
+            .dt.tz_localize("UTC")
+            .dt.tz_convert(self.default_timezone)
+        )
+
         return (
             df[
                 [
@@ -3680,9 +3690,13 @@ class PJM(ISOBase):
 
         df["Interval Start"] = pd.to_datetime(df["event_start_ept"]).dt.tz_localize(
             self.default_timezone,
+            ambiguous="infer",
+            nonexistent="shift_forward",
         )
         df["Interval End"] = pd.to_datetime(df["event_end_ept"]).dt.tz_localize(
             self.default_timezone,
+            ambiguous="infer",
+            nonexistent="shift_forward",
         )
 
         df = df.rename(
