@@ -1303,7 +1303,11 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
+                "Nomogram ID XML",
+                "Market Run ID",
+                "Constraint Cause",
                 "Price",
+                "Group",
             ]
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
@@ -1313,6 +1317,24 @@ class TestCAISO(BaseTestISO):
                 end,
                 tz=self.iso.default_timezone,
             )
+
+    def test_get_nomogram_branch_shadow_prices_day_ahead_hourly_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_nomogram_branch_shadow_prices_day_ahead_hourly_latest.yaml",
+        ):
+            df = self.iso.get_nomogram_branch_shadow_prices_day_ahead_hourly("latest")
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Nomogram ID XML",
+                "Market Run ID",
+                "Constraint Cause",
+                "Price",
+                "Group",
+            ]
+            assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1330,7 +1352,11 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
+                "Nomogram ID XML",
+                "Market Run ID",
+                "Constraint Cause",
                 "Price",
+                "Group",
             ]
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
@@ -1340,6 +1366,24 @@ class TestCAISO(BaseTestISO):
                 end,
                 tz=self.iso.default_timezone,
             )
+
+    def test_get_nomogram_branch_shadow_prices_hasp_hourly_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_nomogram_branch_shadow_prices_hasp_hourly_latest.yaml",
+        ):
+            df = self.iso.get_nomogram_branch_shadow_prices_hasp_hourly("latest")
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Nomogram ID XML",
+                "Market Run ID",
+                "Constraint Cause",
+                "Price",
+                "Group",
+            ]
+            assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1360,7 +1404,11 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
+                "Nomogram ID XML",
+                "Market Run ID",
+                "Constraint Cause",
                 "Price",
+                "Group",
             ]
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
@@ -1370,6 +1418,24 @@ class TestCAISO(BaseTestISO):
                 end,
                 tz=self.iso.default_timezone,
             )
+
+    def test_get_nomogram_branch_shadow_price_forecast_15_min_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_nomogram_branch_shadow_price_forecast_15_min_latest.yaml",
+        ):
+            df = self.iso.get_nomogram_branch_shadow_price_forecast_15_min("latest")
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Nomogram ID XML",
+                "Market Run ID",
+                "Constraint Cause",
+                "Price",
+                "Group",
+            ]
+            assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1394,7 +1460,10 @@ class TestCAISO(BaseTestISO):
                 "Interval Start",
                 "Interval End",
                 "Location",
+                "Market Run ID",
+                "Constraint Cause",
                 "Price",
+                "Group",
             ]
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
@@ -1404,6 +1473,83 @@ class TestCAISO(BaseTestISO):
                 end,
                 tz=self.iso.default_timezone,
             )
+
+    def test_get_interval_nomogram_branch_shadow_prices_real_time_5_min_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_interval_nomogram_branch_shadow_prices_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_interval_nomogram_branch_shadow_prices_real_time_5_min(
+                "latest",
+            )
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Market Run ID",
+                "Constraint Cause",
+                "Price",
+                "Group",
+            ]
+            assert df["Interval Start"].min() >= self.local_start_of_today()
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2025-03-20", "2025-03-22"),
+        ],
+    )
+    def test_get_intertie_constraint_shadow_prices_real_time_5_min(
+        self,
+        date,
+        end,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_intertie_constraint_shadow_prices_real_time_5_min_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_intertie_constraint_shadow_prices_real_time_5_min(
+                date,
+                end=end,
+            )
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "TI ID",
+                "TI Direction",
+                "Market Run ID",
+                "Constraint Cause",
+                "Shadow Price",
+                "Group",
+            ]
+            assert df["Interval Start"].min() >= pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval End"].max() <= pd.Timestamp(
+                end,
+                tz=self.iso.default_timezone,
+            )
+
+    def test_get_intertie_constraint_shadow_prices_real_time_5_min_latest(self):
+        with caiso_vcr.use_cassette(
+            "test_get_intertie_constraint_shadow_prices_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_intertie_constraint_shadow_prices_real_time_5_min(
+                "latest",
+            )
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "TI ID",
+                "TI Direction",
+                "Market Run ID",
+                "Constraint Cause",
+                "Shadow Price",
+                "Group",
+            ]
+            assert df["Interval Start"].min() >= self.local_start_of_today()
 
     """get_system_load_and_resource_schedules"""
 

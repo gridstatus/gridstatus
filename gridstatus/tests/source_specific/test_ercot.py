@@ -1743,6 +1743,26 @@ class TestErcot(BaseTestISO):
 
         self._check_temperature_forecast_by_weather_zone(df)
 
+    def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self):
+        # This forecast date includes 2025-11-02, DST end
+        with api_vcr.use_cassette(
+            "test_get_temperature_forecast_by_weather_zone_dst_end_2025.yaml",
+        ):
+            df = self.iso.get_temperature_forecast_by_weather_zone("2025-10-26")
+
+        self._check_temperature_forecast_by_weather_zone(df)
+
+        # Check for the presence of the repeated hour
+        assert (
+            pd.Timestamp("2025-11-02 01:00:00-0500", tz="US/Central")
+            == df["Interval Start"].iloc[-48]
+        )
+
+        assert (
+            pd.Timestamp("2025-11-02 01:00:00-0600", tz="US/Central")
+            == df["Interval Start"].iloc[-47]
+        )
+
     """parse_doc"""
 
     def test_parse_doc_works_on_dst_data(self):

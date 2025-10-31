@@ -389,6 +389,15 @@ OASIS_DATASET_CONFIG = {
         },
         "params": {},
     },
+    "interval_intertie_constraint_shadow_prices": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_RTM_FLOWGATE",
+            "version": 1,
+        },
+        "params": {},
+    },
     "system_load_and_resource_schedules_day_ahead": {
         "query": {
             "path": "SingleZip",
