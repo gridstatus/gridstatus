@@ -987,7 +987,7 @@ class Ercot(ISOBase):
         # of mixed timezones
         data["Interval End"] = pd.to_datetime(
             data["epoch"],
-            units="ms",
+            unit="ms",
             utc=True,
         ).dt.tz_convert(self.default_timezone)
 
@@ -1176,7 +1176,7 @@ class Ercot(ISOBase):
 
         data["Interval Start"] = pd.to_datetime(
             data["epoch"],
-            units="ms",
+            unit="ms",
             utc=True,
         ).dt.tz_convert(self.default_timezone)
         data["Interval End"] = data["Interval Start"] + pd.Timedelta(minutes=5)
