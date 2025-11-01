@@ -983,13 +983,13 @@ class Ercot(ISOBase):
         supply_demand_json = self._get_supply_demand_json()
         data = pd.DataFrame(supply_demand_json["data"])
 
-        # need to use apply since there can be mixed
-        # fixed offsets during dst transition
-        # that result in object dtypes in pandas
-        data["Interval End"] = data["timestamp"].apply(
-            lambda x: pd.to_datetime(x).tz_convert("UTC"),
-        )
-        data["Interval End"] = data["Interval End"].dt.tz_convert(self.default_timezone)
+        # Parse in UTC to then convert to local to avoid DST transition issues because
+        # of mixed timezones
+        data["Interval End"] = pd.to_datetime(
+            data["epoch"],
+            unit="ms",
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
 
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
         data["Time"] = data["Interval Start"]
@@ -1174,7 +1174,11 @@ class Ercot(ISOBase):
             "Publish Time",
         ] = self._get_update_timestamp_from_supply_demand_json(supply_demand_json)
 
-        data["Interval Start"] = pd.to_datetime(data["timestamp"])
+        data["Interval Start"] = pd.to_datetime(
+            data["epoch"],
+            unit="ms",
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
         data["Interval End"] = data["Interval Start"] + pd.Timedelta(minutes=5)
 
         return data[
