@@ -1348,23 +1348,32 @@ class ErcotAPI:
             **api_params,
         )
 
-        data["AGCExecTimeUTC"] = pd.to_datetime(
-            data["AGCExecTimeUTC"],
-            utc=True,
-        ).dt.tz_convert(
+        # During the DST end transition, ERCOT publishes duplicate values like this:
+        # AGCExecTime         DSTFlag AGCExecTimeUTC       SystemDemand ESRChargingMW
+        # 2025-11-02T01:13:33 False   2025-11-02T07:13:33  42476.2188   2192.14233
+        # 2025-11-02T01:13:33 True    2025-11-02T07:13:33  41154.0469   1275.81592
+        # 2025-11-02T01:13:33 False   2025-11-02T06:13:33  42476.2188   2192.14233
+        # Even though the UTC times are different between rows 1 and 3, they have the
+        # same system demand and charging values and must be duplicates because the odds
+        # of these values being the same one hour apart is infinitesimal. So, we drop
+        # one of rows 1 and 3 and don't use the UTC time.
+        data = data.drop_duplicates(subset=["AGCExecTime", "DSTFlag", "SystemDemand"])
+
+        data["AGCExecTime"] = pd.to_datetime(data["AGCExecTime"]).dt.tz_localize(
             self.default_timezone,
+            ambiguous=Ercot().ambiguous_based_on_dstflag(data),
         )
 
         data = data.rename(
             columns={
-                "AGCExecTimeUTC": "Time",
+                "AGCExecTime": "Time",
                 "SystemDemand": "System Demand",
                 "ESRChargingMW": "ESR Charging MW",
             },
         )
 
         data = (
-            data.drop(columns=["DSTFlag", "AGCExecTime"])
+            data.drop(columns=["DSTFlag", "AGCExecTimeUTC"])
             .sort_values("Time")
             .reset_index(drop=True)
         )
