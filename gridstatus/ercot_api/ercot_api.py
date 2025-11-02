@@ -437,6 +437,7 @@ class ErcotAPI:
             )
             .drop(columns=["Time", "postDatetime"])
             .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
         )
 
         data = Ercot()._rename_hourly_wind_or_solar_report(data)
@@ -541,6 +542,7 @@ class ErcotAPI:
             )
             .drop(columns=["Time", "postDatetime"])
             .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
         )
 
         data = Ercot()._rename_hourly_wind_or_solar_report(data)
