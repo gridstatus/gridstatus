@@ -9,6 +9,7 @@ from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
+import pytz
 import requests
 import requests.status_codes as status_codes
 from tqdm import tqdm
@@ -416,9 +417,18 @@ class ErcotAPI:
 
         data.columns = data.columns.str.replace("_", " ")
 
-        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
-            self.default_timezone,
-        )
+        try:
+            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+                self.default_timezone,
+            )
+        # NOTE: ERCOT gives ambiguous Publish Times for the DST transition
+        # so we will use the first occurrence of the ambiguous time
+        except pytz.exceptions.AmbiguousTimeError:
+            logger.debug(f"Ambiguous time error for {data['postDatetime'].values}")
+            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+                self.default_timezone,
+                ambiguous=True,
+            )
 
         data = (
             utils.move_cols_to_front(
@@ -513,9 +523,16 @@ class ErcotAPI:
 
         data.columns = data.columns.str.replace("_", " ")
 
-        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
-            self.default_timezone,
-        )
+        try:
+            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+                self.default_timezone,
+            )
+        except pytz.exceptions.AmbiguousTimeError:
+            logger.debug(f"Ambiguous time error for {data['postDatetime'].values}")
+            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+                self.default_timezone,
+                ambiguous=True,
+            )
 
         data = (
             utils.move_cols_to_front(
