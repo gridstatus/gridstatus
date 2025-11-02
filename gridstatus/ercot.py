@@ -367,26 +367,23 @@ class Ercot(ISOBase):
         df = pd.DataFrame(data["previousDay"]["data"] + data["currentDay"]["data"])
 
         # TODO(kanter): fix this for future DST dates
-        if "2024-11-03 02:00:00-0600" in df["timestamp"].values:
-            # ERCOT publishes two intervals with 2am timestamp
-            # during CDT to CST transition
-            # but skips the repeated 1am timestamp
-            # let's manually fix this before further timestamp parsing
-            df.loc[
-                (df["timestamp"] == "2024-11-03 02:00:00-0600")
-                & (df["dstFlag"] == "N"),
-                "timestamp",
-            ] = "2024-11-03 01:00:00-0600"
+        for timestamp in ["2024-11-03 02:00:00-0600", "2025-11-02 02:00:00-0600"]:
+            if timestamp in df["timestamp"].values:
+                # ERCOT publishes two intervals with 2am timestamp
+                # during CDT to CST transition
+                # but skips the repeated 1am timestamp
+                # let's manually fix this before further timestamp parsing
+                df.loc[
+                    (df["timestamp"] == timestamp) & (df["dstFlag"] == "N"),
+                    "timestamp",
+                ] = timestamp.replace("02:00:00", "01:00:00")
 
         df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
 
-        # need to use apply since there can be mixed
-        # fixed offsets during dst transition
-        # that result in object dtypes in pandas
-        df["timestamp"] = df["timestamp"].apply(
-            lambda x: pd.to_datetime(x).tz_convert("UTC"),
+        # Parse in UTC to avoid issues with DST transition
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(
+            self.default_timezone,
         )
-        df["timestamp"] = df["timestamp"].dt.tz_convert(self.default_timezone)
 
         df = df.rename(
             columns={

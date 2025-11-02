@@ -1661,7 +1661,8 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_system_load_charging_4_seconds(df)
 
-        assert df["Time"].min() == self.local_start_of_today()
+        # This data is not exactly on even intervals
+        assert df["Time"].min() >= self.local_start_of_today()
         assert df["Time"].max() <= self.local_now()
 
     def test_get_system_load_charging_4_seconds_date_range(self):
@@ -1684,3 +1685,22 @@ class TestErcotAPI(TestHelperMixin):
             end_date,
             tz=ErcotAPI().default_timezone,
         )
+
+    def test_get_system_load_charging_dst_end(self):
+        start_date = pd.Timestamp("2025-11-02 00:00:00").tz_localize(
+            self.iso.default_timezone,
+        )
+        end_date = start_date + pd.Timedelta(hours=6)
+
+        with api_vcr.use_cassette("test_get_system_load_charging_dst_end.yaml"):
+            data = self.iso.get_system_load_charging_4_seconds(start_date, end_date)
+
+        self._check_system_load_charging_4_seconds(data)
+
+        # Make sure the DST transition is handled correctly. There should be the same
+        # time except with different offsets
+        assert "2025-11-02 01:39:33-05:00" in list(data["Time"].astype(str))
+        assert "2025-11-02 01:39:33-06:00" in list(data["Time"].astype(str))
+
+        # No duplicates
+        assert (data["Time"].value_counts() == 1).all()
