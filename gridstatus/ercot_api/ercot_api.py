@@ -1357,7 +1357,14 @@ class ErcotAPI:
         # same system demand and charging values and must be duplicates because the odds
         # of these values being the same one hour apart is infinitesimal. So, we drop
         # one of rows 1 and 3 and don't use the UTC time.
-        data = data.drop_duplicates(subset=["AGCExecTime", "DSTFlag", "SystemDemand"])
+        if (
+            # DST transition check
+            pd.to_datetime(data["AGCExecTime"].min()).tz
+            != pd.to_datetime(data["AGCExecTime"].max()).tz
+        ):
+            data = data.drop_duplicates(
+                subset=["AGCExecTime", "DSTFlag", "SystemDemand"],
+            )
 
         data["AGCExecTime"] = pd.to_datetime(data["AGCExecTime"]).dt.tz_localize(
             self.default_timezone,
