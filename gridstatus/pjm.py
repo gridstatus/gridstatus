@@ -2813,9 +2813,20 @@ class PJM(ISOBase):
                 "scheduled_mw": "Scheduled",
             },
         )
-        # NB: The data has an extra second on each timestamp like 2025-05-20 12:00:01, so we need to floor to the minute
-        df["Interval Start"] = pd.to_datetime(df["Interval Start"]).dt.floor("min")
-        df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.floor("min")
+
+        # NB: The data has an extra second on each timestamp like 2025-05-20 12:00:01,
+        # so we need to floor to the minute. The flooring needs to be done on UTC
+        # timestamps to avoid DST transition issues
+        df["Interval Start"] = (
+            pd.to_datetime(df["Interval Start"], utc=True)
+            .dt.floor("min")
+            .dt.tz_convert(self.default_timezone)
+        )
+        df["Interval End"] = (
+            pd.to_datetime(df["Interval End"], utc=True)
+            .dt.floor("min")
+            .dt.tz_convert(self.default_timezone)
+        )
 
         return df[
             ["Interval Start", "Interval End", "Tie Flow Name", "Actual", "Scheduled"]
