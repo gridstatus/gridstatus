@@ -1904,8 +1904,7 @@ class SPP(ISOBase):
             )
 
         # NB: Daily files are more performant for historical dates than getting from interval files
-        start_date = utils._handle_date(date, self.default_timezone)
-        if not utils.is_today(start_date, self.default_timezone):
+        if not utils.is_today(date, self.default_timezone):
             return self._get_binding_constraints_real_time_5_min_from_daily_files(
                 date,
                 end=end,
