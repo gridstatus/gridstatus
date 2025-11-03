@@ -1906,10 +1906,23 @@ class SPP(ISOBase):
 
         # NB: Daily files are more performant for historical dates than getting from interval files
         # The decorator splits by day, so we can check if this specific date is today
+        # Use interval files only for today; use daily files for all historical dates
+        # Note: Daily files contain the first 2.25 hours of the next day, so interval files
+        # for today don't start until 02:15
         start_date = utils._handle_date(date, self.default_timezone)
         if utils.is_today(start_date, self.default_timezone):
+            # When decorator splits by day, we need to provide end of day for interval method
+            # to get all intervals for that day. Also adjust start time since interval files
+            # for today don't exist for the first ~2 hours (they're in yesterday's daily file)
+            if end is None:
+                end = start_date + pd.Timedelta(days=1)
+            # Interval files for today start around 02:15, so adjust start if needed
+            adjusted_start = max(
+                start_date,
+                start_date.normalize() + pd.Timedelta(hours=2, minutes=10),
+            )
             return self._get_binding_constraints_real_time_5_min_from_intervals(
-                date,
+                adjusted_start,
                 end=end,
                 verbose=verbose,
             )
