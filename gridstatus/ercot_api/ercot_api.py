@@ -415,14 +415,14 @@ class ErcotAPI:
     def _determine_ambiguous_timezone_for_publish_time(
         self,
         post_datetime_series: pd.Series,
+        raw_data: pd.DataFrame = None,
     ) -> pd.Series:
         """
         Determines which ambiguous timestamps should be CDT vs CST for postDatetime values.
 
-        Simple rule: Find all unique ambiguous timestamps, sort them:
-        - First one -> CDT (True)
-        - Second one -> CST (False)
-        Then assign each row based on which timestamp it matches.
+        Rule: Find all unique ambiguous timestamps (1:xx AM).
+        - Timestamps associated with rows containing "xhr" in filename/source are CST
+        - All other ambiguous timestamps are CDT
 
         Returns a boolean Series where True means CDT and False means CST for ambiguous times.
         """
@@ -437,19 +437,78 @@ class ErcotAPI:
                 index=post_datetime_series.index,
             )
 
-        # First is CDT, second is CST
-        cst_timestamp = ambiguous_posts[1] if len(ambiguous_posts) > 1 else None
-
         result = pd.Series(
             [True] * len(post_datetime_series),
             index=post_datetime_series.index,
         )
-        if cst_timestamp:
-            result[post_datetime_str == cst_timestamp] = False
+
+        # Find CST timestamps by checking for "xhr" in filename
+        if raw_data is not None and "postDatetime" in raw_data.columns:
+            # Check _source_filename column (contains the actual filename from zip)
+            if "_source_filename" in raw_data.columns:
+                xhr_mask = (
+                    raw_data["_source_filename"]
+                    .astype(str)
+                    .str.contains("xhr", case=False, na=False)
+                )
+                if xhr_mask.any():
+                    raw_post_datetime_str = (
+                        raw_data.loc[xhr_mask, "postDatetime"].astype(str).unique()
+                    )
+                    logger.info(
+                        f"Found xhr in filename, matching postDatetime values: {raw_post_datetime_str}",
+                    )
+                    # Mark rows in result that match these postDatetime values as CST
+                    for xhr_post in raw_post_datetime_str:
+                        if "T01:" in str(xhr_post):
+                            result[post_datetime_str == xhr_post] = False
+                            logger.info(
+                                f"Marked postDatetime {xhr_post} as CST (False)",
+                            )
+                else:
+                    logger.warning(
+                        f"No 'xhr' found in _source_filename. Columns: {list(raw_data.columns)}",
+                    )
+                    # Show sample filenames for debugging
+                    if len(raw_data) > 0:
+                        sample_files = raw_data[
+                            raw_data["postDatetime"]
+                            .astype(str)
+                            .str.contains("T01:", na=False)
+                        ]["_source_filename"].unique()[:5]
+                        logger.warning(
+                            f"Sample filenames for ambiguous times: {sample_files}",
+                        )
+            else:
+                logger.warning(
+                    f"_source_filename column not found. Available columns: {list(raw_data.columns)}",
+                )
 
         return result
 
     def _handle_wind_actual_and_forecast_hourly(self, data, columns, verbose=False):
+        # Store raw data before parse_doc to check for xhr in filename
+        raw_data = data.copy()
+
+        # Debug: show ambiguous postDatetime values and their filenames
+        if (
+            "_source_filename" in raw_data.columns
+            and "postDatetime" in raw_data.columns
+        ):
+            ambiguous_raw = raw_data[
+                raw_data["postDatetime"].astype(str).str.contains("T01:", na=False)
+            ]
+            if len(ambiguous_raw) > 0:
+                logger.info("Ambiguous postDatetime values in raw_data:")
+                for post in ambiguous_raw["postDatetime"].unique():
+                    filenames = ambiguous_raw[ambiguous_raw["postDatetime"] == post][
+                        "_source_filename"
+                    ].unique()
+                    has_xhr = any("xhr" in str(fname).lower() for fname in filenames)
+                    logger.info(
+                        f"  {post}: xhr={has_xhr}, filenames={list(filenames)[:3]}",
+                    )
+
         data = Ercot().parse_doc(data, verbose=verbose)
 
         data.columns = data.columns.str.replace("_", " ")
@@ -459,16 +518,46 @@ class ErcotAPI:
                 self.default_timezone,
             )
         # NOTE: ERCOT gives ambiguous Publish Times for the DST transition
-        # First ambiguous timestamp is assigned as CDT, second is assigned as CST
+        # Timestamps with "xhr" in filename are CST, otherwise first is CDT, second is CST
         except pytz.exceptions.AmbiguousTimeError:
             logger.debug(f"Ambiguous time error for {data['postDatetime'].values}")
             ambiguous_array = self._determine_ambiguous_timezone_for_publish_time(
                 data["postDatetime"],
+                raw_data=raw_data,
             )
             data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
                 self.default_timezone,
                 ambiguous=ambiguous_array,
             )
+
+            # Verify the result - check ambiguous times have correct timezone
+            ambiguous_mask = (
+                data["postDatetime"].astype(str).str.contains("T01:", na=False)
+            )
+            if ambiguous_mask.any():
+                ambiguous_result = data.loc[
+                    ambiguous_mask,
+                    ["postDatetime", "Publish Time"],
+                ].copy()
+                ambiguous_result["timezone_offset"] = ambiguous_result[
+                    "Publish Time"
+                ].dt.strftime("%z")
+                ambiguous_summary = (
+                    ambiguous_result.groupby(["postDatetime", "timezone_offset"])
+                    .size()
+                    .reset_index(name="count")
+                )
+                logger.info(
+                    f"VERIFICATION - Ambiguous timestamps timezone assignment:\n{ambiguous_summary}",
+                )
+                # Check if we got both -0500 and -0600
+                unique_offsets = ambiguous_result["timezone_offset"].unique()
+                if len(unique_offsets) == 1:
+                    logger.warning(
+                        f"ERROR: All ambiguous timestamps have same offset {unique_offsets[0]}! Expected both -0500 and -0600.",
+                    )
+                else:
+                    logger.info(f"SUCCESS: Found both offsets: {unique_offsets}")
 
         data = (
             utils.move_cols_to_front(
@@ -560,6 +649,8 @@ class ErcotAPI:
         )
 
     def _handle_solar_actual_and_forecast_hourly(self, data, columns, verbose=False):
+        # Store raw data before parse_doc to check for xhr in filename
+        raw_data = data.copy()
         data = Ercot().parse_doc(data, verbose=verbose)
 
         data.columns = data.columns.str.replace("_", " ")
@@ -569,11 +660,12 @@ class ErcotAPI:
                 self.default_timezone,
             )
         # NOTE: ERCOT gives ambiguous Publish Times for the DST transition
-        # First ambiguous timestamp is assigned as CDT, second is assigned as CST
+        # Timestamps with "xhr" in filename are CST, otherwise first is CDT, second is CST
         except pytz.exceptions.AmbiguousTimeError:
             logger.debug(f"Ambiguous time error for {data['postDatetime'].values}")
             ambiguous_array = self._determine_ambiguous_timezone_for_publish_time(
                 data["postDatetime"],
+                raw_data=raw_data,
             )
             data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
                 self.default_timezone,
@@ -1526,10 +1618,19 @@ class ErcotAPI:
             return files
 
         dfs = []
-        for bytes, posted_datetime in zip(files, posted_datetimes):
-            df = pd.read_csv(bytes, compression="zip")
+        for file_data, posted_datetime, link in zip(files, posted_datetimes, links):
+            # Handle both tuple (bytes, filename) and plain bytes for backward compatibility
+            if isinstance(file_data, tuple):
+                bytes_data, filename = file_data
+            else:
+                bytes_data = file_data
+                filename = None
+
+            df = pd.read_csv(bytes_data, compression="zip")
             if add_post_datetime:
                 df["postDatetime"] = posted_datetime
+            # Store filename for xhr detection (prefer filename from zip, fallback to link)
+            df["_source_filename"] = filename if filename else link
             dfs.append(df)
 
         return pd.concat(dfs)
@@ -1586,7 +1687,7 @@ class ErcotAPI:
         doc_ids: list[str],
         emil_id: str,
         api: APITypeEnum = APITypeEnum.PUBLIC_API,
-    ) -> list[pd.io.common.BytesIO]:
+    ) -> list[tuple[pd.io.common.BytesIO, str]]:
         documents = []
         doc_id_batches = [
             doc_ids[i : i + self.batch_size]
@@ -1605,19 +1706,22 @@ class ErcotAPI:
             )
 
             with ZipFile(pd.io.common.BytesIO(response)) as outer_zip:
+                file_list = outer_zip.namelist()
                 logger.debug(
-                    f"Received zip file with {len(outer_zip.namelist())} files",
+                    f"Received zip file with {len(file_list)} files",
                 )
+                logger.info(f"Files in zip archive: {file_list}")
 
-                for inner_zip_name in outer_zip.namelist():
+                for inner_zip_name in file_list:
                     # place the document in the correct index
                     # based of the supplied doc_ids order
                     # since downstream code expects this
                     doc_id = inner_zip_name.split(".")[0]
                     doc_index = doc_ids.index(doc_id)
                     with outer_zip.open(inner_zip_name) as inner_zip_file:
-                        documents[doc_index] = pd.io.common.BytesIO(
-                            inner_zip_file.read(),
+                        documents[doc_index] = (
+                            pd.io.common.BytesIO(inner_zip_file.read()),
+                            inner_zip_name,  # Store filename for xhr detection
                         )
 
         # assert there are no None values in the documents list
