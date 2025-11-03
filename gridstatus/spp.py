@@ -1880,6 +1880,7 @@ class SPP(ISOBase):
             .sort_values(["Interval Start", "Constraint Name"])
         )
 
+    @support_date_range("DAY_START")
     def get_binding_constraints_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -1904,21 +1905,21 @@ class SPP(ISOBase):
             )
 
         # NB: Daily files are more performant for historical dates than getting from interval files
+        # The decorator splits by day, so we can check if this specific date is today
         start_date = utils._handle_date(date, self.default_timezone)
-        if not utils.is_today(start_date, self.default_timezone):
-            return self._get_binding_constraints_real_time_5_min_from_daily_files(
-                date,
-                end=end,
-                verbose=verbose,
-            )
-        else:
+        if utils.is_today(start_date, self.default_timezone):
             return self._get_binding_constraints_real_time_5_min_from_intervals(
                 date,
                 end=end,
                 verbose=verbose,
             )
+        else:
+            return self._get_binding_constraints_real_time_5_min_from_daily_files(
+                date,
+                end=end,
+                verbose=verbose,
+            )
 
-    @support_date_range("DAY_START")
     def _get_binding_constraints_real_time_5_min_from_daily_files(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
