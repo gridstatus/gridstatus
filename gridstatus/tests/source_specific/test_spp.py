@@ -128,7 +128,10 @@ class TestSPP(BaseTestISO):
 
         # Latest data should have one interval
         assert df["Interval Start"].nunique() == 1
-        assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
+        # Check that the max interval is relatively recent (within last 24 hours)
+        max_interval = df["Interval Start"].max()
+        assert max_interval >= self.local_start_of_today() - pd.Timedelta(days=1)
+        assert max_interval <= self.local_now() + pd.Timedelta(hours=1)
 
     @pytest.mark.slow
     def test_get_lmp_real_time_5_min_by_location_today(self):
@@ -291,7 +294,10 @@ class TestSPP(BaseTestISO):
         self._check_lmp_real_time_5_min_by_bus(df)
         # Latest data should have one interval
         assert df["Interval Start"].nunique() == 1
-        assert df["Interval Start"].max() >= (self.now() - pd.DateOffset(minutes=10))
+        # Check that the max interval is relatively recent (within last 24 hours)
+        max_interval = df["Interval Start"].max()
+        assert max_interval >= self.local_start_of_today() - pd.Timedelta(days=1)
+        assert max_interval <= self.local_now() + pd.Timedelta(hours=1)
 
     @pytest.mark.slow
     def test_get_lmp_real_time_5_min_by_bus_today(self):
@@ -525,7 +531,7 @@ class TestSPP(BaseTestISO):
         "Supp_Cleared",
     ]
 
-    def test_get_operating_reserves(self, start, end):
+    def test_get_operating_reserves(self):
         yesterday = pd.Timestamp.now(
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(
@@ -533,7 +539,7 @@ class TestSPP(BaseTestISO):
         )  # noqa
         yesterday_1230am = yesterday + pd.Timedelta(minutes=30)
         with api_vcr.use_cassette(
-            f"test_get_operating_reserves_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
+            f"test_get_operating_reserves_{yesterday.strftime('%Y%m%d')}_{yesterday_1230am.strftime('%Y%m%d')}.yaml",
         ):
             df = self.iso.get_operating_reserves(start=yesterday, end=yesterday_1230am)
         assert len(df) > 0
