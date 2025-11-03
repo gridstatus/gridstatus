@@ -1855,12 +1855,8 @@ class SPP(ISOBase):
 
     def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pd.DataFrame:
         logger.info(f"Downloading {url}...")
-        try:
-            df = pd.read_csv(url)
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                raise NoDataFoundException(f"No data found for {url}")
-            raise
+        df = pd.read_csv(url)
+
         df.columns = df.columns.str.strip()
 
         df = self._handle_market_end_to_interval(
@@ -1939,10 +1935,7 @@ class SPP(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Real-Time Binding Constraints from daily files."""
-        if date == "latest":
-            raise ValueError("Latest not supported with daily files")
 
-        date = utils._handle_date(date, self.default_timezone)
         folder_year = date.strftime("%Y")
         folder_month = date.strftime("%m")
 
