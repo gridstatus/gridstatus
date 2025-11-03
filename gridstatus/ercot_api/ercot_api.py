@@ -412,6 +412,43 @@ class ErcotAPI:
             verbose=verbose,
         )
 
+    def _determine_ambiguous_timezone_for_publish_time(
+        self,
+        post_datetime_series: pd.Series,
+    ) -> pd.Series:
+        """
+        Determines which ambiguous timestamps should be CDT vs CST for postDatetime values.
+
+        Simple rule: Find all unique ambiguous timestamps, sort them:
+        - First one -> CDT (True)
+        - Second one -> CST (False)
+        Then assign each row based on which timestamp it matches.
+
+        Returns a boolean Series where True means CDT and False means CST for ambiguous times.
+        """
+        post_datetime_str = post_datetime_series.astype(str)
+        ambiguous_posts = sorted(
+            [p for p in post_datetime_str.unique() if "T01:" in str(p)],
+        )
+
+        if len(ambiguous_posts) == 0:
+            return pd.Series(
+                [True] * len(post_datetime_series),
+                index=post_datetime_series.index,
+            )
+
+        # First is CDT, second is CST
+        cst_timestamp = ambiguous_posts[1] if len(ambiguous_posts) > 1 else None
+
+        result = pd.Series(
+            [True] * len(post_datetime_series),
+            index=post_datetime_series.index,
+        )
+        if cst_timestamp:
+            result[post_datetime_str == cst_timestamp] = False
+
+        return result
+
     def _handle_wind_actual_and_forecast_hourly(self, data, columns, verbose=False):
         data = Ercot().parse_doc(data, verbose=verbose)
 
@@ -422,12 +459,15 @@ class ErcotAPI:
                 self.default_timezone,
             )
         # NOTE: ERCOT gives ambiguous Publish Times for the DST transition
-        # so we will use the first occurrence of the ambiguous time
+        # First ambiguous timestamp is assigned as CDT, second is assigned as CST
         except pytz.exceptions.AmbiguousTimeError:
             logger.debug(f"Ambiguous time error for {data['postDatetime'].values}")
+            ambiguous_array = self._determine_ambiguous_timezone_for_publish_time(
+                data["postDatetime"],
+            )
             data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
                 self.default_timezone,
-                ambiguous=True,
+                ambiguous=ambiguous_array,
             )
 
         data = (
@@ -528,11 +568,16 @@ class ErcotAPI:
             data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
                 self.default_timezone,
             )
+        # NOTE: ERCOT gives ambiguous Publish Times for the DST transition
+        # First ambiguous timestamp is assigned as CDT, second is assigned as CST
         except pytz.exceptions.AmbiguousTimeError:
             logger.debug(f"Ambiguous time error for {data['postDatetime'].values}")
+            ambiguous_array = self._determine_ambiguous_timezone_for_publish_time(
+                data["postDatetime"],
+            )
             data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
                 self.default_timezone,
-                ambiguous=True,
+                ambiguous=ambiguous_array,
             )
 
         data = (
