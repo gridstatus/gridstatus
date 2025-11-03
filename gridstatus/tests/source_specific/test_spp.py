@@ -1455,7 +1455,7 @@ class TestSPP(BaseTestISO):
         "Interval End",
         "Constraint Name",
         "Constraint Type",
-        "NERCID",
+        "NERC ID",
         "State",
         "Shadow Price",
         "Monitored Facility",
@@ -1471,7 +1471,7 @@ class TestSPP(BaseTestISO):
 
     def test_get_binding_constraints_day_ahead_latest_not_supported(self):
         with pytest.raises(ValueError, match="Latest not supported"):
-            self.iso.get_binding_constraints_day_ahead(date="latest")
+            self.iso.get_binding_constraints_day_ahead_hourly(date="latest")
 
     def test_get_binding_constraints_day_ahead_historical_date_range(self):
         three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
@@ -1480,7 +1480,7 @@ class TestSPP(BaseTestISO):
         cassette_name = f"test_get_binding_constraints_day_ahead_{three_days_ago.strftime('%Y%m%d')}_to_{two_days_ago.strftime('%Y%m%d')}.yaml"
 
         with api_vcr.use_cassette(cassette_name):
-            df = self.iso.get_binding_constraints_day_ahead(
+            df = self.iso.get_binding_constraints_day_ahead_hourly(
                 date=three_days_ago,
                 end=two_days_ago,
             )
@@ -1489,14 +1489,14 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == three_days_ago
         assert df["Interval End"].max() == two_days_ago + pd.Timedelta(hours=23)
 
-    """get_binding_constraints_real_time"""
+    """get_binding_constraints_real_time_5_min"""
 
     REAL_TIME_BINDING_CONSTRAINTS_COLUMNS = [
         "Interval Start",
         "Interval End",
         "Constraint Name",
         "Constraint Type",
-        "NERCID",
+        "NERC ID",
         "TLR Level",
         "State",
         "Shadow Price",
@@ -1514,7 +1514,7 @@ class TestSPP(BaseTestISO):
         with api_vcr.use_cassette(
             "test_get_binding_constraints_real_time_latest.yaml",
         ):
-            df = self.iso.get_binding_constraints_real_time(date="latest")
+            df = self.iso.get_binding_constraints_real_time_5_min(date="latest")
 
         self._check_binding_constraints_real_time(df)
 
@@ -1525,7 +1525,7 @@ class TestSPP(BaseTestISO):
         cassette_name = f"test_get_binding_constraints_real_time_{three_days_ago.strftime('%Y%m%d_%H%M')}_to_{three_days_ago_0215.strftime('%Y%m%d_%H%M')}.yaml"
 
         with api_vcr.use_cassette(cassette_name):
-            df = self.iso.get_binding_constraints_real_time(
+            df = self.iso.get_binding_constraints_real_time_5_min(
                 date=three_days_ago,
                 end=three_days_ago_0215,
             )

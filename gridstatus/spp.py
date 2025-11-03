@@ -1812,7 +1812,7 @@ class SPP(ISOBase):
         return df.sort_values("Interval Start")
 
     @support_date_range("DAY_START")
-    def get_binding_constraints_day_ahead(
+    def get_binding_constraints_day_ahead_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -1835,9 +1835,9 @@ class SPP(ISOBase):
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
 
-        return self._process_binding_constraints_day_ahead(url)
+        return self._process_binding_constraints_day_ahead_hourly(url)
 
-    def _process_binding_constraints_day_ahead(self, url: str) -> pd.DataFrame:
+    def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pd.DataFrame:
         logger.info(f"Downloading {url}...")
         df = pd.read_csv(url)
         df.columns = df.columns.str.strip()
@@ -1848,12 +1848,14 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(hours=1),
         )
 
+        df = df.rename(columns={"NERCID": "NERC ID"})
+
         cols_to_keep = [
             "Interval Start",
             "Interval End",
             "Constraint Name",
             "Constraint Type",
-            "NERCID",
+            "NERC ID",
             "State",
             "Shadow Price",
             "Monitored Facility",
@@ -1871,7 +1873,7 @@ class SPP(ISOBase):
         )
 
     @support_date_range("5_MIN")
-    def get_binding_constraints_real_time(
+    def get_binding_constraints_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -1915,12 +1917,14 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(minutes=5),
         )
 
+        df = df.rename(columns={"NERCID": "NERC ID"})
+
         cols_to_keep = [
             "Interval Start",
             "Interval End",
             "Constraint Name",
             "Constraint Type",
-            "NERCID",
+            "NERC ID",
             "TLR Level",
             "State",
             "Shadow Price",
