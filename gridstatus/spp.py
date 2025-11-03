@@ -1838,19 +1838,10 @@ class SPP(ISOBase):
                     end=end,
                     verbose=verbose,
                 )
-            except Exception:
-                logger.info(
-                    f"Data not available for {tomorrow.strftime('%Y-%m-%d')}, trying today",
-                )
-                today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-                return self.get_binding_constraints_day_ahead_hourly(
-                    date=today,
-                    end=end,
-                    verbose=verbose,
-                )
+            except NoDataFoundException:
+                return self.get_binding_constraints_day_ahead_hourly(date="today")
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
-
         return self._process_binding_constraints_day_ahead_hourly(url)
 
     def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pd.DataFrame:
