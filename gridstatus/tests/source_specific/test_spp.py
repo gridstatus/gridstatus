@@ -1469,9 +1469,13 @@ class TestSPP(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
 
-    def test_get_binding_constraints_day_ahead_latest_not_supported(self):
-        with pytest.raises(ValueError, match="Latest not supported"):
-            self.iso.get_binding_constraints_day_ahead_hourly(date="latest")
+    def test_get_binding_constraints_day_ahead_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_day_ahead_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_day_ahead_hourly(date="latest")
+
+        self._check_binding_constraints_day_ahead(df)
 
     def test_get_binding_constraints_day_ahead_historical_date_range(self):
         three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)

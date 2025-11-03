@@ -1821,7 +1821,7 @@ class SPP(ISOBase):
         """Get Day-Ahead Binding Constraints
 
         Args:
-            date: date to get data for
+            date: date to get data for. Supports "latest" for most recently available data.
             end: end date
             verbose: print url
 
@@ -1829,17 +1829,38 @@ class SPP(ISOBase):
             pd.DataFrame: Day-Ahead Binding Constraints
         """
         if date == "latest":
-            raise ValueError(
-                "Latest not supported for Day Ahead Binding Constraints",
-            )
+            tomorrow = pd.Timestamp.now(
+                tz=self.default_timezone,
+            ).normalize() + pd.Timedelta(days=1)
+            try:
+                return self.get_binding_constraints_day_ahead_hourly(
+                    date=tomorrow,
+                    end=end,
+                    verbose=verbose,
+                )
+            except Exception:
+                logger.info(
+                    f"Data not available for {tomorrow.strftime('%Y-%m-%d')}, trying today",
+                )
+                today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+                return self.get_binding_constraints_day_ahead_hourly(
+                    date=today,
+                    end=end,
+                    verbose=verbose,
+                )
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
 
         return self._process_binding_constraints_day_ahead_hourly(url)
 
     def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pd.DataFrame:
         logger.info(f"Downloading {url}...")
-        df = pd.read_csv(url)
+        try:
+            df = pd.read_csv(url)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NoDataFoundException(f"No data found for {url}")
+            raise
         df.columns = df.columns.str.strip()
 
         df = self._handle_market_end_to_interval(
@@ -1872,7 +1893,6 @@ class SPP(ISOBase):
             .sort_values(["Interval Start", "Constraint Name"])
         )
 
-    @support_date_range("5_MIN")
     def get_binding_constraints_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -1890,6 +1910,58 @@ class SPP(ISOBase):
             pd.DataFrame: Real-Time Binding Constraints
         """
         if date == "latest":
+            return self._get_binding_constraints_real_time_5_min_from_intervals(
+                date,
+                end=end,
+                verbose=verbose,
+            )
+
+        # NB: Daily files are more performant for historical dates than getting from interval files
+        start_date = utils._handle_date(date, self.default_timezone)
+        if not utils.is_today(start_date, self.default_timezone):
+            return self._get_binding_constraints_real_time_5_min_from_daily_files(
+                date,
+                end=end,
+                verbose=verbose,
+            )
+        else:
+            return self._get_binding_constraints_real_time_5_min_from_intervals(
+                date,
+                end=end,
+                verbose=verbose,
+            )
+
+    @support_date_range("DAY_START")
+    def _get_binding_constraints_real_time_5_min_from_daily_files(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Real-Time Binding Constraints from daily files."""
+        if date == "latest":
+            raise ValueError("Latest not supported with daily files")
+
+        date = utils._handle_date(date, self.default_timezone)
+        folder_year = date.strftime("%Y")
+        folder_month = date.strftime("%m")
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/{folder_year}/{folder_month}/By_Day/RTBM-DAILY-BC-{date.strftime('%Y%m%d')}.csv"
+
+        logger.info(f"Downloading {url} (daily file)...")
+        df = pd.read_csv(url)
+        df.columns = df.columns.str.strip()
+        return self._process_binding_constraints_real_time(df)
+
+    @support_date_range("5_MIN")
+    def _get_binding_constraints_real_time_5_min_from_intervals(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Real-Time Binding Constraints from 5-minute interval files."""
+        if date == "latest":
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/RTBM-BC-latestInterval.csv"  # noqa
         else:
             url = self._format_5_min_url(
@@ -1900,12 +1972,7 @@ class SPP(ISOBase):
             )
 
         logger.info(f"Downloading {url}...")
-        try:
-            df = pd.read_csv(url)
-        except ConnectionResetError as e:
-            logger.error(f"Error downloading {url}: {e}")
-            return pd.DataFrame()
-
+        df = pd.read_csv(url)
         return self._process_binding_constraints_real_time(df)
 
     def _process_binding_constraints_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
