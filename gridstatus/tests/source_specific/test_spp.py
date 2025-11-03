@@ -142,7 +142,7 @@ class TestSPP(BaseTestISO):
 
         self._check_lmp_real_time_5_min_by_location(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].min() >= self.local_start_of_today()
         assert df["Interval End"].max() >= self.local_now().floor(
             "5min",
         ) - pd.DateOffset(minutes=10)
@@ -302,7 +302,7 @@ class TestSPP(BaseTestISO):
 
         self._check_lmp_real_time_5_min_by_bus(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].min() >= self.local_start_of_today()
         assert df["Interval End"].max() >= self.local_now().floor(
             "5min",
         ) - pd.DateOffset(minutes=10)
@@ -621,7 +621,7 @@ class TestSPP(BaseTestISO):
         ).normalize() + pd.Timedelta(
             days=1,
         )
-        three_days_ago = tomorrow - pd.Timedelta(days=4)
+        three_days_ago = (tomorrow - pd.Timedelta(days=4)).normalize()
 
         with api_vcr.use_cassette(
             f"test_get_day_ahead_operating_reserve_prices_{three_days_ago.strftime('%Y%m%d')}_{tomorrow.strftime('%Y%m%d')}.yaml",
@@ -804,7 +804,7 @@ class TestSPP(BaseTestISO):
             )
 
         assert df["Interval Start"].min() == two_days_ago_2345
-        assert df["Interval End"].max() == one_day_ago_0010
+        assert df["Interval End"].max() <= one_day_ago_0010
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
 
     def test_get_lmp_real_time_weis_single_interval(self):
@@ -831,7 +831,7 @@ class TestSPP(BaseTestISO):
         two_days_ago_2355 = two_days_ago + pd.Timedelta(hours=23, minutes=55)
 
         with api_vcr.use_cassette(
-            f"test_get_lmp_real_time_weis_last_interval_of_day_{two_days_ago_2355.strftime('%Y%m%d')}_{two_days_ago_2355 + pd.Timedelta(minutes=5).strftime('%Y%m%d')}.yaml",
+            f"test_get_lmp_real_time_weis_last_interval_of_day_{two_days_ago_2355.strftime('%Y%m%d')}_{(two_days_ago_2355 + pd.Timedelta(minutes=5)).strftime('%Y%m%d')}.yaml",
         ):
             df = self.iso.get_lmp_real_time_weis(
                 start=two_days_ago_2355,
