@@ -1447,3 +1447,91 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
         self._check_market_clearing_day_ahead(df)
+
+    """get_binding_constraints_day_ahead"""
+
+    DAY_AHEAD_BINDING_CONSTRAINTS_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Constraint Name",
+        "Constraint Type",
+        "NERCID",
+        "State",
+        "Shadow Price",
+        "Monitored Facility",
+        "Contingent Facility",
+        "Contingency Name",
+    ]
+
+    def _check_binding_constraints_day_ahead(self, df: pd.DataFrame):
+        assert list(df.columns) == self.DAY_AHEAD_BINDING_CONSTRAINTS_COLUMNS
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_binding_constraints_day_ahead_latest_not_supported(self):
+        with pytest.raises(ValueError, match="Latest not supported"):
+            self.iso.get_binding_constraints_day_ahead(date="latest")
+
+    def test_get_binding_constraints_day_ahead_historical_date_range(self):
+        three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
+        two_days_ago = three_days_ago + pd.DateOffset(days=1)
+
+        cassette_name = f"test_get_binding_constraints_day_ahead_{three_days_ago.strftime('%Y%m%d')}_to_{two_days_ago.strftime('%Y%m%d')}.yaml"
+
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_day_ahead(
+                date=three_days_ago,
+                end=two_days_ago,
+            )
+
+        self._check_binding_constraints_day_ahead(df)
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval End"].max() == two_days_ago + pd.Timedelta(hours=23)
+
+    """get_binding_constraints_real_time"""
+
+    REAL_TIME_BINDING_CONSTRAINTS_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Constraint Name",
+        "Constraint Type",
+        "NERCID",
+        "TLR Level",
+        "State",
+        "Shadow Price",
+        "Monitored Facility",
+        "Contingent Facility",
+    ]
+
+    def _check_binding_constraints_real_time(self, df: pd.DataFrame):
+        assert list(df.columns) == self.REAL_TIME_BINDING_CONSTRAINTS_COLUMNS
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+    def test_get_binding_constraints_real_time_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_real_time_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_real_time(date="latest")
+
+        self._check_binding_constraints_real_time(df)
+
+    def test_get_binding_constraints_real_time_historical_date_range(self):
+        three_days_ago = self.local_start_of_today() - pd.DateOffset(days=3)
+        three_days_ago_0215 = three_days_ago + pd.DateOffset(hours=2, minutes=15)
+
+        cassette_name = f"test_get_binding_constraints_real_time_{three_days_ago.strftime('%Y%m%d_%H%M')}_to_{three_days_ago_0215.strftime('%Y%m%d_%H%M')}.yaml"
+
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_real_time(
+                date=three_days_ago,
+                end=three_days_ago_0215,
+            )
+
+        self._check_binding_constraints_real_time(df)
+        assert df["Interval Start"].min() == three_days_ago
+        assert df["Interval Start"].max() == three_days_ago_0215 - pd.Timedelta(
+            minutes=5,
+        )
