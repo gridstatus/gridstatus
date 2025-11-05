@@ -1880,14 +1880,7 @@ class SPP(ISOBase):
             "Contingency Name",
         ]
 
-        return (
-            df[[c for c in cols_to_keep if c in df]]
-            .drop(
-                columns=["Time", "Interval"],
-                errors="ignore",
-            )
-            .sort_values(["Interval Start", "Constraint Name"])
-        )
+        return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
     @support_date_range("DAY_START")
     def get_binding_constraints_real_time_5_min(
@@ -2006,14 +1999,7 @@ class SPP(ISOBase):
             "Contingent Facility",
         ]
 
-        return (
-            df[[c for c in cols_to_keep if c in df]]
-            .drop(
-                columns=["Time", "Interval"],
-                errors="ignore",
-            )
-            .sort_values(["Interval Start", "Constraint Name"])
-        )
+        return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
 
 def process_gen_mix(df: pd.DataFrame, detailed: bool = False) -> pd.DataFrame:
