@@ -1811,7 +1811,64 @@ class SPP(ISOBase):
 
         return df.sort_values("Interval Start")
 
-    @support_date_range("DAY_START")
+    def _get_binding_constraints_day_ahead_hourly_single(
+        self,
+        date: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Internal function to get day-ahead binding constraints for a single date (no decorator).
+
+        This is used for ZIP file years to avoid repeated downloads when the decorator
+        splits date ranges by day.
+        """
+        year = date.strftime("%Y")
+        month = date.strftime("%m")
+        day = date.strftime("%d")
+
+        # Historical data (2013-2023) is in ZIP files
+        if 2013 <= int(year) <= 2023:
+            zip_url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{year}/{year}.zip"
+            # Try paths with year prefix first (most common in ZIP files)
+            file_paths_to_try = [
+                f"{year}/{month}/{day}/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
+                f"{year}/{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
+                f"{month}/{day}/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
+                f"{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
+            ]
+            return self._process_binding_constraints_day_ahead_hourly_from_zip(
+                zip_url,
+                file_paths_to_try,
+            )
+        else:
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{year}/{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+            return self._process_binding_constraints_day_ahead_hourly(url)
+
+    def _determine_da_binding_constraints_frequency(args_dict: dict) -> str | None:
+        """Determine frequency for day-ahead binding constraints based on date range.
+
+        Returns None for ZIP file years with date ranges to bypass decorator splitting.
+        """
+        if "end" not in args_dict:
+            return "DAY_START"
+
+        start_date = utils._handle_date(
+            args_dict["date"],
+            args_dict["self"].default_timezone,
+        )
+        end_date = utils._handle_date(
+            args_dict["end"],
+            args_dict["self"].default_timezone,
+        )
+        start_year = int(start_date.strftime("%Y"))
+        end_year = int(end_date.strftime("%Y"))
+
+        # For ZIP file years with date ranges, return None to bypass splitting
+        if 2013 <= start_year <= 2023 or 2013 <= end_year <= 2023:
+            return None
+
+        return "DAY_START"
+
+    @support_date_range(_determine_da_binding_constraints_frequency)
     def get_binding_constraints_day_ahead_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -1842,7 +1899,7 @@ class SPP(ISOBase):
                 return self.get_binding_constraints_day_ahead_hourly(date="today")
 
         # Handle date ranges for ZIP files (2013-2023) efficiently by downloading ZIP once
-        # Check if we have an end date and if we're in the ZIP file range
+        # When frequency is None, the decorator passes the full range to the function
         start_date = utils._handle_date(date, self.default_timezone)
         if end is not None:
             end_date = utils._handle_date(end, self.default_timezone)
@@ -1856,25 +1913,11 @@ class SPP(ISOBase):
                     end_date,
                 )
 
-        year = date.strftime("%Y")
-        month = date.strftime("%m")
-        day = date.strftime("%d")
-
-        # Historical data (2013-2023) is in ZIP files
-        if 2013 <= int(year) <= 2023:
-            zip_url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{year}/{year}.zip"
-            # Try both path formats: {month}/{day}/file.csv and {month}/By_Day/file.csv
-            file_paths_to_try = [
-                f"{month}/{day}/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
-                f"{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
-            ]
-            return self._process_binding_constraints_day_ahead_hourly_from_zip(
-                zip_url,
-                file_paths_to_try,
-            )
-        else:
-            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{year}/{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
-            return self._process_binding_constraints_day_ahead_hourly(url)
+        # For single dates, use the internal function
+        return self._get_binding_constraints_day_ahead_hourly_single(
+            start_date,
+            verbose=verbose,
+        )
 
     def _get_binding_constraints_day_ahead_hourly_from_zip_range(
         self,
@@ -1915,6 +1958,8 @@ class SPP(ISOBase):
                     month = date.strftime("%m")
                     day = date.strftime("%d")
                     file_paths_to_try = [
+                        f"{year}/{month}/{day}/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
+                        f"{year}/{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
                         f"{month}/{day}/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
                         f"{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
                     ]
