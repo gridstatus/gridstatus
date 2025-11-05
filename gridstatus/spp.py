@@ -1948,7 +1948,9 @@ class SPP(ISOBase):
         for year, dates in dates_by_year.items():
             # Download ZIP file once for this year
             zip_url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{year}/{year}.zip"
-            logger.info(f"Downloading ZIP file {zip_url} for date range...")
+            logger.info(
+                f"Downloading ZIP file {zip_url} for date range ({len(dates)} dates)...",
+            )
             try:
                 z = utils.get_zip_folder(zip_url, verbose=False)
                 all_files = z.namelist()
@@ -1977,25 +1979,48 @@ class SPP(ISOBase):
                             break
 
                     if zip_file is not None:
-                        df = pd.read_csv(z.open(zip_file))
-                        df.columns = df.columns.str.strip()
-                        all_dfs.append(
-                            self._process_binding_constraints_day_ahead_hourly_df(df),
-                        )
+                        try:
+                            df = pd.read_csv(z.open(zip_file))
+                            df.columns = df.columns.str.strip()
+                            processed_df = (
+                                self._process_binding_constraints_day_ahead_hourly_df(
+                                    df,
+                                )
+                            )
+                            all_dfs.append(processed_df)
+                        except Exception as e:
+                            logger.warning(
+                                f"Error processing file {zip_file} from ZIP {zip_url}: {e}",
+                            )
+                            continue
             except urllib.error.HTTPError as e:
                 if e.code == 404:
                     logger.warning(f"No data found for ZIP {zip_url}")
                     continue
                 raise
+            except Exception as e:
+                logger.warning(
+                    f"Error processing ZIP {zip_url}: {e}",
+                )
+                continue
 
         if not all_dfs:
             raise NoDataFoundException(
                 f"No data found for date range {start_date} to {end_date}",
             )
 
-        return pd.concat(all_dfs, ignore_index=True).sort_values(
-            ["Interval Start", "Constraint Name"],
-        )
+        result_df = pd.concat(all_dfs, ignore_index=True)
+
+        # Verify required columns exist before sorting
+        required_cols = ["Interval Start", "Constraint Name"]
+        missing_cols = [col for col in required_cols if col not in result_df.columns]
+        if missing_cols:
+            raise ValueError(
+                f"Missing required columns after processing: {missing_cols}. "
+                f"Available columns: {result_df.columns.tolist()}",
+            )
+
+        return result_df.sort_values(["Interval Start", "Constraint Name"])
 
     def _process_binding_constraints_day_ahead_hourly_from_zip(
         self,
@@ -2052,11 +2077,26 @@ class SPP(ISOBase):
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
+        # Check if GMTIntervalEnd column exists (may be missing in some historical files)
+        if df.empty:
+            raise ValueError("DataFrame is empty, cannot process")
+
+        if "GMTIntervalEnd" not in df.columns:
+            raise ValueError(
+                f"Expected column 'GMTIntervalEnd' not found. Available columns: {df.columns.tolist()}",
+            )
+
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
             interval_duration=pd.Timedelta(hours=1),
         )
+
+        # Verify that Interval End was created
+        if "Interval End" not in df.columns:
+            raise ValueError(
+                f"Failed to create 'Interval End' column. Available columns: {df.columns.tolist()}",
+            )
 
         df = df.rename(columns={"NERCID": "NERC ID"})
 
