@@ -1846,7 +1846,12 @@ class SPP(ISOBase):
 
     def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pd.DataFrame:
         logger.info(f"Downloading {url}...")
-        df = pd.read_csv(url)
+        try:
+            df = pd.read_csv(url)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NoDataFoundException(f"No data found for {url}")
+            raise
 
         df.columns = df.columns.str.strip()
 

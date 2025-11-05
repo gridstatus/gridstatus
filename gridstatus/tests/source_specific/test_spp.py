@@ -1673,8 +1673,8 @@ class TestSPP(BaseTestISO):
         )
 
     def test_get_binding_constraints_real_time_5_min_range_includes_today(self):
-        start_date = self.local_start_of_today() - pd.Timedelta(days=1)
-        end_date = self.local_today()
+        start_date = self.local_now() - pd.Timedelta(days=1)
+        end_date = self.local_now()
 
         with api_vcr.use_cassette(
             f"test_get_binding_constraints_real_time_5_min_range_includes_today_{start_date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}.yaml",
