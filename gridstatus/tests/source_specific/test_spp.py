@@ -1687,3 +1687,39 @@ class TestSPP(BaseTestISO):
         self._check_binding_constraints_real_time(df)
         assert df["Interval Start"].min() == start_date
         assert df["Interval Start"].max() == end_date
+
+    def test_get_binding_constraints_real_time_5_min_from_zip(self):
+        """Test getting real-time binding constraints from ZIP files for historical data."""
+        # Test single date and date range from ZIP files
+        date = pd.Timestamp("2022-06-15", tz=self.iso.default_timezone)
+        end_date = pd.Timestamp("2022-06-17", tz=self.iso.default_timezone)
+
+        with api_vcr.use_cassette(
+            f"test_get_binding_constraints_real_time_5_min_from_zip_{date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_binding_constraints_real_time_5_min(
+                date=date,
+                end=end_date,
+            )
+
+        self._check_binding_constraints_real_time(df)
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == end_date
+
+    def test_get_binding_constraints_day_ahead_from_zip(self):
+        """Test getting day-ahead binding constraints from ZIP files for historical data."""
+        # Test single date and date range from ZIP files
+        date = pd.Timestamp("2020-06-15", tz=self.iso.default_timezone)
+        end_date = pd.Timestamp("2020-06-17", tz=self.iso.default_timezone)
+
+        with api_vcr.use_cassette(
+            f"test_get_binding_constraints_day_ahead_from_zip_{date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_binding_constraints_day_ahead_hourly(
+                date=date,
+                end=end_date,
+            )
+
+        self._check_binding_constraints_day_ahead(df)
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == end_date

@@ -1841,8 +1841,155 @@ class SPP(ISOBase):
             except NoDataFoundException:
                 return self.get_binding_constraints_day_ahead_hourly(date="today")
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
-        return self._process_binding_constraints_day_ahead_hourly(url)
+        # Handle date ranges for ZIP files (2013-2023) efficiently by downloading ZIP once
+        # Check if we have an end date and if we're in the ZIP file range
+        start_date = utils._handle_date(date, self.default_timezone)
+        if end is not None:
+            end_date = utils._handle_date(end, self.default_timezone)
+            start_year = int(start_date.strftime("%Y"))
+            end_year = int(end_date.strftime("%Y"))
+
+            # If range spans ZIP file years (2013-2023), handle it efficiently
+            if 2013 <= start_year <= 2023 or 2013 <= end_year <= 2023:
+                return self._get_binding_constraints_day_ahead_hourly_from_zip_range(
+                    start_date,
+                    end_date,
+                )
+
+        year = date.strftime("%Y")
+        month = date.strftime("%m")
+        day = date.strftime("%d")
+
+        # Historical data (2013-2023) is in ZIP files
+        if 2013 <= int(year) <= 2023:
+            zip_url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{year}/{year}.zip"
+            # Try both path formats: {month}/{day}/file.csv and {month}/By_Day/file.csv
+            file_paths_to_try = [
+                f"{month}/{day}/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
+                f"{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
+            ]
+            return self._process_binding_constraints_day_ahead_hourly_from_zip(
+                zip_url,
+                file_paths_to_try,
+            )
+        else:
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{year}/{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+            return self._process_binding_constraints_day_ahead_hourly(url)
+
+    def _get_binding_constraints_day_ahead_hourly_from_zip_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> pd.DataFrame:
+        """Get day-ahead binding constraints from ZIP files for a date range.
+
+        Downloads each year's ZIP file once and extracts all needed files.
+        """
+        all_dates = pd.date_range(
+            start=start_date.normalize(),
+            end=end_date.normalize(),
+            freq="D",
+            inclusive="left",
+        )
+
+        dates_by_year = {}
+        for date in all_dates:
+            year = int(date.strftime("%Y"))
+            # TODO(kladar): currently 2023 is a zip file and 2024 is not. Eventually 2024 will be zipped and this won't work.
+            if 2013 <= year <= 2023:  # Only process ZIP file years
+                if year not in dates_by_year:
+                    dates_by_year[year] = []
+                dates_by_year[year].append(date)
+
+        all_dfs = []
+        for year, dates in dates_by_year.items():
+            # Download ZIP file once for this year
+            zip_url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{year}/{year}.zip"
+            logger.info(f"Downloading ZIP file {zip_url} for date range...")
+            try:
+                z = utils.get_zip_folder(zip_url, verbose=False)
+                all_files = z.namelist()
+
+                # Extract files for all dates in this year
+                for date in dates:
+                    month = date.strftime("%m")
+                    day = date.strftime("%d")
+                    file_paths_to_try = [
+                        f"{month}/{day}/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
+                        f"{month}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv",
+                    ]
+
+                    # Find the file in the ZIP
+                    zip_file = None
+                    for file_path_in_zip in file_paths_to_try:
+                        normalized_path = file_path_in_zip.replace("\\", "/")
+                        for name in all_files:
+                            normalized_name = name.replace("\\", "/")
+                            if normalized_name.endswith(normalized_path):
+                                zip_file = name
+                                break
+                        if zip_file is not None:
+                            break
+
+                    if zip_file is not None:
+                        df = pd.read_csv(z.open(zip_file))
+                        df.columns = df.columns.str.strip()
+                        all_dfs.append(
+                            self._process_binding_constraints_day_ahead_hourly_df(df),
+                        )
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    logger.warning(f"No data found for ZIP {zip_url}")
+                    continue
+                raise
+
+        if not all_dfs:
+            raise NoDataFoundException(
+                f"No data found for date range {start_date} to {end_date}",
+            )
+
+        return pd.concat(all_dfs, ignore_index=True).sort_values(
+            ["Interval Start", "Constraint Name"],
+        )
+
+    def _process_binding_constraints_day_ahead_hourly_from_zip(
+        self,
+        zip_url: str,
+        file_paths_to_try: list[str],
+    ) -> pd.DataFrame:
+        """Process day-ahead binding constraints from a ZIP file (historical data)."""
+        logger.info(f"Downloading ZIP file {zip_url}...")
+        try:
+            z = utils.get_zip_folder(zip_url, verbose=False)
+
+            # Look for the file in the ZIP (try multiple possible paths)
+            zip_file = None
+            all_files = z.namelist()
+            for file_path_in_zip in file_paths_to_try:
+                normalized_path = file_path_in_zip.replace("\\", "/")
+                for name in all_files:
+                    normalized_name = name.replace("\\", "/")
+                    if normalized_name.endswith(normalized_path):
+                        zip_file = name
+                        break
+                if zip_file is not None:
+                    break
+
+            if zip_file is None:
+                # Debug: show some files in the ZIP to help diagnose
+                sample_files = [f.replace("\\", "/") for f in all_files[:10]]
+                raise NoDataFoundException(
+                    f"File not found in ZIP {zip_url}. Tried: {file_paths_to_try}. Sample files in ZIP: {sample_files}",
+                )
+
+            df = pd.read_csv(z.open(zip_file))
+            df.columns = df.columns.str.strip()
+
+            return self._process_binding_constraints_day_ahead_hourly_df(df)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NoDataFoundException(f"No data found for {zip_url}")
+            raise
 
     def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pd.DataFrame:
         logger.info(f"Downloading {url}...")
@@ -1854,7 +2001,12 @@ class SPP(ISOBase):
             raise
 
         df.columns = df.columns.str.strip()
+        return self._process_binding_constraints_day_ahead_hourly_df(df)
 
+    def _process_binding_constraints_day_ahead_hourly_df(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
@@ -1879,6 +2031,11 @@ class SPP(ISOBase):
             "Contingent Facility",
             "Contingency Name",
         ]
+
+        # Fill missing columns with null for historical data that may not have all columns
+        for col in cols_to_keep:
+            if col not in df.columns:
+                df[col] = None
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
@@ -1912,6 +2069,20 @@ class SPP(ISOBase):
         # Note: Daily files contain the first 2.25 hours of the next day, so interval files
         # for today don't start until 02:15
         start_date = utils._handle_date(date, self.default_timezone)
+
+        # Handle date ranges for ZIP files (2013-2023) efficiently by downloading ZIP once
+        if end is not None and not utils.is_today(start_date, self.default_timezone):
+            end_date = utils._handle_date(end, self.default_timezone)
+            start_year = int(start_date.strftime("%Y"))
+            end_year = int(end_date.strftime("%Y"))
+
+            # If range spans ZIP file years (2013-2023), handle it efficiently
+            if 2013 <= start_year <= 2023 or 2013 <= end_year <= 2023:
+                return self._get_binding_constraints_real_time_5_min_from_zip_range(
+                    start_date,
+                    end_date,
+                )
+
         if utils.is_today(start_date, self.default_timezone):
             # When decorator splits by day, we need to provide end of day for interval method
             # to get all intervals for that day. Also adjust start time since interval files
@@ -1935,6 +2106,89 @@ class SPP(ISOBase):
                 verbose=verbose,
             )
 
+    def _get_binding_constraints_real_time_5_min_from_zip_range(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> pd.DataFrame:
+        """Get real-time binding constraints from ZIP files for a date range.
+
+        Downloads each year's ZIP file once and extracts all needed files.
+        """
+        # Generate all dates in the range
+        all_dates = pd.date_range(
+            start=start_date.normalize(),
+            end=end_date.normalize(),
+            freq="D",
+            inclusive="left",
+        )
+
+        # Group dates by year
+        dates_by_year = {}
+        for date in all_dates:
+            year = int(date.strftime("%Y"))
+            if 2013 <= year <= 2023:  # Only process ZIP file years
+                if year not in dates_by_year:
+                    dates_by_year[year] = []
+                dates_by_year[year].append(date)
+
+        all_dfs = []
+        for year, dates in dates_by_year.items():
+            # Download ZIP file once for this year
+            zip_url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/{year}/{year}.zip"
+            logger.info(f"Downloading ZIP file {zip_url} for date range...")
+            try:
+                z = utils.get_zip_folder(zip_url, verbose=False)
+                all_files = z.namelist()
+
+                # Extract files for all dates in this year
+                for date in dates:
+                    month = date.strftime("%m")
+                    # Try both path formats: with and without year prefix
+                    file_paths_to_try = [
+                        f"{year}/{month}/By_Day/RTBM-DAILY-BC-{date.strftime('%Y%m%d')}.csv",
+                        f"{month}/By_Day/RTBM-DAILY-BC-{date.strftime('%Y%m%d')}.csv",
+                    ]
+
+                    # Find the file in the ZIP
+                    zip_file = None
+                    for file_path_in_zip in file_paths_to_try:
+                        normalized_path = file_path_in_zip.replace("\\", "/")
+                        for name in all_files:
+                            normalized_name = name.replace("\\", "/")
+                            if normalized_name.endswith(normalized_path):
+                                zip_file = name
+                                break
+                        if zip_file is not None:
+                            break
+
+                    if zip_file is not None:
+                        df = pd.read_csv(z.open(zip_file))
+                        df.columns = df.columns.str.strip()
+                        processed_df = self._process_binding_constraints_real_time(df)
+
+                        # Filter to requested date range if needed
+                        processed_df = processed_df[
+                            (processed_df["Interval Start"] >= start_date)
+                            & (processed_df["Interval Start"] < end_date)
+                        ]
+
+                        all_dfs.append(processed_df)
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    logger.warning(f"No data found for ZIP {zip_url}")
+                    continue
+                raise
+
+        if not all_dfs:
+            raise NoDataFoundException(
+                f"No data found for date range {start_date} to {end_date}",
+            )
+
+        return pd.concat(all_dfs, ignore_index=True).sort_values(
+            ["Interval Start", "Constraint Name"],
+        )
+
     def _get_binding_constraints_real_time_5_min_from_daily_files(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -1943,15 +2197,89 @@ class SPP(ISOBase):
     ) -> pd.DataFrame:
         """Get Real-Time Binding Constraints from daily files."""
 
-        folder_year = date.strftime("%Y")
-        folder_month = date.strftime("%m")
+        year = date.strftime("%Y")
+        month = date.strftime("%m")
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/{folder_year}/{folder_month}/By_Day/RTBM-DAILY-BC-{date.strftime('%Y%m%d')}.csv"
+        # Historical data (2013-2023) is in ZIP files
+        if 2013 <= int(year) <= 2023:
+            zip_url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/{year}/{year}.zip"
+            # Try both path formats: with and without year prefix
+            file_paths_to_try = [
+                f"{year}/{month}/By_Day/RTBM-DAILY-BC-{date.strftime('%Y%m%d')}.csv",
+                f"{month}/By_Day/RTBM-DAILY-BC-{date.strftime('%Y%m%d')}.csv",
+            ]
+            df = self._process_binding_constraints_real_time_from_zip(
+                zip_url,
+                file_paths_to_try,
+            )
 
-        logger.info(f"Downloading {url} (daily file)...")
-        df = pd.read_csv(url)
-        df.columns = df.columns.str.strip()
-        return self._process_binding_constraints_real_time(df)
+            # Filter to requested date range if needed
+            if end is not None:
+                start_date_ts = utils._handle_date(date, self.default_timezone)
+                end_date = utils._handle_date(end, self.default_timezone)
+                df = df[
+                    (df["Interval Start"] >= start_date_ts)
+                    & (df["Interval Start"] < end_date)
+                ]
+
+            return df
+        else:
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/{year}/{month}/By_Day/RTBM-DAILY-BC-{date.strftime('%Y%m%d')}.csv"
+
+            logger.info(f"Downloading {url} (daily file)...")
+            df = pd.read_csv(url)
+            df.columns = df.columns.str.strip()
+            processed_df = self._process_binding_constraints_real_time(df)
+
+            # Filter to requested date range if needed
+            if end is not None:
+                start_date_ts = utils._handle_date(date, self.default_timezone)
+                end_date = utils._handle_date(end, self.default_timezone)
+                processed_df = processed_df[
+                    (processed_df["Interval Start"] >= start_date_ts)
+                    & (processed_df["Interval Start"] < end_date)
+                ]
+
+            return processed_df
+
+    def _process_binding_constraints_real_time_from_zip(
+        self,
+        zip_url: str,
+        file_paths_to_try: list[str],
+    ) -> pd.DataFrame:
+        """Process real-time binding constraints from a ZIP file (historical data)."""
+        logger.info(f"Downloading ZIP file {zip_url}...")
+        try:
+            z = utils.get_zip_folder(zip_url, verbose=False)
+
+            # Look for the file in the ZIP (try multiple possible paths)
+            zip_file = None
+            all_files = z.namelist()
+            for file_path_in_zip in file_paths_to_try:
+                normalized_path = file_path_in_zip.replace("\\", "/")
+                for name in all_files:
+                    normalized_name = name.replace("\\", "/")
+                    if normalized_name.endswith(normalized_path):
+                        zip_file = name
+                        break
+                if zip_file is not None:
+                    break
+
+            if zip_file is None:
+                # Debug: show some files in the ZIP to help diagnose
+                sample_files = [f.replace("\\", "/") for f in all_files[:10]]
+                raise NoDataFoundException(
+                    f"File not found in ZIP {zip_url}. Tried: {file_paths_to_try}. Sample files in ZIP: {sample_files}",
+                )
+
+            df = pd.read_csv(z.open(zip_file))
+            df.columns = df.columns.str.strip()
+
+            return self._process_binding_constraints_real_time(df)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NoDataFoundException(f"No data found for {zip_url}")
+            raise
 
     @support_date_range("5_MIN")
     def _get_binding_constraints_real_time_5_min_from_intervals(
@@ -1998,6 +2326,11 @@ class SPP(ISOBase):
             "Monitored Facility",
             "Contingent Facility",
         ]
+
+        # Fill missing columns with null for historical data that may not have all columns
+        for col in cols_to_keep:
+            if col not in df.columns:
+                df[col] = None
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
