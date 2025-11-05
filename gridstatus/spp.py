@@ -1,5 +1,5 @@
 import urllib
-from typing import BinaryIO
+from typing import BinaryIO, Callable
 
 import pandas as pd
 import requests
@@ -14,7 +14,7 @@ from gridstatus.base import (
     NotSupported,
 )
 from gridstatus.decorators import FiveMinOffset, support_date_range
-from gridstatus.gs_logging import log
+from gridstatus.gs_logging import logger
 
 # Endpoints
 RTBM_LMP_BY_BUS = "rtbm-lmp-by-bus"
@@ -23,6 +23,8 @@ FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
 LMP_BY_SETTLEMENT_LOCATION_WEIS = "lmp-by-settlement-location-weis"
 OPERATING_RESERVES = "operating-reserves"
 RTBM_MCP = "rtbm-mcp"
+DA_BINDING_CONSTRAINTS = "da-binding-constraints"
+RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
 
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
@@ -137,7 +139,12 @@ class SPP(ISOBase):
     def now():
         return pd.Timestamp.now(tz=SPP.default_timezone)
 
-    def get_fuel_mix(self, date, detailed=False, verbose=False):
+    def get_fuel_mix(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        detailed: bool = False,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get fuel mix
 
         Args:
@@ -174,7 +181,7 @@ class SPP(ISOBase):
 
         return historical_mix
 
-    def get_load(self, date, verbose=False):
+    def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
         """Returns load for last 24hrs in 5 minute intervals"""
         original_date = date
 
@@ -207,7 +214,12 @@ class SPP(ISOBase):
             # five minute actual load available here: https://portal.spp.org/pages/stlf-vs-actual#
             raise NotSupported()
 
-    def get_load_forecast(self, date, forecast_type="MID_TERM", verbose=False):
+    def get_load_forecast(
+        self,
+        date: str | pd.Timestamp,
+        forecast_type: str = "MID_TERM",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns load forecast for next 7 days in hourly intervals
 
         Arguments:
@@ -253,7 +265,12 @@ class SPP(ISOBase):
         return current_day_forecast
 
     @support_date_range("5_MIN")
-    def get_load_forecast_short_term(self, date, end=None, verbose=False):
+    def get_load_forecast_short_term(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
         """
         5-minute load forecast data for the SPP footprint (system-wide) for +/- 10
         minutes. Also includes actual load.
@@ -279,7 +296,7 @@ class SPP(ISOBase):
 
         url = self._short_term_load_forecast_url(date.floor("5min"))
 
-        log(f"Downloading {url}", verbose=verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         # According to the docs, the end time col should be GMTIntervalEnd, but it's
@@ -296,7 +313,12 @@ class SPP(ISOBase):
         return df
 
     @support_date_range("HOUR_START")
-    def get_load_forecast_mid_term(self, date, end=None, verbose=False):
+    def get_load_forecast_mid_term(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
         """
         Returns load forecast for +7 days in hourly intervals. Includes actual load
         for the past 24 hours. Data from https://portal.spp.org/pages/mtlf-vs-actual
@@ -319,7 +341,7 @@ class SPP(ISOBase):
 
         url = self._mid_term_load_forecast_url(date.floor("h"))
 
-        log(f"Downloading {url}", verbose=verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         df = self._post_process_load_forecast(
@@ -335,13 +357,13 @@ class SPP(ISOBase):
 
     def _post_process_load_forecast(
         self,
-        df,
-        url,
-        forecast_type,
-        forecast_col,
-        end_time_col,
-        interval_duration,
-    ):
+        df: pd.DataFrame,
+        url: str,
+        forecast_type: str,
+        forecast_col: str,
+        end_time_col: str,
+        interval_duration: pd.Timedelta,
+    ) -> pd.DataFrame:
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
         # Assume the publish time is in the name of the file. There are different
@@ -367,7 +389,12 @@ class SPP(ISOBase):
         return df.dropna(subset=[forecast_col]).reset_index(drop=True)
 
     @support_date_range("5_MIN")
-    def get_solar_and_wind_forecast_short_term(self, date, end=None, verbose=False):
+    def get_solar_and_wind_forecast_short_term(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
         """
         Returns solar and wind generation forecast for +4 hours in 5 minute intervals.
         Include actuals for past day in 5 minute intervals.
@@ -393,7 +420,7 @@ class SPP(ISOBase):
 
         url = self._short_term_solar_and_wind_url(date.floor("5min"))
 
-        log(f"Downloading {url}", verbose=verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         # According to the docs, the end time col should be GMTIntervalEnd, but it's
@@ -409,7 +436,12 @@ class SPP(ISOBase):
         return df
 
     @support_date_range("HOUR_START")
-    def get_solar_and_wind_forecast_mid_term(self, date, end=None, verbose=False):
+    def get_solar_and_wind_forecast_mid_term(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
         """
         Returns solar and wind generation forecast for +7 days in hourly intervals.
 
@@ -433,7 +465,7 @@ class SPP(ISOBase):
 
         url = self._mid_term_solar_and_wind_url(date.floor("h"))
 
-        log(f"Downloading {url}", verbose=verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         df = self._post_process_solar_and_wind_forecast(
@@ -448,12 +480,12 @@ class SPP(ISOBase):
 
     def _post_process_solar_and_wind_forecast(
         self,
-        df,
-        url,
-        forecast_type,
-        end_time_col,
-        interval_duration,
-    ):
+        df: pd.DataFrame,
+        url: str,
+        forecast_type: str,
+        end_time_col: str,
+        interval_duration: pd.Timedelta,
+    ) -> pd.DataFrame:
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
         # Assume the publish time is in the name of the file. There are different
@@ -480,7 +512,7 @@ class SPP(ISOBase):
             drop=True,
         )
 
-    def _short_term_solar_and_wind_url(self, date):
+    def _short_term_solar_and_wind_url(self, date: pd.Timestamp) -> str:
         hour = date.hour
         padded_hour = str(hour).zfill(2)
         padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
@@ -491,13 +523,13 @@ class SPP(ISOBase):
             f"/%Y/%m/%d/{padded_hour_plus_one}/OP-STRF-%Y%m%d{padded_hour}%M.csv",
         )
 
-    def _mid_term_solar_and_wind_url(self, date):
+    def _mid_term_solar_and_wind_url(self, date: pd.Timestamp) -> str:
         # Explicitly set the minutes to 00.
         return BASE_SOLAR_AND_WIND_MID_TERM_URL + date.strftime(
             "/%Y/%m/%d/OP-MTRF-%Y%m%d%H00.csv",
         )
 
-    def _short_term_load_forecast_url(self, date):
+    def _short_term_load_forecast_url(self, date: pd.Timestamp) -> str:
         hour = date.hour
         padded_hour = str(hour).zfill(2)
         padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
@@ -508,7 +540,7 @@ class SPP(ISOBase):
             f"/%Y/%m/%d/{padded_hour_plus_one}/OP-STLF-%Y%m%d{padded_hour}%M.csv",
         )
 
-    def _mid_term_load_forecast_url(self, date):
+    def _mid_term_load_forecast_url(self, date: pd.Timestamp) -> str:
         # Explicitly set the minutes to 00.
         return BASE_LOAD_FORECAST_MID_TERM_URL + date.strftime(
             "/%Y/%m/%d/OP-MTLF-%Y%m%d%H00.csv",
@@ -516,11 +548,11 @@ class SPP(ISOBase):
 
     def _handle_market_end_to_interval(
         self,
-        df,
-        column,
-        interval_duration,
-        format=None,
-    ):
+        df: pd.DataFrame,
+        column: str,
+        interval_duration: pd.Timedelta,
+        format: str | None = None,
+    ) -> pd.DataFrame:
         """Converts market end time to interval end time"""
 
         df = df.rename(
@@ -543,7 +575,7 @@ class SPP(ISOBase):
 
         return df
 
-    def _process_ver_curtailments(self, df):
+    def _process_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "WindRedispatchCurtailments": "Wind Redispatch Curtailments",
@@ -583,7 +615,12 @@ class SPP(ISOBase):
         return df
 
     @support_date_range("DAY_START")
-    def get_capacity_of_generation_on_outage(self, date, end=None, verbose=False):
+    def get_capacity_of_generation_on_outage(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Capacity of Generation on Outage.
 
         Published daily at 8am CT for next 7 days
@@ -596,14 +633,17 @@ class SPP(ISOBase):
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{date.strftime('%Y')}/{date.strftime('%m')}/Capacity-Gen-Outage-{date.strftime('%Y%m%d')}.csv"  # noqa
 
-        msg = f"Downloading {url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {url}")
 
         df = pd.read_csv(url)
 
         return self._process_capacity_of_generation_on_outage(df, publish_time=date)
 
-    def get_capacity_of_generation_on_outage_annual(self, year, verbose=True):
+    def get_capacity_of_generation_on_outage_annual(
+        self,
+        year: int,
+        verbose: bool = True,
+    ) -> pd.DataFrame:
         """Get VER Curtailments for a year. Starting 2014.
         Recent data use get_capacity_of_generation_on_outage
 
@@ -638,7 +678,11 @@ class SPP(ISOBase):
 
         return df
 
-    def _process_capacity_of_generation_on_outage(self, df, publish_time):
+    def _process_capacity_of_generation_on_outage(
+        self,
+        df: pd.DataFrame,
+        publish_time: pd.Timestamp,
+    ) -> pd.DataFrame:
         # strip whitespace from column names
         df = df.rename(columns=lambda x: x.strip())
 
@@ -664,7 +708,12 @@ class SPP(ISOBase):
         return df
 
     @support_date_range("DAY_START")
-    def get_ver_curtailments(self, date, end=None, verbose=False):
+    def get_ver_curtailments(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get VER Curtailments
 
         Supports recent data. For historical annual data use get_ver_curtailments_annual
@@ -677,13 +726,16 @@ class SPP(ISOBase):
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
 
-        msg = f"Downloading {url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         return self._process_ver_curtailments(df)
 
-    def get_ver_curtailments_annual(self, year, verbose=True):
+    def get_ver_curtailments_annual(
+        self,
+        year: int,
+        verbose: bool = True,
+    ) -> pd.DataFrame:
         """Get VER Curtailments for a year. Starting 2014.
         Recent data use get_ver_curtailments
 
@@ -705,11 +757,10 @@ class SPP(ISOBase):
 
         return df
 
-    def _get_load_and_forecast(self, verbose=False):
+    def _get_load_and_forecast(self, verbose: bool = False) -> pd.DataFrame:
         url = f"{MARKETPLACE_BASE_URL}/chart-api/load-forecast/asChart"
 
-        msg = f"Getting load and forecast from {url}"
-        log(msg, verbose)
+        logger.info(f"Getting load and forecast from {url}")
 
         r = self._get_json(url)["response"]
 
@@ -742,14 +793,13 @@ class SPP(ISOBase):
     # https://marketplace.spp.org/chart-api/gen-mix-365/asFile
     # 15mb file with five minute resolution
 
-    def get_raw_interconnection_queue(self, verbose=False) -> BinaryIO:
+    def get_raw_interconnection_queue(self, verbose: bool = False) -> BinaryIO:
         url = "https://opsportal.spp.org/Studies/GenerateSummaryCSV"
-        msg = f"Getting interconnection queue from {url}"
-        log(msg, verbose)
+        logger.info(f"Getting interconnection queue from {url}")
         response = requests.get(url)
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose=False):
+    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
         """Get interconnection queue
 
         Returns:
@@ -825,12 +875,12 @@ class SPP(ISOBase):
 
     def get_lmp_real_time_5_min_by_location(
         self,
-        date,
-        end=None,
-        location_type=LOCATION_TYPE_ALL,
-        verbose=False,
-        use_daily_files=False,
-    ):
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        location_type: str = LOCATION_TYPE_ALL,
+        verbose: bool = False,
+        use_daily_files: bool = False,
+    ) -> pd.DataFrame:
         """Get LMP data by location for the Real-Time 5 Minute Market
 
         Args:
@@ -875,7 +925,12 @@ class SPP(ISOBase):
             verbose=verbose,
         )
 
-    def get_lmp_real_time_5_min_by_bus(self, date, end=None, verbose=False):
+    def get_lmp_real_time_5_min_by_bus(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get LMP data by bus for the Real-Time 5 Minute Market
 
         Args:
@@ -901,11 +956,11 @@ class SPP(ISOBase):
     @support_date_range(frequency="5_MIN")
     def _get_real_time_5_min_data(
         self,
-        date,
-        end=None,
-        location_type=LOCATION_TYPE_ALL,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        location_type: str = LOCATION_TYPE_ALL,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Internal function that consolidates logic for getting LMP data for the
         Real-Time 5 Minute Market
@@ -926,7 +981,7 @@ class SPP(ISOBase):
         else:
             url = self._format_5_min_url(date, end, endpoint, file_prefix)
 
-        log(f"Getting data for {date} from {url}", verbose=verbose)
+        logger.info(f"Getting data for {date} from {url}")
 
         df = pd.read_csv(url)
 
@@ -935,11 +990,11 @@ class SPP(ISOBase):
     @support_date_range(frequency="DAY_START")
     def _get_real_time_5_min_data_from_daily_files(
         self,
-        date,
-        end=None,
-        location_type=LOCATION_TYPE_ALL,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        location_type: str = LOCATION_TYPE_ALL,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Internal function that consolidates logic for getting LMP data for the
         Real-Time 5 Minute Market
@@ -956,7 +1011,7 @@ class SPP(ISOBase):
 
         url = self._format_daily_url(date, end, endpoint, file_prefix)
 
-        log(f"Getting data for {date} from {url} (daily file)", verbose=verbose)
+        logger.info(f"Getting data for {date} from {url} (daily file)")
 
         df = pd.read_csv(url)
 
@@ -965,11 +1020,11 @@ class SPP(ISOBase):
     @support_date_range(frequency="DAY_START")
     def get_lmp_day_ahead_hourly(
         self,
-        date,
-        end=None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         location_type: str = LOCATION_TYPE_ALL,
-        verbose=False,
-    ):
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get day ahead hourly LMP data
 
         Supported Location Types:
@@ -992,7 +1047,7 @@ class SPP(ISOBase):
             verbose=verbose,
         )
 
-    def _get_feature_data(self, base_url, verbose=False):
+    def _get_feature_data(self, base_url: str, verbose: bool = False) -> pd.DataFrame:
         """Fetches data from ArcGIS Map Service with Feature Data
 
         Returns:
@@ -1010,15 +1065,21 @@ class SPP(ISOBase):
 
     def _get_dam_lmp(
         self,
-        date,
-        verbose=False,
-    ):
+        date: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/{FS_DAM_LMP_BY_LOCATION}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-LMP-SL-{date.strftime('%Y%m%d')}0100.csv"  # noqa
-        log(f"Downloading {url}", verbose=verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
         return df
 
-    def _finalize_spp_df(self, df, market, location_type, verbose=False):
+    def _finalize_spp_df(
+        self,
+        df: pd.DataFrame,
+        market: Markets,
+        location_type: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
         Finalizes DataFrame:
 
@@ -1100,7 +1161,12 @@ class SPP(ISOBase):
         return df.sort_values(["Time", "Location"])
 
     @support_date_range("5_MIN")
-    def get_operating_reserves(self, date, end=None, verbose=False):
+    def get_operating_reserves(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         if date == "latest":
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/RTBM-OR-latestInterval.csv"  # noqa
         else:
@@ -1112,12 +1178,11 @@ class SPP(ISOBase):
                 include_interval=False,
             )
 
-        msg = f"Downloading {url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
         return self._process_operating_reserves(df)
 
-    def _process_operating_reserves(self, df):
+    def _process_operating_reserves(self, df: pd.DataFrame) -> pd.DataFrame:
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
@@ -1144,11 +1209,11 @@ class SPP(ISOBase):
 
     def get_as_prices_real_time_5_min(
         self,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp | None = None,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         use_daily_files: bool = False,
-    ):
+    ) -> pd.DataFrame:
         """
         Provides Marginal Clearing Price information by Reserve Zone for each
         Real-Time 5-minute Market solution.
@@ -1178,10 +1243,10 @@ class SPP(ISOBase):
     @support_date_range("5_MIN")
     def _get_as_prices_real_time_5_min_from_intervals(
         self,
-        date,
-        end=None,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get AS prices from 5-minute interval files."""
         if date == "latest":
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/rtbm-mcp?path=/RTBM-MCP-latestInterval.csv"
@@ -1194,30 +1259,30 @@ class SPP(ISOBase):
                 include_interval=True,
             )
 
-        log(f"Downloading {url}", verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
         return self._process_as_prices_real_time(df)
 
     @support_date_range("DAY_START")
     def _get_as_prices_real_time_5_min_from_daily_files(
         self,
-        date,
-        end=None,
-        verbose=False,
-    ):
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get AS prices from daily files."""
         if date == "latest":
             raise ValueError("Latest not supported with daily files")
 
         url = self._format_daily_mcp_url(date, end)
-        log(f"Downloading {url}", verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         # Strip whitespace from column names for daily files
         df.columns = df.columns.str.strip()
         return self._process_as_prices_real_time(df)
 
-    def _process_as_prices_real_time(self, df):
+    def _process_as_prices_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
@@ -1255,7 +1320,7 @@ class SPP(ISOBase):
         self,
         start: pd.Timestamp,
         end: pd.Timestamp | None,
-    ):
+    ) -> str:
         """
         Formats the URL for daily MCP data files.
 
@@ -1274,7 +1339,12 @@ class SPP(ISOBase):
         return url
 
     @support_date_range("DAY_START")
-    def get_day_ahead_operating_reserve_prices(self, date, end=None, verbose=False):
+    def get_day_ahead_operating_reserve_prices(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Provides Marginal Clearing Price information by Reserve Zone for each
         Day-Ahead Market solution for each Operating Day.
         Posting is updated each day after the DA Market results are posted.
@@ -1295,13 +1365,15 @@ class SPP(ISOBase):
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/da-mcp?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MCP-{date.strftime('%Y%m%d')}0100.csv"  # noqa
 
-        msg = f"Downloading {url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         return self._process_day_ahead_operating_reserve_prices(df)
 
-    def _process_day_ahead_operating_reserve_prices(self, df):
+    def _process_day_ahead_operating_reserve_prices(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
@@ -1333,7 +1405,12 @@ class SPP(ISOBase):
         return df[[c for c in cols_to_keep if c in df]]
 
     @support_date_range("5_MIN")
-    def get_lmp_real_time_weis(self, date, end=None, verbose=False):
+    def get_lmp_real_time_weis(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get LMP data for real time WEIS
 
         Args:
@@ -1354,18 +1431,17 @@ class SPP(ISOBase):
 
         # TODO: sometimes there are missing interval files (example: https://portal.spp.org/pages/lmp-by-settlement-location-weis#%2F2024%2F01%2FBy_Interval%2F21) # noqa
         # We can't do anything in these cases but log a message
-        msg = f"Downloading {url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {url}")
 
         try:
             df = pd.read_csv(url)
         except ConnectionResetError as e:
-            log(f"Error downloading {url}: {e}", verbose)
+            logger.error(f"Error downloading {url}: {e}")
             return pd.DataFrame()
 
         return self._process_lmp_real_time_weis(df)
 
-    def _process_lmp_real_time_weis(self, df):
+    def _process_lmp_real_time_weis(self, df: pd.DataFrame) -> pd.DataFrame:
         # strip whitespace from column names
         df = df.rename(columns=lambda x: x.strip())
 
@@ -1409,11 +1485,11 @@ class SPP(ISOBase):
     def _format_5_min_url(
         self,
         start: pd.Timestamp,
-        end: pd.Timestamp,
+        end: pd.Timestamp | None,
         endpoint: str,
         file_prefix: str,
         include_interval: bool = True,
-    ):
+    ) -> str:
         # Folder path is based on start date. File name is based on end date.
         # As an example, the file with the name 202407010000 representing the interval
         # 2024-06-30 23:55:00 to 2024-07-01 00:00:00 is in the folder
@@ -1453,7 +1529,7 @@ class SPP(ISOBase):
         end: pd.Timestamp | None,
         endpoint: str,
         file_prefix: str,
-    ):
+    ) -> str:
         """
         Formats the URL for daily data files.
 
@@ -1473,7 +1549,11 @@ class SPP(ISOBase):
 
         return url
 
-    def _get_location_list(self, location_type, verbose=False):
+    def _get_location_list(
+        self,
+        location_type: str,
+        verbose: bool = False,
+    ) -> list[str]:
         if location_type == LOCATION_TYPE_HUB:
             df = self._get_feature_data(QUERY_RTM5_HUBS_URL, verbose=verbose)
         elif location_type == LOCATION_TYPE_INTERFACE:
@@ -1485,11 +1565,14 @@ class SPP(ISOBase):
             raise ValueError(f"Invalid location_type: {location_type}")
         return df["SETTLEMENT_LOCATION"].unique().tolist()
 
-    def _fetch_and_concat_csvs(self, urls: list, verbose: bool = False):
+    def _fetch_and_concat_csvs(
+        self,
+        urls: list[str],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         all_dfs = []
         for url in tqdm.tqdm(urls):
-            msg = f"Fetching {url}"
-            log(msg, verbose)
+            logger.info(f"Fetching {url}")
             df = pd.read_csv(url)
             all_dfs.append(df)
         return pd.concat(all_dfs)
@@ -1511,11 +1594,11 @@ class SPP(ISOBase):
 
     @staticmethod
     def _match(
-        needles,
-        haystacks,
-        needle_norm_fn=lambda x: x.lower(),
-        haystack_norm_fn=lambda x: x.lower(),
-    ):
+        needles: list[str],
+        haystacks: list[str],
+        needle_norm_fn: Callable[[str], str] = lambda x: x.lower(),
+        haystack_norm_fn: Callable[[str], str] = lambda x: x.lower(),
+    ) -> list[str]:
         """Returns items from haystacks if any needles are in them"""
         return [
             haystack
@@ -1527,7 +1610,12 @@ class SPP(ISOBase):
         ]
 
     @support_date_range("DAY_START")
-    def get_hourly_load(self, date, end=None, verbose=False):
+    def get_hourly_load(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Hourly Load
 
         Supports recent data. For historical annual data use get_hourly_load_annual
@@ -1546,13 +1634,12 @@ class SPP(ISOBase):
             raise NotSupported("Only historical data is available for hourly load data")
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
-        msg = f"Downloading {url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         return self._process_hourly_load(df)
 
-    def get_hourly_load_annual(self, year, verbose=True):
+    def get_hourly_load_annual(self, year: int, verbose: bool = True) -> pd.DataFrame:
         """Get Hourly Load for a year. Starting 2011.
         For recent data use `get_hourly_load`
 
@@ -1572,9 +1659,7 @@ class SPP(ISOBase):
 
         return self._process_hourly_load(df)
 
-        return df
-
-    def _process_hourly_load(self, df):
+    def _process_hourly_load(self, df: pd.DataFrame) -> pd.DataFrame:
         # Some column names contain leading whitespace in some files - remove it
         df = df.rename(columns=lambda x: x.strip())
 
@@ -1645,7 +1730,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         """Get Market Clearing Real Time
 
         Args:
@@ -1659,10 +1744,7 @@ class SPP(ISOBase):
             try:
                 return self.get_market_clearing_real_time("today")
             except urllib.error.HTTPError:
-                log(
-                    "Data not available for today, trying yesterday",
-                    verbose,
-                )
+                logger.info("Data not available for today, trying yesterday")
                 return self.get_market_clearing_real_time(
                     self.local_now().normalize() - pd.DateOffset(days=1),
                     verbose=verbose,
@@ -1670,8 +1752,7 @@ class SPP(ISOBase):
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing-rtbm?path=/{date.strftime('%Y')}/{date.strftime('%m')}/RTBM-MC-{date.strftime('%Y%m%d')}.csv"  # noqa
 
-        msg = f"Downloading {url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         return self._process_market_clearing(df, 5)
@@ -1682,7 +1763,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ):
+    ) -> pd.DataFrame:
         """Get Market Clearing Day Ahead
 
         Args:
@@ -1697,16 +1778,14 @@ class SPP(ISOBase):
             try:
                 return self.get_market_clearing_day_ahead(date, verbose=verbose)
             except urllib.error.HTTPError:
-                log(
+                logger.info(
                     f"Data not available for {date.strftime('%Y-%m-%d')}, trying today",
-                    verbose,
                 )
                 return self.get_market_clearing_day_ahead("today", verbose=verbose)
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
 
-        msg = f"Downloading {url}"
-        log(msg, verbose)
+        logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         return self._process_market_clearing(df, 60)
@@ -1732,8 +1811,198 @@ class SPP(ISOBase):
 
         return df.sort_values("Interval Start")
 
+    @support_date_range("DAY_START")
+    def get_binding_constraints_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Day-Ahead Binding Constraints
 
-def process_gen_mix(df, detailed=False):
+        Args:
+            date: date to get data for. Supports "latest" for most recently available data.
+            end: end date
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: Day-Ahead Binding Constraints
+        """
+        if date == "latest":
+            tomorrow = pd.Timestamp.now(
+                tz=self.default_timezone,
+            ).normalize() + pd.Timedelta(days=1)
+            try:
+                return self.get_binding_constraints_day_ahead_hourly(
+                    date=tomorrow,
+                    end=end,
+                    verbose=verbose,
+                )
+            except NoDataFoundException:
+                return self.get_binding_constraints_day_ahead_hourly(date="today")
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        return self._process_binding_constraints_day_ahead_hourly(url)
+
+    def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pd.DataFrame:
+        logger.info(f"Downloading {url}...")
+        try:
+            df = pd.read_csv(url)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NoDataFoundException(f"No data found for {url}")
+            raise
+
+        df.columns = df.columns.str.strip()
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
+        df = df.rename(columns={"NERCID": "NERC ID"})
+
+        df["NERC ID"] = pd.to_numeric(df["NERC ID"], errors="coerce").astype(
+            pd.Int64Dtype(),
+        )
+
+        cols_to_keep = [
+            "Interval Start",
+            "Interval End",
+            "Constraint Name",
+            "Constraint Type",
+            "NERC ID",
+            "State",
+            "Shadow Price",
+            "Monitored Facility",
+            "Contingent Facility",
+            "Contingency Name",
+        ]
+
+        return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
+
+    @support_date_range("DAY_START")
+    def get_binding_constraints_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Real-Time Binding Constraints
+
+        Args:
+            date: date to get data for. Supports "latest" for most recent interval.
+            end: end date
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: Real-Time Binding Constraints
+        """
+        if date == "latest":
+            return self._get_binding_constraints_real_time_5_min_from_intervals(
+                date,
+                end=end,
+                verbose=verbose,
+            )
+
+        # NB: Daily files are more performant for historical dates than getting from interval files
+        # The decorator splits by day, so we can check if this specific date is today
+        # Use interval files only for today; use daily files for all historical dates
+        # Note: Daily files contain the first 2.25 hours of the next day, so interval files
+        # for today don't start until 02:15
+        start_date = utils._handle_date(date, self.default_timezone)
+        if utils.is_today(start_date, self.default_timezone):
+            # When decorator splits by day, we need to provide end of day for interval method
+            # to get all intervals for that day. Also adjust start time since interval files
+            # for today don't exist for the first ~2 hours (they're in yesterday's daily file)
+            if end is None:
+                end = start_date + pd.Timedelta(days=1)
+            # Interval files for today start around 02:15, so adjust start if needed
+            adjusted_start = max(
+                start_date,
+                start_date.normalize() + pd.Timedelta(hours=2, minutes=10),
+            )
+            return self._get_binding_constraints_real_time_5_min_from_intervals(
+                adjusted_start,
+                end=end,
+                verbose=verbose,
+            )
+        else:
+            return self._get_binding_constraints_real_time_5_min_from_daily_files(
+                date,
+                end=end,
+                verbose=verbose,
+            )
+
+    def _get_binding_constraints_real_time_5_min_from_daily_files(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Real-Time Binding Constraints from daily files."""
+
+        folder_year = date.strftime("%Y")
+        folder_month = date.strftime("%m")
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/{folder_year}/{folder_month}/By_Day/RTBM-DAILY-BC-{date.strftime('%Y%m%d')}.csv"
+
+        logger.info(f"Downloading {url} (daily file)...")
+        df = pd.read_csv(url)
+        df.columns = df.columns.str.strip()
+        return self._process_binding_constraints_real_time(df)
+
+    @support_date_range("5_MIN")
+    def _get_binding_constraints_real_time_5_min_from_intervals(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Real-Time Binding Constraints from 5-minute interval files."""
+        if date == "latest":
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/RTBM-BC-latestInterval.csv"  # noqa
+        else:
+            url = self._format_5_min_url(
+                date,
+                end,
+                RTBM_BINDING_CONSTRAINTS,
+                "RTBM-BC",
+            )
+
+        logger.info(f"Downloading {url}...")
+        df = pd.read_csv(url)
+        return self._process_binding_constraints_real_time(df)
+
+    def _process_binding_constraints_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
+        df.columns = df.columns.str.strip()
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(minutes=5),
+        )
+
+        df = df.rename(columns={"NERCID": "NERC ID"})
+
+        cols_to_keep = [
+            "Interval Start",
+            "Interval End",
+            "Constraint Name",
+            "Constraint Type",
+            "NERC ID",
+            "TLR Level",
+            "State",
+            "Shadow Price",
+            "Monitored Facility",
+            "Contingent Facility",
+        ]
+
+        return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
+
+
+def process_gen_mix(df: pd.DataFrame, detailed: bool = False) -> pd.DataFrame:
     """Parse SPP generation mix data from
     https://marketplace.spp.org/pages/generation-mix-historical
 
@@ -1795,7 +2064,7 @@ def process_gen_mix(df, detailed=False):
     return new_df
 
 
-def add_interval(df, interval_min):
+def add_interval(df: pd.DataFrame, interval_min: int) -> pd.DataFrame:
     """Adds Interval Start and Interval End columns to df"""
     df["Interval Start"] = df["Time"]
     df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=interval_min)
