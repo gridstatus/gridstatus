@@ -1861,7 +1861,7 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(hours=1),
         )
 
-        df = df.rename(columns={"NERCID": "NERC ID"})
+        df = df.rename(columns={"NERCID": "NERC ID"}).astype(pd.Int64Dtype())
 
         cols_to_keep = [
             "Interval Start",
