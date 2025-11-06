@@ -404,6 +404,7 @@ class ErcotAPI:
             end_date=end,
             verbose=verbose,
             add_post_datetime=True,
+            include_source_filename=True,
         )
 
         return self._handle_wind_actual_and_forecast_hourly(
@@ -489,7 +490,7 @@ class ErcotAPI:
                 data,
                 ["Interval Start", "Interval End", "Publish Time"],
             )
-            .drop(columns=["Time", "postDatetime"])
+            .drop(columns=["Time", "postDatetime", "_source_filename"], errors="ignore")
             .sort_values(["Interval Start", "Publish Time"])
             .reset_index(drop=True)
         )
@@ -565,6 +566,7 @@ class ErcotAPI:
             end_date=end,
             verbose=verbose,
             add_post_datetime=True,
+            include_source_filename=True,
         )
 
         return self._handle_solar_actual_and_forecast_hourly(
@@ -601,7 +603,7 @@ class ErcotAPI:
                 data,
                 ["Interval Start", "Interval End", "Publish Time"],
             )
-            .drop(columns=["Time", "postDatetime"])
+            .drop(columns=["Time", "postDatetime", "_source_filename"], errors="ignore")
             .sort_values(["Interval Start", "Publish Time"])
             .reset_index(drop=True)
         )
@@ -1476,6 +1478,7 @@ class ErcotAPI:
         add_post_datetime: bool = False,
         verbose: bool = False,
         bulk_download: bool = True,
+        include_source_filename: bool = False,
         api: APITypeEnum = APITypeEnum.PUBLIC_API,
     ) -> pd.DataFrame:
         """Retrieves historical data from the given emil_id from start to end date.
@@ -1502,6 +1505,9 @@ class ErcotAPI:
             verbose [bool]: if True, will print out status messages
             bulk_download [bool]: if True, will download the data in batches
                 docIds. This is useful for avoiding rate limiting.
+            include_source_filename [bool]: if True, the returned dataframe will
+                include a column with the filename each row came from. Defaults to
+                False.
 
         Returns:
             [pandas.DataFrame]: a dataframe of historical data
@@ -1553,8 +1559,9 @@ class ErcotAPI:
             df = pd.read_csv(bytes_data, compression="zip")
             if add_post_datetime:
                 df["postDatetime"] = posted_datetime
-            # Store filename for xhr detection (prefer filename from zip, fallback to link)
-            df["_source_filename"] = filename if filename else link
+            if include_source_filename:
+                # Store filename for xhr detection (prefer filename from zip, fallback to link)
+                df["_source_filename"] = filename if filename else link
             dfs.append(df)
 
         return pd.concat(dfs)
