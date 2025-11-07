@@ -2296,7 +2296,7 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["MCPC"] == "float64"
 
-    def test_get_mcpc_sced_rcc_b_trial_latest(self):
+    def test_get_mcpc_sced_rtc_b_trial_latest(self):
         with api_vcr.use_cassette(
             "test_get_mcpc_sced_rtc_b_trial_date_range_latest.yaml",
         ):
