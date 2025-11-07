@@ -4297,6 +4297,8 @@ class Ercot(ISOBase):
 
         return data
 
+    ### RTC + B Trials ###
+
     # Published every SCED interval
     @support_date_range(frequency=None)
     def get_lmp_by_settlement_point_rtc_b_trial(
