@@ -4297,6 +4297,7 @@ class Ercot(ISOBase):
 
         return data
 
+    # Published every SCED interval
     @support_date_range(frequency=None)
     def get_lmp_by_settlement_point_rtc_b_trial(
         self,
@@ -4323,25 +4324,28 @@ class Ercot(ISOBase):
                 - Location Type
                 - LMP
         """
-        if date == "latest":
-            return self.get_lmp_by_settlement_point_rtc_b_trial(
-                date="today",
-                verbose=verbose,
-            )
+        published_before = None
+        published_after = None
 
-        if not end:
-            end = date + pd.DateOffset(days=1)
+        if date != "latest":
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+            published_after = date
 
         docs = self._get_documents(
             report_type_id=REAL_TIME_CLEARING_LMPS_BY_RESOURCE_NODES_LOAD_ZONES_AND_TRADING_HUBS_RTD,
             extension="csv",
-            published_before=end,
-            published_after=date,
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
             verbose=verbose,
         )
 
         return self._handle_lmp(docs=docs, verbose=verbose)
 
+    # Published every SCED interval
     @support_date_range(frequency=None)
     def get_mcpc_sced_rtc_b_trial(
         self,
@@ -4350,17 +4354,23 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get RTC Market Trials Market Clearing Prices for Capacity by SCED interval"""
-        if date == "latest":
-            return self.get_mcpc_sced_rtc_b_trial(date="today", verbose=verbose)
+        published_before = None
+        published_after = None
 
-        if not end:
-            end = date + pd.DateOffset(days=1)
+        if date != "latest":
+            if end is None:
+                # Assume getting data for one day
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+            published_after = date
 
         docs = self._get_documents(
             report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
             extension="csv",
-            published_before=end,
-            published_after=date,
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
             verbose=verbose,
         )
 
@@ -4368,15 +4378,19 @@ class Ercot(ISOBase):
         return self._handle_mcpc_sced_rtc_b_trial(df)
 
     def _handle_mcpc_sced_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
-        df.rename(columns={"ASType": "AS Type"}, inplace=True)
+        df = df.rename(columns={"ASType": "AS Type"})
         df = self._handle_sced_timestamp(df)
+
         df["MCPC"] = pd.to_numeric(df["MCPC"], errors="coerce")
+
         return (
-            df[["SCED Timestamp", "Interval Start", "Interval End", "AS Type", "MCPC"]]
-            .sort_values("Interval Start")
+            # Only need the SCED Timestamps
+            df[["SCED Timestamp", "AS Type", "MCPC"]]
+            .sort_values(["SCED Timestamp", "AS Type"])
             .reset_index(drop=True)
         )
 
+    # Published every 15 minutes for the past 15 minutes.
     @support_date_range(frequency=None)
     def get_mcpc_real_time_15_min_rtc_b_trial(
         self,
@@ -4385,20 +4399,23 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get RTC Market Trials Market Clearing Prices for Capacity by 15-minute interval"""
-        if date == "latest":
-            return self.get_mcpc_real_time_15_min_rtc_b_trial(
-                date="today",
-                verbose=verbose,
-            )
+        published_before = None
+        published_after = None
 
-        if not end:
-            end = date + pd.DateOffset(days=1)
+        if date != "latest":
+            # Assume getting data for one day
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end + pd.Timedelta(minutes=15)
+            published_after = date + pd.Timedelta(minutes=15)
 
         docs = self._get_documents(
             report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
             extension="csv",
-            published_before=end,
-            published_after=date,
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
             verbose=verbose,
         )
 
@@ -4409,20 +4426,22 @@ class Ercot(ISOBase):
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
-        df.rename(
+        df = df.rename(
             columns={"ASType": "AS Type", "RepeatedHourFlag": "DSTFlag"},
-            inplace=True,
         )
+
         df = self.parse_doc(df)
+
         df["MCPC"] = pd.to_numeric(df["MCPC"], errors="coerce")
 
         return (
             df[["Interval Start", "Interval End", "AS Type", "MCPC"]]
-            .sort_values("Interval Start")
+            .sort_values(["Interval Start", "AS Type"])
             .reset_index(drop=True)
         )
 
-    @support_date_range(frequency=None)
+    # Published once per day for today and tomorrow in the same file
+    @support_date_range(frequency="DAY_START")
     def get_as_demand_curves_rtc_b_trial(
         self,
         date: str | pd.Timestamp,
@@ -4430,39 +4449,30 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get RTC Market Trials Ancillary Service Demand Curves"""
-        if date == "latest":
-            return self.get_as_demand_curves_rtc_b_trial(date="today", verbose=verbose)
-
-        if not end:
-            end = date + pd.DateOffset(days=1)
-
         docs = self._get_documents(
             report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
             extension="csv",
-            published_before=end,
-            published_after=date,
+            date=date,
             verbose=verbose,
         )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
+
         return self._handle_as_demand_curves_rtc_b_trial(df)
 
     def _handle_as_demand_curves_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
-        df.rename(
+        df = df.rename(
             columns={
                 "ASType": "AS Type",
                 "DemandCurvePoint": "Demand Curve Point",
                 "RepeatedHourFlag": "DSTFlag",
             },
-            inplace=True,
         )
         df = self.parse_doc(df)
-        df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce")
-        df["Price"] = pd.to_numeric(df["Price"], errors="coerce")
-        df["Demand Curve Point"] = pd.to_numeric(
-            df["Demand Curve Point"],
-            errors="coerce",
-        )
+
+        for col in ["Quantity", "Price", "Demand Curve Point"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
         return (
             df[
                 [
@@ -4474,11 +4484,11 @@ class Ercot(ISOBase):
                     "Price",
                 ]
             ]
-            .sort_values("Interval Start")
+            .sort_values(["Interval Start", "AS Type", "Demand Curve Point"])
             .reset_index(drop=True)
         )
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="DAY_START")
     def get_as_deployment_factors_projected_rtc_b_trial(
         self,
         date: str | pd.Timestamp,
@@ -4486,20 +4496,15 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get RTC Market Trials Projected Ancillary Service Deployment Factors"""
-        if date == "latest":
-            return self.get_as_deployment_factors_projected_rtc_b_trial(
-                date="today",
-                verbose=verbose,
-            )
-
-        if not end:
-            end = date + pd.DateOffset(days=1)
+        # _get_documents can directly handle date="latest"
+        # Date is published for the next day
+        if date != "latest":
+            date -= pd.DateOffset(days=1)
 
         docs = self._get_documents(
             report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
             extension="csv",
-            published_before=end,
-            published_after=date,
+            date=date,
             verbose=verbose,
         )
 
@@ -4510,19 +4515,21 @@ class Ercot(ISOBase):
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
-        df.rename(
+        df = df.rename(
             columns={
                 "ASType": "AS Type",
                 "ASDeploymentFactors": "AS Deployment Factors",
                 "RepeatedHourFlag": "DSTFlag",
             },
-            inplace=True,
         )
+
         df = self.parse_doc(df)
+
         df["AS Deployment Factors"] = pd.to_numeric(
             df["AS Deployment Factors"],
             errors="coerce",
         )
+
         return (
             df[["Interval Start", "Interval End", "AS Type", "AS Deployment Factors"]]
             .sort_values("Interval Start")
