@@ -2385,6 +2385,7 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
+            "Publish Time",
             "AS Type",
             "Demand Curve Point",
             "Quantity",
@@ -2392,6 +2393,7 @@ class TestErcot(BaseTestISO):
         ]
         assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
         assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Publish Time"] == "datetime64[s, US/Central]"
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["Demand Curve Point"] == "int64"
         assert df.dtypes["Quantity"] == "int64"

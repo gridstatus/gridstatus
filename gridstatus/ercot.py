@@ -4458,7 +4458,14 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = pd.concat(
+            [
+                self.read_doc(doc, parse=False, verbose=verbose).assign(
+                    **{"Publish Time": doc.publish_date},
+                )
+                for doc in docs
+            ],
+        )
 
         return self._handle_as_demand_curves_rtc_b_trial(df)
 
@@ -4480,13 +4487,16 @@ class Ercot(ISOBase):
                 [
                     "Interval Start",
                     "Interval End",
+                    "Publish Time",
                     "AS Type",
                     "Demand Curve Point",
                     "Quantity",
                     "Price",
                 ]
             ]
-            .sort_values(["Interval Start", "AS Type", "Demand Curve Point"])
+            .sort_values(
+                ["Interval Start", "Publish Time", "AS Type", "Demand Curve Point"],
+            )
             .reset_index(drop=True)
         )
 
