@@ -41,6 +41,8 @@ LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET = "eriecirculationrt"
 LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET = "eriecirculationda"
 AS_PRICES_DAY_AHEAD_HOURLY_DATASET = "damasp"
 AS_PRICES_REAL_TIME_5_MIN_DATASET = "rtasp"
+LIMITING_CONSTRAINTS_REAL_TIME_DATASET = "LimitingConstraints"
+LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET = "DAMLimitingConstraints"
 
 """
 Pricing data:
@@ -68,6 +70,8 @@ DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
     LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("instantaneous", None),
     AS_PRICES_DAY_AHEAD_HOURLY_DATASET: DatasetInterval("start", 60),
     AS_PRICES_REAL_TIME_5_MIN_DATASET: DatasetInterval("start", 5),
+    LIMITING_CONSTRAINTS_REAL_TIME_DATASET: DatasetInterval("start", 5),
+    LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET: DatasetInterval("start", 60),
 }
 
 
@@ -1421,3 +1425,100 @@ class NYISO(ISOBase):
                 "Regulation Capacity",
             ]
         ]
+
+    @support_date_range(frequency=None)
+    def get_limiting_constraints_real_time(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            data = pd.read_csv(
+                "https://mis.nyiso.com/public/csv/LimitingConstraints/currentLimitingConstraints.csv",
+            )
+            data = self._handle_time(
+                data,
+                LIMITING_CONSTRAINTS_REAL_TIME_DATASET,
+                groupby="Limiting Facility",
+            )
+        else:
+            data = self._download_nyiso_archive(
+                date,
+                end=end,
+                dataset_name=LIMITING_CONSTRAINTS_REAL_TIME_DATASET,
+                groupby="Limiting Facility",
+                verbose=verbose,
+            )
+
+        data = data.rename(columns={"Constraint Cost($)": "Constraint Cost"})
+
+        data = (
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Limiting Facility",
+                    "Facility PTID",
+                    "Contingency",
+                    "Constraint Cost",
+                ]
+            ]
+            .sort_values(["Interval Start", "Limiting Facility", "Contingency"])
+            .reset_index(
+                drop=True,
+            )
+        )
+
+        return data
+
+    @support_date_range(frequency=None)
+    def get_limiting_constraints_day_ahead(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            try:
+                tomorrow = pd.Timestamp.now(
+                    tz=self.default_timezone,
+                ).normalize() + pd.DateOffset(days=1)
+                return self.get_limiting_constraints_day_ahead(
+                    date=tomorrow.strftime("%Y-%m-%d"),
+                    verbose=verbose,
+                )
+            except urllib.error.HTTPError:
+                return self.get_limiting_constraints_day_ahead(
+                    date="today",
+                    verbose=verbose,
+                )
+
+        df = self._download_nyiso_archive(
+            date,
+            end=end,
+            dataset_name=LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET,
+            groupby="Limiting Facility",
+            verbose=verbose,
+        )
+
+        df = df.rename(columns={"Constraint Cost($)": "Constraint Cost"})
+
+        df = (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Limiting Facility",
+                    "Facility PTID",
+                    "Contingency",
+                    "Constraint Cost",
+                ]
+            ]
+            .sort_values(["Interval Start", "Limiting Facility", "Contingency"])
+            .reset_index(
+                drop=True,
+            )
+        )
+
+        return df
