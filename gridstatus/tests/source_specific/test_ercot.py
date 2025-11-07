@@ -2229,6 +2229,141 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
         assert df["Interval End"].max() == pd.Timestamp(end, tz="US/Central")
 
+    """RTC-B Trial Tests"""
+
+    def test_get_lmp_by_settlement_point_rtc_b_trial(self):
+        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(hours=6)
+
+        with api_vcr.use_cassette("test_get_lmp_by_settlement_point_rtc_b_trial.yaml"):
+            df = self.iso.get_lmp_by_settlement_point_rtc_b_trial(date, end)
+
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "SCED Timestamp",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+            assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["LMP"] == "float64"
+            assert (
+                (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+            ).all()
+            assert df["Market"].unique()[0] == "REAL_TIME_SCED"
+            assert df["Location"].dtype == "string"
+            assert df["Location Type"].dtype == "category"
+            assert df["Interval Start"].min() == date.tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == (
+                end - pd.Timedelta(minutes=5)
+            ).tz_localize(self.iso.default_timezone)
+
+    @pytest.mark.integration
+    def test_get_mcpc_sced_rtc_b_trial(self):
+        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(hours=1)
+
+        with api_vcr.use_cassette("test_get_mcpc_sced_rtc_b_trial.yaml"):
+            df = self.iso.get_mcpc_sced_rtc_b_trial(date, end)
+
+            assert df.columns.tolist() == [
+                "SCED Timestamp",
+                "Interval Start",
+                "Interval End",
+                "AS Type",
+                "MCPC",
+            ]
+            assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["MCPC"] == "float64"
+            assert df["Interval Start"].min() == date.tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == (
+                end - pd.Timedelta(minutes=5)
+            ).tz_localize(self.iso.default_timezone)
+
+    @pytest.mark.integration
+    def test_get_mcpc_real_time_15_min_rtc_b_trial(self):
+        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(hours=1)
+
+        with api_vcr.use_cassette("test_get_mcpc_real_time_15_min_rtc_b_trial.yaml"):
+            df = self.iso.get_mcpc_real_time_15_min_rtc_b_trial(date, end)
+
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "AS Type",
+                "MCPC",
+            ]
+            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["MCPC"] == "float64"
+            assert df["Interval Start"].min() == date.tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == (
+                end - pd.Timedelta(minutes=15)
+            ).tz_localize(self.iso.default_timezone)
+
+    @pytest.mark.integration
+    def test_get_as_demand_curves_rtc_b_trial(self):
+        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette("test_get_as_demand_curves_rtc_b_trial.yaml"):
+            df = self.iso.get_as_demand_curves_rtc_b_trial(date, end)
+
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "AS Type",
+                "Demand Curve Point",
+                "Quantity",
+                "Price",
+            ]
+            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+            assert df["Interval Start"].min() == date.tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == (
+                end - pd.Timedelta(hours=1)
+            ).tz_localize(self.iso.default_timezone)
+
+    @pytest.mark.integration
+    def test_get_as_deployment_factors_projected_rtc_b_trial(self):
+        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            "test_get_as_deployment_factors_projected_rtc_b_trial.yaml",
+        ):
+            df = self.iso.get_as_deployment_factors_projected_rtc_b_trial(date, end)
+
+            assert df.columns.tolist() == [
+                "Interval Start",
+                "Interval End",
+                "AS Type",
+                "AS Deployment Factors",
+            ]
+            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+            assert df["Interval Start"].min() == date.tz_localize(
+                self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == (
+                end - pd.Timedelta(hours=1)
+            ).tz_localize(self.iso.default_timezone)
+
 
 def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
     load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
