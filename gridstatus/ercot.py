@@ -4592,7 +4592,7 @@ class Ercot(ISOBase):
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_as_deployment_factors_ruc_rtc_b_trial(df)
 
-    # Published per DRUC run for the current day (not all the hours)
+    # Published per HRUC run for the current day (not all the hours)
     @support_date_range(frequency="DAY_START")
     def get_as_deployment_factors_hourly_ruc_rtc_b_trial(
         self,
