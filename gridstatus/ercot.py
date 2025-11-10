@@ -178,6 +178,26 @@ DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID = 24893
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP5-526-CD
 PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID = 24886
 
+# Daily RUC Ancillary Service Deployment Factors
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP5-527-CD
+DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24895
+
+# Hourly RUC Ancillary Service Deployment Factors
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP5-528-CD
+HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24896
+
+# DAM Total Ancillary Services Sold
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-532-cd
+DAM_TOTAL_AS_SOLD_RTID = 24888
+
+# RTD Indicative Real-Time MCPC
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-329-CD
+RTD_INDICATIVE_REAL_TIME_MCPC_RTID = 24889
+
+# Total Capability of Resources Available to Provide Ancillary Service
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-328-CD
+TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID = 24887
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -4545,5 +4565,266 @@ class Ercot(ISOBase):
         return (
             df[["Interval Start", "Interval End", "AS Type", "AS Deployment Factors"]]
             .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    ### Part Two RTC+B Trials ###
+
+    # Published per DRUC run for the next day
+    @support_date_range(frequency="DAY_START")
+    def get_as_deployment_factors_daily_ruc_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Daily RUC Ancillary Service Deployment Factors"""
+        if date != "latest":
+            date -= pd.DateOffset(days=1)
+
+        docs = self._get_documents(
+            report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+            date=date,
+            constructed_name_contains="csv",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_as_deployment_factors_ruc_rtc_b_trial(df)
+
+    # Published per HRUC run for the current day (not all the hours)
+    @support_date_range(frequency="DAY_START")
+    def get_as_deployment_factors_hourly_ruc_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Hourly RUC Ancillary Service Deployment Factors"""
+        docs = self._get_documents(
+            report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+            date=date,
+            constructed_name_contains="csv",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_as_deployment_factors_ruc_rtc_b_trial(df)
+
+    def _handle_as_deployment_factors_ruc_rtc_b_trial(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "RUCTimestamp": "RUC Timestamp",
+                "ASType": "AS Type",
+                "ASDeploymentFactors": "AS Deployment Factors",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+
+        df = self.parse_doc(df)
+
+        # Parse RUC Timestamp
+        df["RUC Timestamp"] = pd.to_datetime(
+            df["RUC Timestamp"],
+        ).dt.tz_localize(self.default_timezone)
+
+        df["AS Deployment Factors"] = pd.to_numeric(
+            df["AS Deployment Factors"],
+            errors="coerce",
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "RUC Timestamp",
+                    "AS Type",
+                    "AS Deployment Factors",
+                ]
+            ]
+            .sort_values(["Interval Start", "RUC Timestamp", "AS Type"])
+            .reset_index(drop=True)
+        )
+
+    # Published per DAM run for the next day
+    @support_date_range(frequency="DAY_START")
+    def get_dam_total_as_sold_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Total Ancillary Services Sold"""
+        if date != "latest":
+            date -= pd.DateOffset(days=1)
+
+        docs = self._get_documents(
+            report_type_id=DAM_TOTAL_AS_SOLD_RTID,
+            date=date,
+            constructed_name_contains="csv",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_dam_total_as_sold_rtc_b_trial(df)
+
+    def _handle_dam_total_as_sold_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Handle DAM Total Ancillary Services Sold data."""
+        df = df.rename(
+            columns={
+                "ASType": "AS Type",
+                "Quantity": "Quantity",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+
+        df = self.parse_doc(df)
+        df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "AS Type",
+                    "Quantity",
+                ]
+            ]
+            .sort_values(["Interval Start", "AS Type"])
+            .reset_index(drop=True)
+        )
+
+    # Published per RTD run for the next 55 minutes (11 intervals per file)
+    @support_date_range(frequency=None)
+    def get_indicative_mcpc_rtd_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTD Indicative Real-Time Market Clearing Prices for Capacity"""
+        published_before = None
+        published_after = None
+
+        if date != "latest":
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+            published_after = date
+
+        docs = self._get_documents(
+            report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
+            extension="csv",
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_indicative_mcpc_rtd_rtc_b_trial(df)
+
+    def _handle_indicative_mcpc_rtd_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+        # Parse timestamps with DST handling
+        df["Interval End"] = pd.to_datetime(df["IntervalEnding"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=self.ambiguous_based_on_dstflag(
+                df.rename(columns={"IntervalEndingRepeatedHourFlag": "DSTFlag"}),
+            ),
+        )
+
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+
+        df["RTD Timestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=self.ambiguous_based_on_dstflag(
+                df.rename(columns={"RepeatedHourFlag": "DSTFlag"}),
+            ),
+        )
+
+        # Convert price columns to numeric (float64)
+        price_cols = ["REGUP", "REGDN", "RRS", "ECRS", "NSPIN"]
+        for col in price_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[["Interval Start", "Interval End", "RTD Timestamp"] + price_cols]
+            .sort_values(["Interval Start", "RTD Timestamp"])
+            .reset_index(drop=True)
+        )
+
+    # Published every SCED interval
+    @support_date_range(frequency=None)
+    def get_as_total_capability_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Total Capability of Resources Available to Provide Ancillary Service"""
+        published_before = None
+        published_after = None
+
+        if date != "latest":
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+            published_after = date
+
+        docs = self._get_documents(
+            report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
+            extension="csv",
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+
+        return self._handle_as_total_capability_rtc_b_trial(df)
+
+    def _handle_as_total_capability_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "SCEDTimestamp": "SCED Timestamp",
+                "CapREGUPTotal": "Cap RegUp Total",
+                "CapREGDNTotal": "Cap RegDn Total",
+                "CapRRSTotal": "Cap RRS Total",
+                "CapECRSTotal": "Cap ECRS Total",
+                "CapNSPINTotal": "Cap NonSpin Total",
+                "CapREGUP_RRSTotal": "Cap RegUp RRS Total",
+                "CapREGUP_RRS_ECRSTotal": "Cap RegUp RRS ECRS Total",
+                "CapREGUP_RRS_ECRS_NSPINTotal": "Cap RegUp RRS ECRS NonSpin Total",
+                "DSTFlag": "RepeatedHourFlag",
+            },
+        )
+
+        df = self._handle_sced_timestamp(df)
+
+        # Convert capability columns to numeric
+        cap_cols = [
+            "Cap RegUp Total",
+            "Cap RegDn Total",
+            "Cap RRS Total",
+            "Cap ECRS Total",
+            "Cap NonSpin Total",
+            "Cap RegUp RRS Total",
+            "Cap RegUp RRS ECRS Total",
+            "Cap RegUp RRS ECRS NonSpin Total",
+        ]
+
+        for col in cap_cols:
+            df[col] = df[col].astype(float)
+
+        return (
+            df[["SCED Timestamp"] + cap_cols]
+            .sort_values("SCED Timestamp")
             .reset_index(drop=True)
         )
