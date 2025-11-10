@@ -1619,7 +1619,7 @@ class ISONEAPI:
         constraint_type: Literal["prelim", "final"],
         verbose: bool,
     ) -> pd.DataFrame:
-        dataset = f"fifteenminuteconstraints/{constraint_type.lower()}"
+        dataset = f"fifteenminuteconstraints/{constraint_type}"
         url = self._build_url(dataset, date)
         response = self.make_api_call(url, verbose=verbose)
         records = self._prepare_records(
@@ -1628,7 +1628,7 @@ class ISONEAPI:
 
         if not records:
             raise NoDataFoundException(
-                f"No fifteen-minute {constraint_type.lower()} constraint data found for {date}.",
+                f"No fifteen-minute {constraint_type} constraint data found for {date}.",
             )
 
         df = pd.DataFrame(records)
@@ -1677,7 +1677,7 @@ class ISONEAPI:
         constraint_type: Literal["prelim", "final"],
         verbose: bool,
     ) -> pd.DataFrame:
-        dataset = f"fiveminuteconstraints/{constraint_type.lower()}"
+        dataset = f"fiveminuteconstraints/{constraint_type}"
         url = self._build_url(dataset, date)
         response = self.make_api_call(url, verbose=verbose)
         records = self._prepare_records(
@@ -1686,7 +1686,7 @@ class ISONEAPI:
 
         if not records:
             raise NoDataFoundException(
-                f"No five-minute {constraint_type.lower()} constraint data found for {date}.",
+                f"No five-minute {constraint_type} constraint data found for {date}.",
             )
 
         df = pd.DataFrame(records)
