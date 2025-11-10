@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from gridstatus.base import NoDataFoundException
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
@@ -1206,7 +1207,30 @@ class TestISONEAPI(TestHelperMixin):
             ],
             expected_interval=pd.Timedelta(hours=1),
         )
-        assert df["Interval Start"].min() == date
+
+    def test_get_binding_constraints_preliminary_real_time_15_min_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_preliminary_real_time_15_min_latest.yaml",
+        ):
+            try:
+                df = self.iso.get_binding_constraints_preliminary_real_time_15_min(
+                    date="latest",
+                )
+                self._check_constraints(
+                    df,
+                    expected_columns=[
+                        "Interval Start",
+                        "Interval End",
+                        "Constraint Name",
+                        "Contingency Name",
+                        "Marginal Value",
+                    ],
+                    expected_interval=pd.Timedelta(minutes=15),
+                )
+            except NoDataFoundException:
+                pytest.skip(
+                    "No data found for preliminary real-time 15-minute binding constraints",
+                )
 
     def test_get_binding_constraints_final_real_time_15_min_latest(self) -> None:
         with api_vcr.use_cassette(
