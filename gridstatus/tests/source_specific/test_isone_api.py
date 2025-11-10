@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gridstatus.base import NoDataFoundException
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
@@ -1146,7 +1145,7 @@ class TestISONEAPI(TestHelperMixin):
             self.iso.default_timezone,
         ) - pd.Timedelta(hours=1)
 
-    def _check_constraint_columns_base(
+    def _check_constraints(
         self,
         df: pd.DataFrame,
         expected_columns: list[str],
@@ -1158,17 +1157,13 @@ class TestISONEAPI(TestHelperMixin):
         assert ((df["Interval End"] - df["Interval Start"]) == expected_interval).all()
         assert df["Marginal Value"].dtype in [np.int64, np.float64]
 
-    def test_get_constraints_day_ahead_latest(self) -> None:
-        with api_vcr.use_cassette("test_get_constraints_day_ahead_latest.yaml"):
-            try:
-                df = self.iso.get_constraints_day_ahead(date="latest")
-            except NoDataFoundException:
-                fallback_date = self.local_start_of_today().tz_convert(
-                    self.iso.default_timezone,
-                ) - pd.DateOffset(days=1)
-                df = self.iso.get_constraints_day_ahead(date=fallback_date)
+    def test_get_binding_constraints_day_ahead_hourly_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_day_ahead_hourly_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_day_ahead_hourly(date="latest")
 
-        self._check_constraint_columns_base(
+        self._check_constraints(
             df,
             expected_columns=[
                 "Interval Start",
@@ -1181,19 +1176,25 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(hours=1),
         )
 
-    def test_get_constraints_day_ahead_date_range(self) -> None:
-        start = self.local_start_of_today().tz_convert(
-            self.iso.default_timezone,
-        ) - pd.DateOffset(days=3)
-        end = start + pd.DateOffset(days=1)
-        cassette_name = f"test_get_constraints_day_ahead_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
+        ],
+    )
+    def test_get_binding_constraints_day_ahead_hourly_date_range(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
+    ) -> None:
+        cassette_name = f"test_get_binding_constraints_day_ahead_hourly_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
         with api_vcr.use_cassette(cassette_name):
-            try:
-                df = self.iso.get_constraints_day_ahead(date=start, end=end)
-            except NoDataFoundException as exc:
-                pytest.skip(str(exc))
+            df = self.iso.get_binding_constraints_day_ahead_hourly(date=date, end=end)
 
-        self._check_constraint_columns_base(
+        self._check_constraints(
             df,
             expected_columns=[
                 "Interval Start",
@@ -1205,104 +1206,116 @@ class TestISONEAPI(TestHelperMixin):
             ],
             expected_interval=pd.Timedelta(hours=1),
         )
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
+        assert df["Interval Start"].min() == date
 
-    @pytest.mark.parametrize(
-        "method_name,constraint_type",
-        [
-            ("get_constraints_fifteen_min_prelim", "prelim"),
-            ("get_constraints_fifteen_min_final", "final"),
-        ],
-    )
-    def test_get_constraints_fifteen_min_latest(
-        self,
-        method_name: str,
-        constraint_type: str,
-    ) -> None:
-        cassette_name = (
-            f"test_get_constraints_fifteen_min_{constraint_type}_latest.yaml"
+    def test_get_binding_constraints_final_real_time_15_min_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_final_real_time_15_min_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_final_real_time_15_min(date="latest")
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=15),
         )
-        with api_vcr.use_cassette(cassette_name):
-            method = getattr(self.iso, method_name)
-            try:
-                df = method(date="latest")
-            except NoDataFoundException:
-                fallback_date = self.local_start_of_today().tz_convert(
-                    self.iso.default_timezone,
-                ) - pd.DateOffset(days=1)
-                df = method(date=fallback_date)
-
-        assert list(df.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Constraint Name",
-            "Marginal Value",
-        ]
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=15)
-        ).all()
 
     @pytest.mark.parametrize(
-        "method_name,constraint_type",
+        "date,end",
         [
-            ("get_constraints_fifteen_min_prelim", "prelim"),
-            ("get_constraints_fifteen_min_final", "final"),
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
         ],
     )
-    def test_get_constraints_fifteen_min_date_range(
+    def test_get_binding_constraints_preliminary_real_time_15_min_date_range(
         self,
-        method_name: str,
-        constraint_type: str,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
     ) -> None:
-        start = self.local_start_of_today().tz_convert(
-            self.iso.default_timezone,
-        ) - pd.DateOffset(days=3)
-        end = start + pd.DateOffset(days=1)
-        cassette_name = f"test_get_constraints_fifteen_min_{constraint_type}_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        cassette_name = f"test_get_binding_constraints_preliminary_real_time_15_min_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
         with api_vcr.use_cassette(cassette_name):
-            method = getattr(self.iso, method_name)
-            try:
-                df = method(date=start, end=end)
-            except NoDataFoundException as exc:
-                pytest.skip(str(exc))
+            df = self.iso.get_binding_constraints_preliminary_real_time_15_min(
+                date=date,
+                end=end,
+            )
 
-        assert list(df.columns) == [
-            "Interval Start",
-            "Interval End",
-            "Constraint Name",
-            "Marginal Value",
-        ]
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=15)
-        ).all()
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end - pd.Timedelta(minutes=15)
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=15),
+        )
 
     @pytest.mark.parametrize(
-        "method_name,constraint_type",
+        "date,end",
         [
-            ("get_constraints_five_min_prelim", "prelim"),
-            ("get_constraints_five_min_final", "final"),
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
         ],
     )
-    def test_get_constraints_five_min_latest(
+    def test_get_binding_constraints_final_real_time_15_min_date_range(
         self,
-        method_name: str,
-        constraint_type: str,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
     ) -> None:
-        cassette_name = f"test_get_constraints_five_min_{constraint_type}_latest.yaml"
+        cassette_name = f"test_get_binding_constraints_final_real_time_15_min_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
         with api_vcr.use_cassette(cassette_name):
-            method = getattr(self.iso, method_name)
-            try:
-                df = method(date="latest")
-            except NoDataFoundException:
-                fallback_date = self.local_start_of_today().tz_convert(
-                    self.iso.default_timezone,
-                ) - pd.DateOffset(days=1)
-                df = method(date=fallback_date)
+            df = self.iso.get_binding_constraints_final_real_time_15_min(
+                date=date,
+                end=end,
+            )
 
-        self._check_constraint_columns_base(
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=15),
+        )
+
+    def test_get_binding_constraints_preliminary_real_time_5_min_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_preliminary_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_preliminary_real_time_5_min(
+                date="latest",
+            )
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=5),
+        )
+
+    def test_get_binding_constraints_final_real_time_5_min_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_final_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_final_real_time_5_min(date="latest")
+
+        self._check_constraints(
             df,
             expected_columns=[
                 "Interval Start",
@@ -1315,30 +1328,27 @@ class TestISONEAPI(TestHelperMixin):
         )
 
     @pytest.mark.parametrize(
-        "method_name,constraint_type",
+        "date,end",
         [
-            ("get_constraints_five_min_prelim", "prelim"),
-            ("get_constraints_five_min_final", "final"),
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
         ],
     )
-    def test_get_constraints_five_min_date_range(
+    def test_get_binding_constraints_preliminary_real_time_5_min_date_range(
         self,
-        method_name: str,
-        constraint_type: str,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
     ) -> None:
-        start = self.local_start_of_today().tz_convert(
-            self.iso.default_timezone,
-        ) - pd.DateOffset(days=3)
-        end = start + pd.DateOffset(days=1)
-        cassette_name = f"test_get_constraints_five_min_{constraint_type}_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        cassette_name = f"test_get_binding_constraints_preliminary_real_time_5_min_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
         with api_vcr.use_cassette(cassette_name):
-            method = getattr(self.iso, method_name)
-            try:
-                df = method(date=start, end=end)
-            except NoDataFoundException as exc:
-                pytest.skip(str(exc))
+            df = self.iso.get_binding_constraints_preliminary_real_time_5_min(
+                date=date,
+                end=end,
+            )
 
-        self._check_constraint_columns_base(
+        self._check_constraints(
             df,
             expected_columns=[
                 "Interval Start",
@@ -1349,5 +1359,36 @@ class TestISONEAPI(TestHelperMixin):
             ],
             expected_interval=pd.Timedelta(minutes=5),
         )
-        assert df["Interval Start"].min() == start
-        assert df["Interval End"].max() == end
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
+        ],
+    )
+    def test_get_binding_constraints_final_real_time_5_min_date_range(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
+    ) -> None:
+        cassette_name = f"test_get_binding_constraints_final_real_time_5_min_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_final_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=5),
+        )

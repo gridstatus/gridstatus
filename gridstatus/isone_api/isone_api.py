@@ -1555,7 +1555,7 @@ class ISONEAPI:
         ].sort_values(["Interval Start", "Publish Time"])
 
     @support_date_range("DAY_START")
-    def get_constraints_day_ahead(
+    def get_binding_constraints_day_ahead_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -1588,7 +1588,7 @@ class ISONEAPI:
         )
 
     @support_date_range("DAY_START")
-    def get_constraints_fifteen_min_prelim(
+    def get_binding_constraints_preliminary_real_time_15_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -1601,7 +1601,7 @@ class ISONEAPI:
         )
 
     @support_date_range("DAY_START")
-    def get_constraints_fifteen_min_final(
+    def get_binding_constraints_final_real_time_15_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -1646,7 +1646,7 @@ class ISONEAPI:
         )
 
     @support_date_range("DAY_START")
-    def get_constraints_five_min_prelim(
+    def get_binding_constraints_preliminary_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -1659,7 +1659,7 @@ class ISONEAPI:
         )
 
     @support_date_range("DAY_START")
-    def get_constraints_five_min_final(
+    def get_binding_constraints_final_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
