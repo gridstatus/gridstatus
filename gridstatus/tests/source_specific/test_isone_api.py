@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from gridstatus.base import NoDataFoundException
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
@@ -1144,3 +1145,209 @@ class TestISONEAPI(TestHelperMixin):
         assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
             self.iso.default_timezone,
         ) - pd.Timedelta(hours=1)
+
+    def _check_constraint_columns_base(
+        self,
+        df: pd.DataFrame,
+        expected_columns: list[str],
+        expected_interval: pd.Timedelta,
+    ) -> None:
+        assert list(df.columns) == expected_columns
+        assert df["Interval Start"].dtype == "datetime64[ns, US/Eastern]"
+        assert df["Interval End"].dtype == "datetime64[ns, US/Eastern]"
+        assert ((df["Interval End"] - df["Interval Start"]) == expected_interval).all()
+        assert df["Marginal Value"].dtype in [np.int64, np.float64]
+
+    def test_get_constraints_day_ahead_latest(self) -> None:
+        with api_vcr.use_cassette("test_get_constraints_day_ahead_latest.yaml"):
+            try:
+                df = self.iso.get_constraints_day_ahead(date="latest")
+            except NoDataFoundException:
+                fallback_date = self.local_start_of_today().tz_convert(
+                    self.iso.default_timezone,
+                ) - pd.DateOffset(days=1)
+                df = self.iso.get_constraints_day_ahead(date=fallback_date)
+
+        self._check_constraint_columns_base(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Interface Flag",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(hours=1),
+        )
+
+    def test_get_constraints_day_ahead_date_range(self) -> None:
+        start = self.local_start_of_today().tz_convert(
+            self.iso.default_timezone,
+        ) - pd.DateOffset(days=3)
+        end = start + pd.DateOffset(days=1)
+        cassette_name = f"test_get_constraints_day_ahead_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            try:
+                df = self.iso.get_constraints_day_ahead(date=start, end=end)
+            except NoDataFoundException as exc:
+                pytest.skip(str(exc))
+
+        self._check_constraint_columns_base(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Interface Flag",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(hours=1),
+        )
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+    @pytest.mark.parametrize(
+        "method_name,constraint_type",
+        [
+            ("get_constraints_fifteen_min_prelim", "prelim"),
+            ("get_constraints_fifteen_min_final", "final"),
+        ],
+    )
+    def test_get_constraints_fifteen_min_latest(
+        self,
+        method_name: str,
+        constraint_type: str,
+    ) -> None:
+        cassette_name = (
+            f"test_get_constraints_fifteen_min_{constraint_type}_latest.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            method = getattr(self.iso, method_name)
+            try:
+                df = method(date="latest")
+            except NoDataFoundException:
+                fallback_date = self.local_start_of_today().tz_convert(
+                    self.iso.default_timezone,
+                ) - pd.DateOffset(days=1)
+                df = method(date=fallback_date)
+
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Constraint Name",
+            "Marginal Value",
+        ]
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=15)
+        ).all()
+
+    @pytest.mark.parametrize(
+        "method_name,constraint_type",
+        [
+            ("get_constraints_fifteen_min_prelim", "prelim"),
+            ("get_constraints_fifteen_min_final", "final"),
+        ],
+    )
+    def test_get_constraints_fifteen_min_date_range(
+        self,
+        method_name: str,
+        constraint_type: str,
+    ) -> None:
+        start = self.local_start_of_today().tz_convert(
+            self.iso.default_timezone,
+        ) - pd.DateOffset(days=3)
+        end = start + pd.DateOffset(days=1)
+        cassette_name = f"test_get_constraints_fifteen_min_{constraint_type}_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            method = getattr(self.iso, method_name)
+            try:
+                df = method(date=start, end=end)
+            except NoDataFoundException as exc:
+                pytest.skip(str(exc))
+
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Constraint Name",
+            "Marginal Value",
+        ]
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=15)
+        ).all()
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end - pd.Timedelta(minutes=15)
+
+    @pytest.mark.parametrize(
+        "method_name,constraint_type",
+        [
+            ("get_constraints_five_min_prelim", "prelim"),
+            ("get_constraints_five_min_final", "final"),
+        ],
+    )
+    def test_get_constraints_five_min_latest(
+        self,
+        method_name: str,
+        constraint_type: str,
+    ) -> None:
+        cassette_name = f"test_get_constraints_five_min_{constraint_type}_latest.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            method = getattr(self.iso, method_name)
+            try:
+                df = method(date="latest")
+            except NoDataFoundException:
+                fallback_date = self.local_start_of_today().tz_convert(
+                    self.iso.default_timezone,
+                ) - pd.DateOffset(days=1)
+                df = method(date=fallback_date)
+
+        self._check_constraint_columns_base(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=5),
+        )
+
+    @pytest.mark.parametrize(
+        "method_name,constraint_type",
+        [
+            ("get_constraints_five_min_prelim", "prelim"),
+            ("get_constraints_five_min_final", "final"),
+        ],
+    )
+    def test_get_constraints_five_min_date_range(
+        self,
+        method_name: str,
+        constraint_type: str,
+    ) -> None:
+        start = self.local_start_of_today().tz_convert(
+            self.iso.default_timezone,
+        ) - pd.DateOffset(days=3)
+        end = start + pd.DateOffset(days=1)
+        cassette_name = f"test_get_constraints_five_min_{constraint_type}_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            method = getattr(self.iso, method_name)
+            try:
+                df = method(date=start, end=end)
+            except NoDataFoundException as exc:
+                pytest.skip(str(exc))
+
+        self._check_constraint_columns_base(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=5),
+        )
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
