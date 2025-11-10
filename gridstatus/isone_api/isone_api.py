@@ -124,6 +124,14 @@ class ISONEAPI:
                 return {}
         return d
 
+    @staticmethod
+    def _prepare_records(records: dict | list[dict]) -> list[dict]:
+        if not records:
+            return []
+        if isinstance(records, dict):
+            return [records]
+        return records
+
     def make_api_call(
         self,
         url: str,
@@ -1546,52 +1554,6 @@ class ISONEAPI:
             ]
         ].sort_values(["Interval Start", "Publish Time"])
 
-    @staticmethod
-    def _prepare_records(records) -> list[dict]:
-        if not records:
-            return []
-        if isinstance(records, dict):
-            return [records]
-        return records
-
-    def _parse_constraint_dataframe(
-        self,
-        df: pd.DataFrame,
-        interval_field: str,
-        interval_minutes: int,
-        rename_map: dict[str, str],
-        columns: list[str],
-    ) -> pd.DataFrame:
-        if df.empty:
-            raise NoDataFoundException(
-                "No constraint data found for the requested parameters.",
-            )
-
-        df = df.copy()
-
-        df["Interval Start"] = pd.to_datetime(
-            df[interval_field],
-            errors="coerce",
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_minutes,
-        )
-        df = df.rename(columns=rename_map)
-        df["Marginal Value"] = pd.to_numeric(df["Marginal Value"], errors="coerce")
-
-        if "Contingency Name" in df.columns:
-            df["Contingency Name"] = (
-                df["Contingency Name"]
-                .astype("string")
-                .str.strip()
-                .mask(lambda s: s.isna() | (s == "") | (s.str.upper() == "NULL"))
-                .where(lambda s: s.notna(), None)
-            )
-
-        df = df.reindex(columns=columns)
-        df = df.sort_values("Interval Start").reset_index(drop=True)
-        return df
-
     @support_date_range("DAY_START")
     def get_constraints_day_ahead(
         self,
@@ -1740,3 +1702,42 @@ class ISONEAPI:
             },
             columns=ISONE_CONSTRAINT_FIVE_MIN_COLUMNS,
         )
+
+    def _parse_constraint_dataframe(
+        self,
+        df: pd.DataFrame,
+        interval_field: str,
+        interval_minutes: int,
+        rename_map: dict[str, str],
+        columns: list[str],
+    ) -> pd.DataFrame:
+        if df.empty:
+            raise NoDataFoundException(
+                "No constraint data found for the requested parameters.",
+            )
+
+        df = df.copy()
+
+        df["Interval Start"] = pd.to_datetime(
+            df[interval_field],
+            errors="coerce",
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=interval_minutes,
+        )
+        df = df.rename(columns=rename_map)
+        df["Marginal Value"] = pd.to_numeric(df["Marginal Value"], errors="coerce")
+
+        if "Contingency Name" in df.columns:
+            df["Contingency Name"] = (
+                df["Contingency Name"]
+                .astype("string")
+                .str.strip()
+                .mask(lambda s: s.isna() | (s == "") | (s.str.upper() == "NULL"))
+                .map(lambda value: None if pd.isna(value) else value)
+            )
+
+        df = df.reindex(columns=columns)
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+        return df
