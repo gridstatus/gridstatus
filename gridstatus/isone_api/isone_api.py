@@ -15,7 +15,8 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
     ISONE_CONSTRAINT_DAY_AHEAD_COLUMNS,
     ISONE_CONSTRAINT_FIFTEEN_MIN_COLUMNS,
-    ISONE_CONSTRAINT_FIVE_MIN_COLUMNS,
+    ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS,
+    ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_RESERVE_ZONE_COLUMN_MAP,
     ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
@@ -1691,16 +1692,23 @@ class ISONEAPI:
 
         df = pd.DataFrame(records)
 
+        rename_map = {
+            "ConstraintName": "Constraint Name",
+            "MarginalValue": "Marginal Value",
+        }
+
+        if constraint_type == "prelim":
+            rename_map["ContingencyName"] = "Contingency Name"
+            columns = ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS
+        else:
+            columns = ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS
+
         return self._parse_constraint_dataframe(
             df,
             interval_field="BeginDate",
             interval_minutes=5,
-            rename_map={
-                "ConstraintName": "Constraint Name",
-                "ContingencyName": "Contingency Name",
-                "MarginalValue": "Marginal Value",
-            },
-            columns=ISONE_CONSTRAINT_FIVE_MIN_COLUMNS,
+            rename_map=rename_map,
+            columns=columns,
         )
 
     def _parse_constraint_dataframe(

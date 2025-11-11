@@ -1345,7 +1345,6 @@ class TestISONEAPI(TestHelperMixin):
                 "Interval Start",
                 "Interval End",
                 "Constraint Name",
-                "Contingency Name",
                 "Marginal Value",
             ],
             expected_interval=pd.Timedelta(minutes=5),

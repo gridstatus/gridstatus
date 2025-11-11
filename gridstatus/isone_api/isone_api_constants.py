@@ -39,11 +39,18 @@ ISONE_CONSTRAINT_DAY_AHEAD_COLUMNS = [
     "Marginal Value",
 ]
 
-ISONE_CONSTRAINT_FIVE_MIN_COLUMNS = [
+ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS = [
     "Interval Start",
     "Interval End",
     "Constraint Name",
     "Contingency Name",
+    "Marginal Value",
+]
+
+ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Constraint Name",
     "Marginal Value",
 ]
 
