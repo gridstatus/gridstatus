@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from gridstatus.base import NoDataFoundException
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
@@ -1144,3 +1145,272 @@ class TestISONEAPI(TestHelperMixin):
         assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
             self.iso.default_timezone,
         ) - pd.Timedelta(hours=1)
+
+    def _check_constraints(
+        self,
+        df: pd.DataFrame,
+        expected_columns: list[str],
+        expected_interval: pd.Timedelta,
+    ) -> None:
+        assert list(df.columns) == expected_columns
+        assert df["Interval Start"].dtype == "datetime64[ns, US/Eastern]"
+        assert df["Interval End"].dtype == "datetime64[ns, US/Eastern]"
+        assert ((df["Interval End"] - df["Interval Start"]) == expected_interval).all()
+        assert df["Marginal Value"].dtype in [np.int64, np.float64]
+
+    def test_get_binding_constraints_day_ahead_hourly_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_day_ahead_hourly_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_day_ahead_hourly(date="latest")
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Interface Flag",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(hours=1),
+        )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
+        ],
+    )
+    def test_get_binding_constraints_day_ahead_hourly_date_range(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
+    ) -> None:
+        cassette_name = f"test_get_binding_constraints_day_ahead_hourly_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_day_ahead_hourly(date=date, end=end)
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Interface Flag",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(hours=1),
+        )
+
+    def test_get_binding_constraints_preliminary_real_time_15_min_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_preliminary_real_time_15_min_latest.yaml",
+        ):
+            try:
+                df = self.iso.get_binding_constraints_preliminary_real_time_15_min(
+                    date="latest",
+                )
+                self._check_constraints(
+                    df,
+                    expected_columns=[
+                        "Interval Start",
+                        "Interval End",
+                        "Constraint Name",
+                        "Contingency Name",
+                        "Marginal Value",
+                    ],
+                    expected_interval=pd.Timedelta(minutes=15),
+                )
+            except NoDataFoundException:
+                pytest.skip(
+                    "No data found for preliminary real-time 15-minute binding constraints",
+                )
+
+    def test_get_binding_constraints_final_real_time_15_min_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_final_real_time_15_min_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_final_real_time_15_min(date="latest")
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=15),
+        )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
+        ],
+    )
+    def test_get_binding_constraints_preliminary_real_time_15_min_date_range(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
+    ) -> None:
+        cassette_name = f"test_get_binding_constraints_preliminary_real_time_15_min_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_preliminary_real_time_15_min(
+                date=date,
+                end=end,
+            )
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=15),
+        )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
+        ],
+    )
+    def test_get_binding_constraints_final_real_time_15_min_date_range(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
+    ) -> None:
+        cassette_name = f"test_get_binding_constraints_final_real_time_15_min_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_final_real_time_15_min(
+                date=date,
+                end=end,
+            )
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=15),
+        )
+
+    def test_get_binding_constraints_preliminary_real_time_5_min_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_preliminary_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_preliminary_real_time_5_min(
+                date="latest",
+            )
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=5),
+        )
+
+    def test_get_binding_constraints_final_real_time_5_min_latest(self) -> None:
+        with api_vcr.use_cassette(
+            "test_get_binding_constraints_final_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_final_real_time_5_min(date="latest")
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=5),
+        )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
+        ],
+    )
+    def test_get_binding_constraints_preliminary_real_time_5_min_date_range(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
+    ) -> None:
+        cassette_name = f"test_get_binding_constraints_preliminary_real_time_5_min_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_preliminary_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Contingency Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=5),
+        )
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            (
+                pd.Timestamp("2025-11-01").tz_localize("US/Eastern"),
+                pd.Timestamp("2025-11-03").tz_localize("US/Eastern"),
+            ),
+        ],
+    )
+    def test_get_binding_constraints_final_real_time_5_min_date_range(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp,
+    ) -> None:
+        cassette_name = f"test_get_binding_constraints_final_real_time_5_min_{date.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df = self.iso.get_binding_constraints_final_real_time_5_min(
+                date=date,
+                end=end,
+            )
+
+        self._check_constraints(
+            df,
+            expected_columns=[
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Marginal Value",
+            ],
+            expected_interval=pd.Timedelta(minutes=5),
+        )

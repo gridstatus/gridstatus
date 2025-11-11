@@ -30,6 +30,37 @@ ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS = [
     "Cold Weather Event",
 ]
 
+ISONE_CONSTRAINT_DAY_AHEAD_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Constraint Name",
+    "Contingency Name",
+    "Interface Flag",
+    "Marginal Value",
+]
+
+ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Constraint Name",
+    "Contingency Name",
+    "Marginal Value",
+]
+
+ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Constraint Name",
+    "Marginal Value",
+]
+
+ISONE_CONSTRAINT_FIFTEEN_MIN_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Constraint Name",
+    "Marginal Value",
+]
+
 # Reserve zone price columns used across multiple real-time methods
 ISONE_RESERVE_ZONE_FLOAT_COLUMNS = [
     "Ten Min Spin Requirement",
