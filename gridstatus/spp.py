@@ -1985,6 +1985,7 @@ class SPP(ISOBase):
         )
 
         df = df.rename(columns={"NERCID": "NERC ID"})
+        df["NERC ID"] = pd.to_numeric(df["NERC ID"], errors="coerce").astype("Int64")
 
         cols_to_keep = [
             "Interval Start",
