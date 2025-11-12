@@ -1643,6 +1643,10 @@ class TestSPP(BaseTestISO):
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
+        # check that NERC ID is integer type and non-negative
+        assert pd.api.types.is_integer_dtype(df["NERC ID"]), (
+            "NERC ID column must be of integer type"
+        )
 
     def test_get_binding_constraints_real_time_latest(self):
         with api_vcr.use_cassette(
