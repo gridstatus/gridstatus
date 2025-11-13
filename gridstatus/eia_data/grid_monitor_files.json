@@ -490,5 +490,11 @@
       "Type": "BA",
       "Name": "Western Area Power Administration - Upper Great Plains West",
       "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/WAUW.xlsx"
+    },
+    "SIKE": {
+      "ID": "SIKE",
+      "Type": "BA",
+      "Name": "Sikeston Board of Municipal Utilities",
+      "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SIKE.xlsx"
     }
   }
