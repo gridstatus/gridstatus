@@ -2840,18 +2840,34 @@ class CAISO(ISOBase):
             self.default_timezone,
         )
 
-        # Build all DataFrames using the configuration
         dataframes = {}
         for df_name, timestamps, duration, unit, column_mapping in dataframe_configs:
-            interval_end_timedelta = pd.DateOffset(**{f"{unit}s": duration})
+            if unit == "minute":
+                interval_end_timedelta: pd.Timedelta | pd.DateOffset = pd.Timedelta(
+                    minutes=duration,
+                )
+            elif unit == "hour":
+                interval_end_timedelta = pd.Timedelta(hours=duration)
+            elif unit == "day":
+                interval_end_timedelta = pd.Timedelta(days=duration)
+            else:
+                interval_end_timedelta = pd.DateOffset(**{f"{unit}s": duration})
 
+            target_length = len(timestamps)
             data = {
                 "Interval Start": timestamps,
                 "Interval End": timestamps + interval_end_timedelta,
             }
 
             for col_name, var_name in column_mapping.items():
-                data[col_name] = extract_array(html_content, var_name)
+                values = extract_array(html_content, var_name)
+                if len(values) > target_length:
+                    values = values[-target_length:]
+                elif len(values) < target_length:
+                    raise ValueError(
+                        f"Renewables report column {var_name} returned {len(values)} values for {date.strftime('%Y-%m-%d')}, expected {target_length}",
+                    )
+                data[col_name] = values
 
             dataframes[df_name] = pd.DataFrame(data)
 

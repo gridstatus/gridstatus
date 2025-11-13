@@ -1,0 +1,1963 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Daily Renewable Report - Nov 02, 2025 </title>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	
+	<script type="text/javascript">
+		const proto = location.protocol === 'file:' ? 'http:' : location.protocol;
+		const urls = [
+			'https://www.caiso.com/theme/reports/jquery.min.js',
+			'https://www.caiso.com/theme/reports/highcharts.js',
+			'https://www.caiso.com/theme/reports/highcharts-more.js',
+			'https://www.caiso.com/theme/reports/highcharts-exporting.js',
+			'https://www.caiso.com/theme/reports/highcharts-export-data.js',
+			'https://www.caiso.com/theme/reports/popper.min.js',
+			'https://www.caiso.com/theme/reports/bootstrap.min.js',
+			'https://www.caiso.com/theme/reports/bootstrap.min.css'
+		];
+
+		let finalURLs = urls.map(url => {
+			// Set correct protocol based on browser window
+			let newURL = url.replace(/(?:http)s*:/, proto);
+			let el = '';
+
+			if (newURL.search(/\.js$/) !== -1) {
+				el = document.createElement('script');
+				el.src = newURL;
+				el.defer = true;
+				el.async = false; // Default is true when <script> is inserted into the DOM
+			}
+
+			else if (newURL.search(/\.css$/) !== -1) {
+				el = document.createElement('link')
+				el.rel = 'stylesheet';
+				el.href = newURL;
+			}
+      
+			return el;
+		});
+
+		// Append final links to <head>
+		document.head.append(...finalURLs);
+
+	</script>
+	
+	<!-- Latest compiled and minified CSS -->
+	<style type="text/css">
+		body {font-family: Arial, Helvetica,"sans-serif";color: #5b5b5b;line-height: 1.5;}
+
+		a {color: #4f758b; text-decoration: underline;}
+			a:focus, a:hover {color: #4f758b; text-decoration: none;}
+
+		button {cursor: pointer;}	
+			
+		/* Container override */
+
+		.container {width: 100%;}
+			
+		.h1, .h2, .h3, .h4, .h5, .h6, h1, h2, h3, h4, h5, h6 {color: #000;}
+			.h1, h1 {font-size: 1em;color: #4D4D4D; margin-top: 0; margin-bottom: .75rem;}
+				@media (min-width: 850px) {
+					.h1, h1 { font-size: 1.8em; display: inline-block; margin-top: 4px; margin-bottom: 0; vertical-align: middle; padding-left: 24px;}
+				}
+				.h1 span, h1 span {color: #a3a3a3;color: rgba(0,0,0,.5);font-weight: 400;}
+			.h2, h2 {margin-top: 15px;font-size: 1.5em;margin-bottom: .75rem;}
+			.h3, h3 {line-height: 1.4em;font-size: .857em;font-weight: 700;}
+		p {margin: 0px 0px 1rem 0px;line-height: 1.4;}
+
+		.header {padding-top: 10px;min-height: 80px;}
+
+		.main-content {padding-top: 15px;padding-bottom: 15px;}
+
+		.logo {
+			position: relative;
+			display: block;
+			width: 200px;max-width: 200px;height: 48px;
+			background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iMjI4cHgiIGhlaWdodD0iNjdweCIgdmlld0JveD0iMCAwIDIyOCA2NyIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMjI4IDY3OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+PHN0eWxlIHR5cGU9InRleHQvY3NzIj4uc3Qwe2ZpbGw6dXJsKCNTVkdJRF8xXyk7fS5zdDF7ZmlsbDp1cmwoI1NWR0lEXzJfKTt9LnN0MntmaWxsOnVybCgjU1ZHSURfM18pO30uc3Qze29wYWNpdHk6MC40NDtmaWxsOnVybCgjU1ZHSURfNF8pO2VuYWJsZS1iYWNrZ3JvdW5kOm5ldyAgICA7fS5zdDR7ZmlsbDojNEQ0RDREO30uc3Q1e29wYWNpdHk6MC40MztmaWxsOnVybCgjU1ZHSURfNV8pO2VuYWJsZS1iYWNrZ3JvdW5kOm5ldyAgICA7fTwvc3R5bGU+PGxpbmVhckdyYWRpZW50IGlkPSJTVkdJRF8xXyIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIHgxPSI3LjM0NDYiIHkxPSI5MDQuOTEwNSIgeDI9IjM5Ljg3NTMiIHkyPSI4ODUuNzQ4NSIgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAxIDAgLTg1NikiPjxzdG9wICBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiM4RDhCMDAiLz48c3RvcCAgb2Zmc2V0PSI5LjYwNDU3NGUtMDIiIHN0eWxlPSJzdG9wLWNvbG9yOiM5MTk0MEUiLz48c3RvcCAgb2Zmc2V0PSIwLjI3NzQiIHN0eWxlPSJzdG9wLWNvbG9yOiM5QkFDMzMiLz48c3RvcCAgb2Zmc2V0PSIwLjUyMzEiIHN0eWxlPSJzdG9wLWNvbG9yOiNBQUQyNkQiLz48c3RvcCAgb2Zmc2V0PSIwLjU0NCIgc3R5bGU9InN0b3AtY29sb3I6I0FDRDY3MyIvPjxzdG9wICBvZmZzZXQ9IjAuNTYzNyIgc3R5bGU9InN0b3AtY29sb3I6I0FBRDI2RCIvPjxzdG9wICBvZmZzZXQ9IjAuODYyNyIgc3R5bGU9InN0b3AtY29sb3I6Izk1OUYxRiIvPjxzdG9wICBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiM4RDhCMDAiLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik00MC45LDM0LjRjMCwwLTAuNCw4LjktNi40LDEzLjhjLTguNyw3LjItMTguNSw2LjEtMjQuOCwxLjRDMi41LDQ0LjIsMiwzNi40LDIsMzYuNHMxLjMsMS4yLDMuOCwxYzMuNy0wLjIsNy41LTIuNyw3LjUtMi43czAuMiwyLjgsMi4zLDQuNGMyLjksMi4yLDcsMS4zLDkuMywwLjFzNS4yLTMuNCw5LjEtNS4xQzM4LjUsMzIuMyw0MC45LDM0LjQsNDAuOSwzNC40eiIvPjxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfMl8iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iNC4xNTY4IiB5MT0iODkzLjAwMSIgeDI9IjM1LjEwOCIgeTI9Ijg3NC43NjkzIiBncmFkaWVudFRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIDEgMCAtODU2KSI+PHN0b3AgIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6IzNCNkU4RiIvPjxzdG9wICBvZmZzZXQ9IjguNTMzMDAxZS0wMiIgc3R5bGU9InN0b3AtY29sb3I6IzU0ODdBMCIvPjxzdG9wICBvZmZzZXQ9IjAuMzMwNSIgc3R5bGU9InN0b3AtY29sb3I6Izk5Q0NEMCIvPjxzdG9wICBvZmZzZXQ9IjAuNDQ1MSIgc3R5bGU9InN0b3AtY29sb3I6I0I0RTdFMyIvPjxzdG9wICBvZmZzZXQ9IjAuNTQ4NiIgc3R5bGU9InN0b3AtY29sb3I6I0EzRDZENyIvPjxzdG9wICBvZmZzZXQ9IjAuNzUzNSIgc3R5bGU9InN0b3AtY29sb3I6Izc3QUFCOSIvPjxzdG9wICBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiMzQjZFOEYiLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGNsYXNzPSJzdDEiIGQ9Ik0xLjgsMzNjMCwwLDAuMy03LjksNS4zLTEyLjZjOS43LTkuMywyMS4yLTYuMSwyNS44LTIuNWM3LjEsNS42LDcuOCwxMy4yLDcuOCwxMy4ycy0xLjMtMS4yLTMuOC0xLjFjLTMuNywwLjItNy42LDIuOC03LjYsMi44cy0wLjEtMS45LTEuMy0zLjRjLTEuMS0xLjQtMi42LTEuOS0yLjYtMS45bDQuNi0wLjdsLTAuMS0wLjdsLTQuNiwwLjRsMy45LTMuNmwtMC40LTAuNWwtNCwzLjJsMC42LTUuM2wtMC43LTAuMWwtMS4xLDUuM0wyMC41LDIxbC0wLjcsMC40bDIuOSw0LjZsLTUuMi0xLjZMMTcuMywyNWw0LjgsMS45YzAsMC0yLjMsMC4xLTQuMywxLjNjLTIuMiwxLjMtNS4yLDMuNi05LDUuMkM0LjIsMzUuMiwxLjgsMzMsMS44LDMzeiIvPjxsaW5lYXJHcmFkaWVudCBpZD0iU1ZHSURfM18iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4MT0iMTQuOTE1MyIgeTE9Ijg5My41MzY2IiB4Mj0iMjcuNzM2NCIgeTI9Ijg4Ni4wNzQ1IiBncmFkaWVudFRyYW5zZm9ybT0ibWF0cml4KDEgMCAwIDEgMCAtODU2KSI+PHN0b3AgIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6I0U4NkQyNCIvPjxzdG9wICBvZmZzZXQ9IjAuMTc0NCIgc3R5bGU9InN0b3AtY29sb3I6I0VEODIzMiIvPjxzdG9wICBvZmZzZXQ9IjAuNTMzOCIgc3R5bGU9InN0b3AtY29sb3I6I0ZCQjk1NSIvPjxzdG9wICBvZmZzZXQ9IjAuNTY1OSIgc3R5bGU9InN0b3AtY29sb3I6I0ZDQkU1OCIvPjxzdG9wICBvZmZzZXQ9IjAuNjQxNCIgc3R5bGU9InN0b3AtY29sb3I6I0Y5Qjk1NiIvPjxzdG9wICBvZmZzZXQ9IjAuNzI2IiBzdHlsZT0ic3RvcC1jb2xvcjojRUVBQzUwIi8+PHN0b3AgIG9mZnNldD0iMC44MTUiIHN0eWxlPSJzdG9wLWNvbG9yOiNERDk1NDUiLz48c3RvcCAgb2Zmc2V0PSIwLjkwNzEiIHN0eWxlPSJzdG9wLWNvbG9yOiNDNjc2MzciLz48c3RvcCAgb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojQTg0RTI1Ii8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBjbGFzcz0ic3QyIiBkPSJNMTMuMywzNC44YzAsMCw0LjgtMy4yLDcuMi00YzEuOS0wLjcsNC4xLTAuOCw1LjktMC4xYzEuOCwwLjYsMi44LDIuMiwyLjgsMi4ycy0yLjIsMS41LTQuMywyLjZzLTUuNywyLjMtOCwxLjdDMTQuNywzNi42LDEzLjMsMzQuOCwxMy4zLDM0Ljh6Ii8+PGxpbmVhckdyYWRpZW50IGlkPSJTVkdJRF80XyIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIHgxPSI3LjM3OTkiIHkxPSI5MDQuOTMwOCIgeDI9IjM5LjkxMDQiIHkyPSI4ODUuNzY4OSIgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAxIDAgLTg1NikiPjxzdG9wICBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiM0MDQwNDEiLz48c3RvcCAgb2Zmc2V0PSI2LjczNjc2MWUtMDIiIHN0eWxlPSJzdG9wLWNvbG9yOiM0RTRFNEYiLz48c3RvcCAgb2Zmc2V0PSIwLjE5NDYiIHN0eWxlPSJzdG9wLWNvbG9yOiM3MzczNzQiLz48c3RvcCAgb2Zmc2V0PSIwLjM2ODMiIHN0eWxlPSJzdG9wLWNvbG9yOiNBRUFFQUYiLz48c3RvcCAgb2Zmc2V0PSIwLjU0NCIgc3R5bGU9InN0b3AtY29sb3I6I0YxRjFGMiIvPjxzdG9wICBvZmZzZXQ9IjAuNzQ3MyIgc3R5bGU9InN0b3AtY29sb3I6IzhGOEQ4RSIvPjxzdG9wICBvZmZzZXQ9IjAuOTIwOSIgc3R5bGU9InN0b3AtY29sb3I6IzQxM0UzRiIvPjxzdG9wICBvZmZzZXQ9IjEiIHN0eWxlPSJzdG9wLWNvbG9yOiMyMzFGMjAiLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGNsYXNzPSJzdDMiIGQ9Ik0zMy45LDM0LjJjLTMuOSwxLjYtNi44LDMuOC05LjEsNS4xYy0yLjQsMS4zLTYuNSwyLjItOS4zLTAuMWMtMi4xLTEuNi0yLjMtNC40LTIuMy00LjRzLTMuOCwyLjQtNy41LDIuN2MtMi41LDAuMS0zLjgtMS0zLjgtMXMwLjUsNy44LDcuNywxMy4yYzYuMyw0LjcsMTYuMSw1LjgsMjQuOC0xLjRjNi00LjksNi40LTEzLjgsNi40LTEzLjhTMzguNSwzMi4zLDMzLjksMzQuMnogTTMzLjQsNDcuOWMtNy41LDYtMTYuOCw1LjUtMjIuNSwxLjNDNC4zLDQ0LjQsMy4yLDM4LjQsMy4xLDM4YzAsMCwwLjQsMC43LDMsMC41YzMuNC0wLjIsNi41LTIuMSw2LjUtMi4xczAuMiwyLjIsMi45LDMuOWMzLjIsMiw3LjYsMSw5LjctMC4yYzIuMS0xLjEsNS0zLjMsOC40LTQuOWM0LjMtMiw2LjMtMC40LDYuMy0wLjRTMzkuNiw0Mi45LDMzLjQsNDcuOXoiLz48Zz48cGF0aCBjbGFzcz0ic3Q0IiBkPSJNNjkuOSwyNy44Yy0xLjYtMS40LTMuOC0yLjItNS45LTIuMmMtNSwwLTguOCw0LjItOC44LDkuMXMzLjgsOSw4LjcsOWMyLjIsMCw0LjMtMC44LDUuOS0yLjN2My4zYy0xLjcsMS0zLjksMS42LTUuOCwxLjZjLTYuMywwLTExLjYtNS0xMS42LTExLjVjMC02LjYsNS4zLTExLjcsMTEuOC0xMS43YzEuOSwwLDMuOSwwLjUsNS42LDEuNUw2OS45LDI3LjhMNjkuOSwyNy44eiIvPjxwYXRoIGNsYXNzPSJzdDQiIGQ9Ik04NS42LDQ1LjhoLTIuN3YtMi4ybDAsMGMtMS4xLDEuNi0yLjcsMi42LTQuNywyLjZjLTQuMiwwLTYuNi0zLjUtNi42LTcuNWMwLTMuOCwyLjUtNy4yLDYuNS03LjJjMiwwLDMuNywxLjEsNC44LDIuN2wwLDBWMzJoMi43Qzg1LjYsMzIsODUuNiw0NS44LDg1LjYsNDUuOHogTTgzLjEsMzguOWMwLTIuNy0xLjYtNC45LTQuNS00LjljLTIuNywwLTQuNCwyLjQtNC40LDQuOWMwLDIuNiwxLjYsNSw0LjQsNUM4MS41LDQzLjksODMuMSw0MS42LDgzLjEsMzguOXoiLz48cGF0aCBjbGFzcz0ic3Q0IiBkPSJNOTEuNSw0NS44aC0yLjZWMjAuMmgyLjdMOTEuNSw0NS44TDkxLjUsNDUuOHoiLz48cGF0aCBjbGFzcz0ic3Q0IiBkPSJNOTguNywyNS43YzAsMS0wLjgsMS44LTEuOCwxLjhzLTEuOC0wLjgtMS44LTEuOHMwLjgtMS45LDEuOC0xLjlDOTcuOSwyMy45LDk4LjcsMjQuNyw5OC43LDI1Ljd6IE05OC4yLDQ1LjhoLTIuN1YzMmgyLjdWNDUuOHoiLz48cGF0aCBjbGFzcz0ic3Q0IiBkPSJNMTA5LDIyLjljLTAuNS0wLjItMS4yLTAuNi0xLjgtMC42Yy0xLjksMC0xLjksMi40LTEuOSwzLjd2NmgzLjd2Mi41aC0zLjd2MTEuM2gtMi43VjM0LjVoLTEuMlYzMmgxLjJ2LTYuN2MwLTMsMS01LjQsNC40LTUuNGMwLjYsMCwxLjMsMC4xLDEuOSwwLjRMMTA5LDIyLjlMMTA5LDIyLjl6Ii8+PHBhdGggY2xhc3M9InN0NCIgZD0iTTEyMy41LDM4LjljMCw0LjItMy4yLDcuMy03LjQsNy4zYy00LjEsMC03LjQtMy4yLTcuNC03LjNjMC00LjIsMy4yLTcuMyw3LjQtNy4zQzEyMC4yLDMxLjYsMTIzLjUsMzQuOCwxMjMuNSwzOC45eiBNMTExLjQsMzguOWMwLDIuNiwyLjEsNC44LDQuNyw0LjhzNC43LTIuMiw0LjctNC44cy0yLjEtNC44LTQuNy00LjhDMTEzLjUsMzQuMSwxMTEuNCwzNi4zLDExMS40LDM4Ljl6Ii8+PHBhdGggY2xhc3M9InN0NCIgZD0iTTEyOC40LDM0LjJMMTI4LjQsMzQuMmMwLjctMS42LDIuMS0yLjcsMy45LTIuN2MwLjgsMCwxLjUsMC4zLDIuMiwwLjdsLTEuMiwyLjRjLTAuNS0wLjQtMS0wLjYtMS42LTAuNmMtMi45LDAtMy4yLDIuNy0zLjIsNC45djYuOGgtMi43VjMyaDIuN0wxMjguNCwzNC4yTDEyOC40LDM0LjJ6Ii8+PHBhdGggY2xhc3M9InN0NCIgZD0iTTEzOC41LDMzLjlMMTM4LjUsMzMuOWMwLjktMS41LDIuNS0yLjMsNC4yLTIuM2MzLjksMCw0LjksMi42LDQuOSw2djguMmgtMi43di03LjljMC0yLjQtMC4zLTMuOS0zLTMuOWMtMy40LDAtMy40LDMtMy40LDUuNXY2LjNoLTIuNlYzMmgyLjZWMzMuOXoiLz48cGF0aCBjbGFzcz0ic3Q0IiBkPSJNMTU0LjcsMjUuN2MwLDEtMC44LDEuOC0xLjgsMS44cy0xLjgtMC44LTEuOC0xLjhzMC44LTEuOSwxLjgtMS45UzE1NC43LDI0LjcsMTU0LjcsMjUuN3ogTTE1NC4yLDQ1LjhoLTIuN1YzMmgyLjdWNDUuOHoiLz48cGF0aCBjbGFzcz0ic3Q0IiBkPSJNMTcxLjEsNDUuOGgtMi43di0yLjJoLTAuMWMtMS4xLDEuNi0yLjcsMi42LTQuNywyLjZjLTQuMiwwLTYuNi0zLjUtNi42LTcuNWMwLTMuOCwyLjUtNy4yLDYuNS03LjJjMiwwLDMuNywxLjEsNC44LDIuN2gwLjFWMzJoMi43VjQ1Ljh6IE0xNjguNiwzOC45YzAtMi43LTEuNi00LjktNC41LTQuOWMtMi43LDAtNC40LDIuNC00LjQsNC45YzAsMi42LDEuNiw1LDQuNCw1QzE2Nyw0My45LDE2OC42LDQxLjYsMTY4LjYsMzguOXoiLz48cGF0aCBjbGFzcz0ic3Q0IiBkPSJNMTg1LjUsNDUuOGgtMi44VjIzLjZoMi44VjQ1Ljh6Ii8+PHBhdGggY2xhc3M9InN0NCIgZD0iTTE5OS4yLDI3LjhjLTAuOC0xLjQtMS45LTIuMS0zLjYtMi4xYy0xLjgsMC0zLjcsMS4yLTMuNywzLjJjMCwxLjcsMS43LDIuNiwzLjEsMy4ybDEuNiwwLjZjMy4yLDEuMiw1LjUsMyw1LjUsNi43YzAsNC0zLjEsNi45LTcuMSw2LjljLTMuNiwwLTYuNC0yLjctNi45LTYuMmwyLjgtMC42YzAsMi40LDEuOSw0LjIsNC4zLDQuMmMyLjQsMCw0LjEtMiw0LjEtNC4zYzAtMi40LTEuOS0zLjQtMy44LTQuMmwtMS41LTAuNmMtMi41LTEuMS00LjgtMi41LTQuOC01LjZjMC0zLjYsMy4yLTUuNyw2LjUtNS43YzIuNSwwLDQuNSwxLjIsNS43LDMuNEwxOTkuMiwyNy44eiIvPjxwYXRoIGNsYXNzPSJzdDQiIGQ9Ik0yMjYuNiwzNC43YzAsNi42LTUuMiwxMS42LTExLjYsMTEuNmMtNi40LDAtMTEuNi01LTExLjYtMTEuNmMwLTYuNCw1LjMtMTEuNiwxMS42LTExLjZDMjIxLjMsMjMuMSwyMjYuNiwyOC4zLDIyNi42LDM0Ljd6IE0yMjMuOCwzNC43YzAtNC45LTMuNy05LTguOS05cy04LjksNC4xLTguOSw5YzAsNS4xLDQuMSw5LDguOSw5UzIyMy44LDM5LjgsMjIzLjgsMzQuN3oiLz48L2c+PGxpbmVhckdyYWRpZW50IGlkPSJTVkdJRF81XyIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIHgxPSI0LjEzMzQiIHkxPSI4OTMuMDA5MiIgeDI9IjM1LjIxODMiIHkyPSI4NzQuOTE3NCIgZ3JhZGllbnRUcmFuc2Zvcm09Im1hdHJpeCgxIDAgMCAxIDAgLTg1NikiPjxzdG9wICBvZmZzZXQ9IjAiIHN0eWxlPSJzdG9wLWNvbG9yOiMyMzFGMjAiLz48c3RvcCAgb2Zmc2V0PSIwLjUwNTUiIHN0eWxlPSJzdG9wLWNvbG9yOiNBOEE4QTgiLz48c3RvcCAgb2Zmc2V0PSIxIiBzdHlsZT0ic3RvcC1jb2xvcjojMDAwMDAwIi8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBjbGFzcz0ic3Q1IiBkPSJNMjAuOCwyNi4zYy0yLjEsMC4xLTQuNiwxLjgtNS4zLDIuM2MtMi4zLDEuNC0yLjgsMS44LTQuNiwyLjhjLTEuOCwwLjktNS44LDIuNi04LDEuMmMwLjEtMS43LDAuOS04LDUuNS0xMi4yYzQuNC00LDguOS01LjMsMTQuMS01LjJjNi42LDAuMSwxMC41LDMuNywxMi41LDUuN2MyLjIsMi4yLDQuMiw3LDQuNSw4LjVjLTAuNS0wLjUtMy41LTEuMi05LjYsMi4xYy0wLjMtMS42LTEuNS0zLjUtMy4zLTQuMmwwLDBsLTEuMSwwLjJjMCwwLDEuNiwwLjUsMi42LDJjMS4xLDEuNSwxLjMsMy40LDEuMywzLjRzMy45LTIuNSw3LjYtMi44YzIuNS0wLjEsMy44LDEuMSwzLjgsMS4xUzQwLjEsMjMuNiwzMywxOGMtNC42LTMuNi0xNi4yLTYuOC0yNS44LDIuNUMyLjIsMjUuMiwxLjgsMzMsMS44LDMzczIuMywyLjIsNi45LDAuM2MzLjktMS42LDYuOC0zLjksOS01LjJjMi0xLjIsNC4zLTEuMyw0LjMtMS4zTDIwLjgsMjYuM3oiLz48L3N2Zz4=);
+			background-position: left top;
+			background-repeat: no-repeat;
+			background-size: 183px;
+			text-align: left;
+			overflow: hidden;
+			font-size: 0;
+		}
+			@media (min-width: 850px) {
+				.logo { 
+					display: inline-block; vertical-align: middle;
+					background-size: 228px;
+					width: 257px;max-width: 257px;height: 67px;
+				}
+				.logo:after {
+					content: '';
+					position: absolute;
+					right: 0;
+					background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iNHB4IiBoZWlnaHQ9IjY3cHgiIHZpZXdCb3g9IjAgMCA0IDY3IiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA0IDY3OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+PHN0eWxlIHR5cGU9InRleHQvY3NzIj4uc3Qwe2ZpbGw6bm9uZTtzdHJva2U6IzRENEQ0RDtzdHJva2Utd2lkdGg6MztzdHJva2UtbWl0ZXJsaW1pdDoxMDtzdHJva2UtZGFzaGFycmF5OjM7fTwvc3R5bGU+PGxpbmUgY2xhc3M9InN0MCIgeDE9IjEuOSIgeTE9IjguMiIgeDI9IjEuOSIgeTI9IjU5LjIiLz48L3N2Zz4=);
+					background-repeat: no-repeat;
+					background-position: left top;
+					display: inline-block;
+					width: 4px;
+					height: 67px;
+				}
+			}
+
+		/* NAVBAR */
+
+		.top-nav {background-color: #fff;}
+
+		.navbar-default {background-color: #f8f8f8;border-color: #e7e7e7;}
+		
+		.navbar {position: relative;margin-bottom: 0;border: none;border-top: 1px solid #c3c3c3;border-bottom: 1px solid #c3c3c3;border-radius: 0;padding-bottom: 10px;padding-top: 10px;margin-top: 15px;}
+			
+			@media (min-width: 850px) {
+				.navbar {margin-top: 0;}
+			}
+			@media (min-width: 576px) and (max-width: 991px) {
+				.navbar-expand-lg>.container {padding-left: 5px;padding-right: 5px;}
+			}
+			@media(min-width: 992px) {
+				.navbar {padding-bottom: 0;padding-top: 0;border-top: 0;}
+			}
+			
+		.top-nav .navbar-nav .nav-link {font-style: normal;font-size: 1em;font-weight: 700;padding: 15px 15px;color: #000;}
+			.top-nav .nav-link:focus, .top-nav .nav-link:hover {background-color: transparent;border-bottom: 3px solid #c1cbd5;padding-bottom: 13px;margin-bottom: -1px;color: #4f758b !important;}
+			.top-nav .navbar-nav .nav-item.active .nav-link {border-bottom: 3px solid #4f758b;padding-bottom: 13px;margin-bottom: -1px;color: #4f758b;}
+				
+			@media (max-width: 991px) {
+				.top-nav .navbar-nav .nav-link {padding: 5px 0 2px;}
+					.top-nav .nav-link:focus, .top-nav .nav-link:hover, .top-nav .navbar-nav .nav-item.active .nav-link {border-bottom: 0;margin-bottom: 0px; padding-bottom: 2px}
+			}
+			
+		.nav .open>a, .nav .open>a:focus, .nav .open>a:hover {background-color: #fff;border-color: #4f758b;}
+		.navbar-brand {font-size: 1em;font-weight: 700;color: #6A7D2F;}
+
+		.navbar-toggler {cursor: pointer;padding-right: 0;}
+			.navbar-toggler .icon-bar {display: block;width: 22px;height: 3px;border-radius: 1px;transition-duration: 0.2s;transition-timing-function: initial;transition-delay: initial;transition-property: all;background-color: #4f758b;}
+				.navbar-toggler .icon-bar + .icon-bar {margin-top: 4px;}
+			.navbar-toggler .top-bar {transform: rotate(45deg);transform-origin: 0% 45%;}
+				.navbar-toggler.collapsed .top-bar {transform: rotate(0deg);}
+			.navbar-toggler .middle-bar {opacity: 0;}
+				.navbar-toggler.collapsed .middle-bar {opacity: 1;}
+
+			.navbar-toggler .bottom-bar {transform: rotate(-45deg);transform-origin: 7% 90%;}
+				.navbar-toggler.collapsed .bottom-bar {transform: rotate(0deg);}
+
+		a.nav-link, a.dropdown-item {cursor: pointer;text-decoration: none;}	
+		
+		.navbar-expand-lg>.container, .navbar-expand-lg>.container-fluid {		
+			padding-right: 0;		
+			padding-left: 0;		
+		}
+		
+		/* Dropdown */
+
+		.dropdown-item {box-sizing: border-box;}
+			.dropdown-item.active, .dropdown-item:active {background-color: rgba(79,117,139, .5);}
+		/* Big Numbers */
+
+		.container.colored {border-radius: 5px;overflow: hidden;padding-left: 30px;padding-right: 30px;}
+			.row.green {padding-bottom: 15px;border-bottom: 1px solid rgba(132,189,0,.5);}
+			.row.yellow {padding-bottom: 15px;border-bottom: 1px solid rgba(255,163,10,.5);}
+			.row.blue {padding-bottom: 15px;border-bottom: 1px solid rgba(79,117,139,.5);}
+			.overview-icon {padding-top: 15px;padding-bottom: 15px;margin-bottom: 15px;}
+				.green .overview-icon {	border-bottom: 1px solid rgba(132,189,0,.5);}
+				.yellow .overview-icon {	border-bottom: 1px solid rgba(255,163,10,.5);}
+				.blue .overview-icon {	border-bottom: 1px solid rgba(79,117,139,.5);}
+			.overview-icon img {max-width: 25%;display: block;}
+				@media (min-width: 576px) {
+					.row.green, .row.yellow, .row.blue {padding-bottom: 0;}
+					.overview-icon {border-bottom: none;}
+						.green .overview-icon, .yellow .overview-icon, .blue .overview-icon {	border-bottom: none;margin-bottom: 0;}
+					.overview-icon img {max-width: 50px;}
+				}
+			
+		.overview {text-align: center;padding: 15px 15px 30px;}
+		.overview .overview-large-number {font-size: 24px;font-weight: 700;color: #000;line-height: 1;margin-bottom: .125em;}
+				.overview .overview-large-number span {font-size: 16px;}
+			.overview .overview-large-label {color: #5f5f5f;font-size: .75em;font-weight: 700;line-height: 1.2;}
+
+		.footer {border-top: 1px solid #c3c3c3;padding-top: 15px;font-size: .875em;}
+			@media (max-width: 991px) {
+				.footer {text-align: center;}
+			}
+			
+		/* THE CHART STYLES */
+		
+		.chart {height:400px;}
+		
+		.lineChart
+		{
+			border: 1px solid #d8d8d8;
+			border-radius: 5px;
+			padding: 30px;margin-bottom: 40px;
+			padding: 15px;
+			background: white;
+		}
+		
+		.lineChart .highcharts-container {max-width: 100%;}
+		
+		.table{
+		  font-size: .875rem;
+		}
+		
+		.table-wrapper-scroll {
+			display: block;
+			max-height: 300px;
+			overflow: auto;
+			-ms-overflow-style: -ms-autohiding-scrollbar;
+		}
+		
+		.comments
+		{
+			border: 1px solid #d8d8d8;
+			border-radius: 5px;
+			padding: 30px;margin-bottom: 40px;
+			padding: 15px;
+		}
+		
+		.w-info:after {content: 'i';display: inline-block;background: rgba(79,117,139,.5);color: white;font-size: 10px;width: 13px;height: 13px;line-height: 13px;text-align: center;font-style: italic;border-radius: 50%;margin-left: 5px;}
+			
+		/* IE Fixes */
+
+		.row .row {width: 100%;}
+		
+		/* PAGES HIDE */
+
+		#Curtailment {display:none;}
+		
+	</style>
+	
+</head>
+<body>
+
+<div class="header">
+	<div class="container-fluid">
+		<div class="row">
+			<div class="col-md-12">
+				<div class="logo">California ISO</div>
+				<h1>Daily Renewable Report</h1>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="top-nav">
+	<nav class="navbar navbar-expand-lg">
+	  <div class="container-fluid">
+		<!-- Brand and toggle get grouped for better mobile display -->
+		<div class="navbar-brand">Sunday, November 02, 2025</div>
+		  <button type="button" class="navbar-toggler collapsed" data-toggle="collapse" data-target="#navbar-collapse-1" aria-controls="navbar-collapse-1" aria-expanded="false" aria-label="Toggle navigation">
+			<span class="icon-bar top-bar"></span>
+			<span class="icon-bar middle-bar"></span>
+			<span class="icon-bar bottom-bar"></span>
+		  </button>
+		
+
+		<!-- Collect the nav links, forms, and other content for toggling -->
+
+		 <div class="collapse navbar-collapse" id="navbar-collapse-1">
+		  <ul class="navbar-nav ">
+			<li id="navMarketPerformance" class="nav-item active"><a class="nav-link" id="tabMarketPerformance" tabindex="0">Market Performance</a></li>
+			<li id="navCurtailment" class="nav-item"><a class="nav-link" id="tabCurtailment" tabindex="0">Curtailment</a></li>
+		  </ul>
+		</div><!-- /.navbar-collapse -->
+	  </div><!-- /.container-fluid -->
+	</nav>
+</div>
+
+<div class="main-content">
+	
+	<!-- Main Page -->
+	<div class="page" id="MarketPerformance">
+		<div class="container-fluid">
+		  
+			<div class="row">
+				<div class="col-12">
+					<h2>Market Performance VER Resources - System Level</h2>
+				</div>
+			</div>
+			
+			<div class="row">
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Chart for Total Solar Generation.">
+							Total Solar Generation Awards for CAISO resources
+						</h3>
+						<div id="chart_tot_gen_solar_iso"></div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Chart for Total Solar Generation for WEIM.">
+							Total Solar Generation Awards for WEIM resources (excluding CAISO)
+						</h3>
+						<div id="chart_tot_gen_solar_weim"></div>
+					</div>
+				</div>
+			</div>
+			
+			<div class="row">
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Chart for Total Wind Generation.">
+							Total Wind Generation Awards for CAISO resources
+						</h3>
+						<div id="chart_tot_gen_wind_iso"></div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Chart for Total Wind Generation for WEIM.">
+							Total Wind Generation Awards for WEIM resources (excluding CAISO)
+						</h3>
+						<div id="chart_tot_gen_wind_weim"></div>
+					</div>
+				</div>
+			</div>
+			
+		</div>
+	
+	</div>
+	
+	<div class="page" id="Curtailment">
+		<div class="container-fluid">
+			<div class="row">
+				<div class="col-12">
+					<h2>Curtailment of VER Resources - System Level</h2>
+				</div>
+			</div>
+			
+			<div class="row">
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Wind and solar curtailments are grouped into the following categories: 
+                        1. Economic - Local: Market dispatch of generators with economic bids to mitigate local congestion. 
+                        2. Economic - System: Market dispatch of generators with economic bids to mitigate system wide oversupply. 
+                        3. SelfSchCut - Local: Market dispatch of self-schedules to mitigate local congestion. 
+                        4. SelfSchCut - System: Market dispatch of self-schedules to mitigate system-wide oversupply. 
+                        5. Operator Instruction - Local: Operator Instructions to mitigate local congestion. 
+                        6. Operator Instruction - System: Operator Instructions to mitigate system-wide oversupply.">
+							Hourly VER Generation Curtailment Energy in MWh
+						</h3>
+						<div id="chart_curt_hourly"></div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Wind and solar curtailments are grouped into the following categories: 
+                        1. Economic - Local: Market dispatch of generators with economic bids to mitigate local congestion. 
+                        2. Economic - System: Market dispatch of generators with economic bids to mitigate system wide oversupply. 
+                        3. SelfSchCut - Local: Market dispatch of self-schedules to mitigate local congestion. 
+                        4. SelfSchCut - System: Market dispatch of self-schedules to mitigate system-wide oversupply. 
+                        5. Operator Instruction - Local: Operator Instructions to mitigate local congestion. 
+                        6. Operator Instruction - System: Operator Instructions to mitigate system-wide oversupply.">
+							Maximum VER Curtailment in MW for the hour
+						</h3>
+						<div id="chart_curt_hourly_max"></div>
+					</div>
+				</div>
+			</div>
+			
+			<div class="row">
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Wind and solar curtailments are grouped into the following categories: 
+                        1. Economic - Local: Market dispatch of generators with economic bids to mitigate local congestion. 
+                        2. Economic - System: Market dispatch of generators with economic bids to mitigate system wide oversupply. 
+                        3. SelfSchCut - Local: Market dispatch of self-schedules to mitigate local congestion. 
+                        4. SelfSchCut - System: Market dispatch of self-schedules to mitigate system-wide oversupply. 
+                        5. Operator Instruction - Local: Operator Instructions to mitigate local congestion. 
+                        6. Operator Instruction - System: Operator Instructions to mitigate system-wide oversupply.">
+							Total VER Curtailment in MWh for last 15 days
+						</h3>
+						<div id="chart_curt_daily_mwh"></div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Wind and solar curtailments are grouped into the following categories: 
+                        1. Economic - Local: Market dispatch of generators with economic bids to mitigate local congestion. 
+                        2. Economic - System: Market dispatch of generators with economic bids to mitigate system wide oversupply. 
+                        3. SelfSchCut - Local: Market dispatch of self-schedules to mitigate local congestion. 
+                        4. SelfSchCut - System: Market dispatch of self-schedules to mitigate system-wide oversupply. 
+                        5. Operator Instruction - Local: Operator Instructions to mitigate local congestion. 
+                        6. Operator Instruction - System: Operator Instructions to mitigate system-wide oversupply.">
+							Maximum VER Curtailment in MW for last 15 days
+						</h3>
+						<div id="chart_curt_daily_mw"></div>
+					</div>
+				</div>
+			</div>
+			
+			<div class="row">
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Wind and solar curtailments are grouped into the following categories: 
+                        1. Economic - Local: Market dispatch of generators with economic bids to mitigate local congestion. 
+                        2. Economic - System: Market dispatch of generators with economic bids to mitigate system wide oversupply. 
+                        3. SelfSchCut - Local: Market dispatch of self-schedules to mitigate local congestion. 
+                        4. SelfSchCut - System: Market dispatch of self-schedules to mitigate system-wide oversupply. 
+                        5. Operator Instruction - Local: Operator Instructions to mitigate local congestion. 
+                        6. Operator Instruction - System: Operator Instructions to mitigate system-wide oversupply.">
+							Maximum Curtailment of Solar Resources in MW for the hour
+						</h3>
+						<div id="chart_curt_hr_max_solar"></div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Wind and solar curtailments are grouped into the following categories: 
+                        1. Economic - Local: Market dispatch of generators with economic bids to mitigate local congestion. 
+                        2. Economic - System: Market dispatch of generators with economic bids to mitigate system wide oversupply. 
+                        3. SelfSchCut - Local: Market dispatch of self-schedules to mitigate local congestion. 
+                        4. SelfSchCut - System: Market dispatch of self-schedules to mitigate system-wide oversupply. 
+                        5. Operator Instruction - Local: Operator Instructions to mitigate local congestion. 
+                        6. Operator Instruction - System: Operator Instructions to mitigate system-wide oversupply.">
+							Maximum Curtailment of Wind Resources in MW for the hour
+						</h3>
+						<div id="chart_curt_hr_max_wind"></div>
+					</div>
+				</div>
+			</div>
+			
+			<div class="row">
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Wind and solar curtailments are grouped into the following categories: 
+                        1. Economic - Local: Market dispatch of generators with economic bids to mitigate local congestion. 
+                        2. Economic - System: Market dispatch of generators with economic bids to mitigate system wide oversupply. 
+                        3. SelfSchCut - Local: Market dispatch of self-schedules to mitigate local congestion. 
+                        4. SelfSchCut - System: Market dispatch of self-schedules to mitigate system-wide oversupply. 
+                        5. Operator Instruction - Local: Operator Instructions to mitigate local congestion. 
+                        6. Operator Instruction - System: Operator Instructions to mitigate system-wide oversupply.">
+							Total Curtailment of Solar Resources in MWh
+						</h3>
+						<div id="chart_curt_hr_tot_solar"></div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Wind and solar curtailments are grouped into the following categories: 
+                        1. Economic - Local: Market dispatch of generators with economic bids to mitigate local congestion. 
+                        2. Economic - System: Market dispatch of generators with economic bids to mitigate system wide oversupply. 
+                        3. SelfSchCut - Local: Market dispatch of self-schedules to mitigate local congestion. 
+                        4. SelfSchCut - System: Market dispatch of self-schedules to mitigate system-wide oversupply. 
+                        5. Operator Instruction - Local: Operator Instructions to mitigate local congestion. 
+                        6. Operator Instruction - System: Operator Instructions to mitigate system-wide oversupply.">
+							Total Curtailment of Wind Resources in MWh
+						</h3>
+						<div id="chart_curt_hr_tot_wind"></div>
+					</div>
+				</div>
+			</div>
+			
+			<div class="row">
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Hourly cumulative curtailed energy for YTD in MWh">
+							Hourly Profile of YTD Curtailed MWh 
+						</h3>
+						<div id="chart_curt_hourly_ytd"></div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Monthly cumulative curtailed energy for YTD in MWh">
+							Monthly YTD Curtailed MWh
+						</h3>
+						<div id="chart_curt_monthly_ytd"></div>
+					</div>
+				</div>
+			</div class="row">
+			  <div class="col-md-6">
+					<div class="lineChart">
+                        <h3 class="w-info" title="Monthly curtailed energy / (Actuals + Curtailed MWh) in Percent.">
+							Monthly Curtailed MWh Percentage Compared to Actuals
+						</h3>
+						<div id="chart_curt_monthly_ytd_perc"></div>
+					</div>
+				</div>
+			</div> 
+			
+			
+		</div>
+	
+	</div>
+	
+	
+</div>
+	
+
+
+<div class="container-fluid">
+	<div class="row">
+		<div class="col-md-12"><p> </p></div>
+		<div class="col-md-12">
+		  <p>
+			  <small>
+			    For any questions related to this report, please reach out to Market Analysis at <a href = "mailto: MarketAnalysis@caiso.com">MarketAnalysis@caiso.com</a>
+			  </small>
+		  </p>
+	  </div>
+	</div>
+</div>
+    	
+<div class="footer">
+	<div class="container">
+		<div class="row">
+			<div class="col-md-12 text-center">
+				<p>California ISO Public</p>
+			</div>
+		</div>
+	</div>
+</div>
+
+
+<!-- JSBlock Variables -->
+<script>
+window.addEventListener('load', () => {
+//  Color definitions. These are used in various graphs on the page
+var tot_gen_solar_iso_rtd = JSON.parse(["[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,0,0,0.13,0.39000000000000001,0.13,0.40000000000000002,0.75,12.159999989999989,17.250000019999991,40.659999999999989,86.431000000000012,211.452,335.11400001000004,500.17500004000004,810.9530000200001,1198.0610000500001,1600.9812489499991,2136.75348308,2724.1399894100023,3382.5381863699972,4174.1296274999968,4934.1019999999999,5904.8389999900019,6784.0679999999948,7638.773999999994,8515.2130000000034,9361.0250000100041,10189.780000000001,10881.623295769001,11521.941883974101,11547.976000019999,12062.7550215886,12439.7317170238,14117.428999989999,14564.045,14354.499000010001,14881.79699999,15208.67,15334.452325083901,15547.605000020001,15719.937000010001,15713.628471596401,15687.15147158,15640.603000020001,15681.346,15781.4968122504,15939.671805772399,15986.571800034899,16036.836333756,15967.735782910899,15839.932108463101,15760.54199999,15764.090999980001,15924.50600003,16059.474000020002,16115.00700001,16146.376000010001,16353.4590024061,16198.9810047065,16143.833097369399,16149.954408546,16023.109109901301,16077.502508289701,16082.132809979401,16004.072209837999,16028.517208221399,15899.562203470899,15754.3582037797,15574.3932041506,15698.60599998,15752.32999998,15863.50999998,15964.860999980001,16015.56899998,15990.447999980001,15953.003612283699,15913.4586093463,15935.754612037301,15810.569,15916.018000010001,15721.435125531099,15673.902346904799,15664.732000009999,15629.6958033258,15774.3475736275,15584.468000010002,15724.871994083302,15702.795605594001,15494.600000010001,15545.73400002,15668.39899998,15669.084000000001,15529.042425427,15631.036000030001,15864.711044138301,16011.034999990001,16045.177,15884.20399878,15819.573503510699,15653.1688127575,15779.715999980001,15496.856,15124.2923058877,14995.219250062801,15056.1130808792,14584.75099925,14508.43399999,14388.51400001,14369.9300829887,14502.574001229999,14406.2747306774,14732.7893057663,14702.973398623601,14570.163268288599,14200.993150009201,14117.788598827501,13710.966999850001,13182.93099907,12734.727000000001,12156.82299999,11454.1949993,11055.66099939,10424.634999780001,9469.1070002299984,8733.7830000800059,7968.1520000800001,7127.4300000500034,6200.7379997799972,5454.0470003400005,4730.6999088800048,3966.8260001600011,3297.168999890001,2566.4459998999992,1964.2989999799979,1461.459999989999,1006.8780000500001,721.16300004999903,457.42999999000006,257.25700000000001,149.72800000000001,82.717999999999961,51.398054369999997,32.899560700000002,10.03090639,0.01,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]"]),
+	tot_gen_solar_iso_rtpd = JSON.parse(["[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,0.043000000000000003,0.043000000000000003,0.043000000000000003,0.30299999999999988,0.30299999999999988,0.30299999999999988,13.15899999999999,13.15899999999999,13.15899999999999,134.40100000000001,134.40100000000001,134.40100000000001,686.39933332990006,686.39933332990006,686.39933332990006,1986.8510000824001,1986.8510000824001,1986.8510000824001,3904.9996670473993,3904.9996670473993,3904.9996670473993,6392.9133333364998,6392.9133333364998,6392.9133333364998,9045.5349999991977,9045.5349999991977,9045.5349999991977,11075.3171,11075.3171,11075.3171,12181.871000005201,12181.871000005201,12181.871000005201,14346.3379999976,14346.3379999976,14346.3379999976,15041.9849999901,15041.9849999901,15041.9849999901,15287.470705613601,15287.470705613601,15287.470705613601,15717.9973333341,15717.9973333341,15717.9973333341,16079.5460146901,16079.5460146901,16079.5460146901,16468.59063735,16468.59063735,16468.59063735,16382.488333694899,16382.488333694899,16382.488333694899,16183.9589000667,16183.9589000667,16183.9589000667,16464.036179125498,16464.036179125498,16464.036179125498,16280.657298623999,16280.657298623999,16280.657298623999,16449.376278089399,16449.376278089399,16449.376278089399,16391.724680694799,16391.724680694799,16391.724680694799,16180.990085268601,16180.990085268601,16180.990085268601,15971.6841686963,15971.6841686963,15971.6841686963,15934.548999735402,15934.548999735402,15934.548999735402,15950.4983345087,15950.4983345087,15950.4983345087,16062.1399989946,16062.1399989946,16062.1399989946,16020.584000422001,16020.584000422001,16020.584000422001,15630.2527236676,15630.2527236676,15630.2527236676,15723.4993330663,15723.4993330663,15723.4993330663,15793.776233329301,15793.776233329301,15793.776233329301,15786.692332575201,15786.692332575201,15786.692332575201,15358.7384854719,15358.7384854719,15358.7384854719,15484.903333124299,15484.903333124299,15484.903333124299,15009.138946192701,15009.138946192701,15009.138946192701,15215.095374726299,15215.095374726299,15215.095374726299,14772.867333836801,14772.867333836801,14772.867333836801,14317.9263335904,14317.9263335904,14317.9263335904,12930.4923333278,12930.4923333278,12930.4923333278,11135.4766665107,11135.4766665107,11135.4766665107,8832.4346665551275,8832.4346665551275,8832.4346665551275,6242.9579999484004,6242.9579999484004,6242.9579999484004,3892.962999998103,3892.962999998103,3892.962999998103,2048.8049999975001,2048.8049999975001,2048.8049999975001,764.55999999820006,764.55999999820006,764.55999999820006,165.70500000000001,165.70500000000001,165.70500000000001,4.8079999999999998,4.8079999999999998,4.8079999999999998,0.0070000000000000001,0.0070000000000000001,0.0070000000000000001,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]"]),
+	tot_gen_solar_iso_ifm = JSON.parse(["[0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,29.119999999999997,29.119999999999997,29.119999999999997,29.119999999999997,29.119999999999997,29.119999999999997,29.119999999999997,29.119999999999997,29.119999999999997,29.119999999999997,29.119999999999997,29.119999999999997,2200.6899999999973,2200.6899999999973,2200.6899999999973,2200.6899999999973,2200.6899999999973,2200.6899999999973,2200.6899999999973,2200.6899999999973,2200.6899999999973,2200.6899999999973,2200.6899999999973,2200.6899999999973,8568.7500000000091,8568.7500000000091,8568.7500000000091,8568.7500000000091,8568.7500000000091,8568.7500000000091,8568.7500000000091,8568.7500000000091,8568.7500000000091,8568.7500000000091,8568.7500000000091,8568.7500000000091,14065.4609088337,14065.4609088337,14065.4609088337,14065.4609088337,14065.4609088337,14065.4609088337,14065.4609088337,14065.4609088337,14065.4609088337,14065.4609088337,14065.4609088337,14065.4609088337,14958.822972366399,14958.822972366399,14958.822972366399,14958.822972366399,14958.822972366399,14958.822972366399,14958.822972366399,14958.822972366399,14958.822972366399,14958.822972366399,14958.822972366399,14958.822972366399,15031.762836281599,15031.762836281599,15031.762836281599,15031.762836281599,15031.762836281599,15031.762836281599,15031.762836281599,15031.762836281599,15031.762836281599,15031.762836281599,15031.762836281599,15031.762836281599,15024.6492993096,15024.6492993096,15024.6492993096,15024.6492993096,15024.6492993096,15024.6492993096,15024.6492993096,15024.6492993096,15024.6492993096,15024.6492993096,15024.6492993096,15024.6492993096,15043.853521003301,15043.853521003301,15043.853521003301,15043.853521003301,15043.853521003301,15043.853521003301,15043.853521003301,15043.853521003301,15043.853521003301,15043.853521003301,15043.853521003301,15043.853521003301,14743.968630969401,14743.968630969401,14743.968630969401,14743.968630969401,14743.968630969401,14743.968630969401,14743.968630969401,14743.968630969401,14743.968630969401,14743.968630969401,14743.968630969401,14743.968630969401,13422.594999999999,13422.594999999999,13422.594999999999,13422.594999999999,13422.594999999999,13422.594999999999,13422.594999999999,13422.594999999999,13422.594999999999,13422.594999999999,13422.594999999999,13422.594999999999,8492.2700000000041,8492.2700000000041,8492.2700000000041,8492.2700000000041,8492.2700000000041,8492.2700000000041,8492.2700000000041,8492.2700000000041,8492.2700000000041,8492.2700000000041,8492.2700000000041,8492.2700000000041,2046.73,2046.73,2046.73,2046.73,2046.73,2046.73,2046.73,2046.73,2046.73,2046.73,2046.73,2046.73,20.879999999999999,20.879999999999999,20.879999999999999,20.879999999999999,20.879999999999999,20.879999999999999,20.879999999999999,20.879999999999999,20.879999999999999,20.879999999999999,20.879999999999999,20.879999999999999,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02]"]),
+	tot_gen_solar_iso_telem = JSON.parse(["[1.4800579999999999,1.4800579999999999,1.5000579999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,21.740061999999991,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.6400629999999998,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.6400629999999998,1.4400629999999999,1.4400629999999999,1.4400629999999999,1.6401359999999998,2.2601309999999999,6.270194,16.440169000000001,45.31025099999998,113.52018099999999,255.76919599999999,480.44406000000004,765.76620100000002,1136.818534,1609.2971310000009,2138.0496770000004,2774.0696269999985,3430.00639,4232.346400999998,5066.3667269999978,5898.4927430000043,6755.1749170000003,7605.9410009999983,8462.9046850000123,9336.3958969999967,10148.503940000001,10822.873122000001,11524.896105,11739.155268999999,12122.407823,12449.025242,13577.1949,14306.056531000002,14838.463896000001,15222.233931999999,15435.825548999999,15502.737642,15454.246594,15347.382869000001,15341.44483,15367.535813,15386.155604,15492.517539,15802.597892,15903.786287000001,15884.611150000001,15634.463547000001,15659.748532,15783.395536,15934.047972,15936.987669,16017.359964000001,16080.854335,16124.708478,15963.328651,15927.95125,15933.908418999999,15895.342927,15902.722254000002,15845.737922999999,15822.341007999999,15827.703985,15776.094002,15523.859649,15416.204642000001,15519.609189000001,15523.472956000001,15665.183512,15769.357614,15784.144537,15763.805527,15722.295548,15715.058513000002,15670.528542,15627.695832000001,15779.624847000001,15580.948203,15513.798407,15403.744575999999,15373.590609000001,15513.085956999999,15532.957242,15677.449572000001,15507.499555,15272.514321000001,15235.77504,15539.076585999999,15610.125219000001,15367.794628000001,15483.326212,15608.710781000002,15825.571474,15914.426088,15845.641431000002,15671.179843,15330.082052,15348.494041,15207.854095000001,15356.542147,15284.48776,15134.910157,15239.147703999999,15377.535471000001,14829.582648,14334.648697999999,14323.511404000001,14399.277145,14259.466843,14316.836058999999,14692.149089999999,14671.047137000001,14500.034778000001,14088.013674,13842.904283,13383.830569,12846.42707,12383.797368000001,12107.995429999999,11646.208511000001,10803.060486,10212.283525000001,9534.489548000005,8746.4071230000027,7642.5948510000062,7037.6651880000018,6210.6412260000052,5359.9167959999995,4526.9954319999979,3693.4384189999969,2936.3980049999991,2252.9143570000001,1688.9573610000011,1305.8457130000002,954.48473800000011,650.43368400000008,464.32580000000002,347.59340600000007,245.43795600000001,147.381032,118.959102,77.641091000000003,76.993106000000012,74.70004800000001,74.580047999999991,75.17004799999998,75.67004799999998,75.770048000000003,75.240053000000003,75.340052999999983,75.240053000000003,75.250052999999994,75.250052999999994,75.250052999999994,75.250052999999994,75.260052999999985,75.250052999999994,75.210053000000002,75.210053000000002,75.210053000000002,75.210053000000002,75.210053000000002,75.210053000000002,75.220052999999993,75.210053000000002,75.210053000000002,75.210053000000002,75.210053000000002,75.200052999999983,75.210053000000002,75.210053000000002,75.210053000000002,75.200052999999983,75.200052999999983,75.190052999999992,75.190052999999992,75.190052999999992,75.190052999999992,75.180053000000015,75.160052999999991,75.160052999999991,75.050052999999991,74.980053000000012,75.470052999999993,75.63005299999999,75.690052999999992,76.320053000000001,76.38005299999999,76.350053000000003,76.400053,76.400053000000014,76.090053000000012,74.68006299999999,74.68006299999999,74.68006299999999,74.68006299999999,74.820058000000003,74.75005800000001,39.680062999999997,1.8500579999999998,1.820058,1.820058,1.840058,2.120053,1.8000529999999999,1.6900579999999998,1.6900579999999998,1.7200579999999999,1.7100579999999999,1.7100579999999999,1.7100579999999999,1.7300579999999999,1.7200579999999999,1.8100529999999999,1.7200579999999999,1.7300579999999999,1.7400529999999998,1.7400579999999999,1.7300579999999999,1.7300579999999999,1.7400579999999999,1.7400579999999999]"]),
+	tot_gen_solar_iso_forec = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3.4899999999999998,3.4899999999999998,3.4899999999999998,3.4899999999999998,3.4899999999999998,3.4899999999999998,3.4899999999999998,3.4899999999999998,3.4899999999999998,3.4899999999999998,3.4899999999999998,3.4899999999999998,2150.3199999999988,2150.3199999999988,2150.3199999999988,2150.3199999999988,2150.3199999999988,2150.3199999999988,2150.3199999999988,2150.3199999999988,2150.3199999999988,2150.3199999999988,2150.3199999999988,2150.3199999999988,8884.6200000000008,8884.6200000000008,8884.6200000000008,8884.6200000000008,8884.6200000000008,8884.6200000000008,8884.6200000000008,8884.6200000000008,8884.6200000000008,8884.6200000000008,8884.6200000000008,8884.6200000000008,14303.24,14303.24,14303.24,14303.24,14303.24,14303.24,14303.24,14303.24,14303.24,14303.24,14303.24,14303.24,15587.91,15587.91,15587.91,15587.91,15587.91,15587.91,15587.91,15587.91,15587.91,15587.91,15587.91,15587.91,15592.85,15592.85,15592.85,15592.85,15592.85,15592.85,15592.85,15592.85,15592.85,15592.85,15592.85,15592.85,15431.6,15431.6,15431.6,15431.6,15431.6,15431.6,15431.6,15431.6,15431.6,15431.6,15431.6,15431.6,15343.07,15343.07,15343.07,15343.07,15343.07,15343.07,15343.07,15343.07,15343.07,15343.07,15343.07,15343.07,15173.639999999999,15173.639999999999,15173.639999999999,15173.639999999999,15173.639999999999,15173.639999999999,15173.639999999999,15173.639999999999,15173.639999999999,15173.639999999999,15173.639999999999,15173.639999999999,13661.620000000001,13661.620000000001,13661.620000000001,13661.620000000001,13661.620000000001,13661.620000000001,13661.620000000001,13661.620000000001,13661.620000000001,13661.620000000001,13661.620000000001,13661.620000000001,8295.419999999991,8295.419999999991,8295.419999999991,8295.419999999991,8295.419999999991,8295.419999999991,8295.419999999991,8295.419999999991,8295.419999999991,8295.419999999991,8295.419999999991,8295.419999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,1947.2599999999991,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	
+	tot_gen_solar_weim_rtd = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,null,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.88,1.77,1.77,3.8599999999999999,6.25,9.8500000000000014,21.216504,39.984258999999987,75.034042333300022,137.32789399999999,198.12017333330002,332.41114133330007,521.08414233330006,692.15763400000003,937.99768900000004,1230.1652879999992,1596.8438540000002,1970.226934999999,2236.8657049999993,2692.634391999999,3058.7202489999991,3511.6254870000002,4064.9030246198713,4536.5230509999992,5217.208668000002,5682.015292,6218.7142610000037,6680.8976519999997,7100.3138380000019,7427.5273849999985,7585.6958423730121,7733.3178793700017,7974.6155840000019,8266.0938029999979,8526.4562560000013,8829.5096109999995,8938.6733419999982,9054.667105999999,9163.8299490000027,9254.2086470000013,9350.6995840000018,9358.1295399999999,9356.0896729999949,9228.3076990000027,9203.8193183067979,9310.8522129999965,9358.7482459203293,9377.5700200000028,9461.1581690000003,9489.1396600000007,9480.3573810000053,9345.6076870000088,9369.1626019999931,9409.5791059999938,9362.7466349999959,9324.6067409999978,9286.2538440000044,9289.5008290000023,9242.012662000001,9278.2657940000026,9204.8695569999982,9033.5984277081716,9014.2618880000045,9007.6643060000042,9000.357274,9020.4873026354162,9031.9337091021989,9044.568900211887,9016.6426041146769,9019.2133580000009,8994.4677220000049,8975.4522290000004,8942.1073440000018,8986.6137479999961,8966.1675280000018,8944.7043119999998,8937.7912649999926,8928.2665969999962,8929.6435310000015,8927.6371630000012,8949.2770609999952,8953.4257599999964,8987.6785420000033,8960.1068600000053,8976.6705380000021,9046.4795710000089,9022.9234619999988,9045.6910280000011,9082.982234000001,9097.8605110000044,9195.656715000001,9228.3414530000027,9179.3172250000007,9105.2323250000009,9077.4065860000064,9044.8920949999992,9187.6380590000044,9148.4973949999967,9212.5715035847661,9140.6820829999979,9263.8329779999949,9277.1194349999951,9265.343417,9288.5921599999965,9300.6622499999939,9330.2831969999988,9256.185516000005,9069.6528770000023,8993.4070460000039,8895.7245559999974,8886.7378497082409,8840.3099379999985,8643.2440220000062,8465.3554110000023,8331.2077239999999,8135.3933820738621,7905.667794,7648.2573880000018,7339.9378167863169,7004.0013917891765,6574.8839189999999,6115.4577800000015,5660.6313459999983,5155.188388999999,4640.5141069999963,4214.294423999997,3684.3687829999999,3173.08808,2632.6558190000001,2203.0613300000005,1789.9324980000001,1447.0081349999989,1143.1743189999991,858.11361600000009,608.823038,413.47749700000003,246.07413600000001,169.18300000000002,91.435999999999993,53.995999999999995,31.673999999999999,19.135999999999989,9.4710000000000001,4.2729999999999997,4.0220000000000002,2.0099999999999998,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	tot_gen_solar_weim_rtpd = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1.6666666667000001,1.6666666667000001,1.6666666667000001,10.216333333300001,10.216333333300001,10.216333333300001,4.9159999999999995,4.9159999999999995,4.9159999999999995,25.503,25.503,25.503,151.172,151.172,151.172,764.404,764.404,764.404,1500.2680099999991,1500.2680099999991,1500.2680099999991,2624.2510110000012,2624.2510110000012,2624.2510110000012,3832.1132437438591,3832.1132437438591,3832.1132437438591,5523.3880009999966,5523.3880009999966,5523.3880009999966,5849.6600220000037,5849.6600220000037,5849.6600220000037,6852.6780239999935,6852.6780239999935,6852.6780239999935,7723.675016999995,7723.675016999995,7723.675016999995,8490.8889999999974,8490.8889999999974,8490.8889999999974,8822.4880190000003,8822.4880190000003,8822.4880190000003,9227.2220200000011,9227.2220200000011,9227.2220200000011,9372.3175232932608,9372.3175232932608,9372.3175232932608,9394.5400000000045,9394.5400000000045,9394.5400000000045,9468.9720259999976,9468.9720259999976,9468.9720259999976,9415.9090539999997,9415.9090539999997,9415.9090539999997,9391.4290210000017,9391.4290210000017,9391.4290210000017,9210.2469999999994,9210.2469999999994,9210.2469999999994,9207.490045999999,9207.490045999999,9207.490045999999,9198.7000310000039,9198.7000310000039,9198.7000310000039,9159.0560269999987,9159.0560269999987,9159.0560269999987,9166.5640000000003,9166.5640000000003,9166.5640000000003,9194.2900459999964,9194.2900459999964,9194.2900459999964,8868.1040510000039,8868.1040510000039,8868.1040510000039,9072.7157056666983,9072.7157056666983,9072.7157056666983,9092.4329999999991,9092.4329999999991,9092.4329999999991,9128.568030000004,9128.568030000004,9128.568030000004,9040.0990210000018,9040.0990210000018,9040.0990210000018,9125.4160169999996,9125.4160169999996,9125.4160169999996,9175.4608411008867,9175.4608411008867,9175.4608411008867,9252.891029999997,9252.891029999997,9252.891029999997,9229.5860209999973,9229.5860209999973,9229.5860209999973,9238.057367333302,9238.057367333302,9238.057367333302,8990.1396666667006,8990.1396666667006,8990.1396666667006,9061.4280260000014,9061.4280260000014,9061.4280260000014,8518.4960630000005,8518.4960630000005,8518.4960630000005,7831.6537056666957,7831.6537056666957,7831.6537056666957,6425.1199999999944,6425.1199999999944,6425.1199999999944,5282.7510269999948,5282.7510269999948,5282.7510269999948,3945.8340419999981,3945.8340419999981,3945.8340419999981,2594.040352333298,2594.040352333298,2594.040352333298,1046.9959999999992,1046.9959999999992,1046.9959999999992,696.75702500000011,696.75702500000011,696.75702500000011,384.36801700000001,384.36801700000001,384.36801700000001,135.57901100000001,135.57901100000001,135.57901100000001,8.4599999999999991,8.4599999999999991,8.4599999999999991,1.3899999999999999,1.3899999999999999,1.3899999999999999,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	tot_gen_solar_weim_rtbs = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,85.889999999999972,85.889999999999972,85.889999999999972,85.889999999999972,85.889999999999972,85.889999999999972,85.889999999999972,85.889999999999972,85.889999999999972,85.889999999999972,85.889999999999972,85.889999999999972,2344.1699999999992,2344.1699999999992,2344.1699999999992,2344.1699999999992,2344.1699999999992,2344.1699999999992,2344.1699999999992,2344.1699999999992,2344.1699999999992,2344.1699999999992,2344.1699999999992,2344.1699999999992,7125.590000000002,7125.590000000002,7125.590000000002,7125.590000000002,7125.590000000002,7125.590000000002,7125.590000000002,7125.590000000002,7125.590000000002,7125.590000000002,7125.590000000002,7125.590000000002,8452.9099999999999,8452.9099999999999,8452.9099999999999,8452.9099999999999,8452.9099999999999,8452.9099999999999,8452.9099999999999,8452.9099999999999,8452.9099999999999,8452.9099999999999,8452.9099999999999,8452.9099999999999,8628.220000000003,8628.220000000003,8628.220000000003,8628.220000000003,8628.220000000003,8628.220000000003,8628.220000000003,8628.220000000003,8628.220000000003,8628.220000000003,8628.220000000003,8628.220000000003,8473.0400000000045,8473.0400000000045,8473.0400000000045,8473.0400000000045,8473.0400000000045,8473.0400000000045,8473.0400000000045,8473.0400000000045,8473.0400000000045,8473.0400000000045,8473.0400000000045,8473.0400000000045,8751.840000000002,8751.840000000002,8751.840000000002,8751.840000000002,8751.840000000002,8751.840000000002,8751.840000000002,8751.840000000002,8751.840000000002,8751.840000000002,8751.840000000002,8751.840000000002,8962.9999999999982,8962.9999999999982,8962.9999999999982,8962.9999999999982,8962.9999999999982,8962.9999999999982,8962.9999999999982,8962.9999999999982,8962.9999999999982,8962.9999999999982,8962.9999999999982,8962.9999999999982,9283.2300000000014,9283.2300000000014,9283.2300000000014,9283.2300000000014,9283.2300000000014,9283.2300000000014,9283.2300000000014,9283.2300000000014,9283.2300000000014,9283.2300000000014,9283.2300000000014,9283.2300000000014,8354.4599999999991,8354.4599999999991,8354.4599999999991,8354.4599999999991,8354.4599999999991,8354.4599999999991,8354.4599999999991,8354.4599999999991,8354.4599999999991,8354.4599999999991,8354.4599999999991,8354.4599999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,4264.2499999999991,319.46000000000004,319.46000000000004,319.46000000000004,319.46000000000004,319.46000000000004,319.46000000000004,319.46000000000004,319.46000000000004,319.46000000000004,319.46000000000004,319.46000000000004,319.46000000000004,47.129999999999995,47.129999999999995,47.129999999999995,47.129999999999995,47.129999999999995,47.129999999999995,47.129999999999995,47.129999999999995,47.129999999999995,47.129999999999995,47.129999999999995,47.129999999999995,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	tot_gen_solar_weim_telem = JSON.parse(["[4.130579,3.6826109999999996,4.0144989999999998,4.5608459999999997,4.482456,4.5071649999999996,4.465122,4.5325699999999998,4.4452549999999995,4.4651550000000002,4.427861,4.4269790000000002,4.3946230000000002,3.9345049999999997,4.1239780000000001,4.0281310000000001,4.0305330000000001,4.066897,3.9433369999999996,4.0942959999999999,4.1414140000000002,4.0817610000000002,4.0866069999999999,4.0957939999999997,4.0519889999999998,4.0321530000000001,4.0604399999999998,4.0425449999999996,4.0637639999999999,4.0911239999999998,4.0517310000000002,4.0153949999999998,3.6131159999999998,3.9958769999999997,4.0522719999999994,4.012372,4.048114,4.0517089999999998,4.0483190000000002,4.0426830000000002,3.9665759999999999,4.03111,4.0946369999999996,4.0401730000000002,4.0269740000000001,4.0301289999999996,4.0398529999999999,3.9889929999999998,3.612079,3.9696400000000001,3.9581330000000001,4.0420540000000003,3.6023179999999999,4.0374489999999996,4.0221070000000001,3.992721,4.0064779999999995,3.6133839999999999,3.6126550000000002,4.0340949999999998,4.0792329999999994,4.0940099999999999,4.1002520000000002,4.0797059999999998,4.0494680000000001,4.0249050000000004,4.7549349999999997,5.2984010000000001,8.3795510000000011,20.439174999999999,42.345503999999998,82.033848999999975,142.48761500000001,227.41734700000001,356.71573400000005,516.00618300000008,732.36584700000003,970.38647600000013,1258.169386,1621.8554939999992,2094.5354379999994,2542.2926109999994,3069.4661900000001,3546.8041210000001,4043.909913,4555.4409130000013,5026.9053280000016,5480.8445679999977,5981.1785109999964,6423.8551909999996,6935.5481090000021,7316.0698470000025,7691.646770999997,8004.8654259999985,8126.0705619999999,8227.4246569999996,8438.3985760000014,8613.8837149999999,8809.3623410000055,8993.5149130000027,9094.7030640000048,9208.3992599999983,9234.472568000001,9305.5893560000004,9351.4320350000035,9395.8290249999991,9277.3136460000005,9202.0136259999999,9102.4497950000004,9209.7374589999981,9352.6824560000023,9431.6235179999985,9291.498563000001,9277.3904880000027,9377.2497520000034,9334.3217179999974,9253.986982000004,9193.0481560000062,9158.5621980000014,9115.7347070000033,9098.2037970000001,9048.3429629999973,9064.1848580000024,9035.5741229999985,8915.3228670000008,8872.7078890000012,8845.577150000001,8803.7441420000032,8793.3219850000005,8775.2700139999961,8775.4742949999982,8764.4937340000051,8796.4723630000026,8778.074254000001,8776.4222909999989,8746.6883519999992,8736.852441999994,8737.9180490000053,8742.9781120000025,8738.656251000004,8749.9701980000027,8750.7271479999981,8757.42605,8770.8342470000025,8787.3187959999996,8797.6646170000022,8791.3536269999986,8788.5472609999979,8856.1797040000001,8869.1278540000003,8861.0781740000039,8901.137173000001,8934.3064870000017,8986.7310000000016,9022.9413690000019,9027.8791029999993,9054.4332700000032,8959.5637140000017,8936.3974489999982,8978.9213920000002,9025.611775000003,9047.6371530000015,9094.5444749999951,9099.6995149999984,9091.2426219999998,9087.145660000002,9140.0745969999934,9237.9201079999966,9302.677888000002,9196.8711249999997,9113.2271799999944,8947.2428280000004,8807.3551210000005,8714.2904830000007,8641.7337950000001,8578.1159290000014,8435.434027000003,8288.9118389999985,8102.3371020000004,7854.7500570000011,7544.8085540000011,7192.321509999997,6854.0125849999995,6441.1636819999985,5977.3469300000006,5547.541181999999,5000.9678999999987,4434.208411999999,3800.2266220000001,3340.3602809999993,2873.2098500000002,2447.2645249999991,2082.5386240000003,1668.371226999999,1271.7171500000002,875.65716300000008,587.67069000000004,355.42156900000003,250.90184500000001,125.76221799999999,64.432231999999985,37.508958,24.131654999999999,15.297287999999989,9.4684550000000005,5.8353709999999994,6.8631139999999995,6.6310349999999998,6.9015809999999993,7.033658,7.1015829999999998,7.0961569999999998,7.1452590000000002,7.1215729999999997,7.2269819999999996,4.7355229999999997,4.8049249999999999,4.7452139999999998,5.2062939999999998,5.1124039999999997,4.7795459999999999,4.7787119999999996,4.7947929999999994,4.7813939999999997,4.7985809999999995,4.7616429999999994,4.773936,4.7567599999999999,4.7748910000000002,4.7960129999999994,4.777463,4.7702489999999997,4.7996030000000003,4.78193,4.7645369999999998,4.7736179999999999,4.7739060000000002,4.7633799999999997,4.8125499999999999,4.7840119999999997,4.7757750000000003,4.8147310000000001,4.7746129999999996,4.8133229999999996,4.7836080000000001,4.7711939999999995,4.8006060000000002,4.7748270000000002,4.8021329999999995,4.7740169999999997,4.7516739999999995,4.7644299999999999,4.7878090000000002,4.7941639999999994,4.7725089999999994,4.7945459999999995,4.7747149999999996,4.7911830000000002,4.7633640000000002,4.7491769999999995,4.7845719999999998,4.7849659999999998,4.7704430000000002,4.7744270000000002,4.7897340000000002,4.8031829999999998,3.8488219999999997,3.857526,3.8548689999999999,3.8480059999999998,3.8593419999999998,3.870517,3.8385319999999998,3.8563729999999996,3.879874,3.8668209999999998,3.8700869999999998,3.8683700000000001,3.8738679999999999,3.8734159999999997,3.8913729999999997,3.9058929999999998,3.9267719999999997,3.8861499999999998,3.9185029999999998,3.9045649999999998,3.8990969999999998,3.8912909999999998]"]),
+	
+	tot_gen_wind_iso_rtd = JSON.parse(["[1008.0540000000001,1065.9400000000001,1140.607,1190.171000009999,1213.0499999899989,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,1240.2149999899991,null,1543.8019999999992,1532.088,1520.173,1505.9550000000002,1506.6110000000001,1500.5740000000001,1496.924999999999,1503.529,1499.2820000000002,1478.6670000000001,1462.047,1451.4909999999991,1445.4850000000001,1435.5009999999991,1434.1619999999991,1425.540999999999,1410.377999999999,1403.2919999999992,1401.981,1400.4859999999992,1399.8829999999991,1391.982999999999,1395.5749999999991,1372.454999999999,1348.2910000000002,1349.4590000000001,1350.4749999999992,1345.0159999999992,1344.117999999999,1341.0949999999991,1333.24,1333.827,1324.9139999999991,1325.050999999999,1329.7760000000001,1330.8600000000001,1330.0530000000001,1330.973999999999,1327.433,1324.5060000000001,1319.454,1318.43800005,1313.490000049999,1313.501999959999,1306.5070000299991,1311.9949999799992,1307.8929999099992,1318.829999999999,1319.4479999399991,1306.7070000000001,1297.7639999999992,1282.604,1263.6010000000001,1247.4749999999992,1232.5099999999991,1208.540999979999,1169.963000029999,1136.9920000099989,1122.23200006,1107.366843515035,1103.52099995,1093.9709999599991,1094.595,1094.309,1066.7159999999992,1044.6069999999991,1042.6489999999992,1052.6729999999991,1036.143,1028.406999999999,1015.961,1017.421999999999,1017.878999999999,1037.923,1027.373,995.66300000000001,981.70000000000005,964.197,958.09199999999998,936.15700000000004,938.18600000000004,922.61200000000008,895.95699999999999,872.20900000000006,863.49199999999996,877.59000000000003,889,901.31000000000006,906.86000000000001,883.71000000000004,850.24000000000001,848.82000000000005,850.34400000000005,866.48000000000002,847.54300000000001,842.62300000000005,848.71199999999999,848.63,780.39300000000003,795.59199999999998,807.298,785.71300000000008,789.21000000000004,786.76599999999996,781.99400000000003,755.85800000000006,806.50200000000007,808.18200000000002,775.97200000000009,771.43299999999999,771.72299999999996,751.48300000000006,748.10200000000009,750.33000000000004,741.03800000000001,728.46900000000005,729.11400000000003,742.56200000000001,734.01800000000003,722.21799999999996,734.81500000000005,726.71400000000006,705.15899999999999,721.62600000000009,720.75599999999997,716.26599999999996,687.38499999999999,693.52599999999995,671.18399999999997,686.94200000000001,670.41399999999999,650.13700000000006,645.77300000000002,636.06299999999999,619.11400000000003,607.64300000000003,608.21600000000001,586.54399999999998,590.88600000000008,582.928,573.65200000000004,580.53700000000003,598.56000000000006,634.93200000000002,642.46600000000001,657.68900000000008,674.05200000000002,693.81100000000004,693.86099999999999,746.37300000000005,722.60599999999999,708.24000000000001,697.47400000000005,705.37599999999998,682.02700000000004,682.07899999999995,675.55100000000004,653.90200000000004,647.18299999999999,629.30899999999997,626.34500000000003,612.654,614.48199999999997,593.36599999999999,601.01999999999998,588.51599999999996,590.298,604.49800000000005,624.69899999999996,635.18399999999997,644.32899999999995,665.79000000000008,675.35200000000009,709.34000000000003,733.15999999999997,757.10700000000008,776.07500000000005,790.55500000000006,802.56000000000006,803.74000000000001,806.90000000000009,820.18000000000006,828.64600000000007,830.20000000000005,823.43399999999997,817.44600000000003,826.822,829.09400000000005,822.78000000000009,835.16399999999999,872.32900000000006,917.02800000000002,960.18200000000002,990.73500000000001,1038.666999999999,1076.0749999999991,1109.4860000000001,1125.327,1129.041999999999,1143.2750000000001,1158.887999999999,1184.5800000000002,1196.721,1220.9450000000002,1247.6180000000002,1287.8429999999992,1317.8690000000001,1339.8580000000002,1362.8609999999992,1379.3999999999992,1394.069,1416.4350000000002,1443.3419999999992,1463.779,1489.0800000000002,1515.415999999999,1525.2660000000001,1512.6610000000001,1514.8349999999991,1517.6329999999991,1524.547,1538.1400000000001,1531.0240000000001,1520.4429999999991,1515.2349999999992,1520.6259999999991,1537.3220000000001,1557.6270000000002,1571.0329999999992,1583.5259999999992,1597.2659999999992,1608.8409999999992,1606.4290000000001,1611.508,1593.9799999999991,1582.739,1575.9909999999991,1590.2919999999992,1611.0060000000001,1630.7520000000002,1625.078,1611.9170000000001,1590.664,1594.0609999999992,1576.6219999999992,1562.0640000000001,1552.6329999999991,1551.22,1539.912,1524.5779999999991,1500.4459999999992,1488.5129999999992,1474.7289999999991,1468.0340000000001,1449.0939999999991,1392.403,1390.836,1399.4239999999991,1396.021,1395.3629999999991,1389.9459999999992,1382.6500000000001,1372.252,1371.2950000000001]"]),
+	tot_gen_wind_iso_rtpd = JSON.parse(["[866.60900000000004,866.60900000000004,866.60900000000004,932.54200000000003,932.54200000000003,932.54200000000003,1006.0070000000001,1006.0070000000001,1006.0070000000001,1113.124,1113.124,1113.124,1321.2740000000001,1321.2740000000001,1321.2740000000001,1330.921,1330.921,1330.921,1362.2899999999991,1362.2899999999991,1362.2899999999991,1401.9966666682001,1401.9966666682001,1401.9966666682001,1472.4549999999981,1472.4549999999981,1472.4549999999981,1463.2579999999991,1463.2579999999991,1463.2579999999991,1460.21,1460.21,1460.21,1458.1579999999992,1458.1579999999992,1458.1579999999992,1442.9869999999992,1442.9869999999992,1442.9869999999992,1431.7969999999991,1431.7969999999991,1431.7969999999991,1426.7450000000001,1426.7450000000001,1426.7450000000001,1418.4459999999992,1418.4459999999992,1418.4459999999992,1396.8549999999991,1396.8549999999991,1396.8549999999991,1377.068,1377.068,1377.068,1362.5049999999992,1362.5049999999992,1362.5049999999992,1322.424999999999,1322.424999999999,1322.424999999999,1313.441,1313.441,1313.441,1306.836,1306.836,1306.836,1289.9640000000002,1289.9640000000002,1289.9640000000002,1302.471,1302.471,1302.471,1271.306999999799,1271.306999999799,1271.306999999799,1254.230666666499,1254.230666666499,1254.230666666499,1240.3399999999981,1240.3399999999981,1240.3399999999981,1230.684999999299,1230.684999999299,1230.684999999299,1181.213999999999,1181.213999999999,1181.213999999999,1130.876999999999,1130.876999999999,1130.876999999999,1076.3709999999992,1076.3709999999992,1076.3709999999992,1033.6933333460001,1033.6933333460001,1033.6933333460001,1034.654666643399,1034.654666643399,1034.654666643399,1046.1823333199989,1046.1823333199989,1046.1823333199989,1017.6303333235001,1017.6303333235001,1017.6303333235001,966.19066666340007,966.19066666340007,966.19066666340007,943.2419999980001,943.2419999980001,943.2419999980001,910.38733330720015,910.38733330720015,910.38733330720015,904.25999998070006,904.25999998070006,904.25999998070006,856.0170000088001,856.0170000088001,856.0170000088001,919.20176960375909,919.20176960375909,919.20176960375909,877.601,877.601,877.601,871.31399999999996,871.31399999999996,871.31399999999996,859.00799999980006,859.00799999980006,859.00799999980006,882.0633333359001,882.0633333359001,882.0633333359001,864.72333333250003,864.72333333250003,864.72333333250003,847.0549999970001,847.0549999970001,847.0549999970001,821.31633333060108,821.31633333060108,821.31633333060108,799.05233332679904,799.05233332679904,799.05233332679904,817.8363333328,817.8363333328,817.8363333328,793.63466667170007,793.63466667170007,793.63466667170007,778.4443333342,778.4443333342,778.4443333342,780.93999999990012,780.93999999990012,780.93999999990012,775.6326666588011,775.6326666588011,775.6326666588011,767.08466665290007,767.08466665290007,767.08466665290007,725.72266667230008,725.72266667230008,725.72266667230008,706.44433333300003,706.44433333300003,706.44433333300003,697.04900000090004,697.04900000090004,697.04900000090004,692.57733333350006,692.57733333350006,692.57733333350006,739.38000000060003,739.38000000060003,739.38000000060003,745.378999999999,745.378999999999,745.378999999999,789.78500000000008,789.78500000000008,789.78500000000008,768.40500000000009,768.40500000000009,768.40500000000009,744.55200000000002,744.55200000000002,744.55200000000002,746.67200000000003,746.67200000000003,746.67200000000003,748.21699999999998,748.21699999999998,748.21699999999998,757.36599999999999,757.36599999999999,757.36599999999999,805.41699999999901,805.41699999999901,805.41699999999901,847.79133333330014,847.79133333330014,847.79133333330014,907.13533333330008,907.13533333330008,907.13533333330008,966.97466666649996,966.97466666649996,966.97466666649996,996.50600000000009,996.50600000000009,996.50600000000009,1024.3243333333,1024.3243333333,1024.3243333333,1057.7959999998,1057.7959999998,1057.7959999998,1078.9329999998001,1078.9329999998001,1078.9329999998001,1164.8776666663002,1164.8776666663002,1164.8776666663002,1260.8810000000001,1260.8810000000001,1260.8810000000001,1300.2669999999991,1300.2669999999991,1300.2669999999991,1323.587,1323.587,1323.587,1384.838,1384.838,1384.838,1446.2279999999992,1446.2279999999992,1446.2279999999992,1482.1499999999992,1482.1499999999992,1482.1499999999992,1545.5169999999991,1545.5169999999991,1545.5169999999991,1565.7040000000002,1565.7040000000002,1565.7040000000002,1503.1600000000001,1503.1600000000001,1503.1600000000001,1536.6529999999991,1536.6529999999991,1536.6529999999991,1531.346,1531.346,1531.346,1595.3669999999991,1595.3669999999991,1595.3669999999991,1600.8059999999991,1600.8059999999991,1600.8059999999991,1581.924999999999,1581.924999999999,1581.924999999999,1550.9679999999992,1550.9679999999992,1550.9679999999992,1592.6010000000001,1592.6010000000001,1592.6010000000001,1564.4999999999991,1564.4999999999991,1564.4999999999991,1541.8230000000001,1541.8230000000001,1541.8230000000001,1512.799999999999,1512.799999999999,1512.799999999999,1445.0910000000001,1445.0910000000001,1445.0910000000001]"]),
+	tot_gen_wind_iso_ifm = JSON.parse(["[939.09000000000003,939.09000000000003,939.09000000000003,939.09000000000003,939.09000000000003,939.09000000000003,939.09000000000003,939.09000000000003,939.09000000000003,939.09000000000003,939.09000000000003,939.09000000000003,1082.3899999999992,1082.3899999999992,1082.3899999999992,1082.3899999999992,1082.3899999999992,1082.3899999999992,1082.3899999999992,1082.3899999999992,1082.3899999999992,1082.3899999999992,1082.3899999999992,1082.3899999999992,1162.5199999999991,1162.5199999999991,1162.5199999999991,1162.5199999999991,1162.5199999999991,1162.5199999999991,1162.5199999999991,1162.5199999999991,1162.5199999999991,1162.5199999999991,1162.5199999999991,1162.5199999999991,1145.5800000000002,1145.5800000000002,1145.5800000000002,1145.5800000000002,1145.5800000000002,1145.5800000000002,1145.5800000000002,1145.5800000000002,1145.5800000000002,1145.5800000000002,1145.5800000000002,1145.5800000000002,1089.089999999999,1089.089999999999,1089.089999999999,1089.089999999999,1089.089999999999,1089.089999999999,1089.089999999999,1089.089999999999,1089.089999999999,1089.089999999999,1089.089999999999,1089.089999999999,1022.59,1022.59,1022.59,1022.59,1022.59,1022.59,1022.59,1022.59,1022.59,1022.59,1022.59,1022.59,923.40999999999997,923.40999999999997,923.40999999999997,923.40999999999997,923.40999999999997,923.40999999999997,923.40999999999997,923.40999999999997,923.40999999999997,923.40999999999997,923.40999999999997,923.40999999999997,509.41000000000008,509.41000000000008,509.41000000000008,509.41000000000008,509.41000000000008,509.41000000000008,509.41000000000008,509.41000000000008,509.41000000000008,509.41000000000008,509.41000000000008,509.41000000000008,415.11000000000007,415.11000000000007,415.11000000000007,415.11000000000007,415.11000000000007,415.11000000000007,415.11000000000007,415.11000000000007,415.11000000000007,415.11000000000007,415.11000000000007,415.11000000000007,367.78000000000003,367.78000000000003,367.78000000000003,367.78000000000003,367.78000000000003,367.78000000000003,367.78000000000003,367.78000000000003,367.78000000000003,367.78000000000003,367.78000000000003,367.78000000000003,356.92000000000007,356.92000000000007,356.92000000000007,356.92000000000007,356.92000000000007,356.92000000000007,356.92000000000007,356.92000000000007,356.92000000000007,356.92000000000007,356.92000000000007,356.92000000000007,355.83000000000004,355.83000000000004,355.83000000000004,355.83000000000004,355.83000000000004,355.83000000000004,355.83000000000004,355.83000000000004,355.83000000000004,355.83000000000004,355.83000000000004,355.83000000000004,351.32000000000005,351.32000000000005,351.32000000000005,351.32000000000005,351.32000000000005,351.32000000000005,351.32000000000005,351.32000000000005,351.32000000000005,351.32000000000005,351.32000000000005,351.32000000000005,332.84000000000003,332.84000000000003,332.84000000000003,332.84000000000003,332.84000000000003,332.84000000000003,332.84000000000003,332.84000000000003,332.84000000000003,332.84000000000003,332.84000000000003,332.84000000000003,582.95000000000005,582.95000000000005,582.95000000000005,582.95000000000005,582.95000000000005,582.95000000000005,582.95000000000005,582.95000000000005,582.95000000000005,582.95000000000005,582.95000000000005,582.95000000000005,632.65999999999997,632.65999999999997,632.65999999999997,632.65999999999997,632.65999999999997,632.65999999999997,632.65999999999997,632.65999999999997,632.65999999999997,632.65999999999997,632.65999999999997,632.65999999999997,805.41999999999996,805.41999999999996,805.41999999999996,805.41999999999996,805.41999999999996,805.41999999999996,805.41999999999996,805.41999999999996,805.41999999999996,805.41999999999996,805.41999999999996,805.41999999999996,1108.9499999999991,1108.9499999999991,1108.9499999999991,1108.9499999999991,1108.9499999999991,1108.9499999999991,1108.9499999999991,1108.9499999999991,1108.9499999999991,1108.9499999999991,1108.9499999999991,1108.9499999999991,1359.27,1359.27,1359.27,1359.27,1359.27,1359.27,1359.27,1359.27,1359.27,1359.27,1359.27,1359.27,1460.4100000000001,1460.4100000000001,1460.4100000000001,1460.4100000000001,1460.4100000000001,1460.4100000000001,1460.4100000000001,1460.4100000000001,1460.4100000000001,1460.4100000000001,1460.4100000000001,1460.4100000000001,1457.8499999999992,1457.8499999999992,1457.8499999999992,1457.8499999999992,1457.8499999999992,1457.8499999999992,1457.8499999999992,1457.8499999999992,1457.8499999999992,1457.8499999999992,1457.8499999999992,1457.8499999999992,1398.23,1398.23,1398.23,1398.23,1398.23,1398.23,1398.23,1398.23,1398.23,1398.23,1398.23,1398.23,1319.5899999999992,1319.5899999999992,1319.5899999999992,1319.5899999999992,1319.5899999999992,1319.5899999999992,1319.5899999999992,1319.5899999999992,1319.5899999999992,1319.5899999999992,1319.5899999999992,1319.5899999999992,1227.8900000000001,1227.8900000000001,1227.8900000000001,1227.8900000000001,1227.8900000000001,1227.8900000000001,1227.8900000000001,1227.8900000000001,1227.8900000000001,1227.8900000000001,1227.8900000000001,1227.8900000000001]"]),
+	tot_gen_wind_iso_telem = JSON.parse(["[1008.435621,1074.0437460000001,1148.8507579999989,1198.464761,1221.063754,1247.7004429999993,1268.9184460000001,1280.005423999999,1300.230753,1327.651715,1344.9997079999991,1365.4126970000002,1396.2577579999991,1424.7147759999989,1424.2977899999992,1442.2967769999991,1447.1457820000001,1464.7087669999992,1494.2947920000001,1512.384769,1526.631779999999,1537.2467610000001,1561.9747990000001,1572.4687729999991,1551.5157380000001,1539.8217259999999,1527.9269029999991,1513.6788929999991,1514.3645170000002,1508.4474749999999,1504.4785059999992,1511.112492,1506.896234,1486.3812369999991,1462.2412139999992,1451.675152,1453.2291580000001,1443.355153,1441.7461389999992,1433.0547019999992,1417.911685,1410.865708999999,1409.334672,1407.879668,1407.3164910000003,1399.5664810000001,1403.208466999999,1380.128524,1356.0145030000001,1357.212507,1358.1292879999992,1352.710282999999,1351.842294,1348.8386350000001,1341.094218,1341.711321,1332.8183290000002,1332.975338,1337.7203469999999,1339.094325999999,1338.037329999999,1339.2383419999999,1335.5473939999993,1332.8903389999991,1327.7483279999999,1324.902200999999,1319.9841980000001,1320.026182999999,1313.7612100000001,1319.479214,1314.0672059999999,1324.9841889999991,1326.0217829999999,1314.8607930000001,1305.8974820000001,1290.6181979999992,1271.7150840000002,1255.5793760000001,1240.4643160000001,1215.635129999999,1177.277049,1144.4360609999992,1129.105728999999,1122.835757999999,1113.759743999999,1106.002035,1103.856033,1101.9659380000001,1075.902945,1053.701376,1051.6134050000001,1061.804335,1047.5630689999991,1036.8570649999999,1024.8508779999988,1033.3418940000001,1022.106397,1040.8704030000001,1036.650194999999,1004.886394999999,990.95339100000001,973.46039900000005,967.32539500000007,945.39033100000006,947.43931900000007,931.83533900000009,905.19036000000017,881.47234400000002,872.857843,886.97584400000005,898.38586400000008,910.6858400000001,916.24584000000004,893.09581700000012,859.53583900000001,858.12581900000009,859.63983200000007,875.76583700000003,856.84882400000015,851.86882900000012,857.98782900000003,857.875809,838.25920800000006,850.52821900000004,860.73419799999999,795.07921599999997,798.62621400000012,796.17220600000007,791.36020200000007,765.3450600000001,772.59933500000011,762.30935900000009,785.51934900000003,780.96034300000008,781.35180400000002,761.111808,757.7208250000001,759.822092,750.38010900000006,737.81109600000002,738.37609000000009,751.9386760000001,743.53203300000007,730.68204700000001,743.94910600000003,735.8481220000001,714.75304400000005,731.18012400000009,730.25012000000004,725.81005700000003,696.93905500000005,702.94233100000008,680.46818700000006,696.41211400000009,679.537102,659.28112600000009,654.98610700000006,645.18710899999996,628.21810900000003,616.77698500000008,617.24888700000008,595.75588900000002,599.808133,591.83012100000008,582.72512700000004,589.59512600000005,607.57882400000005,644.16082500000005,651.8408280000001,666.81580500000007,683.21114,702.84715600000004,746.07703500000002,755.21302800000012,731.50103100000013,716.9870360000001,706.53703400000006,717.43303100000003,690.85104799999999,687.72603700000002,684.48804800000005,662.84306200000015,656.08004500000004,638.30605500000001,635.31204600000001,621.60104000000001,623.35904400000004,602.17305900000008,609.79703300000006,597.31304799999998,599.00504999999998,613.24504899999999,633.41604900000004,643.82104400000003,652.94603300000006,674.44703700000002,683.92904400000009,717.87706600000001,741.67704800000001,765.62406800000008,784.58205899999996,799.04206600000009,811.02705900000001,812.22705500000006,815.33705099999997,828.79845,837.12443900000005,838.66843500000004,831.86243300000012,825.89450099999999,835.550434,837.792418,831.44847400000003,843.85249099999999,880.94750699999997,925.57647600000007,960.43048700000008,998.89348500000006,1046.5254779999989,1076.303494,1109.6644649999992,1132.5354669999999,1135.660455,1149.590234999999,1164.9932389999992,1190.4752540000002,1202.416221,1226.400228,1253.063208999999,1293.3882030000002,1323.2741900000001,1345.2532130000002,1368.166191,1384.7651980000001,1399.6642099999992,1421.9701859999991,1448.908930999999,1469.2359210000002,1494.617821,1520.863824,1530.543809,1517.9588060000001,1520.1528090000002,1522.9708030000002,1529.904816,1543.517728,1538.5017469999991,1527.809608,1522.7016199999991,1528.1025879999991,1544.8786129999989,1565.061588,1578.3475980000001,1590.7405780000001,1604.2905950000002,1615.7755930000001,1613.133601,1618.0625910000001,1600.1046110000002,1588.6935980000001,1581.905583,1595.986588999999,1616.800587,1636.4065780000001,1630.6225890000001,1617.6516120000001,1596.358606,1598.3155869999991,1582.3965959999991,1567.858598,1558.7676030000002,1557.3646170000002,1545.9766009999989,1530.5825719999989,1500.380590999999,1494.367602999999,1480.493598,1473.68859,1448.998603,1392.297613,1390.730618999999,1404.7885899999992,1401.8855980000001,1401.1476190000001,1395.6706130000002,1388.3046119999992,1377.8366039999992,1376.809634]"]),
+	tot_gen_wind_iso_forec = JSON.parse(["[254.52000000000001,254.52000000000001,254.52000000000001,254.52000000000001,254.52000000000001,254.52000000000001,254.52000000000001,254.52000000000001,254.52000000000001,254.52000000000001,254.52000000000001,254.52000000000001,228.86000000000001,228.86000000000001,228.86000000000001,228.86000000000001,228.86000000000001,228.86000000000001,228.86000000000001,228.86000000000001,228.86000000000001,228.86000000000001,228.86000000000001,228.86000000000001,205.37,205.37,205.37,205.37,205.37,205.37,205.37,205.37,205.37,205.37,205.37,205.37,183.70000000000002,183.70000000000002,183.70000000000002,183.70000000000002,183.70000000000002,183.70000000000002,183.70000000000002,183.70000000000002,183.70000000000002,183.70000000000002,183.70000000000002,183.70000000000002,154.10000000000002,154.10000000000002,154.10000000000002,154.10000000000002,154.10000000000002,154.10000000000002,154.10000000000002,154.10000000000002,154.10000000000002,154.10000000000002,154.10000000000002,154.10000000000002,115.24000000000001,115.24000000000001,115.24000000000001,115.24000000000001,115.24000000000001,115.24000000000001,115.24000000000001,115.24000000000001,115.24000000000001,115.24000000000001,115.24000000000001,115.24000000000001,79.13000000000001,79.13000000000001,79.13000000000001,79.13000000000001,79.13000000000001,79.13000000000001,79.13000000000001,79.13000000000001,79.13000000000001,79.13000000000001,79.13000000000001,79.13000000000001,47.460000000000001,47.460000000000001,47.460000000000001,47.460000000000001,47.460000000000001,47.460000000000001,47.460000000000001,47.460000000000001,47.460000000000001,47.460000000000001,47.460000000000001,47.460000000000001,28.879999999999999,28.879999999999999,28.879999999999999,28.879999999999999,28.879999999999999,28.879999999999999,28.879999999999999,28.879999999999999,28.879999999999999,28.879999999999999,28.879999999999999,28.879999999999999,26.20000000000001,26.20000000000001,26.20000000000001,26.20000000000001,26.20000000000001,26.20000000000001,26.20000000000001,26.20000000000001,26.20000000000001,26.20000000000001,26.20000000000001,26.20000000000001,34.140000000000008,34.140000000000008,34.140000000000008,34.140000000000008,34.140000000000008,34.140000000000008,34.140000000000008,34.140000000000008,34.140000000000008,34.140000000000008,34.140000000000008,34.140000000000008,50.299999999999969,50.299999999999969,50.299999999999969,50.299999999999969,50.299999999999969,50.299999999999969,50.299999999999969,50.299999999999969,50.299999999999969,50.299999999999969,50.299999999999969,50.299999999999969,61.219999999999999,61.219999999999999,61.219999999999999,61.219999999999999,61.219999999999999,61.219999999999999,61.219999999999999,61.219999999999999,61.219999999999999,61.219999999999999,61.219999999999999,61.219999999999999,62.719999999999985,62.719999999999985,62.719999999999985,62.719999999999985,62.719999999999985,62.719999999999985,62.719999999999985,62.719999999999985,62.719999999999985,62.719999999999985,62.719999999999985,62.719999999999985,60.239999999999995,60.239999999999995,60.239999999999995,60.239999999999995,60.239999999999995,60.239999999999995,60.239999999999995,60.239999999999995,60.239999999999995,60.239999999999995,60.239999999999995,60.239999999999995,74.649999999999977,74.649999999999977,74.649999999999977,74.649999999999977,74.649999999999977,74.649999999999977,74.649999999999977,74.649999999999977,74.649999999999977,74.649999999999977,74.649999999999977,74.649999999999977,160.97,160.97,160.97,160.97,160.97,160.97,160.97,160.97,160.97,160.97,160.97,160.97,368.11000000000001,368.11000000000001,368.11000000000001,368.11000000000001,368.11000000000001,368.11000000000001,368.11000000000001,368.11000000000001,368.11000000000001,368.11000000000001,368.11000000000001,368.11000000000001,541.73000000000002,541.73000000000002,541.73000000000002,541.73000000000002,541.73000000000002,541.73000000000002,541.73000000000002,541.73000000000002,541.73000000000002,541.73000000000002,541.73000000000002,541.73000000000002,607.45000000000005,607.45000000000005,607.45000000000005,607.45000000000005,607.45000000000005,607.45000000000005,607.45000000000005,607.45000000000005,607.45000000000005,607.45000000000005,607.45000000000005,607.45000000000005,601.71000000000004,601.71000000000004,601.71000000000004,601.71000000000004,601.71000000000004,601.71000000000004,601.71000000000004,601.71000000000004,601.71000000000004,601.71000000000004,601.71000000000004,601.71000000000004,532.32000000000005,532.32000000000005,532.32000000000005,532.32000000000005,532.32000000000005,532.32000000000005,532.32000000000005,532.32000000000005,532.32000000000005,532.32000000000005,532.32000000000005,532.32000000000005,465.03000000000003,465.03000000000003,465.03000000000003,465.03000000000003,465.03000000000003,465.03000000000003,465.03000000000003,465.03000000000003,465.03000000000003,465.03000000000003,465.03000000000003,465.03000000000003,424.55000000000007,424.55000000000007,424.55000000000007,424.55000000000007,424.55000000000007,424.55000000000007,424.55000000000007,424.55000000000007,424.55000000000007,424.55000000000007,424.55000000000007,424.55000000000007]"]),
+	
+	tot_gen_wind_weim_rtd = JSON.parse(["[6615.9459999999999,6582.1649999999991,6582.0480000000016,6575.607,6588.4119999999994,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,6628.2629999999999,null,5498.3328993171235,5548.6252784100934,5657.9670662500657,5727.4097777192028,5720.7725926146641,5974.8187682629659,5852.1830915645678,5934.7143477896689,5876.0869988998666,5954.4837701875749,6063.029543985911,6046.1496379111313,6091.6618468473753,6093.1632198228999,6228.412499105516,6255.2638630320989,6297.3083086883007,6295.238379753413,6338.7861832531444,6334.0317483524077,6336.0935944313724,6392.4180326781134,6429.5920000000006,6378.661000000001,6456.4490000000005,6448.0720000000001,6471.0260000000007,6428.5779999999995,6396.5189999999993,6439.9309999999969,6393.8990000000013,6386.7639999999992,6408.0119999999997,6320.9850000000015,6339.857,6352.6469999999999,6411.0510000000022,6359.8699999999963,6341.1420000000007,6336.404999999997,6390.6989999999987,6422.9409999999989,6398.7250000000004,6301.4650000000011,6269.6609999999991,6238.8299999999999,6169.0120000000006,6148.2350000000006,6115.7619999999988,6104.3559999999998,6163.5509999999995,6088.6959999999999,6076.3920000000026,6102.3069999999989,6016.3756135049243,5719.0797498852962,5531.5493500778839,5472.6439909522815,5451.8777076715296,5322.651608398196,5403.81643016218,5309.7222889980403,5299.0697598732777,5260.4070530543631,5089.2523141218089,4945.8963812841712,4840.2018726691758,4773.188167944867,4526.004182379027,4486.9141471987959,4447.5116714215965,4361.5347698398227,4401.2430361222268,4417.9091673352941,4488.7859342166612,4427.7076551591808,4428.5754959190263,4469.8954364150095,4481.0875655973496,4254.7106571297936,4273.8261859565118,4522.1929827676749,4604.6955210627129,4676.4560896102357,4926.7396785958672,5015.4490519080982,5049.6116100704921,5074.1765267244546,5156.0458635847936,5088.8635669468304,5159.8148258410711,5197.3263269143672,5147.0083078996968,5532.942666127502,5432.910841449012,5682.643406509379,5547.445325346418,5596.0047560574158,5762.6919583901008,5840.4817290712499,5854.2408080132773,5818.379919942583,5809.2456790220594,5858.7417285123747,5880.7044827709824,5843.3676988762409,5916.8626937020726,6003.7778968190642,6216.54,6130.1519999999991,6154.1901321470496,6158.840000000002,6187.8510000000033,6250.6180000000022,6158.3389999999999,6125.0180000000009,6149.6440000000002,6210.2150000000011,6147.3760000000002,6184.813000000001,5829.431540744542,5895.4665159783053,5907.5495863156839,5854.9864967018166,5866.4877834647104,5895.279999999997,5808.4619999999995,5780.3669999999993,5752.098,5570.7819999999992,5551.6709999999994,5497.7969999999968,5433.8939999999993,5369.2510000000002,5374.3640000000014,5306.835,5226.2440000000015,5228.3339999999989,5139.5249999999969,5100.3190000000004,5067.6930000000011,5000.1449999999995,4978.853000000001,4667.054000000001,4577.3809999999985,4817.2390000000014,4808.3230000000003,4837.6509999999998,4853.1815679367992,4870.6680000000006,4884.0769999999984,4821.6659999999993,4961.299,4909.567,4913.8470000000016,4979.886999999997,4946.378999999999,4949.2430000000013,4813.9549999999999,4822.3630000000021,4849.8909999999987,4827.7559999999994,4847.0839999999998,4803.5849999999991,4688.1199999999999,4728.8710000000001,4701.598,4719.442,4699.2059999999992,4757.7080000000005,4759.3740000000007,4746.6469999999999,4707.8190000000004,4704.0320000000002,4661.1999999999998,4613.1499999999987,4665.0049999999992,4615.7899999999991,4531.2440000000015,4377.8679999999986,4176.3969999999999,4001.1270000000004,3880.0390000000002,3783.3449999999989,3701.152,3640.076,3628.6590000000001,3624.3239999999983,3637.739,3635.9290000000001,3644.338999999999,3626.819,3639.9720000000002,3666.8760000000002,3691.9490000000001,3648.4110000000001,3652.9099999999989,3675.3749999999982,3696.259,3721.9609999999989,3755.498,3740.6619999999989,3718.3560000000002,3703.3450000000003,3623.2310000000002,3618.9280000000003,3635.835,3592.755000000001,3550.0479999999989,3480.6629999999991,3416.5049999999983,3405.9489999999992,3367.253999999999,3332.4990000000003,3353.465999999999,3318.7190000000001,3275.163,3236.6700000000001,3193.1849999999999,3132.556,3049.723,3019.893,2924.773999999999,2857.6169999999988,2824.655999999999,2786.3629999999989,2762.4999999999991,2716.5989999999988,2721.4610000000002,2693.2409999999991,2615.9940000000001,2593.887999999999,2557.027,2547.3009999999999,2498.8830000000012,2445.4779999999992,2425.3449999999989,2394.3850000000002,2374.8450000000003,2363.799,2346.3180000000002,2344.3779999999988,2359.7759999999989,2362.2980000000002,2363.5259999999989,2380.463999999999,2415.105,2416.2509999999988,2415.7919999999999,2396.4759999999987,2427.7529999999988,2470.8369999999991,2466.0249999999992,2495.203,2497.4430000000002,2505.2270000000003,2539.3240000000001,2588.0189999999989,2605.389999999999,2603.4050000000002,2643.8440000000001,2671.75,2708.3610000000003,2719.7380000000003]"]),
+	tot_gen_wind_weim_rtpd = JSON.parse(["[6849.404999999997,6849.404999999997,6849.404999999997,6838.3780000000006,6838.3780000000006,6838.3780000000006,6831.8489999999993,6831.8489999999993,6831.8489999999993,6820.1959999999999,6820.1959999999999,6820.1959999999999,6015.476136929964,6015.476136929964,6015.476136929964,5866.4370692942248,5866.4370692942248,5866.4370692942248,5871.2536047250032,5871.2536047250032,5871.2536047250032,5916.626902784411,5916.626902784411,5916.626902784411,6282.3874038267859,6282.3874038267859,6282.3874038267859,6139.9318630344551,6139.9318630344551,6139.9318630344551,6200.1864778220151,6200.1864778220151,6200.1864778220151,6007.7120058460368,6007.7120058460368,6007.7120058460368,5993.8110000000006,5993.8110000000006,5993.8110000000006,6219.5380000000005,6219.5380000000005,6219.5380000000005,6304.2649999999994,6304.2649999999994,6304.2649999999994,6326.0309999999999,6326.0309999999999,6326.0309999999999,6478.6869999999999,6478.6869999999999,6478.6869999999999,6528.6170000000011,6528.6170000000011,6528.6170000000011,6518.2019999999993,6518.2019999999993,6518.2019999999993,6537.877999999997,6537.877999999997,6537.877999999997,6504.1079999999984,6504.1079999999984,6504.1079999999984,6522.1960000000008,6522.1960000000008,6522.1960000000008,6528.4949999999999,6528.4949999999999,6528.4949999999999,6536.0210000000006,6536.0210000000006,6536.0210000000006,6478.8000000000002,6478.8000000000002,6478.8000000000002,6530.3280000000013,6530.3280000000013,6530.3280000000013,6065.4480794454466,6065.4480794454466,6065.4480794454466,5612.2049854312118,5612.2049854312118,5612.2049854312118,6102.3245059125984,6102.3245059125984,6102.3245059125984,6226.8789999999999,6226.8789999999999,6226.8789999999999,5554.5426122615936,5554.5426122615936,5554.5426122615936,5151.2078324799622,5151.2078324799622,5151.2078324799622,5303.5969179061822,5303.5969179061822,5303.5969179061822,5190.7173540301528,5190.7173540301528,5190.7173540301528,5036.544284344116,5036.544284344116,5036.544284344116,5048.6054831275987,5048.6054831275987,5048.6054831275987,5020.0564261877662,5020.0564261877662,5020.0564261877662,5061.2353296608489,5061.2353296608489,5061.2353296608489,5284.2221533935881,5284.2221533935881,5284.2221533935881,5393.0150000000003,5393.0150000000003,5393.0150000000003,5770.6672799694516,5770.6672799694516,5770.6672799694516,5799.5753335138052,5799.5753335138052,5799.5753335138052,5654.1975121535252,5654.1975121535252,5654.1975121535252,5861.2235759141149,5861.2235759141149,5861.2235759141149,6209.4190000000008,6209.4190000000008,6209.4190000000008,6050.8170000000018,6050.8170000000018,6050.8170000000018,6025.6180000000022,6025.6180000000022,6025.6180000000022,6120.0299999999997,6120.0299999999997,6120.0299999999997,5897.9594026231389,5897.9594026231389,5897.9594026231389,5755.2704239735012,5755.2704239735012,5755.2704239735012,5740.7590919674112,5740.7590919674112,5740.7590919674112,5764.4096375046747,5764.4096375046747,5764.4096375046747,5803.0330000000004,5803.0330000000004,5803.0330000000004,5618.193000000002,5618.193000000002,5618.193000000002,5547.7979999999998,5547.7979999999998,5547.7979999999998,5455.6069999999991,5455.6069999999991,5455.6069999999991,5109.0569999999998,5109.0569999999998,5109.0569999999998,5078.1759999999995,5078.1759999999995,5078.1759999999995,5049.9839999999967,5049.9839999999967,5049.9839999999967,4949.4900000000007,4949.4900000000007,4949.4900000000007,4920.277000000001,4920.277000000001,4920.277000000001,4881.1829999999982,4881.1829999999982,4881.1829999999982,5046.5580000000009,5046.5580000000009,5046.5580000000009,4937.5330000000013,4937.5330000000013,4937.5330000000013,4851.4039999999995,4851.4039999999995,4851.4039999999995,4883.2589999999991,4883.2589999999991,4883.2589999999991,4789.4969999999985,4789.4969999999985,4789.4969999999985,4826.1860000000006,4826.1860000000006,4826.1860000000006,4828.6279999999997,4828.6279999999997,4828.6279999999997,4636.7360000000008,4636.7360000000008,4636.7360000000008,4582.9140000000007,4582.9140000000007,4582.9140000000007,4084.4360000000011,4084.4360000000011,4084.4360000000011,3751.145,3751.145,3751.145,3601.2690000000002,3601.2690000000002,3601.2690000000002,3574.3749999999991,3574.3749999999991,3574.3749999999991,3635.982,3635.982,3635.982,3597.779,3597.779,3597.779,3615.8740000000003,3615.8740000000003,3615.8740000000003,3669.472999999999,3669.472999999999,3669.472999999999,3549.6599999999989,3549.6599999999989,3549.6599999999989,3509.0370000000003,3509.0370000000003,3509.0370000000003,3385.3990000000003,3385.3990000000003,3385.3990000000003,3280.074999999998,3280.074999999998,3280.074999999998,3178.1460000000002,3178.1460000000002,3178.1460000000002,3034.6740000000009,3034.6740000000009,3034.6740000000009,2915.1469999999999,2915.1469999999999,2915.1469999999999,2793.9579999999992,2793.9579999999992,2793.9579999999992,2701.1309999999989,2701.1309999999989,2701.1309999999989,2617.2620000000002,2617.2620000000002,2617.2620000000002,2599.5680000000002,2599.5680000000002,2599.5680000000002,2544.2059999999988,2544.2059999999988,2544.2059999999988,2545.1440000000002,2545.1440000000002,2545.1440000000002,2612.8070000000002,2612.8070000000002,2612.8070000000002,2656.904,2656.904,2656.904,2655.315000000001,2655.315000000001,2655.315000000001,2756.835,2756.835,2756.835]"]),
+	tot_gen_wind_weim_rtbs = JSON.parse(["[5864.3400000000001,5864.3400000000001,5864.3400000000001,5864.3400000000001,5864.3400000000001,5864.3400000000001,5864.3400000000001,5864.3400000000001,5864.3400000000001,5864.3400000000001,5864.3400000000001,5864.3400000000001,5802.2299999999996,5802.2299999999996,5802.2299999999996,5802.2299999999996,5802.2299999999996,5802.2299999999996,5802.2299999999996,5802.2299999999996,5802.2299999999996,5802.2299999999996,5802.2299999999996,5802.2299999999996,5615.9400000000014,5615.9400000000014,5615.9400000000014,5615.9400000000014,5615.9400000000014,5615.9400000000014,5615.9400000000014,5615.9400000000014,5615.9400000000014,5615.9400000000014,5615.9400000000014,5615.9400000000014,5676.4700000000012,5676.4700000000012,5676.4700000000012,5676.4700000000012,5676.4700000000012,5676.4700000000012,5676.4700000000012,5676.4700000000012,5676.4700000000012,5676.4700000000012,5676.4700000000012,5676.4700000000012,5805.0199999999995,5805.0199999999995,5805.0199999999995,5805.0199999999995,5805.0199999999995,5805.0199999999995,5805.0199999999995,5805.0199999999995,5805.0199999999995,5805.0199999999995,5805.0199999999995,5805.0199999999995,5937.5099999999984,5937.5099999999984,5937.5099999999984,5937.5099999999984,5937.5099999999984,5937.5099999999984,5937.5099999999984,5937.5099999999984,5937.5099999999984,5937.5099999999984,5937.5099999999984,5937.5099999999984,5089.0600000000004,5089.0600000000004,5089.0600000000004,5089.0600000000004,5089.0600000000004,5089.0600000000004,5089.0600000000004,5089.0600000000004,5089.0600000000004,5089.0600000000004,5089.0600000000004,5089.0600000000004,4033.369999999999,4033.369999999999,4033.369999999999,4033.369999999999,4033.369999999999,4033.369999999999,4033.369999999999,4033.369999999999,4033.369999999999,4033.369999999999,4033.369999999999,4033.369999999999,4105.3500000000004,4105.3500000000004,4105.3500000000004,4105.3500000000004,4105.3500000000004,4105.3500000000004,4105.3500000000004,4105.3500000000004,4105.3500000000004,4105.3500000000004,4105.3500000000004,4105.3500000000004,3962.46,3962.46,3962.46,3962.46,3962.46,3962.46,3962.46,3962.46,3962.46,3962.46,3962.46,3962.46,4126.1100000000006,4126.1100000000006,4126.1100000000006,4126.1100000000006,4126.1100000000006,4126.1100000000006,4126.1100000000006,4126.1100000000006,4126.1100000000006,4126.1100000000006,4126.1100000000006,4126.1100000000006,3893.8399999999992,3893.8399999999992,3893.8399999999992,3893.8399999999992,3893.8399999999992,3893.8399999999992,3893.8399999999992,3893.8399999999992,3893.8399999999992,3893.8399999999992,3893.8399999999992,3893.8399999999992,4175.9800000000005,4175.9800000000005,4175.9800000000005,4175.9800000000005,4175.9800000000005,4175.9800000000005,4175.9800000000005,4175.9800000000005,4175.9800000000005,4175.9800000000005,4175.9800000000005,4175.9800000000005,4090.23,4090.23,4090.23,4090.23,4090.23,4090.23,4090.23,4090.23,4090.23,4090.23,4090.23,4090.23,3711.5700000000002,3711.5700000000002,3711.5700000000002,3711.5700000000002,3711.5700000000002,3711.5700000000002,3711.5700000000002,3711.5700000000002,3711.5700000000002,3711.5700000000002,3711.5700000000002,3711.5700000000002,4450.9499999999998,4450.9499999999998,4450.9499999999998,4450.9499999999998,4450.9499999999998,4450.9499999999998,4450.9499999999998,4450.9499999999998,4450.9499999999998,4450.9499999999998,4450.9499999999998,4450.9499999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4771.6999999999998,4237.0099999999993,4237.0099999999993,4237.0099999999993,4237.0099999999993,4237.0099999999993,4237.0099999999993,4237.0099999999993,4237.0099999999993,4237.0099999999993,4237.0099999999993,4237.0099999999993,4237.0099999999993,4352.8699999999999,4352.8699999999999,4352.8699999999999,4352.8699999999999,4352.8699999999999,4352.8699999999999,4352.8699999999999,4352.8699999999999,4352.8699999999999,4352.8699999999999,4352.8699999999999,4352.8699999999999,3181.9100000000003,3181.9100000000003,3181.9100000000003,3181.9100000000003,3181.9100000000003,3181.9100000000003,3181.9100000000003,3181.9100000000003,3181.9100000000003,3181.9100000000003,3181.9100000000003,3181.9100000000003,3489.2399999999989,3489.2399999999989,3489.2399999999989,3489.2399999999989,3489.2399999999989,3489.2399999999989,3489.2399999999989,3489.2399999999989,3489.2399999999989,3489.2399999999989,3489.2399999999989,3489.2399999999989,3375.5300000000011,3375.5300000000011,3375.5300000000011,3375.5300000000011,3375.5300000000011,3375.5300000000011,3375.5300000000011,3375.5300000000011,3375.5300000000011,3375.5300000000011,3375.5300000000011,3375.5300000000011,2871.559999999999,2871.559999999999,2871.559999999999,2871.559999999999,2871.559999999999,2871.559999999999,2871.559999999999,2871.559999999999,2871.559999999999,2871.559999999999,2871.559999999999,2871.559999999999,2691.0099999999989,2691.0099999999989,2691.0099999999989,2691.0099999999989,2691.0099999999989,2691.0099999999989,2691.0099999999989,2691.0099999999989,2691.0099999999989,2691.0099999999989,2691.0099999999989,2691.0099999999989]"]),
+	tot_gen_wind_weim_telem = JSON.parse(["[6525.0949930000024,6496.5048560000005,6494.8322340000004,6498.364373999998,6516.9010279999993,6539.8906910000014,6544.5420079999985,6558.3092369999995,6566.9448809999994,6585.9438580000024,6587.3141149999974,6308.251376000002,6206.8681409999999,6228.0711509999992,6215.2538849999992,6214.8182820000002,6213.0071650000018,6199.70021,6192.1474469999994,6213.783531,6231.7736949999999,6235.6047509999989,6243.9043479999991,6258.972291,5816.5602420000032,5667.796049999999,5535.9682219999995,5534.725978999998,5593.0525609999995,5872.6780080000026,6029.9476259999992,6119.3433669999995,6031.5123229999999,5940.6943699999974,6005.6044780000002,6028.795535000002,5990.1853379999984,6012.8055260000001,6126.0749790000009,6177.4379659999986,6227.630608999998,6319.906230999999,6379.5084650000017,6374.596467999997,6342.6116539999985,6333.7746179999986,6345.4619209999992,6292.2873809999992,6385.3257029999986,6366.3965500000013,6385.9860820000013,6356.8613329999989,6332.3000979999988,6351.1144579999982,6313.5054869999994,6318.5080370000023,6349.6772249999976,6283.7256320000006,6294.931611,6310.8082160000004,6341.2980589999988,6299.9232999999995,6277.7440620000007,6291.6667820000002,6341.5631549999989,6351.4527099999987,6335.9264959999982,6240.5984600000011,6183.9844490000023,6147.2432050000007,6086.2348430000011,6072.8131870000007,6063.070289000002,6046.1381239999992,6101.8411090000009,6026.9946980000013,6024.6995630000019,6040.942595999999,6016.4806909999988,6056.3046790000008,5912.1311070000029,5724.6151129999989,5484.0670549999986,5426.3652409999995,5369.5385420000002,5263.771200000001,5280.671096,5355.0242159999989,5396.3059409999987,5393.3176809999995,5302.2917269999998,5121.6783880000003,5062.5418089999976,4990.6095129999994,4820.4192279999979,4694.8932600000016,4749.7519579999989,4749.138057000001,4652.5349219999998,4441.2151509999985,4614.9390970000004,4593.354405000001,5025.4779519999993,5399.7092520000006,4989.3899389999997,4534.054971999999,4459.4090499999975,4725.7203550000004,4970.8525330000002,5035.030338999999,5460.837719000001,5829.6279480000021,5426.8898989999998,5728.5822260000004,5865.6355309999999,5504.9651280000007,5476.1184219999986,5514.2315169999993,5485.9715429999997,5704.0114050000011,6261.0241810000007,6381.8651600000003,6034.3695890000017,6064.1147440000013,6026.9310109999997,5923.0486899999987,5894.0859309999996,5848.1808919999994,5842.4049749999995,5990.7385730000033,6028.942965000002,6053.0844890000008,5998.7605879999992,5882.9058849999992,6139.5505710000007,6239.9221860000016,6198.4118129999988,6178.4431529999993,6106.990275000001,6065.1037860000015,6100.1658660000021,6154.6529019999989,6083.2097170000006,6127.8483840000008,6048.7017829999995,6092.8893360000002,5935.8191549999992,5821.6936679999999,5851.0307579999999,5704.3743790000017,5595.1229030000004,5722.9895030000025,5716.1198770000001,5588.359918000001,5541.0514269999985,5482.5521389999967,5485.1915550000012,5418.167371999999,5360.349119999998,5300.0474159999994,5204.1598879999992,5192.2230939999981,5090.0344409999989,5062.4302120000011,5025.1600120000003,4967.2626409999984,4924.4766409999966,4754.811525000001,4844.8469729999988,4863.5124850000011,4830.2665609999985,4805.5724819999996,4852.5696659999994,4864.694712999998,4868.8445149999989,4793.8711389999989,4966.6102090000013,5033.5973960000001,5067.7434129999983,4896.9253430000008,4903.0642899999984,4891.1365340000002,4793.0729769999989,4802.2733479999979,4847.9398139999994,4840.9674299999988,4864.2946110000003,4839.8300159999999,4749.8646219999982,4734.1529880000007,4722.7952749999977,4737.8937409999999,4721.40193,4793.939758999999,4776.8743769999992,4762.277774000002,4730.0281209999994,4733.1182009999975,4699.7694650000003,4634.1448979999986,4669.775803999999,4629.836233,4536.08259,4382.8060839999998,4178.5623460000006,4008.6283069999995,3890.1600900000003,3814.7726309999994,3718.0557050000002,3660.9715449999999,3653.6703269999994,3641.691119999999,3651.7910229999993,3663.1568049999992,3652.1332890000012,3644.6694499999994,3656.1647859999994,3697.481745,3711.3173290000013,3659.832879,3671.7243539999995,3696.75857,3716.2995530000003,3744.5209969999992,3771.3275820000003,3754.8943909999994,3739.5719190000004,3723.3979800000002,3642.3497110000003,3644.0613319999993,3649.2236830000002,3604.9956740000002,3570.9432040000002,3502.7841020000005,3435.818945,3421.1023759999989,3386.773725999999,3346.016474,3369.4392690000004,3339.8848360000002,3284.116235,3247.1928129999992,3194.3945480000002,3139.4930159999999,3074.1106529999988,3030.511724,2933.648095,2862.5873549999992,2837.3132239999991,2812.2346390000002,2781.7282449999998,2741.7257810000001,2734.275177,2687.043846999999,2607.144284,2590.5362369999989,2565.469857,2544.8577999999989,2499.2522259999987,2446.9020069999992,2421.6103539999995,2390.7888779999994,2381.9233239999999,2367.0568869999993,2347.1301659999995,2340.6323930000003,2353.2284610000002,2348.6495540000001,2356.2207839999992,2387.6469539999994,2415.3649289999989,2409.2482409999998,2398.9430529999991,2390.7515329999992,2427.5544989999999,2476.419688,2469.681239999999,2485.8095149999995,2498.006425999999,2509.8203749999993,2543.0044530000005,2584.9585779999993,2616.9357029999992,2613.28449,2637.262764999999,2672.7894940000001,2706.1277859999991,2730.7599799999989]"]),
+	
+	peak_gen_solar_iso_rtd = [14980, 17190, 15770, 15750, 16560, 16850, 16300, 14380, 15370, 16850, 16590, 16640, 16580, 16610, 16350],
+	
+	peak_gen_wind_iso_rtd = [4326, 3569, 2469, 4607, 4506, 3641, 4341, 4751, 4472, 1904, 1352, 1912, 1573, 1041, 1631],
+	
+	peak_gen_solar_weim_rtd = [9711, 9991, 10160, 7703, 9252, 9361, 8681, 8252, 9341, 9350, 9560, 9426, 8998, 9129, 9489],
+	
+	peak_gen_wind_weim_rtd = [8848, 8042, 4401, 3852, 3118, 5362, 6881, 7111, 6405, 3760, 5761, 4777, 2735, 7342, 6628],
+	
+	curt_hourly_econ_local = JSON.parse(["[2.091666666566756e-05,0,0,2.883333333621636e-05,0.00013925583333731099,0.000108835000004873,0.70973062374708418,217.21371564758201,23.584983355833216,9.4565746476914612,55.379947196752987,6.8380185585621502,12.79626777916663,171.45930395266902,456.96601606430698,7.5160561774999195,1.09619511,0,2.9675833331429157e-05,3.1517500003137848e-05,3.0585000002233957e-05,1.2099166667530829e-05,4.3416666657414299e-06,5.8466666716198496e-06]"]),
+	curt_hourly_econ_system = JSON.parse(["[0.1000202541666655,0,0.00016552000000437801,0.00010168083333943701,0.000185681666664346,0.000244768333335599,0.052972669999977594,78.251713956130558,79.959552295813921,162.32165836750801,0.0251761224997748,28.83979880657051,178.74638469563402,65.8443055943101,111.93140928225002,6.9541724658332296,4.2567697333333099,4.9308333333888489e-05,5.800666666907113e-05,5.376083333269676e-05,3.250166666540303e-05,3.1024999990076699e-06,9.4533333307468096e-06,9.4225000045004402e-06]"]),
+	curt_hourly_ss_local = JSON.parse(["[0,0,0,0,0,0,0,0,0.064833333333333798,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hourly_ss_system = JSON.parse(["[0,0,0,0,0,0,0.037499999999999999,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hourly_oi_local = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hourly_oi_system = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+
+	curt_hourly_max_econ_local = JSON.parse(["[0,0,0,0,0,0,8.5067352949649884,907.45000737000009,0,0,77.256332984010527,0,0,461.20499935231203,937.02898209,90.108047119999654,0,0,0,0,0,0,0,0]"]),
+	curt_hourly_max_econ_system = JSON.parse(["[0.31999995999999981,0,0,0,0,0,0.56486765999994226,304.59614586623104,240.994201193647,270.66137514000008,0,207.32247920884902,246.8553368,0,60.313667789999883,82.779312939999912,19.309480629999932,0,0,0,0,0,0,0]"]),
+	curt_hourly_max_ss_local = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hourly_max_ss_system = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hourly_max_oi_local = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hourly_max_oi_system = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	
+	curt_daily_econ_local_mwh = [22480, 6110, 3807, 2082, 4669, 4716, 1286, 23670, 5495, 5047, 3125, 4157, 1387, 205.5, 963],
+	curt_daily_econ_system_mwh = [80.56, 4586, 1.117, 10.05, 19.9, 0.9911, 0.9931, 62.82, 31.87, 10.9, 22.17, 11.3, 9.665, 54.19, 717.3],
+	curt_daily_ss_local_mwh = [59.17, 53.62, 45.64, 37.77, 56.94, 55.52, 8.8, 44.26, 43.13, 53.45, 60.72, 104.8, 19.81, 0.0025, 0.06483],
+	curt_daily_ss_system_mwh = [0.01158, 0.011, 0.085, 0, 0, 0, 0, 0, 0.00825, 0, 0, 0, 0.3658, 0.06583, 0.0375],
+	curt_daily_oi_local_mwh = [0, 0, 0, 0, 0, 0, 32.78, 329.1, 0, 0, 0, 0, 0, 0, 0],
+	curt_daily_oi_system_mwh = [0, 0, 0, 0, 0, 0, 5.761e-05, 0, 0, 0, 0, 0, 0, 0, 0],
+	
+	curt_daily_econ_local_mw = [4509, 28.21, 1317, 1802, 1270, 947, 1119, 4967, 1783, 2620, 991.3, 1227, 742, 324, 907.5],
+	curt_daily_econ_system_mw = [0, 3215, 0, 0, 0, 0, 0, 4.137, 0, 0, 0, 0, 0, 0, 304.6],
+	curt_daily_ss_local_mw = [6.489, 10.2, 5.349, 0, 0, 4.707, 0, 0, 0, 6.195, 17.7, 1.124, 0, 0, 0],
+	curt_daily_ss_system_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_daily_oi_local_mw = [0, 0, 0, 0, 0, 0, 0, 124.3, 0, 0, 0, 0, 0, 0, 0],
+	curt_daily_oi_system_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	
+	curt_hr_max_solar_econ_local_mw = [0, 0, 0, 0, 0, 0, 0, 907.4, 0, 0, 29.39, 0, 0, 461, 936.6, 89.99, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_solar_econ_system_mw = [0, 0, 0, 0, 0, 0, 0.5648, 300.5, 241, 270.7, 0, 207.3, 246.7, 0, 60.31, 82.78, 19.31, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_solar_ss_local_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_solar_ss_system_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_solar_oi_local_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_solar_oi_system_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	
+	curt_hr_max_wind_econ_local_mw = [0, 0, 0, 0, 0, 0, 8.505, 0.07001, 0, 0, 56.41, 0, 0, 0.36, 0, 0.12, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_wind_econ_system_mw = [0.32, 0, 0, 0, 0, 0, 0, 4.07, 0, 0, 0, 0, 0.326, 0, 3.11, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_wind_ss_local_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_wind_ss_system_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_wind_oi_local_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	curt_hr_max_wind_oi_system_mw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	
+	curt_hr_tot_solar_econ_local_mwh = JSON.parse(["[0,0,0,0,0,1.6666666611634769e-09,0.00091541583333201498,217.18037748591502,23.584964689166551,9.4565697310247891,21.908277619252988,6.8380138085621498,12.777932279166629,171.30513070600301,456.723011398474,7.5060514258332596,1.0961897724999898,0,0,0,0,0,0,0]"]),
+	curt_hr_tot_solar_econ_system_mwh = JSON.parse(["[0,0,0,0,0,1.08333333530738e-08,0.052873240833312102,77.39667294613055,79.959519953313915,162.32165111667402,0.025171204166443601,28.83979313657051,178.6808413373,65.780970344310091,111.65307368141701,6.9541673808332298,4.2567649824999796,1.6799166666657529e-05,0,0,0,0,0,0]"]),
+	curt_hr_tot_solar_ss_local_mwh = JSON.parse(["[0,0,0,0,0,0,0,0,0.064833333333333798,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hr_tot_solar_ss_system_mwh = JSON.parse(["[0,0,0,0,0,0,0.037499999999999999,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hr_tot_solar_oi_local_mwh = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hr_tot_solar_oi_system_mwh = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	
+	curt_hr_tot_wind_econ_local_mwh = JSON.parse(["[0,0,0,0,0,0,0.7088152079137523,0.033338161666661696,0,0,33.471669577500002,0,0.0183354999999993,0.15417324666666721,0.24300466583333102,0.0100047516666647,0,0,0,0,0,0,0,0]"]),
+	curt_hr_tot_wind_econ_system_mwh = JSON.parse(["[0.1000202541666655,0,0,0,0,0,0,0.8550410099999981,0,0,0,0,0.065543358333339199,0.063335250000001189,0.27833560083333053,0,0,0,0,0,0,0,0,0]"]),
+	curt_hr_tot_wind_ss_local_mwh = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hr_tot_wind_ss_system_mwh = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hr_tot_wind_oi_local_mwh = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	curt_hr_tot_wind_oi_system_mwh = JSON.parse(["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"]),
+	
+	curt_hourly_ytd_econ_local_mwh = JSON.parse(["[4618.0946433783156,4132.2136966731314,3836.1154672704502,3688.9086767578001,3277.037279040861,3352.9425445405359,4169.2726740770231,38938.676574400502,181269.99983691459,301127.32685212209,320596.23878323339,326999.46226935042,329781.07887436438,374117.30253372469,410864.93179695599,376801.07120463619,244287.7686140096,100105.29401114112,23405.481967743599,6592.2921001259338,3959.3962452352921,4158.4769370946333,4398.4583130848514,4011.0433048313862]"]),
+  curt_hourly_ytd_econ_system_mwh = JSON.parse(["[229.51585139833301,197.11201449916601,196.815738658333,76.107322052499327,47.23608198083263,21.874141042499357,215.37919192537203,2873.1000697153122,6678.0745787923415,11969.037723955,35542.271131961708,62186.234815250005,91157.935183387308,98611.254259385809,118073.90574742551,88135.464705521314,65877.16227613941,24373.476324408901,2053.743828356924,970.19390742469807,181.05457648416601,138.98838288666602,88.917884636665946,159.85559971916601]"]),
+  curt_hourly_ytd_ss_local_mwh = JSON.parse(["[0,0,0,0,0,0,0.17233303912524389,26.733266098834061,57.705267858396297,282.44107693109305,734.78583138658598,1398.4791323678271,1582.5742046671521,1776.9958921060143,1529.690148736026,1054.8332960785551,260.91134898430005,166.37751356975099,198.28009488093599,27.60459177550436,0.0050000000000000001,2.25585268962661,0,0]"]),
+  curt_hourly_ytd_ss_system_mwh = JSON.parse(["[0,0,0,0,0,0,3.7936111111083299,0.065833333333333396,0.084301516666666701,0.75081666666666669,0.52080833333333321,44.588699999999996,0.46499166666666625,0,37.174377735395908,13.480817896874679,6.2570952939582494,4.2261229658334702,4.3123519074008296,6.1098333333333397,0,0,0,3.9983333333333295]"]),
+  curt_hourly_ytd_oi_local_mwh = JSON.parse(["[0,0,0,0,0,0,0,0,104.44722513120101,950.20238798182504,567.28556681055306,426.35789772434299,654.48321462046908,1010.262661266515,2015.43103851867,2462.742014815567,1547.6972421598821,620.56293160228904,426.06742355880203,62.508190831999656,2.233333331047582e-07,2.4166666653021207e-07,2.4166666653021207e-07,2.1583333342789501e-07]"]),
+  curt_hourly_ytd_oi_system_mwh = JSON.parse(["[0,0,0,0,0,0,0,0,1.14163299583333,0.3360554316666664,31.346678149166646,49.556668420833311,56.735001193333325,66.166666349166661,50.42597324916666,20.737500444999991,24.733247466227549,0.079168678333330203,3.0641666649936904e-06,1.3816666642116299e-06,1.58333333485916e-07,3.3166666509506132e-07,2.5416666638022884e-07,5.0916666675486044e-07]"]),
+	
+	curt_monthly_ytd_econ_local_mwh = JSON.parse(["[123996.131,482112.695,606175.656,576439.034,400282.929,211287.172,141613.31,124124.868,167832.762,243455.806,1168.523]"]),
+	curt_monthly_ytd_econ_system_mwh = JSON.parse(["[6270.032,20380.505,312693.217,161296.736,50739.583,39062.872,1683.343,4276.977,2583.628,10296.342,771.476]"]),
+  curt_monthly_ytd_ss_local_mwh = JSON.parse(["[0.788,23.184,150.666,449.03,660.46,1714.721,1519.765,1643.592,1203.3,1734.271,0.067]"]),
+  curt_monthly_ytd_ss_system_mwh = JSON.parse(["[0,0,0,0,0,14.695,76.407,7.961,25.577,1.084,0.103]"]),
+  curt_monthly_ytd_oi_local_mwh = JSON.parse(["[0,0,0,0,0,1296.936,578.448,63.453,7991.929,917.282,0]"]),
+  curt_monthly_ytd_oi_system_mwh = JSON.parse(["[0,0,0,0,0,295.888,1.667e-09,0,3.044,2.326,0]"]),
+	
+	curt_monthly_ytd_perc_mwh = [2.92, 0.51, 2.52, 9.04, 12.44, 8.64, 4.97, 3.2, 1.71, 1.73, 2.99, 4.38, 0.63],
+	
+	<!-- colors -->
+	
+	price_bin_colors_invert = ['#031970', '#0426b0', '#062fd6', '#1642f5', '#3f62f2',
+	'#6f82d1', '#edeb55', '#edbf55', '#eb902f', '#ed7c02', '#de4618', '#b02a02'],
+	
+	price_bin_colors = ['#b02a02', '#de4618', '#ed7c02', '#eb902f', '#edbf55',
+	'#edeb55', '#6f82d1', '#3f62f2', '#1642f5', '#062fd6', '#0426b0', '#031970'],
+
+  stack_colors_four = ['#064789', '#db0d4e', '#679436', '#db590d', '#DCD6F7'],
+  
+  line_colors = ['#064789', '#db0d4e', '#679436', '#FFA500', '#062fd6', '#FFFF00'];
+
+
+<!-- JSBlock Chart Options/Theme -->
+
+Highcharts.setOptions({
+	chart: {
+			type: 'line',
+			margin: [15,40,80,80],
+			style: {
+				fontFamily: 'arial, helvetica, sans-serif'
+			},
+			resetZoomButton: {
+				theme: {
+					zIndex: 999999
+				}
+			},
+			zoomType: 'x'
+		},
+	xAxis: { 				
+		lineColor: '#b2b2b2',
+		gridLineWidth: .5,
+		gridLineColor: 'grey',
+	},
+	yAxis: [{ // left y axis
+		labels: {
+			align: 'right',
+			x: -10,
+			y: 3
+		},
+		gridLineColor: 'grey',
+		showFirstLabel: true,
+		gridLineWidth: .5,
+		minorTickLength: 0,
+		tickLength: 0
+	}],
+
+	legend: {
+		align: 'center',
+		verticalAlign: 'bottom',
+		y: 10,
+		floating: false,
+		borderWidth: 0
+	},
+
+	tooltip: {
+		shared: true,
+		crosshairs: true,
+		borderColor: '#637d97',
+		useHTML: true,
+		backgroundColor: 'rgba(255,255,255,0.9)',
+		delayForDisplay: 10,
+		valueDecimals: 2
+	},
+	colors: ['#925899', '#3e7ad3', '#00c7b1', '#ffa300'],
+	credits: {
+		enabled: false
+	},
+	plotOptions: {
+		series: {
+			cursor: 'pointer',
+			dataLabels: {
+				allowOverlap: true,
+				zIndex: 0,
+				className: 'highlight'
+			},
+			marker: {
+				lineWidth: .5
+				
+			}				
+		}
+	},
+	annotationsOptions: {
+		enabledButtons: false
+	},
+	exporting: {
+        enabled: true,
+    filename: ($('title').text()).toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-'),
+    buttons: {
+        contextButton: {
+            menuItems: ['downloadCSV'],
+        }
+    },
+    },
+});	
+    
+//https://learnui.design/tools/data-color-picker.html#palette
+Highcharts.theme = {
+   //colors: ['#4F758B', '#323E00', '#00c7b1', '#cf4520', '#E2856E', '#ff0066', '#eeaaee', '#55BF3B', '#DF5353', '#7798BF', '#aaeeee'],
+   colors: ['#3700b3', '#79AEA3', '#F7AF9D', '#947EB0', '#DC6BAD', '#ff0066', '#eeaaee', '#55BF3B', '#DF5353', '#7798BF', '#aaeeee'],
+   chart: {
+      style: {
+         fontFamily: 'arial, helvetica, sans-serif'
+      }
+   },
+   title: {
+      style: {
+         color: 'black',
+         fontSize: '16px',
+         fontWeight: 'bold'
+      }
+   },
+   subtitle: {
+      style: {
+         color: 'black'
+      }
+   },
+   tooltip: {
+      borderWidth: 0
+   },
+   legend: {
+      itemStyle: {
+         fontWeight: 'bold',
+         fontSize: '13px'
+      }
+   },
+   xAxis: {
+      labels: {
+         style: {
+            color: '#6e6e70'
+         }
+      }
+   },
+   yAxis: {
+      labels: {
+         style: {
+            color: '#6e6e70'
+         }
+      }
+   },
+   plotOptions: {
+      series: {
+         shadow: false,
+		 marker: {
+			enabled: false
+		}
+      },
+      candlestick: {
+         lineColor: '#404048'
+      },
+      map: {
+         shadow: false
+      }
+   },
+
+   // Highstock specific
+   navigator: {
+      xAxis: {
+         gridLineColor: '#D0D0D8'
+      }
+   },
+   rangeSelector: {
+      buttonTheme: {
+         fill: 'white',
+         stroke: '#C0C0C8',
+         'stroke-width': 1,
+         states: {
+            select: {
+               fill: '#D0D0D8'
+            }
+         }
+      }
+   },
+   scrollbar: {
+      trackBorderColor: '#C0C0C8'
+   },
+
+   // General
+   background2: '#E0E0E8'
+
+};
+
+// Apply the theme
+Highcharts.setOptions(Highcharts.theme);
+
+var base_options = {
+	chart: {
+      zoomType: 'x'
+    },
+	title: {
+		text: null
+	},
+	plotOptions: {
+		series: {
+			marker: {
+				enabled: false
+			},
+			fillOpacity: .75
+		},
+		area: {
+			stacking: undefined //use undefined (no quotes) for no stacking
+		},
+		column: {
+		  stacking: 'normal',
+		  borderColor: '#000000',
+		  borderWidth: 0.5
+		}
+	},
+    xAxis: {
+      type: 'datetime'
+    }
+};
+
+var base_options_monthly = {
+	chart: {
+      zoomType: 'x'
+    },
+	title: {
+		text: null
+	},
+	plotOptions: {
+		series: {
+			marker: {
+				enabled: false
+			},
+			fillOpacity: .75
+		},
+		area: {
+			stacking: undefined //use undefined (no quotes) for no stacking
+		},
+		column: {
+		  stacking: 'normal',
+		  borderColor: '#000000',
+		  borderWidth: 0.5
+		}
+	},
+    xAxis: {
+      type: 'datetime',
+      min: Date.UTC(2025, 0 , 1),
+      labels: {
+        format: '{value:%b %Y}'
+      }
+    }
+};
+
+var index_rtd = {
+	plotOptions: {
+		series: {
+			pointInterval: 5*60 * 1000
+		}
+	}	
+};
+
+var index_rtpd = {
+	plotOptions: {
+		series: {
+			pointInterval: 15*60 * 1000
+		}
+	}	
+};
+
+var index_ifm = {
+	plotOptions: {
+		series: {
+			pointInterval: 60*60 * 1000
+		}
+	}	
+};
+
+var index_daily = {
+	plotOptions: {
+		series: {
+			pointInterval: 24 * 60*60 * 1000 //one day
+		}
+	}	
+};
+
+var index_monthly = {
+	plotOptions: {
+		series: {
+			pointInterval: 24 * 60 * 60 * 1000 * 30  //one day
+		}
+	}	
+};
+
+
+var date_options = {
+	plotOptions: {
+		series: {
+			pointStart: Date.UTC(2025, 10, 2),
+		}
+	}
+};
+
+
+var chart_date = new Date(Date.UTC(2025, 10, 2));  // Keep the original chart_date intact
+var adjusted_date = new Date(chart_date);  // Copy chart_date to preserve the original
+adjusted_date.setDate(adjusted_date.getDate() - 14);
+var date_daily_options = {
+	plotOptions: {
+    series: {
+      pointStart: adjusted_date.getTime(), // Convert the date to a timestamp (in milliseconds)
+    }
+  }
+};
+
+
+var monthly_date_options = {
+	plotOptions: {
+		series: {
+			pointStart: Date.UTC(2025, 0, 1),
+			pointInterval: 30 * 24 * 60 * 60 * 1000 
+		}
+	}
+};
+
+var index_rolling_12 = {
+	plotOptions: {
+		series: {
+			pointInterval: 30 * 24 * 60 * 60 * 1000
+		}
+	}
+};
+
+var currentDate = new Date();
+var twelveMonthsAgo = new Date(currentDate.setMonth(currentDate.getMonth() - 12));
+var chartStartDate = new Date(twelveMonthsAgo.getFullYear(), twelveMonthsAgo.getMonth() - 1, 1); 
+
+var date_options_rolling_12 = {
+  plotOptions: {
+    series: {
+      pointStart: Date.UTC(chartStartDate.getFullYear(), chartStartDate.getMonth(), 1),
+    }
+  }
+};
+
+var base_options_rolling_12months = {
+  chart: {
+    zoomType: 'x'
+  },
+  title: {
+    text: null
+  },
+  plotOptions: {
+    series: {
+      marker: {
+        enabled: false
+      },
+      fillOpacity: .75
+    },
+    area: {
+      stacking: undefined // no stacking
+    },
+    column: {
+      stacking: 'normal',
+      borderColor: '#000000',
+      borderWidth: 0.5
+    }
+  },
+  xAxis: {
+    type: 'datetime',
+    // Dynamically set the x-axis to always show the last 12 months
+    min: Date.UTC(chartStartDate.getFullYear(), chartStartDate.getMonth(), 1),
+    labels: {
+      format: '{value:%b %Y}' // Show months as "Jan 2025", "Feb 2025", etc.
+    }
+  }
+};
+
+//Market Performance Tab
+
+//Total Gen Solar ISO
+var options_tot_gen_solar_iso = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_tot_gen_solar_iso',
+		type: "line"
+	},
+	yAxis: {
+		title: {
+			text: "MW"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MW',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: tot_gen_solar_iso_rtd,
+	  name: "RTD"
+	},
+	{
+	  data: tot_gen_solar_iso_rtpd,
+	  name: "FMM"
+	},
+	{
+	  data: tot_gen_solar_iso_ifm,
+	  name: "IFM"
+	},
+	{
+	  data: tot_gen_solar_iso_telem,
+	  name: "ACTUALS"
+	},
+	{
+	  data: tot_gen_solar_iso_forec,
+	  name: "DA-FORECAST"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_tot_gen_solar_iso = jQuery.extend(true, {}, base_options, date_options, index_rtd, options_tot_gen_solar_iso);
+
+var hc_tot_gen_solar_iso = new Highcharts.Chart(options_tot_gen_solar_iso);
+
+//Total Gen Solar WEIM
+var options_tot_gen_solar_weim = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_tot_gen_solar_weim',
+		type: "line"
+	},
+	yAxis: {
+		title: {
+			text: "MW"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MW',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: tot_gen_solar_weim_rtd,
+	  name: "RTD"
+	},
+	{
+	  data: tot_gen_solar_weim_rtpd,
+	  name: "FMM"
+	},
+	{
+	  data: tot_gen_solar_weim_rtbs,
+	  name: "Base Schedule"
+	},
+	{
+	  data: tot_gen_solar_weim_telem,
+	  name: "ACTUALS"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_tot_gen_solar_weim = jQuery.extend(true, {}, base_options, date_options, index_rtd, options_tot_gen_solar_weim);
+
+var hc_tot_gen_solar_weim = new Highcharts.Chart(options_tot_gen_solar_weim);
+
+
+//Total Gen Wind
+var options_tot_gen_wind_iso = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_tot_gen_wind_iso',
+		type: "line"
+	},
+	yAxis: {
+		title: {
+			text: "MW"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MW',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: tot_gen_wind_iso_rtd,
+	  name: "RTD"
+	},
+	{
+	  data: tot_gen_wind_iso_rtpd,
+	  name: "FMM"
+	},
+	{
+	  data: tot_gen_wind_iso_ifm,
+	  name: "IFM"
+	},
+	{
+	  data: tot_gen_wind_iso_telem,
+	  name: "ACTUALS"
+	},
+	{
+	  data: tot_gen_wind_iso_forec,
+	  name: "DA-FORECAST"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_tot_gen_wind_iso = jQuery.extend(true, {}, base_options, date_options, index_rtd, options_tot_gen_wind_iso);
+
+var hc_tot_gen_wind_iso = new Highcharts.Chart(options_tot_gen_wind_iso);
+
+//Total Gen Wind WEIM
+var options_tot_gen_wind_weim = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_tot_gen_wind_weim',
+		type: "line"
+	},
+	yAxis: {
+		title: {
+			text: "MW"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MW',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: tot_gen_wind_weim_rtd,
+	  name: "RTD"
+	},
+	{
+	  data: tot_gen_wind_weim_rtpd,
+	  name: "FMM"
+	},
+	{
+	  data: tot_gen_wind_weim_rtbs,
+	  name: "Base Schedule"
+	},
+	{
+	  data: tot_gen_wind_weim_telem,
+	  name: "ACTUALS"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_tot_gen_wind_weim = jQuery.extend(true, {}, base_options, date_options, index_rtd, options_tot_gen_wind_weim);
+
+var hc_tot_gen_wind_weim = new Highcharts.Chart(options_tot_gen_wind_weim);
+
+
+//Curtailment Hourly
+var options_curt_hourly = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_hourly',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MWh"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MWh',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: curt_hourly_econ_local,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_hourly_econ_system,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_hourly_ss_local,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_hourly_ss_system,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_hourly_oi_local,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_hourly_oi_system,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_curt_hourly = jQuery.extend(true, {}, base_options, date_options, index_ifm, options_curt_hourly);
+
+var hc_curt_hourly = new Highcharts.Chart(options_curt_hourly);
+
+
+//Curtailment Hourly Max
+var options_curt_hourly_max = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_hourly_max',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MW"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MW',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: curt_hourly_max_econ_local,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_hourly_max_econ_system,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_hourly_max_ss_local,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_hourly_max_ss_system,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_hourly_max_oi_local,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_hourly_max_oi_system,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_curt_hourly_max = jQuery.extend(true, {}, base_options, date_options, index_ifm, options_curt_hourly_max);
+
+var hc_curt_hourly_max = new Highcharts.Chart(options_curt_hourly_max);
+
+
+//Curtailment Daily MWh
+var options_curt_daily_mwh = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_daily_mwh',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MWh"
+		}
+    },
+	series: [
+	{
+	  data: curt_daily_econ_local_mwh,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_daily_econ_system_mwh,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_daily_ss_local_mwh,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_daily_ss_system_mwh,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_daily_oi_local_mwh,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_daily_oi_system_mwh,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_curt_daily_mwh = jQuery.extend(true, {}, base_options, date_daily_options, index_daily, options_curt_daily_mwh);
+
+var hc_curt_daily_mwh = new Highcharts.Chart(options_curt_daily_mwh);
+
+//Curtailment Daily MW
+var options_curt_daily_mw = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_daily_mw',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MW"
+		}
+    },
+	series: [
+	{
+	  data: curt_daily_econ_local_mw,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_daily_econ_system_mw,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_daily_ss_local_mw,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_daily_ss_system_mw,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_daily_oi_local_mw,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_daily_oi_system_mw,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_curt_daily_mw = jQuery.extend(true, {}, base_options, date_daily_options, index_daily, options_curt_daily_mw);
+
+var hc_curt_daily_mw = new Highcharts.Chart(options_curt_daily_mw);
+
+//Curtailment Hourly Max Solar MW
+var options_curt_hr_max_solar = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_hr_max_solar',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MW"
+		}
+    },
+	series: [
+	{
+	  data: curt_hr_max_solar_econ_local_mw,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_hr_max_solar_econ_system_mw,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_hr_max_solar_ss_local_mw,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_hr_max_solar_ss_system_mw,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_hr_max_solar_oi_local_mw,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_hr_max_solar_oi_system_mw,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_curt_hr_max_solar = jQuery.extend(true, {}, base_options, date_options, index_ifm, options_curt_hr_max_solar);
+
+var hc_curt_hr_max_solar = new Highcharts.Chart(options_curt_hr_max_solar);
+
+//Curtailment Hourly Max Wind MW
+var options_curt_hr_max_wind = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_hr_max_wind',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MW"
+		}
+    },
+	series: [
+	{
+	  data: curt_hr_max_wind_econ_local_mw,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_hr_max_wind_econ_system_mw,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_hr_max_wind_ss_local_mw,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_hr_max_wind_ss_system_mw,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_hr_max_wind_oi_local_mw,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_hr_max_wind_oi_system_mw,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_curt_hr_max_wind = jQuery.extend(true, {}, base_options, date_options, index_ifm, options_curt_hr_max_wind);
+
+var hc_curt_hr_max_wind = new Highcharts.Chart(options_curt_hr_max_wind);
+
+//Curtailment Hourly Total Solar MWh
+var options_curt_hr_max_solar = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_hr_max_solar',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MW"
+		}
+    },
+	series: [
+	{
+	  data: curt_hr_max_solar_econ_local_mw,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_hr_max_solar_econ_system_mw,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_hr_max_solar_ss_local_mw,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_hr_max_solar_ss_system_mw,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_hr_max_solar_oi_local_mw,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_hr_max_solar_oi_system_mw,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_curt_hr_max_solar = jQuery.extend(true, {}, base_options, date_options, index_ifm, options_curt_hr_max_solar);
+
+var hc_curt_hr_max_solar = new Highcharts.Chart(options_curt_hr_max_solar);
+
+//Curtailment Hourly Total Solar MWh
+var options_curt_hr_tot_solar = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_hr_tot_solar',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MWh"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MWh',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: curt_hr_tot_solar_econ_local_mwh,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_hr_tot_solar_econ_system_mwh,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_hr_tot_solar_ss_local_mwh,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_hr_tot_solar_ss_system_mwh,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_hr_tot_solar_oi_local_mwh,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_hr_tot_solar_oi_system_mwh,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_curt_hr_tot_solar = jQuery.extend(true, {}, base_options, date_options, index_ifm, options_curt_hr_tot_solar);
+
+var hc_curt_hr_tot_solar = new Highcharts.Chart(options_curt_hr_tot_solar);
+
+//Curtailment Hourly Total Wind MWh
+var options_curt_hr_tot_wind = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_hr_tot_wind',
+		type: "column"
+	},
+		yAxis: {
+		title: {
+			text: "MWh"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MWh',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: curt_hr_tot_wind_econ_local_mwh,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_hr_tot_wind_econ_system_mwh,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_hr_tot_wind_ss_local_mwh,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_hr_tot_wind_ss_system_mwh,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_hr_tot_wind_oi_local_mwh,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_hr_tot_wind_oi_system_mwh,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_curt_hr_tot_wind = jQuery.extend(true, {}, base_options, date_options, index_ifm, options_curt_hr_tot_wind);
+
+var hc_curt_hr_tot_wind = new Highcharts.Chart(options_curt_hr_tot_wind);
+
+
+//Hourly Profile of YTD Curtailed MWh
+var options_hourly_ytd = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_hourly_ytd',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MWh"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MWh',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: curt_hourly_ytd_econ_local_mwh,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_hourly_ytd_econ_system_mwh,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_hourly_ytd_ss_local_mwh,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_hourly_ytd_ss_system_mwh,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_hourly_ytd_oi_local_mwh,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_hourly_ytd_oi_system_mwh,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 24*60*60 * 1000
+};
+
+options_hourly_ytd = jQuery.extend(true, {}, base_options, date_options, index_ifm, options_hourly_ytd);
+
+var hc_hourly_ytd = new Highcharts.Chart(options_hourly_ytd);
+
+
+
+var startDate = new Date(Date.UTC(2025, 0, 1));
+var today = new Date();
+var x_vals = [];
+
+while (startDate <= today) {
+  x_vals.push(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), 1))
+  startDate.setUTCMonth(startDate.getUTCMonth() + 1);
+}
+
+var curt_monthly_ytd_econ_local_mwh = x_vals.map((x, i) => ({
+  x: x,
+  y: curt_monthly_ytd_econ_local_mwh[i] ?? null
+}));
+
+var curt_monthly_ytd_econ_system_mwh = x_vals.map((x, i) => ({
+  x: x,
+  y: curt_monthly_ytd_econ_system_mwh[i] ?? null
+}));
+
+var curt_monthly_ytd_ss_local_mwh = x_vals.map((x, i) => ({
+  x: x,
+  y: curt_monthly_ytd_ss_local_mwh[i] ?? null
+}));
+
+var curt_monthly_ytd_ss_system_mwh = x_vals.map((x, i) => ({
+  x: x,
+  y: curt_monthly_ytd_ss_system_mwh[i] ?? null
+}));
+
+var curt_monthly_ytd_oi_local_mwh = x_vals.map((x, i) => ({
+  x: x,
+  y: curt_monthly_ytd_oi_local_mwh[i] ?? null
+}));
+
+var curt_monthly_ytd_oi_system_mwh = x_vals.map((x, i) => ({
+  x: x,
+  y: curt_monthly_ytd_oi_system_mwh[i] ?? null
+}));
+
+
+//Monthly YTD Curtailed MWh
+var options_monthly_ytd = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_monthly_ytd',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "MWh"
+		},
+		labels: {
+    formatter: function () {
+      return Highcharts.numberFormat(this.value, 2, '.', ','); // No decimals, comma separator
+    }
+  }
+    },
+    tooltip: {
+    valueDecimals: 2, // Number of decimal places
+    valueSuffix: ' MWh',
+    valueThousandsSeparator: ','
+  },
+  plotOptions: {
+    series: {
+      dataGrouping: {
+        enabled: false
+      }
+    }
+  },
+	series: [
+	{
+	  data: curt_monthly_ytd_econ_local_mwh,
+	  name: "Economic - Local"
+	},
+	{
+	  data: curt_monthly_ytd_econ_system_mwh,
+	  name: "Economic - System"
+	},
+	{
+	  data: curt_monthly_ytd_ss_local_mwh,
+	  name: "Self Schedule Cut - Local"
+	},
+	{
+	  data: curt_monthly_ytd_ss_system_mwh,
+	  name: "Self Schedule Cut - System"
+	},
+	{
+	  data: curt_monthly_ytd_oi_local_mwh,
+	  name: "Operator Instruction - Local"
+	},
+	{
+	  data: curt_monthly_ytd_oi_system_mwh,
+	  name: "Operator Instruction - System"
+	}],
+	tickInterval: 30 * 24 * 60 * 60 * 1000,
+	tooltip: {
+  shared: true,
+  formatter: function () {
+    var date = new Date(this.x);
+    date.setUTCMonth(date.getUTCMonth() + 1); // Shift tooltip one month forward
+
+    var month = date.toLocaleString('default', { month: 'short' });
+    var year = date.getFullYear();
+
+    var s = '<b>' + month + ' ' + year + '</b><br/>';
+
+    this.points.forEach(function(point) {
+      s += '<span style="color:' + point.color + '">\u25CF</span> ' + 
+           point.series.name + ': <b>' + point.y + '</b><br/>';
+    });
+
+    return s;
+  }
+}
+};
+
+options_monthly_ytd = jQuery.extend(true, {}, base_options_monthly, monthly_date_options, index_monthly, options_monthly_ytd);
+
+var hc_monthly_ytd = new Highcharts.Chart(options_monthly_ytd);
+
+
+var x_vals = Array.from({length: 13}, (_, i) => Date.UTC(twelveMonthsAgo.getFullYear(), twelveMonthsAgo.getMonth() + i, 1));
+
+//Monthly YTD Curtailed MWh Percentage
+var options_monthly_perc = {
+  colors: line_colors,
+	chart: {
+		renderTo: 'chart_curt_monthly_ytd_perc',
+		type: "column"
+	},
+	yAxis: {
+		title: {
+			text: "Percent (%)"
+		}
+  },
+  xAxis: {
+  type: 'datetime',
+  tickPositions: x_vals,  // Force each month to be labeled
+  labels: {
+    formatter: function () {
+      const date = new Date(this.value);
+      const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+      const year = date.toLocaleString('en-US', { year: 'numeric', timeZone: 'UTC' });
+      return month + ' ' + year;
+    },
+    rotation: -45 // Optional: slant labels to avoid overlap
+  }
+},
+  legend: {enabled: false},
+	series: [
+	{
+	  data: curt_monthly_ytd_perc_mwh.map((val, i) => ({ x: x_vals[i], y: val })),
+	  name: "Curtailed MWh Percentage"
+	}],
+	tickInterval: 30 * 24 * 60 * 60 * 1000,
+	tooltip: {
+  formatter: function () {
+    var date = new Date(this.x);
+    var month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+    var year = date.toLocaleString('en-US', { year: 'numeric', timeZone: 'UTC' });
+    return '<b>' + month + ' ' + year + '</b>: ' + this.y;
+  }
+}
+};
+
+options_monthly_perc = jQuery.extend(true, {}, base_options_rolling_12months, date_options_rolling_12, index_rolling_12, options_monthly_perc);
+
+var hc_monthly_perc = new Highcharts.Chart(options_monthly_perc);
+
+// Hide and Show Pages
+$('#tabMarketPerformance').click(function() {
+	$('.page').hide();
+	$('#MarketPerformance').show();
+	$('.nav-item').removeClass('active');
+	$('#navMarketPerformance').addClass('active');
+	if(!($('#tabMarketPerformance').hasClass('loaded'))) {
+		// load items
+		$('#tabMarketPerformance').addClass('loaded');
+	}
+});
+
+$('#tabCurtailment').click(function() {
+	$('.page').hide();
+	$('#Curtailment').show();
+	$('.nav-item').removeClass('active');
+	$('#navCurtailment').addClass('active');
+	if(!($('#tabCurtailment').hasClass('loaded'))) {
+		// load items
+		$('#tabCurtailment').addClass('loaded');
+	}
+});
+$('#tabMarketPerformance').on("keydown", function(e) {
+                // Check if the Enter key was pressed
+                if (e.key === "Enter") {
+                                e.preventDefault();
+                                // Trigger the button click
+                                $(this).click();
+                }
+});
+$('#tabCurtailment').on("keydown", function(e) {
+                // Check if the Enter key was pressed
+                if (e.key === "Enter") {
+                                e.preventDefault();
+                                // Trigger the button click
+                                $(this).click();
+                }
+}); 
+
+});
+
+
+</script>
+
+
+
+</body>
+</html>
