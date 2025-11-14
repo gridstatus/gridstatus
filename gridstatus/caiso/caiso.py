@@ -2798,10 +2798,16 @@ class CAISO(ISOBase):
         Fetches the CAISO daily renewable report for a given date and extracts data from
         all the charts into wide dataframes.
         """
-        report_url = f"https://www.caiso.com/documents/daily-renewable-report-{date.strftime('%b-%d-%Y').lower()}.html"
-
-        response = requests.get(report_url)
-
+        slug = date.strftime("%b-%d-%Y").lower()
+        primary_url = (
+            f"https://www.caiso.com/documents/daily-renewable-report-{slug}.html"
+        )
+        response = requests.get(primary_url)
+        if response.status_code != 200:
+            corrected_url = f"https://www.caiso.com/documents/daily-renewable-report-{slug}-corrected.html"
+            corrected_response = requests.get(corrected_url)
+            if corrected_response.status_code == 200:
+                response = corrected_response
         if response.status_code != 200:
             raise ValueError(
                 f"Failed to fetch renewables report for {date.strftime('%Y-%m-%d')}: "
