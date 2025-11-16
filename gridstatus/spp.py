@@ -1,7 +1,9 @@
+import re
 import urllib
 from typing import BinaryIO, Callable
 
 import pandas as pd
+import pytz
 import requests
 import tqdm
 
@@ -284,20 +286,17 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: forecast as dataframe.
         """
-        # The short_term forecast is delayed up to 2 minutes.
-        buffer_minutes = 2
+        result = self._get_short_term_forecast_data(
+            date,
+            base_url=BASE_LOAD_FORECAST_SHORT_TERM_URL,
+            file_prefix="OP-STLF",
+            buffer_minutes=2,
+        )
 
-        if date == "latest":
-            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+        if result is None:
+            return None
 
-        # Files do not exist in the future
-        if date > self.now():
-            return
-
-        url = self._short_term_load_forecast_url(date.floor("5min"))
-
-        logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df, url = result
 
         # According to the docs, the end time col should be GMTIntervalEnd, but it's
         # only GMTInterval in the data
@@ -355,6 +354,73 @@ class SPP(ISOBase):
 
         return df
 
+    def _handle_dst_floor_date(
+        self,
+        date: pd.Timestamp,
+        freq: str = "5min",
+    ) -> tuple[pd.Timestamp, bool]:
+        """Handle DST transition when flooring a date.
+
+        Args:
+            date: The date to floor
+            freq: The frequency to floor to (e.g., "5min", "h")
+
+        Returns:
+            tuple: (floored_date, is_repeated_hour)
+        """
+        is_repeated_hour = False
+        try:
+            floored_date = date.floor(freq)
+        except pytz.AmbiguousTimeError:
+            is_repeated_hour = True
+            floored_date = self.safe_for_dst_transition_floor(date, freq)
+
+        return floored_date, is_repeated_hour
+
+    def _get_short_term_forecast_data(
+        self,
+        date: str | pd.Timestamp,
+        base_url: str,
+        file_prefix: str,
+        buffer_minutes: int = 2,
+    ) -> tuple[pd.DataFrame, str] | None:
+        """Get short-term forecast data with common DST handling logic.
+
+        Args:
+            date: Date to get data for. Supports "latest" and "today"
+            base_url: Base URL for downloads
+            file_prefix: Prefix for the file name (e.g., "OP-STLF", "OP-STRF")
+            buffer_minutes: Buffer minutes for "latest" date
+
+        Returns:
+            tuple: (dataframe, url) or None if date is in the future
+        """
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        # Files do not exist in the future
+        if date > self.now():
+            return None
+
+        floored_date, is_repeated_hour = self._handle_dst_floor_date(date, "5min")
+
+        hour = floored_date.hour
+        padded_hour = str(hour).zfill(2)
+        padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
+
+        # The 100 file does not have a "d" but 105d through 155d do.
+        add_d = is_repeated_hour and not floored_date.minute == 0
+
+        # The first hour in the URL is 1 after the hour in the filename.
+        url = base_url + floored_date.strftime(
+            f"/%Y/%m/%d/{padded_hour_plus_one}/{file_prefix}-%Y%m%d{padded_hour}%M{'d' if add_d else ''}.csv",
+        )
+
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
+
+        return df, url
+
     def _post_process_load_forecast(
         self,
         df: pd.DataFrame,
@@ -369,8 +435,12 @@ class SPP(ISOBase):
         # Assume the publish time is in the name of the file. There are different
         # times on the webpage, but these could be the posting time.
         df["Publish Time"] = pd.Timestamp(
-            url.split("-")[-1].split(".")[0],
+            re.search(r"[0-9]{12}", url).group(0),
+        ).tz_localize(
             tz=self.default_timezone,
+            # Assume the "d" file occurs during CST and Pandas wants ambiguous=True
+            # during DST.
+            ambiguous=not url.endswith("d.csv"),
         )
 
         df.columns = [col.strip() for col in df.columns]
@@ -408,20 +478,17 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: forecast as dataframe.
         """
-        # The short_term forecast is delayed up to 2 minutes.
-        buffer_minutes = 2
+        result = self._get_short_term_forecast_data(
+            date,
+            base_url=BASE_SOLAR_AND_WIND_SHORT_TERM_URL,
+            file_prefix="OP-STRF",
+            buffer_minutes=2,
+        )
 
-        if date == "latest":
-            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+        if result is None:
+            return None
 
-        # Files do not exist in the future
-        if date > self.now():
-            return
-
-        url = self._short_term_solar_and_wind_url(date.floor("5min"))
-
-        logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df, url = result
 
         # According to the docs, the end time col should be GMTIntervalEnd, but it's
         # only GMTInterval in the data
@@ -491,8 +558,12 @@ class SPP(ISOBase):
         # Assume the publish time is in the name of the file. There are different
         # times on the webpage, but these could be the posting time.
         df["Publish Time"] = pd.Timestamp(
-            url.split("-")[-1].split(".")[0],
+            re.search(r"[0-9]{12}", url).group(0),
+        ).tz_localize(
             tz=self.default_timezone,
+            # Assume the "d" file occurs during CST and Pandas wants ambiguous=True
+            # during DST.
+            ambiguous=not url.endswith("d.csv"),
         )
 
         df.columns = [col.strip() for col in df.columns]
@@ -512,32 +583,10 @@ class SPP(ISOBase):
             drop=True,
         )
 
-    def _short_term_solar_and_wind_url(self, date: pd.Timestamp) -> str:
-        hour = date.hour
-        padded_hour = str(hour).zfill(2)
-        padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
-
-        # The first hour in the URL is 1 after the hour in the filename.
-        # Example 2024/01/01/02 has data for 01/01/2024 01:00:00 - 01/01/2024 01:55:00
-        return BASE_SOLAR_AND_WIND_SHORT_TERM_URL + date.strftime(
-            f"/%Y/%m/%d/{padded_hour_plus_one}/OP-STRF-%Y%m%d{padded_hour}%M.csv",
-        )
-
     def _mid_term_solar_and_wind_url(self, date: pd.Timestamp) -> str:
         # Explicitly set the minutes to 00.
         return BASE_SOLAR_AND_WIND_MID_TERM_URL + date.strftime(
             "/%Y/%m/%d/OP-MTRF-%Y%m%d%H00.csv",
-        )
-
-    def _short_term_load_forecast_url(self, date: pd.Timestamp) -> str:
-        hour = date.hour
-        padded_hour = str(hour).zfill(2)
-        padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
-
-        # The first hour in the URL is 1 after the hour in the filename.
-        # Example 2024/01/01/02 has data for 01/01/2024 01:00:00 - 01/01/2024 01:55:00
-        return BASE_LOAD_FORECAST_SHORT_TERM_URL + date.strftime(
-            f"/%Y/%m/%d/{padded_hour_plus_one}/OP-STLF-%Y%m%d{padded_hour}%M.csv",
         )
 
     def _mid_term_load_forecast_url(self, date: pd.Timestamp) -> str:
