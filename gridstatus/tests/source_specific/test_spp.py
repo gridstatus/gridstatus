@@ -994,7 +994,7 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(df, "SHORT_TERM")
 
-    def test_get_load_forecast_short_term_hour_dst_ending(self):
+    def test_get_load_forecast_short_term_dst_ending(self):
         # Test we can handle DST end with the repeated hour
         start = "2025-11-02 01:00:00-0500"
         end = "2025-11-02 02:00:00-0600"
