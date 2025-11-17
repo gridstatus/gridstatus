@@ -358,7 +358,7 @@ class SPP(ISOBase):
         self,
         date: pd.Timestamp,
         freq: str = "5min",
-    ) -> tuple[pd.Timestamp, bool]:
+    ) -> pd.Timestamp:
         """Handle DST transition when flooring a date.
 
         Args:
@@ -366,16 +366,14 @@ class SPP(ISOBase):
             freq: The frequency to floor to (e.g., "5min", "h")
 
         Returns:
-            tuple: (floored_date, is_repeated_hour)
+            Timestamp floored to the specified frequency
         """
-        is_repeated_hour = False
         try:
             floored_date = date.floor(freq)
         except pytz.AmbiguousTimeError:
-            is_repeated_hour = True
             floored_date = self.safe_for_dst_transition_floor(date, freq)
 
-        return floored_date, is_repeated_hour
+        return floored_date
 
     def _get_short_term_forecast_data(
         self,
@@ -402,14 +400,21 @@ class SPP(ISOBase):
         if date > self.now():
             return None
 
-        floored_date, is_repeated_hour = self._handle_dst_floor_date(date, "5min")
+        floored_date = self._handle_dst_floor_date(date, "5min")
 
         hour = floored_date.hour
         padded_hour = str(hour).zfill(2)
         padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
 
-        # The 100 file does not have a "d" but 105d through 155d do.
-        add_d = is_repeated_hour and not floored_date.minute == 0
+        # NOTE: this needs to be updated for DST every year
+        # 0105d through 0155d have a "d" on 2025-11-02
+        add_d = (
+            floored_date.year == 2025
+            and floored_date.month == 11
+            and floored_date.day == 2
+            and floored_date.hour == 1
+            and floored_date.minute != 0
+        )
 
         # The first hour in the URL is 1 after the hour in the filename.
         url = base_url + floored_date.strftime(
