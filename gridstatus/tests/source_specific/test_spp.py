@@ -994,6 +994,25 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(df, "SHORT_TERM")
 
+    def test_get_load_forecast_short_term_dst_ending(self):
+        # Test we can handle DST end with the repeated hour
+        start = "2025-11-02 01:00:00-0500"
+        end = "2025-11-02 02:00:00-0600"
+
+        with api_vcr.use_cassette(
+            f"test_get_load_forecast_short_term_hour_dst_ending_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_load_forecast_short_term(
+                date=start,
+                end=end,
+            )
+
+        assert df["Publish Time"].min() == pd.Timestamp("2025-11-02 01:00:00-0500")
+        assert df["Publish Time"].max() == pd.Timestamp("2025-11-02 01:55:00-0600")
+        assert df["Publish Time"].nunique() == 12
+
+        self._check_load_forecast(df, "SHORT_TERM")
+
     """get_load_forecast_mid_term"""
 
     def test_get_load_forecast_mid_term_today(self):
@@ -1159,6 +1178,25 @@ class TestSPP(BaseTestISO):
 
         assert df["Publish Time"].min() == three_days_ago
         assert df["Publish Time"].max() == three_days_ago_0345 - pd.Timedelta(minutes=5)
+
+        self._check_solar_and_wind_forecast(df, "SHORT_TERM")
+
+    def test_get_solar_and_wind_forecast_short_term_dst_ending(self):
+        # Test we can handle DST end with the repeated hour
+        start = "2025-11-02 01:00:00-0500"
+        end = "2025-11-02 02:00:00-0600"
+
+        with api_vcr.use_cassette(
+            f"test_get_solar_and_wind_forecast_short_term_dst_ending_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_solar_and_wind_forecast_short_term(
+                date=start,
+                end=end,
+            )
+
+        assert df["Publish Time"].min() == pd.Timestamp("2025-11-02 01:00:00-0500")
+        assert df["Publish Time"].max() == pd.Timestamp("2025-11-02 01:55:00-0600")
+        assert df["Publish Time"].nunique() == 12
 
         self._check_solar_and_wind_forecast(df, "SHORT_TERM")
 
