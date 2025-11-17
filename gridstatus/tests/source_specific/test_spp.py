@@ -1086,6 +1086,27 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(df, "MID_TERM")
 
+    def test_get_load_forecast_mid_term_dst_ending(self):
+        # Test we can handle DST end with the repeated hour
+        # For mid-term hourly forecasts: 100 file has no "d", 200d file has "d"
+        # The 200d file represents what would have been 2:00 AM before DST ended
+        start = "2025-11-02 01:00:00-0500"
+        end = "2025-11-02 02:00:00-0600"
+
+        with api_vcr.use_cassette(
+            f"test_get_load_forecast_mid_term_dst_ending_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_load_forecast_mid_term(
+                date=start,
+                end=end,
+            )
+
+        assert df["Publish Time"].min() == pd.Timestamp("2025-11-02 01:00:00-0500")
+        assert df["Publish Time"].max() == pd.Timestamp("2025-11-02 02:00:00-0600")
+        assert df["Publish Time"].nunique() == 2
+
+        self._check_load_forecast(df, "MID_TERM")
+
     """get_solar_and_wind_forecast_short_term"""
 
     def test_get_solar_and_wind_forecast_short_term_today(self):
@@ -1270,6 +1291,27 @@ class TestSPP(BaseTestISO):
         assert df["Publish Time"].max() == three_days_ago_0345 - pd.Timedelta(
             minutes=45,
         )
+
+        self._check_solar_and_wind_forecast(df, "MID_TERM")
+
+    def test_get_solar_and_wind_forecast_mid_term_dst_ending(self):
+        # Test we can handle DST end with the repeated hour
+        # For mid-term hourly forecasts: 100 file has no "d", 200d file has "d"
+        # The 200d file represents what would have been 2:00 AM before DST ended
+        start = "2025-11-02 01:00:00-0500"
+        end = "2025-11-02 02:00:00-0600"
+
+        with api_vcr.use_cassette(
+            f"test_get_solar_and_wind_forecast_mid_term_dst_ending_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_solar_and_wind_forecast_mid_term(
+                date=start,
+                end=end,
+            )
+
+        assert df["Publish Time"].min() == pd.Timestamp("2025-11-02 01:00:00-0500")
+        assert df["Publish Time"].max() == pd.Timestamp("2025-11-02 02:00:00-0600")
+        assert df["Publish Time"].nunique() == 2
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
 
