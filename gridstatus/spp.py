@@ -356,7 +356,7 @@ class SPP(ISOBase):
         self,
         date: pd.Timestamp,
         freq: str = "5min",
-    ) -> tuple[pd.Timestamp, bool]:
+    ) -> pd.Timestamp:
         """Handle DST transition when flooring a date.
 
         Args:
@@ -364,16 +364,14 @@ class SPP(ISOBase):
             freq: The frequency to floor to (e.g., "5min", "h")
 
         Returns:
-            tuple: (floored_date, is_repeated_hour)
+            Timestamp floored to the specified frequency
         """
-        is_repeated_hour = False
         try:
             floored_date = date.floor(freq)
         except pytz.AmbiguousTimeError:
-            is_repeated_hour = True
             floored_date = self.safe_for_dst_transition_floor(date, freq)
 
-        return floored_date, is_repeated_hour
+        return floored_date
 
     def _get_short_term_forecast_data(
         self,
@@ -400,64 +398,25 @@ class SPP(ISOBase):
         if date > self.now():
             return None
 
-        floored_date, is_repeated_hour = self._handle_dst_floor_date(date, "5min")
+        floored_date = self._handle_dst_floor_date(date, "5min")
 
         hour = floored_date.hour
         padded_hour = str(hour).zfill(2)
         padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
 
-        # The 100 file does not have a "d" but 105d through 155d do.
-        add_d = is_repeated_hour and not floored_date.minute == 0
-
-        # The first hour in the URL is 1 after the hour in the filename.
-        url = base_url + floored_date.strftime(
-            f"/%Y/%m/%d/{padded_hour_plus_one}/{file_prefix}-%Y%m%d{padded_hour}%M{'d' if add_d else ''}.csv",
-        )
-
-        logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
-
-        return df, url
-
-    def _get_mid_term_forecast_data(
-        self,
-        date: str | pd.Timestamp,
-        base_url: str,
-        file_prefix: str,
-        buffer_minutes: int = 10,
-    ) -> tuple[pd.DataFrame, str] | None:
-        """Get mid-term forecast data with common DST handling logic.
-
-        Args:
-            date: Date to get data for. Supports "latest" and "today"
-            base_url: Base URL for downloads
-            file_prefix: Prefix for the file name (e.g., "OP-MTLF", "OP-MTRF")
-            buffer_minutes: Buffer minutes for "latest" date
-
-        Returns:
-            tuple: (dataframe, url) or None if date is in the future
-        """
-        if date == "latest":
-            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
-
-        # Files do not exist in the future
-        if date > self.now():
-            return None
-
-        floored_date, _is_repeated_hour = self._handle_dst_floor_date(date, "h")
-
-        # For mid-term hourly forecasts during 2025 DST end there is a 0200d file.
-        # Special case for DST end on 2025-11-02
+        # NOTE: this needs to be updated for DST every year
+        # 0105d through 0155d have a "d" on 2025-11-02
         add_d = (
             floored_date.year == 2025
             and floored_date.month == 11
             and floored_date.day == 2
-            and floored_date.hour == 2
+            and floored_date.hour == 1
+            and floored_date.minute != 0
         )
 
-        # Explicitly set the minutes to 00 in the URL
+        # The first hour in the URL is 1 after the hour in the filename.
         url = base_url + floored_date.strftime(
-            f"/%Y/%m/%d/{file_prefix}-%Y%m%d{str(floored_date.hour).zfill(2)}00{'d' if add_d else ''}.csv",
+            f"/%Y/%m/%d/{padded_hour_plus_one}/{file_prefix}-%Y%m%d{padded_hour}%M{'d' if add_d else ''}.csv",
         )
 
         logger.info(f"Downloading {url}")
@@ -623,6 +582,18 @@ class SPP(ISOBase):
 
         return df.dropna(subset=["Wind Forecast MW", "Solar Forecast MW"]).reset_index(
             drop=True,
+        )
+
+    def _mid_term_solar_and_wind_url(self, date: pd.Timestamp) -> str:
+        # Explicitly set the minutes to 00.
+        return BASE_SOLAR_AND_WIND_MID_TERM_URL + date.strftime(
+            "/%Y/%m/%d/OP-MTRF-%Y%m%d%H00.csv",
+        )
+
+    def _mid_term_load_forecast_url(self, date: pd.Timestamp) -> str:
+        # Explicitly set the minutes to 00.
+        return BASE_LOAD_FORECAST_MID_TERM_URL + date.strftime(
+            "/%Y/%m/%d/OP-MTLF-%Y%m%d%H00.csv",
         )
 
     def _handle_market_end_to_interval(
