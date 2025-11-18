@@ -2034,13 +2034,13 @@ class SPP(ISOBase):
 
         # Convert to title case to handle nonstandard input
         df.columns = df.columns.str.title().str.replace("_", " ")
-
-        if "Gmtintervalend" in df.columns:
-            df = df.rename(columns={"Gmtintervalend": "GMTIntervalEnd"})
-        if "Nercid" in df.columns:
-            df = df.rename(columns={"Nercid": "NERC ID"})
-        if "Tlr Level" in df.columns:
-            df = df.rename(columns={"Tlr Level": "TLR Level"})
+        df = df.rename(
+            columns={
+                "Gmtintervalend": "GMTIntervalEnd",
+                "Nercid": "NERC ID",
+                "Tlr Level": "TLR Level",
+            },
+        )
 
         df = self._handle_market_end_to_interval(
             df,
