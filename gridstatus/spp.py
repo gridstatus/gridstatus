@@ -2032,13 +2032,22 @@ class SPP(ISOBase):
     def _process_binding_constraints_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
         df.columns = df.columns.str.strip()
 
+        # Convert to title case to handle nonstandard input
+        df.columns = df.columns.str.title().str.replace("_", " ")
+        df = df.rename(
+            columns={
+                "Gmtintervalend": "GMTIntervalEnd",
+                "Nercid": "NERC ID",
+                "Tlr Level": "TLR Level",
+            },
+        )
+
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
             interval_duration=pd.Timedelta(minutes=5),
         )
 
-        df = df.rename(columns={"NERCID": "NERC ID"})
         df["NERC ID"] = pd.to_numeric(df["NERC ID"], errors="coerce").astype("Int64")
 
         cols_to_keep = [
