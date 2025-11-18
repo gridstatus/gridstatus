@@ -4889,4 +4889,4 @@ class Ercot(ISOBase):
         )
         df = df.rename(columns={"SystemLambda": "System Lambda"})
 
-        return df.sort_values("SCED Timestamp")
+        return df.sort_values("SCED Timestamp").reset_index(drop=True)
