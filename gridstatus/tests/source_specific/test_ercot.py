@@ -2707,6 +2707,86 @@ class TestErcot(BaseTestISO):
             self.iso.default_timezone,
         )
 
+    """get_real_time_adders_rtc_b_trial"""
+
+    def _check_real_time_adders_rtc_b_trial(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "SCED Timestamp",
+            "Interval Start",
+            "Interval End",
+            "System Lambda",
+            "RTRDPA",
+            "RTRDPARUS",
+            "RTRDPARDS",
+            "RTRDPARRS",
+            "RTRDPAECRS",
+            "RTRDPANSS",
+            "RTRRUC",
+            "RTRRMR",
+            "RTDNCLR",
+            "RTDERS",
+            "RTDCTIEIMPORT",
+            "RTDCTIEEXPORT",
+            "RTBLTIMPORT",
+            "RTBLTEXPORT",
+            "RTOLLSL",
+            "RTOLHSL",
+        ]
+
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+        for col in [
+            "System Lambda",
+            "RTRDPA",
+            "RTRDPARUS",
+            "RTRDPARDS",
+            "RTRDPARRS",
+            "RTRDPAECRS",
+            "RTRDPANSS",
+            "RTRRUC",
+            "RTRRMR",
+            "RTDNCLR",
+            "RTDERS",
+            "RTDCTIEIMPORT",
+            "RTDCTIEEXPORT",
+            "RTBLTIMPORT",
+            "RTBLTEXPORT",
+            "RTOLLSL",
+            "RTOLHSL",
+        ]:
+            assert df.dtypes[col] == "float64"
+
+    def test_get_real_time_adders_rtc_b_trial_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_real_time_adders_rtc_b_trial_latest.yaml",
+        ):
+            df = self.iso.get_real_time_adders_rtc_b_trial("latest")
+
+        self._check_real_time_adders_rtc_b_trial(df)
+
+        assert len(df) == 1
+
+    def test_get_real_time_adders_rtc_b_trial_date_range(self):
+        date = self.local_now().normalize() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(minutes=25)
+
+        with api_vcr.use_cassette(
+            f"test_get_real_time_adders_rtc_b_trial_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_real_time_adders_rtc_b_trial(date, end)
+
+        self._check_real_time_adders_rtc_b_trial(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
+        assert len(df) == 5
+
 
 def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
     load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
