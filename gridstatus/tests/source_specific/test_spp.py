@@ -1088,10 +1088,8 @@ class TestSPP(BaseTestISO):
 
     def test_get_load_forecast_mid_term_dst_ending(self):
         # Test we can handle DST end with the repeated hour
-        # For mid-term hourly forecasts: 100 file has no "d", 200d file has "d"
-        # The 200d file represents what would have been 2:00 AM before DST ended
         start = "2025-11-02 01:00:00-0500"
-        end = "2025-11-02 02:00:00-0600"
+        end = "2025-11-02 03:00:00-0600"
 
         with api_vcr.use_cassette(
             f"test_get_load_forecast_mid_term_dst_ending_{start}_{end}.yaml",
@@ -1299,7 +1297,7 @@ class TestSPP(BaseTestISO):
         # For mid-term hourly forecasts: 100 file has no "d", 200d file has "d"
         # The 200d file represents what would have been 2:00 AM before DST ended
         start = "2025-11-02 01:00:00-0500"
-        end = "2025-11-02 02:00:00-0600"
+        end = "2025-11-02 03:00:00-0600"
 
         with api_vcr.use_cassette(
             f"test_get_solar_and_wind_forecast_mid_term_dst_ending_{start}_{end}.yaml",

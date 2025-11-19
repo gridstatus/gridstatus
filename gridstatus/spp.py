@@ -424,6 +424,52 @@ class SPP(ISOBase):
 
         return df, url
 
+    def _get_mid_term_forecast_data(
+        self,
+        date: str | pd.Timestamp,
+        base_url: str,
+        file_prefix: str,
+        buffer_minutes: int = 10,
+    ) -> tuple[pd.DataFrame, str] | None:
+        """Get mid-term forecast data with common DST handling logic.
+
+        Args:
+            date: Date to get data for. Supports "latest" and "today"
+            base_url: Base URL for downloads
+            file_prefix: Prefix for the file name (e.g., "OP-MTLF", "OP-MTRF")
+            buffer_minutes: Buffer minutes for "latest" date
+
+        Returns:
+            tuple: (dataframe, url) or None if date is in the future
+        """
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        # Files do not exist in the future
+        if date > self.now():
+            return None
+
+        floored_date = self._handle_dst_floor_date(date, "h")
+
+        # For mid-term hourly forecasts during 2025 DST end there is a 0200d file.
+        # Special case for DST end on 2025-11-02
+        add_d = (
+            floored_date.year == 2025
+            and floored_date.month == 11
+            and floored_date.day == 2
+            and floored_date.hour == 2
+        )
+
+        # Explicitly set the minutes to 00 in the URL
+        url = base_url + floored_date.strftime(
+            f"/%Y/%m/%d/{file_prefix}-%Y%m%d{str(floored_date.hour).zfill(2)}00{'d' if add_d else ''}.csv",
+        )
+
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
+
+        return df, url
+
     def _post_process_load_forecast(
         self,
         df: pd.DataFrame,
