@@ -329,19 +329,17 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: forecast as dataframe.
         """
-        # The MID_TERM forecast is delayed up to 10 minutes.
-        buffer_minutes = 10
+        result = self._get_mid_term_forecast_data(
+            date,
+            base_url=BASE_LOAD_FORECAST_MID_TERM_URL,
+            file_prefix="OP-MTLF",
+            buffer_minutes=10,
+        )
 
-        if date == "latest":
-            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+        if result is None:
+            return None
 
-        if date > self.now():
-            return
-
-        url = self._mid_term_load_forecast_url(date.floor("h"))
-
-        logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df, url = result
 
         df = self._post_process_load_forecast(
             df,
@@ -419,6 +417,52 @@ class SPP(ISOBase):
         # The first hour in the URL is 1 after the hour in the filename.
         url = base_url + floored_date.strftime(
             f"/%Y/%m/%d/{padded_hour_plus_one}/{file_prefix}-%Y%m%d{padded_hour}%M{'d' if add_d else ''}.csv",
+        )
+
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
+
+        return df, url
+
+    def _get_mid_term_forecast_data(
+        self,
+        date: str | pd.Timestamp,
+        base_url: str,
+        file_prefix: str,
+        buffer_minutes: int = 10,
+    ) -> tuple[pd.DataFrame, str] | None:
+        """Get mid-term forecast data with common DST handling logic.
+
+        Args:
+            date: Date to get data for. Supports "latest" and "today"
+            base_url: Base URL for downloads
+            file_prefix: Prefix for the file name (e.g., "OP-MTLF", "OP-MTRF")
+            buffer_minutes: Buffer minutes for "latest" date
+
+        Returns:
+            tuple: (dataframe, url) or None if date is in the future
+        """
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+
+        # Files do not exist in the future
+        if date > self.now():
+            return None
+
+        floored_date = self._handle_dst_floor_date(date, "h")
+
+        # For mid-term hourly forecasts during 2025 DST end there is a 0200d file.
+        # Special case for DST end on 2025-11-02
+        add_d = (
+            floored_date.year == 2025
+            and floored_date.month == 11
+            and floored_date.day == 2
+            and floored_date.hour == 2
+        )
+
+        # Explicitly set the minutes to 00 in the URL
+        url = base_url + floored_date.strftime(
+            f"/%Y/%m/%d/{file_prefix}-%Y%m%d{str(floored_date.hour).zfill(2)}00{'d' if add_d else ''}.csv",
         )
 
         logger.info(f"Downloading {url}")
@@ -526,19 +570,17 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: forecast as dataframe.
         """
-        # The MID_TERM forecast is delayed up to 10 minutes.
-        buffer_minutes = 10
+        result = self._get_mid_term_forecast_data(
+            date,
+            base_url=BASE_SOLAR_AND_WIND_MID_TERM_URL,
+            file_prefix="OP-MTRF",
+            buffer_minutes=10,
+        )
 
-        if date == "latest":
-            date = self.now() - pd.Timedelta(minutes=buffer_minutes)
+        if result is None:
+            return None
 
-        if date > self.now():
-            return
-
-        url = self._mid_term_solar_and_wind_url(date.floor("h"))
-
-        logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df, url = result
 
         df = self._post_process_solar_and_wind_forecast(
             df,
