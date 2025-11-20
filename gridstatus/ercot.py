@@ -2300,8 +2300,9 @@ class Ercot(ISOBase):
         """
 
         url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"
-
-        df = self._download_html_table(url)
+        logger.info(f"Getting Ancillary Service Capacity Monitor from {url}")
+        html_content = requests.get(url).content
+        df = self._parse_html_table(html_content)
 
         return df
 
@@ -2324,7 +2325,9 @@ class Ercot(ISOBase):
         """
 
         url = "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html"
-        df = self._download_html_table(url)
+        logger.info(f"Getting Real-Time System Conditions from {url}")
+        html_content = requests.get(url).content
+        df = self._parse_html_table(html_content)
         df = df.rename(
             columns={
                 "Frequency - Current Frequency": "Current Frequency",
@@ -2339,12 +2342,9 @@ class Ercot(ISOBase):
 
         return df
 
-    def _download_html_table(self, url: str) -> pd.DataFrame:
-        logger.info(f"Downloading {url}")
-
-        html = requests.get(url).content
-
-        soup = BeautifulSoup(html, "html.parser")
+    def _parse_html_table(self, html_content: bytes) -> pd.DataFrame:
+        logger.info("Parsing HTML table")
+        soup = BeautifulSoup(html_content, "html.parser")
 
         table = soup.find("table", attrs={"class": "tableStyle"})
 
