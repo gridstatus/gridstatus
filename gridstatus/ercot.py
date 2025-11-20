@@ -3207,7 +3207,8 @@ class Ercot(ISOBase):
         doc: Document,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        df = self.read_doc(doc, verbose=verbose)
+        df = self.read_doc(doc, verbose=verbose, parse=False)
+        is_dst_end = 25 in df["Hour Ending"]
 
         df = df.rename(
             columns={
@@ -3216,6 +3217,24 @@ class Ercot(ISOBase):
                 "Resource Name with Highest-Priced Offer Selected in DAM": "Resource Name",  # noqa: E501
             },
         )
+
+        if not is_dst_end:
+            df = self.parse_doc(df)
+        else:
+            # Hours go up to 25. Assume hour 2 is CDT and hour 3 is CST
+            df["Interval Start"] = (
+                pd.to_datetime(df["Delivery Date"])
+                + pd.to_timedelta(df["Hour Ending"] - 1, unit="h")
+            ).dt.tz_localize(self.default_timezone, ambiguous=df["Hour Ending"] == 2)
+
+            df.loc[df["Hour Ending"] >= 3, "Interval Start"] = df.loc[
+                df["Hour Ending"] >= 3,
+                "Interval Start",
+            ] - pd.Timedelta(hours=1)
+
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+            # Needed for the groupby
+            df["Time"] = df["Interval Start"]
 
         def _handle_offers(df: pd.DataFrame) -> pd.Series:
             return pd.Series(

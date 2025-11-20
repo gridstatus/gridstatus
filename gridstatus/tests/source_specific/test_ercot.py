@@ -935,32 +935,8 @@ class TestErcot(BaseTestISO):
 
     """test get_highest_price_as_offer_selected"""
 
-    @pytest.mark.integration
-    def test_get_highest_price_as_offer_selected(self):
-        four_days_ago = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(
-            days=4,
-        )
-
-        five_days_ago = four_days_ago - pd.Timedelta(
-            days=1,
-        )
-
-        df = self.iso.get_highest_price_as_offer_selected(
-            start=five_days_ago,
-            end=four_days_ago
-            + pd.Timedelta(
-                days=1,
-            ),
-        )
-
-        assert (
-            df["Interval Start"].dt.date.unique()
-            == [five_days_ago.date(), four_days_ago.date()]
-        ).all()
-
-        cols = [
+    def _check_highest_price_as_offer_selected(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -975,7 +951,48 @@ class TestErcot(BaseTestISO):
             "Offered Quantities",
         ]
 
-        assert df.columns.tolist() == cols
+    def test_get_highest_price_as_offer_selected_date_range(self):
+        four_days_ago = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(
+            days=4,
+        )
+
+        five_days_ago = four_days_ago - pd.Timedelta(
+            days=1,
+        )
+
+        with api_vcr.use_cassette(
+            f"test_get_highest_price_as_offer_selected_date_range_{five_days_ago}_{four_days_ago}.yaml",
+        ):
+            df = self.iso.get_highest_price_as_offer_selected(
+                start=five_days_ago,
+                end=four_days_ago
+                + pd.Timedelta(
+                    days=1,
+                ),
+            )
+
+        assert (
+            df["Interval Start"].dt.date.unique()
+            == [five_days_ago.date(), four_days_ago.date()]
+        ).all()
+
+        self._check_highest_price_as_offer_selected(df)
+
+    def test_get_highest_price_as_offer_selected_dst_end(self):
+        dst_end_date = "2025-11-02"
+
+        with api_vcr.use_cassette(
+            f"test_get_highest_price_as_offer_selected_dst_end_{dst_end_date}.yaml",
+        ):
+            df = self.iso.get_highest_price_as_offer_selected(dst_end_date)
+
+        assert df["Interval Start"].nunique() == 25
+        assert "2025-11-02 01:00:00-05:00" in df["Interval Start"].astype(str).values
+        assert "2025-11-02 01:00:00-06:00" in df["Interval Start"].astype(str).values
+
+        self._check_highest_price_as_offer_selected(df)
 
     """test get_as_reports"""
 
