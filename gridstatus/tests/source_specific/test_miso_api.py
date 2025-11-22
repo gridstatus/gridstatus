@@ -546,7 +546,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_cleared_generation_physical_hourly_{date.date()}"
+            f"get_day_ahead_cleared_generation_physical_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_cleared_generation_physical_hourly(date)
 
@@ -562,7 +562,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_cleared_generation_virtual_hourly_{date.date()}"
+            f"get_day_ahead_cleared_generation_virtual_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_cleared_generation_virtual_hourly(date)
 
@@ -578,7 +578,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_net_scheduled_interchange_hourly_{date.date()}"
+            f"get_day_ahead_net_scheduled_interchange_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_net_scheduled_interchange_hourly(date)
 
@@ -616,7 +616,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_offered_generation_ecomax_hourly_{date.date()}"
+            f"get_day_ahead_offered_generation_ecomax_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_offered_generation_ecomax_hourly(date)
 
@@ -642,7 +642,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_offered_generation_ecomin_hourly_{date.date()}"
+            f"get_day_ahead_offered_generation_ecomin_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_offered_generation_ecomin_hourly(date)
 
@@ -668,7 +668,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_generation_fuel_type_hourly_{date.date()}"
+            f"get_day_ahead_generation_fuel_type_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_generation_fuel_type_hourly(date)
 
@@ -766,7 +766,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
-            f"get_real_time_cleared_generation_hourly_{date.date()}"
+            f"get_real_time_cleared_generation_hourly_{date.date()}",
         ):
             df = self.iso.get_real_time_cleared_generation_hourly(date)
 
@@ -783,7 +783,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"get_real_time_offered_generation_ecomax_hourly_{date.date()}"
+            f"get_real_time_offered_generation_ecomax_hourly_{date.date()}",
         ):
             df = self.iso.get_real_time_offered_generation_ecomax_hourly(date)
 
@@ -815,7 +815,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
-            f"get_real_time_committed_generation_ecomax_hourly_{date.date()}"
+            f"get_real_time_committed_generation_ecomax_hourly_{date.date()}",
         ):
             df = self.iso.get_real_time_committed_generation_ecomax_hourly(date)
 
@@ -847,7 +847,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"get_real_time_generation_fuel_type_hourly_{date.date()}"
+            f"get_real_time_generation_fuel_type_hourly_{date.date()}",
         ):
             df = self.iso.get_real_time_generation_fuel_type_hourly(date)
 
@@ -927,6 +927,64 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
+    def _check_test_actual_load_local_resource_zone(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Local Resource Zone",
+            "Load",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in [
+                "Interval Start",
+                "Interval End",
+                "Local Resource Zone",
+            ]:
+                assert df[col].dtype == "float64"
+
+    def test_get_actual_load_hourly_local_resource_zone(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_actual_load_hourly_local_resource_zone_{date.date()}",
+        ):
+            df = self.iso.get_actual_load_hourly(
+                date,
+                geo_resolution="localResourceZone",
+            )
+
+        self._check_test_actual_load_local_resource_zone(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    def test_get_actual_load_daily_local_resource_zone(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_actual_load_daily_local_resource_zone_{date.date()}",
+        ):
+            df = self.iso.get_actual_load_daily(
+                date,
+                geo_resolution="localResourceZone",
+            )
+
+        self._check_test_actual_load_local_resource_zone(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
     def _check_test_medium_term_load_forecast(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
@@ -955,7 +1013,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"get_medium_term_load_forecast_hourly_{date.date()}"
+            f"get_medium_term_load_forecast_hourly_{date.date()}",
         ):
             df = self.iso.get_medium_term_load_forecast_hourly(date)
 
@@ -975,10 +1033,11 @@ class TestMISOAPI(TestHelperMixin):
         publish_time = date - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
-            f"test_get_medium_term_load_forecast_hourly_with_publish_time_{date.date()}"
+            f"test_get_medium_term_load_forecast_hourly_with_publish_time_{date.date()}",
         ):
             df = self.iso.get_medium_term_load_forecast_hourly(
-                date, publish_time=publish_time
+                date,
+                publish_time=publish_time,
             )
 
         self._check_test_medium_term_load_forecast(df)
