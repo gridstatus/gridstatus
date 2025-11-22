@@ -1202,34 +1202,15 @@ class MISOAPI:
         if "interval" in df.columns:
             df = df.drop(columns=["interval"])
 
-        # Handle both region and localResourceZone based on geo_resolution
         if geo_resolution == "region":
             df["region"] = df["region"].str.upper()
+            subseries_index = "Region"
+            df = df.rename(columns={"region": subseries_index, "load": "Load"})
+        elif geo_resolution == "localResourceZone":
+            subseries_index = "Local Resource Zone"
             df = df.rename(
-                columns={"region": "Region", "load": "Load"},
+                columns={"localResourceZone": subseries_index, "load": "Load"},
             )
-            sort_columns = ["Interval Start", "Region"]
-            output_columns = ["Interval Start", "Interval End", "Region", "Load"]
-            exclude_from_float_conversion = ["Interval Start", "Interval End", "Region"]
-        else:  # localResourceZone
-            df = df.rename(
-                columns={
-                    "localResourceZone": "Local Resource Zone",
-                    "load": "Load",
-                },
-            )
-            sort_columns = ["Interval Start", "Local Resource Zone"]
-            output_columns = [
-                "Interval Start",
-                "Interval End",
-                "Local Resource Zone",
-                "Load",
-            ]
-            exclude_from_float_conversion = [
-                "Interval Start",
-                "Interval End",
-                "Local Resource Zone",
-            ]
 
         data = df.reset_index()
 
@@ -1239,13 +1220,13 @@ class MISOAPI:
             data = data[data["Interval End"] <= end]
 
         for col in data.columns:
-            if col not in exclude_from_float_conversion:
+            if col not in ["Interval Start", "Interval End", subseries_index]:
                 data[col] = data[col].astype(float)
 
-        data = data.sort_values(sort_columns)
-        return data[output_columns].reset_index(
-            drop=True,
-        )
+        data = data.sort_values(["Interval Start", subseries_index])
+        return data[
+            ["Interval Start", "Interval End", subseries_index, "Load"]
+        ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_actual_load_hourly(
