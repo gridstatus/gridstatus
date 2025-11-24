@@ -1775,10 +1775,12 @@ class ISONEAPI:
             start = date[0] if isinstance(date, tuple) else pd.Timestamp(date)
             cp_label = self._get_fcm_commitment_period_label(start)
             endpoint = f"{self.base_url}/fcmmra/cp/{cp_label}"
+
         response = self.make_api_call(endpoint, verbose=verbose)
         auctions = self._prepare_records(
             self._safe_get(response, "FCMRAResults", "FCMRAResult"),
         )
+
         annotated_auctions: list[tuple[dict, pd.Timestamp, pd.Timestamp]] = []
         for wrapper in auctions:
             auction = wrapper.get("Auction", wrapper)
@@ -1788,8 +1790,11 @@ class ISONEAPI:
                 if description
                 else pd.Timestamp(auction.get("ApprovalDate"))
             )
+            if interval_start.tz is None:
+                interval_start = interval_start.tz_localize(self.default_timezone)
             interval_end = interval_start + pd.DateOffset(months=1)
             annotated_auctions.append((auction, interval_start, interval_end))
+
         return self._parse_fcm_reconfiguration_dataframe(annotated_auctions)
 
     @support_date_range(frequency=None)
@@ -1816,16 +1821,20 @@ class ISONEAPI:
             start = date[0] if isinstance(date, tuple) else pd.Timestamp(date)
             cp_label = self._get_fcm_commitment_period_label(start)
             endpoint = f"{self.base_url}/fcmara/cp/{cp_label}"
+
         response = self.make_api_call(endpoint, verbose=verbose)
+
         auctions = self._prepare_records(
             self._safe_get(response, "FCMRAResults", "FCMRAResult"),
         )
+
         annotated_auctions: list[tuple[dict, pd.Timestamp, pd.Timestamp]] = []
         for wrapper in auctions:
             auction = wrapper.get("Auction", wrapper)
             period = auction.get("CommitmentPeriod", {})
             begin = period.get("BeginDate")
             end = period.get("EndDate")
+
             if begin and end:
                 interval_start = pd.Timestamp(begin)
                 interval_end = pd.Timestamp(end)
@@ -1837,6 +1846,7 @@ class ISONEAPI:
                     else pd.Timestamp(auction.get("ApprovalDate"))
                 )
                 interval_end = interval_start + pd.DateOffset(years=1)
+
             annotated_auctions.append((auction, interval_start, interval_end))
         return self._parse_fcm_reconfiguration_dataframe(annotated_auctions)
 
@@ -1852,9 +1862,8 @@ class ISONEAPI:
         frames: list[pd.DataFrame] = []
 
         zone_column_map = {
-            "CapacityZoneID": "Capacity Zone ID",
-            "CapacityZoneId": "Capacity Zone ID",
-            "CapacityZoneName": "Capacity Zone Name",
+            "CapacityZoneID": "Location ID",
+            "CapacityZoneName": "Location Name",
             "CapacityZoneType": "Capacity Zone Type",
             "SupplySubmitted": "Total Supply Offers Submitted",
             "DemandSubmitted": "Total Demand Bids Submitted",
@@ -1865,8 +1874,8 @@ class ISONEAPI:
         }
 
         interface_column_map = {
-            "ExternalInterfaceId": "Capacity Zone ID",
-            "ExternalInterfaceName": "Capacity Zone Name",
+            "ExternalInterfaceId": "Location ID",
+            "ExternalInterfaceName": "Location Name",
             "SupplySubmitted": "Total Supply Offers Submitted",
             "DemandSubmitted": "Total Demand Bids Submitted",
             "SupplyCleared": "Total Supply Offers Cleared",
@@ -1909,7 +1918,7 @@ class ISONEAPI:
                     "Interval Start": interval_start,
                     "Interval End": interval_end,
                     "Location Type": "External Interface",
-                    "Capacity Zone Type": "External Interface",
+                    "Capacity Zone Type": None,
                 },
             )
             frames.append(interface_frame)
@@ -1931,10 +1940,10 @@ class ISONEAPI:
 
         df = df.reindex(columns=ISONE_FCM_RECONFIGURATION_COLUMNS)
         df = df.sort_values(
-            ["Interval Start", "Capacity Zone ID"],
+            ["Interval Start", "Location ID"],
         ).reset_index(drop=True)
 
-        log.info(
+        log.debug(
             f"Processed FCM reconfiguration auction data. "
             f"{len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
         )
