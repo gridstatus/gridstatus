@@ -1774,7 +1774,9 @@ class ISONEAPI:
         else:
             start = date[0] if isinstance(date, tuple) else pd.Timestamp(date)
             cp_label = self._get_fcm_commitment_period_label(start)
-            endpoint = f"{self.base_url}/fcmmra/cp/{cp_label}"
+            endpoint = (
+                f"{self.base_url}/fcmmra/cp/{cp_label}/month/{date.strftime('%Y%m')}"
+            )
 
         response = self.make_api_call(endpoint, verbose=verbose)
         auctions = self._prepare_records(
