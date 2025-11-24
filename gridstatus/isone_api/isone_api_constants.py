@@ -95,3 +95,36 @@ ISONE_RESERVE_ZONE_COLUMN_MAP = {
     "Total10MinRequirement": "Total 10 Min Requirement",
     "Total30MinRequirement": "Total 30 Min Requirement",
 }
+
+ISONE_FCM_RECONFIGURATION_MONTHLY_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Location Type",
+    "Capacity Zone Type",
+    "Capacity Zone ID",
+    "Capacity Zone Name",
+    "Total Supply Offers Submitted",
+    "Total Demand Bids Submitted",
+    "Total Supply Offers Cleared",
+    "Total Demand Bids Cleared",
+    "Net Capacity Cleared",
+    "Clearing Price",
+]
+
+ISONE_FCM_RECONFIGURATION_ANNUAL_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Location Type",
+    "Capacity Zone Type",
+    "Capacity Zone ID",
+    "Capacity Zone Name",
+    "Total Supply Offers Submitted",
+    "Total Demand Bids Submitted",
+    "Total Supply Offers Cleared",
+    "Total Demand Bids Cleared",
+    "Net Capacity Cleared",
+    "ISO Supply Offer",
+    "ISO Supply Offer Cleared",
+    "ISO Demand Bid Cleared",
+    "Clearing Price",
+]
