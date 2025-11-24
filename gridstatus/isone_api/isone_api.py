@@ -17,8 +17,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_CONSTRAINT_FIFTEEN_MIN_COLUMNS,
     ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS,
     ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS,
-    ISONE_FCM_RECONFIGURATION_ANNUAL_COLUMNS,
-    ISONE_FCM_RECONFIGURATION_MONTHLY_COLUMNS,
+    ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_RESERVE_ZONE_COLUMN_MAP,
     ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
@@ -1770,10 +1769,15 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: A DataFrame containing monthly reconfiguration auction data.
         """
-        auctions = self._fetch_fcm_reconfiguration_auctions(
-            dataset_type="monthly",
-            date=date,
-            verbose=verbose,
+        if date == "latest":
+            endpoint = f"{self.base_url}/fcmmra/current"
+        else:
+            start = date[0] if isinstance(date, tuple) else pd.Timestamp(date)
+            cp_label = self._get_fcm_commitment_period_label(start)
+            endpoint = f"{self.base_url}/fcmmra/cp/{cp_label}"
+        response = self.make_api_call(endpoint, verbose=verbose)
+        auctions = self._prepare_records(
+            self._safe_get(response, "FCMRAResults", "FCMRAResult"),
         )
         return self._parse_fcm_reconfiguration_dataframe(
             auctions,
@@ -1798,46 +1802,20 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: A DataFrame containing annual reconfiguration auction data.
         """
-        auctions = self._fetch_fcm_reconfiguration_auctions(
-            dataset_type="annual",
-            date=date,
-            verbose=verbose,
+        if date == "latest":
+            endpoint = f"{self.base_url}/fcmara/current"
+        else:
+            start = date[0] if isinstance(date, tuple) else pd.Timestamp(date)
+            cp_label = self._get_fcm_commitment_period_label(start)
+            endpoint = f"{self.base_url}/fcmara/cp/{cp_label}"
+        response = self.make_api_call(endpoint, verbose=verbose)
+        auctions = self._prepare_records(
+            self._safe_get(response, "FCMRAResults", "FCMRAResult"),
         )
         return self._parse_fcm_reconfiguration_dataframe(
             auctions,
             is_annual=True,
         )
-
-    def _fetch_fcm_reconfiguration_auctions(
-        self,
-        dataset_type: Literal["monthly", "annual"],
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        verbose: bool,
-    ) -> list[dict]:
-        base_path = "fcmmra" if dataset_type == "monthly" else "fcmara"
-
-        if isinstance(date, str) and date == "latest":
-            endpoint = f"{self.base_url}/{base_path}/current"
-        else:
-            start = date[0] if isinstance(date, tuple) else pd.Timestamp(date)
-            if start.tzinfo is None:
-                start = start.tz_localize(self.default_timezone)
-            else:
-                start = start.tz_convert(self.default_timezone)
-            cp_label = self._get_fcm_commitment_period_label(start)
-            endpoint = f"{self.base_url}/{base_path}/cp/{cp_label}"
-
-        response = self.make_api_call(endpoint, verbose=verbose)
-        auctions = self._prepare_records(
-            self._safe_get(response, "FCMRAResults", "FCMRAResult"),
-        )
-
-        if not auctions:
-            raise NoDataFoundException(
-                f"No FCM reconfiguration auction data found for {date}",
-            )
-
-        return auctions
 
     def _parse_fcm_reconfiguration_dataframe(
         self,
@@ -1860,80 +1838,57 @@ class ISONEAPI:
                 errors="ignore",
             )
 
-            if not zone_frame.empty:
-                zone_frame = zone_frame.assign(
-                    **{
-                        "Interval Start": interval_start,
-                        "Interval End": interval_end,
-                        "Location Type": "Capacity Zone",
-                        "Capacity Zone ID": zone_frame.get(
-                            "CapacityZoneID",
-                            zone_frame.get("CapacityZoneId"),
-                        ),
-                        "Capacity Zone Name": zone_frame.get("CapacityZoneName"),
-                        "Capacity Zone Type": zone_frame.get("CapacityZoneType"),
-                        "Total Supply Offers Submitted": zone_frame.get(
-                            "SupplySubmitted",
-                        ),
-                        "Total Demand Bids Submitted": zone_frame.get(
-                            "DemandSubmitted",
-                        ),
-                        "Total Supply Offers Cleared": zone_frame.get("SupplyCleared"),
-                        "Total Demand Bids Cleared": zone_frame.get("DemandCleared"),
-                        "Net Capacity Cleared": zone_frame.get("NetCapacityCleared"),
-                        "Clearing Price": zone_frame.get("ClearingPrice"),
-                        "ISO Supply Offer": zone_frame.get("IsoSupplyOffer"),
-                        "ISO Supply Offer Cleared": zone_frame.get(
-                            "IsoSupplyOfferCleared",
-                        ),
-                        "ISO Demand Bid Cleared": zone_frame.get("IsoDemandBidCleared"),
-                    },
-                )
-                zone_frames.append(zone_frame)
+            zone_id_col = (
+                "CapacityZoneID"
+                if "CapacityZoneID" in zone_frame.columns
+                else "CapacityZoneId"
+            )
+            zone_frame = zone_frame.rename(
+                columns={
+                    zone_id_col: "Capacity Zone ID",
+                    "CapacityZoneName": "Capacity Zone Name",
+                    "CapacityZoneType": "Capacity Zone Type",
+                    "SupplySubmitted": "Total Supply Offers Submitted",
+                    "DemandSubmitted": "Total Demand Bids Submitted",
+                    "SupplyCleared": "Total Supply Offers Cleared",
+                    "DemandCleared": "Total Demand Bids Cleared",
+                    "NetCapacityCleared": "Net Capacity Cleared",
+                    "ClearingPrice": "Clearing Price",
+                },
+            )
+            zone_frame["Interval Start"] = interval_start
+            zone_frame["Interval End"] = interval_end
+            zone_frame["Location Type"] = "Capacity Zone"
+            zone_frames.append(zone_frame)
 
-                interface_frame = pd.json_normalize(
-                    auction,
-                    record_path=[
-                        "ClearedCapacityZones",
-                        "ClearedCapacityZone",
-                        "ClearedExternalInterfaces",
-                        "ClearedExternalInterface",
-                    ],
-                    errors="ignore",
-                )
+            interface_frame = pd.json_normalize(
+                auction,
+                record_path=[
+                    "ClearedCapacityZones",
+                    "ClearedCapacityZone",
+                    "ClearedExternalInterfaces",
+                    "ClearedExternalInterface",
+                ],
+                errors="ignore",
+            )
 
-                if not interface_frame.empty:
-                    interface_frame = interface_frame.assign(
-                        **{
-                            "Interval Start": interval_start,
-                            "Interval End": interval_end,
-                            "Location Type": "External Interface",
-                            "Capacity Zone Type": "External Interface",
-                            "Capacity Zone ID": interface_frame.get(
-                                "ExternalInterfaceId",
-                            ),
-                            "Capacity Zone Name": interface_frame.get(
-                                "ExternalInterfaceName",
-                            ),
-                            "Total Supply Offers Submitted": interface_frame.get(
-                                "SupplySubmitted",
-                            ),
-                            "Total Demand Bids Submitted": interface_frame.get(
-                                "DemandSubmitted",
-                            ),
-                            "Total Supply Offers Cleared": interface_frame.get(
-                                "SupplyCleared",
-                            ),
-                            "Total Demand Bids Cleared": interface_frame.get(
-                                "DemandCleared",
-                            ),
-                            "Net Capacity Cleared": interface_frame.get(
-                                "NetCapacityCleared",
-                            ),
-                            "Clearing Price": interface_frame.get("ClearingPrice"),
-                        },
-                    )
-                    interface_frames.append(interface_frame)
+            interface_frame = interface_frame.rename(
+                columns={
+                    "ExternalInterfaceId": "External Interface ID",
+                    "ExternalInterfaceName": "Capacity Zone Name",
+                    "SupplySubmitted": "Total Supply Offers Submitted",
+                    "DemandSubmitted": "Total Demand Bids Submitted",
+                    "SupplyCleared": "Total Supply Offers Cleared",
+                    "DemandCleared": "Total Demand Bids Cleared",
+                    "NetCapacityCleared": "Net Capacity Cleared",
+                    "ClearingPrice": "Clearing Price",
+                },
+            )
+            interface_frame["Interval Start"] = interval_start
+            interface_frame["Interval End"] = interval_end
+            interface_frame["Location Type"] = "External Interface"
+            interface_frame["Capacity Zone Type"] = "External Interface"
+            interface_frames.append(interface_frame)
 
         df = pd.concat(
             [*zone_frames, *interface_frames],
@@ -1954,32 +1909,17 @@ class ISONEAPI:
             "Clearing Price",
         ]
 
-        if is_annual:
-            numeric_columns.extend(
-                [
-                    "ISO Supply Offer",
-                    "ISO Supply Offer Cleared",
-                    "ISO Demand Bid Cleared",
-                ],
-            )
-
         for column in numeric_columns:
             if column in df.columns:
                 df[column] = pd.to_numeric(df[column], errors="coerce")
 
-        columns = (
-            ISONE_FCM_RECONFIGURATION_ANNUAL_COLUMNS
-            if is_annual
-            else ISONE_FCM_RECONFIGURATION_MONTHLY_COLUMNS
-        )
-
-        df = df.reindex(columns=columns)
+        df = df.reindex(columns=ISONE_FCM_RECONFIGURATION_COLUMNS)
         df = df.sort_values(
             ["Interval Start", "Capacity Zone ID"],
         ).reset_index(drop=True)
 
         log.info(
-            f"Processed FCM {'annual' if is_annual else 'monthly'} reconfiguration auction data: "
+            f"Processed FCM reconfiguration auction data. "
             f"{len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
         )
 
@@ -2009,15 +1949,5 @@ class ISONEAPI:
                 )
             )
             end = start + pd.DateOffset(months=1)
-
-        if start.tzinfo is None:
-            start = start.tz_localize(self.default_timezone)
-        else:
-            start = start.tz_convert(self.default_timezone)
-
-        if end.tzinfo is None:
-            end = end.tz_localize(self.default_timezone)
-        else:
-            end = end.tz_convert(self.default_timezone)
 
         return start, end
