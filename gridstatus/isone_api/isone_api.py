@@ -1752,8 +1752,8 @@ class ISONEAPI:
         df = df.sort_values("Interval Start").reset_index(drop=True)
         return df
 
-    @support_date_range("DAY_START")
-    def get_fcm_reconfiguration_auction_monthly(
+    @support_date_range(frequency=None)
+    def get_fcm_reconfiguration_monthly(
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
@@ -1780,8 +1780,8 @@ class ISONEAPI:
             is_annual=False,
         )
 
-    @support_date_range("DAY_START")
-    def get_fcm_reconfiguration_auction_annual(
+    @support_date_range(frequency=None)
+    def get_fcm_reconfiguration_annual(
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
@@ -1808,13 +1808,44 @@ class ISONEAPI:
             is_annual=True,
         )
 
+    def _fetch_fcm_reconfiguration_auctions(
+        self,
+        dataset_type: Literal["monthly", "annual"],
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool,
+    ) -> list[dict]:
+        base_path = "fcmmra" if dataset_type == "monthly" else "fcmara"
+
+        if isinstance(date, str) and date == "latest":
+            endpoint = f"{self.base_url}/{base_path}/current"
+        else:
+            start = date[0] if isinstance(date, tuple) else pd.Timestamp(date)
+            if start.tzinfo is None:
+                start = start.tz_localize(self.default_timezone)
+            else:
+                start = start.tz_convert(self.default_timezone)
+            cp_label = self._get_fcm_commitment_period_label(start)
+            endpoint = f"{self.base_url}/{base_path}/cp/{cp_label}"
+
+        response = self.make_api_call(endpoint, verbose=verbose)
+        auctions = self._prepare_records(
+            self._safe_get(response, "FCMRAResults", "FCMRAResult"),
+        )
+
+        if not auctions:
+            raise NoDataFoundException(
+                f"No FCM reconfiguration auction data found for {date}",
+            )
+
+        return auctions
+
     def _parse_fcm_reconfiguration_dataframe(
         self,
         auctions: list[dict],
         is_annual: bool,
     ) -> pd.DataFrame:
-        zone_frames = []
-        interface_frames = []
+        zone_frames: list[pd.DataFrame] = []
+        interface_frames: list[pd.DataFrame] = []
 
         for wrapper in auctions:
             auction = wrapper.get("Auction", wrapper)
@@ -1822,11 +1853,6 @@ class ISONEAPI:
                 auction,
                 is_annual=is_annual,
             )
-
-            base_meta = {
-                "Interval Start": interval_start,
-                "Interval End": interval_end,
-            }
 
             zone_frame = pd.json_normalize(
                 auction,
@@ -1836,8 +1862,9 @@ class ISONEAPI:
 
             if not zone_frame.empty:
                 zone_frame = zone_frame.assign(
-                    **base_meta,
                     **{
+                        "Interval Start": interval_start,
+                        "Interval End": interval_end,
                         "Location Type": "Capacity Zone",
                         "Capacity Zone ID": zone_frame.get(
                             "CapacityZoneID",
@@ -1859,9 +1886,7 @@ class ISONEAPI:
                         "ISO Supply Offer Cleared": zone_frame.get(
                             "IsoSupplyOfferCleared",
                         ),
-                        "ISO Demand Bid Cleared": zone_frame.get(
-                            "IsoDemandBidCleared",
-                        ),
+                        "ISO Demand Bid Cleared": zone_frame.get("IsoDemandBidCleared"),
                     },
                 )
                 zone_frames.append(zone_frame)
@@ -1879,12 +1904,11 @@ class ISONEAPI:
 
                 if not interface_frame.empty:
                     interface_frame = interface_frame.assign(
-                        **base_meta,
                         **{
+                            "Interval Start": interval_start,
+                            "Interval End": interval_end,
                             "Location Type": "External Interface",
-                            "Capacity Zone Type": interface_frame.get(
-                                "ExternalInterfaceName",
-                            ),
+                            "Capacity Zone Type": "External Interface",
                             "Capacity Zone ID": interface_frame.get(
                                 "ExternalInterfaceId",
                             ),
@@ -1961,46 +1985,6 @@ class ISONEAPI:
 
         return df
 
-    def _fetch_fcm_reconfiguration_auctions(
-        self,
-        dataset_type: Literal["monthly", "annual"],
-        date: str | pd.Timestamp,
-        verbose: bool,
-    ) -> list[dict]:
-        base_path = "fcmmra" if dataset_type == "monthly" else "fcmara"
-
-        if isinstance(date, str) and date == "latest":
-            endpoint = f"{self.base_url}/{base_path}/current"
-        else:
-            timestamp = self._coerce_to_timestamp(date)
-            cp_label = self._get_fcm_commitment_period_label(timestamp)
-            endpoint = f"{self.base_url}/{base_path}/cp/{cp_label}"
-
-        response = self.make_api_call(endpoint, verbose=verbose)
-        auctions = self._prepare_records(
-            self._safe_get(response, "FCMRAResults", "FCMRAResult"),
-        )
-
-        if not auctions:
-            raise NoDataFoundException(
-                f"No FCM reconfiguration auction data found for {date}",
-            )
-
-        return auctions
-
-    def _coerce_to_timestamp(
-        self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-    ) -> pd.Timestamp:
-        if isinstance(date, tuple):
-            date = date[0]
-        timestamp = pd.Timestamp(date)
-        if timestamp.tzinfo is None:
-            timestamp = timestamp.tz_localize(self.default_timezone)
-        else:
-            timestamp = timestamp.tz_convert(self.default_timezone)
-        return timestamp
-
     def _get_fcm_commitment_period_label(self, timestamp: pd.Timestamp) -> str:
         start_year = timestamp.year if timestamp.month >= 6 else timestamp.year - 1
         end_year_suffix = (start_year + 1) % 100
@@ -2011,70 +1995,29 @@ class ISONEAPI:
         auction: dict,
         is_annual: bool,
     ) -> tuple[pd.Timestamp, pd.Timestamp]:
-        description = auction.get("Description")
-        interval_start: pd.Timestamp | None = None
-        if description and not is_annual:
-            try:
-                interval_start = pd.Timestamp(description)
-            except Exception:
-                interval_start = None
-
-        if interval_start is None:
-            candidate = auction.get("CommitmentPeriod", {}).get(
-                "BeginDate",
-            ) or auction.get("ApprovalDate")
-            if candidate:
-                interval_start = pd.Timestamp(candidate)
-
-        if interval_start is None:
-            raise ValueError("Unable to derive interval start for FCM auction data")
-
-        if interval_start.tzinfo is None:
-            interval_start = interval_start.tz_localize(self.default_timezone)
-        else:
-            interval_start = interval_start.tz_convert(self.default_timezone)
-
         if is_annual:
-            end_candidate = auction.get("CommitmentPeriod", {}).get("EndDate")
-            if end_candidate:
-                interval_end = pd.Timestamp(end_candidate)
-                if interval_end.tzinfo is None:
-                    interval_end = interval_end.tz_localize(self.default_timezone)
-                else:
-                    interval_end = interval_end.tz_convert(self.default_timezone)
-            else:
-                interval_end = interval_start + pd.DateOffset(years=1)
+            period = auction.get("CommitmentPeriod", {})
+            start = pd.Timestamp(period.get("BeginDate"))
+            end = pd.Timestamp(period.get("EndDate"))
         else:
-            interval_end = interval_start + pd.DateOffset(months=1)
+            description = auction.get("Description")
+            start = (
+                pd.Timestamp(description)
+                if description
+                else pd.Timestamp(
+                    auction.get("ApprovalDate"),
+                )
+            )
+            end = start + pd.DateOffset(months=1)
 
-        return interval_start, interval_end
+        if start.tzinfo is None:
+            start = start.tz_localize(self.default_timezone)
+        else:
+            start = start.tz_convert(self.default_timezone)
 
-    def _build_fcm_reconfiguration_row(
-        self,
-        record: dict,
-        interval_start: pd.Timestamp,
-        interval_end: pd.Timestamp,
-        location_type: str,
-    ) -> dict:
-        row = {
-            "Interval Start": interval_start,
-            "Interval End": interval_end,
-            "Location Type": location_type,
-            "Capacity Zone Type": record.get("CapacityZoneType", location_type),
-            "Capacity Zone ID": record.get("CapacityZoneID")
-            or record.get("CapacityZoneId")
-            or record.get("ExternalInterfaceId"),
-            "Capacity Zone Name": record.get("CapacityZoneName")
-            or record.get("ExternalInterfaceName"),
-            "Total Supply Offers Submitted": record.get("SupplySubmitted"),
-            "Total Demand Bids Submitted": record.get("DemandSubmitted"),
-            "Total Supply Offers Cleared": record.get("SupplyCleared"),
-            "Total Demand Bids Cleared": record.get("DemandCleared"),
-            "Net Capacity Cleared": record.get("NetCapacityCleared"),
-            "Clearing Price": record.get("ClearingPrice"),
-            "ISO Supply Offer": record.get("IsoSupplyOffer"),
-            "ISO Supply Offer Cleared": record.get("IsoSupplyOfferCleared"),
-            "ISO Demand Bid Cleared": record.get("IsoDemandBidCleared"),
-        }
+        if end.tzinfo is None:
+            end = end.tz_localize(self.default_timezone)
+        else:
+            end = end.tz_convert(self.default_timezone)
 
-        return row
+        return start, end
