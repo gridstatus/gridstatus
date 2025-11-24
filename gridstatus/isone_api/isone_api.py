@@ -1799,7 +1799,7 @@ class ISONEAPI:
 
         return self._parse_fcm_reconfiguration_dataframe(annotated_auctions)
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="YEAR_START")
     def get_fcm_reconfiguration_annual(
         self,
         date: str | pd.Timestamp = "latest",
