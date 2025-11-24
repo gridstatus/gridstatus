@@ -546,7 +546,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_cleared_generation_physical_hourly_{date.date()}"
+            f"get_day_ahead_cleared_generation_physical_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_cleared_generation_physical_hourly(date)
 
@@ -562,7 +562,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_cleared_generation_virtual_hourly_{date.date()}"
+            f"get_day_ahead_cleared_generation_virtual_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_cleared_generation_virtual_hourly(date)
 
@@ -578,7 +578,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_net_scheduled_interchange_hourly_{date.date()}"
+            f"get_day_ahead_net_scheduled_interchange_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_net_scheduled_interchange_hourly(date)
 
@@ -616,7 +616,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_offered_generation_ecomax_hourly_{date.date()}"
+            f"get_day_ahead_offered_generation_ecomax_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_offered_generation_ecomax_hourly(date)
 
@@ -642,7 +642,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_offered_generation_ecomin_hourly_{date.date()}"
+            f"get_day_ahead_offered_generation_ecomin_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_offered_generation_ecomin_hourly(date)
 
@@ -668,7 +668,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_generation_fuel_type_hourly_{date.date()}"
+            f"get_day_ahead_generation_fuel_type_hourly_{date.date()}",
         ):
             df = self.iso.get_day_ahead_generation_fuel_type_hourly(date)
 
@@ -766,7 +766,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
-            f"get_real_time_cleared_generation_hourly_{date.date()}"
+            f"get_real_time_cleared_generation_hourly_{date.date()}",
         ):
             df = self.iso.get_real_time_cleared_generation_hourly(date)
 
@@ -783,7 +783,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"get_real_time_offered_generation_ecomax_hourly_{date.date()}"
+            f"get_real_time_offered_generation_ecomax_hourly_{date.date()}",
         ):
             df = self.iso.get_real_time_offered_generation_ecomax_hourly(date)
 
@@ -815,7 +815,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
-            f"get_real_time_committed_generation_ecomax_hourly_{date.date()}"
+            f"get_real_time_committed_generation_ecomax_hourly_{date.date()}",
         ):
             df = self.iso.get_real_time_committed_generation_ecomax_hourly(date)
 
@@ -847,7 +847,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"get_real_time_generation_fuel_type_hourly_{date.date()}"
+            f"get_real_time_generation_fuel_type_hourly_{date.date()}",
         ):
             df = self.iso.get_real_time_generation_fuel_type_hourly(date)
 
@@ -955,7 +955,7 @@ class TestMISOAPI(TestHelperMixin):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"get_medium_term_load_forecast_hourly_{date.date()}"
+            f"get_medium_term_load_forecast_hourly_{date.date()}",
         ):
             df = self.iso.get_medium_term_load_forecast_hourly(date)
 
@@ -975,10 +975,11 @@ class TestMISOAPI(TestHelperMixin):
         publish_time = date - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
-            f"test_get_medium_term_load_forecast_hourly_with_publish_time_{date.date()}"
+            f"test_get_medium_term_load_forecast_hourly_with_publish_time_{date.date()}",
         ):
             df = self.iso.get_medium_term_load_forecast_hourly(
-                date, publish_time=publish_time
+                date,
+                publish_time=publish_time,
             )
 
         self._check_test_medium_term_load_forecast(df)
@@ -1002,6 +1003,77 @@ class TestMISOAPI(TestHelperMixin):
         self._check_test_medium_term_load_forecast(df)
 
         assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    def _check_test_outage_forecast(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Region",
+            "Outage Forecast",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in [
+                "Interval Start",
+                "Interval End",
+                "Region",
+            ]:
+                assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_outage_forecast(self):
+        # Outage forecast is for future dates - use tomorrow
+        date = self.local_start_of_today() + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(f"get_outage_forecast_{date.date()}"):
+            df = self.iso.get_outage_forecast(date)
+
+        self._check_test_outage_forecast(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    def _check_test_look_ahead_hourly(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Region",
+            "MTLF",
+            "Outage",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in ["MTLF", "Outage"]:
+            assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_look_ahead_hourly(self):
+        # Look ahead is for future dates - use tomorrow
+        date = self.local_start_of_today() + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(f"get_look_ahead_hourly_{date.date()}"):
+            df = self.iso.get_look_ahead_hourly(date)
+
+        self._check_test_look_ahead_hourly(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
         assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
