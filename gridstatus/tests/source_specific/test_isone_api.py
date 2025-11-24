@@ -1480,4 +1480,11 @@ class TestISONEAPI(TestHelperMixin):
             )
 
             self._check_fcm_reconfiguration(result)
-            assert result["Interval Start"].min().date() == date.date()
+            cp_start_year = date.year if date.month >= 6 else date.year - 1
+            expected_cp_start = pd.Timestamp(
+                year=cp_start_year,
+                month=6,
+                day=1,
+                tz=date.tz,
+            )
+            assert result["Interval Start"].min().date() == expected_cp_start.date()
