@@ -1779,10 +1779,18 @@ class ISONEAPI:
         auctions = self._prepare_records(
             self._safe_get(response, "FCMRAResults", "FCMRAResult"),
         )
-        return self._parse_fcm_reconfiguration_dataframe(
-            auctions,
-            is_annual=False,
-        )
+        annotated_auctions: list[tuple[dict, pd.Timestamp, pd.Timestamp]] = []
+        for wrapper in auctions:
+            auction = wrapper.get("Auction", wrapper)
+            description = auction.get("Description")
+            interval_start = (
+                pd.Timestamp(description)
+                if description
+                else pd.Timestamp(auction.get("ApprovalDate"))
+            )
+            interval_end = interval_start + pd.DateOffset(months=1)
+            annotated_auctions.append((auction, interval_start, interval_end))
+        return self._parse_fcm_reconfiguration_dataframe(annotated_auctions)
 
     @support_date_range(frequency=None)
     def get_fcm_reconfiguration_annual(
@@ -1812,54 +1820,77 @@ class ISONEAPI:
         auctions = self._prepare_records(
             self._safe_get(response, "FCMRAResults", "FCMRAResult"),
         )
-        return self._parse_fcm_reconfiguration_dataframe(
-            auctions,
-            is_annual=True,
-        )
+        annotated_auctions: list[tuple[dict, pd.Timestamp, pd.Timestamp]] = []
+        for wrapper in auctions:
+            auction = wrapper.get("Auction", wrapper)
+            period = auction.get("CommitmentPeriod", {})
+            begin = period.get("BeginDate")
+            end = period.get("EndDate")
+            if begin and end:
+                interval_start = pd.Timestamp(begin)
+                interval_end = pd.Timestamp(end)
+            else:
+                description = auction.get("Description")
+                interval_start = (
+                    pd.Timestamp(description)
+                    if description
+                    else pd.Timestamp(auction.get("ApprovalDate"))
+                )
+                interval_end = interval_start + pd.DateOffset(years=1)
+            annotated_auctions.append((auction, interval_start, interval_end))
+        return self._parse_fcm_reconfiguration_dataframe(annotated_auctions)
+
+    def _get_fcm_commitment_period_label(self, timestamp: pd.Timestamp) -> str:
+        start_year = timestamp.year if timestamp.month >= 6 else timestamp.year - 1
+        end_year_suffix = (start_year + 1) % 100
+        return f"{start_year}-{end_year_suffix:02d}"
 
     def _parse_fcm_reconfiguration_dataframe(
         self,
-        auctions: list[dict],
-        is_annual: bool,
+        auction_records: list[tuple[dict, pd.Timestamp, pd.Timestamp]],
     ) -> pd.DataFrame:
-        zone_frames: list[pd.DataFrame] = []
-        interface_frames: list[pd.DataFrame] = []
+        frames: list[pd.DataFrame] = []
 
-        for wrapper in auctions:
-            auction = wrapper.get("Auction", wrapper)
-            interval_start, interval_end = self._derive_fcm_reconfiguration_interval(
-                auction,
-                is_annual=is_annual,
-            )
+        zone_column_map = {
+            "CapacityZoneID": "Capacity Zone ID",
+            "CapacityZoneId": "Capacity Zone ID",
+            "CapacityZoneName": "Capacity Zone Name",
+            "CapacityZoneType": "Capacity Zone Type",
+            "SupplySubmitted": "Total Supply Offers Submitted",
+            "DemandSubmitted": "Total Demand Bids Submitted",
+            "SupplyCleared": "Total Supply Offers Cleared",
+            "DemandCleared": "Total Demand Bids Cleared",
+            "NetCapacityCleared": "Net Capacity Cleared",
+            "ClearingPrice": "Clearing Price",
+        }
 
+        interface_column_map = {
+            "ExternalInterfaceId": "Capacity Zone ID",
+            "ExternalInterfaceName": "Capacity Zone Name",
+            "SupplySubmitted": "Total Supply Offers Submitted",
+            "DemandSubmitted": "Total Demand Bids Submitted",
+            "SupplyCleared": "Total Supply Offers Cleared",
+            "DemandCleared": "Total Demand Bids Cleared",
+            "NetCapacityCleared": "Net Capacity Cleared",
+            "ClearingPrice": "Clearing Price",
+        }
+
+        for auction, interval_start, interval_end in auction_records:
             zone_frame = pd.json_normalize(
                 auction,
                 record_path=["ClearedCapacityZones", "ClearedCapacityZone"],
                 errors="ignore",
             )
 
-            zone_id_col = (
-                "CapacityZoneID"
-                if "CapacityZoneID" in zone_frame.columns
-                else "CapacityZoneId"
-            )
-            zone_frame = zone_frame.rename(
-                columns={
-                    zone_id_col: "Capacity Zone ID",
-                    "CapacityZoneName": "Capacity Zone Name",
-                    "CapacityZoneType": "Capacity Zone Type",
-                    "SupplySubmitted": "Total Supply Offers Submitted",
-                    "DemandSubmitted": "Total Demand Bids Submitted",
-                    "SupplyCleared": "Total Supply Offers Cleared",
-                    "DemandCleared": "Total Demand Bids Cleared",
-                    "NetCapacityCleared": "Net Capacity Cleared",
-                    "ClearingPrice": "Clearing Price",
+            zone_frame = zone_frame.rename(columns=zone_column_map)
+            zone_frame = zone_frame.assign(
+                **{
+                    "Interval Start": interval_start,
+                    "Interval End": interval_end,
+                    "Location Type": "Capacity Zone",
                 },
             )
-            zone_frame["Interval Start"] = interval_start
-            zone_frame["Interval End"] = interval_end
-            zone_frame["Location Type"] = "Capacity Zone"
-            zone_frames.append(zone_frame)
+            frames.append(zone_frame)
 
             interface_frame = pd.json_normalize(
                 auction,
@@ -1872,33 +1903,18 @@ class ISONEAPI:
                 errors="ignore",
             )
 
-            interface_frame = interface_frame.rename(
-                columns={
-                    "ExternalInterfaceId": "External Interface ID",
-                    "ExternalInterfaceName": "Capacity Zone Name",
-                    "SupplySubmitted": "Total Supply Offers Submitted",
-                    "DemandSubmitted": "Total Demand Bids Submitted",
-                    "SupplyCleared": "Total Supply Offers Cleared",
-                    "DemandCleared": "Total Demand Bids Cleared",
-                    "NetCapacityCleared": "Net Capacity Cleared",
-                    "ClearingPrice": "Clearing Price",
+            interface_frame = interface_frame.rename(columns=interface_column_map)
+            interface_frame = interface_frame.assign(
+                **{
+                    "Interval Start": interval_start,
+                    "Interval End": interval_end,
+                    "Location Type": "External Interface",
+                    "Capacity Zone Type": "External Interface",
                 },
             )
-            interface_frame["Interval Start"] = interval_start
-            interface_frame["Interval End"] = interval_end
-            interface_frame["Location Type"] = "External Interface"
-            interface_frame["Capacity Zone Type"] = "External Interface"
-            interface_frames.append(interface_frame)
+            frames.append(interface_frame)
 
-        df = pd.concat(
-            [*zone_frames, *interface_frames],
-            ignore_index=True,
-        )
-
-        if df.empty:
-            raise NoDataFoundException(
-                "No FCM reconfiguration auction data found for the requested parameters.",
-            )
+        df = pd.concat(frames, ignore_index=True)
 
         numeric_columns = [
             "Total Supply Offers Submitted",
@@ -1924,30 +1940,3 @@ class ISONEAPI:
         )
 
         return df
-
-    def _get_fcm_commitment_period_label(self, timestamp: pd.Timestamp) -> str:
-        start_year = timestamp.year if timestamp.month >= 6 else timestamp.year - 1
-        end_year_suffix = (start_year + 1) % 100
-        return f"{start_year}-{end_year_suffix:02d}"
-
-    def _derive_fcm_reconfiguration_interval(
-        self,
-        auction: dict,
-        is_annual: bool,
-    ) -> tuple[pd.Timestamp, pd.Timestamp]:
-        if is_annual:
-            period = auction.get("CommitmentPeriod", {})
-            start = pd.Timestamp(period.get("BeginDate"))
-            end = pd.Timestamp(period.get("EndDate"))
-        else:
-            description = auction.get("Description")
-            start = (
-                pd.Timestamp(description)
-                if description
-                else pd.Timestamp(
-                    auction.get("ApprovalDate"),
-                )
-            )
-            end = start + pd.DateOffset(months=1)
-
-        return start, end
