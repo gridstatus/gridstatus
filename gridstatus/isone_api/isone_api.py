@@ -1751,7 +1751,7 @@ class ISONEAPI:
         df = df.sort_values("Interval Start").reset_index(drop=True)
         return df
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="MONTH_START")
     def get_fcm_reconfiguration_monthly(
         self,
         date: str | pd.Timestamp = "latest",
