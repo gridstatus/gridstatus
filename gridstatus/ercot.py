@@ -145,6 +145,9 @@ SHORT_TERM_SYSTEM_ADEQUACY_REPORT_RTID = 12315
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-323-CD
 REAL_TIME_ADDERS_AND_RESERVES_RTID = 13221
 
+# RTC Market Trials Real-Time ORDC and Reliability Deployment Price Adders
+REAL_TIME_ADDERS_RTC_B_TRIAL_RTID = 4108
+
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
 TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
 
@@ -2297,8 +2300,9 @@ class Ercot(ISOBase):
         """
 
         url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"
-
-        df = self._download_html_table(url)
+        logger.info(f"Getting Ancillary Service Capacity Monitor from {url}")
+        html_content = requests.get(url).content
+        df = self._parse_html_table(html_content)
 
         return df
 
@@ -2321,7 +2325,9 @@ class Ercot(ISOBase):
         """
 
         url = "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html"
-        df = self._download_html_table(url)
+        logger.info(f"Getting Real-Time System Conditions from {url}")
+        html_content = requests.get(url).content
+        df = self._parse_html_table(html_content)
         df = df.rename(
             columns={
                 "Frequency - Current Frequency": "Current Frequency",
@@ -2336,12 +2342,9 @@ class Ercot(ISOBase):
 
         return df
 
-    def _download_html_table(self, url: str) -> pd.DataFrame:
-        logger.info(f"Downloading {url}")
-
-        html = requests.get(url).content
-
-        soup = BeautifulSoup(html, "html.parser")
+    def _parse_html_table(self, html_content: bytes) -> pd.DataFrame:
+        logger.info("Parsing HTML table")
+        soup = BeautifulSoup(html_content, "html.parser")
 
         table = soup.find("table", attrs={"class": "tableStyle"})
 
@@ -4587,8 +4590,6 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    ### Part Two RTC+B Trials ###
-
     # Published per DRUC run for the next day
     @support_date_range(frequency="DAY_START")
     def get_as_deployment_factors_daily_ruc_rtc_b_trial(
@@ -4847,3 +4848,64 @@ class Ercot(ISOBase):
             .sort_values("SCED Timestamp")
             .reset_index(drop=True)
         )
+
+        # Published every SCED interval
+
+    @support_date_range(frequency=None)
+    def get_real_time_adders_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTC Market Trials Real-Time ORDC and Reliability Deployment
+        Price Adders and Reserves by SCED Interval
+
+        This is the RTC+B trial version of Real-Time Price Adders data,
+        produced by SCED every five minutes.
+
+        Arguments:
+            date: date to get data for
+            end: end date to get data for. If None, defaults to date + 1 day
+            verbose: print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with ORDC price adders data
+        """
+        published_before = None
+        published_after = None
+
+        # _get_documents can directly handle date = "latest"
+        if date != "latest":
+            published_after = date
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+
+        docs = self._get_documents(
+            report_type_id=REAL_TIME_ADDERS_RTC_B_TRIAL_RTID,
+            date=date,
+            published_after=published_after,
+            published_before=published_before,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        return self._handle_real_time_adders_rtc_b_trial(docs, verbose=verbose)
+
+    def _handle_real_time_adders_rtc_b_trial(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._handle_sced_timestamp(df)
+
+        df = utils.move_cols_to_front(
+            df,
+            ["SCED Timestamp", "Interval Start", "Interval End"],
+        )
+        df = df.rename(columns={"SystemLambda": "System Lambda"})
+
+        return df.sort_values("SCED Timestamp").reset_index(drop=True)
