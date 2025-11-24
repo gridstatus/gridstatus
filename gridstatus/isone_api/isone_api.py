@@ -1770,43 +1770,14 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: A DataFrame containing monthly reconfiguration auction data.
         """
-        url = self._build_url("fcmmonthlyreconfigurationauction", date)
-        response = self.make_api_call(url, verbose=verbose)
-
-        capacity_zones = self._safe_get(
-            response,
-            "FcmMonthlyReconfigurationAuction",
-            "CapacityZones",
-            "CapacityZone",
-        )
-        external_interfaces = self._safe_get(
-            response,
-            "FcmMonthlyReconfigurationAuction",
-            "ExternalInterfaces",
-            "ExternalInterface",
-        )
-
-        capacity_zone_records = self._prepare_records(capacity_zones)
-        external_interface_records = self._prepare_records(external_interfaces)
-
-        for record in capacity_zone_records:
-            record["_source_type"] = "Capacity Zone"
-        for record in external_interface_records:
-            record["_source_type"] = "External Interface"
-
-        records = capacity_zone_records + external_interface_records
-
-        if not records:
-            raise NoDataFoundException(
-                f"No monthly FCM reconfiguration auction data found for {date}",
-            )
-
-        df = pd.DataFrame(records)
-
-        return self._parse_fcm_reconfiguration_dataframe(
-            df,
-            is_annual=False,
+        auctions = self._fetch_fcm_reconfiguration_auctions(
+            dataset_type="monthly",
+            date=date,
             verbose=verbose,
+        )
+        return self._parse_fcm_reconfiguration_dataframe(
+            auctions,
+            is_annual=False,
         )
 
     @support_date_range("DAY_START")
@@ -1827,191 +1798,128 @@ class ISONEAPI:
         Returns:
             pd.DataFrame: A DataFrame containing annual reconfiguration auction data.
         """
-        url = self._build_url("fcmannualreconfigurationauction", date)
-        response = self.make_api_call(url, verbose=verbose)
-
-        capacity_zones = self._safe_get(
-            response,
-            "FcmAnnualReconfigurationAuction",
-            "CapacityZones",
-            "CapacityZone",
-        )
-        external_interfaces = self._safe_get(
-            response,
-            "FcmAnnualReconfigurationAuction",
-            "ExternalInterfaces",
-            "ExternalInterface",
-        )
-
-        capacity_zone_records = self._prepare_records(capacity_zones)
-        external_interface_records = self._prepare_records(external_interfaces)
-
-        for record in capacity_zone_records:
-            record["_source_type"] = "Capacity Zone"
-        for record in external_interface_records:
-            record["_source_type"] = "External Interface"
-
-        records = capacity_zone_records + external_interface_records
-
-        if not records:
-            raise NoDataFoundException(
-                f"No annual FCM reconfiguration auction data found for {date}",
-            )
-
-        df = pd.DataFrame(records)
-
-        return self._parse_fcm_reconfiguration_dataframe(
-            df,
-            is_annual=True,
+        auctions = self._fetch_fcm_reconfiguration_auctions(
+            dataset_type="annual",
+            date=date,
             verbose=verbose,
+        )
+        return self._parse_fcm_reconfiguration_dataframe(
+            auctions,
+            is_annual=True,
         )
 
     def _parse_fcm_reconfiguration_dataframe(
         self,
-        df: pd.DataFrame,
+        auctions: list[dict],
         is_annual: bool,
-        verbose: bool = False,
     ) -> pd.DataFrame:
-        """
-        Process FCM reconfiguration auction DataFrame.
+        zone_frames = []
+        interface_frames = []
 
-        Args:
-            df (pd.DataFrame): Input DataFrame with reconfiguration auction data.
-            is_annual (bool): Whether this is annual (True) or monthly (False) data.
-            verbose (bool): Whether to print verbose logging information.
+        for wrapper in auctions:
+            auction = wrapper.get("Auction", wrapper)
+            interval_start, interval_end = self._derive_fcm_reconfiguration_interval(
+                auction,
+                is_annual=is_annual,
+            )
 
-        Returns:
-            pd.DataFrame: Processed DataFrame.
-        """
+            base_meta = {
+                "Interval Start": interval_start,
+                "Interval End": interval_end,
+            }
+
+            zone_frame = pd.json_normalize(
+                auction,
+                record_path=["ClearedCapacityZones", "ClearedCapacityZone"],
+                errors="ignore",
+            )
+
+            if not zone_frame.empty:
+                zone_frame = zone_frame.assign(
+                    **base_meta,
+                    **{
+                        "Location Type": "Capacity Zone",
+                        "Capacity Zone ID": zone_frame.get(
+                            "CapacityZoneID",
+                            zone_frame.get("CapacityZoneId"),
+                        ),
+                        "Capacity Zone Name": zone_frame.get("CapacityZoneName"),
+                        "Capacity Zone Type": zone_frame.get("CapacityZoneType"),
+                        "Total Supply Offers Submitted": zone_frame.get(
+                            "SupplySubmitted",
+                        ),
+                        "Total Demand Bids Submitted": zone_frame.get(
+                            "DemandSubmitted",
+                        ),
+                        "Total Supply Offers Cleared": zone_frame.get("SupplyCleared"),
+                        "Total Demand Bids Cleared": zone_frame.get("DemandCleared"),
+                        "Net Capacity Cleared": zone_frame.get("NetCapacityCleared"),
+                        "Clearing Price": zone_frame.get("ClearingPrice"),
+                        "ISO Supply Offer": zone_frame.get("IsoSupplyOffer"),
+                        "ISO Supply Offer Cleared": zone_frame.get(
+                            "IsoSupplyOfferCleared",
+                        ),
+                        "ISO Demand Bid Cleared": zone_frame.get(
+                            "IsoDemandBidCleared",
+                        ),
+                    },
+                )
+                zone_frames.append(zone_frame)
+
+                interface_frame = pd.json_normalize(
+                    auction,
+                    record_path=[
+                        "ClearedCapacityZones",
+                        "ClearedCapacityZone",
+                        "ClearedExternalInterfaces",
+                        "ClearedExternalInterface",
+                    ],
+                    errors="ignore",
+                )
+
+                if not interface_frame.empty:
+                    interface_frame = interface_frame.assign(
+                        **base_meta,
+                        **{
+                            "Location Type": "External Interface",
+                            "Capacity Zone Type": interface_frame.get(
+                                "ExternalInterfaceName",
+                            ),
+                            "Capacity Zone ID": interface_frame.get(
+                                "ExternalInterfaceId",
+                            ),
+                            "Capacity Zone Name": interface_frame.get(
+                                "ExternalInterfaceName",
+                            ),
+                            "Total Supply Offers Submitted": interface_frame.get(
+                                "SupplySubmitted",
+                            ),
+                            "Total Demand Bids Submitted": interface_frame.get(
+                                "DemandSubmitted",
+                            ),
+                            "Total Supply Offers Cleared": interface_frame.get(
+                                "SupplyCleared",
+                            ),
+                            "Total Demand Bids Cleared": interface_frame.get(
+                                "DemandCleared",
+                            ),
+                            "Net Capacity Cleared": interface_frame.get(
+                                "NetCapacityCleared",
+                            ),
+                            "Clearing Price": interface_frame.get("ClearingPrice"),
+                        },
+                    )
+                    interface_frames.append(interface_frame)
+
+        df = pd.concat(
+            [*zone_frames, *interface_frames],
+            ignore_index=True,
+        )
+
         if df.empty:
             raise NoDataFoundException(
                 "No FCM reconfiguration auction data found for the requested parameters.",
             )
-
-        df = df.copy()
-
-        report_for_col = None
-        for col in df.columns:
-            if "report" in col.lower() and "for" in col.lower():
-                report_for_col = col
-                break
-
-        if report_for_col is None:
-            raise ValueError(
-                "Missing 'ReportFor' field in FCM reconfiguration auction data",
-            )
-
-        interval_starts = []
-        interval_ends = []
-        location_types = []
-
-        for idx, row in df.iterrows():
-            row_dict = row.to_dict()
-            report_for_str = row.get(report_for_col)
-            if pd.isna(report_for_str) or not report_for_str:
-                interval_starts.append(None)
-                interval_ends.append(None)
-                location_types.append(None)
-                continue
-
-            date_range = str(report_for_str).strip()
-            if " - " in date_range or " to " in date_range:
-                separator = " - " if " - " in date_range else " to "
-                parts = date_range.split(separator, 1)
-                if len(parts) == 2:
-                    start_str = parts[0].strip()
-                    end_str = parts[1].strip()
-                    try:
-                        start_dt = pd.to_datetime(start_str)
-                        end_dt = pd.to_datetime(end_str)
-                        if start_dt.tz is None:
-                            start_dt = start_dt.tz_localize(self.default_timezone)
-                        else:
-                            start_dt = start_dt.tz_convert(self.default_timezone)
-                        if end_dt.tz is None:
-                            end_dt = end_dt.tz_localize(self.default_timezone)
-                        else:
-                            end_dt = end_dt.tz_convert(self.default_timezone)
-                        interval_starts.append(start_dt)
-                        interval_ends.append(end_dt)
-                    except Exception as e:
-                        if verbose:
-                            log.warning(
-                                f"Failed to parse date range '{date_range}': {e}",
-                            )
-                        interval_starts.append(None)
-                        interval_ends.append(None)
-                else:
-                    interval_starts.append(None)
-                    interval_ends.append(None)
-            else:
-                try:
-                    single_dt = pd.to_datetime(date_range)
-                    if single_dt.tz is None:
-                        single_dt = single_dt.tz_localize(self.default_timezone)
-                    else:
-                        single_dt = single_dt.tz_convert(self.default_timezone)
-                    interval_starts.append(single_dt)
-                    interval_ends.append(single_dt + pd.Timedelta(days=1))
-                except Exception as e:
-                    if verbose:
-                        log.warning(f"Failed to parse date '{date_range}': {e}")
-                    interval_starts.append(None)
-                    interval_ends.append(None)
-
-            if "_source_type" in row_dict:
-                location_types.append(row_dict["_source_type"])
-            else:
-                has_external_interface_cols = any(
-                    "external" in str(k).lower() or "interface" in str(k).lower()
-                    for k in row_dict.keys()
-                    if k != report_for_col and k != "_source_type"
-                )
-                has_capacity_zone_cols = any(
-                    "capacity" in str(k).lower() and "zone" in str(k).lower()
-                    for k in row_dict.keys()
-                    if k != report_for_col and k != "_source_type"
-                )
-
-                if has_external_interface_cols and not has_capacity_zone_cols:
-                    location_types.append("External Interface")
-                else:
-                    location_types.append("Capacity Zone")
-
-        df["Interval Start"] = interval_starts
-        df["Interval End"] = interval_ends
-        df["Location Type"] = location_types
-
-        if "_source_type" in df.columns:
-            df = df.drop(columns=["_source_type"])
-
-        df = df.dropna(subset=["Interval Start", "Interval End"])
-
-        column_mapping = {
-            "CapacityZoneType": "Capacity Zone Type",
-            "CapacityZoneId": "Capacity Zone ID",
-            "CapacityZoneID": "Capacity Zone ID",
-            "CapacityZoneName": "Capacity Zone Name",
-            "TotalSupplyOffersSubmitted": "Total Supply Offers Submitted",
-            "TotalDemandBidsSubmitted": "Total Demand Bids Submitted",
-            "TotalSupplyOffersCleared": "Total Supply Offers Cleared",
-            "TotalDemandBidsCleared": "Total Demand Bids Cleared",
-            "NetCapacityCleared": "Net Capacity Cleared",
-            "ClearingPrice": "Clearing Price",
-        }
-
-        if is_annual:
-            column_mapping.update(
-                {
-                    "IsoSupplyOffer": "ISO Supply Offer",
-                    "IsoSupplyOfferCleared": "ISO Supply Offer Cleared",
-                    "IsoDemandBidCleared": "ISO Demand Bid Cleared",
-                },
-            )
-
-        for old_col, new_col in column_mapping.items():
-            if old_col in df.columns:
-                df = df.rename(columns={old_col: new_col})
 
         numeric_columns = [
             "Total Supply Offers Submitted",
@@ -2031,9 +1939,9 @@ class ISONEAPI:
                 ],
             )
 
-        for col in numeric_columns:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+        for column in numeric_columns:
+            if column in df.columns:
+                df[column] = pd.to_numeric(df[column], errors="coerce")
 
         columns = (
             ISONE_FCM_RECONFIGURATION_ANNUAL_COLUMNS
@@ -2041,12 +1949,10 @@ class ISONEAPI:
             else ISONE_FCM_RECONFIGURATION_MONTHLY_COLUMNS
         )
 
-        available_columns = [col for col in columns if col in df.columns]
-        df = df[available_columns]
-
-        df = df.sort_values(["Interval Start", "Capacity Zone ID"]).reset_index(
-            drop=True,
-        )
+        df = df.reindex(columns=columns)
+        df = df.sort_values(
+            ["Interval Start", "Capacity Zone ID"],
+        ).reset_index(drop=True)
 
         log.info(
             f"Processed FCM {'annual' if is_annual else 'monthly'} reconfiguration auction data: "
@@ -2054,3 +1960,121 @@ class ISONEAPI:
         )
 
         return df
+
+    def _fetch_fcm_reconfiguration_auctions(
+        self,
+        dataset_type: Literal["monthly", "annual"],
+        date: str | pd.Timestamp,
+        verbose: bool,
+    ) -> list[dict]:
+        base_path = "fcmmra" if dataset_type == "monthly" else "fcmara"
+
+        if isinstance(date, str) and date == "latest":
+            endpoint = f"{self.base_url}/{base_path}/current"
+        else:
+            timestamp = self._coerce_to_timestamp(date)
+            cp_label = self._get_fcm_commitment_period_label(timestamp)
+            endpoint = f"{self.base_url}/{base_path}/cp/{cp_label}"
+
+        response = self.make_api_call(endpoint, verbose=verbose)
+        auctions = self._prepare_records(
+            self._safe_get(response, "FCMRAResults", "FCMRAResult"),
+        )
+
+        if not auctions:
+            raise NoDataFoundException(
+                f"No FCM reconfiguration auction data found for {date}",
+            )
+
+        return auctions
+
+    def _coerce_to_timestamp(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+    ) -> pd.Timestamp:
+        if isinstance(date, tuple):
+            date = date[0]
+        timestamp = pd.Timestamp(date)
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.tz_localize(self.default_timezone)
+        else:
+            timestamp = timestamp.tz_convert(self.default_timezone)
+        return timestamp
+
+    def _get_fcm_commitment_period_label(self, timestamp: pd.Timestamp) -> str:
+        start_year = timestamp.year if timestamp.month >= 6 else timestamp.year - 1
+        end_year_suffix = (start_year + 1) % 100
+        return f"{start_year}-{end_year_suffix:02d}"
+
+    def _derive_fcm_reconfiguration_interval(
+        self,
+        auction: dict,
+        is_annual: bool,
+    ) -> tuple[pd.Timestamp, pd.Timestamp]:
+        description = auction.get("Description")
+        interval_start: pd.Timestamp | None = None
+        if description and not is_annual:
+            try:
+                interval_start = pd.Timestamp(description)
+            except Exception:
+                interval_start = None
+
+        if interval_start is None:
+            candidate = auction.get("CommitmentPeriod", {}).get(
+                "BeginDate",
+            ) or auction.get("ApprovalDate")
+            if candidate:
+                interval_start = pd.Timestamp(candidate)
+
+        if interval_start is None:
+            raise ValueError("Unable to derive interval start for FCM auction data")
+
+        if interval_start.tzinfo is None:
+            interval_start = interval_start.tz_localize(self.default_timezone)
+        else:
+            interval_start = interval_start.tz_convert(self.default_timezone)
+
+        if is_annual:
+            end_candidate = auction.get("CommitmentPeriod", {}).get("EndDate")
+            if end_candidate:
+                interval_end = pd.Timestamp(end_candidate)
+                if interval_end.tzinfo is None:
+                    interval_end = interval_end.tz_localize(self.default_timezone)
+                else:
+                    interval_end = interval_end.tz_convert(self.default_timezone)
+            else:
+                interval_end = interval_start + pd.DateOffset(years=1)
+        else:
+            interval_end = interval_start + pd.DateOffset(months=1)
+
+        return interval_start, interval_end
+
+    def _build_fcm_reconfiguration_row(
+        self,
+        record: dict,
+        interval_start: pd.Timestamp,
+        interval_end: pd.Timestamp,
+        location_type: str,
+    ) -> dict:
+        row = {
+            "Interval Start": interval_start,
+            "Interval End": interval_end,
+            "Location Type": location_type,
+            "Capacity Zone Type": record.get("CapacityZoneType", location_type),
+            "Capacity Zone ID": record.get("CapacityZoneID")
+            or record.get("CapacityZoneId")
+            or record.get("ExternalInterfaceId"),
+            "Capacity Zone Name": record.get("CapacityZoneName")
+            or record.get("ExternalInterfaceName"),
+            "Total Supply Offers Submitted": record.get("SupplySubmitted"),
+            "Total Demand Bids Submitted": record.get("DemandSubmitted"),
+            "Total Supply Offers Cleared": record.get("SupplyCleared"),
+            "Total Demand Bids Cleared": record.get("DemandCleared"),
+            "Net Capacity Cleared": record.get("NetCapacityCleared"),
+            "Clearing Price": record.get("ClearingPrice"),
+            "ISO Supply Offer": record.get("IsoSupplyOffer"),
+            "ISO Supply Offer Cleared": record.get("IsoSupplyOfferCleared"),
+            "ISO Demand Bid Cleared": record.get("IsoDemandBidCleared"),
+        }
+
+        return row
