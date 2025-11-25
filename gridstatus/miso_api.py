@@ -2,7 +2,7 @@ import datetime
 import os
 import time
 from itertools import chain
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Literal
 
 import pandas as pd
 import requests
@@ -1178,7 +1178,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         time_resolution: str = HOURLY_RESOLUTION,
-        geo_resolution: str = "region",
+        geo_resolution: Literal["region", "localResourceZone"] = "region",
     ) -> pd.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d") - pd.Timedelta(
@@ -1234,7 +1234,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-        geo_resolution: str = "region",
+        geo_resolution: Literal["region", "localResourceZone"] = "region",
     ) -> pd.DataFrame:
         return self._get_actual_load(
             date,
@@ -1250,7 +1250,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-        geo_resolution: str = "region",
+        geo_resolution: Literal["region", "localResourceZone"] = "region",
     ) -> pd.DataFrame:
         return self._get_actual_load(
             date,
