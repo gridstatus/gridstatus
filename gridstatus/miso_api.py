@@ -8,7 +8,7 @@ import pandas as pd
 import requests
 
 from gridstatus import utils
-from gridstatus.base import Markets, NoDataFoundException
+from gridstatus.base import Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import setup_gs_logger
 from gridstatus.miso import MISO
@@ -1401,10 +1401,22 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Get hourly outage forecast. The API only returns hourly data.
+        Get hourly outage forecast. The API only returns hourly data for future dates.
+
+        Note: Outage forecast is only available for future dates (today and beyond).
+        Historical outage forecast data is not supported.
         """
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        # Check if date is in the past
+        today = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+        if date < today:
+            raise NotSupported(
+                "Outage forecast is only available for future dates. "
+                f"Requested date {date.date()} is before today ({today.date()}). "
+                "Historical outage forecast data is not supported by the MISO API.",
+            )
 
         date_str = date.strftime("%Y-%m-%d")
 
@@ -1458,10 +1470,22 @@ class MISOAPI:
 
         Returns DataFrame with columns: Interval Start, Interval End, Publish Time, Region, MTLF, Outage
         This matches the output of MISO().get_look_ahead_hourly().
+
+        Note: Look-ahead data is only available for future dates (today and beyond).
+        Historical look-ahead data is not supported.
         """
         if date == "latest":
             # For latest, use today's forecast
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        # Check if date is in the past
+        today = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+        if date < today:
+            raise NotSupported(
+                "Look-ahead forecast is only available for future dates. "
+                f"Requested date {date.date()} is before today ({today.date()}). "
+                "Historical look-ahead forecast data is not supported by the MISO API.",
+            )
 
         # Get medium-term load forecast
         load_forecast = self.get_medium_term_load_forecast_hourly(

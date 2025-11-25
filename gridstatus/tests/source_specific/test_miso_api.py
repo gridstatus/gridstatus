@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NotSupported
 from gridstatus.miso_api import MISOAPI
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -1084,7 +1084,6 @@ class TestMISOAPI(TestHelperMixin):
             ]:
                 assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_outage_forecast(self):
         # Outage forecast is for future dates - use tomorrow
         date = self.local_start_of_today() + pd.Timedelta(days=1)
@@ -1102,6 +1101,13 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
+    def test_get_outage_forecast_past_date_raises_error(self):
+        # Try to get outage forecast for yesterday - should raise NotSupported
+        yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with pytest.raises(NotSupported, match="only available for future dates"):
+            self.iso.get_outage_forecast(yesterday)
+
     def _check_test_look_ahead_hourly(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
@@ -1118,7 +1124,6 @@ class TestMISOAPI(TestHelperMixin):
         for col in ["MTLF", "Outage"]:
             assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_look_ahead_hourly(self):
         # Look ahead is for future dates - use tomorrow
         date = self.local_start_of_today() + pd.Timedelta(days=1)
@@ -1135,3 +1140,10 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
+
+    def test_get_look_ahead_hourly_past_date_raises_error(self):
+        # Try to get look ahead for yesterday - should raise NotSupported
+        yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with pytest.raises(NotSupported, match="only available for future dates"):
+            self.iso.get_look_ahead_hourly(yesterday)
