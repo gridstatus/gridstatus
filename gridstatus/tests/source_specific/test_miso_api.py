@@ -927,6 +927,64 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
+    def _check_test_actual_load_local_resource_zone(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Local Resource Zone",
+            "Load",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in [
+                "Interval Start",
+                "Interval End",
+                "Local Resource Zone",
+            ]:
+                assert df[col].dtype == "float64"
+
+    def test_get_actual_load_hourly_local_resource_zone(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_actual_load_hourly_local_resource_zone_{date.date()}",
+        ):
+            df = self.iso.get_actual_load_hourly(
+                date,
+                geo_resolution="localResourceZone",
+            )
+
+        self._check_test_actual_load_local_resource_zone(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    def test_get_actual_load_daily_local_resource_zone(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_actual_load_daily_local_resource_zone_{date.date()}",
+        ):
+            df = self.iso.get_actual_load_daily(
+                date,
+                geo_resolution="localResourceZone",
+            )
+
+        self._check_test_actual_load_local_resource_zone(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
     def _check_test_medium_term_load_forecast(self, df):
         assert df.columns.tolist() == [
             "Interval Start",

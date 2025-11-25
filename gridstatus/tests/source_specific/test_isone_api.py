@@ -6,6 +6,7 @@ from gridstatus.base import NoDataFoundException
 from gridstatus.isone_api.isone_api import ISONEAPI, ZONE_LOCATIONID_MAP
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
+    ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
@@ -1414,3 +1415,76 @@ class TestISONEAPI(TestHelperMixin):
             ],
             expected_interval=pd.Timedelta(minutes=5),
         )
+
+    def _check_fcm_reconfiguration(self, df: pd.DataFrame) -> None:
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) > 0
+        assert list(df.columns) == ISONE_FCM_RECONFIGURATION_COLUMNS
+        assert df["Location Type"].isin(["Capacity Zone", "External Interface"]).all()
+        assert df["Location ID"].dtype in [np.int64, np.float64]
+        assert df["Location Name"].dtype == "object"
+        assert df["Capacity Zone Type"].notna().any()
+        numeric_cols = [
+            "Total Supply Offers Submitted",
+            "Total Demand Bids Submitted",
+            "Total Supply Offers Cleared",
+            "Total Demand Bids Cleared",
+            "Net Capacity Cleared",
+            "Clearing Price",
+        ]
+        for col in numeric_cols:
+            assert df[col].dtype in [np.int64, np.float64]
+
+    def test_get_fcm_reconfiguration_monthly_latest(self):
+        with api_vcr.use_cassette("test_get_fcm_reconfiguration_monthly_latest.yaml"):
+            result = self.iso.get_fcm_reconfiguration_monthly(date="latest")
+
+            self._check_fcm_reconfiguration(result)
+
+    @pytest.mark.parametrize(
+        "date",
+        [
+            pd.Timestamp("2025-07-01").tz_localize("US/Eastern"),
+            pd.Timestamp("2024-01-01").tz_localize("US/Eastern"),
+        ],
+    )
+    def test_get_fcm_reconfiguration_monthly_date_range(self, date: pd.Timestamp):
+        with api_vcr.use_cassette(
+            f"test_get_fcm_reconfiguration_monthly_{date.strftime('%Y%m%d')}.yaml",
+        ):
+            result = self.iso.get_fcm_reconfiguration_monthly(
+                date=date,
+            )
+
+            self._check_fcm_reconfiguration(result)
+            assert result["Interval Start"].min().date() == date.date()
+
+    def test_get_fcm_reconfiguration_annual_latest(self):
+        with api_vcr.use_cassette("test_get_fcm_reconfiguration_annual_latest.yaml"):
+            result = self.iso.get_fcm_reconfiguration_annual(date="latest")
+
+            self._check_fcm_reconfiguration(result)
+
+    @pytest.mark.parametrize(
+        "date",
+        [
+            pd.Timestamp("2024-01-01").tz_localize("US/Eastern"),
+        ],
+    )
+    def test_get_fcm_reconfiguration_annual_date_range(self, date: pd.Timestamp):
+        with api_vcr.use_cassette(
+            f"test_get_fcm_reconfiguration_annual_{date.strftime('%Y%m%d')}.yaml",
+        ):
+            result = self.iso.get_fcm_reconfiguration_annual(
+                date=date,
+            )
+
+            self._check_fcm_reconfiguration(result)
+            cp_start_year = date.year if date.month >= 6 else date.year - 1
+            expected_cp_start = pd.Timestamp(
+                year=cp_start_year,
+                month=6,
+                day=1,
+                tz=date.tz,
+            )
+            assert result["Interval Start"].min().date() == expected_cp_start.date()

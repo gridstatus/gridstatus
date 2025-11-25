@@ -95,3 +95,18 @@ ISONE_RESERVE_ZONE_COLUMN_MAP = {
     "Total10MinRequirement": "Total 10 Min Requirement",
     "Total30MinRequirement": "Total 30 Min Requirement",
 }
+
+ISONE_FCM_RECONFIGURATION_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Location Type",
+    "Location ID",
+    "Location Name",
+    "Capacity Zone Type",
+    "Total Supply Offers Submitted",
+    "Total Demand Bids Submitted",
+    "Total Supply Offers Cleared",
+    "Total Demand Bids Cleared",
+    "Net Capacity Cleared",
+    "Clearing Price",
+]
