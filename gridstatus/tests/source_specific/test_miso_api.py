@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NotSupported
 from gridstatus.miso_api import MISOAPI
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -1064,3 +1064,195 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
+
+    def _check_test_actual_load_hourly_pivoted(self, df):
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "LRZ1",
+            "LRZ2 7",
+            "LRZ3 5",
+            "LRZ4",
+            "LRZ6",
+            "LRZ8 9 10",
+            "MISO",
+        ]
+        assert df.columns.tolist() == expected_columns
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        # All load columns should be float
+        for col in expected_columns[2:]:
+            assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_actual_load_hourly_pivoted(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_actual_load_hourly_pivoted_{date.date()}",
+        ):
+            df = self.iso.get_actual_load_hourly_pivoted(date)
+
+        self._check_test_actual_load_hourly_pivoted(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+        # Verify MISO total is sum of all LRZ zones
+        calculated_miso = df[
+            ["LRZ1", "LRZ2 7", "LRZ3 5", "LRZ4", "LRZ6", "LRZ8 9 10"]
+        ].sum(axis=1)
+        pd.testing.assert_series_equal(
+            df["MISO"],
+            calculated_miso,
+            check_names=False,
+        )
+
+    def _check_test_medium_term_load_forecast_hourly_aggregated(self, df):
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "LRZ1 MTLF",
+            "LRZ2_7 MTLF",
+            "LRZ3_5 MTLF",
+            "LRZ4 MTLF",
+            "LRZ6 MTLF",
+            "LRZ8_9_10 MTLF",
+            "MISO MTLF",
+        ]
+        assert df.columns.tolist() == expected_columns
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+        assert df["Publish Time"].dtype == "datetime64[ns, EST]"
+
+        # All load columns should be float
+        for col in expected_columns[3:]:
+            assert df[col].dtype == "float64"
+
+    @pytest.mark.integration
+    def test_get_medium_term_load_forecast_hourly_aggregated(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_medium_term_load_forecast_hourly_aggregated_{date.date()}",
+        ):
+            df = self.iso.get_medium_term_load_forecast_hourly_aggregated(date)
+
+        self._check_test_medium_term_load_forecast_hourly_aggregated(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+        # Verify MISO total is sum of all LRZ zones
+        calculated_miso = df[
+            [
+                "LRZ1 MTLF",
+                "LRZ2_7 MTLF",
+                "LRZ3_5 MTLF",
+                "LRZ4 MTLF",
+                "LRZ6 MTLF",
+                "LRZ8_9_10 MTLF",
+            ]
+        ].sum(axis=1)
+        pd.testing.assert_series_equal(
+            df["MISO MTLF"],
+            calculated_miso,
+            check_names=False,
+        )
+
+    def _check_test_outage_forecast(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Region",
+            "Outage Forecast",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in df.columns:
+            if col not in [
+                "Interval Start",
+                "Interval End",
+                "Region",
+            ]:
+                assert df[col].dtype == "float64"
+
+    def test_get_outage_forecast(self):
+        # Outage forecast is for future dates - use tomorrow
+        date = self.local_start_of_today() + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(f"get_outage_forecast_{date.date()}"):
+            df = self.iso.get_outage_forecast(date)
+
+        self._check_test_outage_forecast(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    def test_get_outage_forecast_past_date_raises_error(self):
+        # Try to get outage forecast for yesterday - should raise NotSupported
+        yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with pytest.raises(NotSupported, match="only available for future dates"):
+            self.iso.get_outage_forecast(yesterday)
+
+    def _check_test_look_ahead_hourly(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Region",
+            "MTLF",
+            "Outage",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        for col in ["MTLF", "Outage"]:
+            assert df[col].dtype == "float64"
+
+    def test_get_look_ahead_hourly(self):
+        # Look ahead is for today and future dates
+        date = self.local_start_of_today()
+
+        with api_vcr.use_cassette(f"get_look_ahead_hourly_{date.date()}"):
+            df = self.iso.get_look_ahead_hourly(date)
+
+        self._check_test_look_ahead_hourly(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+    def test_get_look_ahead_hourly_past_date_raises_error(self):
+        # Try to get look ahead for yesterday - should raise NotSupported
+        yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with pytest.raises(NotSupported, match="only available for future dates"):
+            self.iso.get_look_ahead_hourly(yesterday)
