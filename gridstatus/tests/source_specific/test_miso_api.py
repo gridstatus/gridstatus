@@ -1125,8 +1125,8 @@ class TestMISOAPI(TestHelperMixin):
             assert df[col].dtype == "float64"
 
     def test_get_look_ahead_hourly(self):
-        # Look ahead is for future dates - use tomorrow
-        date = self.local_start_of_today() + pd.Timedelta(days=1)
+        # Look ahead is for today and future dates
+        date = self.local_start_of_today()
 
         with api_vcr.use_cassette(f"get_look_ahead_hourly_{date.date()}"):
             df = self.iso.get_look_ahead_hourly(date)

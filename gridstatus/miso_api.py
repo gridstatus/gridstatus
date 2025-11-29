@@ -1480,6 +1480,7 @@ class MISOAPI:
 
         # Check if date is in the past
         today = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
         if date < today:
             raise NotSupported(
                 "Look-ahead forecast is only available for future dates. "
