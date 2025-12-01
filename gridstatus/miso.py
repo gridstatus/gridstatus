@@ -628,7 +628,7 @@ class MISO(ISOBase):
                 .set_index("Node")["Location Type"]
                 .to_dict()
             )
-
+            print(node_to_type_mapping)
             data["Location Type"] = data["CPNODE"].map(node_to_type_mapping)
 
             interval_duration = 5
