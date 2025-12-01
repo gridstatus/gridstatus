@@ -620,17 +620,16 @@ class MISO(ISOBase):
             data["Interval Start"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
                 self.default_timezone,
             )
-            print(data)
-            print(data.dtypes)
+
             node_to_type_mapping = (
                 MISO()
                 ._get_node_to_type_mapping()
                 .set_index("Node")["Location Type"]
                 .to_dict()
             )
-            print(node_to_type_mapping)
             data["Location Type"] = data["CPNODE"].map(node_to_type_mapping)
             data.rename(columns={"CPNODE": "Node"}, inplace=True)
+
             interval_duration = 5
 
         elif market in [
