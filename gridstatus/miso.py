@@ -620,7 +620,8 @@ class MISO(ISOBase):
             data["Interval Start"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
                 self.default_timezone,
             )
-
+            print(data)
+            print(data.dtypes)
             node_to_type_mapping = (
                 MISO()
                 ._get_node_to_type_mapping()
