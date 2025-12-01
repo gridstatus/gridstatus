@@ -105,8 +105,8 @@ class MISO(ISOBase):
             raise NotSupported()
 
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
-        r = self._get_json(url, verbose=verbose)
-        return self._parse_fuel_mix(r)
+        response_json = self._get_json(url, verbose=verbose)
+        return self._parse_fuel_mix(response_json)
 
     def _parse_fuel_mix(self, raw_json: Dict[str, dict]) -> pd.DataFrame:
         time = pd.to_datetime(raw_json["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
