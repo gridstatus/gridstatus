@@ -4,7 +4,7 @@ import re
 import urllib
 import warnings
 import zipfile
-from typing import BinaryIO
+from typing import BinaryIO, Dict
 
 import pandas as pd
 import requests
@@ -106,13 +106,15 @@ class MISO(ISOBase):
 
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
         r = self._get_json(url, verbose=verbose)
+        return self._parse_fuel_mix(r)
 
-        time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
+    def _parse_fuel_mix(self, raw_json: Dict[str, dict]) -> pd.DataFrame:
+        time = pd.to_datetime(raw_json["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
             self.default_timezone,
         )
 
         mix = {}
-        for fuel in r["Fuel"]["Type"]:
+        for fuel in raw_json["Fuel"]["Type"]:
             amount = float(fuel["ACT"])
             mix[fuel["CATEGORY"]] = amount
 
