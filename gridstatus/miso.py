@@ -630,7 +630,7 @@ class MISO(ISOBase):
             )
             print(node_to_type_mapping)
             data["Location Type"] = data["CPNODE"].map(node_to_type_mapping)
-
+            data.rename(columns={"CPNODE": "Location"}, inplace=True)
             interval_duration = 5
 
         elif market in [
