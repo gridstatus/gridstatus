@@ -621,14 +621,14 @@ class MISO(ISOBase):
                 self.default_timezone,
             )
 
-            node_to_type = self._get_node_to_type_mapping()
-
-            data = data.merge(
-                node_to_type,
-                left_on="CPNODE",
-                right_on="Node",
-                how="left",
+            node_to_type_mapping = (
+                MISO()
+                ._get_node_to_type_mapping()
+                .set_index("Node")["Location Type"]
+                .to_dict()
             )
+
+            data["Location Type"] = data["CPNODE"].map(node_to_type_mapping)
 
             interval_duration = 5
 
