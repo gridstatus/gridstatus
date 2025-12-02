@@ -1005,3 +1005,55 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval End"].max() == date + pd.Timedelta(
             days=1,
         )
+
+    @pytest.mark.integration
+    def test_get_pricing_nodes(self):
+        today = pd.Timestamp(self.local_today())
+
+        with api_vcr.use_cassette(f"get_pricing_nodes_{today.strftime('%Y-%m-%d')}"):
+            df = self.iso.get_pricing_nodes()
+
+        assert df.shape[0] > 0
+
+        assert df.columns.tolist() == ["Node", "Location Type"]
+
+        for col in df.columns:
+            if col not in ["Node", "Location Type"]:
+                assert df[col].dtype == "str"
+
+    @pytest.mark.integration
+    def test_get_pricing_nodes_by_date(self):
+        today = pd.Timestamp(self.local_today())
+        date = "latest"
+
+        with api_vcr.use_cassette(
+            f"get_pricing_nodes_by_date_{today.strftime('%Y-%m-%d')}"
+        ):
+            df = self.iso.get_pricing_nodes(date)
+
+        assert df.shape[0] > 0
+
+        assert df.columns.tolist() == ["Node", "Location Type"]
+
+        for col in df.columns:
+            if col not in ["Node", "Location Type"]:
+                assert df[col].dtype == "str"
+
+    @pytest.mark.integration
+    def test_get_pricing_nodes_by_date_range(self):
+        today = pd.Timestamp(self.local_today())
+        date = today - pd.Timedelta(days=100)
+        end = today
+
+        with api_vcr.use_cassette(
+            f"get_pricing_nodes_by_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}"
+        ):
+            df = self.iso.get_pricing_nodes(date, end)
+
+        assert df.shape[0] > 0
+
+        assert df.columns.tolist() == ["Node", "Location Type"]
+
+        for col in df.columns:
+            if col not in ["Node", "Location Type"]:
+                assert df[col].dtype == "str"

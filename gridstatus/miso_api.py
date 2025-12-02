@@ -291,6 +291,14 @@ class MISOAPI:
 
         return data_list
 
+    def _get_node_to_type_mapping(
+        self, start: pd.Timestamp, end: pd.Timestamp
+    ) -> pd.DataFrame:
+        # use miso pricing api (Aggregated Pnode) to get location types
+        df = self.get_pricing_nodes(start, end)
+
+        return df[["Node", "Location Type"]]
+
     def _process_pricing_data(
         self,
         data_list: List[Dict[str, Any]],
@@ -298,9 +306,11 @@ class MISOAPI:
     ) -> pd.DataFrame:
         df = self._data_list_to_df(data_list)
 
+        start = df["Interval Start"].min()
+        end = df["Interval End"].max()
+
         node_to_type_mapping = (
-            MISO()
-            ._get_node_to_type_mapping()
+            self._get_node_to_type_mapping(start, end)
             .set_index("Node")["Location Type"]
             .to_dict()
         )
@@ -1829,3 +1839,106 @@ class MISOAPI:
         df_pivot.columns.name = None
 
         return df_pivot
+
+    def _miso_quarterly_days(self, start, end):
+        """
+        MISO pricing nodes are updated quarterly on March 1st, June 1st, September 1st, and December 1st.
+        This function generates a list of these dates within the specified start and end range.
+        If no quarterly date falls within the range, return the most recent quarterly date before start.
+        """
+        anchors = ["03-01", "06-01", "09-01", "12-01"]
+        years = range(start.year, end.year + 1)
+
+        dates = [
+            pd.Timestamp(f"{y}-{m}", tz=self.default_timezone)
+            for y in years
+            for m in anchors
+        ]
+
+        dates_in_range = [d for d in dates if start <= d <= end]
+
+        if dates_in_range:
+            return dates_in_range
+
+        # If no dates in range, find the most recent quarterly date before start
+        dates_before_start = [d for d in dates if d < start]
+        if dates_before_start:
+            return [max(dates_before_start)]
+
+        # If start is before all quarterly dates in range, look at previous year
+        previous_year_dates = [
+            pd.Timestamp(f"{start.year - 1}-{m}", tz=self.default_timezone)
+            for m in anchors
+        ]
+        return [max(previous_year_dates)]
+
+    def get_pricing_nodes(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        if date is None:
+            date = "latest"
+
+        if date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        if isinstance(date, str):
+            raise ValueError("Invalid date format")
+
+        end = (
+            utils._handle_date(end, self.default_timezone) if end is not None else None
+        )
+
+        if end is None:
+            # Single date request
+            date_str = date.strftime("%Y-%m-%d")
+
+            url = f"{BASE_PRICING_URL}/aggregated-pnode?date={date_str}"
+
+            data_list = self._get_url(
+                url,
+                product=PRICING_PRODUCT,
+                verbose=verbose,
+            )
+
+            df = pd.DataFrame(data_list)
+
+            df = df.rename(columns={"node": "Node", "nodeType": "Location Type"})
+
+            return df
+
+        else:
+            # Ensure date is a pd.Timestamp with timezone.
+            date = utils._handle_date(date, self.default_timezone)
+
+            # Get quarterly dates (March 1st, June 1st, September 1st, December 1st)
+            quarterly_dates = self._miso_quarterly_days(date, end)
+
+            dfs = []
+
+            for date in quarterly_dates:
+                date_str = date.strftime("%Y-%m-%d")
+
+                url = f"{BASE_PRICING_URL}/aggregated-pnode?date={date_str}"
+
+                data_list = self._get_url(
+                    url,
+                    product=PRICING_PRODUCT,
+                    verbose=verbose,
+                )
+
+                df = pd.DataFrame(data_list)
+
+                df = df.rename(columns={"node": "Node", "nodeType": "Location Type"})
+
+                dfs.append(df)
+
+            df = (
+                pd.concat(dfs, ignore_index=True)
+                .drop_duplicates()
+                .reset_index(drop=True)
+            )
+
+            return df
