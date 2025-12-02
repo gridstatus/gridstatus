@@ -11,7 +11,6 @@ from gridstatus import utils
 from gridstatus.base import Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import setup_gs_logger
-from gridstatus.miso import MISO
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CERTIFICATES_CHAIN_FILE = os.path.join(
