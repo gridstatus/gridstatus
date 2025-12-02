@@ -13,6 +13,11 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger as log
 from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
+    ISONE_CONSTRAINT_DAY_AHEAD_COLUMNS,
+    ISONE_CONSTRAINT_FIFTEEN_MIN_COLUMNS,
+    ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS,
+    ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS,
+    ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_RESERVE_ZONE_COLUMN_MAP,
     ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
@@ -120,6 +125,14 @@ class ISONEAPI:
             if i < len(keys) - 1 and not isinstance(d, dict):
                 return {}
         return d
+
+    @staticmethod
+    def _prepare_records(records: dict | list[dict]) -> list[dict]:
+        if not records:
+            return []
+        if isinstance(records, dict):
+            return [records]
+        return records
 
     def make_api_call(
         self,
@@ -1542,3 +1555,399 @@ class ISONEAPI:
                 "Strike Price",
             ]
         ].sort_values(["Interval Start", "Publish Time"])
+
+    @support_date_range("DAY_START")
+    def get_binding_constraints_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        url = self._build_url("dayaheadconstraints", date)
+        response = self.make_api_call(url, verbose=verbose)
+        records = self._prepare_records(
+            self._safe_get(response, "DayAheadConstraints", "DayAheadConstraint"),
+        )
+
+        if not records:
+            raise NoDataFoundException(
+                f"No day-ahead constraint data found for {date}.",
+            )
+
+        df = pd.DataFrame(records)
+
+        return self._parse_constraint_dataframe(
+            df,
+            interval_field="BeginDate",
+            interval_minutes=60,
+            rename_map={
+                "ConstraintName": "Constraint Name",
+                "ContingencyName": "Contingency Name",
+                "InterfaceFlag": "Interface Flag",
+                "MarginalValue": "Marginal Value",
+            },
+            columns=ISONE_CONSTRAINT_DAY_AHEAD_COLUMNS,
+        )
+
+    @support_date_range("DAY_START")
+    def get_binding_constraints_preliminary_real_time_15_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_constraints_fifteen_min(
+            date,
+            constraint_type="prelim",
+            verbose=verbose,
+        )
+
+    @support_date_range("DAY_START")
+    def get_binding_constraints_final_real_time_15_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_constraints_fifteen_min(
+            date,
+            constraint_type="final",
+            verbose=verbose,
+        )
+
+    def _get_constraints_fifteen_min(
+        self,
+        date: str | pd.Timestamp,
+        constraint_type: Literal["prelim", "final"],
+        verbose: bool,
+    ) -> pd.DataFrame:
+        dataset = f"fifteenminuteconstraints/{constraint_type}"
+        url = self._build_url(dataset, date)
+        response = self.make_api_call(url, verbose=verbose)
+        records = self._prepare_records(
+            self._safe_get(response, "FifteenMinBcs", "FifteenMinBc"),
+        )
+
+        if not records:
+            raise NoDataFoundException(
+                f"No fifteen-minute {constraint_type} constraint data found for {date}.",
+            )
+
+        df = pd.DataFrame(records)
+
+        return self._parse_constraint_dataframe(
+            df,
+            interval_field="BeginDate",
+            interval_minutes=15,
+            rename_map={
+                "ConstraintName": "Constraint Name",
+                "MarginalValue": "Marginal Value",
+                "HourEnd": "Hour Ending",
+            },
+            columns=ISONE_CONSTRAINT_FIFTEEN_MIN_COLUMNS,
+        )
+
+    @support_date_range("DAY_START")
+    def get_binding_constraints_preliminary_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_constraints_five_min(
+            date,
+            constraint_type="prelim",
+            verbose=verbose,
+        )
+
+    @support_date_range("DAY_START")
+    def get_binding_constraints_final_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_constraints_five_min(
+            date,
+            constraint_type="final",
+            verbose=verbose,
+        )
+
+    def _get_constraints_five_min(
+        self,
+        date: str | pd.Timestamp,
+        constraint_type: Literal["prelim", "final"],
+        verbose: bool,
+    ) -> pd.DataFrame:
+        dataset = f"fiveminuteconstraints/{constraint_type}"
+        url = self._build_url(dataset, date)
+        response = self.make_api_call(url, verbose=verbose)
+        records = self._prepare_records(
+            self._safe_get(response, "RealTimeConstraints", "RealTimeConstraint"),
+        )
+
+        if not records:
+            raise NoDataFoundException(
+                f"No five-minute {constraint_type} constraint data found for {date}.",
+            )
+
+        df = pd.DataFrame(records)
+
+        rename_map = {
+            "ConstraintName": "Constraint Name",
+            "MarginalValue": "Marginal Value",
+        }
+
+        if constraint_type == "prelim":
+            rename_map["ContingencyName"] = "Contingency Name"
+            columns = ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS
+        else:
+            columns = ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS
+
+        return self._parse_constraint_dataframe(
+            df,
+            interval_field="BeginDate",
+            interval_minutes=5,
+            rename_map=rename_map,
+            columns=columns,
+        )
+
+    def _parse_constraint_dataframe(
+        self,
+        df: pd.DataFrame,
+        interval_field: str,
+        interval_minutes: int,
+        rename_map: dict[str, str],
+        columns: list[str],
+    ) -> pd.DataFrame:
+        if df.empty:
+            raise NoDataFoundException(
+                "No constraint data found for the requested parameters.",
+            )
+
+        df = df.copy()
+
+        df["Interval Start"] = pd.to_datetime(
+            df[interval_field],
+            errors="coerce",
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=interval_minutes,
+        )
+        df = df.rename(columns=rename_map)
+        df["Marginal Value"] = pd.to_numeric(df["Marginal Value"], errors="coerce")
+
+        if "Contingency Name" in df.columns:
+            df["Contingency Name"] = (
+                df["Contingency Name"]
+                .astype("string")
+                .str.strip()
+                .mask(lambda s: s.isna() | (s == "") | (s.str.upper() == "NULL"))
+                .map(lambda value: None if pd.isna(value) else value)
+            )
+
+        df = df.reindex(columns=columns)
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+        return df
+
+    @support_date_range(frequency="MONTH_START")
+    def get_fcm_reconfiguration_monthly(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get FCM Monthly Reconfiguration Auction data.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing monthly reconfiguration auction data.
+        """
+        if date == "latest":
+            endpoint = f"{self.base_url}/fcmmra/current"
+        else:
+            start = date[0] if isinstance(date, tuple) else pd.Timestamp(date)
+            cp_label = self._get_fcm_commitment_period_label(start)
+            endpoint = (
+                f"{self.base_url}/fcmmra/cp/{cp_label}/month/{date.strftime('%Y%m')}"
+            )
+
+        response = self.make_api_call(endpoint, verbose=verbose)
+        auctions = self._prepare_records(
+            self._safe_get(response, "FCMRAResults", "FCMRAResult"),
+        )
+
+        annotated_auctions: list[tuple[dict, pd.Timestamp, pd.Timestamp]] = []
+        for wrapper in auctions:
+            auction = wrapper.get("Auction", wrapper)
+            description = auction.get("Description")
+            interval_start = (
+                pd.Timestamp(description)
+                if description
+                else pd.Timestamp(auction.get("ApprovalDate"))
+            )
+            if interval_start.tz is None:
+                interval_start = interval_start.tz_localize(self.default_timezone)
+            interval_end = interval_start + pd.DateOffset(months=1)
+            annotated_auctions.append((auction, interval_start, interval_end))
+
+        return self._parse_fcm_reconfiguration_dataframe(annotated_auctions)
+
+    @support_date_range(frequency="YEAR_START")
+    def get_fcm_reconfiguration_annual(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get FCM Annual Reconfiguration Auction data.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing annual reconfiguration auction data.
+        """
+        if date == "latest":
+            endpoint = f"{self.base_url}/fcmara/current"
+        else:
+            start = date[0] if isinstance(date, tuple) else pd.Timestamp(date)
+            cp_label = self._get_fcm_commitment_period_label(start)
+            endpoint = f"{self.base_url}/fcmara/cp/{cp_label}"
+
+        response = self.make_api_call(endpoint, verbose=verbose)
+
+        auctions = self._prepare_records(
+            self._safe_get(response, "FCMRAResults", "FCMRAResult"),
+        )
+
+        annotated_auctions: list[tuple[dict, pd.Timestamp, pd.Timestamp]] = []
+        for wrapper in auctions:
+            auction = wrapper.get("Auction", wrapper)
+            period = auction.get("CommitmentPeriod", {})
+            begin = period.get("BeginDate")
+            end = period.get("EndDate")
+
+            if begin and end:
+                interval_start = pd.Timestamp(begin)
+                interval_end = pd.Timestamp(end)
+            else:
+                description = auction.get("Description")
+                interval_start = (
+                    pd.Timestamp(description)
+                    if description
+                    else pd.Timestamp(auction.get("ApprovalDate"))
+                )
+                interval_end = interval_start + pd.DateOffset(years=1)
+
+            annotated_auctions.append((auction, interval_start, interval_end))
+        return self._parse_fcm_reconfiguration_dataframe(annotated_auctions)
+
+    def _get_fcm_commitment_period_label(self, timestamp: pd.Timestamp) -> str:
+        start_year = timestamp.year if timestamp.month >= 6 else timestamp.year - 1
+        end_year_suffix = (start_year + 1) % 100
+        return f"{start_year}-{end_year_suffix:02d}"
+
+    def _parse_fcm_reconfiguration_dataframe(
+        self,
+        auction_records: list[tuple[dict, pd.Timestamp, pd.Timestamp]],
+    ) -> pd.DataFrame:
+        frames: list[pd.DataFrame] = []
+
+        zone_column_map = {
+            "CapacityZoneID": "Location ID",
+            "CapacityZoneName": "Location Name",
+            "CapacityZoneType": "Capacity Zone Type",
+            "SupplySubmitted": "Total Supply Offers Submitted",
+            "DemandSubmitted": "Total Demand Bids Submitted",
+            "SupplyCleared": "Total Supply Offers Cleared",
+            "DemandCleared": "Total Demand Bids Cleared",
+            "NetCapacityCleared": "Net Capacity Cleared",
+            "ClearingPrice": "Clearing Price",
+        }
+
+        interface_column_map = {
+            "ExternalInterfaceId": "Location ID",
+            "ExternalInterfaceName": "Location Name",
+            "SupplySubmitted": "Total Supply Offers Submitted",
+            "DemandSubmitted": "Total Demand Bids Submitted",
+            "SupplyCleared": "Total Supply Offers Cleared",
+            "DemandCleared": "Total Demand Bids Cleared",
+            "NetCapacityCleared": "Net Capacity Cleared",
+            "ClearingPrice": "Clearing Price",
+        }
+
+        for auction, interval_start, interval_end in auction_records:
+            zone_frame = pd.json_normalize(
+                auction,
+                record_path=["ClearedCapacityZones", "ClearedCapacityZone"],
+                errors="ignore",
+            )
+
+            zone_frame = zone_frame.rename(columns=zone_column_map)
+            zone_frame = zone_frame.assign(
+                **{
+                    "Interval Start": interval_start,
+                    "Interval End": interval_end,
+                    "Location Type": "Capacity Zone",
+                },
+            )
+            frames.append(zone_frame)
+
+            interface_frame = pd.json_normalize(
+                auction,
+                record_path=[
+                    "ClearedCapacityZones",
+                    "ClearedCapacityZone",
+                    "ClearedExternalInterfaces",
+                    "ClearedExternalInterface",
+                ],
+                errors="ignore",
+            )
+
+            interface_frame = interface_frame.rename(columns=interface_column_map)
+            interface_frame = interface_frame.assign(
+                **{
+                    "Interval Start": interval_start,
+                    "Interval End": interval_end,
+                    "Location Type": "External Interface",
+                    "Capacity Zone Type": None,
+                },
+            )
+            frames.append(interface_frame)
+
+        df = pd.concat(frames, ignore_index=True)
+
+        numeric_columns = [
+            "Total Supply Offers Submitted",
+            "Total Demand Bids Submitted",
+            "Total Supply Offers Cleared",
+            "Total Demand Bids Cleared",
+            "Net Capacity Cleared",
+            "Clearing Price",
+        ]
+
+        for column in numeric_columns:
+            if column in df.columns:
+                df[column] = pd.to_numeric(df[column], errors="coerce")
+
+        df = df.reindex(columns=ISONE_FCM_RECONFIGURATION_COLUMNS)
+        df = df.sort_values(
+            ["Interval Start", "Location ID"],
+        ).reset_index(drop=True)
+
+        log.debug(
+            f"Processed FCM reconfiguration auction data. "
+            f"{len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
+        )
+
+        return df

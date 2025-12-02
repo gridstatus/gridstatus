@@ -4219,6 +4219,9 @@ class IESO(ISOBase):
         doc_header = json_data["Document"]["DocHeader"]
         doc_body = json_data["Document"]["DocBody"]
         shadow_prices = doc_body["HourlyPrice"]
+        # Handle case with only one constraint
+        if isinstance(shadow_prices, dict):
+            shadow_prices = [shadow_prices]
         publish_time = pd.Timestamp(doc_header["CreatedAt"], tz=self.default_timezone)
         delivery_date = pd.Timestamp(doc_body["DELIVERYDATE"], tz=self.default_timezone)
 
@@ -4262,7 +4265,12 @@ class IESO(ISOBase):
                 },
             )
 
-        for hourly in doc_body["HourlyPrice"]:
+        # Handle case with one constraint
+        hourly_prices = doc_body["HourlyPrice"]
+        if isinstance(hourly_prices, dict):
+            hourly_prices = [hourly_prices]
+
+        for hourly in hourly_prices:
             constraint = " ".join(hourly["ConstraintName"].split())
             hour = int(hourly["DeliveryHour"])
             intervals = hourly["IntervalShadowPrices"]["Interval"]
