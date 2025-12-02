@@ -4,7 +4,7 @@ import re
 import urllib
 import warnings
 import zipfile
-from typing import BinaryIO
+from typing import BinaryIO, Dict
 
 import pandas as pd
 import requests
@@ -105,14 +105,16 @@ class MISO(ISOBase):
             raise NotSupported()
 
         url = self.BASE + "?messageType=getfuelmix&returnType=json"
-        r = self._get_json(url, verbose=verbose)
+        response_json = self._get_json(url, verbose=verbose)
+        return self._parse_fuel_mix(response_json)
 
-        time = pd.to_datetime(r["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
+    def _parse_fuel_mix(self, raw_json: Dict[str, dict]) -> pd.DataFrame:
+        time = pd.to_datetime(raw_json["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
             self.default_timezone,
         )
 
         mix = {}
-        for fuel in r["Fuel"]["Type"]:
+        for fuel in raw_json["Fuel"]["Type"]:
             amount = float(fuel["ACT"])
             mix[fuel["CATEGORY"]] = amount
 
@@ -621,14 +623,14 @@ class MISO(ISOBase):
                 self.default_timezone,
             )
 
-            node_to_type = self._get_node_to_type_mapping()
-
-            data = data.merge(
-                node_to_type,
-                left_on="CPNODE",
-                right_on="Node",
-                how="left",
+            node_to_type_mapping = (
+                MISO()
+                ._get_node_to_type_mapping()
+                .set_index("Node")["Location Type"]
+                .to_dict()
             )
+            data["Location Type"] = data["CPNODE"].map(node_to_type_mapping)
+            data.rename(columns={"CPNODE": "Node"}, inplace=True)
 
             interval_duration = 5
 
