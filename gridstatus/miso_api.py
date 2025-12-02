@@ -2,7 +2,7 @@ import datetime
 import os
 import time
 from itertools import chain
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Literal
 
 import pandas as pd
 import requests
@@ -1178,6 +1178,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         time_resolution: str = HOURLY_RESOLUTION,
+        geo_resolution: Literal["region", "localResourceZone"] = "region",
     ) -> pd.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d") - pd.Timedelta(
@@ -1186,7 +1187,7 @@ class MISOAPI:
 
         date_str = date.strftime("%Y-%m-%d")
 
-        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/demand/actual?timeResolution={time_resolution}"
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/demand/actual?timeResolution={time_resolution}&geoResolution={geo_resolution}"
 
         data_list = self._get_url(
             url,
@@ -1201,11 +1202,15 @@ class MISOAPI:
         if "interval" in df.columns:
             df = df.drop(columns=["interval"])
 
-        df["region"] = df["region"].str.upper()
-
-        df = df.rename(
-            columns={"region": "Region", "load": "Load"},
-        )
+        if geo_resolution == "region":
+            df["region"] = df["region"].str.upper()
+            subseries_index = "Region"
+            df = df.rename(columns={"region": subseries_index, "load": "Load"})
+        elif geo_resolution == "localResourceZone":
+            subseries_index = "Local Resource Zone"
+            df = df.rename(
+                columns={"localResourceZone": subseries_index, "load": "Load"},
+            )
 
         data = df.reset_index()
 
@@ -1215,13 +1220,13 @@ class MISOAPI:
             data = data[data["Interval End"] <= end]
 
         for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
+            if col not in ["Interval Start", "Interval End", subseries_index]:
                 data[col] = data[col].astype(float)
 
-        data = data.sort_values(["Interval Start", "Region"])
-        return data[["Interval Start", "Interval End", "Region", "Load"]].reset_index(
-            drop=True,
-        )
+        data = data.sort_values(["Interval Start", subseries_index])
+        return data[
+            ["Interval Start", "Interval End", subseries_index, "Load"]
+        ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_actual_load_hourly(
@@ -1229,12 +1234,14 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        geo_resolution: Literal["region", "localResourceZone"] = "region",
     ) -> pd.DataFrame:
         return self._get_actual_load(
             date,
             end=end,
             verbose=verbose,
             time_resolution=HOURLY_RESOLUTION,
+            geo_resolution=geo_resolution,
         )
 
     @support_date_range(frequency="DAY_START")
@@ -1243,12 +1250,14 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        geo_resolution: Literal["region", "localResourceZone"] = "region",
     ) -> pd.DataFrame:
         return self._get_actual_load(
             date,
             end=end,
             verbose=verbose,
             time_resolution=DAILY_RESOLUTION,
+            geo_resolution=geo_resolution,
         )
 
     def _get_medium_term_load_forecast(

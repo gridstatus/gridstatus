@@ -1088,3 +1088,76 @@ class TestNYISO(BaseTestISO):
         ):
             df = self.iso.get_as_prices_real_time_5_min(start=start, end=end)
             self._check_as_prices(df, rt_or_dam="rt", start=start, end=end)
+
+    def _check_limiting_constraints(
+        self,
+        df: pd.DataFrame,
+        expected_duration_minutes: int,
+    ):
+        if df.empty:
+            pytest.skip("No limiting constraints data available for requested period")
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Limiting Facility",
+            "Facility PTID",
+            "Contingency",
+            "Constraint Cost",
+        ]
+        expected_delta = pd.Timedelta(minutes=expected_duration_minutes)
+        assert (df["Interval End"] - df["Interval Start"] == expected_delta).all()
+        assert df["Constraint Cost"].dtype.kind in {"i", "f"}
+
+    def test_get_limiting_constraints_real_time_latest(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_limiting_constraints_real_time_latest.yaml",
+        ):
+            df = self.iso.get_limiting_constraints_real_time(date="latest")
+        self._check_limiting_constraints(df, expected_duration_minutes=5)
+
+    @pytest.mark.parametrize(
+        "start,end",
+        [
+            ("2025-03-08", "2025-03-10"),
+            ("2025-11-01", "2025-11-03"),
+            ("2025-01-01", "2025-01-03"),
+        ],
+    )
+    def test_get_limiting_constraints_real_time_historical_range(self, start, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_limiting_constraints_real_time_historical_range_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_limiting_constraints_real_time(start=start, end=end)
+        self._check_limiting_constraints(df, expected_duration_minutes=5)
+        assert df["Interval Start"].dt.tz is not None
+        assert df["Interval Start"].dt.date.min() >= pd.Timestamp(start).date()
+        assert df["Interval End"].dt.date.max() <= (
+            pd.Timestamp(end).date() + pd.Timedelta(days=1)
+        )
+
+    def test_get_limiting_constraints_day_ahead_latest(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_limiting_constraints_day_ahead_latest.yaml",
+        ):
+            df = self.iso.get_limiting_constraints_day_ahead(date="latest")
+        self._check_limiting_constraints(df, expected_duration_minutes=60)
+
+    @pytest.mark.parametrize(
+        "start,end",
+        [
+            ("2025-01-01", "2025-01-03"),
+            ("2025-03-08", "2025-03-10"),
+            ("2025-11-01", "2025-11-03"),
+        ],
+    )
+    def test_get_limiting_constraints_day_ahead_historical_range(self, start, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_limiting_constraints_day_ahead_historical_range_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_limiting_constraints_day_ahead(start=start, end=end)
+        self._check_limiting_constraints(df, expected_duration_minutes=60)
+        assert df["Interval Start"].dt.tz is not None
+        assert df["Interval Start"].dt.date.min() >= pd.Timestamp(start).date()
+        assert df["Interval End"].dt.date.max() <= (
+            pd.Timestamp(end).date() + pd.Timedelta(days=1)
+        )

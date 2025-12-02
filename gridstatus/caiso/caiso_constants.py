@@ -463,16 +463,19 @@ def get_dataframe_config_for_renewables_report(
         freq: str,
         offset_days: int = 0,
     ) -> pd.DatetimeIndex:
-        start_date = (
+        start_date: pd.Timestamp = (
             base_date - pd.Timedelta(days=offset_days) if offset_days else base_date
         )
-
-        return pd.date_range(
-            start=start_date,
+        if start_date.tz is None:
+            start_date = start_date.tz_localize(timezone)
+        start_utc = start_date.tz_convert("UTC")
+        timestamps_utc = pd.date_range(
+            start=start_utc,
             periods=periods,
             freq=freq,
-            tz=timezone,
+            tz="UTC",
         )
+        return timestamps_utc.tz_convert(timezone)
 
     # 5-minute timestamps for the day
     rtd_timestamps = generate_timestamps(base_date, 288, "5min")

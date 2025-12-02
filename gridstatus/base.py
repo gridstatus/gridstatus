@@ -102,6 +102,15 @@ class ISOBase:
     def local_now(self):
         return pd.Timestamp.now(tz=self.default_timezone)
 
+    def safe_for_dst_transition_floor(
+        self,
+        date: pd.Timestamp,
+        freq: str,
+    ) -> pd.Timestamp:
+        # Floors a timestamp to the given frequency, converting to UTC before
+        # flooring to handle DST transitions.
+        return date.tz_convert("UTC").floor(freq).tz_convert(self.default_timezone)
+
     def _get_json(
         self,
         url: str,
@@ -165,7 +174,10 @@ class ISOBase:
 
     def _latest_lmp_from_today(self, market, locations, **kwargs):
         lmp_df = self.get_lmp(
-            date="today", market=market, locations=locations, **kwargs
+            date="today",
+            market=market,
+            locations=locations,
+            **kwargs,
         )
         col_order = lmp_df.columns.tolist()
 

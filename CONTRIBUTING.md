@@ -12,7 +12,7 @@ There are several ways you can contribute:
 
 * Participating in discussions or providing feedback
 
-Before contributing, please read this guide. If you have any questions, feel free to ask in our [Slack](https://join.slack.com/t/gridstatus/shared_invite/zt-1jk6vlzt2-Lzz4pdpjkJYVUJkynOiIvQ) or open a GitHub issue.
+Before contributing, please read this guide. If you have any questions, feel free to open a GitHub issue.
 
 ## Submitting Bug Reports and Feature Requests
 

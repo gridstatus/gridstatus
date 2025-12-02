@@ -145,6 +145,9 @@ SHORT_TERM_SYSTEM_ADEQUACY_REPORT_RTID = 12315
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-323-CD
 REAL_TIME_ADDERS_AND_RESERVES_RTID = 13221
 
+# RTC Market Trials Real-Time ORDC and Reliability Deployment Price Adders
+REAL_TIME_ADDERS_RTC_B_TRIAL_RTID = 4108
+
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
 TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
 
@@ -160,6 +163,43 @@ DAM_TOTAL_ENERGY_SOLD_RTID = 12334
 
 # https://www.ercot.com/mp/data-products/data-product-details?id=np1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_RTID = 10038
+
+
+## RTC + B (Trial)
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-332-CD
+REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID = 24891
+
+# https://www.ercot.com/mp/data-products/data-product-details?id=np6-788-rtcmt
+REAL_TIME_CLEARING_LMPS_BY_RESOURCE_NODES_LOAD_ZONES_AND_TRADING_HUBS_RTD = 4104
+
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-331-CD
+REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID = 24898
+
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-212-cd
+DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID = 24893
+
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP5-526-CD
+PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID = 24886
+
+# Daily RUC Ancillary Service Deployment Factors
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP5-527-CD
+DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24895
+
+# Hourly RUC Ancillary Service Deployment Factors
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP5-528-CD
+HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24896
+
+# DAM Total Ancillary Services Sold
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-532-cd
+DAM_TOTAL_AS_SOLD_RTID = 24888
+
+# RTD Indicative Real-Time MCPC
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-329-CD
+RTD_INDICATIVE_REAL_TIME_MCPC_RTID = 24889
+
+# Total Capability of Resources Available to Provide Ancillary Service
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP6-328-CD
+TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID = 24887
 
 
 class ERCOTSevenDayLoadForecastReport(Enum):
@@ -367,26 +407,23 @@ class Ercot(ISOBase):
         df = pd.DataFrame(data["previousDay"]["data"] + data["currentDay"]["data"])
 
         # TODO(kanter): fix this for future DST dates
-        if "2024-11-03 02:00:00-0600" in df["timestamp"].values:
-            # ERCOT publishes two intervals with 2am timestamp
-            # during CDT to CST transition
-            # but skips the repeated 1am timestamp
-            # let's manually fix this before further timestamp parsing
-            df.loc[
-                (df["timestamp"] == "2024-11-03 02:00:00-0600")
-                & (df["dstFlag"] == "N"),
-                "timestamp",
-            ] = "2024-11-03 01:00:00-0600"
+        for timestamp in ["2024-11-03 02:00:00-0600", "2025-11-02 02:00:00-0600"]:
+            if timestamp in df["timestamp"].values:
+                # ERCOT publishes two intervals with 2am timestamp
+                # during CDT to CST transition
+                # but skips the repeated 1am timestamp
+                # let's manually fix this before further timestamp parsing
+                df.loc[
+                    (df["timestamp"] == timestamp) & (df["dstFlag"] == "N"),
+                    "timestamp",
+                ] = timestamp.replace("02:00:00", "01:00:00")
 
         df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
 
-        # need to use apply since there can be mixed
-        # fixed offsets during dst transition
-        # that result in object dtypes in pandas
-        df["timestamp"] = df["timestamp"].apply(
-            lambda x: pd.to_datetime(x).tz_convert("UTC"),
+        # Parse in UTC to avoid issues with DST transition
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(
+            self.default_timezone,
         )
-        df["timestamp"] = df["timestamp"].dt.tz_convert(self.default_timezone)
 
         df = df.rename(
             columns={
@@ -983,13 +1020,13 @@ class Ercot(ISOBase):
         supply_demand_json = self._get_supply_demand_json()
         data = pd.DataFrame(supply_demand_json["data"])
 
-        # need to use apply since there can be mixed
-        # fixed offsets during dst transition
-        # that result in object dtypes in pandas
-        data["Interval End"] = data["timestamp"].apply(
-            lambda x: pd.to_datetime(x).tz_convert("UTC"),
-        )
-        data["Interval End"] = data["Interval End"].dt.tz_convert(self.default_timezone)
+        # Parse in UTC to then convert to local to avoid DST transition issues because
+        # of mixed timezones
+        data["Interval End"] = pd.to_datetime(
+            data["epoch"],
+            unit="ms",
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
 
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
         data["Time"] = data["Interval Start"]
@@ -1174,7 +1211,11 @@ class Ercot(ISOBase):
             "Publish Time",
         ] = self._get_update_timestamp_from_supply_demand_json(supply_demand_json)
 
-        data["Interval Start"] = pd.to_datetime(data["timestamp"])
+        data["Interval Start"] = pd.to_datetime(
+            data["epoch"],
+            unit="ms",
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
         data["Interval End"] = data["Interval Start"] + pd.Timedelta(minutes=5)
 
         return data[
@@ -2259,8 +2300,9 @@ class Ercot(ISOBase):
         """
 
         url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"
-
-        df = self._download_html_table(url)
+        logger.info(f"Getting Ancillary Service Capacity Monitor from {url}")
+        html_content = requests.get(url).content
+        df = self._parse_html_table(html_content)
 
         return df
 
@@ -2283,7 +2325,9 @@ class Ercot(ISOBase):
         """
 
         url = "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html"
-        df = self._download_html_table(url)
+        logger.info(f"Getting Real-Time System Conditions from {url}")
+        html_content = requests.get(url).content
+        df = self._parse_html_table(html_content)
         df = df.rename(
             columns={
                 "Frequency - Current Frequency": "Current Frequency",
@@ -2298,12 +2342,9 @@ class Ercot(ISOBase):
 
         return df
 
-    def _download_html_table(self, url: str) -> pd.DataFrame:
-        logger.info(f"Downloading {url}")
-
-        html = requests.get(url).content
-
-        soup = BeautifulSoup(html, "html.parser")
+    def _parse_html_table(self, html_content: bytes) -> pd.DataFrame:
+        logger.info("Parsing HTML table")
+        soup = BeautifulSoup(html_content, "html.parser")
 
         table = soup.find("table", attrs={"class": "tableStyle"})
 
@@ -3166,7 +3207,8 @@ class Ercot(ISOBase):
         doc: Document,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        df = self.read_doc(doc, verbose=verbose)
+        df = self.read_doc(doc, verbose=verbose, parse=False)
+        is_dst_end = 25 in df["Hour Ending"]
 
         df = df.rename(
             columns={
@@ -3175,6 +3217,24 @@ class Ercot(ISOBase):
                 "Resource Name with Highest-Priced Offer Selected in DAM": "Resource Name",  # noqa: E501
             },
         )
+
+        if not is_dst_end:
+            df = self.parse_doc(df)
+        else:
+            # Hours go up to 25. Assume hour 2 is CDT and hour 3 is CST
+            df["Interval Start"] = (
+                pd.to_datetime(df["Delivery Date"])
+                + pd.to_timedelta(df["Hour Ending"] - 1, unit="h")
+            ).dt.tz_localize(self.default_timezone, ambiguous=df["Hour Ending"] == 2)
+
+            df.loc[df["Hour Ending"] >= 3, "Interval Start"] = df.loc[
+                df["Hour Ending"] >= 3,
+                "Interval Start",
+            ] - pd.Timedelta(hours=1)
+
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+            # Needed for the groupby
+            df["Time"] = df["Interval Start"]
 
         def _handle_offers(df: pd.DataFrame) -> pd.Series:
             return pd.Series(
@@ -4278,3 +4338,574 @@ class Ercot(ISOBase):
         ]
 
         return data
+
+    ### RTC + B Trials ###
+
+    # Published every SCED interval
+    @support_date_range(frequency=None)
+    def get_lmp_by_settlement_point_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTC Market Trials LMPs by Resource Nodes, Load Zones and Trading Hubs
+
+        This is the RTC+B trial version of LMP data, produced by SCED every five minutes.
+
+        Arguments:
+            date: date to get data for
+            end: end date to get data for. If None, defaults to date + 1 day
+            verbose: print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with LMP data including columns:
+                - Interval Start
+                - Interval End
+                - SCED Timestamp
+                - Market
+                - Location
+                - Location Type
+                - LMP
+        """
+        published_before = None
+        published_after = None
+
+        if date != "latest":
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+            published_after = date
+
+        docs = self._get_documents(
+            report_type_id=REAL_TIME_CLEARING_LMPS_BY_RESOURCE_NODES_LOAD_ZONES_AND_TRADING_HUBS_RTD,
+            extension="csv",
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
+
+        return self._handle_lmp(docs=docs, verbose=verbose)
+
+    # Published every SCED interval
+    @support_date_range(frequency=None)
+    def get_mcpc_sced_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTC Market Trials Market Clearing Prices for Capacity by SCED interval"""
+        published_before = None
+        published_after = None
+
+        if date != "latest":
+            if end is None:
+                # Assume getting data for one day
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+            published_after = date
+
+        docs = self._get_documents(
+            report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
+            extension="csv",
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_mcpc_sced_rtc_b_trial(df)
+
+    def _handle_mcpc_sced_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(columns={"ASType": "AS Type"})
+        df = self._handle_sced_timestamp(df)
+
+        df["MCPC"] = pd.to_numeric(df["MCPC"], errors="coerce")
+
+        return (
+            # Only need the SCED Timestamps
+            df[["SCED Timestamp", "AS Type", "MCPC"]]
+            .sort_values(["SCED Timestamp", "AS Type"])
+            .reset_index(drop=True)
+        )
+
+    # Published every 15 minutes for the past 15 minutes.
+    @support_date_range(frequency=None)
+    def get_mcpc_real_time_15_min_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTC Market Trials Market Clearing Prices for Capacity by 15-minute interval"""
+        published_before = None
+        published_after = None
+
+        if date != "latest":
+            # Assume getting data for one day
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end + pd.Timedelta(minutes=15)
+            published_after = date + pd.Timedelta(minutes=15)
+
+        docs = self._get_documents(
+            report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
+            extension="csv",
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_mcpc_real_time_15_min_rtc_b_trial(df)
+
+    def _handle_mcpc_real_time_15_min_rtc_b_trial(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={"ASType": "AS Type", "RepeatedHourFlag": "DSTFlag"},
+        )
+
+        df = self.parse_doc(df)
+
+        df["MCPC"] = pd.to_numeric(df["MCPC"], errors="coerce")
+
+        return (
+            df[["Interval Start", "Interval End", "AS Type", "MCPC"]]
+            .sort_values(["Interval Start", "AS Type"])
+            .reset_index(drop=True)
+        )
+
+    # Published once per day for today and tomorrow in the same file
+    @support_date_range(frequency="DAY_START")
+    def get_as_demand_curves_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTC Market Trials Ancillary Service Demand Curves"""
+        docs = self._get_documents(
+            report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
+            extension="csv",
+            date=date,
+            verbose=verbose,
+        )
+
+        df = pd.concat(
+            [
+                self.read_doc(doc, parse=False, verbose=verbose).assign(
+                    **{"Publish Time": doc.publish_date},
+                )
+                for doc in docs
+            ],
+        )
+
+        return self._handle_as_demand_curves_rtc_b_trial(df)
+
+    def _handle_as_demand_curves_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "ASType": "AS Type",
+                "DemandCurvePoint": "Demand Curve Point",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+        df = self.parse_doc(df)
+
+        for col in ["Quantity", "Price", "Demand Curve Point"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "AS Type",
+                    "Demand Curve Point",
+                    "Quantity",
+                    "Price",
+                ]
+            ]
+            .sort_values(
+                ["Interval Start", "Publish Time", "AS Type", "Demand Curve Point"],
+            )
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_as_deployment_factors_projected_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTC Market Trials Projected Ancillary Service Deployment Factors"""
+        # _get_documents can directly handle date="latest"
+        # Date is published for the next day
+        if date != "latest":
+            date -= pd.DateOffset(days=1)
+
+        docs = self._get_documents(
+            report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
+            extension="csv",
+            date=date,
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_as_deployment_factors_projected_rtc_b_trial(df)
+
+    def _handle_as_deployment_factors_projected_rtc_b_trial(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "ASType": "AS Type",
+                "ASDeploymentFactors": "AS Deployment Factors",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+
+        df = self.parse_doc(df)
+
+        df["AS Deployment Factors"] = pd.to_numeric(
+            df["AS Deployment Factors"],
+            errors="coerce",
+        )
+
+        return (
+            df[["Interval Start", "Interval End", "AS Type", "AS Deployment Factors"]]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    # Published per DRUC run for the next day
+    @support_date_range(frequency="DAY_START")
+    def get_as_deployment_factors_daily_ruc_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Daily RUC Ancillary Service Deployment Factors"""
+        if date != "latest":
+            date -= pd.DateOffset(days=1)
+
+        docs = self._get_documents(
+            report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+            date=date,
+            constructed_name_contains="csv",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_as_deployment_factors_ruc_rtc_b_trial(df)
+
+    # Published per HRUC run for the current day (not all the hours)
+    @support_date_range(frequency="DAY_START")
+    def get_as_deployment_factors_hourly_ruc_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Hourly RUC Ancillary Service Deployment Factors"""
+        docs = self._get_documents(
+            report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+            date=date,
+            constructed_name_contains="csv",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_as_deployment_factors_ruc_rtc_b_trial(df)
+
+    def _handle_as_deployment_factors_ruc_rtc_b_trial(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "RUCTimestamp": "RUC Timestamp",
+                "ASType": "AS Type",
+                "ASDeploymentFactors": "AS Deployment Factors",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+
+        df = self.parse_doc(df)
+
+        # Parse RUC Timestamp
+        df["RUC Timestamp"] = pd.to_datetime(
+            df["RUC Timestamp"],
+        ).dt.tz_localize(self.default_timezone)
+
+        df["AS Deployment Factors"] = pd.to_numeric(
+            df["AS Deployment Factors"],
+            errors="coerce",
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "RUC Timestamp",
+                    "AS Type",
+                    "AS Deployment Factors",
+                ]
+            ]
+            .sort_values(["Interval Start", "RUC Timestamp", "AS Type"])
+            .reset_index(drop=True)
+        )
+
+    # Published per DAM run for the next day
+    @support_date_range(frequency="DAY_START")
+    def get_dam_total_as_sold_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Total Ancillary Services Sold"""
+        if date != "latest":
+            date -= pd.DateOffset(days=1)
+
+        docs = self._get_documents(
+            report_type_id=DAM_TOTAL_AS_SOLD_RTID,
+            date=date,
+            constructed_name_contains="csv",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_dam_total_as_sold_rtc_b_trial(df)
+
+    def _handle_dam_total_as_sold_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Handle DAM Total Ancillary Services Sold data."""
+        df = df.rename(
+            columns={
+                "ASType": "AS Type",
+                "Quantity": "Quantity",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+
+        df = self.parse_doc(df)
+        df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "AS Type",
+                    "Quantity",
+                ]
+            ]
+            .sort_values(["Interval Start", "AS Type"])
+            .reset_index(drop=True)
+        )
+
+    # Published per RTD run for the next 55 minutes (11 intervals per file)
+    @support_date_range(frequency=None)
+    def get_indicative_mcpc_rtd_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTD Indicative Real-Time Market Clearing Prices for Capacity"""
+        published_before = None
+        published_after = None
+
+        if date != "latest":
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+            published_after = date
+
+        docs = self._get_documents(
+            report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
+            extension="csv",
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_indicative_mcpc_rtd_rtc_b_trial(df)
+
+    def _handle_indicative_mcpc_rtd_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+        # Parse timestamps with DST handling
+        df["Interval End"] = pd.to_datetime(df["IntervalEnding"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=self.ambiguous_based_on_dstflag(
+                df.rename(columns={"IntervalEndingRepeatedHourFlag": "DSTFlag"}),
+            ),
+        )
+
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+
+        df["RTD Timestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=self.ambiguous_based_on_dstflag(
+                df.rename(columns={"RepeatedHourFlag": "DSTFlag"}),
+            ),
+        )
+
+        # Convert price columns to numeric (float64)
+        price_cols = ["REGUP", "REGDN", "RRS", "ECRS", "NSPIN"]
+        for col in price_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[["Interval Start", "Interval End", "RTD Timestamp"] + price_cols]
+            .sort_values(["Interval Start", "RTD Timestamp"])
+            .reset_index(drop=True)
+        )
+
+    # Published every SCED interval
+    @support_date_range(frequency=None)
+    def get_as_total_capability_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Total Capability of Resources Available to Provide Ancillary Service"""
+        published_before = None
+        published_after = None
+
+        if date != "latest":
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+            published_after = date
+
+        docs = self._get_documents(
+            report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
+            extension="csv",
+            date=date,
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+
+        return self._handle_as_total_capability_rtc_b_trial(df)
+
+    def _handle_as_total_capability_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "SCEDTimestamp": "SCED Timestamp",
+                "CapREGUPTotal": "Cap RegUp Total",
+                "CapREGDNTotal": "Cap RegDn Total",
+                "CapRRSTotal": "Cap RRS Total",
+                "CapECRSTotal": "Cap ECRS Total",
+                "CapNSPINTotal": "Cap NonSpin Total",
+                "CapREGUP_RRSTotal": "Cap RegUp RRS Total",
+                "CapREGUP_RRS_ECRSTotal": "Cap RegUp RRS ECRS Total",
+                "CapREGUP_RRS_ECRS_NSPINTotal": "Cap RegUp RRS ECRS NonSpin Total",
+                "DSTFlag": "RepeatedHourFlag",
+            },
+        )
+
+        df = self._handle_sced_timestamp(df)
+
+        # Convert capability columns to numeric
+        cap_cols = [
+            "Cap RegUp Total",
+            "Cap RegDn Total",
+            "Cap RRS Total",
+            "Cap ECRS Total",
+            "Cap NonSpin Total",
+            "Cap RegUp RRS Total",
+            "Cap RegUp RRS ECRS Total",
+            "Cap RegUp RRS ECRS NonSpin Total",
+        ]
+
+        for col in cap_cols:
+            df[col] = df[col].astype(float)
+
+        return (
+            df[["SCED Timestamp"] + cap_cols]
+            .sort_values("SCED Timestamp")
+            .reset_index(drop=True)
+        )
+
+        # Published every SCED interval
+
+    @support_date_range(frequency=None)
+    def get_real_time_adders_rtc_b_trial(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get RTC Market Trials Real-Time ORDC and Reliability Deployment
+        Price Adders and Reserves by SCED Interval
+
+        This is the RTC+B trial version of Real-Time Price Adders data,
+        produced by SCED every five minutes.
+
+        Arguments:
+            date: date to get data for
+            end: end date to get data for. If None, defaults to date + 1 day
+            verbose: print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with ORDC price adders data
+        """
+        published_before = None
+        published_after = None
+
+        # _get_documents can directly handle date = "latest"
+        if date != "latest":
+            published_after = date
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            published_before = end
+
+        docs = self._get_documents(
+            report_type_id=REAL_TIME_ADDERS_RTC_B_TRIAL_RTID,
+            date=date,
+            published_after=published_after,
+            published_before=published_before,
+            extension="csv",
+            verbose=verbose,
+        )
+
+        return self._handle_real_time_adders_rtc_b_trial(docs, verbose=verbose)
+
+    def _handle_real_time_adders_rtc_b_trial(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._handle_sced_timestamp(df)
+
+        df = utils.move_cols_to_front(
+            df,
+            ["SCED Timestamp", "Interval Start", "Interval End"],
+        )
+        df = df.rename(columns={"SystemLambda": "System Lambda"})
+
+        return df.sort_values("SCED Timestamp").reset_index(drop=True)
