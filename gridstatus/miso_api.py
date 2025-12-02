@@ -1887,6 +1887,15 @@ class MISOAPI:
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        """
+        Retrieve MISO pricing nodes for a specific date or date range.
+        Parameters:
+            date: The date for which to retrieve pricing nodes. If None, defaults to "latest".
+                  Can be a pd.Timestamp or "latest".
+            end: Optional end date for a date range. If provided, retrieves pricing nodes for all
+                 quarterly updates between date and end.
+            verbose: If True, prints additional information during data retrieval.
+        """
         if date is None:
             date = "latest"
 
