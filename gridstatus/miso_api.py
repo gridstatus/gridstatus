@@ -1889,6 +1889,8 @@ class MISOAPI:
     ) -> pd.DataFrame:
         """
         Retrieve MISO pricing nodes for a specific date or date range.
+        MISO pricing nodes change quarterly on March 1st, June 1st, September 1st, and December 1st.
+        New pricing nodes become effective on these dates, some pricing nodes are retired/removed and some nodes change names/node ids.
         Parameters:
             date: The date for which to retrieve pricing nodes. If None, defaults to "latest".
                   Can be a pd.Timestamp or "latest".
