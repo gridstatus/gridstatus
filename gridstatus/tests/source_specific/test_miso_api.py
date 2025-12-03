@@ -35,6 +35,7 @@ class TestMISOAPI(TestHelperMixin):
     def _check_lmp(self, df, market_value):
         assert df.columns.tolist() == LMP_COLUMNS
         assert list(df["Market"].unique()) == [market_value]
+        assert df["Location Type"].notna().all()
 
     """get_lmp_day_ahead_hourly_ex_ante"""
 
