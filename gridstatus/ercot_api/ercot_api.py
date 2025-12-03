@@ -640,15 +640,15 @@ class ErcotAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            return self.get_as_prices("today", verbose=verbose)
+            return self.get_mcpc_data("today", verbose=verbose)
 
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         if self._should_use_historical(date):
             data = self.get_historical_data(
-                # Need to subtract 1 because we filter by posted date and this data
-                # is day-ahead
                 endpoint=AS_PRICES_ENDPOINT,
+                # Need to subtract 1 day because we filter by posted date in thie
+                # historical api and this data is day-ahead
                 start_date=date - pd.Timedelta(days=1),
                 end_date=end - pd.Timedelta(days=1),
                 verbose=verbose,
@@ -656,13 +656,16 @@ class ErcotAPI:
         else:
             api_params = {
                 "deliveryDateFrom": date,
-                "deliveryDateTo": end - pd.Timedelta(hours=1),
+                # Subtract off one second to avoid including the end date
+                "deliveryDateTo": end - pd.Timedelta(seconds=1),
             }
 
             data = self.hit_ercot_api(
                 endpoint=AS_PRICES_ENDPOINT,
                 page_size=DEFAULT_PAGE_SIZE,
                 verbose=verbose,
+                # We do not need to add 1 day because this API filters by
+                # delivery date
                 **api_params,
             )
 

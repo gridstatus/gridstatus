@@ -395,19 +395,26 @@ class TestErcotAPI(TestHelperMixin):
             df = self.iso.get_mcpc_dam("today")
         self._check_get_mcpc_dam(df)
         assert df["Interval Start"].min() == self.local_start_of_today()
-        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
-            days=1,
-        )
 
-    def test_get_mcpc_dam_historical_date(self):
+        # Depending on time of day, the end date will be today or tomorrow
+        assert df["Interval End"].max() in [
+            self.local_start_of_today() + pd.DateOffset(days=1),
+            self.local_start_of_today() + pd.DateOffset(days=2),
+        ]
+
+    def test_get_mcpc_dam_historical_date_range(self):
         date = self.local_today() - pd.Timedelta(days=10)
-        with api_vcr.use_cassette("test_get_mcpc_dam_historical_date.yaml"):
-            df = self.iso.get_mcpc_dam(date)
+        end = date + pd.Timedelta(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_mcpc_dam_historical_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_mcpc_dam(date, end)
         self._check_get_mcpc_dam(df)
         assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval End"].max() == self.local_start_of_day(
-            date,
-        ) + pd.DateOffset(days=1)
+            end,
+        )
 
     """get_as_reports"""
 
