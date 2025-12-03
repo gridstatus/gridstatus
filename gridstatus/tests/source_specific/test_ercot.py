@@ -1508,6 +1508,14 @@ class TestErcot(BaseTestISO):
             "Capacity Generation Resource Total",
             "Capacity Load Resource Total",
             "Offline Available MW Total",
+            "Capacity Reg Up Total",
+            "Capacity Reg Down Total",
+            "Capacity RRS Total",
+            "Capacity ECRS Total",
+            "Capacity NSPIN Total",
+            "Capacity Reg Up RRS Total",
+            "Capacity Reg Up RRS ECRS Total",
+            "Capacity Regup RRS ECRS NSPIN Total",
         ]
 
         assert (

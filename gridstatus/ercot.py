@@ -3464,6 +3464,14 @@ class Ercot(ISOBase):
                 "CapGenResTotal": "Capacity Generation Resource Total",
                 "CapLoadResTotal": "Capacity Load Resource Total",
                 "OfflineAvailableMWTotal": "Offline Available MW Total",
+                "CapREGUPTotal": "Capacity Reg Up Total",
+                "CapREGDNTotal": "Capacity Reg Down Total",
+                "CapRRSTotal": "Capacity RRS Total",
+                "CapECRSTotal": "Capacity ECRS Total",
+                "CapNSPINTotal": "Capacity NSPIN Total",
+                "CapREGUP_RRSTotal": "Capacity Reg Up RRS Total",
+                "CapREGUP_RRS_ECRSTotal": "Capacity Reg Up RRS ECRS Total",
+                "CapREGUP_RRS_ECRS_NSPINTotal": "Capacity Regup RRS ECRS NSPIN Total",
             },
         )
 
