@@ -2000,35 +2000,27 @@ class MISOAPI:
         This function generates a list of these dates within the specified start and end range.
         If no quarterly date falls within the range, return the most recent quarterly date before start.
         """
-        anchors = ["03-01", "06-01", "09-01", "12-01"]
-        years = range(start.year, end.year + 1)
+        # Create timezone-aware start date for date_range
+        range_start = pd.Timestamp(
+            f"{start.year - 1}-03-01",
+            tz=self.default_timezone,
+        )
 
-        dates = [
-            pd.Timestamp(f"{y}-{m}", tz=self.default_timezone)
-            for y in years
-            for m in anchors
-        ]
+        dates = pd.date_range(
+            start=range_start,
+            end=end,
+            freq="QS-MAR",
+        )
 
-        dates_in_range = [d for d in dates if start <= d <= end]
+        dates_in_range = dates[(dates >= start) & (dates <= end)]
+        if len(dates_in_range) > 0:
+            return dates_in_range.tolist()
 
-        if dates_in_range:
-            return dates_in_range
-
-        # If no dates in range, find the most recent quarterly date before start
-        dates_before_start = [d for d in dates if d < start]
-        if dates_before_start:
-            return [max(dates_before_start)]
-
-        # If start is before all quarterly dates in range, look at previous year
-        previous_year_dates = [
-            pd.Timestamp(f"{start.year - 1}-{m}", tz=self.default_timezone)
-            for m in anchors
-        ]
-        return [max(previous_year_dates)]
+        return [dates[dates < start][-1]]
 
     def get_pricing_nodes(
         self,
-        date: str | pd.Timestamp | None = None,
+        date: str | pd.Timestamp | None = "latest",
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -2048,9 +2040,6 @@ class MISOAPI:
 
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
-
-        if isinstance(date, str):
-            raise ValueError("Invalid date format")
 
         end = (
             utils._handle_date(end, self.default_timezone) if end is not None else None
