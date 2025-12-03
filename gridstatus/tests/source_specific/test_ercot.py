@@ -167,6 +167,47 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == as_cols
         assert df["Time"].unique()[0].date() == date
 
+    """get_mcpc_dam"""
+
+    def _check_get_mcpc_dam(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "MCPC",
+        ]
+
+        assert list(df["AS Type"].unique()) == [
+            "ECRS",
+            "NSPIN",
+            "REGDN",
+            "REGUP",
+            "RRS",
+        ]
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_mcpc_dam_today(self):
+        with api_vcr.use_cassette("test_get_mcpc_dam_today.yaml"):
+            df = self.iso.get_mcpc_dam("today")
+        self._check_get_mcpc_dam(df)
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            days=1,
+        )
+
+    def test_get_mcpc_dam_historical_date(self):
+        date = self.local_today() - pd.Timedelta(days=10)
+        with api_vcr.use_cassette("test_get_mcpc_dam_historical_date.yaml"):
+            df = self.iso.get_mcpc_dam(date)
+        self._check_get_mcpc_dam(df)
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date,
+        ) + pd.DateOffset(days=1)
+
     """get_as_plan"""
 
     def _check_as_plan(self, df):

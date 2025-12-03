@@ -1851,6 +1851,39 @@ class Ercot(ISOBase):
 
         return df
 
+    def get_mcpc_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Gets The Market Clearing Prices for Capacity for all Ancillary Services from the Day-Ahead Market. This is the same data as get_as_prices except the
+        return dataframe is long instead of wide.
+        """
+        wide_df = self.get_as_prices(date, end, verbose)
+        df = wide_df.melt(
+            id_vars=["Time", "Interval Start", "Interval End", "Market"],
+            var_name="AS Type",
+            value_name="MCPC",
+        )
+
+        df["AS Type"] = df["AS Type"].map(
+            {
+                "ERCOT Contingency Reserve Service": "ECRS",
+                "Non-Spinning Reserves": "NSPIN",
+                "Regulation Down": "REGDN",
+                "Regulation Up": "REGUP",
+                "Responsive Reserves": "RRS",
+            },
+        )
+
+        return (
+            df[["Interval Start", "Interval End", "AS Type", "MCPC"]]
+            .sort_values(["Interval Start", "AS Type"])
+            .reset_index(drop=True)
+        )
+
     @support_date_range(frequency="DAY_START")
     def get_as_plan(
         self,
