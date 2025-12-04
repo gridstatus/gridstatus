@@ -3471,7 +3471,7 @@ class Ercot(ISOBase):
                 "CapNSPINTotal": "Capacity NSPIN Total",
                 "CapREGUP_RRSTotal": "Capacity Reg Up RRS Total",
                 "CapREGUP_RRS_ECRSTotal": "Capacity Reg Up RRS ECRS Total",
-                "CapREGUP_RRS_ECRS_NSPINTotal": "Capacity Regup RRS ECRS NSPIN Total",
+                "CapREGUP_RRS_ECRS_NSPINTotal": "Capacity Reg Up RRS ECRS NSPIN Total",
             },
         )
 
