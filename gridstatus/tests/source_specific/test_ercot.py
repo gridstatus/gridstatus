@@ -1515,7 +1515,7 @@ class TestErcot(BaseTestISO):
             "Capacity NSPIN Total",
             "Capacity Reg Up RRS Total",
             "Capacity Reg Up RRS ECRS Total",
-            "Capacity Regup RRS ECRS NSPIN Total",
+            "Capacity Reg Up RRS ECRS NSPIN Total",
         ]
 
         assert (
