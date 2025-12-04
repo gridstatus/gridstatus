@@ -272,6 +272,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
+        drop_null_forecast_rows: bool = True,
     ) -> pd.DataFrame | None:
         """
         5-minute load forecast data for the SPP footprint (system-wide) for +/- 10
@@ -282,6 +283,8 @@ class SPP(ISOBase):
         Arguments:
             date (pd.Timestamp|str): date to get data for. Supports "latest" and "today"
             verbose (bool): print info
+            end (pd.Timestamp|str): end date
+            drop_null_forecast_rows (bool): if True, drop rows with null forecast values
 
         Returns:
             pd.DataFrame: forecast as dataframe.
@@ -307,6 +310,7 @@ class SPP(ISOBase):
             forecast_col="STLF",
             end_time_col="GMTInterval",
             interval_duration=pd.Timedelta(minutes=5),
+            drop_null_forecast_rows=drop_null_forecast_rows,
         )
 
         return df
@@ -478,6 +482,7 @@ class SPP(ISOBase):
         forecast_col: str,
         end_time_col: str,
         interval_duration: pd.Timedelta,
+        drop_null_forecast_rows: bool = True,
     ) -> pd.DataFrame:
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
@@ -505,7 +510,10 @@ class SPP(ISOBase):
             .sort_values(["Interval Start", "Publish Time"])
         )
 
-        return df.dropna(subset=[forecast_col]).reset_index(drop=True)
+        if drop_null_forecast_rows:
+            df = df.dropna(subset=[forecast_col])
+
+        return df.reset_index(drop=True)
 
     @support_date_range("5_MIN")
     def get_solar_and_wind_forecast_short_term(
