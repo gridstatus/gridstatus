@@ -2299,7 +2299,7 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrame with ancillary service capacity monitor data
         """
 
-        url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"
+        url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"  # TODO: URL might be changing with RTC+B
         logger.info(f"Getting Ancillary Service Capacity Monitor from {url}")
         html_content = requests.get(url).content
         df = self._parse_html_table(html_content)
