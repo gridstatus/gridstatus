@@ -3950,6 +3950,7 @@ class Ercot(ISOBase):
                 "Hour Ending": "HourEnding",
                 "HOUR_ENDING": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",
+                "RepeatedHourFlag": "DSTFlag",
                 "Date": "DeliveryDate",
                 "DeliveryHour": "HourEnding",
                 "Delivery Hour": "HourEnding",
