@@ -145,8 +145,8 @@ SHORT_TERM_SYSTEM_ADEQUACY_REPORT_RTID = 12315
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-323-CD
 REAL_TIME_ADDERS_AND_RESERVES_RTID = 13221
 
-# RTC Market Trials Real-Time ORDC and Reliability Deployment Price Adders
-REAL_TIME_ADDERS_RTC_B_TRIAL_RTID = 4108
+# Real-Time ORDC and Reliability Deployment Price Adders
+REAL_TIME_ADDERS_RTID = 4108
 
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
 TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
@@ -164,8 +164,6 @@ DAM_TOTAL_ENERGY_SOLD_RTID = 12334
 # https://www.ercot.com/mp/data-products/data-product-details?id=np1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_RTID = 10038
 
-
-## RTC + B (Trial)
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-332-CD
 REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID = 24891
 
@@ -4340,65 +4338,15 @@ class Ercot(ISOBase):
 
         return data
 
-    ### RTC + B Trials ###
-
     # Published every SCED interval
     @support_date_range(frequency=None)
-    def get_lmp_by_settlement_point_rtc_b_trial(
-        self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Get RTC Market Trials LMPs by Resource Nodes, Load Zones and Trading Hubs
-
-        This is the RTC+B trial version of LMP data, produced by SCED every five minutes.
-
-        Arguments:
-            date: date to get data for
-            end: end date to get data for. If None, defaults to date + 1 day
-            verbose: print verbose output. Defaults to False.
-
-        Returns:
-            pandas.DataFrame: A DataFrame with LMP data including columns:
-                - Interval Start
-                - Interval End
-                - SCED Timestamp
-                - Market
-                - Location
-                - Location Type
-                - LMP
-        """
-        published_before = None
-        published_after = None
-
-        if date != "latest":
-            if not end:
-                end = date + pd.DateOffset(days=1)
-
-            published_before = end
-            published_after = date
-
-        docs = self._get_documents(
-            report_type_id=REAL_TIME_CLEARING_LMPS_BY_RESOURCE_NODES_LOAD_ZONES_AND_TRADING_HUBS_RTD,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
-
-        return self._handle_lmp(docs=docs, verbose=verbose)
-
-    # Published every SCED interval
-    @support_date_range(frequency=None)
-    def get_mcpc_sced_rtc_b_trial(
+    def get_mcpc_sced(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Market Clearing Prices for Capacity by SCED interval"""
+        """Get Market Clearing Prices for Capacity by SCED interval"""
         published_before = None
         published_after = None
 
@@ -4420,9 +4368,9 @@ class Ercot(ISOBase):
         )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_mcpc_sced_rtc_b_trial(df)
+        return self._handle_mcpc_sced(df)
 
-    def _handle_mcpc_sced_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_mcpc_sced(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(columns={"ASType": "AS Type"})
         df = self._handle_sced_timestamp(df)
 
@@ -4437,13 +4385,13 @@ class Ercot(ISOBase):
 
     # Published every 15 minutes for the past 15 minutes.
     @support_date_range(frequency=None)
-    def get_mcpc_real_time_15_min_rtc_b_trial(
+    def get_mcpc_real_time_15_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Market Clearing Prices for Capacity by 15-minute interval"""
+        """Get Market Clearing Prices for Capacity by 15-minute interval"""
         published_before = None
         published_after = None
 
@@ -4465,9 +4413,9 @@ class Ercot(ISOBase):
         )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_mcpc_real_time_15_min_rtc_b_trial(df)
+        return self._handle_mcpc_real_time_15_min(df)
 
-    def _handle_mcpc_real_time_15_min_rtc_b_trial(
+    def _handle_mcpc_real_time_15_min(
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
@@ -4487,13 +4435,13 @@ class Ercot(ISOBase):
 
     # Published once per day for today and tomorrow in the same file
     @support_date_range(frequency="DAY_START")
-    def get_as_demand_curves_rtc_b_trial(
+    def get_as_demand_curves(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Ancillary Service Demand Curves"""
+        """Get Ancillary Service Demand Curves"""
         docs = self._get_documents(
             report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
             extension="csv",
@@ -4510,9 +4458,9 @@ class Ercot(ISOBase):
             ],
         )
 
-        return self._handle_as_demand_curves_rtc_b_trial(df)
+        return self._handle_as_demand_curves(df)
 
-    def _handle_as_demand_curves_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_as_demand_curves(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "ASType": "AS Type",
@@ -4544,13 +4492,13 @@ class Ercot(ISOBase):
         )
 
     @support_date_range(frequency="DAY_START")
-    def get_as_deployment_factors_projected_rtc_b_trial(
+    def get_as_deployment_factors_projected(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Projected Ancillary Service Deployment Factors"""
+        """Get Projected Ancillary Service Deployment Factors"""
         # _get_documents can directly handle date="latest"
         # Date is published for the next day
         if date != "latest":
@@ -4564,9 +4512,9 @@ class Ercot(ISOBase):
         )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_as_deployment_factors_projected_rtc_b_trial(df)
+        return self._handle_as_deployment_factors_projected(df)
 
-    def _handle_as_deployment_factors_projected_rtc_b_trial(
+    def _handle_as_deployment_factors_projected(
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
@@ -4593,7 +4541,7 @@ class Ercot(ISOBase):
 
     # Published per DRUC run for the next day
     @support_date_range(frequency="DAY_START")
-    def get_as_deployment_factors_daily_ruc_rtc_b_trial(
+    def get_as_deployment_factors_daily_ruc(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -4611,11 +4559,11 @@ class Ercot(ISOBase):
         )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_as_deployment_factors_ruc_rtc_b_trial(df)
+        return self._handle_as_deployment_factors_ruc(df)
 
     # Published per HRUC run for the current day (not all the hours)
     @support_date_range(frequency="DAY_START")
-    def get_as_deployment_factors_hourly_ruc_rtc_b_trial(
+    def get_as_deployment_factors_hourly_ruc(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -4630,9 +4578,9 @@ class Ercot(ISOBase):
         )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_as_deployment_factors_ruc_rtc_b_trial(df)
+        return self._handle_as_deployment_factors_ruc(df)
 
-    def _handle_as_deployment_factors_ruc_rtc_b_trial(
+    def _handle_as_deployment_factors_ruc(
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
@@ -4673,7 +4621,7 @@ class Ercot(ISOBase):
 
     # Published per DAM run for the next day
     @support_date_range(frequency="DAY_START")
-    def get_dam_total_as_sold_rtc_b_trial(
+    def get_dam_total_as_sold(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -4691,9 +4639,9 @@ class Ercot(ISOBase):
         )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_dam_total_as_sold_rtc_b_trial(df)
+        return self._handle_dam_total_as_sold(df)
 
-    def _handle_dam_total_as_sold_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_dam_total_as_sold(self, df: pd.DataFrame) -> pd.DataFrame:
         """Handle DAM Total Ancillary Services Sold data."""
         df = df.rename(
             columns={
@@ -4721,7 +4669,7 @@ class Ercot(ISOBase):
 
     # Published per RTD run for the next 55 minutes (11 intervals per file)
     @support_date_range(frequency=None)
-    def get_indicative_mcpc_rtd_rtc_b_trial(
+    def get_indicative_mcpc_rtd(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -4748,9 +4696,9 @@ class Ercot(ISOBase):
         )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_indicative_mcpc_rtd_rtc_b_trial(df)
+        return self._handle_indicative_mcpc_rtd(df)
 
-    def _handle_indicative_mcpc_rtd_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_indicative_mcpc_rtd(self, df: pd.DataFrame) -> pd.DataFrame:
         # Parse timestamps with DST handling
         df["Interval End"] = pd.to_datetime(df["IntervalEnding"]).dt.tz_localize(
             self.default_timezone,
@@ -4781,7 +4729,7 @@ class Ercot(ISOBase):
 
     # Published every SCED interval
     @support_date_range(frequency=None)
-    def get_as_total_capability_rtc_b_trial(
+    def get_as_total_capability(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -4809,9 +4757,9 @@ class Ercot(ISOBase):
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
 
-        return self._handle_as_total_capability_rtc_b_trial(df)
+        return self._handle_as_total_capability(df)
 
-    def _handle_as_total_capability_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_as_total_capability(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "SCEDTimestamp": "SCED Timestamp",
@@ -4853,17 +4801,14 @@ class Ercot(ISOBase):
         # Published every SCED interval
 
     @support_date_range(frequency=None)
-    def get_real_time_adders_rtc_b_trial(
+    def get_real_time_adders(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Real-Time ORDC and Reliability Deployment
-        Price Adders and Reserves by SCED Interval
-
-        This is the RTC+B trial version of Real-Time Price Adders data,
-        produced by SCED every five minutes.
+        """Get Real-Time ORDC and Reliability Deployment
+        Price Adders and Reserves by SCED Interval produced by SCED every five minutes.
 
         Arguments:
             date: date to get data for
@@ -4885,7 +4830,7 @@ class Ercot(ISOBase):
             published_before = end
 
         docs = self._get_documents(
-            report_type_id=REAL_TIME_ADDERS_RTC_B_TRIAL_RTID,
+            report_type_id=REAL_TIME_ADDERS_RTID,
             date=date,
             published_after=published_after,
             published_before=published_before,
@@ -4893,9 +4838,9 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        return self._handle_real_time_adders_rtc_b_trial(docs, verbose=verbose)
+        return self._handle_real_time_adders(docs, verbose=verbose)
 
-    def _handle_real_time_adders_rtc_b_trial(
+    def _handle_real_time_adders(
         self,
         docs: list[Document],
         verbose: bool = False,
