@@ -2324,7 +2324,9 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrame with system AS capacity monitor data
         """
         if date is not None and date != "latest":
-            raise ValueError("date must be None or 'latest'")
+            logger.warning(
+                "date argument to get_system_as_capacity_monitor is ignored; only None or 'latest' are supported",
+            )
 
         url = self.BASE + "/ancillary-service-capacity-monitor.json"
         logger.info(f"Getting System Capacity AS Monitor from {url}...")
