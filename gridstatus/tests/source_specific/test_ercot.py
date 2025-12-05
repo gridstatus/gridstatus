@@ -45,6 +45,7 @@ from gridstatus.ercot_60d_utils import (
 from gridstatus.ercot_constants import (
     SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
+    SYSTEM_AS_CAPACITY_MONITOR_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_COLUMNS,
 )
@@ -2759,77 +2760,13 @@ class TestErcot(BaseTestISO):
 
     """system_as_capacity_monitor"""
 
-    system_as_capacity_monitor_columns = [
-        "Time",
-        "RRS Capability PFR Gen and ESR",
-        "RRS Capability Load Ex Controllable Load",
-        "RRS Capability PFR Controllable Load",
-        "RRS Capability FFR Capable Ex ESR",
-        "RRS Capability FFR ESR",
-        "RRS Awards PFR Gen and ESR",
-        "RRS Awards UFR Load Ex Controllable Load",
-        "RRS Awards PFR Controllable Load",
-        "RRS Awards FFR Capable",
-        "ECRS Capability Gen",
-        "ECRS Capability Load Ex Controllable Load",
-        "ECRS Capability Controllable Load",
-        "ECRS Capability Quick Start Gen",
-        "ECRS Capability ESR",
-        "ECRS Capability Manually Deployed ONSC Status",
-        "ECRS Awards Gen",
-        "ECRS Awards Load Ex Controllable Load",
-        "ECRS Awards Controllable Load",
-        "ECRS Awards Quick Start Gen",
-        "ECRS Awards ESR",
-        "Nspin Capability On Line Gen with Energy Offers",
-        "Nspin Capability Resources with Output Schedules",
-        "Nspin Capability Undeployed Load",
-        "Nspin Capability Offline Gen Ex QSGR Online Gen with power aug",
-        "Nspin Capability ESR",
-        "NSpin Awards On Line Gen with Energy Offer Curves",
-        "NSpin Awards On Line Gen with Output Schedules",
-        "NSPin Awards Load",
-        "NSpin Awards Offline Gen Ex QSGR Including power aug",
-        "NSpin Awards Quick Start Gen",
-        "NSpin Awards ESR",
-        "Reg Capability Reg Up",
-        "Reg Capability Reg Down",
-        "Reg Capability Undeployed Reg Up",
-        "Reg Capability Undeployed Reg Down",
-        "Reg Capability Deployed Reg Up",
-        "Reg Capability Deployed Reg Down",
-        "Reg Awards Reg Up",
-        "Reg Awards Reg Down",
-        "Capacity From CLRS Available To Decrease Base Points In SCED",
-        "Capacity From CLRS Available To Increase Base Points In SCED",
-        "Capacity With Energy Offer Curves To Increase Genres BP In SCED",
-        "Capacity With Energy Offer Curves To Decrease Genres BP In SCED",
-        "Capacity Without Energy Offers To Increase Genres BP In SCED",
-        "Capacity Without Energy Offers To Decrease Genres BP In SCED",
-        "Capacity with energy offers to increase ESR BP in SCED",
-        "Capacity with energy offers to decrease ESR BP in SCED",
-        "Capacity without energy offers to increase ESR BP in SCED",
-        "Capacity without energy offers to decrease ESR BP in SCED",
-        "Capacity To Increase Genres BP In Next Five Minutes In SCED HDL",
-        "Capacity To Decrease Genres BP In Next Five Minutes In SCED LDL",
-        "Capacity to provide Reg Up RRS or Both",
-        "Capacity to provide Reg Up RRS ECRS or any combo",
-        "Capacity to provide Reg Up RRS ECRS NSpin any combination",
-        "PRC",
-        "ORDC Online",
-        "ORDC Online and Offline",
-        "Telemetered HSL Capacity Resource Status EMR",
-        "Telemetered HSL Capacity Resource Status OUT",
-        "Telemetered Net Consumption Resource status OUTL",
-    ]
-
     def _check_system_as_capacity_monitor(self, df: pd.DataFrame) -> None:
         assert df.shape[0] == 1
-        assert df.columns.tolist() == self.system_as_capacity_monitor_columns
+        assert df.columns.tolist() == SYSTEM_AS_CAPACITY_MONITOR_COLUMNS
 
         assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
 
-        for col in self.system_as_capacity_monitor_columns[1:]:
+        for col in SYSTEM_AS_CAPACITY_MONITOR_COLUMNS[1:]:
             assert df.dtypes[col] in ["float64", "int64"], (
                 f"{col} has dtype {df.dtypes[col]}"
             )
