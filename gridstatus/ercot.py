@@ -189,6 +189,18 @@ DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24895
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP5-528-CD
 HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24896
 
+# Hourly RUC Ancillary Service Demand Curves
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-213-cd
+HOURLY_RUC_AS_DEMAND_CURVES_RTID = 26382
+
+# Daily RUC Ancillary Service Demand Curves
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-214-cd
+DAILY_RUC_AS_DEMAND_CURVES_RTID = 26383
+
+# Weekly RUC Ancillary Service Demand Curves
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-215-cd
+WEEKLY_RUC_AS_DEMAND_CURVES_RTID = 26384
+
 # DAM Total Ancillary Services Sold
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-532-cd
 DAM_TOTAL_AS_SOLD_RTID = 24888
@@ -4626,6 +4638,106 @@ class Ercot(ISOBase):
                 ]
             ]
             .sort_values(["Interval Start", "RUC Timestamp", "AS Type"])
+            .reset_index(drop=True)
+        )
+
+    # Published per HRUC run for the current day
+    @support_date_range(frequency="DAY_START")
+    def get_hourly_ruc_as_demand_curves(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Hourly RUC Ancillary Service Demand Curves"""
+        docs = self._get_documents(
+            report_type_id=HOURLY_RUC_AS_DEMAND_CURVES_RTID,
+            date=date,
+            constructed_name_contains="csv",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_ruc_as_demand_curves(df)
+
+    # Published per DRUC run. At the time of writing, no files have been published.
+    # TODO: uncomment once files have been published
+    @support_date_range(frequency="DAY_START")
+    def get_daily_ruc_as_demand_curves(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Daily RUC Ancillary Service Demand Curves"""
+        docs = self._get_documents(
+            report_type_id=DAILY_RUC_AS_DEMAND_CURVES_RTID,
+            date=date,
+            constructed_name_contains="csv",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_ruc_as_demand_curves(df)
+
+    # Published per WRUC run. Unclear how often this is as at the time of writing,
+    # only one file has been published. Default to DAY_START so data is not missed.
+    @support_date_range(frequency="DAY_START")
+    def get_weekly_ruc_as_demand_curves(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Weekly RUC Ancillary Service Demand Curves"""
+        docs = self._get_documents(
+            report_type_id=WEEKLY_RUC_AS_DEMAND_CURVES_RTID,
+            date=date,
+            constructed_name_contains="csv",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_ruc_as_demand_curves(df)
+
+    def _handle_ruc_as_demand_curves(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "RUCTimeStamp": "RUC Timestamp",
+                "ASType": "AS Type",
+                "DemandCurvePoint": "Demand Curve Point",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+
+        df = self.parse_doc(df)
+
+        # Parse RUC Timestamp
+        df["RUC Timestamp"] = pd.to_datetime(
+            df["RUC Timestamp"],
+        ).dt.tz_localize(self.default_timezone)
+
+        for col in ["Quantity", "Price", "Demand Curve Point"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "RUC Timestamp",
+                    "AS Type",
+                    "Demand Curve Point",
+                    "Quantity",
+                    "Price",
+                ]
+            ]
+            .sort_values(
+                ["Interval Start", "RUC Timestamp", "AS Type", "Demand Curve Point"],
+            )
             .reset_index(drop=True)
         )
 

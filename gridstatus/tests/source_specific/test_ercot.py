@@ -2573,6 +2573,155 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1))
 
+    """get_hourly_ruc_as_demand_curves"""
+
+    def _check_hourly_ruc_as_demand_curves(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "RUC Timestamp",
+            "AS Type",
+            "Demand Curve Point",
+            "Quantity",
+            "Price",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["RUC Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Demand Curve Point"] in ["int64", "float64"]
+        assert df.dtypes["Quantity"] in ["int64", "float64"]
+        assert df.dtypes["Price"] in ["int64", "float64"]
+
+    def test_get_hourly_ruc_as_demand_curves_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_hourly_ruc_as_demand_curves_latest.yaml",
+        ):
+            df = self.iso.get_hourly_ruc_as_demand_curves("latest")
+
+        self._check_hourly_ruc_as_demand_curves(df)
+
+        assert df["RUC Timestamp"].nuique() == 1
+
+    def test_get_hourly_ruc_as_demand_curves_date_range(self):
+        # Data is published per HRUC run so we use a set time we know it exists
+        date = pd.Timestamp("2025-12-05 01:00:00", tz=self.iso.default_timezone)
+        end = date + pd.Timedelta(hours=3)
+
+        with api_vcr.use_cassette(
+            f"test_get_hourly_ruc_as_demand_curves_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_hourly_ruc_as_demand_curves(date, end)
+
+        self._check_hourly_ruc_as_demand_curves(df)
+
+        import IPython
+
+        IPython.core.interactiveshell.InteractiveShell.ast_node_interactivity = (
+            "last_expr_or_assign"
+        )
+        IPython.embed()
+
+    """get_daily_ruc_as_demand_curves"""
+
+    def _check_daily_ruc_as_demand_curves(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "RUC Timestamp",
+            "AS Type",
+            "Demand Curve Point",
+            "Quantity",
+            "Price",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["RUC Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Demand Curve Point"] in ["int64", "float64"]
+        assert df.dtypes["Quantity"] in ["int64", "float64"]
+        assert df.dtypes["Price"] in ["int64", "float64"]
+
+    @pytest.mark.skip(
+        reason="Report 26383 was activated Dec 5, 2025 - no data available yet",
+    )
+    def test_get_daily_ruc_as_demand_curves_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_daily_ruc_as_demand_curves_latest.yaml",
+        ):
+            df = self.iso.get_daily_ruc_as_demand_curves("latest")
+
+        self._check_daily_ruc_as_demand_curves(df)
+
+        assert df["Interval Start"].nunique() > 1
+
+    @pytest.mark.skip(
+        reason="Report 26383 was activated Dec 5, 2025 - no data available yet",
+    )
+    def test_get_daily_ruc_as_demand_curves_date_range(self):
+        # Data is published per DRUC run so we use a set time we know it exists
+        date = pd.Timestamp("2025-11-09", tz=self.iso.default_timezone)
+        end = date + pd.DateOffset(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_daily_ruc_as_demand_curves_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_daily_ruc_as_demand_curves(date, end)
+
+        self._check_daily_ruc_as_demand_curves(df)
+
+        # These come from manually inspecting the available data
+        assert df["RUC Timestamp"].nunique() >= 1
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1))
+
+    """get_weekly_ruc_as_demand_curves"""
+
+    def _check_weekly_ruc_as_demand_curves(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "RUC Timestamp",
+            "AS Type",
+            "Demand Curve Point",
+            "Quantity",
+            "Price",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["RUC Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Demand Curve Point"] in ["int64", "float64"]
+        assert df.dtypes["Quantity"] in ["int64", "float64"]
+        assert df.dtypes["Price"] in ["int64", "float64"]
+
+    def test_get_weekly_ruc_as_demand_curves_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_weekly_ruc_as_demand_curves_latest.yaml",
+        ):
+            df = self.iso.get_weekly_ruc_as_demand_curves("latest")
+
+        self._check_weekly_ruc_as_demand_curves(df)
+
+        # Five days worth of data is published at once
+        assert df["Interval Start"].nunique() == 120
+        assert df["RUC Timestamp"].nunique() == 1
+
+    def test_get_weekly_ruc_as_demand_curves_date_range(self):
+        # Data is published per WRUC run so we use a set time we know it exists
+        date = pd.Timestamp("2025-12-05", tz=self.iso.default_timezone)
+        end = date + pd.DateOffset(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_weekly_ruc_as_demand_curves_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_weekly_ruc_as_demand_curves(date, end)
+
+        self._check_weekly_ruc_as_demand_curves(df)
+
+        assert df["Interval Start"].nunique() == 120
+        assert df["RUC Timestamp"].nunique() == 1
+
     """get_indicative_mcpc_rtd"""
 
     def _check_get_indicative_mcpc_rtd(self, df: pd.DataFrame):
