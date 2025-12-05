@@ -2306,6 +2306,124 @@ class Ercot(ISOBase):
 
         return df
 
+    def get_system_capacity_as_monitor(
+        self,
+        date: str = "latest",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get System Ancillary Service Capacity Monitor.
+
+        Fetches real-time ancillary service capacity data from
+        https://www.ercot.com/api/1/services/read/dashboards/ancillary-service-capacity-monitor.json
+
+        Arguments:
+            date (str): only supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with system AS capacity monitor data
+        """
+        url = self.BASE + "/ancillary-service-capacity-monitor.json"
+        logger.info(f"Getting System Capacity AS Monitor from {url}")
+        json_data = self._get_json(url, verbose=verbose)
+        return self._parse_system_capacity_as_monitor(json_data)
+
+    def _parse_system_capacity_as_monitor(self, json_data: dict) -> pd.DataFrame:
+        """Parse JSON response from System Ancillary Service Capacity Monitor API.
+
+        Arguments:
+            json_data: Raw JSON response from the API
+
+        Returns:
+            pandas.DataFrame: Parsed data with standardized column names
+        """
+        key_to_column = {
+            "rrcCapPfrGenEsr": "RRS Capability PFR Gen and ESR",
+            "rrcCapLrWoClr": "RRS Capability Load Ex Controllable Load",
+            "rrcCapLr": "RRS Capability PFR Controllable Load",
+            "rrcCapFfr": "RRS Capability FFR Capable Ex ESR",
+            "rrcCapFfrEsr": "RRS Capability FFR ESR",
+            "regUpCap": "Reg Capability Reg Up",
+            "regDownCap": "Reg Capability Reg Down",
+            "regUpUndeployed": "Reg Capability Undeployed Reg Up",
+            "regDownUndeployed": "Reg Capability Undeployed Reg Down",
+            "regUpDeployed": "Reg Capability Deployed Reg Up",
+            "regDownDeployed": "Reg Capability Deployed Reg Down",
+            "rrAwdGen": "RRS Awards PFR Gen and ESR",
+            "rrAwdNonClr": "RRS Awards UFR Load Ex Controllable Load",
+            "rrAwdClr": "RRS Awards PFR Controllable Load",
+            "rrAwdFfr": "RRS Awards FFR Capable",
+            "regUpAwd": "Reg Awards Reg Up",
+            "regDownAwd": "Reg Awards Reg Down",
+            "ecrsCapGen": "ECRS Capability Gen",
+            "ecrsCapNclr": "ECRS Capability Load Ex Controllable Load",
+            "ecrsCapClr": "ECRS Capability Controllable Load",
+            "ecrsCapQs": "ECRS Capability Quick Start Gen",
+            "ecrsCapEsr": "ECRS Capability ESR",
+            "ecrsCapDeployedGenLr": "ECRS Capability Manually Deployed ONSC Status",
+            "capClrDecreaseBp": "Capacity From CLRS Available To Decrease Base Points In SCED",
+            "capClrIncreaseBp": "Capacity From CLRS Available To Increase Base Points In SCED",
+            "capWEoIncreaseBp": "Capacity With Energy Offer Curves To Increase Genres BP In SCED",
+            "capWEoDecreaseBp": "Capacity With Energy Offer Curves To Decrease Genres BP In SCED",
+            "capWoEoIncreaseBp": "Capacity Without Energy Offers To Increase Genres BP In SCED",
+            "capWoEoDecreaseBp": "Capacity Without Energy Offers To Decrease Genres BP In SCED",
+            "esrCapWEoIncreaseBp": "Capacity with energy offers to increase ESR BP in SCED",
+            "esrCapWEoDecreaseBp": "Capacity with energy offers to decrease ESR BP in SCED",
+            "esrCapWoEoIncreaseBp": "Capacity without energy offers to increase ESR BP in SCED",
+            "esrCapWoEoDecreaseBp": "Capacity without energy offers to decrease ESR BP in SCED",
+            "capIncreaseGenBp": "Capacity To Increase Genres BP In Next Five Minutes In SCED HDL",
+            "capDecreaseGenBp": "Capacity To Decrease Genres BP In Next Five Minutes In SCED LDL",
+            "sumCapResRegUpRrs": "Capacity to provide Reg Up RRS or Both",
+            "sumCapResRegUpRrsEcrs": "Capacity to provide Reg Up RRS ECRS or any combo",
+            "sumCapResRegUpRrsEcrsNsr": "Capacity to provide Reg Up RRS ECRS NSpin any combination",
+            "ecrsAwdGen": "ECRS Awards Gen",
+            "ecrsAwdNonClr": "ECRS Awards Load Ex Controllable Load",
+            "ecrsAwdClr": "ECRS Awards Controllable Load",
+            "ecrsAwdQs": "ECRS Awards Quick Start Gen",
+            "ecrsAwdEsr": "ECRS Awards ESR",
+            "prc": "PRC",
+            "nsrCapOnGenWoEo": "Nspin Capability On Line Gen with Energy Offers",
+            "nsrCapOffResWOs": "Nspin Capability Resources with Output Schedules",
+            "nsrCapUndeployedLr": "Nspin Capability Undeployed Load",
+            "nsrCapOffGen": "Nspin Capability Offline Gen Ex QSGR Online Gen with power aug",
+            "nsrCapEsr": "Nspin Capability ESR",
+            "rtReserveOnline": "ORDC Online",
+            "rtReserveOnOffline": "ORDC Online and Offline",
+            "nsrAwdGenWEo": "NSpin Awards On Line Gen with Energy Offer Curves",
+            "nsrAwdGenWOs": "NSpin Awards On Line Gen with Output Schedules",
+            "nsrAwdLr": "NSPin Awards Load",
+            "nsrAwdOffGen": "NSpin Awards Offline Gen Ex QSGR Including power aug",
+            "nsrAwdQs": "NSpin Awards Quick Start Gen",
+            "nsrAwdAs": "NSpin Awards ESR",
+            "telemHslEmr": "Telemetered HSL Capacity Resource Status EMR",
+            "telemHslOut": "Telemetered HSL Capacity Resource Status OUT",
+            "telemHslOutl": "Telemetered Net Consumption Resource status OUTL",
+        }
+
+        row_data = {}
+
+        for group_name, group_data in json_data.get("data", {}).items():
+            if not isinstance(group_data, list) or len(group_data) < 2:
+                continue
+            for item in group_data[1:]:
+                if len(item) >= 2:
+                    key, value = item[0], item[1]
+                    if key in key_to_column:
+                        row_data[key_to_column[key]] = value
+
+        last_updated = json_data.get("lastUpdated")
+        if last_updated:
+            time = pd.to_datetime(last_updated).tz_convert(self.default_timezone)
+        else:
+            time = pd.Timestamp.now(tz=self.default_timezone)
+
+        row_data["Time"] = time
+
+        df = pd.DataFrame([row_data])
+        df = utils.move_cols_to_front(df, ["Time"])
+
+        return df
+
     def get_real_time_system_conditions(
         self,
         date: str = "latest",

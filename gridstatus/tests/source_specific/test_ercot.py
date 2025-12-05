@@ -2757,6 +2757,222 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
         assert len(df) == 5
 
+    """system_capacity_as_monitor"""
+
+    system_capacity_as_monitor_columns = [
+        "Time",
+        "RRS Capability PFR Gen and ESR",
+        "RRS Capability Load Ex Controllable Load",
+        "RRS Capability PFR Controllable Load",
+        "RRS Capability FFR Capable Ex ESR",
+        "RRS Capability FFR ESR",
+        "RRS Awards PFR Gen and ESR",
+        "RRS Awards UFR Load Ex Controllable Load",
+        "RRS Awards PFR Controllable Load",
+        "RRS Awards FFR Capable",
+        "ECRS Capability Gen",
+        "ECRS Capability Load Ex Controllable Load",
+        "ECRS Capability Controllable Load",
+        "ECRS Capability Quick Start Gen",
+        "ECRS Capability ESR",
+        "ECRS Capability Manually Deployed ONSC Status",
+        "ECRS Awards Gen",
+        "ECRS Awards Load Ex Controllable Load",
+        "ECRS Awards Controllable Load",
+        "ECRS Awards Quick Start Gen",
+        "ECRS Awards ESR",
+        "Nspin Capability On Line Gen with Energy Offers",
+        "Nspin Capability Resources with Output Schedules",
+        "Nspin Capability Undeployed Load",
+        "Nspin Capability Offline Gen Ex QSGR Online Gen with power aug",
+        "Nspin Capability ESR",
+        "NSpin Awards On Line Gen with Energy Offer Curves",
+        "NSpin Awards On Line Gen with Output Schedules",
+        "NSPin Awards Load",
+        "NSpin Awards Offline Gen Ex QSGR Including power aug",
+        "NSpin Awards Quick Start Gen",
+        "NSpin Awards ESR",
+        "Reg Capability Reg Up",
+        "Reg Capability Reg Down",
+        "Reg Capability Undeployed Reg Up",
+        "Reg Capability Undeployed Reg Down",
+        "Reg Capability Deployed Reg Up",
+        "Reg Capability Deployed Reg Down",
+        "Reg Awards Reg Up",
+        "Reg Awards Reg Down",
+        "Capacity From CLRS Available To Decrease Base Points In SCED",
+        "Capacity From CLRS Available To Increase Base Points In SCED",
+        "Capacity With Energy Offer Curves To Increase Genres BP In SCED",
+        "Capacity With Energy Offer Curves To Decrease Genres BP In SCED",
+        "Capacity Without Energy Offers To Increase Genres BP In SCED",
+        "Capacity Without Energy Offers To Decrease Genres BP In SCED",
+        "Capacity with energy offers to increase ESR BP in SCED",
+        "Capacity with energy offers to decrease ESR BP in SCED",
+        "Capacity without energy offers to increase ESR BP in SCED",
+        "Capacity without energy offers to decrease ESR BP in SCED",
+        "Capacity To Increase Genres BP In Next Five Minutes In SCED HDL",
+        "Capacity To Decrease Genres BP In Next Five Minutes In SCED LDL",
+        "Capacity to provide Reg Up RRS or Both",
+        "Capacity to provide Reg Up RRS ECRS or any combo",
+        "Capacity to provide Reg Up RRS ECRS NSpin any combination",
+        "PRC",
+        "ORDC Online",
+        "ORDC Online and Offline",
+        "Telemetered HSL Capacity Resource Status EMR",
+        "Telemetered HSL Capacity Resource Status OUT",
+        "Telemetered Net Consumption Resource status OUTL",
+    ]
+
+    def _check_system_capacity_as_monitor(self, df: pd.DataFrame) -> None:
+        assert df.shape[0] == 1
+        assert df.columns.tolist() == self.system_capacity_as_monitor_columns
+
+        assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
+
+        for col in self.system_capacity_as_monitor_columns[1:]:
+            assert df.dtypes[col] in ["float64", "int64"], (
+                f"{col} has dtype {df.dtypes[col]}"
+            )
+
+    def test_get_system_capacity_as_monitor_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_system_capacity_as_monitor_latest.yaml",
+        ):
+            df = self.iso.get_system_capacity_as_monitor("latest")
+
+        self._check_system_capacity_as_monitor(df)
+
+    def test_parse_system_capacity_as_monitor(self):
+        fixture_json = {
+            "lastUpdated": "2025-12-05T12:30:00Z",
+            "data": {
+                "rrsCapacity": [
+                    ["header", "header"],
+                    ["rrcCapPfrGenEsr", 1000.5],
+                    ["rrcCapLrWoClr", 500.25],
+                    ["rrcCapLr", 200.0],
+                    ["rrcCapFfr", 300.0],
+                    ["rrcCapFfrEsr", 150.0],
+                ],
+                "regCapability": [
+                    ["header", "header"],
+                    ["regUpCap", 800.0],
+                    ["regDownCap", 750.0],
+                    ["regUpUndeployed", 100.0],
+                    ["regDownUndeployed", 90.0],
+                    ["regUpDeployed", 50.0],
+                    ["regDownDeployed", 45.0],
+                ],
+                "rrsAwards": [
+                    ["header", "header"],
+                    ["rrAwdGen", 400.0],
+                    ["rrAwdNonClr", 200.0],
+                    ["rrAwdClr", 100.0],
+                    ["rrAwdFfr", 150.0],
+                ],
+                "regAwards": [
+                    ["header", "header"],
+                    ["regUpAwd", 350.0],
+                    ["regDownAwd", 340.0],
+                ],
+                "ecrsCapability": [
+                    ["header", "header"],
+                    ["ecrsCapGen", 600.0],
+                    ["ecrsCapNclr", 200.0],
+                    ["ecrsCapClr", 150.0],
+                    ["ecrsCapQs", 100.0],
+                    ["ecrsCapEsr", 80.0],
+                    ["ecrsCapDeployedGenLr", 50.0],
+                ],
+                "clrCapacity": [
+                    ["header", "header"],
+                    ["capClrDecreaseBp", 400.0],
+                    ["capClrIncreaseBp", 450.0],
+                ],
+                "genCapacity": [
+                    ["header", "header"],
+                    ["capWEoIncreaseBp", 1200.0],
+                    ["capWEoDecreaseBp", 1100.0],
+                    ["capWoEoIncreaseBp", 300.0],
+                    ["capWoEoDecreaseBp", 280.0],
+                ],
+                "esrCapacity": [
+                    ["header", "header"],
+                    ["esrCapWEoIncreaseBp", 200.0],
+                    ["esrCapWEoDecreaseBp", 180.0],
+                    ["esrCapWoEoIncreaseBp", 50.0],
+                    ["esrCapWoEoDecreaseBp", 45.0],
+                ],
+                "genBpCapacity": [
+                    ["header", "header"],
+                    ["capIncreaseGenBp", 2000.0],
+                    ["capDecreaseGenBp", 1800.0],
+                ],
+                "summaryCapacity": [
+                    ["header", "header"],
+                    ["sumCapResRegUpRrs", 1500.0],
+                    ["sumCapResRegUpRrsEcrs", 1800.0],
+                    ["sumCapResRegUpRrsEcrsNsr", 2200.0],
+                ],
+                "ecrsAwards": [
+                    ["header", "header"],
+                    ["ecrsAwdGen", 250.0],
+                    ["ecrsAwdNonClr", 100.0],
+                    ["ecrsAwdClr", 80.0],
+                    ["ecrsAwdQs", 50.0],
+                    ["ecrsAwdEsr", 40.0],
+                ],
+                "prcData": [
+                    ["header", "header"],
+                    ["prc", 5000.0],
+                ],
+                "nspinCapability": [
+                    ["header", "header"],
+                    ["nsrCapOnGenWoEo", 400.0],
+                    ["nsrCapOffResWOs", 300.0],
+                    ["nsrCapUndeployedLr", 200.0],
+                    ["nsrCapOffGen", 350.0],
+                    ["nsrCapEsr", 100.0],
+                ],
+                "ordcData": [
+                    ["header", "header"],
+                    ["rtReserveOnline", 3500.0],
+                    ["rtReserveOnOffline", 4500.0],
+                ],
+                "nspinAwards": [
+                    ["header", "header"],
+                    ["nsrAwdGenWEo", 150.0],
+                    ["nsrAwdGenWOs", 100.0],
+                    ["nsrAwdLr", 80.0],
+                    ["nsrAwdOffGen", 120.0],
+                    ["nsrAwdQs", 60.0],
+                    ["nsrAwdAs", 40.0],
+                ],
+                "telemeteredData": [
+                    ["header", "header"],
+                    ["telemHslEmr", 500.0],
+                    ["telemHslOut", 200.0],
+                    ["telemHslOutl", 150.0],
+                ],
+            },
+        }
+
+        df = self.iso._parse_system_capacity_as_monitor(fixture_json)
+
+        assert df.shape[0] == 1
+        assert "Time" in df.columns
+        assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
+        assert df["Time"].iloc[0] == pd.Timestamp(
+            "2025-12-05 06:30:00",
+            tz="US/Central",
+        )
+
+        assert df["RRS Capability PFR Gen and ESR"].iloc[0] == 1000.5
+        assert df["Reg Capability Reg Up"].iloc[0] == 800.0
+        assert df["ECRS Capability Gen"].iloc[0] == 600.0
+        assert df["PRC"].iloc[0] == 5000.0
+        assert df["ORDC Online"].iloc[0] == 3500.0
+
 
 def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
     load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
