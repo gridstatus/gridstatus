@@ -2308,7 +2308,7 @@ class Ercot(ISOBase):
 
     def get_system_as_capacity_monitor(
         self,
-        date: str = "latest",
+        date: str | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get System Ancillary Service Capacity Monitor.
@@ -2323,8 +2323,11 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with system AS capacity monitor data
         """
+        if date is not None and date != "latest":
+            raise ValueError("date must be None or 'latest'")
+
         url = self.BASE + "/ancillary-service-capacity-monitor.json"
-        logger.info(f"Getting System Capacity AS Monitor from {url}")
+        logger.info(f"Getting System Capacity AS Monitor from {url}...")
         json_data = self._get_json(url, verbose=verbose)
         return self._parse_system_as_capacity_monitor(json_data)
 
