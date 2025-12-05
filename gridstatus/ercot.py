@@ -4988,3 +4988,17 @@ class Ercot(ISOBase):
         df = df.rename(columns={"SystemLambda": "System Lambda"})
 
         return df.sort_values("SCED Timestamp").reset_index(drop=True)
+
+    def get_prc_json(self) -> dict:
+        """
+        Retrieves the json for ERCOT's PRC.
+        (The data behind https://www.ercot.com/gridmktinfo/dashboards/gridconditions)
+        """
+        return self._get_json(self.BASE + "/daily-prc.json")["data"]
+
+    def get_current_conditions_json(self) -> dict:
+        """
+        Retrieves the json for ERCOT's PRC.
+        (The data behind https://www.ercot.com/gridmktinfo/dashboards/gridconditions)
+        """
+        return self._get_json(self.BASE + "/daily-prc.json")["current_conditions"]
