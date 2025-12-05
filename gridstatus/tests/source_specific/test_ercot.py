@@ -2757,9 +2757,9 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
         assert len(df) == 5
 
-    """system_capacity_as_monitor"""
+    """system_as_capacity_monitor"""
 
-    system_capacity_as_monitor_columns = [
+    system_as_capacity_monitor_columns = [
         "Time",
         "RRS Capability PFR Gen and ESR",
         "RRS Capability Load Ex Controllable Load",
@@ -2823,26 +2823,26 @@ class TestErcot(BaseTestISO):
         "Telemetered Net Consumption Resource status OUTL",
     ]
 
-    def _check_system_capacity_as_monitor(self, df: pd.DataFrame) -> None:
+    def _check_system_as_capacity_monitor(self, df: pd.DataFrame) -> None:
         assert df.shape[0] == 1
-        assert df.columns.tolist() == self.system_capacity_as_monitor_columns
+        assert df.columns.tolist() == self.system_as_capacity_monitor_columns
 
         assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
 
-        for col in self.system_capacity_as_monitor_columns[1:]:
+        for col in self.system_as_capacity_monitor_columns[1:]:
             assert df.dtypes[col] in ["float64", "int64"], (
                 f"{col} has dtype {df.dtypes[col]}"
             )
 
-    def test_get_system_capacity_as_monitor_latest(self):
+    def test_get_system_as_capacity_monitor_latest(self):
         with api_vcr.use_cassette(
-            "test_get_system_capacity_as_monitor_latest.yaml",
+            "test_get_system_as_capacity_monitor_latest.yaml",
         ):
-            df = self.iso.get_system_capacity_as_monitor("latest")
+            df = self.iso.get_system_as_capacity_monitor("latest")
 
-        self._check_system_capacity_as_monitor(df)
+        self._check_system_as_capacity_monitor(df)
 
-    def test_parse_system_capacity_as_monitor(self):
+    def test_parse_system_as_capacity_monitor(self):
         fixture_json = {
             "lastUpdated": "2025-12-05T12:30:00Z",
             "data": {
@@ -2957,7 +2957,7 @@ class TestErcot(BaseTestISO):
             },
         }
 
-        df = self.iso._parse_system_capacity_as_monitor(fixture_json)
+        df = self.iso._parse_system_as_capacity_monitor(fixture_json)
 
         assert df.shape[0] == 1
         assert "Time" in df.columns

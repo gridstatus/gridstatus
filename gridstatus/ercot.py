@@ -2306,7 +2306,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_system_capacity_as_monitor(
+    def get_system_as_capacity_monitor(
         self,
         date: str = "latest",
         verbose: bool = False,
@@ -2326,9 +2326,9 @@ class Ercot(ISOBase):
         url = self.BASE + "/ancillary-service-capacity-monitor.json"
         logger.info(f"Getting System Capacity AS Monitor from {url}")
         json_data = self._get_json(url, verbose=verbose)
-        return self._parse_system_capacity_as_monitor(json_data)
+        return self._parse_system_as_capacity_monitor(json_data)
 
-    def _parse_system_capacity_as_monitor(self, json_data: dict) -> pd.DataFrame:
+    def _parse_system_as_capacity_monitor(self, json_data: dict) -> pd.DataFrame:
         """Parse JSON response from System Ancillary Service Capacity Monitor API.
 
         Arguments:
