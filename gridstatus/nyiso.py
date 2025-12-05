@@ -1472,7 +1472,7 @@ class NYISO(ISOBase):
 
         return data
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="DAY_START")
     def get_limiting_constraints_day_ahead(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
