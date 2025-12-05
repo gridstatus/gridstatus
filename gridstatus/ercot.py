@@ -142,11 +142,13 @@ SHORT_TERM_SYSTEM_ADEQUACY_REPORT_RTID = 12315
 
 # Real-Time ORDC and Reliability Deployment Price Adders and Reserves by SCED Interval
 # (ORDC = Operating Reserve Demand Curve)
+# Adders and reserves stopped being published on December 5
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-323-CD
 REAL_TIME_ADDERS_AND_RESERVES_RTID = 13221
 
 # Real-Time ORDC and Reliability Deployment Price Adders
-REAL_TIME_ADDERS_RTID = 4108
+# Adders only started being published on December 5
+REAL_TIME_ADDERS_RTID = 13221
 
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
 TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
