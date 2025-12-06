@@ -1149,7 +1149,6 @@ class TestMISOAPI(TestHelperMixin):
         with pytest.raises(NotSupported, match="only available for future dates"):
             self.iso.get_look_ahead_hourly(yesterday)
 
-    @pytest.mark.integration
     def test_get_pricing_nodes(self):
         today = pd.Timestamp(self.local_today())
 
@@ -1164,7 +1163,6 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Node", "Location Type"]:
                 assert df[col].dtype == "str"
 
-    @pytest.mark.integration
     def test_get_pricing_nodes_by_date(self):
         today = pd.Timestamp(self.local_today())
         date = "latest"
@@ -1182,7 +1180,6 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Node", "Location Type"]:
                 assert df[col].dtype == "str"
 
-    @pytest.mark.integration
     def test_get_pricing_nodes_by_date_range(self):
         today = pd.Timestamp(self.local_today())
         date = today - pd.Timedelta(days=100)

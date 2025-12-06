@@ -1994,7 +1994,9 @@ class MISOAPI:
 
         return df_pivot
 
-    def _miso_quarterly_days(self, start, end):
+    def _miso_quarterly_days(
+        self, start: pd.Timestamp, end: pd.Timestamp
+    ) -> List[pd.Timestamp]:
         """
         MISO pricing nodes are updated quarterly on March 1st, June 1st, September 1st, and December 1st.
         This function generates a list of these dates within the specified start and end range.
@@ -2035,10 +2037,7 @@ class MISOAPI:
                  quarterly updates between date and end.
             verbose: If True, prints additional information during data retrieval.
         """
-        if date is None:
-            date = "latest"
-
-        if date == "latest":
+        if date == "latest" or date is None:
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         end = (
