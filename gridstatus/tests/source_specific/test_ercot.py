@@ -2280,8 +2280,11 @@ class TestErcot(BaseTestISO):
         assert df["SCED Timestamp"].min() >= self.local_now() - pd.Timedelta(minutes=10)
 
     def test_get_mcpc_sced_date_range(self):
-        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
-        end = date + pd.Timedelta(hours=1)
+        # Choose a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
             f"test_get_mcpc_sced_date_range_{date}_{end}.yaml",
@@ -2290,19 +2293,11 @@ class TestErcot(BaseTestISO):
 
         self._check_get_mcpc_sced(df)
 
-        assert (
-            date.tz_localize(self.iso.default_timezone)
-            < (df["SCED Timestamp"].min())
-            < date.tz_localize(self.iso.default_timezone) + pd.Timedelta(minutes=1)
-        )
+        assert df["SCED Timestamp"].min().date() == date.date()
+        assert df["SCED Timestamp"].max().date() == end.date()
 
-        assert (
-            end.tz_localize(self.iso.default_timezone) - pd.Timedelta(minutes=5)
-            < (df["SCED Timestamp"].max())
-            < end.tz_localize(self.iso.default_timezone)
-            - pd.Timedelta(minutes=5)
-            + pd.Timedelta(minutes=1)
-        )
+        # 2 hours / 15 minutes/interval = 24 intervals
+        assert df["SCED Timestamp"].nunique() == 24
 
     """get_mcpc_real_time_15_min"""
 
@@ -2333,8 +2328,11 @@ class TestErcot(BaseTestISO):
         )
 
     def test_get_mcpc_real_time_15_min_date_range(self):
-        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
-        end = date + pd.Timedelta(hours=1)
+        # Choose a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
             f"test_get_mcpc_real_time_15_min_date_range_{date}_{end}.yaml",
@@ -2343,12 +2341,11 @@ class TestErcot(BaseTestISO):
 
         self._check_get_mcpc_real_time_15_min(df)
 
-        assert df["Interval Start"].min() == date.tz_localize(
-            self.iso.default_timezone,
-        )
-        assert df["Interval Start"].max() == (
-            end - pd.Timedelta(minutes=15)
-        ).tz_localize(self.iso.default_timezone)
+        assert df["Interval Start"].min().date() == date.date()
+        assert df["Interval Start"].max().date() == end.date()
+
+        # 2 hours / 15 minutes/interval = 8 intervals
+        assert df["Interval Start"].nunique() == 8
 
     """get_as_demand_curves"""
 
@@ -2605,9 +2602,11 @@ class TestErcot(BaseTestISO):
         assert df["RTD Timestamp"].nunique() == 1
 
     def test_get_indicative_mcpc_rtd_date_range(self):
-        # Data is published per RTD run so we use a set time we know it exists
-        date = pd.Timestamp("2025-11-08 13:00:00", tz=self.iso.default_timezone)
-        end = date + pd.Timedelta(hours=1)
+        # Use a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
             f"test_get_indicative_mcpc_rtd_date_range_{date}_{end}.yaml",
@@ -2616,10 +2615,11 @@ class TestErcot(BaseTestISO):
 
         self._check_get_indicative_mcpc_rtd(df)
 
-        # These values come from manually inspecting the available data
-        assert df["RTD Timestamp"].nunique() == 12
-        assert df["Interval Start"].min() == date
-        assert df["Interval Start"].max() == (end + pd.Timedelta(minutes=45))
+        assert df["Interval Start"].min().date() == date.date()
+        assert df["Interval Start"].max().date() == end.date()
+
+        # 2 hours / 5 minutes/interval = 24 RTD Timestamps
+        assert df["RTD Timestamp"].nunique() == 24
 
     """get_as_total_capability"""
 
@@ -2658,11 +2658,15 @@ class TestErcot(BaseTestISO):
 
         self._check_get_as_total_capability(df)
 
-        assert df["SCED Timestamp"].nunique() == 1
+        # Each file has 5 SCED intervals
+        assert df["SCED Timestamp"].nunique() == 5
 
     def test_get_as_total_capability_date_range(self):
-        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
-        end = date + pd.Timedelta(hours=1)
+        # Choose a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
             f"test_get_as_total_capability_date_range_{date}_{end}.yaml",
@@ -2671,12 +2675,13 @@ class TestErcot(BaseTestISO):
 
         self._check_get_as_total_capability(df)
 
-        assert df["SCED Timestamp"].min() >= date.tz_localize(
-            self.iso.default_timezone,
-        )
-        assert df["SCED Timestamp"].max() <= (end).tz_localize(
-            self.iso.default_timezone,
-        )
+        assert df["SCED Timestamp"].min().date() == date.date()
+        assert df["SCED Timestamp"].max().date() == end.date()
+
+        # This dataset is odd in that each file has 5 SCED intervals (1 current
+        # and 4 previous). This means the number of unique SCED intervals in 2 hours is
+        # (2 hours / 5 minutes/interval) + 4 extra intervals = 28 intervals
+        assert df["SCED Timestamp"].nunique() == 28
 
     """get_real_time_adders"""
 
@@ -2744,8 +2749,11 @@ class TestErcot(BaseTestISO):
         assert len(df) == 1
 
     def test_get_real_time_adders_date_range(self):
-        date = self.local_now().normalize() - pd.Timedelta(days=2)
-        end = date + pd.Timedelta(minutes=25)
+        # Choose a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
             f"test_get_real_time_adders_date_range_{date}_{end}.yaml",
@@ -2754,9 +2762,11 @@ class TestErcot(BaseTestISO):
 
         self._check_real_time_adders(df)
 
-        assert df["Interval Start"].min() == date
-        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
-        assert len(df) == 5
+        assert df["Interval Start"].min().date() == date.date()
+        assert df["Interval Start"].max().date() == end.date()
+
+        # 2 hours / 5 minutes/interval = 24 Timestamps
+        assert df["Interval Start"].nunique() == 24
 
     """system_as_capacity_monitor"""
 

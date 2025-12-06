@@ -4491,6 +4491,9 @@ class Ercot(ISOBase):
             published_before = end
             published_after = date
 
+            # Since we are filtering by publish before and end, set date to None
+            date = None
+
         docs = self._get_documents(
             report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
             extension="csv",
@@ -4535,6 +4538,9 @@ class Ercot(ISOBase):
 
             published_before = end + pd.Timedelta(minutes=15)
             published_after = date + pd.Timedelta(minutes=15)
+
+            # Since we are filtering by publish time, we set date to None
+            date = None
 
         docs = self._get_documents(
             report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
@@ -4633,7 +4639,7 @@ class Ercot(ISOBase):
     ) -> pd.DataFrame:
         """Get Projected Ancillary Service Deployment Factors"""
         # _get_documents can directly handle date="latest"
-        # Date is published for the next day
+        # Data is published for the next day so we need to subtract one day
         if date != "latest":
             date -= pd.DateOffset(days=1)
 
@@ -4819,6 +4825,9 @@ class Ercot(ISOBase):
             published_before = end
             published_after = date
 
+            # Since we are filtering by publish time, set date to None
+            date = None
+
         docs = self._get_documents(
             report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
             extension="csv",
@@ -4852,7 +4861,7 @@ class Ercot(ISOBase):
         # Convert price columns to numeric (float64)
         price_cols = ["REGUP", "REGDN", "RRS", "ECRS", "NSPIN"]
         for col in price_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+            df[col] = df[col].astype("float64")
 
         return (
             df[["Interval Start", "Interval End", "RTD Timestamp"] + price_cols]
@@ -4878,6 +4887,9 @@ class Ercot(ISOBase):
 
             published_before = end
             published_after = date
+
+            # Since we are filtering by publish time, set date to None
+            date = None
 
         docs = self._get_documents(
             report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
@@ -4931,8 +4943,7 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-        # Published every SCED interval
-
+    # Published every SCED interval
     @support_date_range(frequency=None)
     def get_real_time_adders(
         self,
@@ -4956,11 +4967,15 @@ class Ercot(ISOBase):
 
         # _get_documents can directly handle date = "latest"
         if date != "latest":
-            published_after = date
             if not end:
+                # Assume getting data for one day
                 end = date + pd.DateOffset(days=1)
 
             published_before = end
+            published_after = date
+
+            # Since we are filtering by publish time, set date to None
+            date = None
 
         docs = self._get_documents(
             report_type_id=REAL_TIME_ADDERS_RTID,
