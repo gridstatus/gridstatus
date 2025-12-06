@@ -4480,10 +4480,14 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Market Clearing Prices for Capacity by SCED interval"""
-        published_before = None
-        published_after = None
-
-        if date != "latest":
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
             if end is None:
                 # Assume getting data for one day
                 end = date + pd.DateOffset(days=1)
@@ -4491,14 +4495,13 @@ class Ercot(ISOBase):
             published_before = end
             published_after = date
 
-        docs = self._get_documents(
-            report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
+                extension="csv",
+                published_before=published_before,
+                published_after=published_after,
+                verbose=verbose,
+            )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_mcpc_sced(df)
@@ -4525,10 +4528,15 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Market Clearing Prices for Capacity by 15-minute interval"""
-        published_before = None
-        published_after = None
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
 
-        if date != "latest":
+        else:
             # Assume getting data for one day
             if not end:
                 end = date + pd.DateOffset(days=1)
@@ -4536,14 +4544,13 @@ class Ercot(ISOBase):
             published_before = end + pd.Timedelta(minutes=15)
             published_after = date + pd.Timedelta(minutes=15)
 
-        docs = self._get_documents(
-            report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
+                extension="csv",
+                published_before=published_before,
+                published_after=published_after,
+                verbose=verbose,
+            )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_mcpc_real_time_15_min(df)
@@ -4633,7 +4640,7 @@ class Ercot(ISOBase):
     ) -> pd.DataFrame:
         """Get Projected Ancillary Service Deployment Factors"""
         # _get_documents can directly handle date="latest"
-        # Date is published for the next day
+        # Data is published for the next day so we need to subtract one day
         if date != "latest":
             date -= pd.DateOffset(days=1)
 
@@ -4809,24 +4816,27 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get RTD Indicative Real-Time Market Clearing Prices for Capacity"""
-        published_before = None
-        published_after = None
-
-        if date != "latest":
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
             if not end:
                 end = date + pd.DateOffset(days=1)
 
             published_before = end
             published_after = date
 
-        docs = self._get_documents(
-            report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
+                extension="csv",
+                published_before=published_before,
+                published_after=published_after,
+                verbose=verbose,
+            )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_indicative_mcpc_rtd(df)
@@ -4852,7 +4862,7 @@ class Ercot(ISOBase):
         # Convert price columns to numeric (float64)
         price_cols = ["REGUP", "REGDN", "RRS", "ECRS", "NSPIN"]
         for col in price_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+            df[col] = df[col].astype("float64")
 
         return (
             df[["Interval Start", "Interval End", "RTD Timestamp"] + price_cols]
@@ -4869,27 +4879,29 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Total Capability of Resources Available to Provide Ancillary Service"""
-        published_before = None
-        published_after = None
-
-        if date != "latest":
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
             if not end:
                 end = date + pd.DateOffset(days=1)
 
             published_before = end
             published_after = date
 
-        docs = self._get_documents(
-            report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
+                extension="csv",
+                published_before=published_before,
+                published_after=published_after,
+                verbose=verbose,
+            )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-
         return self._handle_as_total_capability(df)
 
     def _handle_as_total_capability(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -4931,8 +4943,7 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-        # Published every SCED interval
-
+    # Published every SCED interval
     @support_date_range(frequency=None)
     def get_real_time_adders(
         self,
@@ -4951,25 +4962,28 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with ORDC price adders data
         """
-        published_before = None
-        published_after = None
-
-        # _get_documents can directly handle date = "latest"
-        if date != "latest":
-            published_after = date
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_ADDERS_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
             if not end:
+                # Assume getting data for one day
                 end = date + pd.DateOffset(days=1)
 
             published_before = end
+            published_after = date
 
-        docs = self._get_documents(
-            report_type_id=REAL_TIME_ADDERS_RTID,
-            date=date,
-            published_after=published_after,
-            published_before=published_before,
-            extension="csv",
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_ADDERS_RTID,
+                published_after=published_after,
+                published_before=published_before,
+                extension="csv",
+                verbose=verbose,
+            )
 
         return self._handle_real_time_adders(docs, verbose=verbose)
 
