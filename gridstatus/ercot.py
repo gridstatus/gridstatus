@@ -4771,7 +4771,7 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    # Published per HRUC which seems to be every hour for the rest of the day
+    # Published per HRUC run (every hour) for the rest of the day
     @support_date_range(frequency=None)
     def get_hourly_ruc_as_demand_curves(
         self,
@@ -4791,13 +4791,10 @@ class Ercot(ISOBase):
             if not end:
                 end = date + pd.DateOffset(days=1)
 
-            published_before = end
-            published_after = date
-
             docs = self._get_documents(
                 report_type_id=HOURLY_RUC_AS_DEMAND_CURVES_RTID,
-                published_before=published_before,
-                published_after=published_after,
+                published_before=end,
+                published_after=date,
                 extension="csv",
                 verbose=verbose,
             )
@@ -4805,7 +4802,7 @@ class Ercot(ISOBase):
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
 
-    # Published per DRUC run which seems to be once per day for the next day
+    # Published per DRUC run (once per day) for the next day
     @support_date_range(frequency=None)
     def get_daily_ruc_as_demand_curves(
         self,
@@ -4825,13 +4822,10 @@ class Ercot(ISOBase):
             if not end:
                 end = date + pd.DateOffset(days=1)
 
-            published_before = end
-            published_after = date
-
             docs = self._get_documents(
                 report_type_id=DAILY_RUC_AS_DEMAND_CURVES_RTID,
-                published_before=published_before,
-                published_after=published_after,
+                published_before=end,
+                published_after=date,
                 extension="csv",
                 verbose=verbose,
             )
@@ -4839,7 +4833,7 @@ class Ercot(ISOBase):
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
 
-    # Published per WRUC run which seems to be once per day for the next five days
+    # Published per WRUC run (once per day) for the next five days
     @support_date_range(frequency=None)
     def get_weekly_ruc_as_demand_curves(
         self,
@@ -4859,13 +4853,10 @@ class Ercot(ISOBase):
             if not end:
                 end = date + pd.DateOffset(days=1)
 
-            published_before = end
-            published_after = date
-
             docs = self._get_documents(
                 report_type_id=WEEKLY_RUC_AS_DEMAND_CURVES_RTID,
-                published_before=published_before,
-                published_after=published_after,
+                published_before=end,
+                published_after=date,
                 extension="csv",
                 verbose=verbose,
             )
