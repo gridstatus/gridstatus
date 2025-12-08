@@ -2240,7 +2240,7 @@ class IESO(ISOBase):
         return df, publish_time
 
     @support_date_range(frequency="HOUR_START")
-    def get_intertie_limits_real_time(
+    def get_intertie_limits_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
