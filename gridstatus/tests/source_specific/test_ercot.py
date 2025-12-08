@@ -2427,9 +2427,10 @@ class TestErcot(BaseTestISO):
         assert df[
             "Interval Start"
         ].max() >= self.local_now().normalize() + pd.Timedelta(hours=23)
+        assert df["Interval Start"].nunique() == 24
 
     def test_get_as_deployment_factors_projected_date_range(self):
-        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+        date = self.local_start_of_today() - pd.Timedelta(days=2)
         end = date + pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
@@ -2439,16 +2440,16 @@ class TestErcot(BaseTestISO):
 
         self._check_as_deployment_factors_projected(df)
 
-        assert df["Interval Start"].min() == date.tz_localize(
-            self.iso.default_timezone,
-        )
-        assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1)).tz_localize(
-            self.iso.default_timezone,
+        # Data is projected for the next day
+        assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
+        assert df["Interval Start"].max() == end + pd.DateOffset(days=1) - pd.Timedelta(
+            hours=1,
         )
 
-    """get_as_deployment_factors_daily_ruc"""
+    """get_as_deployment_factors_weekly_ruc"""
 
-    def _check_as_deployment_factors_daily_ruc(self, df: pd.DataFrame):
+    # Check for weekly, daily, and hourly RUC
+    def _check_as_deployment_factors_ruc(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -2456,11 +2457,49 @@ class TestErcot(BaseTestISO):
             "AS Type",
             "AS Deployment Factors",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["RUC Timestamp"] == "datetime64[ns, US/Central]"
+
+        for col in ["Interval Start", "Interval End", "RUC Timestamp"]:
+            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["AS Deployment Factors"] == "float64"
+
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_as_deployment_factors_weekly_ruc_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_as_deployment_factors_weekly_ruc_latest.yaml",
+        ):
+            df = self.iso.get_as_deployment_factors_weekly_ruc("latest")
+
+        self._check_as_deployment_factors_ruc(df)
+
+        assert df["RUC Timestamp"].nunique() == 1
+        assert df["Interval Start"].nunique() == 120
+
+    def test_get_as_deployment_factors_weekly_ruc_date_range(self):
+        date = self.local_start_of_day(self.local_today() - pd.Timedelta(days=2))
+        end = date + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            "test_get_as_deployment_factors_weekly_ruc_date_range.yaml",
+        ):
+            df = self.iso.get_as_deployment_factors_weekly_ruc(date, end)
+
+        self._check_as_deployment_factors_ruc(df)
+
+        assert df["RUC Timestamp"].nunique() == 2
+        assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
+        assert df["Interval Start"].max() == end + pd.DateOffset(days=5) - pd.Timedelta(
+            hours=1,
+        )
+
+        # Total of 6 days
+        assert df["Interval Start"].nunique() == 144
+
+    """get_as_deployment_factors_daily_ruc"""
 
     def test_get_as_deployment_factors_daily_ruc_latest(self):
         with api_vcr.use_cassette(
@@ -2468,42 +2507,33 @@ class TestErcot(BaseTestISO):
         ):
             df = self.iso.get_as_deployment_factors_daily_ruc("latest")
 
-        self._check_as_deployment_factors_daily_ruc(df)
+        self._check_as_deployment_factors_ruc(df)
 
-        assert df["Interval Start"].nunique() > 1
+        assert df["RUC Timestamp"].nunique() == 1
+        assert df["Interval Start"].nunique() == 24
 
     def test_get_as_deployment_factors_daily_ruc_date_range(self):
-        # Data is published per DRUC run so we use a set time we know it exists
-        date = pd.Timestamp("2025-11-09", tz=self.iso.default_timezone)
-        end = date + pd.DateOffset(days=1)
+        # Data is published per DRUC run (once per day) for the next day
+        date = self.local_start_of_day(self.local_today() - pd.Timedelta(days=2))
+        end = date + pd.DateOffset(days=2)
 
         with api_vcr.use_cassette(
-            f"test_get_as_deployment_factors_daily_ruc_date_range_{date}_{end}.yaml",
+            "test_get_as_deployment_factors_daily_ruc_date_range.yaml",
         ):
             df = self.iso.get_as_deployment_factors_daily_ruc(date, end)
 
-        self._check_as_deployment_factors_daily_ruc(df)
+        self._check_as_deployment_factors_ruc(df)
 
-        # These come from manually inspecting the available data
-        assert df["RUC Timestamp"].nunique() == 1
-        assert df["Interval Start"].min() == date
-        assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1))
+        assert df["RUC Timestamp"].nunique() == 2
+        assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
+        assert df["Interval Start"].max() == end + pd.DateOffset(days=1) - pd.Timedelta(
+            hours=1,
+        )
+
+        # Total of 2 days
+        assert df["Interval Start"].nunique() == 48
 
     """get_as_deployment_factors_hourly_ruc"""
-
-    def _check_as_deployment_factors_hourly_ruc(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "RUC Timestamp",
-            "AS Type",
-            "AS Deployment Factors",
-        ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["RUC Timestamp"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["AS Deployment Factors"] == "float64"
 
     def test_get_as_deployment_factors_hourly_ruc_latest(self):
         with api_vcr.use_cassette(
@@ -2511,26 +2541,29 @@ class TestErcot(BaseTestISO):
         ):
             df = self.iso.get_as_deployment_factors_hourly_ruc("latest")
 
-        self._check_as_deployment_factors_hourly_ruc(df)
+        self._check_as_deployment_factors_ruc(df)
 
+        assert df["RUC Timestamp"].nunique() == 1
+        # The number of intervals in the latest file differs depending on time of day
         assert df["Interval Start"].nunique() > 1
 
     def test_get_as_deployment_factors_hourly_ruc_date_range(self):
-        # Data is published per DRUC run so we use a set time we know it exists
-        date = pd.Timestamp("2025-10-30", tz=self.iso.default_timezone)
-        end = date + pd.DateOffset(days=1)
+        # Data is published per HRUC run (once per hour) for the rest of the current day
+        date = self.local_start_of_today() - pd.Timedelta(hours=2)
+        end = date + pd.Timedelta(hours=3)
 
         with api_vcr.use_cassette(
-            f"test_get_as_deployment_factors_hourly_ruc_date_range_{date}_{end}.yaml",
+            "test_get_as_deployment_factors_hourly_ruc_date_range.yaml",
         ):
             df = self.iso.get_as_deployment_factors_hourly_ruc(date, end)
 
-        self._check_as_deployment_factors_hourly_ruc(df)
+        self._check_as_deployment_factors_ruc(df)
 
-        # These come from manually inspecting the available data
-        assert df["RUC Timestamp"].nunique() == 4
-        assert df["Interval Start"].min() == date + pd.Timedelta(hours=8)
-        assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1))
+        assert df["RUC Timestamp"].nunique() == 3
+        assert df["Interval Start"].min() == date + pd.Timedelta(hours=1)
+        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+            hours=23,
+        )
 
     """get_dam_total_as_sold"""
 
