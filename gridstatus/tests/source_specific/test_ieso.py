@@ -1114,7 +1114,7 @@ class TestIESO(BaseTestISO):
         assert df[TIME_COLUMN].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
-    """get_intertie_limits_dam"""
+    """get_intertie_limits_day_ahead_hourly"""
 
     def _check_intertie_limits_dam(self, df):
         assert list(df.columns) == INTERTIE_LIMITS_COLUMNS
@@ -1133,11 +1133,11 @@ class TestIESO(BaseTestISO):
             [col for col in df.columns if col not in time_columns]
         ].dtypes.unique() == np.dtype("float64")
 
-    def test_get_intertie_limits_dam_latest(self):
+    def test_get_intertie_limits_day_ahead_hourly_latest(self):
         with file_vcr.use_cassette(
-            "test_get_intertie_limits_dam_latest.yaml",
+            "test_get_intertie_limits_day_ahead_hourly_latest.yaml",
         ):
-            df = self.iso.get_intertie_limits_dam("latest")
+            df = self.iso.get_intertie_limits_day_ahead_hourly("latest")
 
         self._check_intertie_limits_dam(df)
 
@@ -1147,16 +1147,16 @@ class TestIESO(BaseTestISO):
         ).normalize() + pd.DateOffset(days=1)
         assert df[TIME_COLUMN].iloc[0].normalize() == tomorrow
 
-    def test_get_intertie_limits_dam_historical_date_range(self):
+    def test_get_intertie_limits_day_ahead_hourly_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
             days=3,
         )
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
-            f"test_get_intertie_limits_dam_historical_date_range_{start.date()}_{end.date()}.yaml",
+            f"test_get_intertie_limits_day_ahead_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",
         ):
-            df = self.iso.get_intertie_limits_dam(start, end=end)
+            df = self.iso.get_intertie_limits_day_ahead_hourly(start, end=end)
 
         self._check_intertie_limits_dam(df)
 

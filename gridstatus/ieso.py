@@ -2283,7 +2283,7 @@ class IESO(ISOBase):
         return df[INTERTIE_LIMITS_COLUMNS].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
-    def get_intertie_limits_dam(
+    def get_intertie_limits_day_ahead_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
