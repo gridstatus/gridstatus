@@ -189,6 +189,10 @@ DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24895
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP5-528-CD
 HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24896
 
+# Weekly RUC Ancillary Service Deployment Factors
+# https://www.ercot.com/mp/data-products/data-product-details?id=np5-525-cd
+WEEKLY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24897
+
 # DAM Total Ancillary Services Sold
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-532-cd
 DAM_TOTAL_AS_SOLD_RTID = 24888
@@ -4631,7 +4635,8 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    @support_date_range(frequency="DAY_START")
+    # Published once per day for tomorrow
+    @support_date_range(frequency=None)
     def get_as_deployment_factors_projected(
         self,
         date: str | pd.Timestamp,
@@ -4639,25 +4644,34 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Projected Ancillary Service Deployment Factors"""
-        # _get_documents can directly handle date="latest"
-        # Data is published for the next day so we need to subtract one day
-        if date != "latest":
-            date -= pd.DateOffset(days=1)
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if end is None:
+                end = date + pd.DateOffset(days=1)
 
-        docs = self._get_documents(
-            report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
-            extension="csv",
-            date=date,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
+                extension="csv",
+                published_before=end,
+                published_after=date,
+                verbose=verbose,
+            )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_as_deployment_factors_projected(df)
+        return self._handle_as_deployment_factors_projected(docs, verbose=verbose)
 
     def _handle_as_deployment_factors_projected(
         self,
-        df: pd.DataFrame,
+        docs: list[Document],
+        verbose: bool = False,
     ) -> pd.DataFrame:
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+
         df = df.rename(
             columns={
                 "ASType": "AS Type",
@@ -4679,8 +4693,52 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    # Published per DRUC run for the next day
-    @support_date_range(frequency="DAY_START")
+    # Published per WRUC run (once per day) for the next 5 days
+    @support_date_range(frequency=None)
+    def get_as_deployment_factors_weekly_ruc(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Weekly RUC Ancillary Service Deployment Factors
+
+        Retrieves ancillary service deployment factors used by the Weekly
+        Reliability Unit Commitment (WRUC) process for each hour in the RUC
+        Study Period.
+
+        Args:
+            date: Date to retrieve data for. Can be a string or pandas Timestamp.
+            end: Optional end date for date range queries.
+            verbose: If True, print verbose output.
+
+        Returns:
+            DataFrame with columns: Interval Start, Interval End, RUC Timestamp,
+            AS Type, and AS Deployment Factors.
+        """
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=WEEKLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                date=date,
+                constructed_name_contains="csv",
+                verbose=verbose,
+            )
+        else:
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=WEEKLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                constructed_name_contains="csv",
+                published_after=date,
+                published_before=end,
+                verbose=verbose,
+            )
+
+        return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
+
+    # Published per DRUC run (once per day) for the next day
+    @support_date_range(frequency=None)
     def get_as_deployment_factors_daily_ruc(
         self,
         date: str | pd.Timestamp,
@@ -4688,21 +4746,30 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Daily RUC Ancillary Service Deployment Factors"""
-        if date != "latest":
-            date -= pd.DateOffset(days=1)
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                date=date,
+                constructed_name_contains="csv",
+                verbose=verbose,
+            )
+        else:
+            if not end:
+                end = date + pd.DateOffset(days=1)
 
-        docs = self._get_documents(
-            report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-            date=date,
-            constructed_name_contains="csv",
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                constructed_name_contains="csv",
+                published_after=date,
+                published_before=end,
+                verbose=verbose,
+            )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_as_deployment_factors_ruc(df)
+        return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
 
-    # Published per HRUC run for the current day (not all the hours)
-    @support_date_range(frequency="DAY_START")
+    # Published per HRUC run (once per hour) for the rest of the current day (so each
+    # file can have a differing number of intervals)
+    @support_date_range(frequency=None)
     def get_as_deployment_factors_hourly_ruc(
         self,
         date: str | pd.Timestamp,
@@ -4710,20 +4777,33 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Hourly RUC Ancillary Service Deployment Factors"""
-        docs = self._get_documents(
-            report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-            date=date,
-            constructed_name_contains="csv",
-            verbose=verbose,
-        )
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                date=date,
+                constructed_name_contains="csv",
+                verbose=verbose,
+            )
+        else:
+            if not end:
+                end = date + pd.DateOffset(days=1)
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_as_deployment_factors_ruc(df)
+            docs = self._get_documents(
+                report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                constructed_name_contains="csv",
+                published_after=date,
+                published_before=end,
+                verbose=verbose,
+            )
+
+        return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
 
     def _handle_as_deployment_factors_ruc(
         self,
-        df: pd.DataFrame,
+        docs: list[Document],
+        verbose: bool = False,
     ) -> pd.DataFrame:
+        df = self.read_docs(docs, parse=False, verbose=verbose)
         df = df.rename(
             columns={
                 "RUCTimestamp": "RUC Timestamp",
