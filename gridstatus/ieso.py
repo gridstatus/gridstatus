@@ -30,6 +30,7 @@ from gridstatus.ieso_constants import (
     HISTORICAL_FUEL_MIX_TEMPLATE_URL,
     INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS,
     INTERTIE_FLOW_5_MIN_COLUMNS,
+    INTERTIE_LIMITS_COLUMNS,
     MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
     NAMESPACES_FOR_XML,
     ONTARIO_LOCATION,
@@ -2112,6 +2113,214 @@ class IESO(ISOBase):
         )
 
         return hourly_data
+
+    def _parse_intertie_limits(
+        self,
+        xml_content: str,
+        interval_element_name: str,
+        interval_minutes: int,
+        include_publish_time: bool = False,
+    ) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+        """Shared parser for intertie limit XML data.
+
+        Args:
+            xml_content: Raw XML string
+            interval_element_name: Name of interval element ("IntervalEnergy" or "HourlyEnergy")
+            interval_minutes: Minutes per interval (5 or 60)
+            include_publish_time: Whether to include publish time in result
+
+        Returns:
+            Tuple of (DataFrame, publish_time or None)
+        """
+        ns = {"": "http://www.ieso.ca/schema"}
+        root = ElementTree.fromstring(xml_content)
+
+        publish_time = None
+        if include_publish_time:
+            publish_time = pd.Timestamp(
+                root.find(".//CreatedAt", ns).text,
+                tz=self.default_timezone,
+            )
+
+        delivery_date = root.find(".//DeliveryDate", ns).text
+
+        # For real-time, we have DeliveryHour, for DAM we don't
+        delivery_hour_elem = root.find(".//DeliveryHour", ns)
+        if delivery_hour_elem is not None:
+            delivery_hour = int(delivery_hour_elem.text)
+            base_datetime = pd.Timestamp(
+                delivery_date,
+                tz=self.default_timezone,
+            ) + pd.Timedelta(hours=delivery_hour - 1)
+        else:
+            # DAM doesn't have DeliveryHour
+            base_datetime = pd.Timestamp(delivery_date, tz=self.default_timezone)
+
+        # Map zone codes to column name prefixes
+        zone_mapping = {
+            "MBSI": "Manitoba",
+            "MISI": "Michigan",
+            "MNSI": "Minnesota",
+            "NYSI": "New York",
+            "PQAT": "Quebec AT",
+            "PQBE": "Quebec B5D-B31L",
+            "PQDA": "Quebec D5A",
+            "PQDZ": "Quebec D4Z",
+            "PQHA": "Quebec H9A",
+            "PQHZ": "Quebec H4Z",
+            "PQPC": "Quebec P33C",
+            "PQQC": "Quebec Q4C",
+            "PQXY": "Quebec X2Y",
+            "PQSK": "Manitoba SK1",
+        }
+
+        zones = root.findall(".//IntertieZonalEnergies", ns)
+        zone_data = {}
+
+        for zone in zones:
+            zone_name = zone.find(".//IntertieZoneName", ns).text
+
+            # Skip combined zones (e.g. "MISI+NYSIN")
+            if "+" in zone_name:
+                continue
+
+            # Extract base zone code and direction
+            # Zone names end with N (Ontario "to" zone = export) or X (Ontario "from" zone = import)
+            if zone_name.endswith("N"):
+                base_code = zone_name[:-1]
+                direction = "Export"
+            elif zone_name.endswith("X"):
+                base_code = zone_name[:-1]
+                direction = "Import"
+            else:
+                continue
+
+            if base_code not in zone_mapping:
+                continue
+
+            zone_prefix = zone_mapping[base_code]
+            column_name = f"{zone_prefix} {direction} Limit"
+
+            # Parse interval data - element names differ between real-time and DAM
+            intervals = zone.findall(f".//{interval_element_name}", ns)
+            for interval_elem in intervals:
+                # For real-time it's "Interval", for DAM it's "DeliveryHour"
+                interval_num_elem = interval_elem.find(".//Interval", ns)
+                if interval_num_elem is None:
+                    interval_num_elem = interval_elem.find(".//DeliveryHour", ns)
+
+                interval_num = int(interval_num_elem.text)
+                energy_elem = interval_elem.find(".//EnergyMW", ns)
+                energy = (
+                    float(energy_elem.text)
+                    if energy_elem is not None and energy_elem.text
+                    else None
+                )
+
+                if interval_num not in zone_data:
+                    zone_data[interval_num] = {}
+
+                zone_data[interval_num][column_name] = energy
+
+        # Convert to DataFrame with interval numbers as index
+        df = pd.DataFrame.from_dict(zone_data, orient="index").sort_index()
+
+        # Add time columns based on interval numbers
+        df["Interval Start"] = base_datetime + pd.to_timedelta(
+            (df.index - 1) * interval_minutes,
+            unit="m",
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
+            minutes=interval_minutes,
+        )
+
+        if include_publish_time:
+            df["Publish Time"] = publish_time
+
+        return df, publish_time
+
+    @support_date_range(frequency="HOUR_START")
+    def get_intertie_limits_real_time(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time intertie scheduling limits.
+
+        This returns 5-minute interval data showing import and export limits
+        for each of Ontario's intertie zones.
+
+        Args:
+            date: Date or date range to get data for, or "latest"
+            end: End date for date range (optional)
+            verbose: Whether to print verbose output
+
+        Returns:
+            DataFrame with columns for interval start/end and import/export
+            limits for each intertie zone
+        """
+        directory_path = "RealtimeIntertieSchedLimits"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
+        if date == "latest":
+            url = f"{file_directory}/PUB_{directory_path}.xml"
+        else:
+            hour = date.hour
+            # Hour numbers are 1-24, so we need to add 1
+            file_hour = f"{hour + 1}".zfill(2)
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}{file_hour}.xml"
+
+        xml_content = self._request(url, verbose=verbose).text
+
+        df, _ = self._parse_intertie_limits(
+            xml_content,
+            interval_element_name="IntervalEnergy",
+            interval_minutes=5,
+            include_publish_time=False,
+        )
+
+        return df[INTERTIE_LIMITS_COLUMNS].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def get_intertie_limits_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead intertie scheduling limits.
+
+        This returns hourly data showing import and export limits for each
+        of Ontario's intertie zones used in the day-ahead market.
+
+        Args:
+            date: Date or date range to get data for, or "latest"
+            end: End date for date range (optional)
+            verbose: Whether to print verbose output
+
+        Returns:
+            DataFrame with columns for interval start/end and import/export
+            limits for each intertie zone
+        """
+        directory_path = "DAIntertieSchedLimits2"
+        file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
+
+        if date == "latest":
+            url = f"{file_directory}/PUB_{directory_path}.xml"
+        else:
+            url = f"{file_directory}/PUB_{directory_path}_{date.strftime('%Y%m%d')}.xml"
+
+        xml_content = self._request(url, verbose=verbose).text
+
+        df, _ = self._parse_intertie_limits(
+            xml_content,
+            interval_element_name="HourlyEnergy",
+            interval_minutes=60,
+            include_publish_time=False,
+        )
+
+        return df[INTERTIE_LIMITS_COLUMNS].reset_index(drop=True)
 
     @support_date_range(frequency="HOUR_START")
     def get_lmp_real_time_5_min(
