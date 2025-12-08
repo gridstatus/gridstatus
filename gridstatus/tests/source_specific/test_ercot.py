@@ -2571,7 +2571,7 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1))
 
-    """get_hourly_ruc_as_demand_curves"""
+    """get_as_demand_curves_hourly_ruc"""
 
     def _check_hourly_ruc_as_demand_curves(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
@@ -2592,24 +2592,24 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
 
-    def test_get_hourly_ruc_as_demand_curves_latest(self):
+    def test_get_as_demand_curves_hourly_ruc_latest(self):
         with api_vcr.use_cassette(
-            "test_get_hourly_ruc_as_demand_curves_latest.yaml",
+            "test_get_as_demand_curves_hourly_ruc_latest.yaml",
         ):
-            df = self.iso.get_hourly_ruc_as_demand_curves("latest")
+            df = self.iso.get_as_demand_curves_hourly_ruc("latest")
 
         self._check_hourly_ruc_as_demand_curves(df)
 
         assert df["RUC Timestamp"].nunique() == 1
 
-    def test_get_hourly_ruc_as_demand_curves_date_range(self):
+    def test_get_as_demand_curves_hourly_ruc_date_range(self):
         date = self.local_start_of_today() - pd.Timedelta(hours=1)
         end = date + pd.Timedelta(hours=3)
 
         with api_vcr.use_cassette(
-            f"test_get_hourly_ruc_as_demand_curves_date_range_{date}_{end}.yaml",
+            f"test_get_as_demand_curves_hourly_ruc_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_hourly_ruc_as_demand_curves(date, end)
+            df = self.iso.get_as_demand_curves_hourly_ruc(date, end)
 
         self._check_hourly_ruc_as_demand_curves(df)
 
@@ -2619,7 +2619,7 @@ class TestErcot(BaseTestISO):
             hours=23,
         )
 
-    """get_daily_ruc_as_demand_curves"""
+    """get_as_demand_curves_daily_ruc"""
 
     def _check_daily_ruc_as_demand_curves(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
@@ -2640,11 +2640,11 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
 
-    def test_get_daily_ruc_as_demand_curves_latest(self):
+    def test_get_as_demand_curves_daily_ruc_latest(self):
         with api_vcr.use_cassette(
-            "test_get_daily_ruc_as_demand_curves_latest.yaml",
+            "test_get_as_demand_curves_daily_ruc_latest.yaml",
         ):
-            df = self.iso.get_daily_ruc_as_demand_curves("latest")
+            df = self.iso.get_as_demand_curves_daily_ruc("latest")
 
         self._check_daily_ruc_as_demand_curves(df)
 
@@ -2652,14 +2652,14 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].nunique() == 24
         assert df["RUC Timestamp"].nunique() == 1
 
-    def test_get_daily_ruc_as_demand_curves_date_range(self):
+    def test_get_as_demand_curves_daily_ruc_date_range(self):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
         end = date + pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
-            f"test_get_daily_ruc_as_demand_curves_date_range_{date}_{end}.yaml",
+            f"test_get_as_demand_curves_daily_ruc_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_daily_ruc_as_demand_curves(date, end)
+            df = self.iso.get_as_demand_curves_daily_ruc(date, end)
 
         self._check_daily_ruc_as_demand_curves(df)
 
@@ -2667,7 +2667,7 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == date + pd.Timedelta(days=1)
         assert df["Interval Start"].max() == end + pd.Timedelta(hours=23)
 
-    """get_weekly_ruc_as_demand_curves"""
+    """get_as_demand_curves_weekly_ruc"""
 
     def _check_weekly_ruc_as_demand_curves(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
@@ -2688,11 +2688,11 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
 
-    def test_get_weekly_ruc_as_demand_curves_latest(self):
+    def test_get_as_demand_curves_weekly_ruc_latest(self):
         with api_vcr.use_cassette(
-            "test_get_weekly_ruc_as_demand_curves_latest.yaml",
+            "test_get_as_demand_curves_weekly_ruc_latest.yaml",
         ):
-            df = self.iso.get_weekly_ruc_as_demand_curves("latest")
+            df = self.iso.get_as_demand_curves_weekly_ruc("latest")
 
         self._check_weekly_ruc_as_demand_curves(df)
 
@@ -2700,14 +2700,14 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].nunique() == 120
         assert df["RUC Timestamp"].nunique() == 1
 
-    def test_get_weekly_ruc_as_demand_curves_date_range(self):
+    def test_get_as_demand_curves_weekly_ruc_date_range(self):
         date = self.local_start_of_today() - pd.DateOffset(days=2)
         end = date + pd.DateOffset(days=2)
 
         with api_vcr.use_cassette(
-            f"test_get_weekly_ruc_as_demand_curves_date_range_{date}_{end}.yaml",
+            f"test_get_as_demand_curves_weekly_ruc_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_weekly_ruc_as_demand_curves(date, end)
+            df = self.iso.get_as_demand_curves_weekly_ruc(date, end)
 
         self._check_weekly_ruc_as_demand_curves(df)
 

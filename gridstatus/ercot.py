@@ -4773,7 +4773,7 @@ class Ercot(ISOBase):
 
     # Published per HRUC run (every hour) for the rest of the day
     @support_date_range(frequency=None)
-    def get_hourly_ruc_as_demand_curves(
+    def get_as_demand_curves_hourly_ruc(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -4804,7 +4804,7 @@ class Ercot(ISOBase):
 
     # Published per DRUC run (once per day) for the next day
     @support_date_range(frequency=None)
-    def get_daily_ruc_as_demand_curves(
+    def get_as_demand_curves_daily_ruc(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -4835,7 +4835,7 @@ class Ercot(ISOBase):
 
     # Published per WRUC run (once per day) for the next five days
     @support_date_range(frequency=None)
-    def get_weekly_ruc_as_demand_curves(
+    def get_as_demand_curves_weekly_ruc(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
