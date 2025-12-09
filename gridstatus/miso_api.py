@@ -1254,6 +1254,44 @@ class MISOAPI:
         )
 
     @support_date_range(frequency="DAY_START")
+    def get_actual_load_hourly_pivoted(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get actual load by local resource zone in hourly intervals,
+        pivoted with zones as columns.
+
+        Returns columns: Interval Start, Interval End, LRZ1, LRZ2 7, LRZ3 5,
+        LRZ4, LRZ6, LRZ8 9 10, MISO
+        """
+        df = self.get_actual_load_hourly(
+            date=date,
+            end=end,
+            geo_resolution="localResourceZone",
+            verbose=verbose,
+        )
+
+        # Replace underscores with spaces in zone names
+        df["Local Resource Zone"] = df["Local Resource Zone"].str.replace("_", " ")
+
+        # Pivot to get zones as columns
+        df = df.pivot_table(
+            index=["Interval Start", "Interval End"],
+            columns="Local Resource Zone",
+            values="Load",
+        ).reset_index()
+
+        # Add MISO total
+        df["MISO"] = df[["LRZ1", "LRZ2 7", "LRZ3 5", "LRZ4", "LRZ6", "LRZ8 9 10"]].sum(
+            axis=1,
+        )
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
     def get_actual_load_daily(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -1387,6 +1425,72 @@ class MISOAPI:
         )
 
     @support_date_range(frequency="DAY_START")
+    def get_medium_term_load_forecast_hourly_aggregated(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+        publish_time: str | pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        """
+        Get medium term load forecast aggregated from individual zones (Z1-Z10)
+        to LRZ aggregates and pivoted with zones as columns.
+
+        Returns columns: Interval Start, Interval End, Publish Time,
+        LRZ1 MTLF, LRZ2_7 MTLF, LRZ3_5 MTLF, LRZ4 MTLF, LRZ6 MTLF,
+        LRZ8_9_10 MTLF, MISO MTLF
+        """
+        df = self.get_medium_term_load_forecast_hourly(
+            date=date,
+            end=end,
+            verbose=verbose,
+            publish_time=publish_time,
+        )
+
+        # Map individual zones to aggregated LRZ format
+        zone_map = {
+            "Z1": "LRZ1 MTLF",
+            "Z2": "LRZ2_7 MTLF",
+            "Z7": "LRZ2_7 MTLF",
+            "Z3": "LRZ3_5 MTLF",
+            "Z5": "LRZ3_5 MTLF",
+            "Z4": "LRZ4 MTLF",
+            "Z6": "LRZ6 MTLF",
+            "Z8": "LRZ8_9_10 MTLF",
+            "Z9": "LRZ8_9_10 MTLF",
+            "Z10": "LRZ8_9_10 MTLF",
+        }
+        df["LRZ"] = df["Local Resource Zone"].map(zone_map)
+
+        # Aggregate and pivot to match expected format
+        df_agg = (
+            df.groupby(["Interval Start", "Interval End", "Publish Time", "LRZ"])[
+                "Load Forecast"
+            ]
+            .sum()
+            .reset_index()
+        )
+        df = df_agg.pivot_table(
+            index=["Interval Start", "Interval End", "Publish Time"],
+            columns="LRZ",
+            values="Load Forecast",
+        ).reset_index()
+
+        # Add MISO total
+        df["MISO MTLF"] = df[
+            [
+                "LRZ1 MTLF",
+                "LRZ2_7 MTLF",
+                "LRZ3_5 MTLF",
+                "LRZ4 MTLF",
+                "LRZ6 MTLF",
+                "LRZ8_9_10 MTLF",
+            ]
+        ].sum(axis=1)
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
     def get_medium_term_load_forecast_daily(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -1412,6 +1516,8 @@ class MISOAPI:
         """
         Get hourly outage forecast. The API only returns hourly data for today and
         future days. Historical outage forecast data is not supported.
+
+        Note: Outage forecast is only available for future dates (today and beyond).
         """
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
@@ -1473,7 +1579,8 @@ class MISOAPI:
         publish_time: str | pd.Timestamp | None = None,
     ) -> pd.DataFrame:
         """
-        Get look-ahead hourly data combining medium-term load forecast and outage forecast. Look-ahead data is only available for future dates (today and beyond).
+        Get look-ahead hourly data combining medium-term load forecast and outage forecast.
+        Look-ahead data is only available for future dates (today and beyond).
         Historical look-ahead data is not supported.
 
         Returns DataFrame with columns: Interval Start, Interval End, Publish Time, Region, MTLF, Outage
@@ -1487,7 +1594,7 @@ class MISOAPI:
 
         if date < today:
             raise NotSupported(
-                "Look-ahead forecast is only available for future dates. "
+                "Look-ahead forecast is only available for today and future dates. "
                 f"Requested date {date.date()} is before today ({today.date()}). "
                 "Historical look-ahead forecast data is not supported by the MISO API.",
             )

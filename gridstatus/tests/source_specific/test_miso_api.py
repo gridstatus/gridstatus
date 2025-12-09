@@ -1066,6 +1066,113 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
+    def _check_test_actual_load_hourly_pivoted(self, df):
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "LRZ1",
+            "LRZ2 7",
+            "LRZ3 5",
+            "LRZ4",
+            "LRZ6",
+            "LRZ8 9 10",
+            "MISO",
+        ]
+        assert df.columns.tolist() == expected_columns
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+        # All load columns should be float
+        for col in expected_columns[2:]:
+            assert df[col].dtype == "float64"
+
+    def test_get_actual_load_hourly_pivoted(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_actual_load_hourly_pivoted_{date.date()}",
+        ):
+            df = self.iso.get_actual_load_hourly_pivoted(date)
+
+        self._check_test_actual_load_hourly_pivoted(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+        # Verify MISO total is sum of all LRZ zones
+        calculated_miso = df[
+            ["LRZ1", "LRZ2 7", "LRZ3 5", "LRZ4", "LRZ6", "LRZ8 9 10"]
+        ].sum(axis=1)
+        pd.testing.assert_series_equal(
+            df["MISO"],
+            calculated_miso,
+            check_names=False,
+        )
+
+    def _check_test_medium_term_load_forecast_hourly_aggregated(self, df):
+        expected_columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "LRZ1 MTLF",
+            "LRZ2_7 MTLF",
+            "LRZ3_5 MTLF",
+            "LRZ4 MTLF",
+            "LRZ6 MTLF",
+            "LRZ8_9_10 MTLF",
+            "MISO MTLF",
+        ]
+        assert df.columns.tolist() == expected_columns
+
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+        assert df["Publish Time"].dtype == "datetime64[ns, EST]"
+
+        # All load columns should be float
+        for col in expected_columns[3:]:
+            assert df[col].dtype == "float64"
+
+    def test_get_medium_term_load_forecast_hourly_aggregated(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_medium_term_load_forecast_hourly_aggregated_{date.date()}",
+        ):
+            df = self.iso.get_medium_term_load_forecast_hourly_aggregated(date)
+
+        self._check_test_medium_term_load_forecast_hourly_aggregated(df)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(
+            hours=23,
+        )
+        assert df["Interval End"].max() == date + pd.Timedelta(
+            days=1,
+        )
+
+        # Verify MISO total is sum of all LRZ zones
+        calculated_miso = df[
+            [
+                "LRZ1 MTLF",
+                "LRZ2_7 MTLF",
+                "LRZ3_5 MTLF",
+                "LRZ4 MTLF",
+                "LRZ6 MTLF",
+                "LRZ8_9_10 MTLF",
+            ]
+        ].sum(axis=1)
+        pd.testing.assert_series_equal(
+            df["MISO MTLF"],
+            calculated_miso,
+            check_names=False,
+        )
+
     def _check_test_outage_forecast(self, df):
         assert df.columns.tolist() == [
             "Interval Start",
