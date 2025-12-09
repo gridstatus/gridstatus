@@ -1086,7 +1086,6 @@ class TestMISOAPI(TestHelperMixin):
         for col in expected_columns[2:]:
             assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_actual_load_hourly_pivoted(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
@@ -1138,7 +1137,6 @@ class TestMISOAPI(TestHelperMixin):
         for col in expected_columns[3:]:
             assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_medium_term_load_forecast_hourly_aggregated(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
