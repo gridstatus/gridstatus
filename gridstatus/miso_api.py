@@ -11,7 +11,6 @@ from gridstatus import utils
 from gridstatus.base import Markets, NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import setup_gs_logger
-from gridstatus.miso import MISO
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CERTIFICATES_CHAIN_FILE = os.path.join(
@@ -291,6 +290,14 @@ class MISOAPI:
 
         return data_list
 
+    def _get_node_to_type_mapping(
+        self, start: pd.Timestamp, end: pd.Timestamp
+    ) -> pd.DataFrame:
+        # use miso pricing api (Aggregated Pnode) to get location types
+        df = self.get_pricing_nodes(start, end)
+
+        return df[["Node", "Location Type"]]
+
     def _process_pricing_data(
         self,
         data_list: List[Dict[str, Any]],
@@ -298,9 +305,11 @@ class MISOAPI:
     ) -> pd.DataFrame:
         df = self._data_list_to_df(data_list)
 
+        start = df["Interval Start"].min()
+        end = df["Interval End"].max()
+
         node_to_type_mapping = (
-            MISO()
-            ._get_node_to_type_mapping()
+            self._get_node_to_type_mapping(start, end)
             .set_index("Node")["Location Type"]
             .to_dict()
         )
@@ -1984,3 +1993,105 @@ class MISOAPI:
         df_pivot.columns.name = None
 
         return df_pivot
+
+    def _miso_quarterly_days(
+        self, start: pd.Timestamp, end: pd.Timestamp
+    ) -> List[pd.Timestamp]:
+        """
+        MISO pricing nodes are updated quarterly on March 1st, June 1st, September 1st, and December 1st.
+        This function generates a list of these dates within the specified start and end range.
+        If no quarterly date falls within the range, return the most recent quarterly date before start.
+        """
+        # Create timezone-aware start date for date_range
+        range_start = pd.Timestamp(
+            f"{start.year - 1}-03-01",
+            tz=self.default_timezone,
+        )
+
+        dates = pd.date_range(
+            start=range_start,
+            end=end,
+            freq="QS-MAR",
+        )
+
+        dates_in_range = dates[(dates >= start) & (dates <= end)]
+        if len(dates_in_range) > 0:
+            return dates_in_range.tolist()
+
+        return [dates[dates < start][-1]]
+
+    def get_pricing_nodes(
+        self,
+        date: str | pd.Timestamp | None = "latest",
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieve MISO pricing nodes for a specific date or date range.
+        MISO pricing nodes change quarterly on March 1st, June 1st, September 1st, and December 1st.
+        New pricing nodes become effective on these dates, some pricing nodes are retired/removed and some nodes change names/node ids.
+        Parameters:
+            date: The date for which to retrieve pricing nodes. If None, defaults to "latest".
+                  Can be a pd.Timestamp or "latest".
+            end: Optional end date for a date range. If provided, retrieves pricing nodes for all
+                 quarterly updates between date and end.
+            verbose: If True, prints additional information during data retrieval.
+        """
+        if date == "latest" or date is None:
+            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
+
+        end = (
+            utils._handle_date(end, self.default_timezone) if end is not None else None
+        )
+
+        if end is None:
+            # Single date request
+            date_str = date.strftime("%Y-%m-%d")
+
+            url = f"{BASE_PRICING_URL}/aggregated-pnode?date={date_str}"
+
+            data_list = self._get_url(
+                url,
+                product=PRICING_PRODUCT,
+                verbose=verbose,
+            )
+
+            df = pd.DataFrame(data_list)
+
+            df = df.rename(columns={"node": "Node", "nodeType": "Location Type"})
+
+            return df
+
+        else:
+            # Ensure date is a pd.Timestamp with timezone.
+            date = utils._handle_date(date, self.default_timezone)
+
+            # Get quarterly dates (March 1st, June 1st, September 1st, December 1st)
+            quarterly_dates = self._miso_quarterly_days(date, end)
+
+            dfs = []
+
+            for date in quarterly_dates:
+                date_str = date.strftime("%Y-%m-%d")
+
+                url = f"{BASE_PRICING_URL}/aggregated-pnode?date={date_str}"
+
+                data_list = self._get_url(
+                    url,
+                    product=PRICING_PRODUCT,
+                    verbose=verbose,
+                )
+
+                df = pd.DataFrame(data_list)
+
+                df = df.rename(columns={"node": "Node", "nodeType": "Location Type"})
+
+                dfs.append(df)
+
+            df = (
+                pd.concat(dfs, ignore_index=True)
+                .drop_duplicates()
+                .reset_index(drop=True)
+            )
+
+            return df
