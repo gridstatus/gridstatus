@@ -12,6 +12,7 @@ from gridstatus.ieso import _safe_find_float, _safe_find_int, _safe_find_text
 from gridstatus.ieso_constants import (
     INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS,
     INTERTIE_FLOW_5_MIN_COLUMNS,
+    INTERTIE_LIMITS_COLUMNS,
     MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
     ONTARIO_LOCATION,
     RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP,
@@ -1064,6 +1065,104 @@ class TestIESO(BaseTestISO):
         # Check that the data is for the specified date range
         assert df[TIME_COLUMN].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
+
+    """get_intertie_limits_real_time_5_min"""
+
+    def _check_intertie_limits_real_time(self, df):
+        assert list(df.columns) == INTERTIE_LIMITS_COLUMNS
+
+        time_columns = [TIME_COLUMN, "Interval End"]
+
+        for col in time_columns:
+            assert self._check_is_datetime_type(df[col])
+
+        assert df[TIME_COLUMN].is_monotonic_increasing
+
+        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(minutes=5)).all()
+
+        # Make sure all columns except for the time columns are numeric
+        assert df[
+            [col for col in df.columns if col not in time_columns]
+        ].dtypes.unique() == np.dtype("float64")
+
+    def test_get_intertie_limits_real_time_5_min_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_intertie_limits_real_time_5_min_latest.yaml",
+        ):
+            df = self.iso.get_intertie_limits_real_time_5_min("latest")
+
+        self._check_intertie_limits_real_time(df)
+
+        # Check that the data is for today
+        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        assert (df[TIME_COLUMN].dt.date == today.date()).all()
+
+    def test_get_intertie_limits_real_time_5_min_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(hours=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_intertie_limits_real_time_5_min_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_intertie_limits_real_time_5_min(start, end=end)
+
+        self._check_intertie_limits_real_time(df)
+
+        # Check that the data is for the specified date range
+        assert df[TIME_COLUMN].min() == start
+        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
+
+    """get_intertie_limits_day_ahead_hourly"""
+
+    def _check_intertie_limits_dam(self, df):
+        assert list(df.columns) == INTERTIE_LIMITS_COLUMNS
+
+        time_columns = [TIME_COLUMN, "Interval End"]
+
+        for col in time_columns:
+            assert self._check_is_datetime_type(df[col])
+
+        assert df[TIME_COLUMN].is_monotonic_increasing
+
+        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(hours=1)).all()
+
+        # Make sure all columns except for the time columns are numeric
+        assert df[
+            [col for col in df.columns if col not in time_columns]
+        ].dtypes.unique() == np.dtype("float64")
+
+    def test_get_intertie_limits_day_ahead_hourly_latest(self):
+        with file_vcr.use_cassette(
+            "test_get_intertie_limits_day_ahead_hourly_latest.yaml",
+        ):
+            df = self.iso.get_intertie_limits_day_ahead_hourly("latest")
+
+        self._check_intertie_limits_dam(df)
+
+        # Check that the data is for tomorrow (DAM is for next day)
+        tomorrow = pd.Timestamp.now(
+            tz=self.default_timezone,
+        ).normalize() + pd.DateOffset(days=1)
+        assert df[TIME_COLUMN].iloc[0].normalize() == tomorrow
+
+    def test_get_intertie_limits_day_ahead_hourly_historical_date_range(self):
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
+            days=3,
+        )
+        end = start + pd.DateOffset(days=2)
+
+        with file_vcr.use_cassette(
+            f"test_get_intertie_limits_day_ahead_hourly_historical_date_range_{start.date()}_{end.date()}.yaml",
+        ):
+            df = self.iso.get_intertie_limits_day_ahead_hourly(start, end=end)
+
+        self._check_intertie_limits_dam(df)
+
+        # Check that the data is for the specified date range
+        assert df[TIME_COLUMN].min() == start
+        assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
 
     """get_lmp_real_time_5_min"""
 

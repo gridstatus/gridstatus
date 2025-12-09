@@ -150,6 +150,39 @@ INTERTIE_FLOW_5_MIN_COLUMNS: list[str] = [
     "PQX2Y Flow",
 ]
 
+INTERTIE_LIMITS_COLUMNS: list[str] = [
+    "Interval Start",
+    "Interval End",
+    "Manitoba Export Limit",
+    "Manitoba Import Limit",
+    "Michigan Export Limit",
+    "Michigan Import Limit",
+    "Minnesota Export Limit",
+    "Minnesota Import Limit",
+    "New York Export Limit",
+    "New York Import Limit",
+    "Quebec AT Export Limit",
+    "Quebec AT Import Limit",
+    "Quebec B5D-B31L Export Limit",
+    "Quebec B5D-B31L Import Limit",
+    "Quebec D5A Export Limit",
+    "Quebec D5A Import Limit",
+    "Quebec D4Z Export Limit",
+    "Quebec D4Z Import Limit",
+    "Quebec H9A Export Limit",
+    "Quebec H9A Import Limit",
+    "Quebec H4Z Export Limit",
+    "Quebec H4Z Import Limit",
+    "Quebec P33C Export Limit",
+    "Quebec P33C Import Limit",
+    "Quebec Q4C Export Limit",
+    "Quebec Q4C Import Limit",
+    "Quebec X2Y Export Limit",
+    "Quebec X2Y Import Limit",
+    "Manitoba SK1 Export Limit",
+    "Manitoba SK1 Import Limit",
+]
+
 
 ZONAL_LOAD_COLUMNS: list[str] = [
     "Interval Start",

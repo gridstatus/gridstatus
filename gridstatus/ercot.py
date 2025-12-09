@@ -142,11 +142,13 @@ SHORT_TERM_SYSTEM_ADEQUACY_REPORT_RTID = 12315
 
 # Real-Time ORDC and Reliability Deployment Price Adders and Reserves by SCED Interval
 # (ORDC = Operating Reserve Demand Curve)
+# Adders and reserves stopped being published on December 5
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-323-CD
 REAL_TIME_ADDERS_AND_RESERVES_RTID = 13221
 
-# RTC Market Trials Real-Time ORDC and Reliability Deployment Price Adders
-REAL_TIME_ADDERS_RTC_B_TRIAL_RTID = 4108
+# Real-Time ORDC and Reliability Deployment Price Adders
+# Adders only started being published on December 5
+REAL_TIME_ADDERS_RTID = 13221
 
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-722-CD
 TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID = 12325
@@ -164,8 +166,6 @@ DAM_TOTAL_ENERGY_SOLD_RTID = 12334
 # https://www.ercot.com/mp/data-products/data-product-details?id=np1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_RTID = 10038
 
-
-## RTC + B (Trial)
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-332-CD
 REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID = 24891
 
@@ -181,6 +181,10 @@ DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID = 24893
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP5-526-CD
 PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID = 24886
 
+# Weekly RUC Ancillary Service Deployment Factors
+# https://www.ercot.com/mp/data-products/data-product-details?id=np5-525-cd
+WEEKLY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24897
+
 # Daily RUC Ancillary Service Deployment Factors
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP5-527-CD
 DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24895
@@ -188,6 +192,18 @@ DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24895
 # Hourly RUC Ancillary Service Deployment Factors
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP5-528-CD
 HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID = 24896
+
+# Hourly RUC Ancillary Service Demand Curves
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-213-cd
+HOURLY_RUC_AS_DEMAND_CURVES_RTID = 26382
+
+# Daily RUC Ancillary Service Demand Curves
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-214-cd
+DAILY_RUC_AS_DEMAND_CURVES_RTID = 26383
+
+# Weekly RUC Ancillary Service Demand Curves
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-215-cd
+WEEKLY_RUC_AS_DEMAND_CURVES_RTID = 26384
 
 # DAM Total Ancillary Services Sold
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-532-cd
@@ -2306,6 +2322,129 @@ class Ercot(ISOBase):
 
         return df
 
+    def get_system_as_capacity_monitor(
+        self,
+        date: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get System Ancillary Service Capacity Monitor.
+
+        Fetches real-time ancillary service capacity data from
+        https://www.ercot.com/api/1/services/read/dashboards/ancillary-service-capacity-monitor.json
+
+        Arguments:
+            date (str): only supports "latest"
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with system AS capacity monitor data
+        """
+        if date is not None and date != "latest":
+            logger.warning(
+                "date argument to get_system_as_capacity_monitor is ignored; only None or 'latest' are supported",
+            )
+
+        url = self.BASE + "/ancillary-service-capacity-monitor.json"
+        logger.info(f"Getting System Capacity AS Monitor from {url}...")
+        json_data = self._get_json(url, verbose=verbose)
+        return self._parse_system_as_capacity_monitor(json_data)
+
+    def _parse_system_as_capacity_monitor(self, json_data: dict) -> pd.DataFrame:
+        """Parse JSON response from System Ancillary Service Capacity Monitor API.
+
+        Arguments:
+            json_data: Raw JSON response from the API
+
+        Returns:
+            pandas.DataFrame: Parsed data with standardized column names
+        """
+        key_to_column = {
+            "rrcCapPfrGenEsr": "RRS Capability PFR Gen and ESR",
+            "rrcCapLrWoClr": "RRS Capability Load Ex Controllable Load",
+            "rrcCapLr": "RRS Capability PFR Controllable Load",
+            "rrcCapFfr": "RRS Capability FFR Capable Ex ESR",
+            "rrcCapFfrEsr": "RRS Capability FFR ESR",
+            "regUpCap": "Reg Capability Reg Up",
+            "regDownCap": "Reg Capability Reg Down",
+            "regUpUndeployed": "Reg Capability Undeployed Reg Up",
+            "regDownUndeployed": "Reg Capability Undeployed Reg Down",
+            "regUpDeployed": "Reg Capability Deployed Reg Up",
+            "regDownDeployed": "Reg Capability Deployed Reg Down",
+            "rrAwdGen": "RRS Awards PFR Gen and ESR",
+            "rrAwdNonClr": "RRS Awards UFR Load Ex Controllable Load",
+            "rrAwdClr": "RRS Awards PFR Controllable Load",
+            "rrAwdFfr": "RRS Awards FFR Capable",
+            "regUpAwd": "Reg Awards Reg Up",
+            "regDownAwd": "Reg Awards Reg Down",
+            "ecrsCapGen": "ECRS Capability Gen",
+            "ecrsCapNclr": "ECRS Capability Load Ex Controllable Load",
+            "ecrsCapClr": "ECRS Capability Controllable Load",
+            "ecrsCapQs": "ECRS Capability Quick Start Gen",
+            "ecrsCapEsr": "ECRS Capability ESR",
+            "ecrsCapDeployedGenLr": "ECRS Capability Manually Deployed ONSC Status",
+            "capClrDecreaseBp": "Capacity From CLRS Available To Decrease Base Points In SCED",
+            "capClrIncreaseBp": "Capacity From CLRS Available To Increase Base Points In SCED",
+            "capWEoIncreaseBp": "Capacity With Energy Offer Curves To Increase Genres BP In SCED",
+            "capWEoDecreaseBp": "Capacity With Energy Offer Curves To Decrease Genres BP In SCED",
+            "capWoEoIncreaseBp": "Capacity Without Energy Offers To Increase Genres BP In SCED",
+            "capWoEoDecreaseBp": "Capacity Without Energy Offers To Decrease Genres BP In SCED",
+            "esrCapWEoIncreaseBp": "Capacity with energy offers to increase ESR BP in SCED",
+            "esrCapWEoDecreaseBp": "Capacity with energy offers to decrease ESR BP in SCED",
+            "esrCapWoEoIncreaseBp": "Capacity without energy offers to increase ESR BP in SCED",
+            "esrCapWoEoDecreaseBp": "Capacity without energy offers to decrease ESR BP in SCED",
+            "capIncreaseGenBp": "Capacity To Increase Genres BP In Next Five Minutes In SCED HDL",
+            "capDecreaseGenBp": "Capacity To Decrease Genres BP In Next Five Minutes In SCED LDL",
+            "sumCapResRegUpRrs": "Capacity to provide Reg Up RRS or Both",
+            "sumCapResRegUpRrsEcrs": "Capacity to provide Reg Up RRS ECRS or any combo",
+            "sumCapResRegUpRrsEcrsNsr": "Capacity to provide Reg Up RRS ECRS NSpin any combination",
+            "ecrsAwdGen": "ECRS Awards Gen",
+            "ecrsAwdNonClr": "ECRS Awards Load Ex Controllable Load",
+            "ecrsAwdClr": "ECRS Awards Controllable Load",
+            "ecrsAwdQs": "ECRS Awards Quick Start Gen",
+            "ecrsAwdEsr": "ECRS Awards ESR",
+            "prc": "PRC",
+            "nsrCapOnGenWoEo": "Nspin Capability On Line Gen with Energy Offers",
+            "nsrCapOffResWOs": "Nspin Capability Resources with Output Schedules",
+            "nsrCapUndeployedLr": "Nspin Capability Undeployed Load",
+            "nsrCapOffGen": "Nspin Capability Offline Gen Ex QSGR Online Gen with power aug",
+            "nsrCapEsr": "Nspin Capability ESR",
+            "rtReserveOnline": "ORDC Online",
+            "rtReserveOnOffline": "ORDC Online and Offline",
+            "nsrAwdGenWEo": "NSpin Awards On Line Gen with Energy Offer Curves",
+            "nsrAwdGenWOs": "NSpin Awards On Line Gen with Output Schedules",
+            "nsrAwdLr": "NSPin Awards Load",
+            "nsrAwdOffGen": "NSpin Awards Offline Gen Ex QSGR Including power aug",
+            "nsrAwdQs": "NSpin Awards Quick Start Gen",
+            "nsrAwdAs": "NSpin Awards ESR",
+            "telemHslEmr": "Telemetered HSL Capacity Resource Status EMR",
+            "telemHslOut": "Telemetered HSL Capacity Resource Status OUT",
+            "telemHslOutl": "Telemetered Net Consumption Resource status OUTL",
+        }
+
+        row_data = {}
+
+        for group_name, group_data in json_data.get("data", {}).items():
+            if not isinstance(group_data, list) or len(group_data) < 2:
+                continue
+            for item in group_data[1:]:
+                if len(item) >= 2:
+                    key, value = item[0], item[1]
+                    if key in key_to_column:
+                        row_data[key_to_column[key]] = value
+
+        last_updated = json_data.get("lastUpdated")
+        if last_updated:
+            time = pd.to_datetime(last_updated).tz_convert(self.default_timezone)
+        else:
+            time = pd.Timestamp.now(tz=self.default_timezone)
+
+        row_data["Time"] = time
+
+        df = pd.DataFrame([row_data])
+        df = utils.move_cols_to_front(df, ["Time"])
+
+        return df
+
     def get_real_time_system_conditions(
         self,
         date: str = "latest",
@@ -3464,6 +3603,14 @@ class Ercot(ISOBase):
                 "CapGenResTotal": "Capacity Generation Resource Total",
                 "CapLoadResTotal": "Capacity Load Resource Total",
                 "OfflineAvailableMWTotal": "Offline Available MW Total",
+                "CapREGUPTotal": "Capacity Reg Up Total",
+                "CapREGDNTotal": "Capacity Reg Down Total",
+                "CapRRSTotal": "Capacity RRS Total",
+                "CapECRSTotal": "Capacity ECRS Total",
+                "CapNSPINTotal": "Capacity NSPIN Total",
+                "CapREGUP_RRSTotal": "Capacity Reg Up RRS Total",
+                "CapREGUP_RRS_ECRSTotal": "Capacity Reg Up RRS ECRS Total",
+                "CapREGUP_RRS_ECRS_NSPINTotal": "Capacity Reg Up RRS ECRS NSPIN Total",
             },
         )
 
@@ -3950,6 +4097,7 @@ class Ercot(ISOBase):
                 "Hour Ending": "HourEnding",
                 "HOUR_ENDING": "HourEnding",
                 "Repeated Hour Flag": "DSTFlag",
+                "RepeatedHourFlag": "DSTFlag",
                 "Date": "DeliveryDate",
                 "DeliveryHour": "HourEnding",
                 "Delivery Hour": "HourEnding",
@@ -4339,69 +4487,23 @@ class Ercot(ISOBase):
 
         return data
 
-    ### RTC + B Trials ###
-
     # Published every SCED interval
     @support_date_range(frequency=None)
-    def get_lmp_by_settlement_point_rtc_b_trial(
-        self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Get RTC Market Trials LMPs by Resource Nodes, Load Zones and Trading Hubs
-
-        This is the RTC+B trial version of LMP data, produced by SCED every five minutes.
-
-        Arguments:
-            date: date to get data for
-            end: end date to get data for. If None, defaults to date + 1 day
-            verbose: print verbose output. Defaults to False.
-
-        Returns:
-            pandas.DataFrame: A DataFrame with LMP data including columns:
-                - Interval Start
-                - Interval End
-                - SCED Timestamp
-                - Market
-                - Location
-                - Location Type
-                - LMP
-        """
-        published_before = None
-        published_after = None
-
-        if date != "latest":
-            if not end:
-                end = date + pd.DateOffset(days=1)
-
-            published_before = end
-            published_after = date
-
-        docs = self._get_documents(
-            report_type_id=REAL_TIME_CLEARING_LMPS_BY_RESOURCE_NODES_LOAD_ZONES_AND_TRADING_HUBS_RTD,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
-
-        return self._handle_lmp(docs=docs, verbose=verbose)
-
-    # Published every SCED interval
-    @support_date_range(frequency=None)
-    def get_mcpc_sced_rtc_b_trial(
+    def get_mcpc_sced(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Market Clearing Prices for Capacity by SCED interval"""
-        published_before = None
-        published_after = None
-
-        if date != "latest":
+        """Get Market Clearing Prices for Capacity by SCED interval"""
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
             if end is None:
                 # Assume getting data for one day
                 end = date + pd.DateOffset(days=1)
@@ -4409,19 +4511,18 @@ class Ercot(ISOBase):
             published_before = end
             published_after = date
 
-        docs = self._get_documents(
-            report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
+                extension="csv",
+                published_before=published_before,
+                published_after=published_after,
+                verbose=verbose,
+            )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_mcpc_sced_rtc_b_trial(df)
+        return self._handle_mcpc_sced(df)
 
-    def _handle_mcpc_sced_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_mcpc_sced(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(columns={"ASType": "AS Type"})
         df = self._handle_sced_timestamp(df)
 
@@ -4436,17 +4537,22 @@ class Ercot(ISOBase):
 
     # Published every 15 minutes for the past 15 minutes.
     @support_date_range(frequency=None)
-    def get_mcpc_real_time_15_min_rtc_b_trial(
+    def get_mcpc_real_time_15_min(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Market Clearing Prices for Capacity by 15-minute interval"""
-        published_before = None
-        published_after = None
+        """Get Market Clearing Prices for Capacity by 15-minute interval"""
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
 
-        if date != "latest":
+        else:
             # Assume getting data for one day
             if not end:
                 end = date + pd.DateOffset(days=1)
@@ -4454,19 +4560,18 @@ class Ercot(ISOBase):
             published_before = end + pd.Timedelta(minutes=15)
             published_after = date + pd.Timedelta(minutes=15)
 
-        docs = self._get_documents(
-            report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
+                extension="csv",
+                published_before=published_before,
+                published_after=published_after,
+                verbose=verbose,
+            )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_mcpc_real_time_15_min_rtc_b_trial(df)
+        return self._handle_mcpc_real_time_15_min(df)
 
-    def _handle_mcpc_real_time_15_min_rtc_b_trial(
+    def _handle_mcpc_real_time_15_min(
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
@@ -4486,13 +4591,13 @@ class Ercot(ISOBase):
 
     # Published once per day for today and tomorrow in the same file
     @support_date_range(frequency="DAY_START")
-    def get_as_demand_curves_rtc_b_trial(
+    def get_as_demand_curves(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Ancillary Service Demand Curves"""
+        """Get Ancillary Service Demand Curves"""
         docs = self._get_documents(
             report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
             extension="csv",
@@ -4509,9 +4614,9 @@ class Ercot(ISOBase):
             ],
         )
 
-        return self._handle_as_demand_curves_rtc_b_trial(df)
+        return self._handle_as_demand_curves(df)
 
-    def _handle_as_demand_curves_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_as_demand_curves(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "ASType": "AS Type",
@@ -4542,33 +4647,43 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    @support_date_range(frequency="DAY_START")
-    def get_as_deployment_factors_projected_rtc_b_trial(
+    # Published once per day for tomorrow
+    @support_date_range(frequency=None)
+    def get_as_deployment_factors_projected(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Projected Ancillary Service Deployment Factors"""
-        # _get_documents can directly handle date="latest"
-        # Date is published for the next day
-        if date != "latest":
-            date -= pd.DateOffset(days=1)
+        """Get Projected Ancillary Service Deployment Factors"""
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if end is None:
+                end = date + pd.DateOffset(days=1)
 
-        docs = self._get_documents(
-            report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
-            extension="csv",
-            date=date,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
+                extension="csv",
+                published_before=end,
+                published_after=date,
+                verbose=verbose,
+            )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_as_deployment_factors_projected_rtc_b_trial(df)
+        return self._handle_as_deployment_factors_projected(docs, verbose=verbose)
 
-    def _handle_as_deployment_factors_projected_rtc_b_trial(
+    def _handle_as_deployment_factors_projected(
         self,
-        df: pd.DataFrame,
+        docs: list[Document],
+        verbose: bool = False,
     ) -> pd.DataFrame:
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+
         df = df.rename(
             columns={
                 "ASType": "AS Type",
@@ -4590,51 +4705,117 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    # Published per DRUC run for the next day
-    @support_date_range(frequency="DAY_START")
-    def get_as_deployment_factors_daily_ruc_rtc_b_trial(
+    # Published per WRUC run (once per day) for the next 5 days
+    @support_date_range(frequency=None)
+    def get_as_deployment_factors_weekly_ruc(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Weekly RUC Ancillary Service Deployment Factors
+
+        Retrieves ancillary service deployment factors used by the Weekly
+        Reliability Unit Commitment (WRUC) process for each hour in the RUC
+        Study Period.
+
+        Args:
+            date: Date to retrieve data for. Can be a string or pandas Timestamp.
+            end: Optional end date for date range queries.
+            verbose: If True, print verbose output.
+
+        Returns:
+            DataFrame with columns: Interval Start, Interval End, RUC Timestamp,
+            AS Type, and AS Deployment Factors.
+        """
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=WEEKLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                date=date,
+                constructed_name_contains="csv",
+                verbose=verbose,
+            )
+        else:
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=WEEKLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                constructed_name_contains="csv",
+                published_after=date,
+                published_before=end,
+                verbose=verbose,
+            )
+
+        return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
+
+    # Published per DRUC run (once per day) for the next day
+    @support_date_range(frequency=None)
+    def get_as_deployment_factors_daily_ruc(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Daily RUC Ancillary Service Deployment Factors"""
-        if date != "latest":
-            date -= pd.DateOffset(days=1)
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                date=date,
+                constructed_name_contains="csv",
+                verbose=verbose,
+            )
+        else:
+            if not end:
+                end = date + pd.DateOffset(days=1)
 
-        docs = self._get_documents(
-            report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-            date=date,
-            constructed_name_contains="csv",
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                constructed_name_contains="csv",
+                published_after=date,
+                published_before=end,
+                verbose=verbose,
+            )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_as_deployment_factors_ruc_rtc_b_trial(df)
+        return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
 
-    # Published per HRUC run for the current day (not all the hours)
-    @support_date_range(frequency="DAY_START")
-    def get_as_deployment_factors_hourly_ruc_rtc_b_trial(
+    # Published per HRUC run (once per hour) for the rest of the current day (so each
+    # file can have a differing number of intervals)
+    @support_date_range(frequency=None)
+    def get_as_deployment_factors_hourly_ruc(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Hourly RUC Ancillary Service Deployment Factors"""
-        docs = self._get_documents(
-            report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-            date=date,
-            constructed_name_contains="csv",
-            verbose=verbose,
-        )
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                date=date,
+                constructed_name_contains="csv",
+                verbose=verbose,
+            )
+        else:
+            if not end:
+                end = date + pd.DateOffset(days=1)
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_as_deployment_factors_ruc_rtc_b_trial(df)
+            docs = self._get_documents(
+                report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+                constructed_name_contains="csv",
+                published_after=date,
+                published_before=end,
+                verbose=verbose,
+            )
 
-    def _handle_as_deployment_factors_ruc_rtc_b_trial(
+        return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
+
+    def _handle_as_deployment_factors_ruc(
         self,
-        df: pd.DataFrame,
+        docs: list[Document],
+        verbose: bool = False,
     ) -> pd.DataFrame:
+        df = self.read_docs(docs, parse=False, verbose=verbose)
         df = df.rename(
             columns={
                 "RUCTimestamp": "RUC Timestamp",
@@ -4670,9 +4851,143 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
+    # Published per HRUC run (every hour) for the rest of the day
+    @support_date_range(frequency=None)
+    def get_as_demand_curves_hourly_ruc(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Hourly RUC Ancillary Service Demand Curves"""
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=HOURLY_RUC_AS_DEMAND_CURVES_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=HOURLY_RUC_AS_DEMAND_CURVES_RTID,
+                published_before=end,
+                published_after=date,
+                extension="csv",
+                verbose=verbose,
+            )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_ruc_as_demand_curves(df)
+
+    # Published per DRUC run (once per day) for the next day
+    @support_date_range(frequency=None)
+    def get_as_demand_curves_daily_ruc(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Daily RUC Ancillary Service Demand Curves"""
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=DAILY_RUC_AS_DEMAND_CURVES_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=DAILY_RUC_AS_DEMAND_CURVES_RTID,
+                published_before=end,
+                published_after=date,
+                extension="csv",
+                verbose=verbose,
+            )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_ruc_as_demand_curves(df)
+
+    # Published per WRUC run (once per day) for the next five days
+    @support_date_range(frequency=None)
+    def get_as_demand_curves_weekly_ruc(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Weekly RUC Ancillary Service Demand Curves"""
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=WEEKLY_RUC_AS_DEMAND_CURVES_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if not end:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=WEEKLY_RUC_AS_DEMAND_CURVES_RTID,
+                published_before=end,
+                published_after=date,
+                extension="csv",
+                verbose=verbose,
+            )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_ruc_as_demand_curves(df)
+
+    def _handle_ruc_as_demand_curves(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "RUCTimeStamp": "RUC Timestamp",
+                "ASType": "AS Type",
+                "DemandCurvePoint": "Demand Curve Point",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+
+        df = self.parse_doc(df)
+
+        # Parse RUC Timestamp
+        df["RUC Timestamp"] = pd.to_datetime(
+            df["RUC Timestamp"],
+        ).dt.tz_localize(self.default_timezone)
+
+        for col in ["Quantity", "Price", "Demand Curve Point"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "RUC Timestamp",
+                    "AS Type",
+                    "Demand Curve Point",
+                    "Quantity",
+                    "Price",
+                ]
+            ]
+            .sort_values(
+                ["Interval Start", "RUC Timestamp", "AS Type", "Demand Curve Point"],
+            )
+            .reset_index(drop=True)
+        )
+
     # Published per DAM run for the next day
     @support_date_range(frequency="DAY_START")
-    def get_dam_total_as_sold_rtc_b_trial(
+    def get_dam_total_as_sold(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -4690,9 +5005,9 @@ class Ercot(ISOBase):
         )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_dam_total_as_sold_rtc_b_trial(df)
+        return self._handle_dam_total_as_sold(df)
 
-    def _handle_dam_total_as_sold_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_dam_total_as_sold(self, df: pd.DataFrame) -> pd.DataFrame:
         """Handle DAM Total Ancillary Services Sold data."""
         df = df.rename(
             columns={
@@ -4720,36 +5035,39 @@ class Ercot(ISOBase):
 
     # Published per RTD run for the next 55 minutes (11 intervals per file)
     @support_date_range(frequency=None)
-    def get_indicative_mcpc_rtd_rtc_b_trial(
+    def get_indicative_mcpc_rtd(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get RTD Indicative Real-Time Market Clearing Prices for Capacity"""
-        published_before = None
-        published_after = None
-
-        if date != "latest":
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
             if not end:
                 end = date + pd.DateOffset(days=1)
 
             published_before = end
             published_after = date
 
-        docs = self._get_documents(
-            report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
+                extension="csv",
+                published_before=published_before,
+                published_after=published_after,
+                verbose=verbose,
+            )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
-        return self._handle_indicative_mcpc_rtd_rtc_b_trial(df)
+        return self._handle_indicative_mcpc_rtd(df)
 
-    def _handle_indicative_mcpc_rtd_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_indicative_mcpc_rtd(self, df: pd.DataFrame) -> pd.DataFrame:
         # Parse timestamps with DST handling
         df["Interval End"] = pd.to_datetime(df["IntervalEnding"]).dt.tz_localize(
             self.default_timezone,
@@ -4770,7 +5088,7 @@ class Ercot(ISOBase):
         # Convert price columns to numeric (float64)
         price_cols = ["REGUP", "REGDN", "RRS", "ECRS", "NSPIN"]
         for col in price_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+            df[col] = df[col].astype("float64")
 
         return (
             df[["Interval Start", "Interval End", "RTD Timestamp"] + price_cols]
@@ -4780,37 +5098,39 @@ class Ercot(ISOBase):
 
     # Published every SCED interval
     @support_date_range(frequency=None)
-    def get_as_total_capability_rtc_b_trial(
+    def get_as_total_capability(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Total Capability of Resources Available to Provide Ancillary Service"""
-        published_before = None
-        published_after = None
-
-        if date != "latest":
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
             if not end:
                 end = date + pd.DateOffset(days=1)
 
             published_before = end
             published_after = date
 
-        docs = self._get_documents(
-            report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
-            extension="csv",
-            date=date,
-            published_before=published_before,
-            published_after=published_after,
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
+                extension="csv",
+                published_before=published_before,
+                published_after=published_after,
+                verbose=verbose,
+            )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_as_total_capability(df)
 
-        return self._handle_as_total_capability_rtc_b_trial(df)
-
-    def _handle_as_total_capability_rtc_b_trial(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_as_total_capability(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "SCEDTimestamp": "SCED Timestamp",
@@ -4849,20 +5169,16 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-        # Published every SCED interval
-
+    # Published every SCED interval
     @support_date_range(frequency=None)
-    def get_real_time_adders_rtc_b_trial(
+    def get_real_time_adders(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get RTC Market Trials Real-Time ORDC and Reliability Deployment
-        Price Adders and Reserves by SCED Interval
-
-        This is the RTC+B trial version of Real-Time Price Adders data,
-        produced by SCED every five minutes.
+        """Get Real-Time ORDC and Reliability Deployment
+        Price Adders and Reserves by SCED Interval produced by SCED every five minutes.
 
         Arguments:
             date: date to get data for
@@ -4872,29 +5188,32 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with ORDC price adders data
         """
-        published_before = None
-        published_after = None
-
-        # _get_documents can directly handle date = "latest"
-        if date != "latest":
-            published_after = date
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_ADDERS_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
             if not end:
+                # Assume getting data for one day
                 end = date + pd.DateOffset(days=1)
 
             published_before = end
+            published_after = date
 
-        docs = self._get_documents(
-            report_type_id=REAL_TIME_ADDERS_RTC_B_TRIAL_RTID,
-            date=date,
-            published_after=published_after,
-            published_before=published_before,
-            extension="csv",
-            verbose=verbose,
-        )
+            docs = self._get_documents(
+                report_type_id=REAL_TIME_ADDERS_RTID,
+                published_after=published_after,
+                published_before=published_before,
+                extension="csv",
+                verbose=verbose,
+            )
 
-        return self._handle_real_time_adders_rtc_b_trial(docs, verbose=verbose)
+        return self._handle_real_time_adders(docs, verbose=verbose)
 
-    def _handle_real_time_adders_rtc_b_trial(
+    def _handle_real_time_adders(
         self,
         docs: list[Document],
         verbose: bool = False,

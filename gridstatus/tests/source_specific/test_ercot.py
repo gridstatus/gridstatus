@@ -45,6 +45,7 @@ from gridstatus.ercot_60d_utils import (
 from gridstatus.ercot_constants import (
     SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
+    SYSTEM_AS_CAPACITY_MONITOR_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_COLUMNS,
 )
@@ -1508,6 +1509,14 @@ class TestErcot(BaseTestISO):
             "Capacity Generation Resource Total",
             "Capacity Load Resource Total",
             "Offline Available MW Total",
+            "Capacity Reg Up Total",
+            "Capacity Reg Down Total",
+            "Capacity RRS Total",
+            "Capacity ECRS Total",
+            "Capacity NSPIN Total",
+            "Capacity Reg Up RRS Total",
+            "Capacity Reg Up RRS ECRS Total",
+            "Capacity Reg Up RRS ECRS NSPIN Total",
         ]
 
         assert (
@@ -2246,64 +2255,9 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
         assert df["Interval End"].max() == pd.Timestamp(end, tz="US/Central")
 
-    """get_lmp_by_settlement_point_rtc_b_trial"""
+    """get_mcpc_sced"""
 
-    def _check_get_lmp_by_settlement_point_rtc_b_trial(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "SCED Timestamp",
-            "Market",
-            "Location",
-            "Location Type",
-            "LMP",
-        ]
-
-        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["LMP"] == "float64"
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
-        ).all()
-        assert df["Market"].unique()[0] == "REAL_TIME_SCED"
-        assert df["Location"].dtype == "string"
-        assert df["Location Type"].dtype == "category"
-
-    def test_get_lmp_by_settlement_point_rtc_b_trial_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_lmp_by_settlement_point_rtc_b_trial_date_range_latest.yaml",
-        ):
-            df = self.iso.get_lmp_by_settlement_point_rtc_b_trial("latest")
-
-        self._check_get_lmp_by_settlement_point_rtc_b_trial(df)
-
-        assert df["Interval Start"].nunique() == 1
-        assert df["Interval Start"].min() <= self.local_now()
-        assert df["Interval Start"].min() >= self.local_now() - pd.Timedelta(minutes=10)
-
-    def test_get_lmp_by_settlement_point_rtc_b_trial_date_range(self):
-        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
-        end = date + pd.Timedelta(hours=2)
-
-        with api_vcr.use_cassette(
-            f"test_get_lmp_by_settlement_point_rtc_b_trial_date_range_{date}_{end}.yaml",
-        ):
-            df = self.iso.get_lmp_by_settlement_point_rtc_b_trial(date, end)
-
-        self._check_get_lmp_by_settlement_point_rtc_b_trial(df)
-
-        assert df["Interval Start"].min() == date.tz_localize(
-            self.iso.default_timezone,
-        )
-
-        assert df["Interval Start"].max() == (
-            end - pd.Timedelta(minutes=5)
-        ).tz_localize(self.iso.default_timezone)
-
-    """get_mcpc_sced_rtc_b_trial"""
-
-    def _check_get_mcpc_sced_rtc_b_trial(self, df: pd.DataFrame):
+    def _check_get_mcpc_sced(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "SCED Timestamp",
             "AS Type",
@@ -2313,46 +2267,41 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["MCPC"] == "float64"
 
-    def test_get_mcpc_sced_rtc_b_trial_latest(self):
+    def test_get_mcpc_sced_latest(self):
         with api_vcr.use_cassette(
-            "test_get_mcpc_sced_rtc_b_trial_date_range_latest.yaml",
+            "test_get_mcpc_sced_date_range_latest.yaml",
         ):
-            df = self.iso.get_mcpc_sced_rtc_b_trial("latest")
+            df = self.iso.get_mcpc_sced("latest")
 
-        self._check_get_mcpc_sced_rtc_b_trial(df)
+        self._check_get_mcpc_sced(df)
 
         assert df["SCED Timestamp"].nunique() == 1
         assert df["SCED Timestamp"].min() <= self.local_now()
         assert df["SCED Timestamp"].min() >= self.local_now() - pd.Timedelta(minutes=10)
 
-    def test_get_mcpc_sced_rtc_b_trial_date_range(self):
-        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
-        end = date + pd.Timedelta(hours=1)
+    def test_get_mcpc_sced_date_range(self):
+        # Choose a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
-            f"test_get_mcpc_sced_rtc_b_trial_date_range_{date}_{end}.yaml",
+            f"test_get_mcpc_sced_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_mcpc_sced_rtc_b_trial(date, end)
+            df = self.iso.get_mcpc_sced(date, end)
 
-        self._check_get_mcpc_sced_rtc_b_trial(df)
+        self._check_get_mcpc_sced(df)
 
-        assert (
-            date.tz_localize(self.iso.default_timezone)
-            < (df["SCED Timestamp"].min())
-            < date.tz_localize(self.iso.default_timezone) + pd.Timedelta(minutes=1)
-        )
+        assert df["SCED Timestamp"].min().date() == date.date()
+        assert df["SCED Timestamp"].max().date() == end.date()
 
-        assert (
-            end.tz_localize(self.iso.default_timezone) - pd.Timedelta(minutes=5)
-            < (df["SCED Timestamp"].max())
-            < end.tz_localize(self.iso.default_timezone)
-            - pd.Timedelta(minutes=5)
-            + pd.Timedelta(minutes=1)
-        )
+        # 2 hours / 15 minutes/interval = 24 intervals
+        assert df["SCED Timestamp"].nunique() == 24
 
-    """get_mcpc_real_time_15_min_rtc_b_trial"""
+    """get_mcpc_real_time_15_min"""
 
-    def _check_get_mcpc_real_time_15_min_rtc_b_trial(self, df: pd.DataFrame):
+    def _check_get_mcpc_real_time_15_min(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -2364,13 +2313,13 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["MCPC"] == "float64"
 
-    def test_get_mcpc_real_time_15_min_rtc_b_trial_latest(self):
+    def test_get_mcpc_real_time_15_min_latest(self):
         with api_vcr.use_cassette(
-            "test_get_mcpc_real_time_15_min_rtc_b_trial_date_range_latest.yaml",
+            "test_get_mcpc_real_time_15_min_date_range_latest.yaml",
         ):
-            df = self.iso.get_mcpc_real_time_15_min_rtc_b_trial("latest")
+            df = self.iso.get_mcpc_real_time_15_min("latest")
 
-        self._check_get_mcpc_real_time_15_min_rtc_b_trial(df)
+        self._check_get_mcpc_real_time_15_min(df)
 
         assert df["Interval Start"].nunique() == 1
         assert df["Interval Start"].min() <= self.local_now()
@@ -2378,27 +2327,29 @@ class TestErcot(BaseTestISO):
             minutes=60,
         )
 
-    def test_get_mcpc_real_time_15_min_rtc_b_trial_date_range(self):
-        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
-        end = date + pd.Timedelta(hours=1)
+    def test_get_mcpc_real_time_15_min_date_range(self):
+        # Choose a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
-            f"test_get_mcpc_real_time_15_min_rtc_b_trial_date_range_{date}_{end}.yaml",
+            f"test_get_mcpc_real_time_15_min_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_mcpc_real_time_15_min_rtc_b_trial(date, end)
+            df = self.iso.get_mcpc_real_time_15_min(date, end)
 
-        self._check_get_mcpc_real_time_15_min_rtc_b_trial(df)
+        self._check_get_mcpc_real_time_15_min(df)
 
-        assert df["Interval Start"].min() == date.tz_localize(
-            self.iso.default_timezone,
-        )
-        assert df["Interval Start"].max() == (
-            end - pd.Timedelta(minutes=15)
-        ).tz_localize(self.iso.default_timezone)
+        assert df["Interval Start"].min().date() == date.date()
+        assert df["Interval Start"].max().date() == end.date()
 
-    """get_as_demand_curves_rtc_b_trial"""
+        # 2 hours / 15 minutes/interval = 8 intervals
+        assert df["Interval Start"].nunique() == 8
 
-    def _check_get_as_demand_curves_rtc_b_trial(self, df: pd.DataFrame):
+    """get_as_demand_curves"""
+
+    def _check_get_as_demand_curves(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -2416,13 +2367,13 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
 
-    def test_get_as_demand_curves_rtc_b_trial_latest(self):
+    def test_get_as_demand_curves_latest(self):
         with api_vcr.use_cassette(
-            "test_get_as_demand_curves_rtc_b_trial_date_range_latest.yaml",
+            "test_get_as_demand_curves_date_range_latest.yaml",
         ):
-            df = self.iso.get_as_demand_curves_rtc_b_trial("latest")
+            df = self.iso.get_as_demand_curves("latest")
 
-        self._check_get_as_demand_curves_rtc_b_trial(df)
+        self._check_get_as_demand_curves(df)
 
         # The "latest" method will still get us two days of data
         assert df["Interval Start"].min() == self.local_now().normalize()
@@ -2430,16 +2381,16 @@ class TestErcot(BaseTestISO):
             "Interval Start"
         ].max() == self.local_now().normalize() + pd.DateOffset(days=1, hours=23)
 
-    def test_get_as_demand_curves_rtc_b_trial_date_range(self):
+    def test_get_as_demand_curves_date_range(self):
         date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
         end = date + pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"test_get_as_demand_curves_rtc_b_trial_date_range_{date}_{end}.yaml",
+            f"test_get_as_demand_curves_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_as_demand_curves_rtc_b_trial(date, end)
+            df = self.iso.get_as_demand_curves(date, end)
 
-        self._check_get_as_demand_curves_rtc_b_trial(df)
+        self._check_get_as_demand_curves(df)
 
         assert df["Interval Start"].min() == date.tz_localize(
             self.iso.default_timezone,
@@ -2449,9 +2400,9 @@ class TestErcot(BaseTestISO):
             end + pd.DateOffset(days=1) - pd.Timedelta(hours=1)
         ).tz_localize(self.iso.default_timezone)
 
-    """get_as_deployment_factors_projected_rtc_b_trial"""
+    """get_as_deployment_factors_projected"""
 
-    def _check_as_deployment_factors_projected_rtc_b_trial(self, df: pd.DataFrame):
+    def _check_as_deployment_factors_projected(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -2463,41 +2414,42 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["AS Deployment Factors"] == "float64"
 
-    def test_get_as_deployment_factors_projected_rtc_b_trial_latest(self):
+    def test_get_as_deployment_factors_projected_latest(self):
         with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_projected_rtc_b_trial_latest.yaml",
+            "test_get_as_deployment_factors_projected_latest.yaml",
         ):
-            df = self.iso.get_as_deployment_factors_projected_rtc_b_trial("latest")
+            df = self.iso.get_as_deployment_factors_projected("latest")
 
-        self._check_as_deployment_factors_projected_rtc_b_trial(df)
+        self._check_as_deployment_factors_projected(df)
 
         # "latest" gets one day of data for tomorrow
         assert df["Interval Start"].min() >= self.local_now().normalize()
         assert df[
             "Interval Start"
         ].max() >= self.local_now().normalize() + pd.Timedelta(hours=23)
+        assert df["Interval Start"].nunique() == 24
 
-    def test_get_as_deployment_factors_projected_rtc_b_trial_date_range(self):
-        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+    def test_get_as_deployment_factors_projected_date_range(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=2)
         end = date + pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"test_get_as_deployment_factors_projected_rtc_b_trial_date_range_{date}_{end}.yaml",
+            f"test_get_as_deployment_factors_projected_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_as_deployment_factors_projected_rtc_b_trial(date, end)
+            df = self.iso.get_as_deployment_factors_projected(date, end)
 
-        self._check_as_deployment_factors_projected_rtc_b_trial(df)
+        self._check_as_deployment_factors_projected(df)
 
-        assert df["Interval Start"].min() == date.tz_localize(
-            self.iso.default_timezone,
+        # Data is projected for the next day
+        assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
+        assert df["Interval Start"].max() == end + pd.DateOffset(days=1) - pd.Timedelta(
+            hours=1,
         )
-        assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1)).tz_localize(
-            self.iso.default_timezone,
-        )
 
-    """get_as_deployment_factors_daily_ruc_rtc_b_trial"""
+    """get_as_deployment_factors_weekly_ruc"""
 
-    def _check_as_deployment_factors_daily_ruc_rtc_b_trial(self, df: pd.DataFrame):
+    # Check for weekly, daily, and hourly RUC
+    def _check_as_deployment_factors_ruc(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -2505,85 +2457,117 @@ class TestErcot(BaseTestISO):
             "AS Type",
             "AS Deployment Factors",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["RUC Timestamp"] == "datetime64[ns, US/Central]"
+
+        for col in ["Interval Start", "Interval End", "RUC Timestamp"]:
+            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["AS Deployment Factors"] == "float64"
 
-    def test_get_as_deployment_factors_daily_ruc_rtc_b_trial_latest(self):
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_as_deployment_factors_weekly_ruc_latest(self):
         with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_daily_ruc_rtc_b_trial_latest.yaml",
+            "test_get_as_deployment_factors_weekly_ruc_latest.yaml",
         ):
-            df = self.iso.get_as_deployment_factors_daily_ruc_rtc_b_trial("latest")
+            df = self.iso.get_as_deployment_factors_weekly_ruc("latest")
 
-        self._check_as_deployment_factors_daily_ruc_rtc_b_trial(df)
+        self._check_as_deployment_factors_ruc(df)
 
-        assert df["Interval Start"].nunique() > 1
-
-    def test_get_as_deployment_factors_daily_ruc_rtc_b_trial_date_range(self):
-        # Data is published per DRUC run so we use a set time we know it exists
-        date = pd.Timestamp("2025-11-09", tz=self.iso.default_timezone)
-        end = date + pd.DateOffset(days=1)
-
-        with api_vcr.use_cassette(
-            f"test_get_as_deployment_factors_daily_ruc_rtc_b_trial_date_range_{date}_{end}.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_daily_ruc_rtc_b_trial(date, end)
-
-        self._check_as_deployment_factors_daily_ruc_rtc_b_trial(df)
-
-        # These come from manually inspecting the available data
         assert df["RUC Timestamp"].nunique() == 1
-        assert df["Interval Start"].min() == date
-        assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1))
+        assert df["Interval Start"].nunique() == 120
 
-    """get_as_deployment_factors_hourly_ruc_rtc_b_trial"""
+    def test_get_as_deployment_factors_weekly_ruc_date_range(self):
+        date = self.local_start_of_day(self.local_today() - pd.Timedelta(days=2))
+        end = date + pd.DateOffset(days=2)
 
-    def _check_as_deployment_factors_hourly_ruc_rtc_b_trial(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "RUC Timestamp",
-            "AS Type",
-            "AS Deployment Factors",
-        ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["RUC Timestamp"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["AS Deployment Factors"] == "float64"
-
-    def test_get_as_deployment_factors_hourly_ruc_rtc_b_trial_latest(self):
         with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_hourly_ruc_rtc_b_trial_latest.yaml",
+            "test_get_as_deployment_factors_weekly_ruc_date_range.yaml",
         ):
-            df = self.iso.get_as_deployment_factors_hourly_ruc_rtc_b_trial("latest")
+            df = self.iso.get_as_deployment_factors_weekly_ruc(date, end)
 
-        self._check_as_deployment_factors_hourly_ruc_rtc_b_trial(df)
+        self._check_as_deployment_factors_ruc(df)
 
+        assert df["RUC Timestamp"].nunique() == 2
+        assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
+        assert df["Interval Start"].max() == end + pd.DateOffset(days=5) - pd.Timedelta(
+            hours=1,
+        )
+
+        # Total of 6 days
+        assert df["Interval Start"].nunique() == 144
+
+    """get_as_deployment_factors_daily_ruc"""
+
+    def test_get_as_deployment_factors_daily_ruc_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_as_deployment_factors_daily_ruc_latest.yaml",
+        ):
+            df = self.iso.get_as_deployment_factors_daily_ruc("latest")
+
+        self._check_as_deployment_factors_ruc(df)
+
+        assert df["RUC Timestamp"].nunique() == 1
+        assert df["Interval Start"].nunique() == 24
+
+    def test_get_as_deployment_factors_daily_ruc_date_range(self):
+        # Data is published per DRUC run (once per day) for the next day
+        date = self.local_start_of_day(self.local_today() - pd.Timedelta(days=2))
+        end = date + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            "test_get_as_deployment_factors_daily_ruc_date_range.yaml",
+        ):
+            df = self.iso.get_as_deployment_factors_daily_ruc(date, end)
+
+        self._check_as_deployment_factors_ruc(df)
+
+        assert df["RUC Timestamp"].nunique() == 2
+        assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
+        assert df["Interval Start"].max() == end + pd.DateOffset(days=1) - pd.Timedelta(
+            hours=1,
+        )
+
+        # Total of 2 days
+        assert df["Interval Start"].nunique() == 48
+
+    """get_as_deployment_factors_hourly_ruc"""
+
+    def test_get_as_deployment_factors_hourly_ruc_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_as_deployment_factors_hourly_ruc_latest.yaml",
+        ):
+            df = self.iso.get_as_deployment_factors_hourly_ruc("latest")
+
+        self._check_as_deployment_factors_ruc(df)
+
+        assert df["RUC Timestamp"].nunique() == 1
+        # The number of intervals in the latest file differs depending on time of day
         assert df["Interval Start"].nunique() > 1
 
-    def test_get_as_deployment_factors_hourly_ruc_rtc_b_trial_date_range(self):
-        # Data is published per DRUC run so we use a set time we know it exists
-        date = pd.Timestamp("2025-10-30", tz=self.iso.default_timezone)
-        end = date + pd.DateOffset(days=1)
+    def test_get_as_deployment_factors_hourly_ruc_date_range(self):
+        # Data is published per HRUC run (once per hour) for the rest of the current day
+        date = self.local_start_of_today() - pd.Timedelta(hours=2)
+        end = date + pd.Timedelta(hours=3)
 
         with api_vcr.use_cassette(
-            f"test_get_as_deployment_factors_hourly_ruc_rtc_b_trial_date_range_{date}_{end}.yaml",
+            "test_get_as_deployment_factors_hourly_ruc_date_range.yaml",
         ):
-            df = self.iso.get_as_deployment_factors_hourly_ruc_rtc_b_trial(date, end)
+            df = self.iso.get_as_deployment_factors_hourly_ruc(date, end)
 
-        self._check_as_deployment_factors_hourly_ruc_rtc_b_trial(df)
+        self._check_as_deployment_factors_ruc(df)
 
-        # These come from manually inspecting the available data
-        assert df["RUC Timestamp"].nunique() == 4
-        assert df["Interval Start"].min() == date + pd.Timedelta(hours=8)
-        assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1))
+        assert df["RUC Timestamp"].nunique() == 3
+        assert df["Interval Start"].min() == date + pd.Timedelta(hours=1)
+        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+            hours=23,
+        )
 
-    """get_dam_total_as_sold_rtc_b_trial"""
+    """get_dam_total_as_sold"""
 
-    def _check_get_dam_total_as_sold_rtc_b_trial(self, df: pd.DataFrame):
+    def _check_get_dam_total_as_sold(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -2595,34 +2579,183 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["Quantity"] == "float64"
 
-    def test_get_dam_total_as_sold_rtc_b_trial_latest(self):
+    def test_get_dam_total_as_sold_latest(self):
         with api_vcr.use_cassette(
-            "test_get_dam_total_as_sold_rtc_b_trial_latest.yaml",
+            "test_get_dam_total_as_sold_latest.yaml",
         ):
-            df = self.iso.get_dam_total_as_sold_rtc_b_trial("latest")
+            df = self.iso.get_dam_total_as_sold("latest")
 
-        self._check_get_dam_total_as_sold_rtc_b_trial(df)
+        self._check_get_dam_total_as_sold(df)
 
         assert df["Interval Start"].nunique() == 25
 
-    def test_get_dam_total_as_sold_rtc_b_trial_date_range(self):
+    def test_get_dam_total_as_sold_date_range(self):
         # Data is only available per DAM run so we use a set time we know it exists
         date = pd.Timestamp("2025-11-02", tz=self.iso.default_timezone)
         end = date + pd.DateOffset(days=1)
 
         with api_vcr.use_cassette(
-            f"test_get_dam_total_as_sold_rtc_b_trial_date_range_{date}_{end}.yaml",
+            f"test_get_dam_total_as_sold_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_dam_total_as_sold_rtc_b_trial(date, end)
+            df = self.iso.get_dam_total_as_sold(date, end)
 
-        self._check_get_dam_total_as_sold_rtc_b_trial(df)
+        self._check_get_dam_total_as_sold(df)
 
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == (end - pd.Timedelta(hours=1))
 
-    """get_indicative_mcpc_rtd_rtc_b_trial"""
+    """get_as_demand_curves_hourly_ruc"""
 
-    def _check_get_indicative_mcpc_rtd_rtc_b_trial(self, df: pd.DataFrame):
+    def _check_hourly_ruc_as_demand_curves(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "RUC Timestamp",
+            "AS Type",
+            "Demand Curve Point",
+            "Quantity",
+            "Price",
+        ]
+
+        for col in ["Interval Start", "Interval End", "RUC Timestamp"]:
+            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Demand Curve Point"] == "int64"
+        assert df.dtypes["Quantity"] == "int64"
+        assert df.dtypes["Price"] == "float64"
+
+    def test_get_as_demand_curves_hourly_ruc_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_as_demand_curves_hourly_ruc_latest.yaml",
+        ):
+            df = self.iso.get_as_demand_curves_hourly_ruc("latest")
+
+        self._check_hourly_ruc_as_demand_curves(df)
+
+        assert df["RUC Timestamp"].nunique() == 1
+
+    def test_get_as_demand_curves_hourly_ruc_date_range(self):
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=3)
+
+        with api_vcr.use_cassette(
+            f"test_get_as_demand_curves_hourly_ruc_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_as_demand_curves_hourly_ruc(date, end)
+
+        self._check_hourly_ruc_as_demand_curves(df)
+
+        assert df["RUC Timestamp"].nunique() == 3
+        assert df["Interval Start"].min() == date + pd.Timedelta(hours=1)
+        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+            hours=23,
+        )
+
+    """get_as_demand_curves_daily_ruc"""
+
+    def _check_daily_ruc_as_demand_curves(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "RUC Timestamp",
+            "AS Type",
+            "Demand Curve Point",
+            "Quantity",
+            "Price",
+        ]
+
+        for col in ["Interval Start", "Interval End", "RUC Timestamp"]:
+            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Demand Curve Point"] == "int64"
+        assert df.dtypes["Quantity"] == "int64"
+        assert df.dtypes["Price"] == "float64"
+
+    def test_get_as_demand_curves_daily_ruc_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_as_demand_curves_daily_ruc_latest.yaml",
+        ):
+            df = self.iso.get_as_demand_curves_daily_ruc("latest")
+
+        self._check_daily_ruc_as_demand_curves(df)
+
+        # One day of data is published at once
+        assert df["Interval Start"].nunique() == 24
+        assert df["RUC Timestamp"].nunique() == 1
+
+    def test_get_as_demand_curves_daily_ruc_date_range(self):
+        date = self.local_start_of_today() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_as_demand_curves_daily_ruc_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_as_demand_curves_daily_ruc(date, end)
+
+        self._check_daily_ruc_as_demand_curves(df)
+
+        assert df["RUC Timestamp"].nunique() == 2
+        assert df["Interval Start"].min() == date + pd.Timedelta(days=1)
+        assert df["Interval Start"].max() == end + pd.Timedelta(hours=23)
+
+    """get_as_demand_curves_weekly_ruc"""
+
+    def _check_weekly_ruc_as_demand_curves(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "RUC Timestamp",
+            "AS Type",
+            "Demand Curve Point",
+            "Quantity",
+            "Price",
+        ]
+
+        for col in ["Interval Start", "Interval End", "RUC Timestamp"]:
+            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Demand Curve Point"] == "int64"
+        assert df.dtypes["Quantity"] == "int64"
+        assert df.dtypes["Price"] == "float64"
+
+    def test_get_as_demand_curves_weekly_ruc_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_as_demand_curves_weekly_ruc_latest.yaml",
+        ):
+            df = self.iso.get_as_demand_curves_weekly_ruc("latest")
+
+        self._check_weekly_ruc_as_demand_curves(df)
+
+        # Five days worth of data is published at once
+        assert df["Interval Start"].nunique() == 120
+        assert df["RUC Timestamp"].nunique() == 1
+
+    def test_get_as_demand_curves_weekly_ruc_date_range(self):
+        date = self.local_start_of_today() - pd.DateOffset(days=2)
+        end = date + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_as_demand_curves_weekly_ruc_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_as_demand_curves_weekly_ruc(date, end)
+
+        self._check_weekly_ruc_as_demand_curves(df)
+
+        # 6 total days
+        assert df["Interval Start"].nunique() == 144
+        assert df["RUC Timestamp"].nunique() == 2
+
+        assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
+        assert df["Interval Start"].max() == end + pd.DateOffset(days=4) + pd.Timedelta(
+            hours=23,
+        )
+
+    """get_indicative_mcpc_rtd"""
+
+    def _check_get_indicative_mcpc_rtd(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -2640,36 +2773,39 @@ class TestErcot(BaseTestISO):
         for col in ["REGUP", "REGDN", "RRS", "ECRS", "NSPIN"]:
             assert df.dtypes[col] == "float64"
 
-    def test_get_indicative_mcpc_rtd_rtc_b_trial_latest(self):
+    def test_get_indicative_mcpc_rtd_latest(self):
         with api_vcr.use_cassette(
-            "test_get_indicative_mcpc_rtd_rtc_b_trial_latest.yaml",
+            "test_get_indicative_mcpc_rtd_latest.yaml",
         ):
-            df = self.iso.get_indicative_mcpc_rtd_rtc_b_trial("latest")
+            df = self.iso.get_indicative_mcpc_rtd("latest")
 
-        self._check_get_indicative_mcpc_rtd_rtc_b_trial(df)
+        self._check_get_indicative_mcpc_rtd(df)
 
         assert df["RTD Timestamp"].nunique() == 1
 
-    def test_get_indicative_mcpc_rtd_rtc_b_trial_date_range(self):
-        # Data is published per RTD run so we use a set time we know it exists
-        date = pd.Timestamp("2025-11-08 13:00:00", tz=self.iso.default_timezone)
-        end = date + pd.Timedelta(hours=1)
+    def test_get_indicative_mcpc_rtd_date_range(self):
+        # Use a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
-            f"test_get_indicative_mcpc_rtd_rtc_b_trial_date_range_{date}_{end}.yaml",
+            f"test_get_indicative_mcpc_rtd_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_indicative_mcpc_rtd_rtc_b_trial(date, end)
+            df = self.iso.get_indicative_mcpc_rtd(date, end)
 
-        self._check_get_indicative_mcpc_rtd_rtc_b_trial(df)
+        self._check_get_indicative_mcpc_rtd(df)
 
-        # These values come from manually inspecting the available data
-        assert df["RTD Timestamp"].nunique() == 12
-        assert df["Interval Start"].min() == date
-        assert df["Interval Start"].max() == (end + pd.Timedelta(minutes=45))
+        assert df["Interval Start"].min().date() == date.date()
+        assert df["Interval Start"].max().date() == end.date()
 
-    """get_as_total_capability_rtc_b_trial"""
+        # 2 hours / 5 minutes/interval = 24 RTD Timestamps
+        assert df["RTD Timestamp"].nunique() == 24
 
-    def _check_get_as_total_capability_rtc_b_trial(self, df: pd.DataFrame):
+    """get_as_total_capability"""
+
+    def _check_get_as_total_capability(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "SCED Timestamp",
             "Cap RegUp Total",
@@ -2696,37 +2832,42 @@ class TestErcot(BaseTestISO):
         ]:
             assert df.dtypes[col] == "float64"
 
-    def test_get_as_total_capability_rtc_b_trial_latest(self):
+    def test_get_as_total_capability_latest(self):
         with api_vcr.use_cassette(
-            "test_get_as_total_capability_rtc_b_trial_latest.yaml",
+            "test_get_as_total_capability_latest.yaml",
         ):
-            df = self.iso.get_as_total_capability_rtc_b_trial("latest")
+            df = self.iso.get_as_total_capability("latest")
 
-        self._check_get_as_total_capability_rtc_b_trial(df)
+        self._check_get_as_total_capability(df)
 
-        assert df["SCED Timestamp"].nunique() == 1
+        # Each file has 5 SCED intervals
+        assert df["SCED Timestamp"].nunique() == 5
 
-    def test_get_as_total_capability_rtc_b_trial_date_range(self):
-        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
-        end = date + pd.Timedelta(hours=1)
+    def test_get_as_total_capability_date_range(self):
+        # Choose a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
             f"test_get_as_total_capability_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_as_total_capability_rtc_b_trial(date, end)
+            df = self.iso.get_as_total_capability(date, end)
 
-        self._check_get_as_total_capability_rtc_b_trial(df)
+        self._check_get_as_total_capability(df)
 
-        assert df["SCED Timestamp"].min() >= date.tz_localize(
-            self.iso.default_timezone,
-        )
-        assert df["SCED Timestamp"].max() <= (end).tz_localize(
-            self.iso.default_timezone,
-        )
+        assert df["SCED Timestamp"].min().date() == date.date()
+        assert df["SCED Timestamp"].max().date() == end.date()
 
-    """get_real_time_adders_rtc_b_trial"""
+        # This dataset is odd in that each file has 5 SCED intervals (1 current
+        # and 4 previous). This means the number of unique SCED intervals in 2 hours is
+        # (2 hours / 5 minutes/interval) + 4 extra intervals = 28 intervals
+        assert df["SCED Timestamp"].nunique() == 28
 
-    def _check_real_time_adders_rtc_b_trial(self, df: pd.DataFrame):
+    """get_real_time_adders"""
+
+    def _check_real_time_adders(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "SCED Timestamp",
             "Interval Start",
@@ -2779,30 +2920,187 @@ class TestErcot(BaseTestISO):
         ]:
             assert df.dtypes[col] == "float64"
 
-    def test_get_real_time_adders_rtc_b_trial_latest(self):
+    def test_get_real_time_adders_latest(self):
         with api_vcr.use_cassette(
-            "test_get_real_time_adders_rtc_b_trial_latest.yaml",
+            "test_get_real_time_adders_latest.yaml",
         ):
-            df = self.iso.get_real_time_adders_rtc_b_trial("latest")
+            df = self.iso.get_real_time_adders("latest")
 
-        self._check_real_time_adders_rtc_b_trial(df)
+        self._check_real_time_adders(df)
 
         assert len(df) == 1
 
-    def test_get_real_time_adders_rtc_b_trial_date_range(self):
-        date = self.local_now().normalize() - pd.Timedelta(days=2)
-        end = date + pd.Timedelta(minutes=25)
+    def test_get_real_time_adders_date_range(self):
+        # Choose a date range that spans two days to test we handle day transitions
+        date = self.local_start_of_today() - pd.Timedelta(hours=1)
+        end = date + pd.Timedelta(hours=2)
+
+        assert date.date() != end.date()
 
         with api_vcr.use_cassette(
-            f"test_get_real_time_adders_rtc_b_trial_date_range_{date}_{end}.yaml",
+            f"test_get_real_time_adders_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_real_time_adders_rtc_b_trial(date, end)
+            df = self.iso.get_real_time_adders(date, end)
 
-        self._check_real_time_adders_rtc_b_trial(df)
+        self._check_real_time_adders(df)
 
-        assert df["Interval Start"].min() == date
-        assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
-        assert len(df) == 5
+        assert df["Interval Start"].min().date() == date.date()
+        assert df["Interval Start"].max().date() == end.date()
+
+        # 2 hours / 5 minutes/interval = 24 Timestamps
+        assert df["Interval Start"].nunique() == 24
+
+    """system_as_capacity_monitor"""
+
+    def _check_system_as_capacity_monitor(self, df: pd.DataFrame) -> None:
+        assert df.shape[0] == 1
+        assert df.columns.tolist() == SYSTEM_AS_CAPACITY_MONITOR_COLUMNS
+
+        assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
+
+        for col in SYSTEM_AS_CAPACITY_MONITOR_COLUMNS[1:]:
+            assert df.dtypes[col] in ["float64", "int64"], (
+                f"{col} has dtype {df.dtypes[col]}"
+            )
+
+    def test_get_system_as_capacity_monitor_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_system_as_capacity_monitor_latest.yaml",
+        ):
+            df = self.iso.get_system_as_capacity_monitor("latest")
+
+        self._check_system_as_capacity_monitor(df)
+
+    def test_parse_system_as_capacity_monitor(self):
+        fixture_json = {
+            "lastUpdated": "2025-12-05T12:30:00Z",
+            "data": {
+                "rrsCapacity": [
+                    ["header", "header"],
+                    ["rrcCapPfrGenEsr", 1000.5],
+                    ["rrcCapLrWoClr", 500.25],
+                    ["rrcCapLr", 200.0],
+                    ["rrcCapFfr", 300.0],
+                    ["rrcCapFfrEsr", 150.0],
+                ],
+                "regCapability": [
+                    ["header", "header"],
+                    ["regUpCap", 800.0],
+                    ["regDownCap", 750.0],
+                    ["regUpUndeployed", 100.0],
+                    ["regDownUndeployed", 90.0],
+                    ["regUpDeployed", 50.0],
+                    ["regDownDeployed", 45.0],
+                ],
+                "rrsAwards": [
+                    ["header", "header"],
+                    ["rrAwdGen", 400.0],
+                    ["rrAwdNonClr", 200.0],
+                    ["rrAwdClr", 100.0],
+                    ["rrAwdFfr", 150.0],
+                ],
+                "regAwards": [
+                    ["header", "header"],
+                    ["regUpAwd", 350.0],
+                    ["regDownAwd", 340.0],
+                ],
+                "ecrsCapability": [
+                    ["header", "header"],
+                    ["ecrsCapGen", 600.0],
+                    ["ecrsCapNclr", 200.0],
+                    ["ecrsCapClr", 150.0],
+                    ["ecrsCapQs", 100.0],
+                    ["ecrsCapEsr", 80.0],
+                    ["ecrsCapDeployedGenLr", 50.0],
+                ],
+                "clrCapacity": [
+                    ["header", "header"],
+                    ["capClrDecreaseBp", 400.0],
+                    ["capClrIncreaseBp", 450.0],
+                ],
+                "genCapacity": [
+                    ["header", "header"],
+                    ["capWEoIncreaseBp", 1200.0],
+                    ["capWEoDecreaseBp", 1100.0],
+                    ["capWoEoIncreaseBp", 300.0],
+                    ["capWoEoDecreaseBp", 280.0],
+                ],
+                "esrCapacity": [
+                    ["header", "header"],
+                    ["esrCapWEoIncreaseBp", 200.0],
+                    ["esrCapWEoDecreaseBp", 180.0],
+                    ["esrCapWoEoIncreaseBp", 50.0],
+                    ["esrCapWoEoDecreaseBp", 45.0],
+                ],
+                "genBpCapacity": [
+                    ["header", "header"],
+                    ["capIncreaseGenBp", 2000.0],
+                    ["capDecreaseGenBp", 1800.0],
+                ],
+                "summaryCapacity": [
+                    ["header", "header"],
+                    ["sumCapResRegUpRrs", 1500.0],
+                    ["sumCapResRegUpRrsEcrs", 1800.0],
+                    ["sumCapResRegUpRrsEcrsNsr", 2200.0],
+                ],
+                "ecrsAwards": [
+                    ["header", "header"],
+                    ["ecrsAwdGen", 250.0],
+                    ["ecrsAwdNonClr", 100.0],
+                    ["ecrsAwdClr", 80.0],
+                    ["ecrsAwdQs", 50.0],
+                    ["ecrsAwdEsr", 40.0],
+                ],
+                "prcData": [
+                    ["header", "header"],
+                    ["prc", 5000.0],
+                ],
+                "nspinCapability": [
+                    ["header", "header"],
+                    ["nsrCapOnGenWoEo", 400.0],
+                    ["nsrCapOffResWOs", 300.0],
+                    ["nsrCapUndeployedLr", 200.0],
+                    ["nsrCapOffGen", 350.0],
+                    ["nsrCapEsr", 100.0],
+                ],
+                "ordcData": [
+                    ["header", "header"],
+                    ["rtReserveOnline", 3500.0],
+                    ["rtReserveOnOffline", 4500.0],
+                ],
+                "nspinAwards": [
+                    ["header", "header"],
+                    ["nsrAwdGenWEo", 150.0],
+                    ["nsrAwdGenWOs", 100.0],
+                    ["nsrAwdLr", 80.0],
+                    ["nsrAwdOffGen", 120.0],
+                    ["nsrAwdQs", 60.0],
+                    ["nsrAwdAs", 40.0],
+                ],
+                "telemeteredData": [
+                    ["header", "header"],
+                    ["telemHslEmr", 500.0],
+                    ["telemHslOut", 200.0],
+                    ["telemHslOutl", 150.0],
+                ],
+            },
+        }
+
+        df = self.iso._parse_system_as_capacity_monitor(fixture_json)
+
+        assert df.shape[0] == 1
+        assert "Time" in df.columns
+        assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
+        assert df["Time"].iloc[0] == pd.Timestamp(
+            "2025-12-05 06:30:00",
+            tz="US/Central",
+        )
+
+        assert df["RRS Capability PFR Gen and ESR"].iloc[0] == 1000.5
+        assert df["Reg Capability Reg Up"].iloc[0] == 800.0
+        assert df["ECRS Capability Gen"].iloc[0] == 600.0
+        assert df["PRC"].iloc[0] == 5000.0
+        assert df["ORDC Online"].iloc[0] == 3500.0
 
 
 def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:

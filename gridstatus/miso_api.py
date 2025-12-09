@@ -1505,10 +1505,10 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Get hourly outage forecast. The API only returns hourly data for future dates.
+        Get hourly outage forecast. The API only returns hourly data for today and
+        future days. Historical outage forecast data is not supported.
 
         Note: Outage forecast is only available for future dates (today and beyond).
-        Historical outage forecast data is not supported.
         """
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
@@ -1571,15 +1571,13 @@ class MISOAPI:
     ) -> pd.DataFrame:
         """
         Get look-ahead hourly data combining medium-term load forecast and outage forecast.
+        Look-ahead data is only available for future dates (today and beyond).
+        Historical look-ahead data is not supported.
 
         Returns DataFrame with columns: Interval Start, Interval End, Publish Time, Region, MTLF, Outage
         This matches the output of MISO().get_look_ahead_hourly().
-
-        Note: Look-ahead data is only available for future dates (today and beyond).
-        Historical look-ahead data is not supported.
         """
         if date == "latest":
-            # For latest, use today's forecast
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
         # Check if date is in the past

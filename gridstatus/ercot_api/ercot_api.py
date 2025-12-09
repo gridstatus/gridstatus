@@ -612,8 +612,12 @@ class ErcotAPI:
 
         return data[columns]
 
-    @support_date_range(frequency=None)
-    def get_as_prices(self, date, end=None, verbose=False):
+    def get_as_prices(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Ancillary Services Prices
 
         Arguments:
@@ -623,18 +627,28 @@ class ErcotAPI:
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with ancillary services prices
+            pandas.DataFrame: A DataFrame with ancillary services prices as the columns
         """
+        data = self.get_mcpc_data(date, end=end, verbose=verbose)
+        return self._handle_as_prices(data, verbose=verbose)
+
+    @support_date_range(frequency=None)
+    def get_mcpc_data(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         if date == "latest":
-            return self.get_as_prices("today", verbose=verbose)
+            return self.get_mcpc_data("today", verbose=verbose)
 
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
         if self._should_use_historical(date):
             data = self.get_historical_data(
-                # Need to subtract 1 because we filter by posted date and this data
-                # is day-ahead
                 endpoint=AS_PRICES_ENDPOINT,
+                # Need to subtract 1 day because we filter by posted date in thie
+                # historical api and this data is day-ahead
                 start_date=date - pd.Timedelta(days=1),
                 end_date=end - pd.Timedelta(days=1),
                 verbose=verbose,
@@ -642,19 +656,26 @@ class ErcotAPI:
         else:
             api_params = {
                 "deliveryDateFrom": date,
-                "deliveryDateTo": end,
+                # Subtract off one second to avoid including the end date
+                "deliveryDateTo": end - pd.Timedelta(seconds=1),
             }
 
             data = self.hit_ercot_api(
                 endpoint=AS_PRICES_ENDPOINT,
                 page_size=DEFAULT_PAGE_SIZE,
                 verbose=verbose,
+                # We do not need to add 1 day because this API filters by
+                # delivery date
                 **api_params,
             )
 
-        return self._handle_as_prices(data, verbose=verbose)
+        return data
 
-    def _handle_as_prices(self, data, verbose=False):
+    def _handle_as_prices(
+        self,
+        data: pd.DataFrame,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         data = self.ercot.parse_doc(data, verbose=verbose)
         data = self.ercot._finalize_as_price_df(data, pivot=True)
 
@@ -664,6 +685,42 @@ class ErcotAPI:
             .reset_index(
                 drop=True,
             )
+        )
+
+    def get_mcpc_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Market Clearing Price for Capacity (MCPC) Day-Ahead Market
+
+        Arguments:
+            date (str): the date to fetch prices for. Can be "latest" to fetch the next
+                day's prices.
+            end (str, optional): the end date to fetch prices for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with MCPC prices in a long format (column for
+             AS Type)
+        """
+        data = self.get_mcpc_data(date, end=end, verbose=verbose)
+        return self._handle_mcpc_data(data, verbose=True)
+
+    def _handle_mcpc_data(
+        self,
+        data: pd.DataFrame,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        data = self.ercot.parse_doc(data, verbose=verbose).rename(
+            columns={"AncillaryType": "AS Type"},
+        )
+
+        return (
+            data[["Interval Start", "Interval End", "AS Type", "MCPC"]]
+            .sort_values(["Interval Start", "AS Type"])
+            .reset_index(drop=True)
         )
 
     @support_date_range(frequency=None)
