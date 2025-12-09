@@ -1585,7 +1585,7 @@ class MISOAPI:
 
         if date < today:
             raise NotSupported(
-                "Look-ahead forecast is only available for future dates. "
+                "Look-ahead forecast is only available for today and future dates. "
                 f"Requested date {date.date()} is before today ({today.date()}). "
                 "Historical look-ahead forecast data is not supported by the MISO API.",
             )
