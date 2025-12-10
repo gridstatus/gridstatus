@@ -4591,7 +4591,7 @@ class Ercot(ISOBase):
 
     # Published once per day for today and tomorrow in the same file
     @support_date_range(frequency="DAY_START")
-    def get_as_demand_curves(
+    def get_as_demand_curves_dam_and_sced(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -4614,9 +4614,9 @@ class Ercot(ISOBase):
             ],
         )
 
-        return self._handle_as_demand_curves(df)
+        return self._handle_as_demand_curves_dam_and_sced(df)
 
-    def _handle_as_demand_curves(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_as_demand_curves_dam_and_sced(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "ASType": "AS Type",
