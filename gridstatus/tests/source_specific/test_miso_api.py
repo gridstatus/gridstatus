@@ -1,5 +1,8 @@
+from unittest.mock import Mock, patch
+
 import pandas as pd
 import pytest
+import requests
 
 from gridstatus.base import Markets, NotSupported
 from gridstatus.miso_api import MISOAPI
@@ -1275,7 +1278,7 @@ class TestMISOAPI(TestHelperMixin):
         date = "latest"
 
         with api_vcr.use_cassette(
-            f"get_pricing_nodes_by_date_{today.strftime('%Y-%m-%d')}"
+            f"get_pricing_nodes_by_date_{today.strftime('%Y-%m-%d')}",
         ):
             df = self.iso.get_pricing_nodes(date)
 
@@ -1293,7 +1296,7 @@ class TestMISOAPI(TestHelperMixin):
         end = today
 
         with api_vcr.use_cassette(
-            f"get_pricing_nodes_by_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}"
+            f"get_pricing_nodes_by_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}",
         ):
             df = self.iso.get_pricing_nodes(date, end)
 
@@ -1304,3 +1307,203 @@ class TestMISOAPI(TestHelperMixin):
         for col in df.columns:
             if col not in ["Node", "Location Type"]:
                 assert df[col].dtype == "str"
+
+
+class TestMISOAPIRetryMechanism:
+    """Tests for the MISOAPI retry mechanism with exponential backoff."""
+
+    def test_make_request_with_retry_success_on_first_attempt(self):
+        """Test successful request on first attempt (200 OK)."""
+        api = MISOAPI(max_retries=3)
+
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.status_code = 200
+
+        with patch("requests.get", return_value=mock_response) as mock_get:
+            response = api._make_request_with_retry(
+                url="https://example.com/test",
+                headers={"Authorization": "test"},
+            )
+
+        assert response == mock_response
+        assert mock_get.call_count == 1
+
+    @patch("time.sleep")
+    def test_make_request_with_retry_5xx_then_success(self, mock_sleep):
+        """Test retry on 5xx server errors with exponential backoff."""
+        api = MISOAPI(max_retries=3)
+
+        # Create mock responses: 500 error, 502 error, then success
+        error_response_1 = Mock()
+        error_response_1.ok = False
+        error_response_1.status_code = 500
+        error_response_1.reason = "Internal Server Error"
+
+        error_response_2 = Mock()
+        error_response_2.ok = False
+        error_response_2.status_code = 502
+        error_response_2.reason = "Bad Gateway"
+
+        success_response = Mock()
+        success_response.ok = True
+        success_response.status_code = 200
+
+        with patch(
+            "requests.get",
+            side_effect=[error_response_1, error_response_2, success_response],
+        ) as mock_get:
+            response = api._make_request_with_retry(
+                url="https://example.com/test",
+                headers={"Authorization": "test"},
+            )
+
+        assert response == success_response
+        assert mock_get.call_count == 3
+        # Verify exponential backoff: 2^1=2 seconds, then 2^2=4 seconds
+        assert mock_sleep.call_count == 2
+        mock_sleep.assert_any_call(2)  # First retry: 2^(0+1) = 2 seconds
+        mock_sleep.assert_any_call(4)  # Second retry: 2^(1+1) = 4 seconds
+
+    @patch("time.sleep")
+    def test_make_request_with_retry_429_then_success(self, mock_sleep):
+        """Test retry on 429 Too Many Requests (rate limiting)."""
+        api = MISOAPI(max_retries=2)
+
+        error_response = Mock()
+        error_response.ok = False
+        error_response.status_code = 429
+        error_response.reason = "Too Many Requests"
+
+        success_response = Mock()
+        success_response.ok = True
+        success_response.status_code = 200
+
+        with patch(
+            "requests.get",
+            side_effect=[error_response, success_response],
+        ) as mock_get:
+            response = api._make_request_with_retry(
+                url="https://example.com/test",
+                headers={"Authorization": "test"},
+            )
+
+        assert response == success_response
+        assert mock_get.call_count == 2
+        mock_sleep.assert_called_once_with(2)  # 2^(0+1) = 2 seconds
+
+    @patch("time.sleep")
+    def test_make_request_with_retry_custom_exponential_base(self, mock_sleep):
+        """Test that custom exponential_base affects backoff timing."""
+        api = MISOAPI(max_retries=2, exponential_base=3)
+
+        error_response = Mock()
+        error_response.ok = False
+        error_response.status_code = 503
+        error_response.reason = "Service Unavailable"
+
+        success_response = Mock()
+        success_response.ok = True
+        success_response.status_code = 200
+
+        with patch(
+            "requests.get",
+            side_effect=[error_response, success_response],
+        ) as mock_get:
+            response = api._make_request_with_retry(
+                url="https://example.com/test",
+                headers={"Authorization": "test"},
+            )
+
+        assert response == success_response
+        assert mock_get.call_count == 2
+        # With exponential_base=3: 3^(0+1) = 3 seconds
+        mock_sleep.assert_called_once_with(3)
+
+    @patch("time.sleep")
+    def test_make_request_with_retry_exhausted_on_5xx(self, mock_sleep):
+        """Test that exception is raised when all retries are exhausted on 5xx."""
+        api = MISOAPI(max_retries=2)
+
+        error_response = Mock()
+        error_response.ok = False
+        error_response.status_code = 500
+        error_response.reason = "Internal Server Error"
+
+        with patch("requests.get", return_value=error_response) as mock_get:
+            with pytest.raises(requests.HTTPError, match="500"):
+                api._make_request_with_retry(
+                    url="https://example.com/test",
+                    headers={"Authorization": "test"},
+                )
+
+        # Initial attempt + 2 retries = 3 total attempts
+        assert mock_get.call_count == 3
+        # Sleep called between retries (not after the last failed attempt)
+        assert mock_sleep.call_count == 2
+
+    def test_make_request_with_retry_no_retry_on_404(self):
+        """Test that 404 Not Found is raised immediately without retry."""
+        api = MISOAPI(max_retries=3)
+
+        error_response = Mock()
+        error_response.ok = False
+        error_response.status_code = 404
+        error_response.reason = "Not Found"
+        error_response.raise_for_status.side_effect = requests.HTTPError(
+            "404 Not Found",
+        )
+
+        with patch("requests.get", return_value=error_response) as mock_get:
+            with pytest.raises(requests.HTTPError, match="404"):
+                api._make_request_with_retry(
+                    url="https://example.com/test",
+                    headers={"Authorization": "test"},
+                )
+
+        # Should only try once - no retries for 404
+        assert mock_get.call_count == 1
+
+    def test_make_request_with_retry_no_retry_on_401(self):
+        """Test that 401 Unauthorized is raised immediately without retry."""
+        api = MISOAPI(max_retries=3)
+
+        error_response = Mock()
+        error_response.ok = False
+        error_response.status_code = 401
+        error_response.reason = "Unauthorized"
+        error_response.raise_for_status.side_effect = requests.HTTPError(
+            "401 Unauthorized",
+        )
+
+        with patch("requests.get", return_value=error_response) as mock_get:
+            with pytest.raises(requests.HTTPError, match="401"):
+                api._make_request_with_retry(
+                    url="https://example.com/test",
+                    headers={"Authorization": "test"},
+                )
+
+        # Should only try once - no retries for 401
+        assert mock_get.call_count == 1
+
+    @patch("time.sleep")
+    def test_make_request_with_retry_zero_retries(self, mock_sleep):
+        """Test with max_retries=0 (only initial attempt, no retries)."""
+        api = MISOAPI(max_retries=0)
+
+        error_response = Mock()
+        error_response.ok = False
+        error_response.status_code = 503
+        error_response.reason = "Service Unavailable"
+
+        with patch("requests.get", return_value=error_response) as mock_get:
+            with pytest.raises(requests.HTTPError):
+                api._make_request_with_retry(
+                    url="https://example.com/test",
+                    headers={"Authorization": "test"},
+                )
+
+        # Only 1 attempt with max_retries=0
+        assert mock_get.call_count == 1
+        # No sleep called since no retries
+        assert mock_sleep.call_count == 0
